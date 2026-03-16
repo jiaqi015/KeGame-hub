@@ -1,5 +1,5 @@
 {
   "name": "AI Model Sabrina Ⅱ",
-  "description": "Compare prompt results across multiple AI models simultaneously with a clean, DDD-based architecture.",
+  "description": "一句提示词，多个模型一起出。支持多模型同步对比，提供极致的 AI 交互体验。",
   "requestFramePermissions": []
 }

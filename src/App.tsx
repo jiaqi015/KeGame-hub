@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Layers, Cpu, CheckCircle2, Loader2, ArrowLeft, Send, Sparkles, X } from 'lucide-react';
+import { Layers, Cpu, CheckCircle2, Loader2, ArrowLeft, Send, Sparkles, X, Maximize2 } from 'lucide-react';
 import { AVAILABLE_MODELS, ComparisonResult } from './types';
 
 export default function App() {
@@ -9,6 +9,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('all');
   const [isComparing, setIsComparing] = useState(false);
   const [results, setResults] = useState<Record<string, ComparisonResult>>({});
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const toggleModel = (id: string) => {
     setSelectedModels(prev => 
@@ -75,7 +76,7 @@ export default function App() {
           >
             <div className="text-center mb-3 shrink-0">
               <h1 className="text-2xl font-bold tracking-tight mb-0.5">AI Model Sabrina Ⅱ</h1>
-              <p className="text-[10px] text-[#86868B] uppercase tracking-widest font-medium">Multi-Model Comparison Engine</p>
+              <p className="text-[10px] text-[#86868B] uppercase tracking-widest font-medium">一句提示词，多个模型一起出</p>
             </div>
 
             <div className="flex-1 bg-white rounded-3xl shadow-2xl shadow-black/5 border border-black/5 mb-4 flex flex-col min-h-0 overflow-hidden">
@@ -84,20 +85,31 @@ export default function App() {
                 <textarea
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
-                  placeholder="Enter your prompt here..."
+                  placeholder="在此输入您的提示词..."
                   className="w-full h-full p-6 text-lg bg-[#F5F5F7] rounded-2xl border-none focus:ring-2 focus:ring-blue-500/10 transition-all resize-none placeholder:text-[#86868B] font-medium custom-scrollbar"
                 />
+                <div className="absolute bottom-5 left-8">
+                  <button
+                    onClick={() => setIsPreviewOpen(true)}
+                    disabled={!prompt.trim()}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white/80 hover:bg-white text-[#86868B] hover:text-[#1D1D1F] rounded-full backdrop-blur-sm border border-black/5 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed group"
+                    title="放大预览"
+                  >
+                    <Maximize2 className="w-3.5 h-3.5 transition-transform group-hover:scale-110" />
+                    <span className="text-[10px] font-bold uppercase tracking-wider">预览</span>
+                  </button>
+                </div>
                 <div className="absolute bottom-5 right-8 flex items-center gap-3">
                   {prompt && (
                     <button 
                       onClick={() => setPrompt('')}
                       className="text-[10px] font-bold uppercase tracking-wider text-red-500 hover:text-red-600 transition-colors"
                     >
-                      Clear
+                      清空
                     </button>
                   )}
                   <div className="text-[10px] font-mono text-[#86868B] bg-white/50 px-2 py-0.5 rounded-full backdrop-blur-sm border border-black/5">
-                    {prompt.length} chars
+                    {prompt.length} 字符
                   </div>
                 </div>
               </div>
@@ -107,7 +119,7 @@ export default function App() {
                 <div className="flex items-center justify-between mb-2 shrink-0">
                   <div className="flex items-center gap-3">
                     <h3 className="text-xs font-bold uppercase tracking-widest text-[#86868B] flex items-center gap-2">
-                      <Cpu className="w-3.5 h-3.5" /> Models
+                      <Cpu className="w-3.5 h-3.5" /> 模型选择
                     </h3>
                     <div className="h-4 w-px bg-black/10" />
                     <div className="bg-[#F5F5F7] p-0.5 rounded-md flex gap-0.5">
@@ -132,11 +144,11 @@ export default function App() {
                         onClick={() => setSelectedModels([])}
                         className="text-[10px] font-bold text-red-500 hover:text-red-600 uppercase tracking-tighter"
                       >
-                        Reset
+                        重置
                       </button>
                     )}
                     <div className="text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-100">
-                      {selectedModels.length} Selected
+                      已选 {selectedModels.length}
                     </div>
                   </div>
                 </div>
@@ -217,7 +229,7 @@ export default function App() {
                   className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 disabled:bg-[#E5E5E7] disabled:cursor-not-allowed text-white rounded-2xl font-bold text-base transition-all flex items-center justify-center gap-2 shadow-xl shadow-blue-500/20 active:scale-[0.98] shrink-0"
                 >
                   <Send className="w-5 h-5" />
-                  Run Comparison
+                  开始对比
                 </button>
               </div>
             </div>
@@ -238,12 +250,12 @@ export default function App() {
                     className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium mb-2 group text-sm"
                   >
                     <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
-                    Back to Sabrina Ⅱ
+                    返回首页
                   </button>
-                  <h2 className="text-2xl font-bold tracking-tight">Comparison Results</h2>
+                  <h2 className="text-2xl font-bold tracking-tight">对比结果</h2>
                 </div>
                 <div className="bg-white px-4 py-2 rounded-xl border border-black/5 shadow-sm max-w-xl">
-                  <p className="text-[10px] text-[#86868B] font-bold uppercase tracking-wider mb-0.5">Prompt</p>
+                  <p className="text-[10px] text-[#86868B] font-bold uppercase tracking-wider mb-0.5">提示词</p>
                   <p className="text-[#1D1D1F] text-sm line-clamp-1 italic">"{prompt}"</p>
                 </div>
               </div>
@@ -277,13 +289,13 @@ export default function App() {
                         {result?.status === 'thinking' && (
                           <div className="flex items-center gap-1.5 text-blue-600 text-xs font-medium">
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            Reasoning...
+                            思考中...
                           </div>
                         )}
                         {result?.status === 'completed' && (
                           <div className="flex items-center gap-1 text-emerald-600 text-xs font-medium">
                             <CheckCircle2 className="w-3.5 h-3.5" />
-                            Ready
+                            已就绪
                           </div>
                         )}
                       </div>
@@ -297,7 +309,7 @@ export default function App() {
                           </div>
                         ) : result?.status === 'error' ? (
                           <div className="text-red-500 bg-red-50 p-3 rounded-xl border border-red-100 text-xs">
-                            Failed to generate response.
+                            生成响应失败。
                           </div>
                         ) : (
                           <div className="whitespace-pre-wrap">
@@ -308,10 +320,10 @@ export default function App() {
 
                       <div className="p-3 bg-[#FBFBFD] border-t border-black/5 flex justify-between items-center shrink-0">
                         <span className="text-[9px] text-[#86868B] uppercase font-bold tracking-tighter">
-                          Output: {result?.result.length || 0} chars
+                          输出: {result?.result.length || 0} 字符
                         </span>
                         <button className="text-[10px] text-blue-600 hover:underline font-bold uppercase tracking-wider">
-                          Copy
+                          复制
                         </button>
                       </div>
                     </motion.div>
@@ -326,11 +338,78 @@ export default function App() {
       <footer className="shrink-0 py-3 text-center text-[#86868B] text-[11px] border-t border-black/5 bg-white/50 backdrop-blur-sm">
         <div className="flex items-center justify-center gap-2">
           <Sparkles className="w-3.5 h-3.5" />
-          <span>Sabrina Ⅱ • Multi-Model Orchestration</span>
+          <span>Sabrina Ⅱ • 多模型协同引擎</span>
           <span className="text-black/10">|</span>
           <span>© 2026</span>
         </div>
       </footer>
+
+      {/* Prompt Preview Modal */}
+      <AnimatePresence>
+        {isPreviewOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/40 backdrop-blur-md"
+            onClick={() => setIsPreviewOpen(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-white w-[96vw] h-[96vh] max-w-none max-h-none rounded-[32px] shadow-2xl overflow-hidden flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-8 py-5 border-b border-black/5 flex items-center justify-between bg-[#FBFBFD]">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-50 rounded-xl">
+                    <Sparkles className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg">提示词全览</h3>
+                    <p className="text-xs text-[#86868B] font-medium">适合审阅长篇内容，确保逻辑完整</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(prompt);
+                    }}
+                    className="px-4 py-2 text-xs font-bold text-blue-600 hover:bg-blue-50 rounded-full transition-colors border border-blue-100"
+                  >
+                    复制全文
+                  </button>
+                  <button
+                    onClick={() => setIsPreviewOpen(false)}
+                    className="p-2 hover:bg-black/5 rounded-full transition-colors"
+                  >
+                    <X className="w-6 h-6 text-[#86868B]" />
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-8 custom-scrollbar bg-[#FBFBFD]/50">
+                <div className="w-full">
+                  <div className="text-sm leading-relaxed text-[#1D1D1F] font-mono whitespace-pre-wrap selection:bg-blue-100 bg-white p-8 rounded-2xl border border-black/5 shadow-inner min-h-full">
+                    {prompt}
+                  </div>
+                </div>
+              </div>
+              <div className="px-8 py-4 border-t border-black/5 bg-[#FBFBFD] flex items-center justify-between">
+                <div className="text-xs font-mono text-[#86868B]">
+                  共 {prompt.length} 个字符
+                </div>
+                <button
+                  onClick={() => setIsPreviewOpen(false)}
+                  className="px-6 py-2 bg-[#1D1D1F] text-white rounded-full font-bold text-sm hover:bg-black transition-colors"
+                >
+                  返回编辑
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
