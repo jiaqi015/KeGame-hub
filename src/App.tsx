@@ -1,7 +1,176 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Layers, Cpu, CheckCircle2, Loader2, ArrowLeft, Send, Sparkles, X, Maximize2 } from 'lucide-react';
 import { ComparisonResult, AIModel } from './types';
+
+type DifferenceSummaryStatus = 'idle' | 'waiting' | 'thinking' | 'completed' | 'error';
+
+interface DifferenceSummaryState {
+  modelId: string | null;
+  content: string;
+  status: DifferenceSummaryStatus;
+}
+
+interface CompareStreamEvent {
+  type: 'delta' | 'completed' | 'error';
+  delta?: string;
+  result?: string;
+  error?: string;
+}
+
+const DIFFERENCE_SUMMARY_MODEL_ID = 'doubao-seed-2-0-pro-260215';
+const DIFFERENCE_SUMMARY_MODEL_NAME = 'Doubao-Seed-2.0-pro';
+const SUMMARY_INPUT_CHAR_LIMIT = 6000;
+
+function truncateForSummary(value: string, limit = SUMMARY_INPUT_CHAR_LIMIT): string {
+  if (value.length <= limit) {
+    return value;
+  }
+
+  return `${value.slice(0, limit)}\n\n[后续内容已截断，保留前 ${limit} 个字符用于差异总结]`;
+}
+
+function buildDifferenceSummaryPrompt(prompt: string, modelIds: string[], models: AIModel[], results: Record<string, ComparisonResult>): string {
+  const promptPreview = truncateForSummary(prompt, 1500);
+  const modelSections = modelIds.map((modelId) => {
+    const model = models.find((item) => item.id === modelId);
+    const result = results[modelId];
+    const statusLabel = result?.status === 'completed'
+      ? '已完成'
+      : result?.status === 'error'
+        ? '异常'
+        : '进行中';
+
+    const content = truncateForSummary(result?.result || '该模型没有返回可用内容。');
+
+    return [
+      `【模型】${model?.name || modelId}`,
+      `【状态】${statusLabel}`,
+      '【输出】',
+      content,
+    ].join('\n');
+  });
+
+  return [
+    '你是一个中立的多模型差异总结助手。下面是多个模型对同一提示词的回答结果，请只提炼“核心差异”，不要重复共识内容。',
+    '',
+    '输出要求：',
+    '1. 输出 4 到 6 条短 bullet。',
+    '2. 每条先写一个不超过 8 个字的小标题，再用 1 到 2 句话解释。',
+    '3. 优先比较：结论区间、判断依据、风险提示、行动建议、异常情况。',
+    '4. 如果某个模型报错、超时或明显缺信息，单独点出来。',
+    '5. 语言简洁、客观，不重新回答原题，不做最终拍板。',
+    '',
+    '原始提示词摘要：',
+    promptPreview,
+    '',
+    '模型结果：',
+    modelSections.join('\n\n'),
+  ].join('\n');
+}
+
+async function readCompareStream(
+  response: Response,
+  modelId: string,
+  onDelta: (delta: string) => void,
+): Promise<ComparisonResult> {
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(typeof payload?.error === 'string' ? payload.error : '流式比较请求失败。');
+  }
+
+  if (!response.body) {
+    throw new Error('浏览器未收到可读取的流式响应。');
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let aggregatedText = '';
+
+  const processPayload = (payloadText: string): ComparisonResult | null => {
+    if (!payloadText || payloadText === '[DONE]') {
+      return null;
+    }
+
+    let event: CompareStreamEvent;
+
+    try {
+      event = JSON.parse(payloadText) as CompareStreamEvent;
+    } catch {
+      return null;
+    }
+
+    if (event.type === 'delta' && typeof event.delta === 'string' && event.delta) {
+      aggregatedText += event.delta;
+      onDelta(event.delta);
+      return null;
+    }
+
+    if (event.type === 'completed') {
+      return {
+        modelId,
+        result: typeof event.result === 'string' && event.result ? event.result : aggregatedText,
+        status: 'completed',
+      };
+    }
+
+    if (event.type === 'error') {
+      return {
+        modelId,
+        result: typeof event.error === 'string' ? event.error : '模型流式输出失败。',
+        status: 'error',
+      };
+    }
+
+    return null;
+  };
+
+  while (true) {
+    const {done, value} = await reader.read();
+    buffer += decoder.decode(value || new Uint8Array(), {stream: !done});
+    const segments = buffer.split(/\r?\n\r?\n/);
+    buffer = segments.pop() || '';
+
+    for (const segment of segments) {
+      const payloadText = segment
+        .split(/\r?\n/)
+        .filter((line) => line.startsWith('data:'))
+        .map((line) => line.slice(5).trimStart())
+        .join('\n');
+
+      const result = processPayload(payloadText);
+      if (result) {
+        return result;
+      }
+    }
+
+    if (done) {
+      break;
+    }
+  }
+
+  const trailingPayload = buffer
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith('data:'))
+    .map((line) => line.slice(5).trimStart())
+    .join('\n');
+  const trailingResult = processPayload(trailingPayload);
+
+  if (trailingResult) {
+    return trailingResult;
+  }
+
+  if (aggregatedText) {
+    return {
+      modelId,
+      result: aggregatedText,
+      status: 'completed',
+    };
+  }
+
+  throw new Error('模型未返回可展示的流式内容。');
+}
 
 export default function App() {
   const [prompt, setPrompt] = useState('');
@@ -10,8 +179,26 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('all');
   const [isComparing, setIsComparing] = useState(false);
   const [results, setResults] = useState<Record<string, ComparisonResult>>({});
+  const [differenceSummary, setDifferenceSummary] = useState<DifferenceSummaryState>({
+    modelId: null,
+    content: '',
+    status: 'idle',
+  });
   const [previewData, setPreviewData] = useState<{ title: string, subtitle: string, content: string } | null>(null);
   const [catalogReady, setCatalogReady] = useState(false);
+  const compareRunRef = useRef(0);
+  const activeControllersRef = useRef<AbortController[]>([]);
+  const summaryControllerRef = useRef<AbortController | null>(null);
+
+  const abortActiveComparisons = () => {
+    activeControllersRef.current.forEach((controller) => controller.abort());
+    activeControllersRef.current = [];
+  };
+
+  const abortDifferenceSummary = () => {
+    summaryControllerRef.current?.abort();
+    summaryControllerRef.current = null;
+  };
 
   useEffect(() => {
     let disposed = false;
@@ -45,6 +232,8 @@ export default function App() {
 
     return () => {
       disposed = true;
+      abortActiveComparisons();
+      abortDifferenceSummary();
     };
   }, []);
 
@@ -57,51 +246,185 @@ export default function App() {
   const startComparison = async () => {
     if (!prompt.trim() || selectedModels.length === 0) return;
 
+    abortActiveComparisons();
+    abortDifferenceSummary();
+    compareRunRef.current += 1;
+    const runId = compareRunRef.current;
+    const modelIds = [...selectedModels];
+
     setIsComparing(true);
+    setDifferenceSummary({
+      modelId: DIFFERENCE_SUMMARY_MODEL_ID,
+      content: '',
+      status: 'waiting',
+    });
     
     const initialResults: Record<string, ComparisonResult> = {};
-    selectedModels.forEach(id => {
+    modelIds.forEach(id => {
       initialResults[id] = { modelId: id, result: '', status: 'thinking' };
     });
     setResults(initialResults);
+    const settledResults: Record<string, ComparisonResult> = { ...initialResults };
+
+    const controllers = modelIds.map(() => new AbortController());
+    activeControllersRef.current = controllers;
+
+    await Promise.allSettled(
+      modelIds.map(async (modelId, index) => {
+        const controller = controllers[index];
+
+        try {
+          const response = await fetch('/api/compare-stream', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt, modelId }),
+            signal: controller.signal,
+          });
+          const normalizedResult = await readCompareStream(response, modelId, (delta) => {
+            if (controller.signal.aborted || compareRunRef.current !== runId) {
+              return;
+            }
+
+            const nextPartialResult: ComparisonResult = {
+              modelId,
+              result: `${settledResults[modelId]?.result || ''}${delta}`,
+              status: 'thinking',
+            };
+
+            settledResults[modelId] = nextPartialResult;
+
+            setResults((prev) => ({
+              ...prev,
+              [modelId]: {
+                modelId,
+                result: `${prev[modelId]?.result || ''}${delta}`,
+                status: 'thinking',
+              },
+            }));
+          });
+
+          if (compareRunRef.current !== runId) {
+            return;
+          }
+
+          settledResults[modelId] = normalizedResult;
+
+          setResults((prev) => ({
+            ...prev,
+            [modelId]: normalizedResult,
+          }));
+        } catch (error) {
+          if (controller.signal.aborted || compareRunRef.current !== runId) {
+            return;
+          }
+
+          console.error(`Comparison failed for ${modelId}:`, error);
+          const partialResult = settledResults[modelId]?.result || '';
+          const normalizedResult: ComparisonResult = {
+            modelId,
+            result: partialResult
+              ? `${partialResult}\n\n[生成中断] ${error instanceof Error ? error.message : '比较请求失败。'}`
+              : error instanceof Error ? error.message : '比较请求失败。',
+            status: 'error',
+          };
+          settledResults[modelId] = normalizedResult;
+
+          setResults((prev) => ({
+            ...prev,
+            [modelId]: normalizedResult,
+          }));
+        }
+      }),
+    );
+
+    if (compareRunRef.current === runId) {
+      activeControllersRef.current = [];
+    }
+
+    if (compareRunRef.current !== runId) {
+      return;
+    }
+
+    if (modelIds.length < 2) {
+      setDifferenceSummary({
+        modelId: DIFFERENCE_SUMMARY_MODEL_ID,
+        content: '当前仅选择了 1 个模型，至少选择 2 个模型后才会生成核心差异。',
+        status: 'completed',
+      });
+      return;
+    }
+
+    const summaryController = new AbortController();
+    summaryControllerRef.current = summaryController;
+
+    setDifferenceSummary({
+      modelId: DIFFERENCE_SUMMARY_MODEL_ID,
+      content: '',
+      status: 'thinking',
+    });
 
     try {
       const response = await fetch('/api/compare', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, models: selectedModels }),
+        body: JSON.stringify({
+          prompt: buildDifferenceSummaryPrompt(prompt, modelIds, availableModels, settledResults),
+          models: [DIFFERENCE_SUMMARY_MODEL_ID],
+        }),
+        signal: summaryController.signal,
       });
 
       const data = await response.json();
-      
-      const updatedResults: Record<string, ComparisonResult> = { ...initialResults };
-      data.results.forEach((res: { modelId: string; result: string; status: 'completed' | 'error' }) => {
-        updatedResults[res.modelId] = {
-          modelId: res.modelId,
-          result: res.result,
-          status: res.status
-        };
+      const summaryResult = Array.isArray(data?.results)
+        ? data.results.find((item: { modelId?: string }) => item?.modelId === DIFFERENCE_SUMMARY_MODEL_ID)
+        : null;
+
+      if (compareRunRef.current !== runId || summaryController.signal.aborted) {
+        return;
+      }
+
+      setDifferenceSummary({
+        modelId: DIFFERENCE_SUMMARY_MODEL_ID,
+        content: typeof summaryResult?.result === 'string' && summaryResult.result
+          ? summaryResult.result
+          : '豆包已完成总结，但没有返回可展示的核心差异。',
+        status: summaryResult?.status === 'completed' ? 'completed' : 'error',
       });
-      setResults(updatedResults);
     } catch (error) {
-      console.error('Comparison failed:', error);
-      setResults(prev => {
-        const next = { ...prev };
-        Object.keys(next).forEach(id => {
-          if (next[id].status === 'thinking') next[id].status = 'error';
-        });
-        return next;
+      if (summaryController.signal.aborted || compareRunRef.current !== runId) {
+        return;
+      }
+
+      setDifferenceSummary({
+        modelId: DIFFERENCE_SUMMARY_MODEL_ID,
+        content: error instanceof Error ? error.message : '核心差异总结失败。',
+        status: 'error',
       });
+    } finally {
+      if (summaryControllerRef.current === summaryController) {
+        summaryControllerRef.current = null;
+      }
     }
   };
 
   const reset = () => {
+    compareRunRef.current += 1;
+    abortActiveComparisons();
+    abortDifferenceSummary();
     setIsComparing(false);
     setResults({});
+    setDifferenceSummary({
+      modelId: null,
+      content: '',
+      status: 'idle',
+    });
   };
 
   const visibleChannels = [...new Set(availableModels.map((model) => model.channel))];
   const filteredModels = availableModels.filter((model) => activeTab === 'all' || model.channel === activeTab);
+  const summaryModelName = differenceSummary.modelId === DIFFERENCE_SUMMARY_MODEL_ID
+    ? DIFFERENCE_SUMMARY_MODEL_NAME
+    : '豆包模型';
 
   return (
     <div className="h-screen bg-[#FAFAFA] text-[#1D1D1F] font-sans selection:bg-blue-100 overflow-hidden flex flex-col">
@@ -306,6 +629,74 @@ export default function App() {
                 </div>
               </div>
 
+              <div className="mb-4 bg-white rounded-2xl border border-black/5 shadow-sm overflow-hidden shrink-0">
+                <div className="px-5 py-4 border-b border-black/5 bg-white flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="p-2 rounded-xl bg-blue-50 shrink-0">
+                      <Layers className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-bold text-base">核心差异</h3>
+                      <p className="text-xs text-[#86868B] truncate">
+                        等待全部模型完成后，由 {summaryModelName} 自动汇总几条最关键的差异。
+                      </p>
+                    </div>
+                  </div>
+
+                  {differenceSummary.status === 'waiting' && (
+                    <div className="text-xs font-medium text-[#86868B] shrink-0">等待结果</div>
+                  )}
+                  {differenceSummary.status === 'thinking' && (
+                    <div className="flex items-center gap-1.5 text-blue-600 text-xs font-medium shrink-0">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      总结中...
+                    </div>
+                  )}
+                  {differenceSummary.status === 'completed' && (
+                    <div className="flex items-center gap-1 text-emerald-600 text-xs font-medium shrink-0">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      已就绪
+                    </div>
+                  )}
+                  {differenceSummary.status === 'error' && (
+                    <div className="text-xs font-medium text-red-500 shrink-0">生成失败</div>
+                  )}
+                </div>
+
+                <div className="px-5 py-4 bg-white">
+                  {differenceSummary.status === 'waiting' && (
+                    <div className="text-sm leading-relaxed text-[#86868B]">
+                      等待所有模型结果返回后，再统一生成“核心差异”。
+                    </div>
+                  )}
+
+                  {differenceSummary.status === 'thinking' && (
+                    <div className="space-y-4 text-[#86868B]">
+                      <div className="space-y-3">
+                        <div className="h-3 bg-[#F5F5F7] rounded w-1/3 animate-pulse" />
+                        <div className="h-3 bg-[#F5F5F7] rounded w-5/6 animate-pulse" />
+                        <div className="h-3 bg-[#F5F5F7] rounded w-2/3 animate-pulse" />
+                      </div>
+                      <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] leading-relaxed text-blue-700">
+                        正在读取所有模型输出，并用豆包模型提炼几条最关键的差异。
+                      </div>
+                    </div>
+                  )}
+
+                  {differenceSummary.status === 'error' && (
+                    <div className="text-red-500 bg-red-50 p-3 rounded-xl border border-red-100 text-sm">
+                      {differenceSummary.content}
+                    </div>
+                  )}
+
+                  {differenceSummary.status === 'completed' && (
+                    <div className="whitespace-pre-wrap text-sm leading-relaxed text-[#424245]">
+                      {differenceSummary.content}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 overflow-y-auto pr-2 custom-scrollbar pb-4">
                 {selectedModels.map((modelId) => {
                   const model = availableModels.find(m => m.id === modelId);
@@ -348,11 +739,27 @@ export default function App() {
 
                       <div className="flex-1 overflow-y-auto p-5 font-mono text-xs leading-relaxed text-[#424245] bg-white custom-scrollbar">
                         {result?.status === 'thinking' ? (
-                          <div className="space-y-3">
-                            <div className="h-3 bg-[#F5F5F7] rounded w-3/4 animate-pulse" />
-                            <div className="h-3 bg-[#F5F5F7] rounded w-1/2 animate-pulse" />
-                            <div className="h-3 bg-[#F5F5F7] rounded w-5/6 animate-pulse" />
-                          </div>
+                          result?.result ? (
+                            <div className="space-y-4">
+                              <div className="whitespace-pre-wrap text-[#424245]">
+                                {result.result}
+                              </div>
+                              <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] leading-relaxed text-blue-700">
+                                正在持续生成中，内容会边返回边写入当前卡片。
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-4 text-[#86868B]">
+                              <div className="space-y-3">
+                                <div className="h-3 bg-[#F5F5F7] rounded w-3/4 animate-pulse" />
+                                <div className="h-3 bg-[#F5F5F7] rounded w-1/2 animate-pulse" />
+                                <div className="h-3 bg-[#F5F5F7] rounded w-5/6 animate-pulse" />
+                              </div>
+                              <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] leading-relaxed text-blue-700">
+                                正在单独请求这个模型。复杂提示词可能需要 20 到 120 秒。
+                              </div>
+                            </div>
+                          )
                         ) : result?.status === 'error' ? (
                           <div className="text-red-500 bg-red-50 p-3 rounded-xl border border-red-100 text-xs">
                             {result?.result || '生成响应失败。'}
