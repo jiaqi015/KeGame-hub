@@ -9,7 +9,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('all');
   const [isComparing, setIsComparing] = useState(false);
   const [results, setResults] = useState<Record<string, ComparisonResult>>({});
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [previewData, setPreviewData] = useState<{ title: string, subtitle: string, content: string } | null>(null);
 
   const toggleModel = (id: string) => {
     setSelectedModels(prev => 
@@ -64,7 +64,7 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen bg-[#F5F5F7] text-[#1D1D1F] font-sans selection:bg-blue-100 overflow-hidden flex flex-col">
+    <div className="h-screen bg-[#FAFAFA] text-[#1D1D1F] font-sans selection:bg-blue-100 overflow-hidden flex flex-col">
       <AnimatePresence mode="wait">
         {!isComparing ? (
           <motion.div
@@ -86,11 +86,20 @@ export default function App() {
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   placeholder="在此输入您的提示词..."
-                  className="w-full h-full p-6 text-lg bg-[#F5F5F7] rounded-2xl border-none focus:ring-2 focus:ring-blue-500/10 transition-all resize-none placeholder:text-[#86868B] font-medium custom-scrollbar"
+                  className="w-full h-full p-6 text-lg bg-white rounded-2xl border border-black/5 focus:ring-2 focus:ring-blue-500/10 transition-all resize-none placeholder:text-[#86868B] font-medium custom-scrollbar"
                 />
+                <div className="absolute top-8 right-10 flex items-center gap-3">
+                  <div className="text-[10px] font-mono text-[#86868B] bg-white/80 px-2 py-0.5 rounded-full backdrop-blur-sm border border-black/5">
+                    {prompt.length} 字符
+                  </div>
+                </div>
                 <div className="absolute bottom-5 left-8">
                   <button
-                    onClick={() => setIsPreviewOpen(true)}
+                    onClick={() => setPreviewData({ 
+                      title: '提示词全览', 
+                      subtitle: '适合审阅长篇内容，确保逻辑完整', 
+                      content: prompt 
+                    })}
                     disabled={!prompt.trim()}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-white/80 hover:bg-white text-[#86868B] hover:text-[#1D1D1F] rounded-full backdrop-blur-sm border border-black/5 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed group"
                     title="放大预览"
@@ -108,9 +117,6 @@ export default function App() {
                       清空
                     </button>
                   )}
-                  <div className="text-[10px] font-mono text-[#86868B] bg-white/50 px-2 py-0.5 rounded-full backdrop-blur-sm border border-black/5">
-                    {prompt.length} 字符
-                  </div>
                 </div>
               </div>
 
@@ -122,7 +128,7 @@ export default function App() {
                       <Cpu className="w-3.5 h-3.5" /> 模型选择
                     </h3>
                     <div className="h-4 w-px bg-black/10" />
-                    <div className="bg-[#F5F5F7] p-0.5 rounded-md flex gap-0.5">
+                    <div className="bg-gray-100/50 p-0.5 rounded-md flex gap-0.5">
                       {['all', ...new Set(AVAILABLE_MODELS.map(m => m.channel))].map((c) => (
                         <button
                           key={c}
@@ -206,7 +212,7 @@ export default function App() {
                             initial={{ opacity: 0, scale: 0.8 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.8 }}
-                            className="flex items-center gap-1 px-2 py-0.5 bg-[#F5F5F7] border border-black/5 rounded-full"
+                            className="flex items-center gap-1 px-2 py-0.5 bg-gray-100/50 border border-black/5 rounded-full"
                           >
                             <span className="text-[11px] font-bold text-[#1D1D1F]">{model.name}</span>
                             <button 
@@ -273,7 +279,7 @@ export default function App() {
                       animate={{ opacity: 1, scale: 1 }}
                       className="bg-white rounded-2xl border border-black/5 shadow-sm flex flex-col h-[500px] overflow-hidden"
                     >
-                      <div className="p-4 border-b border-black/5 flex items-center justify-between bg-[#FBFBFD] shrink-0">
+                      <div className="p-4 border-b border-black/5 flex items-center justify-between bg-white shrink-0">
                         <div>
                           <h3 className="font-bold text-base">{model?.name}</h3>
                           <div className="flex items-center gap-2">
@@ -318,11 +324,32 @@ export default function App() {
                         )}
                       </div>
 
-                      <div className="p-3 bg-[#FBFBFD] border-t border-black/5 flex justify-between items-center shrink-0">
-                        <span className="text-[9px] text-[#86868B] uppercase font-bold tracking-tighter">
-                          输出: {result?.result.length || 0} 字符
-                        </span>
-                        <button className="text-[10px] text-blue-600 hover:underline font-bold uppercase tracking-wider">
+                      <div className="p-3 bg-white border-t border-black/5 flex justify-between items-center shrink-0">
+                        <div className="flex items-center gap-3">
+                          <span className="text-[9px] text-[#86868B] uppercase font-bold tracking-tighter">
+                            输出: {result?.result.length || 0} 字符
+                          </span>
+                          <button 
+                            onClick={() => setPreviewData({
+                              title: `${model?.name} 结果全览`,
+                              subtitle: `查看 ${model?.name} 生成的完整响应`,
+                              content: result?.result || ''
+                            })}
+                            disabled={!result?.result}
+                            className="flex items-center gap-1 text-[9px] text-[#86868B] hover:text-[#1D1D1F] font-bold uppercase tracking-tighter transition-colors disabled:opacity-30"
+                          >
+                            <Maximize2 className="w-2.5 h-2.5" />
+                            全屏预览
+                          </button>
+                        </div>
+                        <button 
+                          onClick={() => {
+                            if (result?.result) {
+                              navigator.clipboard.writeText(result.result);
+                            }
+                          }}
+                          className="text-[10px] text-blue-600 hover:underline font-bold uppercase tracking-wider"
+                        >
                           复制
                         </button>
                       </div>
@@ -335,7 +362,7 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <footer className="shrink-0 py-3 text-center text-[#86868B] text-[11px] border-t border-black/5 bg-white/50 backdrop-blur-sm">
+      <footer className="shrink-0 py-3 text-center text-[#86868B] text-[11px] border-t border-black/5 bg-white">
         <div className="flex items-center justify-center gap-2">
           <Sparkles className="w-3.5 h-3.5" />
           <span>Sabrina Ⅱ • 多模型协同引擎</span>
@@ -344,15 +371,15 @@ export default function App() {
         </div>
       </footer>
 
-      {/* Prompt Preview Modal */}
+      {/* Content Preview Modal */}
       <AnimatePresence>
-        {isPreviewOpen && (
+        {previewData && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/40 backdrop-blur-md"
-            onClick={() => setIsPreviewOpen(false)}
+            onClick={() => setPreviewData(null)}
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -361,49 +388,49 @@ export default function App() {
               className="bg-white w-[96vw] h-[96vh] max-w-none max-h-none rounded-[32px] shadow-2xl overflow-hidden flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="px-8 py-5 border-b border-black/5 flex items-center justify-between bg-[#FBFBFD]">
+              <div className="px-8 py-5 border-b border-black/5 flex items-center justify-between bg-white">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-blue-50 rounded-xl">
                     <Sparkles className="w-5 h-5 text-blue-600" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-lg">提示词全览</h3>
-                    <p className="text-xs text-[#86868B] font-medium">适合审阅长篇内容，确保逻辑完整</p>
+                    <h3 className="font-bold text-lg">{previewData.title}</h3>
+                    <p className="text-xs text-[#86868B] font-medium">{previewData.subtitle}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => {
-                      navigator.clipboard.writeText(prompt);
+                      navigator.clipboard.writeText(previewData.content);
                     }}
                     className="px-4 py-2 text-xs font-bold text-blue-600 hover:bg-blue-50 rounded-full transition-colors border border-blue-100"
                   >
                     复制全文
                   </button>
                   <button
-                    onClick={() => setIsPreviewOpen(false)}
+                    onClick={() => setPreviewData(null)}
                     className="p-2 hover:bg-black/5 rounded-full transition-colors"
                   >
                     <X className="w-6 h-6 text-[#86868B]" />
                   </button>
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-8 custom-scrollbar bg-[#FBFBFD]/50">
+              <div className="flex-1 overflow-y-auto p-8 custom-scrollbar bg-white">
                 <div className="w-full">
                   <div className="text-sm leading-relaxed text-[#1D1D1F] font-mono whitespace-pre-wrap selection:bg-blue-100 bg-white p-8 rounded-2xl border border-black/5 shadow-inner min-h-full">
-                    {prompt}
+                    {previewData.content}
                   </div>
                 </div>
               </div>
-              <div className="px-8 py-4 border-t border-black/5 bg-[#FBFBFD] flex items-center justify-between">
+              <div className="px-8 py-4 border-t border-black/5 bg-white flex items-center justify-between">
                 <div className="text-xs font-mono text-[#86868B]">
-                  共 {prompt.length} 个字符
+                  共 {previewData.content.length} 个字符
                 </div>
                 <button
-                  onClick={() => setIsPreviewOpen(false)}
+                  onClick={() => setPreviewData(null)}
                   className="px-6 py-2 bg-[#1D1D1F] text-white rounded-full font-bold text-sm hover:bg-black transition-colors"
                 >
-                  返回编辑
+                  返回
                 </button>
               </div>
             </motion.div>
