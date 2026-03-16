@@ -1,528 +1,335 @@
-import {type CSSProperties, startTransition, useState} from 'react';
-import {AnimatePresence, motion} from 'motion/react';
-import {
-  ArrowUpRight,
-  BrainCircuit,
-  CheckCircle2,
-  CircleDashed,
-  Clock3,
-  Cpu,
-  Layers3,
-  RefreshCw,
-  Sparkles,
-  WandSparkles,
-} from 'lucide-react';
-import {
-  MODEL_LIBRARY,
-  PROMPT_PRESETS,
-  ZERO_SCORES,
-  type ComparisonResult,
-  type ModelProfile,
-  type ScoreMap,
-} from './types';
-
-type PromptMode = 'build' | 'launch' | 'narrative' | 'research';
-
-const SCORE_LABELS: Array<{key: keyof ScoreMap; label: string}> = [
-  {key: 'structure', label: 'Structure'},
-  {key: 'reasoning', label: 'Reasoning'},
-  {key: 'speed', label: 'Speed'},
-  {key: 'voice', label: 'Voice'},
-];
-
-const MODE_SCORE_BOOSTS: Record<PromptMode, ScoreMap> = {
-  build: {structure: 4, reasoning: 3, speed: 1, voice: 0},
-  launch: {structure: 2, reasoning: 1, speed: 1, voice: 4},
-  narrative: {structure: 0, reasoning: 1, speed: 0, voice: 5},
-  research: {structure: 1, reasoning: 5, speed: 0, voice: 1},
-};
-
-const MODE_COPY: Record<
-  PromptMode,
-  {label: string; framing: string; action: string; tag: string}
-> = {
-  build: {
-    label: 'build spec',
-    framing: 'translates the brief into interface blocks, delivery phases, and crisp implementation notes',
-    action: 'a builder-friendly read of the scope',
-    tag: 'Build-ready',
-  },
-  launch: {
-    label: 'launch plan',
-    framing: 'leans into positioning, sequencing, and audience momentum',
-    action: 'a go-to-market shaped answer',
-    tag: 'Launch angle',
-  },
-  narrative: {
-    label: 'brand story',
-    framing: 'amplifies tone, story, and visual character',
-    action: 'a sharper creative direction',
-    tag: 'Story polish',
-  },
-  research: {
-    label: 'research brief',
-    framing: 'stretches into tradeoffs, assumptions, and evidence trails',
-    action: 'a more analytical synthesis',
-    tag: 'Research mode',
-  },
-};
-
-function clampScore(value: number) {
-  return Math.max(64, Math.min(98, value));
-}
-
-function getPromptMode(prompt: string): PromptMode {
-  const normalized = prompt.toLowerCase();
-  if (
-    normalized.includes('build') ||
-    normalized.includes('spec') ||
-    normalized.includes('architecture') ||
-    normalized.includes('implementation') ||
-    normalized.includes('react') ||
-    normalized.includes('vercel')
-  ) {
-    return 'build';
-  }
-  if (
-    normalized.includes('launch') ||
-    normalized.includes('positioning') ||
-    normalized.includes('rollout') ||
-    normalized.includes('growth')
-  ) {
-    return 'launch';
-  }
-  if (
-    normalized.includes('creative') ||
-    normalized.includes('brand') ||
-    normalized.includes('story') ||
-    normalized.includes('landing page')
-  ) {
-    return 'narrative';
-  }
-  return 'research';
-}
-
-function seededOffset(input: string, divisor: number) {
-  const sum = Array.from(input).reduce(
-    (total, character, index) => total + character.charCodeAt(0) * (index + 1),
-    0,
-  );
-  return (sum % divisor) - Math.floor(divisor / 2);
-}
-
-function totalScore(scores: ScoreMap) {
-  return scores.structure + scores.reasoning + scores.speed + scores.voice;
-}
-
-function buildResult(model: ModelProfile, prompt: string): ComparisonResult {
-  const mode = getPromptMode(prompt);
-  const boost = MODE_SCORE_BOOSTS[mode];
-  const voiceShift = seededOffset(`${model.id}:${prompt}`, 7);
-  const speedShift = seededOffset(`${prompt}:${model.provider}`, 5);
-
-  const scores: ScoreMap = {
-    structure: clampScore(model.baseScores.structure + boost.structure + seededOffset(prompt, 5)),
-    reasoning: clampScore(model.baseScores.reasoning + boost.reasoning + seededOffset(model.name, 5)),
-    speed: clampScore(model.baseScores.speed + boost.speed + speedShift),
-    voice: clampScore(model.baseScores.voice + boost.voice + voiceShift),
-  };
-
-  const modeCopy = MODE_COPY[mode];
-  const promptPreview = prompt.trim().replace(/\s+/g, ' ').slice(0, 84);
-
-  return {
-    modelId: model.id,
-    status: 'ready',
-    headline: `${model.name} pushes the brief through ${model.lens}.`,
-    summary: `For this ${modeCopy.label}, ${model.name} ${modeCopy.framing}. The output would feel like ${modeCopy.action}, with ${model.summary.toLowerCase()}`,
-    verdict: `Use it when you want ${model.bestFor}. Prompt lens: "${promptPreview}${promptPreview.length >= 84 ? '…' : ''}"`,
-    strengths: [modeCopy.tag, ...model.traits],
-    scores,
-    latencyLabel: `${model.latency} turnaround`,
-  };
-}
-
-function createThinkingState(modelId: string): ComparisonResult {
-  return {
-    modelId,
-    status: 'thinking',
-    headline: '',
-    summary: '',
-    verdict: '',
-    strengths: [],
-    scores: ZERO_SCORES,
-    latencyLabel: 'Warming up',
-  };
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms);
-  });
-}
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Layers, Cpu, CheckCircle2, Loader2, ArrowLeft, Send, Sparkles, X } from 'lucide-react';
+import { AVAILABLE_MODELS, ComparisonResult } from './types';
 
 export default function App() {
-  const [prompt, setPrompt] = useState(PROMPT_PRESETS[1].prompt);
-  const [activePreset, setActivePreset] = useState(PROMPT_PRESETS[1].id);
-  const [selectedModels, setSelectedModels] = useState<string[]>([
-    'doubao-seed-2.0-code',
-    'deepseek-v3.2',
-    'global-gpt-4o',
-    'global-claude-3-5-sonnet',
-  ]);
+  const [prompt, setPrompt] = useState('');
+  const [selectedModels, setSelectedModels] = useState<string[]>(['doubao-seed-2.0-code']);
+  const [activeTab, setActiveTab] = useState('all');
+  const [isComparing, setIsComparing] = useState(false);
   const [results, setResults] = useState<Record<string, ComparisonResult>>({});
-  const [isRunning, setIsRunning] = useState(false);
-
-  const selectedProfiles = selectedModels
-    .map((id) => MODEL_LIBRARY.find((model) => model.id === id))
-    .filter(Boolean) as ModelProfile[];
-
-  const completedResults = selectedProfiles
-    .map((model) => results[model.id])
-    .filter((result): result is ComparisonResult => Boolean(result && result.status === 'ready'));
-
-  const leader = [...completedResults].sort(
-    (left, right) => totalScore(right.scores) - totalScore(left.scores),
-  )[0];
 
   const toggleModel = (id: string) => {
-    setSelectedModels((current) =>
-      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
+    setSelectedModels(prev => 
+      prev.includes(id) ? prev.filter(m => m !== id) : [...prev, id]
     );
   };
 
-  const applyPreset = (presetId: string) => {
-    const preset = PROMPT_PRESETS.find((item) => item.id === presetId);
-    if (!preset) return;
-    setActivePreset(preset.id);
-    setPrompt(preset.prompt);
-    setResults({});
-  };
+  const startComparison = async () => {
+    if (!prompt.trim() || selectedModels.length === 0) return;
 
-  const runComparison = async () => {
-    if (!prompt.trim() || selectedModels.length === 0 || isRunning) return;
+    setIsComparing(true);
+    
+    const initialResults: Record<string, ComparisonResult> = {};
+    selectedModels.forEach(id => {
+      initialResults[id] = { modelId: id, result: '', status: 'thinking' };
+    });
+    setResults(initialResults);
 
-    setIsRunning(true);
-    setResults(
-      Object.fromEntries(selectedModels.map((modelId) => [modelId, createThinkingState(modelId)])),
-    );
+    try {
+      const response = await fetch('/api/compare', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, models: selectedModels }),
+      });
 
-    await Promise.all(
-      selectedModels.map(async (modelId, index) => {
-        const model = MODEL_LIBRARY.find((item) => item.id === modelId);
-        if (!model) return;
-
-        await sleep(420 + index * 180);
-        const nextResult = buildResult(model, prompt);
-        startTransition(() => {
-          setResults((current) => ({...current, [modelId]: nextResult}));
+      const data = await response.json();
+      
+      const updatedResults: Record<string, ComparisonResult> = { ...initialResults };
+      data.results.forEach((res: { modelId: string; result: string }) => {
+        updatedResults[res.modelId] = {
+          modelId: res.modelId,
+          result: res.result,
+          status: 'completed'
+        };
+      });
+      setResults(updatedResults);
+    } catch (error) {
+      console.error('Comparison failed:', error);
+      setResults(prev => {
+        const next = { ...prev };
+        Object.keys(next).forEach(id => {
+          if (next[id].status === 'thinking') next[id].status = 'error';
         });
-      }),
-    );
-
-    setIsRunning(false);
+        return next;
+      });
+    }
   };
 
-  const resetBoard = () => {
+  const reset = () => {
+    setIsComparing(false);
     setResults({});
-    setIsRunning(false);
   };
 
   return (
-    <div className="page-shell">
-      <div className="backdrop-glow glow-a" />
-      <div className="backdrop-glow glow-b" />
-
-      <header className="hero-grid">
-        <section className="panel hero-panel">
-          <div className="eyebrow">
-            <Sparkles size={16} />
-            Sabrina / Vercel-ready preview project
-          </div>
-          <div className="hero-copy">
-            <h1>Design a model-comparison product that already feels deployable.</h1>
-            <p>
-              Sabrina is now a polished front-end concept: a prompt studio, model board, and
-              scoring surface you can push to GitHub and open on Vercel immediately.
-            </p>
-          </div>
-
-          <div className="hero-metrics">
-            <div className="metric-card">
-              <span>Project mode</span>
-              <strong>Static Vite app</strong>
-              <p>No server dependency. Clean Vercel deploy path.</p>
+    <div className="h-screen bg-[#F5F5F7] text-[#1D1D1F] font-sans selection:bg-blue-100 overflow-hidden flex flex-col">
+      <AnimatePresence mode="wait">
+        {!isComparing ? (
+          <motion.div
+            key="start"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="flex-1 max-w-5xl mx-auto w-full flex flex-col pt-4 px-6 overflow-hidden"
+          >
+            <div className="text-center mb-3 shrink-0">
+              <h1 className="text-2xl font-bold tracking-tight mb-0.5">AI Model Sabrina Ⅱ</h1>
+              <p className="text-[10px] text-[#86868B] uppercase tracking-widest font-medium">Multi-Model Comparison Engine</p>
             </div>
-            <div className="metric-card">
-              <span>Current stack</span>
-              <strong>React 19 + Motion</strong>
-              <p>Optimized for preview deployments and rapid iteration.</p>
-            </div>
-            <div className="metric-card">
-              <span>Selection</span>
-              <strong>{selectedModels.length} models active</strong>
-              <p>Mix China Stack and Global Stack cards in one board.</p>
-            </div>
-          </div>
 
-          <div className="preset-strip">
-            {PROMPT_PRESETS.map((preset) => (
-              <button
-                key={preset.id}
-                className={`preset-chip ${activePreset === preset.id ? 'is-active' : ''}`}
-                onClick={() => applyPreset(preset.id)}
-              >
-                <span>{preset.label}</span>
-                <small>{preset.note}</small>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <aside className="panel signal-panel">
-          <div className="panel-heading">
-            <span className="eyebrow muted">
-              <Layers3 size={16} />
-              Signal board
-            </span>
-            <h2>Deployment-minded product shell.</h2>
-          </div>
-
-          <div className="signal-list">
-            <div className="signal-item">
-              <BrainCircuit size={18} />
-              <div>
-                <strong>Interactive demo flow</strong>
-                <p>Prompt presets, model toggles, staged comparison cards.</p>
-              </div>
-            </div>
-            <div className="signal-item">
-              <Cpu size={18} />
-              <div>
-                <strong>Deploy-ready front end</strong>
-                <p>Vite build output with explicit Vercel project config.</p>
-              </div>
-            </div>
-            <div className="signal-item">
-              <Clock3 size={18} />
-              <div>
-                <strong>Fast validation loop</strong>
-                <p>One command to build, one command to preview on Vercel.</p>
-              </div>
-            </div>
-          </div>
-
-          {leader ? (
-            <div className="leader-card">
-              <div className="leader-header">
-                <span>Current leader</span>
-                <CheckCircle2 size={16} />
-              </div>
-              <strong>{selectedProfiles.find((model) => model.id === leader.modelId)?.name}</strong>
-              <p>{leader.headline}</p>
-              <div className="leader-score">{Math.round(totalScore(leader.scores) / 4)}/100 average</div>
-            </div>
-          ) : (
-            <div className="leader-card is-empty">
-              <div className="leader-header">
-                <span>Current leader</span>
-                <CircleDashed size={16} />
-              </div>
-              <strong>No run yet</strong>
-              <p>Launch the board to generate scored model notes.</p>
-            </div>
-          )}
-        </aside>
-      </header>
-
-      <section className="workspace-grid">
-        <section className="panel composer-panel">
-          <div className="section-head">
-            <div>
-              <span className="eyebrow muted">
-                <WandSparkles size={16} />
-                Prompt studio
-              </span>
-              <h2>Shape the brief</h2>
-            </div>
-            <button className="ghost-button" onClick={resetBoard}>
-              <RefreshCw size={15} />
-              Reset board
-            </button>
-          </div>
-
-          <textarea
-            className="prompt-input"
-            value={prompt}
-            onChange={(event) => {
-              setPrompt(event.target.value);
-              setActivePreset('');
-            }}
-            placeholder="Describe the product angle you want the models to respond to."
-          />
-
-          <div className="composer-footer">
-            <div className="prompt-meta">
-              <span>{Array.from(prompt).length} chars</span>
-              <span>{selectedModels.length} models selected</span>
-            </div>
-            <button
-              className="primary-button"
-              disabled={!prompt.trim() || selectedModels.length === 0 || isRunning}
-              onClick={runComparison}
-            >
-              {isRunning ? <CircleDashed size={16} className="spin" /> : <ArrowUpRight size={16} />}
-              Run Sabrina board
-            </button>
-          </div>
-        </section>
-
-        <section className="panel models-panel">
-          <div className="section-head">
-            <div>
-              <span className="eyebrow muted">
-                <Cpu size={16} />
-                Model selection
-              </span>
-              <h2>Pick the voices</h2>
-            </div>
-            <span className="selection-pill">{selectedModels.length} active</span>
-          </div>
-
-          <div className="model-grid">
-            {MODEL_LIBRARY.map((model) => {
-              const selected = selectedModels.includes(model.id);
-              return (
-                <button
-                  key={model.id}
-                  className={`model-card ${selected ? 'is-selected' : ''}`}
-                  style={{'--accent': model.accent} as CSSProperties}
-                  onClick={() => toggleModel(model.id)}
-                >
-                  <div className="model-card-top">
-                    <span className="track-pill">{model.track}</span>
-                    {selected ? <CheckCircle2 size={16} /> : <CircleDashed size={16} />}
-                  </div>
-                  <strong>{model.name}</strong>
-                  <span className="model-provider">{model.provider}</span>
-                  <p>{model.summary}</p>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      </section>
-
-      <section className="results-section">
-        <div className="results-head">
-          <div>
-            <span className="eyebrow muted">
-              <Layers3 size={16} />
-              Result board
-            </span>
-            <h2>Scores, summaries, and where each model fits.</h2>
-          </div>
-          <div className="results-summary">
-            {leader ? (
-              <>
-                <span>Leading pick</span>
-                <strong>{selectedProfiles.find((model) => model.id === leader.modelId)?.name}</strong>
-              </>
-            ) : (
-              <>
-                <span>Board state</span>
-                <strong>Ready for first run</strong>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className="results-grid">
-          <AnimatePresence>
-            {selectedProfiles.map((model, index) => {
-              const result = results[model.id];
-              const isLeader = leader?.modelId === model.id;
-              return (
-                <motion.article
-                  key={model.id}
-                  layout
-                  initial={{opacity: 0, y: 24}}
-                  animate={{opacity: 1, y: 0}}
-                  transition={{delay: index * 0.04}}
-                  className={`result-card ${isLeader ? 'is-leader' : ''}`}
-                  style={{'--accent': model.accent} as CSSProperties}
-                >
-                  <div className="result-head">
-                    <div>
-                      <span className="result-track">{model.track}</span>
-                      <h3>{model.name}</h3>
-                      <p>{model.provider}</p>
-                    </div>
-                    <div className={`status-pill ${result?.status === 'ready' ? 'is-ready' : ''}`}>
-                      {result?.status === 'ready' ? <CheckCircle2 size={14} /> : <CircleDashed size={14} />}
-                      {result?.status === 'ready' ? 'Ready' : result?.status === 'thinking' ? 'Thinking' : 'Idle'}
-                    </div>
-                  </div>
-
-                  {result?.status === 'thinking' ? (
-                    <div className="thinking-block">
-                      <div className="skeleton-line short" />
-                      <div className="skeleton-line" />
-                      <div className="skeleton-line medium" />
-                    </div>
-                  ) : result?.status === 'ready' ? (
-                    <div className="result-body">
-                      <div className="copy-block">
-                        <strong>{result.headline}</strong>
-                        <p>{result.summary}</p>
-                        <p className="verdict">{result.verdict}</p>
-                      </div>
-
-                      <div className="strength-list">
-                        {result.strengths.map((strength) => (
-                          <span key={strength} className="strength-pill">
-                            {strength}
-                          </span>
-                        ))}
-                      </div>
-
-                      <div className="score-list">
-                        {SCORE_LABELS.map(({key, label}) => (
-                          <div key={key} className="score-row">
-                            <div className="score-label">
-                              <span>{label}</span>
-                              <strong>{result.scores[key]}</strong>
-                            </div>
-                            <div className="score-track">
-                              <div
-                                className="score-fill"
-                                style={{width: `${result.scores[key]}%`}}
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="result-footer">
-                        <span>{result.latencyLabel}</span>
-                        {isLeader ? <strong>Top score</strong> : <span>Board candidate</span>}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="idle-block">
-                      <strong>{model.bestFor}</strong>
-                      <p>{model.summary}</p>
-                    </div>
+            <div className="flex-1 bg-white rounded-3xl shadow-2xl shadow-black/5 border border-black/5 mb-4 flex flex-col min-h-0 overflow-hidden">
+              {/* Input Area - Further increased height for better focus */}
+              <div className="relative h-[380px] shrink-0 p-5 pb-2">
+                <textarea
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  placeholder="Enter your prompt here..."
+                  className="w-full h-full p-6 text-lg bg-[#F5F5F7] rounded-2xl border-none focus:ring-2 focus:ring-blue-500/10 transition-all resize-none placeholder:text-[#86868B] font-medium custom-scrollbar"
+                />
+                <div className="absolute bottom-5 right-8 flex items-center gap-3">
+                  {prompt && (
+                    <button 
+                      onClick={() => setPrompt('')}
+                      className="text-[10px] font-bold uppercase tracking-wider text-red-500 hover:text-red-600 transition-colors"
+                    >
+                      Clear
+                    </button>
                   )}
-                </motion.article>
-              );
-            })}
-          </AnimatePresence>
-        </div>
-      </section>
+                  <div className="text-[10px] font-mono text-[#86868B] bg-white/50 px-2 py-0.5 rounded-full backdrop-blur-sm border border-black/5">
+                    {prompt.length} chars
+                  </div>
+                </div>
+              </div>
 
-      <footer className="footer-note">
-        <span>Built to push from Git and deploy to a new Vercel project without extra backend setup.</span>
+              {/* Selection Area - Ultra compact cards */}
+              <div className="flex-1 min-h-0 flex flex-col px-5 pb-4">
+                <div className="flex items-center justify-between mb-2 shrink-0">
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-[#86868B] flex items-center gap-2">
+                      <Cpu className="w-3.5 h-3.5" /> Models
+                    </h3>
+                    <div className="h-4 w-px bg-black/10" />
+                    <div className="bg-[#F5F5F7] p-0.5 rounded-md flex gap-0.5">
+                      {['all', ...new Set(AVAILABLE_MODELS.map(m => m.channel))].map((c) => (
+                        <button
+                          key={c}
+                          onClick={() => setActiveTab(c)}
+                          className={`px-2.5 py-1 rounded text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
+                            activeTab === c 
+                              ? 'bg-white text-blue-600 shadow-sm' 
+                              : 'text-[#86868B] hover:text-[#1D1D1F]'
+                          }`}
+                        >
+                          {c === 'all' ? '全部' : c.toUpperCase()}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {selectedModels.length > 0 && (
+                      <button 
+                        onClick={() => setSelectedModels([])}
+                        className="text-[10px] font-bold text-red-500 hover:text-red-600 uppercase tracking-tighter"
+                      >
+                        Reset
+                      </button>
+                    )}
+                    <div className="text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-100">
+                      {selectedModels.length} Selected
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex-1 min-h-0 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2 overflow-y-auto pr-1 custom-scrollbar mb-4">
+                  {AVAILABLE_MODELS.filter(m => activeTab === 'all' || m.channel === activeTab).map((model) => (
+                    <button
+                      key={model.id}
+                      onClick={() => toggleModel(model.id)}
+                      className={`group relative flex flex-col justify-center p-2.5 rounded-xl border transition-all text-left h-[72px] ${
+                        selectedModels.includes(model.id)
+                          ? 'border-blue-500 bg-blue-50/40 ring-1 ring-blue-500 shadow-sm'
+                          : 'border-black/5 bg-white hover:border-black/10 hover:shadow-sm'
+                      }`}
+                    >
+                      {/* Row 1: Name */}
+                      <div className="flex items-center justify-between w-full mb-0.5">
+                        <span className="font-bold text-[11px] leading-tight line-clamp-1 flex-1">{model.name}</span>
+                        {selectedModels.includes(model.id) && (
+                          <CheckCircle2 className="w-3 h-3 text-blue-600 shrink-0 ml-1" />
+                        )}
+                      </div>
+                      
+                      {/* Row 2: Tag */}
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                          model.channel === 'china' ? 'bg-red-400' : 'bg-pink-400'
+                        }`} />
+                        <span className="text-[9px] font-bold text-[#86868B] uppercase tracking-tighter">
+                          {model.category}
+                        </span>
+                      </div>
+
+                      {/* Row 3: Description */}
+                      <div className="w-full">
+                        <span className="text-[9px] text-[#86868B] line-clamp-1 opacity-70">
+                          {model.description}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Selected Chips - Very compact */}
+                {selectedModels.length > 0 && (
+                  <div className="mb-4 flex flex-wrap gap-1.5 max-h-[48px] overflow-y-auto pr-1 custom-scrollbar shrink-0">
+                    <AnimatePresence mode="popLayout">
+                      {selectedModels.map((modelId) => {
+                        const model = AVAILABLE_MODELS.find(m => m.id === modelId);
+                        if (!model) return null;
+                        return (
+                          <motion.div
+                            key={modelId}
+                            layout
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.8 }}
+                            className="flex items-center gap-1 px-2 py-0.5 bg-[#F5F5F7] border border-black/5 rounded-full"
+                          >
+                            <span className="text-[11px] font-bold text-[#1D1D1F]">{model.name}</span>
+                            <button 
+                              onClick={() => toggleModel(modelId)}
+                              className="p-0.5 hover:bg-red-100 rounded-full transition-colors"
+                            >
+                              <X className="w-2.5 h-2.5 text-[#86868B] hover:text-red-500" />
+                            </button>
+                          </motion.div>
+                        );
+                      })}
+                    </AnimatePresence>
+                  </div>
+                )}
+
+                {/* Action Button - Anchored at the bottom of the card */}
+                <button
+                  onClick={startComparison}
+                  disabled={!prompt.trim() || selectedModels.length === 0}
+                  className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 disabled:bg-[#E5E5E7] disabled:cursor-not-allowed text-white rounded-2xl font-bold text-base transition-all flex items-center justify-center gap-2 shadow-xl shadow-blue-500/20 active:scale-[0.98] shrink-0"
+                >
+                  <Send className="w-5 h-5" />
+                  Run Comparison
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="results"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="flex-1 flex flex-col p-6 overflow-hidden"
+          >
+            <div className="max-w-7xl mx-auto w-full flex flex-col h-full">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 shrink-0">
+                <div>
+                  <button 
+                    onClick={reset}
+                    className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium mb-2 group text-sm"
+                  >
+                    <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
+                    Back to Sabrina Ⅱ
+                  </button>
+                  <h2 className="text-2xl font-bold tracking-tight">Comparison Results</h2>
+                </div>
+                <div className="bg-white px-4 py-2 rounded-xl border border-black/5 shadow-sm max-w-xl">
+                  <p className="text-[10px] text-[#86868B] font-bold uppercase tracking-wider mb-0.5">Prompt</p>
+                  <p className="text-[#1D1D1F] text-sm line-clamp-1 italic">"{prompt}"</p>
+                </div>
+              </div>
+
+              <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 overflow-y-auto pr-2 custom-scrollbar pb-4">
+                {selectedModels.map((modelId) => {
+                  const model = AVAILABLE_MODELS.find(m => m.id === modelId);
+                  const result = results[modelId];
+
+                  return (
+                    <motion.div
+                      layout
+                      key={modelId}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="bg-white rounded-2xl border border-black/5 shadow-sm flex flex-col h-[500px] overflow-hidden"
+                    >
+                      <div className="p-4 border-b border-black/5 flex items-center justify-between bg-[#FBFBFD] shrink-0">
+                        <div>
+                          <h3 className="font-bold text-base">{model?.name}</h3>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold text-[#86868B] uppercase tracking-widest">{model?.category}</span>
+                            <span className="text-[10px] text-[#86868B]">•</span>
+                            <span className="text-[10px] font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded uppercase tracking-tighter">
+                              {model?.channel === 'china' ? 'China 渠道' : 'Global 渠道'}
+                            </span>
+                            <span className="text-[10px] text-[#86868B]">•</span>
+                            <span className="text-[10px] text-[#86868B] italic">{model?.description}</span>
+                          </div>
+                        </div>
+                        {result?.status === 'thinking' && (
+                          <div className="flex items-center gap-1.5 text-blue-600 text-xs font-medium">
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            Reasoning...
+                          </div>
+                        )}
+                        {result?.status === 'completed' && (
+                          <div className="flex items-center gap-1 text-emerald-600 text-xs font-medium">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Ready
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex-1 overflow-y-auto p-5 font-mono text-xs leading-relaxed text-[#424245] bg-white custom-scrollbar">
+                        {result?.status === 'thinking' ? (
+                          <div className="space-y-3">
+                            <div className="h-3 bg-[#F5F5F7] rounded w-3/4 animate-pulse" />
+                            <div className="h-3 bg-[#F5F5F7] rounded w-1/2 animate-pulse" />
+                            <div className="h-3 bg-[#F5F5F7] rounded w-5/6 animate-pulse" />
+                          </div>
+                        ) : result?.status === 'error' ? (
+                          <div className="text-red-500 bg-red-50 p-3 rounded-xl border border-red-100 text-xs">
+                            Failed to generate response.
+                          </div>
+                        ) : (
+                          <div className="whitespace-pre-wrap">
+                            {result?.result}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="p-3 bg-[#FBFBFD] border-t border-black/5 flex justify-between items-center shrink-0">
+                        <span className="text-[9px] text-[#86868B] uppercase font-bold tracking-tighter">
+                          Output: {result?.result.length || 0} chars
+                        </span>
+                        <button className="text-[10px] text-blue-600 hover:underline font-bold uppercase tracking-wider">
+                          Copy
+                        </button>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <footer className="shrink-0 py-3 text-center text-[#86868B] text-[11px] border-t border-black/5 bg-white/50 backdrop-blur-sm">
+        <div className="flex items-center justify-center gap-2">
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>Sabrina Ⅱ • Multi-Model Orchestration</span>
+          <span className="text-black/10">|</span>
+          <span>© 2026</span>
+        </div>
       </footer>
     </div>
   );
