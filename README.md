@@ -1,11 +1,45 @@
-<div align="center">
+# AI Model Sabrina Ⅱ
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+AI Model Sabrina Ⅱ is a professional, high-performance AI model comparison platform designed to help developers and researchers evaluate different Large Language Models (LLMs) side-by-side with a single prompt.
 
-  <h1>Built with AI Studio</h2>
+## 🚀 Features
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+- **Multi-Model Orchestration**: Compare results from multiple models simultaneously.
+- **Dual Channel Support**: 
+  - **火山方舟 (Ark)**: Optimized for domestic Chinese models (Doubao, DeepSeek, GLM, etc.) via Volcengine Coding Plan.
+  - **Global Models**: Access world-class models like GPT-4o, Claude 3.5, and Gemini 1.5 Pro.
+- **Clean UI/UX**: Apple-inspired design language for a focused and premium user experience.
+- **Real-time Feedback**: Live status tracking (Thinking/Ready) for each model.
+- **DDD Architecture**: Built with Domain-Driven Design principles for scalability and maintainability.
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+## 🛠 Tech Stack
 
-</div>
+- **Frontend**: React 18, TypeScript, Tailwind CSS
+- **Animations**: Framer Motion (motion/react)
+- **Icons**: Lucide React
+- **Backend**: Express.js (Vite Middleware mode)
+- **Deployment**: Cloud Run / Containerized
+
+## 📖 Usage
+
+1. **Enter Prompt**: Type your question or code snippet in the main textarea.
+2. **Select Models**: Choose the models you want to compare from the Ark or Global tabs.
+3. **Run Comparison**: Click "Run Comparison" to see results side-by-side.
+4. **Analyze**: Evaluate the reasoning, speed, and quality of each output.
+
+## ⚙️ Configuration
+
+The application requires the following environment variables for backend integration:
+
+```env
+# Volcengine Ark Configuration
+ARK_API_KEY=your_ark_api_key
+
+# Global Model Providers (if applicable)
+OPENAI_API_KEY=your_openai_api_key
+ANTHROPIC_API_KEY=your_anthropic_api_key
+```
+
+## 📄 License
+
+© 2026 AI Model Sabrina Ⅱ. All rights reserved.
