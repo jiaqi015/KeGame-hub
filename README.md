@@ -1,45 +1,86 @@
-# AI Model Sabrina Ⅱ
+# AI Model Sabrina II
 
-AI Model Sabrina Ⅱ is a professional, high-performance AI model comparison platform designed to help developers and researchers evaluate different Large Language Models (LLMs) side-by-side with a single prompt.
+AI Model Sabrina II is a Vite + React comparison app with a Vercel-compatible backend. The UI stays aligned with the provided Sabrina reference project, while model visibility and provider routing are controlled entirely by backend configuration.
 
-## 🚀 Features
+## Current Status
 
-- **Multi-Model Orchestration**: Compare results from multiple models simultaneously.
-- **Dual Channel Support**: 
-  - **China 渠道**: Optimized for domestic Chinese models (Doubao, DeepSeek, GLM, etc.) via Volcengine Coding Plan.
-  - **Global Models**: Access world-class models like GPT-4o, Claude 3.5, and Gemini 1.5 Pro.
-- **Clean UI/UX**: Apple-inspired design language for a focused and premium user experience.
-- **Real-time Feedback**: Live status tracking (Thinking/Ready) for each model.
-- **DDD Architecture**: Built with Domain-Driven Design principles for scalability and maintainability.
+- Production: [https://ai-model-sabrina.vercel.app](https://ai-model-sabrina.vercel.app)
+- Frontend UI: unchanged visual structure, model list comes from `/api/models`
+- Enabled models today: 4 Volcengine text models
+- Hidden models: any model with `enabled: false` in the registry
 
-## 🛠 Tech Stack
+## Stack
 
-- **Frontend**: React 18, TypeScript, Tailwind CSS
-- **Animations**: Framer Motion (motion/react)
-- **Icons**: Lucide React
-- **Backend**: Express.js (Vite Middleware mode)
-- **Deployment**: Cloud Run / Containerized
+- Frontend: React, TypeScript, Vite, Tailwind
+- Local backend: Express via `server.ts`
+- Vercel backend: `api/models.ts` and `api/compare.ts`
+- Providers:
+  - Volcengine Ark
+  - IKunCode
 
-## 📖 Usage
+## Model Configuration
 
-1. **Enter Prompt**: Type your question or code snippet in the main textarea.
-2. **Select Models**: Choose the models you want to compare from the China or Global tabs.
-3. **Run Comparison**: Click "Run Comparison" to see results side-by-side.
-4. **Analyze**: Evaluate the reasoning, speed, and quality of each output.
+Single source of truth:
 
-## ⚙️ Configuration
+- [/Users/jiaqi/Desktop/sabrina/AI-Model-Sabrina/lib/models.ts](/Users/jiaqi/Desktop/sabrina/AI-Model-Sabrina/lib/models.ts)
 
-The application requires the following environment variables for backend integration:
+Each model entry controls:
+
+- `enabled`: whether the UI shows it
+- `channel`: `china` or `global`
+- `provider`: which backend adapter handles it
+- `upstreamModel`: the real model ID sent to the provider
+
+The UI does not hardcode model cards. It fetches `/api/models`, so disabled models stay hidden automatically.
+
+## Environment Variables
 
 ```env
-# Volcengine China Configuration
-CHINA_API_KEY=your_china_api_key
-
-# Global Model Providers (if applicable)
-OPENAI_API_KEY=your_openai_api_key
-ANTHROPIC_API_KEY=your_anthropic_api_key
+ARK_API_KEY=
+IKUN_API_KEY=
 ```
 
-## 📄 License
+Configured on Vercel environments:
 
-© 2026 AI Model Sabrina Ⅱ. All rights reserved.
+- `Production`
+- `Preview`
+- `Development`
+
+## Provider Notes
+
+### Volcengine Ark
+
+- Working in production
+- Verified with live `/api/compare` response on **2026-03-16**
+
+### IKunCode
+
+- Adapter implemented in [/Users/jiaqi/Desktop/sabrina/AI-Model-Sabrina/lib/ikun.ts](/Users/jiaqi/Desktop/sabrina/AI-Model-Sabrina/lib/ikun.ts)
+- Requested target models were added to config as disabled placeholders:
+  - `gpt5.4`
+  - `claude-sonnet-4-6`
+  - `gemini-3.1-pro-preview`
+- As of **2026-03-16**, the provided IKunCode key's `/v1/models` response did not return those exact model IDs, so they are intentionally not displayed
+- A live chat call with a returned IKun model ID responded with `No available channel`, so no IKun model is exposed in UI yet
+
+## Local Development
+
+```bash
+npm install
+npm run dev
+```
+
+Useful checks:
+
+```bash
+npm run lint
+npm run build
+```
+
+## Backend Flow
+
+1. Frontend loads `/api/models`
+2. User only sees enabled models
+3. Frontend posts prompt + selected model IDs to `/api/compare`
+4. Backend resolves each model from the registry and routes by provider
+5. Results are returned in the original Sabrina UI

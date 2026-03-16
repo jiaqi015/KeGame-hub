@@ -1,8 +1,9 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+import { compareModels } from "./lib/compare.js";
+import { AVAILABLE_MODELS } from "./lib/models.js";
 
 dotenv.config();
 
@@ -12,24 +13,10 @@ async function startServer() {
 
   app.use(express.json());
 
-  // --- Domain & Infrastructure (DDD Lite) ---
-  
-  // Infrastructure: Gemini Adapter
-  const callGemini = async (prompt: string, modelName: string) => {
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents: prompt,
-      });
-      return response.text;
-    } catch (error: any) {
-      console.error(`Gemini Error (${modelName}):`, error);
-      return `Error: ${error.message || "Failed to fetch result"}`;
-    }
-  };
+  app.get("/api/models", (_req, res) => {
+    res.json({ models: AVAILABLE_MODELS });
+  });
 
-  // Application Service: Orchestrator
   app.post("/api/compare", async (req, res) => {
     const { prompt, models } = req.body;
 
@@ -37,23 +24,7 @@ async function startServer() {
       return res.status(400).json({ error: "Invalid request parameters" });
     }
 
-    // In a real DDD app, this would be handled by a Domain Service
-    const tasks = models.map(async (modelId: string) => {
-      let result = "";
-      
-      // Route to appropriate adapter based on model ID
-      if (modelId.startsWith("gemini")) {
-        result = await callGemini(prompt, modelId);
-      } else {
-        // Mocking other providers for the demo structure
-        await new Promise(resolve => setTimeout(resolve, 1500 + Math.random() * 2000));
-        result = `[Demo Mode] This is a simulated response for ${modelId}. To enable real results, add the ${modelId.split('-')[0].toUpperCase()} adapter and API key in server.ts.`;
-      }
-
-      return { modelId, result };
-    });
-
-    const results = await Promise.all(tasks);
+    const results = await compareModels(prompt, models);
     res.json({ results });
   });
 

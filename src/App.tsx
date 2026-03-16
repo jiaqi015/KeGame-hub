@@ -1,15 +1,52 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Layers, Cpu, CheckCircle2, Loader2, ArrowLeft, Send, Sparkles, X, Maximize2 } from 'lucide-react';
-import { AVAILABLE_MODELS, ComparisonResult } from './types';
+import { ComparisonResult, AIModel } from './types';
 
 export default function App() {
   const [prompt, setPrompt] = useState('');
-  const [selectedModels, setSelectedModels] = useState<string[]>(['doubao-seed-2.0-code']);
+  const [availableModels, setAvailableModels] = useState<AIModel[]>([]);
+  const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState('all');
   const [isComparing, setIsComparing] = useState(false);
   const [results, setResults] = useState<Record<string, ComparisonResult>>({});
   const [previewData, setPreviewData] = useState<{ title: string, subtitle: string, content: string } | null>(null);
+  const [catalogReady, setCatalogReady] = useState(false);
+
+  useEffect(() => {
+    let disposed = false;
+
+    const loadModels = async () => {
+      try {
+        const response = await fetch('/api/models');
+        const payload = await response.json();
+        const models = Array.isArray(payload?.models) ? payload.models as AIModel[] : [];
+
+        if (disposed) {
+          return;
+        }
+
+        setAvailableModels(models);
+        setSelectedModels(models[0] ? [models[0].id] : []);
+      } catch (error) {
+        if (!disposed) {
+          console.error('Failed to load model catalog:', error);
+          setAvailableModels([]);
+          setSelectedModels([]);
+        }
+      } finally {
+        if (!disposed) {
+          setCatalogReady(true);
+        }
+      }
+    };
+
+    void loadModels();
+
+    return () => {
+      disposed = true;
+    };
+  }, []);
 
   const toggleModel = (id: string) => {
     setSelectedModels(prev => 
@@ -38,11 +75,11 @@ export default function App() {
       const data = await response.json();
       
       const updatedResults: Record<string, ComparisonResult> = { ...initialResults };
-      data.results.forEach((res: { modelId: string; result: string }) => {
+      data.results.forEach((res: { modelId: string; result: string; status: 'completed' | 'error' }) => {
         updatedResults[res.modelId] = {
           modelId: res.modelId,
           result: res.result,
-          status: 'completed'
+          status: res.status
         };
       });
       setResults(updatedResults);
@@ -62,6 +99,9 @@ export default function App() {
     setIsComparing(false);
     setResults({});
   };
+
+  const visibleChannels = [...new Set(availableModels.map((model) => model.channel))];
+  const filteredModels = availableModels.filter((model) => activeTab === 'all' || model.channel === activeTab);
 
   return (
     <div className="h-screen bg-[#FAFAFA] text-[#1D1D1F] font-sans selection:bg-blue-100 overflow-hidden flex flex-col">
@@ -129,7 +169,7 @@ export default function App() {
                     </h3>
                     <div className="h-4 w-px bg-black/10" />
                     <div className="bg-gray-100/50 p-0.5 rounded-md flex gap-0.5">
-                      {['all', ...new Set(AVAILABLE_MODELS.map(m => m.channel))].map((c) => (
+                      {['all', ...visibleChannels].map((c) => (
                         <button
                           key={c}
                           onClick={() => setActiveTab(c)}
@@ -137,12 +177,12 @@ export default function App() {
                             activeTab === c 
                               ? 'bg-white text-blue-600 shadow-sm' 
                               : 'text-[#86868B] hover:text-[#1D1D1F]'
-                          }`}
-                        >
-                          {c === 'all' ? '全部' : c.toUpperCase()}
-                        </button>
-                      ))}
-                    </div>
+                      }`}
+                    >
+                      {c === 'all' ? '全部' : c === 'china' ? '国产' : '国际'}
+                    </button>
+                  ))}
+                </div>
                   </div>
                   <div className="flex items-center gap-3">
                     {selectedModels.length > 0 && (
@@ -160,7 +200,7 @@ export default function App() {
                 </div>
 
                 <div className="flex-1 min-h-0 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2 overflow-y-auto pr-1 custom-scrollbar mb-4">
-                  {AVAILABLE_MODELS.filter(m => activeTab === 'all' || m.channel === activeTab).map((model) => (
+                  {filteredModels.map((model) => (
                     <button
                       key={model.id}
                       onClick={() => toggleModel(model.id)}
@@ -203,7 +243,7 @@ export default function App() {
                   <div className="mb-4 flex flex-wrap gap-1.5 max-h-[48px] overflow-y-auto pr-1 custom-scrollbar shrink-0">
                     <AnimatePresence mode="popLayout">
                       {selectedModels.map((modelId) => {
-                        const model = AVAILABLE_MODELS.find(m => m.id === modelId);
+                        const model = availableModels.find(m => m.id === modelId);
                         if (!model) return null;
                         return (
                           <motion.div
@@ -231,7 +271,7 @@ export default function App() {
                 {/* Action Button - Anchored at the bottom of the card */}
                 <button
                   onClick={startComparison}
-                  disabled={!prompt.trim() || selectedModels.length === 0}
+                  disabled={!catalogReady || !prompt.trim() || selectedModels.length === 0}
                   className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 disabled:bg-[#E5E5E7] disabled:cursor-not-allowed text-white rounded-2xl font-bold text-base transition-all flex items-center justify-center gap-2 shadow-xl shadow-blue-500/20 active:scale-[0.98] shrink-0"
                 >
                   <Send className="w-5 h-5" />
@@ -266,9 +306,9 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 overflow-y-auto pr-2 custom-scrollbar pb-4">
+              <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 overflow-y-auto pr-2 custom-scrollbar pb-4">
                 {selectedModels.map((modelId) => {
-                  const model = AVAILABLE_MODELS.find(m => m.id === modelId);
+                  const model = availableModels.find(m => m.id === modelId);
                   const result = results[modelId];
 
                   return (
@@ -286,7 +326,7 @@ export default function App() {
                             <span className="text-[10px] font-bold text-[#86868B] uppercase tracking-widest">{model?.category}</span>
                             <span className="text-[10px] text-[#86868B]">•</span>
                             <span className="text-[10px] font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded uppercase tracking-tighter">
-                              {model?.channel === 'china' ? 'China 渠道' : 'Global 渠道'}
+                              {model?.channel === 'china' ? '国产' : '国际'}
                             </span>
                             <span className="text-[10px] text-[#86868B]">•</span>
                             <span className="text-[10px] text-[#86868B] italic">{model?.description}</span>
@@ -315,7 +355,7 @@ export default function App() {
                           </div>
                         ) : result?.status === 'error' ? (
                           <div className="text-red-500 bg-red-50 p-3 rounded-xl border border-red-100 text-xs">
-                            生成响应失败。
+                            {result?.result || '生成响应失败。'}
                           </div>
                         ) : (
                           <div className="whitespace-pre-wrap">
