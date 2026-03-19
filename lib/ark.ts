@@ -1,7 +1,7 @@
 import type {AIModel} from './models.js';
 
 const ARK_BASE_URL = 'https://ark.cn-beijing.volces.com/api/v3';
-const DEFAULT_ARK_TIMEOUT_MS = 120000;
+const DEFAULT_ARK_TIMEOUT_MS = 360000;
 const DEFAULT_ARK_MAX_RETRIES = 1;
 const DEFAULT_ARK_RETRY_DELAY_MS = 600;
 const RETRYABLE_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504]);
@@ -11,14 +11,24 @@ interface ArkOutputText {
   text?: string;
 }
 
+interface ArkReasoningSummaryText {
+  type: 'summary_text';
+  text?: string;
+}
+
 interface ArkMessageOutput {
   type: 'message';
   role: 'assistant' | string;
   content?: ArkOutputText[];
 }
 
+interface ArkReasoningOutput {
+  type: 'reasoning';
+  summary?: ArkReasoningSummaryText[];
+}
+
 interface ArkResponse {
-  output?: ArkMessageOutput[];
+  output?: Array<ArkMessageOutput | ArkReasoningOutput>;
   error?: {
     message?: string;
   };
@@ -28,15 +38,21 @@ export interface CompareResult {
   modelId: string;
   result: string;
   status: 'completed' | 'error';
+  reasoning?: string;
 }
 
 export interface CompareStreamOptions {
   signal?: AbortSignal;
-  onDelta?: (delta: string) => void | Promise<void>;
+  onDelta?: (delta: string, channel?: 'reasoning' | 'output') => void | Promise<void>;
 }
 
 interface ArkStreamDeltaEvent {
   type: 'response.output_text.delta';
+  delta?: string;
+}
+
+interface ArkStreamReasoningDeltaEvent {
+  type: 'response.reasoning_summary_text.delta';
   delta?: string;
 }
 
@@ -55,6 +71,7 @@ interface ArkStreamErrorEvent {
 
 type ArkStreamEvent =
   | ArkStreamDeltaEvent
+  | ArkStreamReasoningDeltaEvent
   | ArkStreamCompletedEvent
   | ArkStreamErrorEvent
   | {type: string; [key: string]: unknown};
@@ -86,13 +103,17 @@ function formatArkException(error: unknown, timeoutMs: number): string {
   return error instanceof Error ? error.message : '火山方舟请求异常。';
 }
 
-function buildArkBody(model: string, input: string, stream = false) {
+function supportsNativeThinking(model: AIModel): boolean {
+  return model.thinkingStreamMode === 'native';
+}
+
+function buildArkBody(model: AIModel, input: string, stream = false) {
   return {
-    model,
+    model: model.upstreamModel,
     input,
     stream,
     thinking: {
-      type: 'disabled' as const,
+      type: supportsNativeThinking(model) ? ('enabled' as const) : ('disabled' as const),
     },
   };
 }
@@ -116,7 +137,7 @@ async function sleep(ms: number): Promise<void> {
 }
 
 async function sendArkRequest(
-  model: string,
+  model: AIModel,
   input: string,
   options: {
     timeoutMs: number;
@@ -157,7 +178,7 @@ async function sendArkRequest(
 async function readArkStream(
   response: Response,
   modelId: string,
-  onDelta?: (delta: string) => void | Promise<void>,
+  onDelta?: (delta: string, channel?: 'reasoning' | 'output') => void | Promise<void>,
 ): Promise<CompareResult> {
   if (!response.body) {
     return {
@@ -171,6 +192,7 @@ async function readArkStream(
   const decoder = new TextDecoder();
   let buffer = '';
   let aggregatedText = '';
+  let aggregatedReasoning = '';
 
   const processPayload = async (payloadText: string): Promise<CompareResult | null> => {
     if (!payloadText) {
@@ -183,6 +205,7 @@ async function readArkStream(
             modelId,
             result: aggregatedText,
             status: 'completed',
+            reasoning: aggregatedReasoning || undefined,
           }
         : null;
     }
@@ -198,23 +221,34 @@ async function readArkStream(
     if (event.type === 'response.output_text.delta' && typeof event.delta === 'string' && event.delta) {
       aggregatedText += event.delta;
       if (onDelta) {
-        await onDelta(event.delta);
+        await onDelta(event.delta, 'output');
+      }
+      return null;
+    }
+
+    if (event.type === 'response.reasoning_summary_text.delta' && typeof event.delta === 'string' && event.delta) {
+      aggregatedReasoning += event.delta;
+      if (onDelta) {
+        await onDelta(event.delta, 'reasoning');
       }
       return null;
     }
 
     if (event.type === 'response.completed') {
       const completedText = aggregatedText || extractOutputText(event.response || {});
+      const completedReasoning = aggregatedReasoning || extractReasoningSummary(event.response || {});
       return completedText
         ? {
             modelId,
             result: completedText,
             status: 'completed',
+            reasoning: completedReasoning || undefined,
           }
         : {
             modelId,
-            result: '火山方舟返回了空响应。',
+            result: completedReasoning ? '火山方舟只返回了思考摘要，没有最终答案。' : '火山方舟返回了空响应。',
             status: 'error',
+            reasoning: completedReasoning || undefined,
           };
     }
 
@@ -279,16 +313,18 @@ async function readArkStream(
         modelId,
         result: aggregatedText,
         status: 'completed',
+        reasoning: aggregatedReasoning || undefined,
       }
     : {
         modelId,
-        result: '火山方舟返回了空响应。',
+        result: aggregatedReasoning ? '火山方舟只返回了思考摘要，没有最终答案。' : '火山方舟返回了空响应。',
         status: 'error',
+        reasoning: aggregatedReasoning || undefined,
       };
 }
 
 function extractOutputText(payload: ArkResponse): string {
-  const message = payload.output?.find((item) => item.type === 'message' && item.role === 'assistant');
+  const message = payload.output?.find((item): item is ArkMessageOutput => item.type === 'message' && item.role === 'assistant');
 
   if (!message?.content) {
     return '';
@@ -299,6 +335,16 @@ function extractOutputText(payload: ArkResponse): string {
     .map((item) => item.text?.trim() || '')
     .filter(Boolean)
     .join('\n');
+}
+
+function extractReasoningSummary(payload: ArkResponse): string {
+  return payload.output
+    ?.filter((item): item is ArkReasoningOutput => item.type === 'reasoning')
+    .flatMap((item) => item.summary || [])
+    .filter((item) => item.type === 'summary_text' && typeof item.text === 'string')
+    .map((item) => item.text?.trim() || '')
+    .filter(Boolean)
+    .join('\n') || '';
 }
 
 export async function callArkModel(prompt: string, model: AIModel): Promise<CompareResult> {
@@ -316,7 +362,7 @@ export async function callArkModel(prompt: string, model: AIModel): Promise<Comp
   }
 
   try {
-    const {response, payload} = await sendArkRequest(model.upstreamModel, prompt, {
+    const {response, payload} = await sendArkRequest(model, prompt, {
       timeoutMs,
       maxRetries,
       retryDelayMs,
@@ -373,7 +419,7 @@ export async function streamArkModel(prompt: string, model: AIModel, options: Co
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(buildArkBody(model.upstreamModel, prompt, true)),
+      body: JSON.stringify(buildArkBody(model, prompt, true)),
       signal: getRequestSignal(timeoutMs, options.signal),
     });
 

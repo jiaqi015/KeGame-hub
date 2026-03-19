@@ -11,6 +11,7 @@ export interface AIModel {
   upstreamModel: string;
   enabled: boolean;
   visible?: boolean;
+  thinkingStreamMode?: 'native' | 'prompt';
 }
 
 export const MODEL_CONFIGS: AIModel[] = [
@@ -23,6 +24,7 @@ export const MODEL_CONFIGS: AIModel[] = [
     provider: 'ark',
     upstreamModel: 'doubao-seed-2-0-lite-260215',
     enabled: true,
+    thinkingStreamMode: 'prompt',
   },
   {
     id: 'doubao-seed-2-0-pro-260215',
@@ -34,6 +36,7 @@ export const MODEL_CONFIGS: AIModel[] = [
     upstreamModel: 'doubao-seed-2-0-pro-260215',
     enabled: true,
     visible: false,
+    thinkingStreamMode: 'prompt',
   },
   {
     id: 'deepseek-v3-2-251201',
@@ -44,6 +47,7 @@ export const MODEL_CONFIGS: AIModel[] = [
     provider: 'ark',
     upstreamModel: 'deepseek-v3-2-251201',
     enabled: true,
+    thinkingStreamMode: 'native',
   },
   {
     id: 'glm-4-7-251222',
@@ -54,6 +58,7 @@ export const MODEL_CONFIGS: AIModel[] = [
     provider: 'ark',
     upstreamModel: 'glm-4-7-251222',
     enabled: true,
+    thinkingStreamMode: 'native',
   },
   {
     id: 'hunyuan-2-0-thinking-20251109',
@@ -64,6 +69,7 @@ export const MODEL_CONFIGS: AIModel[] = [
     provider: 'hunyuan',
     upstreamModel: 'hunyuan-2.0-thinking-20251109',
     enabled: true,
+    thinkingStreamMode: 'native',
   },
   {
     id: 'qwen3-5-plus-2026-02-15',
@@ -72,8 +78,9 @@ export const MODEL_CONFIGS: AIModel[] = [
     category: '千问',
     description: '阿里千问增强模型，综合能力更均衡',
     provider: 'dashscope',
-    upstreamModel: 'qwen3.5-plus-2026-02-15',
+    upstreamModel: 'qwen3.5-plus',
     enabled: true,
+    thinkingStreamMode: 'native',
   },
   {
     id: 'gpt5.4',

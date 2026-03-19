@@ -3,15 +3,19 @@ import type {CompareResult} from './ark.js';
 import type {CompareStreamOptions} from './ark.js';
 
 const HUNYUAN_BASE_URL = 'https://api.hunyuan.cloud.tencent.com/v1';
-const DEFAULT_HUNYUAN_TIMEOUT_MS = 120000;
+const DEFAULT_HUNYUAN_TIMEOUT_MS = 360000;
 
 interface HunyuanChatResponse {
   choices?: Array<{
     delta?: {
       content?: string;
+      reasoning_content?: string;
+      ReasoningContent?: string;
     };
     message?: {
       content?: string;
+      reasoning_content?: string;
+      ReasoningContent?: string;
     };
   }>;
   error?: {
@@ -47,6 +51,20 @@ function extractDelta(payload: HunyuanChatResponse): string {
     ?.map((choice) => choice.delta?.content || '')
     .filter(Boolean)
     .join('') || '';
+}
+
+function extractReasoningDelta(payload: HunyuanChatResponse): string {
+  return payload.choices
+    ?.map((choice) => choice.delta?.reasoning_content || choice.delta?.ReasoningContent || '')
+    .filter(Boolean)
+    .join('') || '';
+}
+
+function extractReasoningMessage(payload: HunyuanChatResponse): string {
+  return payload.choices
+    ?.map((choice) => choice.message?.reasoning_content?.trim() || choice.message?.ReasoningContent?.trim() || '')
+    .filter(Boolean)
+    .join('\n') || '';
 }
 
 export async function callHunyuanModel(prompt: string, model: AIModel): Promise<CompareResult> {
@@ -168,6 +186,7 @@ export async function streamHunyuanModel(prompt: string, model: AIModel, options
     const decoder = new TextDecoder();
     let buffer = '';
     let aggregatedText = '';
+    let aggregatedReasoning = '';
 
     const processPayload = async (payloadText: string): Promise<CompareResult | null> => {
       if (!payloadText) {
@@ -180,6 +199,7 @@ export async function streamHunyuanModel(prompt: string, model: AIModel, options
               modelId: model.id,
               result: aggregatedText,
               status: 'completed',
+              reasoning: aggregatedReasoning || undefined,
             }
           : null;
       }
@@ -197,14 +217,23 @@ export async function streamHunyuanModel(prompt: string, model: AIModel, options
           modelId: model.id,
           result: payload.error.message,
           status: 'error',
+          reasoning: aggregatedReasoning || undefined,
         };
+      }
+
+      const reasoningDelta = extractReasoningDelta(payload);
+      if (reasoningDelta) {
+        aggregatedReasoning += reasoningDelta;
+        if (options.onDelta) {
+          await options.onDelta(reasoningDelta, 'reasoning');
+        }
       }
 
       const deltaText = extractDelta(payload);
       if (deltaText) {
         aggregatedText += deltaText;
         if (options.onDelta) {
-          await options.onDelta(deltaText);
+          await options.onDelta(deltaText, 'output');
         }
         return null;
       }
@@ -212,6 +241,11 @@ export async function streamHunyuanModel(prompt: string, model: AIModel, options
       const fallbackText = extractMessage(payload);
       if (fallbackText && !aggregatedText) {
         aggregatedText = fallbackText;
+      }
+
+      const fallbackReasoning = extractReasoningMessage(payload);
+      if (fallbackReasoning && !aggregatedReasoning) {
+        aggregatedReasoning = fallbackReasoning;
       }
 
       return null;
@@ -257,11 +291,13 @@ export async function streamHunyuanModel(prompt: string, model: AIModel, options
           modelId: model.id,
           result: aggregatedText,
           status: 'completed',
+          reasoning: aggregatedReasoning || undefined,
         }
       : {
           modelId: model.id,
-          result: '腾讯混元返回了空响应。',
+          result: aggregatedReasoning ? '腾讯混元只返回了思考过程，没有最终答案。' : '腾讯混元返回了空响应。',
           status: 'error',
+          reasoning: aggregatedReasoning || undefined,
         };
   } catch (error) {
     return {

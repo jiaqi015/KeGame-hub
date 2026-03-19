@@ -5,4 +5,5 @@ export interface ComparisonResult {
   modelId: string;
   result: string;
   status: 'idle' | 'thinking' | 'completed' | 'error';
+  reasoning?: string;
 }

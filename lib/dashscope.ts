@@ -2,15 +2,17 @@ import type {AIModel} from './models.js';
 import type {CompareResult, CompareStreamOptions} from './ark.js';
 
 const DASHSCOPE_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
-const DEFAULT_DASHSCOPE_TIMEOUT_MS = 120000;
+const DEFAULT_DASHSCOPE_TIMEOUT_MS = 360000;
 
 interface DashScopeChatResponse {
   choices?: Array<{
     delta?: {
       content?: string;
+      reasoning_content?: string;
     };
     message?: {
       content?: string;
+      reasoning_content?: string;
     };
   }>;
   error?: {
@@ -48,6 +50,20 @@ function extractDelta(payload: DashScopeChatResponse): string {
     .join('') || '';
 }
 
+function extractReasoningDelta(payload: DashScopeChatResponse): string {
+  return payload.choices
+    ?.map((choice) => choice.delta?.reasoning_content || '')
+    .filter(Boolean)
+    .join('') || '';
+}
+
+function extractReasoningMessage(payload: DashScopeChatResponse): string {
+  return payload.choices
+    ?.map((choice) => choice.message?.reasoning_content?.trim() || '')
+    .filter(Boolean)
+    .join('\n') || '';
+}
+
 function formatDashScopeException(error: unknown, timeoutMs: number): string {
   if (error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError')) {
     return `阿里云百炼请求超时（${Math.ceil(timeoutMs / 1000)} 秒）。`;
@@ -56,9 +72,9 @@ function formatDashScopeException(error: unknown, timeoutMs: number): string {
   return error instanceof Error ? error.message : '阿里云百炼请求异常。';
 }
 
-function buildRequestBody(model: string, prompt: string, stream: boolean) {
+function buildRequestBody(model: AIModel, prompt: string, stream: boolean) {
   return {
-    model,
+    model: model.upstreamModel,
     messages: [
       {
         role: 'user' as const,
@@ -66,6 +82,7 @@ function buildRequestBody(model: string, prompt: string, stream: boolean) {
       },
     ],
     stream,
+    ...(model.thinkingStreamMode === 'native' ? {enable_thinking: true} : {}),
   };
 }
 
@@ -88,7 +105,7 @@ export async function callDashScopeModel(prompt: string, model: AIModel): Promis
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(buildRequestBody(model.upstreamModel, prompt, false)),
+      body: JSON.stringify(buildRequestBody(model, prompt, false)),
       signal: getRequestSignal(timeoutMs),
     });
 
@@ -145,7 +162,7 @@ export async function streamDashScopeModel(prompt: string, model: AIModel, optio
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(buildRequestBody(model.upstreamModel, prompt, true)),
+      body: JSON.stringify(buildRequestBody(model, prompt, true)),
       signal: getRequestSignal(timeoutMs, options.signal),
     });
 
@@ -170,6 +187,7 @@ export async function streamDashScopeModel(prompt: string, model: AIModel, optio
     const decoder = new TextDecoder();
     let buffer = '';
     let aggregatedText = '';
+    let aggregatedReasoning = '';
 
     const processPayload = async (payloadText: string): Promise<CompareResult | null> => {
       if (!payloadText) {
@@ -182,6 +200,7 @@ export async function streamDashScopeModel(prompt: string, model: AIModel, optio
               modelId: model.id,
               result: aggregatedText,
               status: 'completed',
+              reasoning: aggregatedReasoning || undefined,
             }
           : null;
       }
@@ -199,14 +218,23 @@ export async function streamDashScopeModel(prompt: string, model: AIModel, optio
           modelId: model.id,
           result: payload.error.message,
           status: 'error',
+          reasoning: aggregatedReasoning || undefined,
         };
+      }
+
+      const reasoningDelta = extractReasoningDelta(payload);
+      if (reasoningDelta) {
+        aggregatedReasoning += reasoningDelta;
+        if (options.onDelta) {
+          await options.onDelta(reasoningDelta, 'reasoning');
+        }
       }
 
       const deltaText = extractDelta(payload);
       if (deltaText) {
         aggregatedText += deltaText;
         if (options.onDelta) {
-          await options.onDelta(deltaText);
+          await options.onDelta(deltaText, 'output');
         }
         return null;
       }
@@ -214,6 +242,11 @@ export async function streamDashScopeModel(prompt: string, model: AIModel, optio
       const fallbackText = extractMessage(payload);
       if (fallbackText && !aggregatedText) {
         aggregatedText = fallbackText;
+      }
+
+      const fallbackReasoning = extractReasoningMessage(payload);
+      if (fallbackReasoning && !aggregatedReasoning) {
+        aggregatedReasoning = fallbackReasoning;
       }
 
       return null;
@@ -259,11 +292,13 @@ export async function streamDashScopeModel(prompt: string, model: AIModel, optio
           modelId: model.id,
           result: aggregatedText,
           status: 'completed',
+          reasoning: aggregatedReasoning || undefined,
         }
       : {
           modelId: model.id,
-          result: '阿里云百炼返回了空响应。',
+          result: aggregatedReasoning ? '阿里云百炼只返回了思考过程，没有最终答案。' : '阿里云百炼返回了空响应。',
           status: 'error',
+          reasoning: aggregatedReasoning || undefined,
         };
   } catch (error) {
     return {

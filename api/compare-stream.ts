@@ -1,9 +1,16 @@
+import {authorizeRequest} from '../lib/activation.js';
 import {streamCompareModel} from '../lib/compare.js';
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({error: 'Method Not Allowed'});
+  }
+
+  const authorization = authorizeRequest(req);
+
+  if (!authorization.ok) {
+    return res.status(authorization.status).json({error: authorization.error});
   }
 
   const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
@@ -34,16 +41,16 @@ export default async function handler(req: any, res: any) {
   try {
     const result = await streamCompareModel(prompt, modelId, {
       signal: controller.signal,
-      onDelta: async (delta) => {
-        writeEvent({type: 'delta', delta});
+      onDelta: async (delta, channel) => {
+        writeEvent({type: 'delta', delta, channel});
       },
     });
 
     if (!controller.signal.aborted) {
       if (result.status === 'completed') {
-        writeEvent({type: 'completed', result: result.result});
+        writeEvent({type: 'completed', result: result.result, reasoning: result.reasoning});
       } else {
-        writeEvent({type: 'error', error: result.result});
+        writeEvent({type: 'error', error: result.result, reasoning: result.reasoning});
       }
     }
   } catch (error) {

@@ -53,7 +53,7 @@ export async function callIkunModel(prompt: string, model: AIModel): Promise<Com
         ],
         stream: false,
       }),
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(360000),
     });
 
     const payload = (await response.json()) as IkunChatResponse;

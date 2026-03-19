@@ -1,4 +1,4 @@
-import {callArkModel, streamArkModel, type CompareResult} from './ark.js';
+import {callArkModel, streamArkModel, type CompareResult, type CompareStreamOptions} from './ark.js';
 import {callDashScopeModel, streamDashScopeModel} from './dashscope.js';
 import {callHunyuanModel, streamHunyuanModel} from './hunyuan.js';
 import {callIkunModel} from './ikun.js';
@@ -50,10 +50,7 @@ export async function compareModels(prompt: string, models: string[]): Promise<C
 export async function streamCompareModel(
   prompt: string,
   modelId: string,
-  options: {
-    signal?: AbortSignal;
-    onDelta?: (delta: string) => void | Promise<void>;
-  } = {},
+  options: CompareStreamOptions = {},
 ): Promise<CompareResult> {
   const model = MODEL_CONFIG_MAP.get(modelId);
 
@@ -72,7 +69,7 @@ export async function streamCompareModel(
   if (model.provider === 'ikun') {
     const result = await callIkunModel(prompt, model);
     if (result.status === 'completed' && result.result && options.onDelta) {
-      await options.onDelta(result.result);
+      await options.onDelta(result.result, 'output');
     }
     return result;
   }

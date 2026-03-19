@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
+import { authorizeRequest, validateActivationKey } from "./lib/activation.js";
 import { compareModels, streamCompareModel } from "./lib/compare.js";
 import { AVAILABLE_MODELS } from "./lib/models.js";
 
@@ -12,6 +13,31 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json());
+
+  app.post("/api/activate", (req, res) => {
+    const key = typeof req.body?.key === "string" ? req.body.key.trim() : "";
+    const validation = validateActivationKey(key);
+
+    if (!validation.ok) {
+      return res.status(validation.status).json({ error: validation.error });
+    }
+
+    return res.json({ ok: true });
+  });
+
+  app.use("/api", (req, res, next) => {
+    if (req.path === "/activate") {
+      return next();
+    }
+
+    const authorization = authorizeRequest(req);
+
+    if (!authorization.ok) {
+      return res.status(authorization.status).json({ error: authorization.error });
+    }
+
+    return next();
+  });
 
   app.get("/api/models", (_req, res) => {
     res.json({ models: AVAILABLE_MODELS });
