@@ -7,6 +7,25 @@ import type {
 import { withOpenDayNeon } from './neonOpenDayDatabase.js';
 
 export class BlobOpenDayUploadArtifactRepository implements OpenDayUploadArtifactRepository {
+  async findExisting(query: SaveOpenDayUploadArtifactCommand | { originalFilename: string; byteSize: number; checksumSha256: string }) {
+    return withOpenDayNeon(async (sql) => {
+      const rows = (await sql.query(
+        `
+          SELECT artifact_json
+          FROM open_day_upload_artifacts
+          WHERE original_filename = $1
+            AND byte_size = $2
+            AND checksum_sha256 = $3
+          ORDER BY created_at DESC
+          LIMIT 1
+        `,
+        [query.originalFilename, query.byteSize, query.checksumSha256],
+      )) as Array<{ artifact_json: OpenDayUploadArtifactSummary }>;
+
+      return rows[0]?.artifact_json || null;
+    });
+  }
+
   async save(command: SaveOpenDayUploadArtifactCommand): Promise<OpenDayUploadArtifactSummary> {
     const blob = await put(command.storageKey, command.buffer, {
       access: 'private',

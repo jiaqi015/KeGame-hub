@@ -52,4 +52,18 @@ export class OpenDayScenarioService {
     await this.repository.save(record);
     return record;
   }
+
+  async getById(id: string): Promise<OpenDayScenarioTemplateRecord> {
+    const normalizedId = typeof id === 'string' ? id.trim() : '';
+    if (!normalizedId) {
+      throw new Error('缺少方案 ID。');
+    }
+
+    const record = await this.repository.get(normalizedId);
+    if (!record) {
+      throw new Error('未找到对应的方案。');
+    }
+
+    return record;
+  }
 }

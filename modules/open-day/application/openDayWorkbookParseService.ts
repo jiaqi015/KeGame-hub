@@ -13,29 +13,35 @@ export class OpenDayWorkbookParseService {
   constructor(private readonly uploadArtifactService?: OpenDayUploadArtifactService) {}
 
   async execute(command: ParseOpenDayWorkbookCommand): Promise<ParsedWorkbookPayload> {
-    const payload = parseWorkbookBuffer(command.buffer, command.requestedSheet);
-
     if (!command.persistArtifact || !this.uploadArtifactService) {
-      return payload;
+      return parseWorkbookBuffer(command.buffer, command.requestedSheet);
     }
 
-    try {
-      const uploadArtifact = await this.uploadArtifactService.save({
+    const [payloadResult, uploadResult] = await Promise.allSettled([
+      Promise.resolve().then(() => parseWorkbookBuffer(command.buffer, command.requestedSheet)),
+      this.uploadArtifactService.save({
         buffer: command.buffer,
         originalFilename: command.originalFilename,
         contentType: command.contentType,
-      });
+      }),
+    ]);
 
+    if (payloadResult.status === 'rejected') {
+      throw payloadResult.reason;
+    }
+
+    if (uploadResult.status === 'fulfilled') {
       return {
-        ...payload,
-        uploadArtifact,
-      };
-    } catch (error) {
-      console.error('Failed to persist open-day upload artifact:', error);
-      return {
-        ...payload,
-        uploadWarning: error instanceof Error ? error.message : '上传归档失败',
+        ...payloadResult.value,
+        uploadArtifact: uploadResult.value,
       };
     }
+
+    console.error('Failed to persist open-day upload artifact:', uploadResult.reason);
+    return {
+      ...payloadResult.value,
+      uploadWarning:
+        uploadResult.reason instanceof Error ? uploadResult.reason.message : '上传归档失败',
+    };
   }
 }

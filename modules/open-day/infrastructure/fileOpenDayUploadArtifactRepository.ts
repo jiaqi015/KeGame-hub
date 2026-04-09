@@ -24,6 +24,16 @@ export class FileOpenDayUploadArtifactRepository implements OpenDayUploadArtifac
     this.indexFile = path.join(this.uploadDir, 'index.json');
   }
 
+  async findExisting(query: SaveOpenDayUploadArtifactCommand | { originalFilename: string; byteSize: number; checksumSha256: string }) {
+    const current = await this.readIndex();
+    return current.items.find(
+      (item) =>
+        item.originalFilename === query.originalFilename &&
+        item.byteSize === query.byteSize &&
+        item.checksumSha256 === query.checksumSha256,
+    ) || null;
+  }
+
   async save(command: SaveOpenDayUploadArtifactCommand): Promise<OpenDayUploadArtifactSummary> {
     const targetFile = path.join(this.fileDir, ...command.storageKey.split('/'));
     await fs.mkdir(path.dirname(targetFile), { recursive: true });

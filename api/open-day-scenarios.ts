@@ -1,4 +1,5 @@
 import { authorizeRequest } from '../lib/activation.js';
+import { handleOpenDayScenarioGet } from '../modules/open-day/interfaces/http/openDayScenarioGetHandler.js';
 import { handleOpenDayScenarioList } from '../modules/open-day/interfaces/http/openDayScenarioListHandler.js';
 import { handleOpenDayScenarioSave } from '../modules/open-day/interfaces/http/openDayScenarioSaveHandler.js';
 
@@ -15,6 +16,11 @@ export default async function handler(req: any, res: any) {
 
   try {
     if (req.method === 'GET') {
+      if (typeof req.query?.id === 'string' && req.query.id) {
+        const payload = await handleOpenDayScenarioGet(req.query || {});
+        return res.status(200).json(payload);
+      }
+
       const payload = await handleOpenDayScenarioList(req.query || {});
       return res.status(200).json(payload);
     }

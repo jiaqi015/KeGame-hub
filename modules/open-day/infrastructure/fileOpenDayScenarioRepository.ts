@@ -49,6 +49,17 @@ export class FileOpenDayScenarioRepository implements OpenDayScenarioRepository 
     return current.items.slice(0, limit);
   }
 
+  async get(id: string): Promise<OpenDayScenarioTemplateRecord | null> {
+    const detailFile = path.join(this.scenarioDir, `${id}.json`);
+
+    try {
+      const content = await fs.readFile(detailFile, 'utf8');
+      return JSON.parse(content) as OpenDayScenarioTemplateRecord;
+    } catch {
+      return null;
+    }
+  }
+
   private async readIndex(): Promise<ScenarioIndexFile> {
     try {
       const content = await fs.readFile(this.indexFile, 'utf8');

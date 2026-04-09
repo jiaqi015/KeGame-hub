@@ -13,6 +13,7 @@ interface ScenarioRow {
   parameter_package_id: string | null;
   config_version: string;
   updated_at: string;
+  scenario_json?: unknown;
 }
 
 export class NeonOpenDayScenarioRepository implements OpenDayScenarioRepository {
@@ -76,6 +77,46 @@ export class NeonOpenDayScenarioRepository implements OpenDayScenarioRepository 
         configVersion: row.config_version,
         updatedAt: row.updated_at,
       }));
+    });
+  }
+
+  async get(id: string): Promise<OpenDayScenarioTemplateRecord | null> {
+    return withOpenDayNeon(async (sql) => {
+      const rows = (await sql.query(
+        `
+          SELECT
+            id,
+            name,
+            description,
+            formula_id,
+            parameter_package_id,
+            config_version,
+            updated_at,
+            scenario_json
+          FROM open_day_scenario_templates
+          WHERE id = $1
+          LIMIT 1
+        `,
+        [id],
+      )) as ScenarioRow[];
+
+      const row = rows[0];
+      if (!row) {
+        return null;
+      }
+
+      return {
+        summary: {
+          id: row.id,
+          name: row.name,
+          description: row.description,
+          formulaId: row.formula_id as OpenDayScenarioTemplateSummary['formulaId'],
+          parameterPackageId: row.parameter_package_id,
+          configVersion: row.config_version,
+          updatedAt: row.updated_at,
+        },
+        scenario: row.scenario_json as OpenDayScenarioTemplateRecord['scenario'],
+      };
     });
   }
 }

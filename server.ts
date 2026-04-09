@@ -11,6 +11,7 @@ import { AVAILABLE_MODELS } from "./lib/models.js";
 import { ensureRuntimeTempDir } from "./lib/runtimeTemp.js";
 import { handleOpenDayCatalog } from "./modules/open-day/interfaces/http/openDayCatalogHandler.js";
 import { handleOpenDayWorkbookParse } from "./modules/open-day/interfaces/http/openDayWorkbookParseHandler.js";
+import { handleOpenDayScenarioGet } from "./modules/open-day/interfaces/http/openDayScenarioGetHandler.js";
 import { handleOpenDayScenarioList } from "./modules/open-day/interfaces/http/openDayScenarioListHandler.js";
 import { handleOpenDayScenarioSave } from "./modules/open-day/interfaces/http/openDayScenarioSaveHandler.js";
 import { handleOpenDaySnapshotList } from "./modules/open-day/interfaces/http/openDaySnapshotListHandler.js";
@@ -97,6 +98,11 @@ async function startServer() {
 
   app.get("/api/open-day-scenarios", async (req, res) => {
     try {
+      if (typeof req.query?.id === "string" && req.query.id) {
+        const payload = await handleOpenDayScenarioGet(req.query);
+        return res.json(payload);
+      }
+
       const payload = await handleOpenDayScenarioList(req.query);
       return res.json(payload);
     } catch (error) {

@@ -4,6 +4,7 @@ import type {
   OpenDayCatalogResponse,
   OpenDaySaveScenarioCommand,
   OpenDayScenarioListResponse,
+  OpenDayScenarioTemplateSummary,
   OpenDayScenarioTemplateRecord,
   OpenDayScoreCommand,
   OpenDaySnapshotListResponse,
@@ -43,6 +44,13 @@ export function fetchOpenDayScenarios(activationKey: string, limit = 8) {
   return requestJson<OpenDayScenarioListResponse>(
     activationKey,
     `/api/open-day-scenarios?limit=${encodeURIComponent(limit)}`,
+  );
+}
+
+export function fetchOpenDayScenarioDetail(activationKey: string, id: string) {
+  return requestJson<OpenDayScenarioTemplateRecord>(
+    activationKey,
+    `/api/open-day-scenarios?id=${encodeURIComponent(id)}`,
   );
 }
 

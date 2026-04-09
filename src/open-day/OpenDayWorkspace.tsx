@@ -19,13 +19,22 @@ import type {
   OpenDayParameterKey,
   OpenDayPreset,
   OpenDayRawRow,
+  OpenDayScenarioTemplateSummary,
 } from '../../modules/open-day/domain/openDay.types.ts';
 import { normalizeOpenDayRows } from '../../modules/open-day/domain/openDayDatasetNormalizer.js';
 import {
   deriveOpenDayPercentileForValue,
   resolveOpenDayWaterlineContext,
 } from '../../modules/open-day/domain/openDayParameterResolver.js';
-import { fetchOpenDayAnalysis, fetchOpenDayCatalog, fetchOpenDaySnapshots, uploadWorkbook } from './openDayClient';
+import {
+  fetchOpenDayAnalysis,
+  fetchOpenDayCatalog,
+  fetchOpenDayScenarioDetail,
+  fetchOpenDayScenarios,
+  fetchOpenDaySnapshots,
+  saveOpenDayScenario,
+  uploadWorkbook,
+} from './openDayClient';
 import {
   cloneConfig,
   createEmptyMappings,
@@ -136,6 +145,22 @@ function buildUploadSummary(sourceName: string, rowCount: number, headers: strin
   return `已载入 ${sourceName}，共 ${rowCount} 行，识别到 ${headers.length} 个字段。下一步可以调整策略并查看结果。`;
 }
 
+function buildScenarioDraftName(sourceName: string, activePresetId: string, presets: OpenDayPreset[]) {
+  const label = getPresetLabel(activePresetId, presets);
+  const baseName = sourceName ? sourceName.split('/')[0].trim() : '开放日方案';
+  const timestamp = new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+    .format(new Date())
+    .replace(/\//g, '-')
+    .replace(/\s+/g, ' ');
+
+  return `${baseName} ${label} ${timestamp}`;
+}
+
 export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
   const [stage, setStage] = useState<WorkspaceStage>('upload');
   const [catalog, setCatalog] = useState(fallbackCatalog);
@@ -151,12 +176,17 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
   const [activePresetId, setActivePresetId] = useState('auto');
   const [analysis, setAnalysis] = useState<OpenDayAnalysisResponse | null>(null);
   const [snapshots, setSnapshots] = useState<OpenDayAnalysisSnapshotSummary[]>([]);
+  const [scenarios, setScenarios] = useState<OpenDayScenarioTemplateSummary[]>([]);
   const [catalogMessage, setCatalogMessage] = useState('');
   const [statusMessage, setStatusMessage] = useState('请先上传数据。');
+  const [scenarioMessage, setScenarioMessage] = useState('');
   const [uploadError, setUploadError] = useState('');
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isSavingScenario, setIsSavingScenario] = useState(false);
+  const [isLoadingScenario, setIsLoadingScenario] = useState('');
   const [hasPendingChanges, setHasPendingChanges] = useState(false);
+  const [scenarioName, setScenarioName] = useState('');
   const requestVersionRef = useRef(0);
 
   const presets = catalog.parameterPackages.length ? catalog.parameterPackages : catalog.presets;
@@ -187,6 +217,15 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     }
   }
 
+  async function refreshScenarios() {
+    try {
+      const payload = await fetchOpenDayScenarios(activationKey, 8);
+      setScenarios(payload.items);
+    } catch {
+      setScenarios([]);
+    }
+  }
+
   function getResolvedParameter(key: OpenDayParameterKey) {
     return waterlinePreview?.resolvedParameters.find((parameter) => parameter.key === key) || null;
   }
@@ -210,9 +249,10 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
       setIsBootstrapping(true);
 
       try {
-        const [nextCatalog, nextSnapshots] = await Promise.all([
+        const [nextCatalog, nextSnapshots, nextScenarios] = await Promise.all([
           fetchOpenDayCatalog(activationKey),
           fetchOpenDaySnapshots(activationKey, 8),
+          fetchOpenDayScenarios(activationKey, 8),
         ]);
 
         if (cancelled) {
@@ -222,6 +262,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
         setCatalog(nextCatalog);
         setConfig(cloneConfig(nextCatalog.defaultConfig));
         setSnapshots(nextSnapshots.items);
+        setScenarios(nextScenarios.items);
         setActivePresetId('auto');
         setHasPendingChanges(false);
         setCatalogMessage('');
@@ -233,6 +274,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
         setCatalog(fallbackCatalog);
         setConfig(cloneConfig(fallbackCatalog.defaultConfig));
         setSnapshots([]);
+        setScenarios([]);
         setHasPendingChanges(false);
         setCatalogMessage(
           error instanceof Error ? `${error.message}，已自动回退到默认策略。` : '策略目录加载失败，已自动回退到默认策略。',
@@ -259,6 +301,8 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     setAnalysis(null);
     setHasPendingChanges(true);
     setUploadError('');
+    setScenarioMessage('');
+    setScenarioName((current) => current || nextSourceName.split('/')[0].trim());
     setStatusMessage(stage === 'workspace' ? '已载入新数据，准备重新测算。' : '数据已准备好，可以进入下一步。');
   }
 
@@ -312,6 +356,52 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     setConfig(cloneConfig(catalog.defaultConfig));
     setActivePresetId('auto');
     markDraftDirty();
+  }
+
+  async function handleSaveScenario() {
+    const name = scenarioName.trim() || buildScenarioDraftName(sourceName, activePresetId, presets);
+    setIsSavingScenario(true);
+    setScenarioMessage('');
+
+    try {
+      const record = await saveOpenDayScenario(activationKey, {
+        name,
+        description: sourceName ? `来源：${sourceName}` : '',
+        scenario: {
+          formulaId: config.formulaId,
+          parameterPackageId: activePresetId === 'custom' ? null : activePresetId,
+          config,
+        },
+        activePresetId,
+        activeParameterPackageId: activePresetId === 'custom' ? '' : activePresetId,
+      });
+
+      setScenarioName(record.summary.name);
+      setScenarioMessage(`已保存方案：${record.summary.name}`);
+      await refreshScenarios();
+    } catch (error) {
+      setScenarioMessage(error instanceof Error ? error.message : '方案保存失败');
+    } finally {
+      setIsSavingScenario(false);
+    }
+  }
+
+  async function handleLoadScenario(id: string) {
+    setIsLoadingScenario(id);
+    setScenarioMessage('');
+
+    try {
+      const record = await fetchOpenDayScenarioDetail(activationKey, id);
+      setConfig(cloneConfig(record.scenario.config));
+      setActivePresetId(record.scenario.parameterPackageId || 'custom');
+      setScenarioName(record.summary.name);
+      markDraftDirty(`已加载方案“${record.summary.name}”，请点击重新测算。`);
+      setScenarioMessage(`已载入方案：${record.summary.name}`);
+    } catch (error) {
+      setScenarioMessage(error instanceof Error ? error.message : '方案加载失败');
+    } finally {
+      setIsLoadingScenario('');
+    }
   }
 
   function updateConfig(mutator: (draft: OpenDayConfig) => void) {
@@ -656,6 +746,69 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                     <span>{preset.description}</span>
                   </button>
                 ))}
+              </div>
+            </section>
+
+            <section className="open-day-panel">
+              <div className="open-day-panel__head">
+                <History className="open-day-panel__icon" />
+                <div>
+                  <h3>方案保存</h3>
+                  <p>把当前公式、参数包和手动调整一起保存下来，方便后续回放。</p>
+                </div>
+              </div>
+
+              <div className="open-day-scenario-form">
+                <label>
+                  <span>方案名称</span>
+                  <input
+                    type="text"
+                    placeholder="例如：4月第一周主推盘"
+                    value={scenarioName}
+                    onChange={(event) => {
+                      setScenarioName(event.target.value);
+                      setScenarioMessage('');
+                    }}
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  className="open-day-button open-day-button--secondary open-day-button--block"
+                  onClick={() => void handleSaveScenario()}
+                  disabled={isSavingScenario}
+                >
+                  <span>{isSavingScenario ? '保存中...' : '保存方案'}</span>
+                </button>
+              </div>
+
+              {scenarioMessage ? (
+                <div className={scenarioMessage.includes('失败') || scenarioMessage.includes('未找到') ? 'open-day-inline-error' : 'open-day-inline-success'}>
+                  {scenarioMessage}
+                </div>
+              ) : null}
+
+              <div className="open-day-scenario-grid">
+                {scenarios.length ? (
+                  scenarios.map((scenario) => (
+                    <button
+                      key={scenario.id}
+                      type="button"
+                      className={`open-day-scenario-card ${scenarioName === scenario.name ? 'is-active' : ''}`}
+                      onClick={() => void handleLoadScenario(scenario.id)}
+                      disabled={isLoadingScenario === scenario.id}
+                    >
+                      <strong>{scenario.name}</strong>
+                      <span>{scenario.description || '已保存的开放日方案'}</span>
+                      <div className="open-day-scenario-card__meta">
+                        <span>{scenario.parameterPackageId || 'custom'}</span>
+                        <span>{formatDateTime(scenario.updatedAt)}</span>
+                      </div>
+                    </button>
+                  ))
+                ) : (
+                  <div className="open-day-chart__placeholder">暂未保存方案。</div>
+                )}
               </div>
             </section>
 

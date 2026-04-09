@@ -78,10 +78,7 @@ export class NeonOpenDaySnapshotRepository implements OpenDaySnapshotRepository 
       );
 
       await sql.query(`DELETE FROM open_day_analysis_snapshot_rows WHERE snapshot_id = $1`, [snapshot.summary.id]);
-
-      for (const row of snapshot.response.results) {
-        await this.insertRow(sql, snapshot.summary.id, row);
-      }
+      await this.insertRows(sql, snapshot.summary.id, snapshot.response.results);
     });
   }
 
@@ -126,52 +123,73 @@ export class NeonOpenDaySnapshotRepository implements OpenDaySnapshotRepository 
     });
   }
 
-  private async insertRow(sql: any, snapshotId: string, row: OpenDayAnalysisRow) {
-    await sql.query(
-      `
-        INSERT INTO open_day_analysis_snapshot_rows (
-          snapshot_id,
-          rank,
-          area,
-          name,
-          score,
-          raw_score,
-          tier_code,
-          is_eligible,
-          scale_idx,
-          traffic_idx,
-          product_idx,
-          interaction_idx,
-          conv_rate,
-          transactions,
-          inventory,
-          traffic,
-          premium
-        )
-        VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8,
-          $9, $10, $11, $12, $13, $14, $15, $16, $17
-        )
-      `,
-      [
-        snapshotId,
-        row.rank,
-        row.area || null,
-        row.name,
-        row.score,
-        row.rawScore,
-        row.tierCode,
-        row.isEligible,
-        row.scaleIdx,
-        row.trafficIdx,
-        row.productIdx,
-        row.interactionIdx,
-        row.convRate,
-        row.transactions,
-        row.inventory,
-        row.traffic,
-        row.premium,
-      ],
-    );
+  private async insertRows(sql: any, snapshotId: string, rows: OpenDayAnalysisRow[]) {
+    if (!rows.length) {
+      return;
+    }
+
+    const chunkSize = 100;
+    const valuesPerRow = 17;
+
+    for (let index = 0; index < rows.length; index += chunkSize) {
+      const chunk = rows.slice(index, index + chunkSize);
+      const values: unknown[] = [];
+      const placeholders = chunk
+        .map((row, rowIndex) => {
+          const offset = rowIndex * valuesPerRow;
+          values.push(
+            snapshotId,
+            row.rank,
+            row.area || null,
+            row.name,
+            row.score,
+            row.rawScore,
+            row.tierCode,
+            row.isEligible,
+            row.scaleIdx,
+            row.trafficIdx,
+            row.productIdx,
+            row.interactionIdx,
+            row.convRate,
+            row.transactions,
+            row.inventory,
+            row.traffic,
+            row.premium,
+          );
+
+          return `(
+            $${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6},
+            $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}, $${offset + 12},
+            $${offset + 13}, $${offset + 14}, $${offset + 15}, $${offset + 16}, $${offset + 17}
+          )`;
+        })
+        .join(',\n');
+
+      await sql.query(
+        `
+          INSERT INTO open_day_analysis_snapshot_rows (
+            snapshot_id,
+            rank,
+            area,
+            name,
+            score,
+            raw_score,
+            tier_code,
+            is_eligible,
+            scale_idx,
+            traffic_idx,
+            product_idx,
+            interaction_idx,
+            conv_rate,
+            transactions,
+            inventory,
+            traffic,
+            premium
+          )
+          VALUES ${placeholders}
+        `,
+        values,
+      );
+    }
   }
 }

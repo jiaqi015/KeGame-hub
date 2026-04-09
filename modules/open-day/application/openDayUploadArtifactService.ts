@@ -56,10 +56,20 @@ export class OpenDayUploadArtifactService {
 
   async save(input: SaveOpenDayUploadArtifactInput): Promise<OpenDayUploadArtifactSummary> {
     const originalFilename = input.originalFilename.trim() || 'workbook.xlsx';
-    const createdAt = new Date().toISOString();
     const checksumSha256 = createHash('sha256').update(input.buffer).digest('hex');
+    const existing = await this.repository.findExisting({
+      originalFilename,
+      byteSize: input.buffer.byteLength,
+      checksumSha256,
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    const createdAt = new Date().toISOString();
     const id = createHash('sha256')
-      .update(`${createdAt}:${originalFilename}:${checksumSha256}:${input.buffer.byteLength}`)
+      .update(`${originalFilename}:${checksumSha256}:${input.buffer.byteLength}`)
       .digest('hex')
       .slice(0, 24);
 
