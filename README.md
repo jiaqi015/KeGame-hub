@@ -1,86 +1,47 @@
-# AI Model Sabrina II
+# Sabrina Workspace
 
-AI Model Sabrina II is a Vite + React comparison app with a Vercel-compatible backend. The UI stays aligned with the provided Sabrina reference project, while model visibility and provider routing are controlled entirely by backend configuration.
+这是一个合并后的统一入口项目，验证通过后可以进入两个工作台：
 
-## Current Status
+- `AI Model Sabrina II`：多模型对比与核心差异总结
+- `开放日选址`：开放日候选小区测算与排名分析
 
-- Production: [https://ai-model-sabrina.vercel.app](https://ai-model-sabrina.vercel.app)
-- Frontend UI: unchanged visual structure, model list comes from `/api/models`
-- Enabled models today: 4 Volcengine text models
-- Hidden models: any model with `enabled: false` in the registry
+## 当前结构
 
-## Stack
+- 前端：`Vite + React + TypeScript`
+- 后端：
+  - Sabrina 相关接口：`/api/activate`、`/api/models`、`/api/compare`、`/api/compare-stream`
+  - 开放日 Excel 解析：`/api/parse-workbook`
+- 开放日原始静态页面已保存在 `src/open-day/legacy/`
 
-- Frontend: React, TypeScript, Vite, Tailwind
-- Local backend: Express via `server.ts`
-- Vercel backend: `api/models.ts` and `api/compare.ts`
-- Providers:
-  - Volcengine Ark
-  - IKunCode
-
-## Model Configuration
-
-Single source of truth:
-
-- [/Users/jiaqi/Desktop/sabrina/AI-Model-Sabrina/lib/models.ts](/Users/jiaqi/Desktop/sabrina/AI-Model-Sabrina/lib/models.ts)
-
-Each model entry controls:
-
-- `enabled`: whether the UI shows it
-- `channel`: `china` or `global`
-- `provider`: which backend adapter handles it
-- `upstreamModel`: the real model ID sent to the provider
-
-The UI does not hardcode model cards. It fetches `/api/models`, so disabled models stay hidden automatically.
-
-## Environment Variables
-
-```env
-ARK_API_KEY=
-IKUN_API_KEY=
-```
-
-Configured on Vercel environments:
-
-- `Production`
-- `Preview`
-- `Development`
-
-## Provider Notes
-
-### Volcengine Ark
-
-- Working in production
-- Verified with live `/api/compare` response on **2026-03-16**
-
-### IKunCode
-
-- Adapter implemented in [/Users/jiaqi/Desktop/sabrina/AI-Model-Sabrina/lib/ikun.ts](/Users/jiaqi/Desktop/sabrina/AI-Model-Sabrina/lib/ikun.ts)
-- Requested target models were added to config as disabled placeholders:
-  - `gpt5.4`
-  - `claude-sonnet-4-6`
-  - `gemini-3.1-pro-preview`
-- As of **2026-03-16**, the provided IKunCode key's `/v1/models` response did not return those exact model IDs, so they are intentionally not displayed
-- A live chat call with a returned IKun model ID responded with `No available channel`, so no IKun model is exposed in UI yet
-
-## Local Development
+## 使用方式
 
 ```bash
 npm install
 npm run dev
 ```
 
-Useful checks:
+本地默认启动地址：
 
 ```bash
-npm run lint
-npm run build
+http://localhost:3000
 ```
 
-## Backend Flow
+## 环境变量
 
-1. Frontend loads `/api/models`
-2. User only sees enabled models
-3. Frontend posts prompt + selected model IDs to `/api/compare`
-4. Backend resolves each model from the registry and routes by provider
-5. Results are returned in the original Sabrina UI
+参考 `.env.example`，至少需要：
+
+- `ACTIVATION_KEYS`
+
+如果要使用 Sabrina 的模型对比能力，还需要按实际 provider 配置：
+
+- `ARK_API_KEY`
+- `IKUN_API_KEY`
+- `HUNYUAN_API_KEY`
+- `DASHSCOPE_API_KEY`
+
+## 合并说明
+
+- 验证页沿用 Sabrina 的激活机制
+- 验证通过后先进入功能选择页
+- `开放日选址` 作为内嵌工作台接入，同样受激活校验保护
+- Excel 上传会通过 `/api/parse-workbook` 在服务端解析 sheet 和数据

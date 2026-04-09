@@ -1,12 +1,38 @@
 import express from "express";
+import fs from "node:fs/promises";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
+import formidable from "formidable";
 import { authorizeRequest, validateActivationKey } from "./lib/activation.js";
 import { compareModels, streamCompareModel } from "./lib/compare.js";
 import { AVAILABLE_MODELS } from "./lib/models.js";
+import { parseWorkbookBuffer } from "./lib/openDayWorkbook.js";
 
 dotenv.config();
+
+function parseMultipart(req: Parameters<typeof formidable>[0]) {
+  const form = formidable({ multiples: false, maxFiles: 1 });
+
+  return new Promise<{ fields: formidable.Fields; files: formidable.Files }>((resolve, reject) => {
+    form.parse(req, (error, fields, files) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve({ fields, files });
+    });
+  });
+}
+
+function getFirstFieldValue(value: string | string[] | undefined) {
+  if (Array.isArray(value)) {
+    return typeof value[0] === "string" ? value[0].trim() : "";
+  }
+
+  return typeof value === "string" ? value.trim() : "";
+}
 
 async function startServer() {
   const app = express();
@@ -41,6 +67,23 @@ async function startServer() {
 
   app.get("/api/models", (_req, res) => {
     res.json({ models: AVAILABLE_MODELS });
+  });
+
+  app.post("/api/parse-workbook", async (req, res) => {
+    try {
+      const { fields, files } = await parseMultipart(req);
+      const file = Array.isArray(files.file) ? files.file[0] : files.file;
+
+      if (!file?.filepath) {
+        return res.status(400).send("缺少 Excel 文件。");
+      }
+
+      const buffer = await fs.readFile(file.filepath);
+      const payload = parseWorkbookBuffer(buffer, getFirstFieldValue(fields.sheet));
+      return res.json(payload);
+    } catch (error) {
+      return res.status(400).send(error instanceof Error ? error.message : "Excel 解析失败");
+    }
   });
 
   app.post("/api/compare", async (req, res) => {

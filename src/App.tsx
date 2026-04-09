@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Layers, Cpu, CheckCircle2, Loader2, ArrowLeft, Send, Sparkles, X, Maximize2, KeyRound, LogOut, ShieldCheck } from 'lucide-react';
+import { Layers, Cpu, CheckCircle2, Loader2, ArrowLeft, ArrowRight, Send, Sparkles, X, Maximize2, KeyRound, LogOut, ShieldCheck } from 'lucide-react';
 import { ComparisonResult, AIModel } from './types';
+import { OpenDayWorkspace } from './open-day/OpenDayWorkspace';
 
 type DifferenceSummaryStatus = 'idle' | 'waiting' | 'thinking' | 'completed' | 'error';
 type AuthStatus = 'checking' | 'locked' | 'submitting' | 'authenticated';
+type WorkspaceId = 'hub' | 'sabrina' | 'open-day';
 
 interface DifferenceSummaryState {
   modelId: string | null;
@@ -261,6 +263,7 @@ export default function App() {
   const [authorizedKey, setAuthorizedKey] = useState('');
   const [authStatus, setAuthStatus] = useState<AuthStatus>('checking');
   const [authError, setAuthError] = useState('');
+  const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceId>('hub');
   const [availableModels, setAvailableModels] = useState<AIModel[]>([]);
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState('all');
@@ -298,6 +301,7 @@ export default function App() {
     compareRunRef.current += 1;
     abortActiveComparisons();
     abortDifferenceSummary();
+    setActiveWorkspace('hub');
     setAvailableModels([]);
     setSelectedModels([]);
     setCatalogReady(false);
@@ -326,6 +330,7 @@ export default function App() {
     setAuthorizedKey(key);
     setActivationInput(key);
     setAuthError('');
+    setActiveWorkspace('hub');
     setAuthStatus('authenticated');
   };
 
@@ -385,6 +390,13 @@ export default function App() {
 
   const handleLogout = () => {
     lockApplication('', '');
+  };
+
+  const handleReturnToHub = () => {
+    abortActiveComparisons();
+    abortDifferenceSummary();
+    setPreviewData(null);
+    setActiveWorkspace('hub');
   };
 
   useEffect(() => {
@@ -689,10 +701,10 @@ export default function App() {
                       Sabrina Access
                     </div>
                     <h1 className="text-[34px] font-semibold tracking-[-0.04em] text-[#111111]">
-                      AI Model Sabrina II
+                      Sabrina Workspace
                     </h1>
                     <p className="mt-3 max-w-sm text-[15px] leading-7 text-[#6E6E73]">
-                      输入激活密钥后进入模型工作台。
+                      先完成验证，再进入 AI Model Sabrina II 和开放日选址两个工作台。
                     </p>
                   </div>
 
@@ -749,6 +761,136 @@ export default function App() {
             </div>
           </motion.form>
         </div>
+      ) : activeWorkspace === 'hub' ? (
+        <motion.div
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex-1 overflow-auto px-6 py-6"
+        >
+          <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+            <div className="flex flex-col gap-4 rounded-[36px] border border-white/70 bg-white/80 p-6 shadow-[0_28px_80px_rgba(20,20,43,0.08)] backdrop-blur-2xl md:flex-row md:items-start md:justify-between">
+              <div className="max-w-3xl">
+                <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-black/5 bg-[#F5F5F7] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#6E6E73]">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                  Workspace Ready
+                </div>
+                <h1 className="text-[34px] font-semibold tracking-[-0.05em] text-[#111111] md:text-[44px]">
+                  先验证，再进入两个工作台
+                </h1>
+                <p className="mt-4 max-w-2xl text-[15px] leading-7 text-[#6E6E73] md:text-[16px]">
+                  这里会作为统一入口。验证通过后，你可以进入 AI Model Sabrina II 做多模型对比，也可以进入开放日选址做楼盘测算。
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="rounded-[24px] border border-black/5 bg-[#F5F5F7] px-4 py-3 text-right">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#8E8E93]">模型目录</div>
+                  <div className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[#111111]">
+                    {catalogReady ? availableModels.length : '...'}
+                  </div>
+                  <div className="mt-1 text-xs text-[#6E6E73]">
+                    {catalogReady ? '可用模型已加载' : '正在同步模型列表'}
+                  </div>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-[#5C5C60] transition hover:border-black/20 hover:text-[#1D1D1F]"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  退出登录
+                </button>
+              </div>
+            </div>
+
+            <div className="grid gap-5 lg:grid-cols-2">
+              <button
+                onClick={() => setActiveWorkspace('sabrina')}
+                className="group rounded-[32px] border border-black/5 bg-white p-6 text-left shadow-[0_20px_60px_rgba(20,20,43,0.06)] transition hover:-translate-y-1 hover:shadow-[0_28px_80px_rgba(20,20,43,0.1)]"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-[#111111] text-white shadow-[0_18px_40px_rgba(17,17,17,0.18)]">
+                    <Sparkles className="h-5 w-5" />
+                  </div>
+                  <div className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-blue-600">
+                    AI Studio
+                  </div>
+                </div>
+                <h2 className="mt-6 text-[28px] font-semibold tracking-[-0.05em] text-[#111111]">
+                  AI Model Sabrina II
+                </h2>
+                <p className="mt-3 text-[15px] leading-7 text-[#6E6E73]">
+                  一句提示词，多模型同时出结果，并自动生成核心差异总结。适合做模型选型、提示词对比和产出评审。
+                </p>
+                <div className="mt-6 flex items-center justify-between text-sm font-semibold text-[#111111]">
+                  <span>进入多模型工作台</span>
+                  <span className="inline-flex items-center gap-1 text-blue-600 transition group-hover:translate-x-1">
+                    打开
+                    <ArrowRight className="h-4 w-4" />
+                  </span>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setActiveWorkspace('open-day')}
+                className="group rounded-[32px] border border-black/5 bg-white p-6 text-left shadow-[0_20px_60px_rgba(20,20,43,0.06)] transition hover:-translate-y-1 hover:shadow-[0_28px_80px_rgba(20,20,43,0.1)]"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-[#1F5F4A] text-white shadow-[0_18px_40px_rgba(31,95,74,0.18)]">
+                    <Layers className="h-5 w-5" />
+                  </div>
+                  <div className="rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                    Selection Tool
+                  </div>
+                </div>
+                <h2 className="mt-6 text-[28px] font-semibold tracking-[-0.05em] text-[#111111]">
+                  开放日选址
+                </h2>
+                <p className="mt-3 text-[15px] leading-7 text-[#6E6E73]">
+                  上传 CSV 或 Excel，映射字段并快速测算候选小区潜力。适合开放日场地筛选、优先级排序和投放分析。
+                </p>
+                <div className="mt-6 flex items-center justify-between text-sm font-semibold text-[#111111]">
+                  <span>进入测算工作台</span>
+                  <span className="inline-flex items-center gap-1 text-emerald-700 transition group-hover:translate-x-1">
+                    打开
+                    <ArrowRight className="h-4 w-4" />
+                  </span>
+                </div>
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      ) : activeWorkspace === 'open-day' ? (
+        <div className="flex-1 overflow-hidden px-6 py-5">
+          <div className="mx-auto flex h-full w-full max-w-[1520px] flex-col gap-4">
+            <div className="flex flex-col gap-3 rounded-[32px] border border-white/70 bg-white/85 p-5 shadow-[0_24px_70px_rgba(20,20,43,0.08)] backdrop-blur-2xl md:flex-row md:items-center md:justify-between">
+              <div>
+                <button
+                  onClick={handleReturnToHub}
+                  className="mb-3 inline-flex items-center gap-2 text-sm font-medium text-emerald-700 transition hover:text-emerald-800"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  返回功能页
+                </button>
+                <h1 className="text-[28px] font-semibold tracking-[-0.04em] text-[#111111]">开放日选址</h1>
+                <p className="mt-2 text-sm leading-7 text-[#6E6E73]">
+                  当前保留原有测算逻辑，并纳入统一验证入口。支持样例数据、CSV 上传和 Excel 工作表选择。
+                </p>
+              </div>
+
+              <button
+                onClick={handleLogout}
+                className="inline-flex items-center gap-2 self-start rounded-full border border-black/10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-[#5C5C60] transition hover:border-black/20 hover:text-[#1D1D1F] md:self-auto"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                退出登录
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-hidden rounded-[36px] border border-black/5 bg-white/70 shadow-[0_24px_70px_rgba(20,20,43,0.08)]">
+              <OpenDayWorkspace activationKey={authorizedKey} />
+            </div>
+          </div>
+        </div>
       ) : (
       <>
       <AnimatePresence mode="wait">
@@ -761,6 +903,13 @@ export default function App() {
             className="flex-1 max-w-5xl mx-auto w-full flex flex-col pt-4 px-6 overflow-hidden"
           >
             <div className="relative text-center mb-3 shrink-0">
+              <button
+                onClick={handleReturnToHub}
+                className="absolute left-0 top-0 inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#5C5C60] transition hover:border-black/20 hover:text-[#1D1D1F]"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                返回功能页
+              </button>
               <button
                 onClick={handleLogout}
                 className="absolute right-0 top-0 inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#5C5C60] transition hover:border-black/20 hover:text-[#1D1D1F]"
@@ -959,6 +1108,13 @@ export default function App() {
                     <p className="text-[#1D1D1F] text-sm line-clamp-1 italic">"{prompt}"</p>
                   </div>
                   <button
+                    onClick={handleReturnToHub}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[#5C5C60] transition hover:border-black/20 hover:text-[#1D1D1F]"
+                  >
+                    <ArrowLeft className="h-3.5 w-3.5" />
+                    功能页
+                  </button>
+                  <button
                     onClick={handleLogout}
                     className="inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[#5C5C60] transition hover:border-black/20 hover:text-[#1D1D1F]"
                   >
@@ -1154,7 +1310,7 @@ export default function App() {
       <footer className="shrink-0 py-3 text-center text-[#86868B] text-[11px] border-t border-black/5 bg-white">
         <div className="flex items-center justify-center gap-2">
           <Sparkles className="w-3.5 h-3.5" />
-          <span>Sabrina Ⅱ • 多模型协同引擎</span>
+          <span>Sabrina Workspace • AI Model Sabrina II + 开放日选址</span>
           <span className="text-black/10">|</span>
           <span>© 2026</span>
         </div>

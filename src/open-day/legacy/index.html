@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>开放日选小区潜力测算</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Open Day Ranking Studio</p>
+          <h1>开放日选小区潜力测算系统</h1>
+          <p class="hero-text">
+            上传小区数据，使用默认关键参数快速测算；也可以把每个阈值切换成按分位或按固定数字，实时查看排名和分析结论。
+          </p>
+        </div>
+        <div class="hero-metric">
+          <div class="hero-metric-label">核心公式</div>
+          <div class="hero-metric-value">规模 × 流量 × (0.65 商品 + 0.35 互动)</div>
+          <div class="hero-metric-footnote">结果按区域最高分归一化到 100 分</div>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="panel upload-panel">
+          <div class="panel-header">
+            <div>
+              <p class="panel-kicker">Step 1</p>
+              <h2>上传文件与字段映射</h2>
+            </div>
+            <a class="ghost-link" href="./sample-data.csv" download>下载示例 CSV</a>
+          </div>
+
+          <div class="upload-box">
+            <label class="upload-input">
+              <span>上传 Excel / CSV 文件</span>
+              <input id="file-input" type="file" accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+            </label>
+            <button id="load-sample" class="secondary-btn" type="button">加载示例数据</button>
+          </div>
+
+          <p class="helper-text">
+            建议字段：`小区名称`、`在售套数`、`带看量`、`好房数`、`互动率`。支持 CSV，也支持带多个 sheet 的 Excel。互动率支持 `2.3%` 或 `0.023` 两种写法。
+          </p>
+
+          <div id="data-summary" class="data-summary empty">
+            暂未加载数据。你可以上传 CSV，或先加载示例数据查看页面效果。
+          </div>
+
+          <div id="sheet-picker-wrap" class="sheet-picker hidden">
+            <label>
+              <span>Excel Sheet</span>
+              <select id="sheet-picker"></select>
+            </label>
+          </div>
+
+          <div class="mapping-grid">
+            <label>
+              <span>小区名称列</span>
+              <select id="name-column"></select>
+            </label>
+            <label>
+              <span>在售套数列</span>
+              <select id="inventory-column"></select>
+            </label>
+            <label>
+              <span>带看量列</span>
+              <select id="traffic-column"></select>
+            </label>
+            <label>
+              <span>好房数列</span>
+              <select id="premium-column"></select>
+            </label>
+            <label>
+              <span>互动率列</span>
+              <select id="interaction-column"></select>
+            </label>
+          </div>
+        </section>
+
+        <section class="panel param-panel">
+          <div class="panel-header">
+            <div>
+              <p class="panel-kicker">Step 2</p>
+              <h2>关键参数设置</h2>
+            </div>
+            <button id="reset-defaults" class="secondary-btn" type="button">恢复 PDF 默认值</button>
+          </div>
+
+          <div class="formula-card">
+            <div>综合评分 = 规模分 × 流量分 × (商品分 × 商品权重 + 互动分 × 互动权重) × 100</div>
+          </div>
+
+          <div class="param-grid" id="param-grid"></div>
+
+          <div class="weight-grid">
+            <label>
+              <span>商品权重</span>
+              <input id="goods-weight" type="number" min="0" max="1" step="0.05" value="0.65" />
+            </label>
+            <label>
+              <span>互动权重</span>
+              <input id="interaction-weight" type="number" min="0" max="1" step="0.05" value="0.35" />
+            </label>
+            <label>
+              <span>流量平滑指数</span>
+              <input id="traffic-exponent" type="number" min="0.1" max="2" step="0.05" value="0.8" />
+            </label>
+          </div>
+        </section>
+
+        <section class="panel result-panel">
+          <div class="panel-header">
+            <div>
+              <p class="panel-kicker">Step 3</p>
+              <h2>排名结果与自动分析</h2>
+            </div>
+            <button id="recalculate" class="primary-btn" type="button">重新测算</button>
+          </div>
+
+          <div id="headline-metrics" class="headline-metrics"></div>
+          <div id="analysis-cards" class="analysis-cards"></div>
+          <div id="chart" class="chart"></div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>排名</th>
+                  <th>小区</th>
+                  <th>综合分</th>
+                  <th>分档</th>
+                  <th>规模分</th>
+                  <th>流量分</th>
+                  <th>商品分</th>
+                  <th>互动分</th>
+                </tr>
+              </thead>
+              <tbody id="result-body">
+                <tr>
+                  <td colspan="8" class="empty-cell">暂无结果</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <template id="param-template">
+      <article class="param-card">
+        <div class="param-topline">
+          <div>
+            <h3></h3>
+            <p></p>
+          </div>
+          <select class="mode-select">
+            <option value="fixed">按数字</option>
+            <option value="percentile">按分位</option>
+          </select>
+        </div>
+        <div class="param-inputs"></div>
+      </article>
+    </template>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
