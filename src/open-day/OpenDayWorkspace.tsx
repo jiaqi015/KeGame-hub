@@ -380,52 +380,10 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
           {catalogMessage ? <div className="open-day-workspace__banner">{catalogMessage}</div> : null}
 
           <section className="open-day-upload-stage">
-            <div className="open-day-upload-hero">
-              <span className="open-day-upload-hero__eyebrow">开放日测算</span>
-              <h2>上传一个表格，再进入测算工作台</h2>
-              <p>这一步只做数据准备。确认文件后，下一步再统一处理策略、参数和结果。</p>
-              <div className="open-day-upload-steps">
-                <div className="open-day-upload-step is-active">
-                  <span>1</span>
-                  <strong>上传数据</strong>
-                </div>
-                <div className="open-day-upload-step">
-                  <span>2</span>
-                  <strong>测算工作台</strong>
-                </div>
-              </div>
-            </div>
-
             <div className="open-day-upload-card">
-              <div className="open-day-upload-card__visual">
-                <div className="open-day-upload-visual__badge">
-                  <FileSpreadsheet className="open-day-upload-visual__icon" />
-                  数据准备
-                </div>
-                <h3>把表格交给系统，后面的判断交给工作台</h3>
-                <p>
-                  支持 Excel / CSV。系统会自动识别常用字段，下一步再集中看映射、参数和结果，操作不会乱。
-                </p>
-                <div className="open-day-upload-points">
-                  <div>
-                    <strong>自动识别</strong>
-                    <span>楼盘名、在售、带看、成交、好房</span>
-                  </div>
-                  <div>
-                    <strong>多 Sheet 兼容</strong>
-                    <span>进入工作台后仍可切换工作表</span>
-                  </div>
-                  <div>
-                    <strong>先看预览再继续</strong>
-                    <span>避免一开始就堆满参数和表格</span>
-                  </div>
-                </div>
-              </div>
-
               <div className="open-day-upload-card__panel">
                 <div className="open-day-upload-card__head">
                   <div>
-                    <span className="open-day-upload-card__label">Step 1</span>
                     <h3>上传数据文件</h3>
                     <p>{uploadSummary}</p>
                   </div>
@@ -514,7 +472,6 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                   <div className="open-day-upload-empty">
                     <FileUp className="open-day-upload-empty__icon" />
                     <strong>先上传一个文件</strong>
-                    <span>上传后这里会显示数据概览和下一步入口。</span>
                   </div>
                 )}
               </div>
