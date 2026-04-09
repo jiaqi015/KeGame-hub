@@ -451,9 +451,6 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                     </div>
 
                     <div className="open-day-upload-footer">
-                      <div className="open-day-upload-footer__hint">
-                        下一步进入测算工作台，再做字段确认、参数调整和结果查看。
-                      </div>
                       <button
                         type="button"
                         className="open-day-button open-day-button--primary"
@@ -635,7 +632,6 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                 <Sparkles className="open-day-panel__icon" />
                 <div>
                   <h3>策略选择</h3>
-                  <p>先选打法，再看结果变化。</p>
                 </div>
               </div>
 
@@ -659,7 +655,6 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                 <Settings2 className="open-day-panel__icon" />
                 <div>
                   <h3>参数调整</h3>
-                  <p>细调评分口径和业务红线。</p>
                 </div>
               </div>
 
@@ -852,7 +847,6 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
             <section className="open-day-hero-card">
               <div className="open-day-hero-card__copy">
                 <span className="open-day-workspace-header__eyebrow">结果概览</span>
-                <h3>重点看哪几个小区值得优先做开放日</h3>
                 <p>
                   当前策略：{getPresetLabel(activePresetId, presets)}
                   {analysis
@@ -926,7 +920,6 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                 <BarChart3 className="open-day-panel__icon" />
                 <div>
                   <h3>Top 6 评分</h3>
-                  <p>先看头部差距，再决定是否继续调参。</p>
                 </div>
               </div>
 
@@ -954,7 +947,6 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                 <Database className="open-day-panel__icon" />
                 <div>
                   <h3>完整排名</h3>
-                  <p>适合查看具体分层、是否入围和各项分数。</p>
                 </div>
               </div>
 
@@ -1020,7 +1012,6 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                 <History className="open-day-panel__icon" />
                 <div>
                   <h3>最近测算</h3>
-                  <p>方便回看同一批数据在不同策略下的结果。</p>
                 </div>
               </div>
 
