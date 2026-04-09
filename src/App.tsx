@@ -769,15 +769,7 @@ export default function App() {
         >
           <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
             <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-              <div className="max-w-3xl">
-                <div className="text-sm font-semibold text-[#1F5F4A]">选一个任务开始</div>
-                <h1 className="mt-2 text-[34px] font-semibold tracking-[-0.05em] text-[#111111] md:text-[42px]">
-                  更快看清差异，更快做决定
-                </h1>
-                <p className="mt-4 text-[15px] leading-7 text-[#6E6E73] md:text-[16px]">
-                  选模型、筛楼盘，帮你整理复杂信息，更快判断。
-                </p>
-              </div>
+              <div className="max-w-3xl"></div>
 
               <button
                 onClick={handleLogout}
