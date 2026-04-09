@@ -1,7 +1,6 @@
-import { OpenDayScenarioService } from '../../application/openDayScenarioService.js';
-import { FileOpenDayScenarioRepository } from '../../infrastructure/fileOpenDayScenarioRepository.js';
+import { getOpenDayScenarioService } from '../../infrastructure/openDayPlatform.js';
 
-const scenarioService = new OpenDayScenarioService(new FileOpenDayScenarioRepository());
+const scenarioService = getOpenDayScenarioService();
 
 export async function handleOpenDayScenarioList(query: unknown) {
   const record = query && typeof query === 'object' ? (query as Record<string, unknown>) : {};

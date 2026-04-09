@@ -54,7 +54,12 @@ export class FileOpenDaySnapshotRepository implements OpenDaySnapshotRepository 
       const content = await fs.readFile(this.indexFile, 'utf8');
       const parsed = JSON.parse(content) as SnapshotIndexFile;
       return {
-        items: Array.isArray(parsed.items) ? parsed.items : [],
+        items: Array.isArray(parsed.items)
+          ? parsed.items.map((item) => ({
+              sourceUploadId: null,
+              ...item,
+            }))
+          : [],
       };
     } catch {
       return { items: [] };

@@ -1,8 +1,7 @@
 import type { OpenDaySaveScenarioCommand } from '../../domain/openDay.types.js';
-import { OpenDayScenarioService } from '../../application/openDayScenarioService.js';
-import { FileOpenDayScenarioRepository } from '../../infrastructure/fileOpenDayScenarioRepository.js';
+import { getOpenDayScenarioService } from '../../infrastructure/openDayPlatform.js';
 
-const scenarioService = new OpenDayScenarioService(new FileOpenDayScenarioRepository());
+const scenarioService = getOpenDayScenarioService();
 
 function normalizeBody(body: unknown): OpenDaySaveScenarioCommand {
   if (!body || typeof body !== 'object') {

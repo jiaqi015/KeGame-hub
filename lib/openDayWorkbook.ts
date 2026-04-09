@@ -1,3 +1,4 @@
+import type { OpenDayUploadArtifactSummary } from '../modules/open-day/domain/openDay.types.js';
 import { read, utils } from 'xlsx';
 
 export interface ParsedWorkbookPayload {
@@ -5,6 +6,8 @@ export interface ParsedWorkbookPayload {
   headers: string[];
   rows: Record<string, string>[];
   sheets: string[];
+  uploadArtifact?: OpenDayUploadArtifactSummary;
+  uploadWarning?: string;
 }
 
 function normalizeCellValue(value: unknown) {

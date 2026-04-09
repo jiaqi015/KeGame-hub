@@ -143,6 +143,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
   const [headers, setHeaders] = useState<string[]>([]);
   const [rows, setRows] = useState<OpenDayRawRow[]>([]);
   const [sourceName, setSourceName] = useState('');
+  const [sourceUploadId, setSourceUploadId] = useState('');
   const [workbookSheets, setWorkbookSheets] = useState<string[]>([]);
   const [activeSheet, setActiveSheet] = useState('');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -265,6 +266,11 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     const payload = await uploadWorkbook(activationKey, file, requestedSheet);
     setWorkbookSheets(payload.sheets);
     setActiveSheet(payload.activeSheet);
+    if (!requestedSheet) {
+      setSourceUploadId(payload.uploadArtifact?.id || '');
+    } else if (payload.uploadArtifact?.id) {
+      setSourceUploadId(payload.uploadArtifact.id);
+    }
     applyParsedData(payload, `${file.name}${payload.activeSheet ? ` / ${payload.activeSheet}` : ''}`);
   }
 
@@ -282,6 +288,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     setUploadedFile(null);
     setWorkbookSheets([]);
     setActiveSheet('');
+    setSourceUploadId('');
     applyParsedData(parsed, file.name);
   }
 
@@ -290,6 +297,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     setUploadedFile(null);
     setWorkbookSheets([]);
     setActiveSheet('');
+    setSourceUploadId('');
     applyParsedData(parsed, '示例数据');
   }
 
@@ -345,6 +353,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
         mappings,
         config,
         sourceName,
+        sourceUploadId,
         activePresetId,
         activeParameterPackageId: activePresetId,
       });

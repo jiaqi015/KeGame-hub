@@ -16,7 +16,7 @@ export class OpenDayAnalysisService {
 
   async execute(command: OpenDayScoreCommand): Promise<OpenDayAnalysisResponse> {
     const cacheKey = createCacheKey(command);
-    const cached = this.cache.get(cacheKey);
+    const cached = await this.cache.get(cacheKey);
 
     if (cached) {
       return {
@@ -54,6 +54,7 @@ export class OpenDayAnalysisService {
           ).replace(/^snapshot:/, ''),
           createdAt: new Date().toISOString(),
           sourceName: command.sourceName || '未命名数据集',
+          sourceUploadId: command.sourceUploadId || null,
           presetId: command.activePresetId || null,
           parameterPackageId:
             response.meta.scenario.parameterPackageId || command.activeParameterPackageId || command.activePresetId || null,
@@ -77,7 +78,7 @@ export class OpenDayAnalysisService {
       }
     }
 
-    this.cache.set(cacheKey, response);
+    await this.cache.set(cacheKey, response);
     return response;
   }
 }

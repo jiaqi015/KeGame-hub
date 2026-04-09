@@ -1,12 +1,7 @@
 import type { OpenDayScoreCommand } from '../../domain/openDay.types.js';
-import { OpenDayAnalysisService } from '../../application/openDayAnalysisService.js';
-import { InMemoryOpenDayAnalysisCache } from '../../infrastructure/inMemoryOpenDayAnalysisCache.js';
-import { FileOpenDaySnapshotRepository } from '../../infrastructure/fileOpenDaySnapshotRepository.js';
+import { getOpenDayAnalysisService } from '../../infrastructure/openDayPlatform.js';
 
-const analysisService = new OpenDayAnalysisService(
-  new InMemoryOpenDayAnalysisCache(),
-  new FileOpenDaySnapshotRepository(),
-);
+const analysisService = getOpenDayAnalysisService();
 
 function normalizeBody(body: unknown): OpenDayScoreCommand {
   if (!body || typeof body !== 'object') {
@@ -60,6 +55,7 @@ function normalizeBody(body: unknown): OpenDayScoreCommand {
     config: candidate.config,
     scenario: candidate.scenario,
     sourceName: typeof candidate.sourceName === 'string' ? candidate.sourceName : '',
+    sourceUploadId: typeof candidate.sourceUploadId === 'string' ? candidate.sourceUploadId : '',
     activePresetId: typeof candidate.activePresetId === 'string' ? candidate.activePresetId : '',
     activeParameterPackageId:
       typeof candidate.activeParameterPackageId === 'string'

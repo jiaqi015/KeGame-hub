@@ -8,9 +8,9 @@ import formidable from "formidable";
 import { authorizeRequest, validateActivationKey } from "./lib/activation.js";
 import { compareModels, streamCompareModel } from "./lib/compare.js";
 import { AVAILABLE_MODELS } from "./lib/models.js";
-import { parseWorkbookBuffer } from "./lib/openDayWorkbook.js";
 import { ensureRuntimeTempDir } from "./lib/runtimeTemp.js";
 import { handleOpenDayCatalog } from "./modules/open-day/interfaces/http/openDayCatalogHandler.js";
+import { handleOpenDayWorkbookParse } from "./modules/open-day/interfaces/http/openDayWorkbookParseHandler.js";
 import { handleOpenDayScenarioList } from "./modules/open-day/interfaces/http/openDayScenarioListHandler.js";
 import { handleOpenDayScenarioSave } from "./modules/open-day/interfaces/http/openDayScenarioSaveHandler.js";
 import { handleOpenDaySnapshotList } from "./modules/open-day/interfaces/http/openDaySnapshotListHandler.js";
@@ -123,7 +123,13 @@ async function startServer() {
       }
 
       const buffer = await fs.readFile(file.filepath);
-      const payload = parseWorkbookBuffer(buffer, getFirstFieldValue(fields.sheet));
+      const payload = await handleOpenDayWorkbookParse({
+        buffer,
+        requestedSheet: getFirstFieldValue(fields.sheet),
+        originalFilename: file.originalFilename || file.newFilename || "开放日工作簿.xlsx",
+        contentType: file.mimetype || "",
+        persistArtifact: !getFirstFieldValue(fields.sheet),
+      });
       return res.json(payload);
     } catch (error) {
       return res.status(400).send(error instanceof Error ? error.message : "Excel 解析失败");

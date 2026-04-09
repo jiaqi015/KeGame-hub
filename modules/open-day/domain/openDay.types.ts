@@ -2,6 +2,7 @@ export type WaterlineMode = 'percentile' | 'absolute';
 export type OpenDayFormulaId = 'weighted_catalyst_v1' | 'geometric_catalyst_v2';
 export type OpenDayParameterKey = keyof OpenDayAbsolutes;
 export type OpenDayParameterSourceMode = 'percentile' | 'number';
+export type OpenDayUploadStorageBackend = 'local' | 'blob';
 
 export interface OpenDayWeights {
   product: number;
@@ -108,6 +109,19 @@ export interface OpenDayFormulaDefinition {
   description: string;
 }
 
+export interface OpenDayUploadArtifactSummary {
+  id: string;
+  createdAt: string;
+  originalFilename: string;
+  byteSize: number;
+  contentType: string;
+  checksumSha256: string;
+  storageBackend: OpenDayUploadStorageBackend;
+  storageKey: string;
+  url: string | null;
+  downloadUrl: string | null;
+}
+
 export interface OpenDayParameterPackageDefinition {
   id: string;
   label: string;
@@ -157,6 +171,7 @@ export interface OpenDayAnalysisSnapshotSummary {
   id: string;
   createdAt: string;
   sourceName: string;
+  sourceUploadId: string | null;
   presetId: string | null;
   parameterPackageId: string | null;
   configVersion: string;
@@ -215,6 +230,7 @@ export interface OpenDayScoreCommand {
     config?: Partial<OpenDayConfig>;
   };
   sourceName?: string;
+  sourceUploadId?: string;
   activePresetId?: string;
   activeParameterPackageId?: string;
 }

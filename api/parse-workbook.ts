@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import formidable from 'formidable';
-import { parseWorkbookBuffer } from '../lib/openDayWorkbook.js';
 import { ensureRuntimeTempDir } from '../lib/runtimeTemp.js';
+import { handleOpenDayWorkbookParse } from '../modules/open-day/interfaces/http/openDayWorkbookParseHandler.js';
 
 export const config = {
   api: {
@@ -52,7 +52,13 @@ export default async function handler(req: any, res: any) {
     }
 
     const buffer = await fs.readFile(file.filepath);
-    const payload = parseWorkbookBuffer(buffer, getFirstFieldValue(fields.sheet));
+    const payload = await handleOpenDayWorkbookParse({
+      buffer,
+      requestedSheet: getFirstFieldValue(fields.sheet),
+      originalFilename: file.originalFilename || file.newFilename || '开放日工作簿.xlsx',
+      contentType: file.mimetype || '',
+      persistArtifact: !getFirstFieldValue(fields.sheet),
+    });
     return res.status(200).json(payload);
   } catch (error) {
     return res.status(400).send(error instanceof Error ? error.message : 'Excel 解析失败');

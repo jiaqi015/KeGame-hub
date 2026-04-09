@@ -30,7 +30,7 @@ flowchart LR
   APP["Application Services / Use Cases"]
   DOMAIN["Domain Model / Scoring Engine / Policies"]
   CACHE["Cache Adapters (Map -> Redis)"]
-  DB["Persistence (Postgres)"]
+  DB["Persistence (Neon Postgres / Local FS)"]
   ANALYTICS["Analytics Engine (DuckDB optional)"]
 
   UI --> API
@@ -75,7 +75,11 @@ flowchart LR
 - Excel parser adapter
 - Cache adapter
 - Repository adapter
-- Future: Redis, Postgres, S3/OSS, DuckDB
+- Local adapters: file snapshot / file scenario / in-memory cache
+- Local upload adapter: file uploads / upload index
+- Vercel adapters: Runtime Cache / Neon Postgres / Blob uploads
+- Blob adapter
+- Future: Redis, DuckDB
 
 ### Interfaces
 
@@ -122,6 +126,23 @@ flowchart LR
 
 ## 推荐的数据库与缓存体系
 
+### 当前已落地的双模式适配
+
+- `OPEN_DAY_STORAGE_BACKEND=local`
+  使用本地文件仓储
+- `OPEN_DAY_STORAGE_BACKEND=neon`
+  使用 `DATABASE_URL / POSTGRES_URL` 驱动的 Neon 持久化
+- `OPEN_DAY_CACHE_BACKEND=memory`
+  使用进程内缓存
+- `OPEN_DAY_CACHE_BACKEND=runtime`
+  使用 Vercel Runtime Cache
+
+如果不显式设置：
+
+- 只要存在 `DATABASE_URL / POSTGRES_URL`，默认走 `Neon`
+- 运行在 Vercel 环境时，缓存默认走 `Runtime Cache`
+- 本地开发默认回退为 `memory + file`
+
 ### 第一阶段：当前可用
 
 - Cache: 进程内 `Map` + TTL
@@ -138,57 +159,53 @@ flowchart LR
 - 重启丢缓存
 - 不能审计历史测算
 
-### 第二阶段：生产建议
+### 第二阶段：当前生产建议
 
-#### Redis
+#### Vercel Runtime Cache
 
 用途：
 
 - `dataset_fingerprint + config_fingerprint -> analysis_result`
-- `upload_id -> parsed_workbook_payload`
-- `preset_id -> resolved_config`
+- 热点目录缓存
+- 重复测算结果复用
 
 建议策略：
 
-- Cache Aside
+- 作为 L2 缓存
 - TTL 5 到 30 分钟
-- 结果缓存和解析缓存分开命名空间
+- 与本地内存缓存形成 layered cache
 
-#### Postgres
+#### Neon Postgres
 
 建议表：
 
-1. `open_day_scenario_configs`
-2. `open_day_uploads`
-3. `open_day_analysis_snapshots`
-4. `open_day_analysis_jobs`
-5. `open_day_waterline_history`
+1. `open_day_scenario_templates`
+2. `open_day_analysis_snapshots`
+3. `open_day_analysis_snapshot_rows`
 
-建议字段示例：
+这三张表现在已经在仓储初始化时自动建表。
 
-`open_day_scenario_configs`
+#### Redis（延后）
 
-- `id`
-- `name`
-- `description`
-- `parameter_package_id`
-- `formula_id`
-- `version`
-- `config_json`
-- `is_active`
-- `created_by`
-- `created_at`
+当前不优先。只有在出现以下场景时再引入：
 
-`open_day_analysis_snapshots`
+- 跨服务锁
+- 异步任务队列
+- 更复杂的共享缓存策略
 
-- `id`
-- `dataset_fingerprint`
-- `config_fingerprint`
-- `resolved_waterlines_json`
-- `summary_json`
-- `results_json` 或单独结果表
-- `cache_hit`
-- `created_at`
+#### Blob（当前已接入上传归档）
+
+用途：
+
+- 原始 Excel 归档
+- 后续导出文件归档
+- 为分析快照提供可追溯的原始文件锚点
+
+当前策略：
+
+- 当存在 `BLOB_READ_WRITE_TOKEN` 且结构化存储走 `Neon` 时，上传优先写入 `Vercel Blob`
+- 本地开发默认回退到 `tmp/open-day-runtime/uploads`
+- 首次上传时会生成 `uploadArtifact`，并把 `sourceUploadId` 传递到正式测算快照
 
 ### 第三阶段：大规模跑数建议
 
@@ -210,20 +227,22 @@ flowchart LR
 
 1. 前端上传 Excel
 2. 后端解析 workbook，识别 sheet 与主表头
-3. 返回预览行、headers、sheet 列表
+3. 解析成功后，优先归档原始 Excel
+4. 返回预览行、headers、sheet 列表，以及可选的 `uploadArtifact`
 
 ### 2. 交互测算
 
 1. 前端提交 `rows + mappings + config`
    更准确地说，是提交 `Dataset + ScenarioDraft`
-2. 后端生成 `dataset_fingerprint`
-3. 后端生成 `config_fingerprint`
-4. 先查 Redis / Cache
-5. 未命中则进入 `OpenDayAnalysisService`
-6. 领域层计算评分
-7. 写缓存
-8. 可选写快照表
-9. 返回结果给前端
+2. 同时附带 `sourceUploadId`，把正式测算和原始文件关联起来
+3. 后端生成 `dataset_fingerprint`
+4. 后端生成 `config_fingerprint`
+5. 先查 Redis / Cache
+6. 未命中则进入 `OpenDayAnalysisService`
+7. 领域层计算评分
+8. 写缓存
+9. 可选写快照表
+10. 返回结果给前端
 
 ### 2.5. 配置目录加载
 
@@ -263,6 +282,7 @@ flowchart LR
 - 同一套领域服务可被页面、批处理、导出任务、公用 API 复用。
 - 配置、缓存、结果快照被分离，后续做审计和回放更容易。
 - 未来如果“小区开放日选址”真的变成独立服务，领域层可以原样迁出。
+- 现在已经具备 “本地开发 / Vercel 生产” 双模式切换能力，上传归档、结构化持久化和测算缓存都不会反向污染领域层。
 
 ## 当前开发环境护栏
 

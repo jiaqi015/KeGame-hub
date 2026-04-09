@@ -39,6 +39,9 @@ http://localhost:3000
 
 - `PORT`
 - `VITE_HMR_PORT`
+- `OPEN_DAY_STORAGE_BACKEND`
+- `OPEN_DAY_CACHE_BACKEND`
+- `OPEN_DAY_UPLOAD_BACKEND`
 
 如果要使用 Sabrina 的模型对比能力，还需要按实际 provider 配置：
 
@@ -58,3 +61,6 @@ http://localhost:3000
 - 开放日测算会通过 `/api/open-day-score` 进入后端领域服务，并使用缓存加速重复计算
 - 测算快照会通过 `/api/open-day-analyses` 查询
 - 业务方案模板会通过 `/api/open-day-scenarios` 查询和保存
+- 当存在 `DATABASE_URL / POSTGRES_URL` 时，开放日模块会自动切到 `Neon` 持久化；否则回退为本地文件仓储
+- 当运行在 Vercel 上时，开放日测算缓存会优先使用 `Runtime Cache`，本地开发默认回退为内存缓存
+- 当存在 `BLOB_READ_WRITE_TOKEN` 且结构化存储走 `Neon` 时，Excel 上传会在解析后自动归档到 `Vercel Blob`；否则回退为本地临时文件仓储

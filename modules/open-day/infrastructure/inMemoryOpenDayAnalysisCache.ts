@@ -14,7 +14,7 @@ export class InMemoryOpenDayAnalysisCache implements OpenDayAnalysisCache {
     private readonly maxEntries = 200,
   ) {}
 
-  get(key: string): OpenDayAnalysisResponse | null {
+  async get(key: string): Promise<OpenDayAnalysisResponse | null> {
     const entry = this.entries.get(key);
 
     if (!entry) {
@@ -31,7 +31,7 @@ export class InMemoryOpenDayAnalysisCache implements OpenDayAnalysisCache {
     return entry.value;
   }
 
-  set(key: string, value: OpenDayAnalysisResponse): void {
+  async set(key: string, value: OpenDayAnalysisResponse): Promise<void> {
     this.entries.set(key, {
       value,
       expiresAt: Date.now() + this.ttlMs,

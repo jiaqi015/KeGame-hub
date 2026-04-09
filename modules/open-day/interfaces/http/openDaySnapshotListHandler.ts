@@ -1,7 +1,6 @@
-import { OpenDaySnapshotService } from '../../application/openDaySnapshotService.js';
-import { FileOpenDaySnapshotRepository } from '../../infrastructure/fileOpenDaySnapshotRepository.js';
+import { getOpenDaySnapshotService } from '../../infrastructure/openDayPlatform.js';
 
-const snapshotService = new OpenDaySnapshotService(new FileOpenDaySnapshotRepository());
+const snapshotService = getOpenDaySnapshotService();
 
 export async function handleOpenDaySnapshotList(query: { limit?: string | string[] | undefined }) {
   const rawLimit = Array.isArray(query.limit) ? query.limit[0] : query.limit;
