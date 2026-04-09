@@ -775,7 +775,7 @@ export default function App() {
                   更快看清差异，更快做决定
                 </h1>
                 <p className="mt-4 text-[15px] leading-7 text-[#6E6E73] md:text-[16px]">
-                  不管你是在选模型，还是在筛楼盘，这里都会先帮你把复杂信息整理成更容易判断的结果。
+                  选模型、筛楼盘，帮你整理复杂信息，更快判断。
                 </p>
               </div>
 
