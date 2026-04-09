@@ -66,9 +66,13 @@ export class OpenDayAnalysisService {
         response,
       };
 
-      await this.snapshotRepository.save(snapshot);
-      response.meta.snapshotId = snapshot.summary.id;
-      response.meta.snapshotCreatedAt = snapshot.summary.createdAt;
+      try {
+        await this.snapshotRepository.save(snapshot);
+        response.meta.snapshotId = snapshot.summary.id;
+        response.meta.snapshotCreatedAt = snapshot.summary.createdAt;
+      } catch (error) {
+        console.error('Failed to persist open-day snapshot:', error);
+      }
     }
 
     this.cache.set(cacheKey, response);

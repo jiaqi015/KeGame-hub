@@ -765,64 +765,64 @@ export default function App() {
         <motion.div
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex-1 overflow-auto px-6 py-6"
+          className="flex-1 overflow-auto px-6 py-8"
         >
-          <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
-            <div className="flex flex-col gap-4 rounded-[36px] border border-white/70 bg-white/80 p-6 shadow-[0_28px_80px_rgba(20,20,43,0.08)] backdrop-blur-2xl md:flex-row md:items-start md:justify-between">
+          <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
+            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
               <div className="max-w-3xl">
-                <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-black/5 bg-[#F5F5F7] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#6E6E73]">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                  Workspace Ready
-                </div>
-                <h1 className="text-[34px] font-semibold tracking-[-0.05em] text-[#111111] md:text-[44px]">
-                  先验证，再进入两个功能
+                <div className="text-sm font-semibold text-[#1F5F4A]">选一个任务开始</div>
+                <h1 className="mt-2 text-[34px] font-semibold tracking-[-0.05em] text-[#111111] md:text-[42px]">
+                  更快看清差异，更快做决定
                 </h1>
-                <p className="mt-4 max-w-2xl text-[15px] leading-7 text-[#6E6E73] md:text-[16px]">
-                  这里是 AI Model Sabrina II 的统一入口。验证通过后，你可以进入多模型PK做多模型对比，也可以进入小区开放日选址做楼盘测算。
+                <p className="mt-4 text-[15px] leading-7 text-[#6E6E73] md:text-[16px]">
+                  不管你是在选模型，还是在筛楼盘，这里都会先帮你把复杂信息整理成更容易判断的结果。
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="rounded-[24px] border border-black/5 bg-[#F5F5F7] px-4 py-3 text-right">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#8E8E93]">模型目录</div>
-                  <div className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[#111111]">
-                    {catalogReady ? availableModels.length : '...'}
-                  </div>
-                  <div className="mt-1 text-xs text-[#6E6E73]">
-                    {catalogReady ? '可用模型已加载' : '正在同步模型列表'}
-                  </div>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-[#5C5C60] transition hover:border-black/20 hover:text-[#1D1D1F]"
-                >
-                  <LogOut className="h-3.5 w-3.5" />
-                  退出登录
-                </button>
-              </div>
+              <button
+                onClick={handleLogout}
+                className="inline-flex items-center gap-2 self-start rounded-full border border-black/10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-[#5C5C60] transition hover:border-black/20 hover:text-[#1D1D1F] md:self-auto"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                退出登录
+              </button>
             </div>
 
             <div className="grid gap-5 lg:grid-cols-2">
               <button
                 onClick={() => setActiveWorkspace('sabrina')}
-                className="group rounded-[32px] border border-black/5 bg-white p-6 text-left shadow-[0_20px_60px_rgba(20,20,43,0.06)] transition hover:-translate-y-1 hover:shadow-[0_28px_80px_rgba(20,20,43,0.1)]"
+                className="group flex h-full flex-col rounded-[32px] border border-black/5 bg-white p-7 text-left shadow-[0_18px_50px_rgba(20,20,43,0.06)] transition hover:-translate-y-1 hover:shadow-[0_26px_70px_rgba(20,20,43,0.1)]"
               >
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-4">
                   <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-[#111111] text-white shadow-[0_18px_40px_rgba(17,17,17,0.18)]">
                     <Sparkles className="h-5 w-5" />
                   </div>
-                  <div className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-blue-600">
-                    模型对比
+                  <div className="rounded-full bg-blue-50 px-3 py-1 text-[11px] font-semibold text-blue-700">
+                    多模型PK
                   </div>
                 </div>
-                <h2 className="mt-6 text-[28px] font-semibold tracking-[-0.05em] text-[#111111]">
-                  多模型PK
+                <h2 className="mt-6 text-[30px] font-semibold tracking-[-0.05em] text-[#111111]">
+                  一次看清多个模型谁更合适
                 </h2>
                 <p className="mt-3 text-[15px] leading-7 text-[#6E6E73]">
-                  一句提示词，多模型同时出结果，并自动生成核心差异总结。适合做模型选型、提示词对比和产出评审。
+                  输入一句话，就能同时看到多个模型的回答，并自动整理关键差异，帮你少走回头路。
                 </p>
-                <div className="mt-6 flex items-center justify-between text-sm font-semibold text-[#111111]">
-                  <span>进入多模型工作台</span>
+                <div className="mt-6 space-y-3 text-sm text-[#424245]">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-blue-600" />
+                    适合模型选型和效果对比
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-blue-600" />
+                    自动提炼回答里的关键差异
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-blue-600" />
+                    减少反复切换和人工总结
+                  </div>
+                </div>
+                <div className="mt-auto flex items-center justify-between pt-8 text-sm font-semibold text-[#111111]">
+                  <span>开始模型对比</span>
                   <span className="inline-flex items-center gap-1 text-blue-600 transition group-hover:translate-x-1">
                     打开
                     <ArrowRight className="h-4 w-4" />
@@ -832,24 +832,38 @@ export default function App() {
 
               <button
                 onClick={() => setActiveWorkspace('open-day')}
-                className="group rounded-[32px] border border-black/5 bg-white p-6 text-left shadow-[0_20px_60px_rgba(20,20,43,0.06)] transition hover:-translate-y-1 hover:shadow-[0_28px_80px_rgba(20,20,43,0.1)]"
+                className="group flex h-full flex-col rounded-[32px] border border-black/5 bg-white p-7 text-left shadow-[0_18px_50px_rgba(20,20,43,0.06)] transition hover:-translate-y-1 hover:shadow-[0_26px_70px_rgba(20,20,43,0.1)]"
               >
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-4">
                   <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-[#1F5F4A] text-white shadow-[0_18px_40px_rgba(31,95,74,0.18)]">
                     <Layers className="h-5 w-5" />
                   </div>
-                  <div className="rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
-                    选址测算
+                  <div className="rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700">
+                    小区开放日选址
                   </div>
                 </div>
-                <h2 className="mt-6 text-[28px] font-semibold tracking-[-0.05em] text-[#111111]">
-                  小区开放日选址
+                <h2 className="mt-6 text-[30px] font-semibold tracking-[-0.05em] text-[#111111]">
+                  更快筛出值得重点做开放日的小区
                 </h2>
                 <p className="mt-3 text-[15px] leading-7 text-[#6E6E73]">
-                  上传 CSV 或 Excel，映射字段后进入参数仪表盘。前端负责操作体验，后端领域服务负责解析、评分、缓存与策略执行。
+                  上传楼盘表格后，系统会帮你整理数据并完成测算，快速看出哪些项目更值得优先投入。
                 </p>
-                <div className="mt-6 flex items-center justify-between text-sm font-semibold text-[#111111]">
-                  <span>进入测算工作台</span>
+                <div className="mt-6 space-y-3 text-sm text-[#424245]">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-700" />
+                    批量处理楼盘数据，不再手工筛表
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-700" />
+                    更快看出哪些小区值得优先跟进
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-700" />
+                    适合做开放日前的快速判断
+                  </div>
+                </div>
+                <div className="mt-auto flex items-center justify-between pt-8 text-sm font-semibold text-[#111111]">
+                  <span>开始楼盘测算</span>
                   <span className="inline-flex items-center gap-1 text-emerald-700 transition group-hover:translate-x-1">
                     打开
                     <ArrowRight className="h-4 w-4" />
@@ -873,7 +887,7 @@ export default function App() {
                 </button>
                 <h1 className="text-[28px] font-semibold tracking-[-0.04em] text-[#111111]">小区开放日选址</h1>
                 <p className="mt-2 text-sm leading-7 text-[#6E6E73]">
-                  当前采用参数中台思路：前端管理上传、映射与参数覆盖，后端领域服务负责 Excel 解析、评分、缓存与策略执行。
+                  上传楼盘表格后，系统会自动整理数据并完成测算，帮你更快筛出值得优先做开放日的项目。
                 </p>
               </div>
 

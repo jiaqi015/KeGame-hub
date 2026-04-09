@@ -9,14 +9,20 @@ import { authorizeRequest, validateActivationKey } from "./lib/activation.js";
 import { compareModels, streamCompareModel } from "./lib/compare.js";
 import { AVAILABLE_MODELS } from "./lib/models.js";
 import { parseWorkbookBuffer } from "./lib/openDayWorkbook.js";
+import { ensureRuntimeTempDir } from "./lib/runtimeTemp.js";
 import { handleOpenDayCatalog } from "./modules/open-day/interfaces/http/openDayCatalogHandler.js";
 import { handleOpenDaySnapshotList } from "./modules/open-day/interfaces/http/openDaySnapshotListHandler.js";
 import { handleOpenDayScore } from "./modules/open-day/interfaces/http/openDayScoreHandler.js";
 
 dotenv.config();
 
-function parseMultipart(req: Parameters<typeof formidable>[0]) {
-  const form = formidable({ multiples: false, maxFiles: 1 });
+async function parseMultipart(req: Parameters<typeof formidable>[0]) {
+  const uploadDir = await ensureRuntimeTempDir("uploads");
+  const form = formidable({
+    multiples: false,
+    maxFiles: 1,
+    uploadDir,
+  });
 
   return new Promise<{ fields: formidable.Fields; files: formidable.Files }>((resolve, reject) => {
     form.parse(req, (error, fields, files) => {

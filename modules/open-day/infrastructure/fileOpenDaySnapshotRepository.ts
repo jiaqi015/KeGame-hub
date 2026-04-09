@@ -5,6 +5,7 @@ import type {
   OpenDayAnalysisSnapshotSummary,
 } from '../domain/openDay.types.js';
 import type { OpenDaySnapshotRepository } from '../application/openDaySnapshotRepository.js';
+import { getRuntimeTempDir } from '../../../lib/runtimeTemp.js';
 
 interface SnapshotIndexFile {
   items: OpenDayAnalysisSnapshotSummary[];
@@ -15,7 +16,7 @@ export class FileOpenDaySnapshotRepository implements OpenDaySnapshotRepository 
   private readonly snapshotDir: string;
   private readonly indexFile: string;
 
-  constructor(baseDir = path.join(process.cwd(), 'tmp', 'open-day-runtime')) {
+  constructor(baseDir = getRuntimeTempDir('open-day-runtime')) {
     this.baseDir = baseDir;
     this.snapshotDir = path.join(baseDir, 'snapshots');
     this.indexFile = path.join(this.snapshotDir, 'index.json');

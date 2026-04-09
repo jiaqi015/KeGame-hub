@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import formidable from 'formidable';
 import { parseWorkbookBuffer } from '../lib/openDayWorkbook.js';
+import { ensureRuntimeTempDir } from '../lib/runtimeTemp.js';
 
 export const config = {
   api: {
@@ -8,8 +9,13 @@ export const config = {
   },
 };
 
-function parseMultipart(req: any) {
-  const form = formidable({ multiples: false, maxFiles: 1 });
+async function parseMultipart(req: any) {
+  const uploadDir = await ensureRuntimeTempDir('uploads');
+  const form = formidable({
+    multiples: false,
+    maxFiles: 1,
+    uploadDir,
+  });
 
   return new Promise<{ fields: formidable.Fields; files: formidable.Files }>((resolve, reject) => {
     form.parse(req, (error, fields, files) => {
