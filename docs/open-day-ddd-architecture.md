@@ -49,6 +49,7 @@ flowchart LR
 - `OpenDayMappings`
 - `NormalizedOpenDayRow`
 - `OpenDayScoringEngine`
+- `OpenDayFormula`
 - `EligibilityPolicy`
 - `WaterlineResolver`
 
@@ -236,6 +237,7 @@ flowchart LR
 
 - 页面不再持有核心业务规则，避免“UI 一改就伤到算法”。
 - 页面不再持有策略包真源，避免“运营调策略必须改前端代码”。
+- 引擎先产出统一的四个标准化指数，再交给 `formulaId` 对应的公式策略去算分，后续换公式不需要重写整条测算管道。
 - 同一套领域服务可被页面、批处理、导出任务、公用 API 复用。
 - 配置、缓存、结果快照被分离，后续做审计和回放更容易。
 - 未来如果“小区开放日选址”真的变成独立服务，领域层可以原样迁出。

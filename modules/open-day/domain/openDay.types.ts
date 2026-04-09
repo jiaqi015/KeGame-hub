@@ -1,4 +1,5 @@
 export type WaterlineMode = 'percentile' | 'absolute';
+export type OpenDayFormulaId = 'weighted_catalyst_v1' | 'geometric_catalyst_v2';
 
 export interface OpenDayWeights {
   product: number;
@@ -26,6 +27,7 @@ export interface OpenDayHardFilters {
 }
 
 export interface OpenDayConfig {
+  formulaId: OpenDayFormulaId;
   alpha: number;
   waterlineMode: WaterlineMode;
   weights: OpenDayWeights;

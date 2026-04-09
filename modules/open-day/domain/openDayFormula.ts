@@ -1,0 +1,65 @@
+import type { OpenDayFormulaId, OpenDayWeights } from './openDay.types.js';
+
+export interface OpenDayFormulaInput {
+  scaleScore: number;
+  trafficScore: number;
+  productScore: number;
+  interactionScore: number;
+  weights: OpenDayWeights;
+}
+
+export interface OpenDayFormulaResult {
+  rawScore: number;
+  catalystScore: number;
+  volumeScore: number;
+}
+
+interface OpenDayFormulaDefinition {
+  id: OpenDayFormulaId;
+  label: string;
+  description: string;
+  evaluate: (input: OpenDayFormulaInput) => OpenDayFormulaResult;
+}
+
+const formulaRegistry: Record<OpenDayFormulaId, OpenDayFormulaDefinition> = {
+  weighted_catalyst_v1: {
+    id: 'weighted_catalyst_v1',
+    label: '线性催化',
+    description: '规模与流量直接乘积，商品和互动按权重线性合成催化项。',
+    evaluate: ({ scaleScore, trafficScore, productScore, interactionScore, weights }) => {
+      const volumeScore = scaleScore * trafficScore;
+      const catalystScore = weights.product * productScore + weights.interaction * interactionScore;
+      return {
+        rawScore: volumeScore * catalystScore * 100,
+        catalystScore,
+        volumeScore,
+      };
+    },
+  },
+  geometric_catalyst_v2: {
+    id: 'geometric_catalyst_v2',
+    label: '几何体量 + 商品门控',
+    description: '规模与流量走几何平均，商品分做硬乘子，互动分只作为加成项。',
+    evaluate: ({ scaleScore, trafficScore, productScore, interactionScore, weights }) => {
+      const volumeScore = Math.sqrt(scaleScore * trafficScore);
+      const catalystScore = productScore * (weights.product + weights.interaction * interactionScore);
+      return {
+        rawScore: volumeScore * catalystScore * 100,
+        catalystScore,
+        volumeScore,
+      };
+    },
+  },
+};
+
+export function evaluateOpenDayFormula(
+  formulaId: OpenDayFormulaId,
+  input: OpenDayFormulaInput,
+): OpenDayFormulaResult {
+  const formula = formulaRegistry[formulaId] || formulaRegistry.geometric_catalyst_v2;
+  return formula.evaluate(input);
+}
+
+export function getOpenDayFormulaDefinition(formulaId: OpenDayFormulaId) {
+  return formulaRegistry[formulaId] || formulaRegistry.geometric_catalyst_v2;
+}

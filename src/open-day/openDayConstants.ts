@@ -23,6 +23,7 @@ export const sampleCsv = `大区,小区名称,在售套数,带看量,成交量,�
 朝阳公园大区,燕东大厦,0,0,0,0`;
 
 export const fallbackOpenDayConfig: OpenDayConfig = {
+  formulaId: 'geometric_catalyst_v2',
   alpha: 0.8,
   waterlineMode: 'percentile',
   weights: {

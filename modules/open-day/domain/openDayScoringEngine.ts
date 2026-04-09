@@ -6,6 +6,7 @@ import type {
 import { defaultOpenDayConfig, mergeOpenDayConfig, normalizeWeights } from '../application/openDayConfig.js';
 import { isEligibleOpenDayRow } from './openDayEligibilityPolicy.js';
 import { normalizeOpenDayRows, validateMappings } from './openDayDatasetNormalizer.js';
+import { evaluateOpenDayFormula } from './openDayFormula.js';
 import { resolveOpenDayTier } from './openDayTierPolicy.js';
 import { resolveOpenDayWaterlines } from './openDayWaterlineResolver.js';
 
@@ -26,14 +27,23 @@ export function scoreOpenDayDataset(command: OpenDayScoreCommand): Omit<OpenDayA
   const waterlines = resolveOpenDayWaterlines(normalizedRows, mergedConfig);
 
   const scoredRows = normalizedRows.map((row) => {
-    const scaleIdx = clamp(row.inventory / Math.max(waterlines.I_cap, 0.00001)) * 100;
-    const trafficIdx =
-      Math.pow(clamp(row.traffic / Math.max(waterlines.V_cap, 0.00001)), mergedConfig.alpha) * 100;
-    const productIdx = clamp(row.premium / Math.max(waterlines.H_cap, 0.00001)) * 100;
-    const interactionIdx = clamp(row.convRate / Math.max(waterlines.R_cap, 0.00001)) * 100;
-    const catalyst =
-      mergedConfig.weights.product * productIdx + mergedConfig.weights.interaction * interactionIdx;
-    const rawScore = (scaleIdx / 100) * (trafficIdx / 100) * catalyst;
+    const scaleScore = clamp(row.inventory / Math.max(waterlines.I_cap, 0.00001));
+    const trafficScore = clamp(Math.pow(row.traffic / Math.max(waterlines.V_cap, 0.00001), mergedConfig.alpha));
+    const productScore = clamp(row.premium / Math.max(waterlines.H_cap, 0.00001));
+    const interactionScore = clamp(row.convRate / Math.max(waterlines.R_cap, 0.00001));
+    const formulaResult = evaluateOpenDayFormula(mergedConfig.formulaId, {
+      scaleScore,
+      trafficScore,
+      productScore,
+      interactionScore,
+      weights: mergedConfig.weights,
+    });
+    const scaleIdx = scaleScore * 100;
+    const trafficIdx = trafficScore * 100;
+    const productIdx = productScore * 100;
+    const interactionIdx = interactionScore * 100;
+    const catalyst = formulaResult.catalystScore * 100;
+    const rawScore = formulaResult.rawScore;
     const isEligible = isEligibleOpenDayRow(row, mergedConfig);
 
     return {
@@ -49,11 +59,10 @@ export function scoreOpenDayDataset(command: OpenDayScoreCommand): Omit<OpenDayA
   });
 
   const eligibleRows = scoredRows.filter((row) => row.isEligible);
-  const eligibleMax = eligibleRows.length ? Math.max(...eligibleRows.map((row) => row.rawScore), 0) : 0;
 
   const results = scoredRows
     .map((row) => {
-      const score = row.isEligible && eligibleMax > 0 ? Math.min(row.rawScore / eligibleMax, 1) * 100 : 0;
+      const score = row.isEligible ? row.rawScore : 0;
       const tier = resolveOpenDayTier(score, row.isEligible);
 
       return {
