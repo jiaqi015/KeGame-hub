@@ -1,14 +1,13 @@
 import type {
   OpenDayAnalysisResponse,
-  OpenDayConfig,
   OpenDayScoreCommand,
 } from './openDay.types.js';
-import { defaultOpenDayConfig, mergeOpenDayConfig, normalizeWeights } from '../application/openDayConfig.js';
+import { resolveOpenDayScenarioDraft } from '../application/openDayScenarioDraft.js';
 import { isEligibleOpenDayRow } from './openDayEligibilityPolicy.js';
 import { normalizeOpenDayRows, validateMappings } from './openDayDatasetNormalizer.js';
-import { evaluateOpenDayFormula } from './openDayFormula.js';
+import { evaluateOpenDayFormula, getOpenDayFormulaDefinition } from './openDayFormula.js';
+import { resolveOpenDayWaterlineContext } from './openDayParameterResolver.js';
 import { resolveOpenDayTier } from './openDayTierPolicy.js';
-import { resolveOpenDayWaterlines } from './openDayWaterlineResolver.js';
 
 function clamp(value: number, min = 0, max = 1): number {
   return Math.min(max, Math.max(min, value));
@@ -19,12 +18,12 @@ export function scoreOpenDayDataset(command: OpenDayScoreCommand): Omit<OpenDayA
 } {
   validateMappings(command.mappings);
 
-  const mergedConfig = mergeOpenDayConfig(defaultOpenDayConfig, command.config) as OpenDayConfig;
-  mergedConfig.alpha = Math.max(0, Number(mergedConfig.alpha) || defaultOpenDayConfig.alpha);
-  mergedConfig.weights = normalizeWeights(mergedConfig.weights);
+  const scenario = resolveOpenDayScenarioDraft(command);
+  const mergedConfig = scenario.config;
 
   const normalizedRows = normalizeOpenDayRows(command.rows, command.mappings);
-  const waterlines = resolveOpenDayWaterlines(normalizedRows, mergedConfig);
+  const { waterlines, resolvedParameters } = resolveOpenDayWaterlineContext(normalizedRows, mergedConfig);
+  const formula = getOpenDayFormulaDefinition(mergedConfig.formulaId);
 
   const scoredRows = normalizedRows.map((row) => {
     const scaleScore = clamp(row.inventory / Math.max(waterlines.I_cap, 0.00001));
@@ -88,7 +87,10 @@ export function scoreOpenDayDataset(command: OpenDayScoreCommand): Omit<OpenDayA
       totalCount: results.length,
       eligibleCount: eligibleRows.length,
       weights: mergedConfig.weights,
+      formula,
+      scenario,
       waterlines,
+      resolvedParameters,
       requestedConfig: mergedConfig,
     },
     results,

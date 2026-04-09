@@ -1,5 +1,6 @@
 import type { OpenDayCatalogResponse } from '../domain/openDay.types.js';
-import { defaultOpenDayConfig, mergeOpenDayConfig, openDayPresetCatalog } from './openDayConfig.js';
+import { listOpenDayFormulaDefinitions } from '../domain/openDayFormula.js';
+import { defaultOpenDayConfig, mergeOpenDayConfig, openDayParameterPackageCatalog } from './openDayConfig.js';
 import { createOpenDayHash } from './openDayFingerprint.js';
 
 function clone<T>(value: T): T {
@@ -15,10 +16,16 @@ export class OpenDayCatalogService {
       generatedAt,
       defaultConfig,
       defaultConfigVersion: createOpenDayHash(defaultConfig, 'cfg'),
-      presets: openDayPresetCatalog.map((preset) => ({
-        ...clone(preset),
-        version: createOpenDayHash({ id: preset.id, overrides: preset.overrides }, 'preset'),
-        resolvedConfig: mergeOpenDayConfig(defaultConfig, preset.overrides),
+      formulas: listOpenDayFormulaDefinitions(),
+      parameterPackages: openDayParameterPackageCatalog.map((parameterPackage) => ({
+        ...clone(parameterPackage),
+        version: createOpenDayHash({ id: parameterPackage.id, overrides: parameterPackage.overrides }, 'package'),
+        resolvedConfig: mergeOpenDayConfig(defaultConfig, parameterPackage.overrides),
+      })),
+      presets: openDayParameterPackageCatalog.map((parameterPackage) => ({
+        ...clone(parameterPackage),
+        version: createOpenDayHash({ id: parameterPackage.id, overrides: parameterPackage.overrides }, 'preset'),
+        resolvedConfig: mergeOpenDayConfig(defaultConfig, parameterPackage.overrides),
       })),
     };
   }

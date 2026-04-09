@@ -2,6 +2,9 @@ import type { ParsedWorkbookPayload } from '../../lib/openDayWorkbook.ts';
 import type {
   OpenDayAnalysisResponse,
   OpenDayCatalogResponse,
+  OpenDaySaveScenarioCommand,
+  OpenDayScenarioListResponse,
+  OpenDayScenarioTemplateRecord,
   OpenDayScoreCommand,
   OpenDaySnapshotListResponse,
 } from '../../modules/open-day/domain/openDay.types.ts';
@@ -36,8 +39,25 @@ export function fetchOpenDaySnapshots(activationKey: string, limit = 8) {
   );
 }
 
+export function fetchOpenDayScenarios(activationKey: string, limit = 8) {
+  return requestJson<OpenDayScenarioListResponse>(
+    activationKey,
+    `/api/open-day-scenarios?limit=${encodeURIComponent(limit)}`,
+  );
+}
+
 export function fetchOpenDayAnalysis(activationKey: string, command: OpenDayScoreCommand) {
   return requestJson<OpenDayAnalysisResponse>(activationKey, '/api/open-day-score', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(command),
+  });
+}
+
+export function saveOpenDayScenario(activationKey: string, command: OpenDaySaveScenarioCommand) {
+  return requestJson<OpenDayScenarioTemplateRecord>(activationKey, '/api/open-day-scenarios', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

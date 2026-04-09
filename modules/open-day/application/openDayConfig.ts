@@ -1,4 +1,4 @@
-import type { OpenDayConfig, OpenDayPresetDefinition } from '../domain/openDay.types.js';
+import type { OpenDayConfig, OpenDayParameterPackageDefinition, OpenDayPresetDefinition } from '../domain/openDay.types.js';
 
 export const defaultOpenDayConfig: OpenDayConfig = {
   formulaId: 'geometric_catalyst_v2',
@@ -20,6 +20,7 @@ export const defaultOpenDayConfig: OpenDayConfig = {
     H_cap: 5,
     R_cap: 0.02,
   },
+  waterlineOverrides: {},
   hardFilters: {
     min_inventory: 20,
     min_hq_rooms: 2,
@@ -27,7 +28,7 @@ export const defaultOpenDayConfig: OpenDayConfig = {
   },
 };
 
-export const openDayPresetCatalog: OpenDayPresetDefinition[] = [
+export const openDayParameterPackageCatalog: OpenDayParameterPackageDefinition[] = [
   {
     id: 'auto',
     label: '自动巡航',
@@ -73,6 +74,8 @@ export const openDayPresetCatalog: OpenDayPresetDefinition[] = [
     },
   },
 ] as const;
+
+export const openDayPresetCatalog: OpenDayPresetDefinition[] = openDayParameterPackageCatalog;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);

@@ -1,6 +1,8 @@
 import type {
   OpenDayCatalogResponse,
   OpenDayConfig,
+  OpenDayFormulaDefinition,
+  OpenDayParameterPackage,
   OpenDayPreset,
   OpenDayRawRow,
 } from '../../modules/open-day/domain/openDay.types.ts';
@@ -42,6 +44,7 @@ export const fallbackOpenDayConfig: OpenDayConfig = {
     H_cap: 5,
     R_cap: 0.02,
   },
+  waterlineOverrides: {},
   hardFilters: {
     min_inventory: 20,
     min_hq_rooms: 2,
@@ -85,7 +88,7 @@ function createFallbackPreset(
   description: string,
   overrides: Partial<OpenDayConfig>,
   version: string,
-): OpenDayPreset {
+): OpenDayParameterPackage {
   return {
     id,
     label,
@@ -96,54 +99,71 @@ function createFallbackPreset(
   };
 }
 
+const fallbackFormulas: OpenDayFormulaDefinition[] = [
+  {
+    id: 'weighted_catalyst_v1',
+    label: '线性催化',
+    description: '规模与流量直接乘积，商品和互动按权重线性合成催化项。',
+  },
+  {
+    id: 'geometric_catalyst_v2',
+    label: '几何体量 + 商品门控',
+    description: '规模与流量走几何平均，商品分做硬乘子，互动分只作为加成项。',
+  },
+];
+
+const fallbackParameterPackages: OpenDayParameterPackage[] = [
+  createFallbackPreset('auto', '自动巡航', '按动态分位适配当月大盘。', {}, 'package:auto'),
+  createFallbackPreset(
+    'sprint',
+    '逼单冲刺',
+    '互动权重拉高，强调转化效率。',
+    {
+      weights: {
+        product: 0.3,
+        interaction: 0.7,
+      },
+    },
+    'package:sprint',
+  ),
+  createFallbackPreset(
+    'kpi',
+    '强压 KPI',
+    '改用固定数值，强控规模与流量门槛。',
+    {
+      waterlineMode: 'absolute',
+      alpha: 0.6,
+      absolutes: {
+        I_cap: 60,
+        V_cap: 600,
+        H_cap: 8,
+        R_cap: 0.03,
+      },
+    },
+    'package:kpi',
+  ),
+  createFallbackPreset(
+    'all-market',
+    '全域深潜',
+    '红线归零，拉出全城所有盘做观察。',
+    {
+      hardFilters: {
+        min_inventory: 0,
+        min_hq_rooms: 0,
+        min_transaction: 0,
+      },
+    },
+    'package:all-market',
+  ),
+];
+
 export const fallbackCatalog: OpenDayCatalogResponse = {
   generatedAt: new Date(0).toISOString(),
   defaultConfig: clone(fallbackOpenDayConfig),
   defaultConfigVersion: 'cfg:fallback',
-  presets: [
-    createFallbackPreset('auto', '自动巡航', '按动态分位适配当月大盘。', {}, 'preset:auto'),
-    createFallbackPreset(
-      'sprint',
-      '逼单冲刺',
-      '互动权重拉高，强调转化效率。',
-      {
-        weights: {
-          product: 0.3,
-          interaction: 0.7,
-        },
-      },
-      'preset:sprint',
-    ),
-    createFallbackPreset(
-      'kpi',
-      '强压 KPI',
-      '改用固定数值，强控规模与流量门槛。',
-      {
-        waterlineMode: 'absolute',
-        alpha: 0.6,
-        absolutes: {
-          I_cap: 60,
-          V_cap: 600,
-          H_cap: 8,
-          R_cap: 0.03,
-        },
-      },
-      'preset:kpi',
-    ),
-    createFallbackPreset(
-      'all-market',
-      '全域深潜',
-      '红线归零，拉出全城所有盘做观察。',
-      {
-        hardFilters: {
-          min_inventory: 0,
-          min_hq_rooms: 0,
-          min_transaction: 0,
-        },
-      },
-      'preset:all-market',
-    ),
-  ],
+  formulas: fallbackFormulas,
+  parameterPackages: fallbackParameterPackages,
+  presets: fallbackParameterPackages as OpenDayPreset[],
 };
 
 export type MappingKey = 'area' | 'name' | 'inventory' | 'traffic' | 'transactions' | 'premium';

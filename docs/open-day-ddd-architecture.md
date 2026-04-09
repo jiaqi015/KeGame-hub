@@ -46,10 +46,12 @@ flowchart LR
 只放业务规则，不放框架细节。
 
 - `OpenDayConfig`
+- `OpenDayScenarioDraft`
 - `OpenDayMappings`
 - `NormalizedOpenDayRow`
 - `OpenDayScoringEngine`
 - `OpenDayFormula`
+- `ParameterResolver`
 - `EligibilityPolicy`
 - `WaterlineResolver`
 
@@ -59,8 +61,10 @@ flowchart LR
 
 - `OpenDayAnalysisService`
 - `OpenDayCatalogService`
-- `PresetCatalog`
+- `OpenDayScenarioService`
+- `ParameterPackageCatalog`
 - `ScoreOpenDayDataset` use case
+- `SaveScenarioTemplate` use case
 - `PersistAnalysisSnapshot` use case
 - `ScheduleRebuildWaterlines` use case
 
@@ -80,6 +84,7 @@ flowchart LR
 - `/api/parse-workbook`
 - `/api/open-day-catalog`
 - `/api/open-day-score`
+- `/api/open-day-scenarios`
 - Future: `/api/open-day/configs`
 - Future: `/api/open-day/analyses/:id`
 - Future: `/api/open-day/jobs/rebuild`
@@ -90,9 +95,11 @@ flowchart LR
 
 - [openDay.types.ts](/Users/jiaqi/Documents/开放日测算/modules/open-day/domain/openDay.types.ts)
 - [openDayScoringEngine.ts](/Users/jiaqi/Documents/开放日测算/modules/open-day/domain/openDayScoringEngine.ts)
+- [openDayParameterResolver.ts](/Users/jiaqi/Documents/开放日测算/modules/open-day/domain/openDayParameterResolver.ts)
 - [openDayConfig.ts](/Users/jiaqi/Documents/开放日测算/modules/open-day/application/openDayConfig.ts)
 - [openDayCatalogService.ts](/Users/jiaqi/Documents/开放日测算/modules/open-day/application/openDayCatalogService.ts)
 - [openDayAnalysisService.ts](/Users/jiaqi/Documents/开放日测算/modules/open-day/application/openDayAnalysisService.ts)
+- [openDayScenarioService.ts](/Users/jiaqi/Documents/开放日测算/modules/open-day/application/openDayScenarioService.ts)
 - [openDayAnalysisCache.ts](/Users/jiaqi/Documents/开放日测算/modules/open-day/application/openDayAnalysisCache.ts)
 - [inMemoryOpenDayAnalysisCache.ts](/Users/jiaqi/Documents/开放日测算/modules/open-day/infrastructure/inMemoryOpenDayAnalysisCache.ts)
 - [openDayDatasetNormalizer.ts](/Users/jiaqi/Documents/开放日测算/modules/open-day/domain/openDayDatasetNormalizer.ts)
@@ -101,10 +108,13 @@ flowchart LR
 - [openDayTierPolicy.ts](/Users/jiaqi/Documents/开放日测算/modules/open-day/domain/openDayTierPolicy.ts)
 - [openDayCatalogHandler.ts](/Users/jiaqi/Documents/开放日测算/modules/open-day/interfaces/http/openDayCatalogHandler.ts)
 - [openDayScoreHandler.ts](/Users/jiaqi/Documents/开放日测算/modules/open-day/interfaces/http/openDayScoreHandler.ts)
+- [openDayScenarioListHandler.ts](/Users/jiaqi/Documents/开放日测算/modules/open-day/interfaces/http/openDayScenarioListHandler.ts)
+- [openDayScenarioSaveHandler.ts](/Users/jiaqi/Documents/开放日测算/modules/open-day/interfaces/http/openDayScenarioSaveHandler.ts)
 
 这意味着“页面直接算分”和“页面直接定义策略”的耦合都已经开始被切开：
 
 - 前端通过 `/api/open-day-catalog` 获取默认配置和策略包目录
+- 前端未来通过 `/api/open-day-scenarios` 管理业务保存的方案模板
 - 前端通过 `/api/open-day-score` 请求后端领域服务
 - 后端统一走配置合并、权重归一化、领域计算和缓存
 
@@ -160,6 +170,9 @@ flowchart LR
 
 - `id`
 - `name`
+- `description`
+- `parameter_package_id`
+- `formula_id`
 - `version`
 - `config_json`
 - `is_active`
@@ -202,6 +215,7 @@ flowchart LR
 ### 2. 交互测算
 
 1. 前端提交 `rows + mappings + config`
+   更准确地说，是提交 `Dataset + ScenarioDraft`
 2. 后端生成 `dataset_fingerprint`
 3. 后端生成 `config_fingerprint`
 4. 先查 Redis / Cache
@@ -225,6 +239,13 @@ flowchart LR
 3. 快照中记录配置版本和 resolved waterlines
 4. 后续可以做参数回放和效果复盘
 
+### 3.5. 业务方案治理
+
+1. 策略包是系统内置模板，不带业务命名
+2. 方案模板是用户保存出来的 `ScenarioTemplate`
+3. 一个方案模板至少包含：公式、参数包、人工覆写后的配置版本
+4. 这样“系统模板”和“业务打法”不会混在一起
+
 ### 4. 夜间批处理
 
 1. 定时任务加载上月全量盘数据
@@ -237,6 +258,7 @@ flowchart LR
 
 - 页面不再持有核心业务规则，避免“UI 一改就伤到算法”。
 - 页面不再持有策略包真源，避免“运营调策略必须改前端代码”。
+- 页面未来也不再持有“保存方案”真源，方案模板会由后端仓储统一管理。
 - 引擎先产出统一的四个标准化指数，再交给 `formulaId` 对应的公式策略去算分，后续换公式不需要重写整条测算管道。
 - 同一套领域服务可被页面、批处理、导出任务、公用 API 复用。
 - 配置、缓存、结果快照被分离，后续做审计和回放更容易。

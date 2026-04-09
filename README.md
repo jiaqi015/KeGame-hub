@@ -10,7 +10,7 @@
 - 前端：`Vite + React + TypeScript`
 - 后端：
   - Sabrina 相关接口：`/api/activate`、`/api/models`、`/api/compare`、`/api/compare-stream`
-  - 小区开放日选址接口：`/api/parse-workbook`、`/api/open-day-catalog`、`/api/open-day-score`
+  - 小区开放日选址接口：`/api/parse-workbook`、`/api/open-day-catalog`、`/api/open-day-score`、`/api/open-day-analyses`、`/api/open-day-scenarios`
 - 小区开放日选址原始静态页面已保存在 `src/open-day/legacy/`
 - 小区开放日选址 DDD 设计说明见 [docs/open-day-ddd-architecture.md](/Users/jiaqi/Documents/开放日测算/docs/open-day-ddd-architecture.md)
 
@@ -56,3 +56,5 @@ http://localhost:3000
 - Excel 上传会通过 `/api/parse-workbook` 在服务端解析 sheet 和数据
 - 默认参数和策略包目录会通过 `/api/open-day-catalog` 从后端下发
 - 开放日测算会通过 `/api/open-day-score` 进入后端领域服务，并使用缓存加速重复计算
+- 测算快照会通过 `/api/open-day-analyses` 查询
+- 业务方案模板会通过 `/api/open-day-scenarios` 查询和保存

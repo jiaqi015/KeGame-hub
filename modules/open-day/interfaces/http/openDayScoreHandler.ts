@@ -58,8 +58,15 @@ function normalizeBody(body: unknown): OpenDayScoreCommand {
           : '',
     },
     config: candidate.config,
+    scenario: candidate.scenario,
     sourceName: typeof candidate.sourceName === 'string' ? candidate.sourceName : '',
     activePresetId: typeof candidate.activePresetId === 'string' ? candidate.activePresetId : '',
+    activeParameterPackageId:
+      typeof candidate.activeParameterPackageId === 'string'
+        ? candidate.activeParameterPackageId
+        : typeof candidate.activePresetId === 'string'
+          ? candidate.activePresetId
+          : '',
   };
 }
 

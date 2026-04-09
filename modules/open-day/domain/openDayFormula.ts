@@ -1,4 +1,4 @@
-import type { OpenDayFormulaId, OpenDayWeights } from './openDay.types.js';
+import type { OpenDayFormulaDefinition, OpenDayFormulaId, OpenDayWeights } from './openDay.types.js';
 
 export interface OpenDayFormulaInput {
   scaleScore: number;
@@ -14,14 +14,11 @@ export interface OpenDayFormulaResult {
   volumeScore: number;
 }
 
-interface OpenDayFormulaDefinition {
-  id: OpenDayFormulaId;
-  label: string;
-  description: string;
+interface OpenDayFormulaRuntimeDefinition extends OpenDayFormulaDefinition {
   evaluate: (input: OpenDayFormulaInput) => OpenDayFormulaResult;
 }
 
-const formulaRegistry: Record<OpenDayFormulaId, OpenDayFormulaDefinition> = {
+const formulaRegistry: Record<OpenDayFormulaId, OpenDayFormulaRuntimeDefinition> = {
   weighted_catalyst_v1: {
     id: 'weighted_catalyst_v1',
     label: '线性催化',
@@ -62,4 +59,12 @@ export function evaluateOpenDayFormula(
 
 export function getOpenDayFormulaDefinition(formulaId: OpenDayFormulaId) {
   return formulaRegistry[formulaId] || formulaRegistry.geometric_catalyst_v2;
+}
+
+export function listOpenDayFormulaDefinitions(): OpenDayFormulaDefinition[] {
+  return Object.values(formulaRegistry).map(({ id, label, description }) => ({
+    id,
+    label,
+    description,
+  }));
 }

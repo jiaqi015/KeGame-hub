@@ -1,5 +1,7 @@
 export type WaterlineMode = 'percentile' | 'absolute';
 export type OpenDayFormulaId = 'weighted_catalyst_v1' | 'geometric_catalyst_v2';
+export type OpenDayParameterKey = keyof OpenDayAbsolutes;
+export type OpenDayParameterSourceMode = 'percentile' | 'number';
 
 export interface OpenDayWeights {
   product: number;
@@ -33,7 +35,14 @@ export interface OpenDayConfig {
   weights: OpenDayWeights;
   percentiles: OpenDayPercentiles;
   absolutes: OpenDayAbsolutes;
+  waterlineOverrides?: Partial<OpenDayAbsolutes>;
   hardFilters: OpenDayHardFilters;
+}
+
+export interface OpenDayScenarioDraft {
+  formulaId: OpenDayFormulaId;
+  parameterPackageId: string | null;
+  config: OpenDayConfig;
 }
 
 export interface OpenDayMappings {
@@ -67,6 +76,18 @@ export interface OpenDayWaterlines {
   R_cap: number;
 }
 
+export interface OpenDayResolvedParameter {
+  key: OpenDayParameterKey;
+  sourceMode: OpenDayParameterSourceMode;
+  percentileValue: number;
+  configuredValue: number;
+  derivedValue: number;
+  overrideValue: number | null;
+  finalValue: number;
+  derivedPercentileValue: number;
+  isOverridden: boolean;
+}
+
 export interface OpenDayAnalysisRow extends NormalizedOpenDayRow {
   rank: number;
   score: number;
@@ -81,17 +102,26 @@ export interface OpenDayAnalysisRow extends NormalizedOpenDayRow {
   tierLabel: string;
 }
 
-export interface OpenDayPresetDefinition {
+export interface OpenDayFormulaDefinition {
+  id: OpenDayFormulaId;
+  label: string;
+  description: string;
+}
+
+export interface OpenDayParameterPackageDefinition {
   id: string;
   label: string;
   description: string;
   overrides: Partial<OpenDayConfig>;
 }
 
-export interface OpenDayPreset extends OpenDayPresetDefinition {
+export interface OpenDayParameterPackage extends OpenDayParameterPackageDefinition {
   version: string;
   resolvedConfig: OpenDayConfig;
 }
+
+export type OpenDayPresetDefinition = OpenDayParameterPackageDefinition;
+export type OpenDayPreset = OpenDayParameterPackage;
 
 export interface OpenDayAnalysisMeta {
   cacheHit: boolean;
@@ -100,7 +130,10 @@ export interface OpenDayAnalysisMeta {
   totalCount: number;
   eligibleCount: number;
   weights: OpenDayWeights;
+  formula: OpenDayFormulaDefinition;
+  scenario: OpenDayScenarioDraft;
   waterlines: OpenDayWaterlines;
+  resolvedParameters: OpenDayResolvedParameter[];
   requestedConfig: OpenDayConfig;
   snapshotId?: string;
   snapshotCreatedAt?: string;
@@ -115,6 +148,8 @@ export interface OpenDayCatalogResponse {
   generatedAt: string;
   defaultConfig: OpenDayConfig;
   defaultConfigVersion: string;
+  formulas: OpenDayFormulaDefinition[];
+  parameterPackages: OpenDayParameterPackage[];
   presets: OpenDayPreset[];
 }
 
@@ -123,6 +158,7 @@ export interface OpenDayAnalysisSnapshotSummary {
   createdAt: string;
   sourceName: string;
   presetId: string | null;
+  parameterPackageId: string | null;
   configVersion: string;
   waterlineSource: string;
   totalCount: number;
@@ -137,6 +173,36 @@ export interface OpenDayAnalysisSnapshotRecord {
   response: OpenDayAnalysisResponse;
 }
 
+export interface OpenDayScenarioTemplateSummary {
+  id: string;
+  name: string;
+  description: string;
+  formulaId: OpenDayFormulaId;
+  parameterPackageId: string | null;
+  configVersion: string;
+  updatedAt: string;
+}
+
+export interface OpenDayScenarioTemplateRecord {
+  summary: OpenDayScenarioTemplateSummary;
+  scenario: OpenDayScenarioDraft;
+}
+
+export interface OpenDayScenarioListResponse {
+  items: OpenDayScenarioTemplateSummary[];
+}
+
+export interface OpenDaySaveScenarioCommand {
+  name: string;
+  description?: string;
+  scenario?: Partial<OpenDayScenarioDraft> & {
+    config?: Partial<OpenDayConfig>;
+  };
+  config?: Partial<OpenDayConfig>;
+  activePresetId?: string;
+  activeParameterPackageId?: string;
+}
+
 export interface OpenDaySnapshotListResponse {
   items: OpenDayAnalysisSnapshotSummary[];
 }
@@ -145,6 +211,10 @@ export interface OpenDayScoreCommand {
   rows: OpenDayRawRow[];
   mappings: OpenDayMappings;
   config?: Partial<OpenDayConfig>;
+  scenario?: Partial<OpenDayScenarioDraft> & {
+    config?: Partial<OpenDayConfig>;
+  };
   sourceName?: string;
   activePresetId?: string;
+  activeParameterPackageId?: string;
 }

@@ -55,6 +55,8 @@ export class OpenDayAnalysisService {
           createdAt: new Date().toISOString(),
           sourceName: command.sourceName || '未命名数据集',
           presetId: command.activePresetId || null,
+          parameterPackageId:
+            response.meta.scenario.parameterPackageId || command.activeParameterPackageId || command.activePresetId || null,
           configVersion,
           waterlineSource: response.meta.waterlines.source,
           totalCount: response.meta.totalCount,
