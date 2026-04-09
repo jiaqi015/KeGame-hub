@@ -701,10 +701,10 @@ export default function App() {
                       Sabrina Access
                     </div>
                     <h1 className="text-[34px] font-semibold tracking-[-0.04em] text-[#111111]">
-                      Sabrina Workspace
+                      AI Model Sabrina II
                     </h1>
                     <p className="mt-3 max-w-sm text-[15px] leading-7 text-[#6E6E73]">
-                      先完成验证，再进入 AI Model Sabrina II 和开放日选址两个工作台。
+                      先完成验证，再进入多模型PK和小区开放日选址两个功能。
                     </p>
                   </div>
 
@@ -775,10 +775,10 @@ export default function App() {
                   Workspace Ready
                 </div>
                 <h1 className="text-[34px] font-semibold tracking-[-0.05em] text-[#111111] md:text-[44px]">
-                  先验证，再进入两个工作台
+                  先验证，再进入两个功能
                 </h1>
                 <p className="mt-4 max-w-2xl text-[15px] leading-7 text-[#6E6E73] md:text-[16px]">
-                  这里会作为统一入口。验证通过后，你可以进入 AI Model Sabrina II 做多模型对比，也可以进入开放日选址做楼盘测算。
+                  这里是 AI Model Sabrina II 的统一入口。验证通过后，你可以进入多模型PK做多模型对比，也可以进入小区开放日选址做楼盘测算。
                 </p>
               </div>
 
@@ -812,11 +812,11 @@ export default function App() {
                     <Sparkles className="h-5 w-5" />
                   </div>
                   <div className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-blue-600">
-                    AI Studio
+                    模型对比
                   </div>
                 </div>
                 <h2 className="mt-6 text-[28px] font-semibold tracking-[-0.05em] text-[#111111]">
-                  AI Model Sabrina II
+                  多模型PK
                 </h2>
                 <p className="mt-3 text-[15px] leading-7 text-[#6E6E73]">
                   一句提示词，多模型同时出结果，并自动生成核心差异总结。适合做模型选型、提示词对比和产出评审。
@@ -839,14 +839,14 @@ export default function App() {
                     <Layers className="h-5 w-5" />
                   </div>
                   <div className="rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
-                    Selection Tool
+                    选址测算
                   </div>
                 </div>
                 <h2 className="mt-6 text-[28px] font-semibold tracking-[-0.05em] text-[#111111]">
-                  开放日选址
+                  小区开放日选址
                 </h2>
                 <p className="mt-3 text-[15px] leading-7 text-[#6E6E73]">
-                  上传 CSV 或 Excel，映射字段并快速测算候选小区潜力。适合开放日场地筛选、优先级排序和投放分析。
+                  上传 CSV 或 Excel，映射字段后进入参数仪表盘。前端负责操作体验，后端领域服务负责解析、评分、缓存与策略执行。
                 </p>
                 <div className="mt-6 flex items-center justify-between text-sm font-semibold text-[#111111]">
                   <span>进入测算工作台</span>
@@ -871,9 +871,9 @@ export default function App() {
                   <ArrowLeft className="h-4 w-4" />
                   返回功能页
                 </button>
-                <h1 className="text-[28px] font-semibold tracking-[-0.04em] text-[#111111]">开放日选址</h1>
+                <h1 className="text-[28px] font-semibold tracking-[-0.04em] text-[#111111]">小区开放日选址</h1>
                 <p className="mt-2 text-sm leading-7 text-[#6E6E73]">
-                  当前保留原有测算逻辑，并纳入统一验证入口。支持样例数据、CSV 上传和 Excel 工作表选择。
+                  当前采用参数中台思路：前端管理上传、映射与参数覆盖，后端领域服务负责 Excel 解析、评分、缓存与策略执行。
                 </p>
               </div>
 
@@ -917,7 +917,7 @@ export default function App() {
                 <LogOut className="h-3.5 w-3.5" />
                 退出登录
               </button>
-              <h1 className="text-2xl font-bold tracking-tight mb-0.5">AI Model Sabrina Ⅱ</h1>
+              <h1 className="text-2xl font-bold tracking-tight mb-0.5">多模型PK</h1>
               <p className="text-[10px] text-[#86868B] uppercase tracking-widest font-medium">一句提示词，多个模型一起出</p>
             </div>
 
@@ -1310,7 +1310,7 @@ export default function App() {
       <footer className="shrink-0 py-3 text-center text-[#86868B] text-[11px] border-t border-black/5 bg-white">
         <div className="flex items-center justify-center gap-2">
           <Sparkles className="w-3.5 h-3.5" />
-          <span>Sabrina Workspace • AI Model Sabrina II + 开放日选址</span>
+          <span>AI Model Sabrina II • 多模型PK + 小区开放日选址</span>
           <span className="text-black/10">|</span>
           <span>© 2026</span>
         </div>

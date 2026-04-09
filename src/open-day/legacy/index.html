@@ -3,23 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>开放日选小区潜力测算</title>
+    <title>小区开放日选址</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <div class="page-shell">
       <header class="hero">
         <div class="hero-copy">
-          <p class="eyebrow">Open Day Ranking Studio</p>
-          <h1>开放日选小区潜力测算系统</h1>
+          <p class="eyebrow">选址测算工作台</p>
+          <h1>小区开放日选址</h1>
           <p class="hero-text">
-            上传小区数据，使用默认关键参数快速测算；也可以把每个阈值切换成按分位或按固定数字，实时查看排名和分析结论。
+            上传 Excel 或 CSV 后，系统会自动计算规模、流量、商品、互动四维指数。默认按分位数巡航，也支持在控制台里直接覆盖 Alpha、权重、水位线和业务红线。
           </p>
         </div>
         <div class="hero-metric">
           <div class="hero-metric-label">核心公式</div>
-          <div class="hero-metric-value">规模 × 流量 × (0.65 商品 + 0.35 互动)</div>
-          <div class="hero-metric-footnote">结果按区域最高分归一化到 100 分</div>
+          <div class="hero-metric-value">Score = Scale × Traffic^Alpha × Catalyst</div>
+          <div class="hero-metric-footnote">Catalyst = 0.65 商品 + 0.35 互动，Alpha 默认 0.8 且可调整</div>
         </div>
       </header>
 
@@ -36,17 +36,17 @@
           <div class="upload-box">
             <label class="upload-input">
               <span>上传 Excel / CSV 文件</span>
-              <input id="file-input" type="file" accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+              <input id="file-input" type="file" accept=".csv,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" />
             </label>
             <button id="load-sample" class="secondary-btn" type="button">加载示例数据</button>
           </div>
 
           <p class="helper-text">
-            建议字段：`小区名称`、`在售套数`、`带看量`、`好房数`、`互动率`。支持 CSV，也支持带多个 sheet 的 Excel。互动率支持 `2.3%` 或 `0.023` 两种写法。
+            建议字段：`楼盘名 / 小区名称`、`库存在售房源量`、`带看量`、`成交量`、`库存好房量`。互动质量会按 `成交量 / 带看量` 自动计算。
           </p>
 
           <div id="data-summary" class="data-summary empty">
-            暂未加载数据。你可以上传 CSV，或先加载示例数据查看页面效果。
+            暂未加载数据。你可以上传 Excel，或先加载示例数据查看完整测算流程。
           </div>
 
           <div id="sheet-picker-wrap" class="sheet-picker hidden">
@@ -57,6 +57,10 @@
           </div>
 
           <div class="mapping-grid">
+            <label>
+              <span>大区列（可选）</span>
+              <select id="area-column"></select>
+            </label>
             <label>
               <span>小区名称列</span>
               <select id="name-column"></select>
@@ -70,12 +74,12 @@
               <select id="traffic-column"></select>
             </label>
             <label>
-              <span>好房数列</span>
-              <select id="premium-column"></select>
+              <span>成交量列</span>
+              <select id="transactions-column"></select>
             </label>
             <label>
-              <span>互动率列</span>
-              <select id="interaction-column"></select>
+              <span>好房数列</span>
+              <select id="premium-column"></select>
             </label>
           </div>
         </section>
@@ -84,18 +88,29 @@
           <div class="panel-header">
             <div>
               <p class="panel-kicker">Step 2</p>
-              <h2>关键参数设置</h2>
+              <h2>参数仪表盘</h2>
             </div>
-            <button id="reset-defaults" class="secondary-btn" type="button">恢复 PDF 默认值</button>
+            <button id="reset-defaults" class="secondary-btn" type="button">恢复默认矩阵</button>
           </div>
 
           <div class="formula-card">
-            <div>综合评分 = 规模分 × 流量分 × (商品分 × 商品权重 + 互动分 × 互动权重) × 100</div>
+            <div>raw_score = (规模分 / 100) × (流量分 / 100) × (商品分 × 商品权重 + 互动分 × 互动权重)</div>
           </div>
 
-          <div class="param-grid" id="param-grid"></div>
+          <div id="preset-strip" class="preset-strip"></div>
 
-          <div class="weight-grid">
+          <div class="engine-grid">
+            <label>
+              <span>水位线模式</span>
+              <select id="waterline-mode">
+                <option value="percentile">按分位自动推导</option>
+                <option value="absolute">按固定数值约束</option>
+              </select>
+            </label>
+            <label>
+              <span>流量平滑指数 Alpha</span>
+              <input id="traffic-exponent" type="number" min="0" max="2" step="0.05" value="0.8" />
+            </label>
             <label>
               <span>商品权重</span>
               <input id="goods-weight" type="number" min="0" max="1" step="0.05" value="0.65" />
@@ -104,11 +119,24 @@
               <span>互动权重</span>
               <input id="interaction-weight" type="number" min="0" max="1" step="0.05" value="0.35" />
             </label>
+          </div>
+
+          <div class="filter-grid">
             <label>
-              <span>流量平滑指数</span>
-              <input id="traffic-exponent" type="number" min="0.1" max="2" step="0.05" value="0.8" />
+              <span>最低在售要求</span>
+              <input id="hard-filter-inventory" type="number" min="0" step="1" value="20" />
+            </label>
+            <label>
+              <span>最低好房要求</span>
+              <input id="hard-filter-premium" type="number" min="0" step="1" value="2" />
+            </label>
+            <label>
+              <span>最低成交要求</span>
+              <input id="hard-filter-transactions" type="number" min="0" step="1" value="1" />
             </label>
           </div>
+
+          <div class="param-grid" id="param-grid"></div>
         </section>
 
         <section class="panel result-panel">
@@ -122,6 +150,18 @@
 
           <div id="headline-metrics" class="headline-metrics"></div>
           <div id="analysis-cards" class="analysis-cards"></div>
+          <section class="snapshot-panel">
+            <div class="subsection-header">
+              <div>
+                <p class="panel-kicker">History</p>
+                <h3>最近测算快照</h3>
+              </div>
+              <p class="helper-text">每次新的参数组合与数据集测算都会落一份快照，方便回看冠军盘、配置版本和大盘水位。</p>
+            </div>
+            <div id="snapshot-list" class="snapshot-list">
+              <div class="helper-text">暂未生成快照。</div>
+            </div>
+          </section>
           <div id="chart" class="chart"></div>
 
           <div class="table-wrap">
@@ -129,18 +169,22 @@
               <thead>
                 <tr>
                   <th>排名</th>
+                  <th>大区</th>
                   <th>小区</th>
                   <th>综合分</th>
-                  <th>分档</th>
+                  <th>分层</th>
+                  <th>入围</th>
                   <th>规模分</th>
                   <th>流量分</th>
                   <th>商品分</th>
                   <th>互动分</th>
+                  <th>成交量</th>
+                  <th>转化率</th>
                 </tr>
               </thead>
               <tbody id="result-body">
                 <tr>
-                  <td colspan="8" class="empty-cell">暂无结果</td>
+                  <td colspan="12" class="empty-cell">暂无结果</td>
                 </tr>
               </tbody>
             </table>
@@ -148,23 +192,5 @@
         </section>
       </main>
     </div>
-
-    <template id="param-template">
-      <article class="param-card">
-        <div class="param-topline">
-          <div>
-            <h3></h3>
-            <p></p>
-          </div>
-          <select class="mode-select">
-            <option value="fixed">按数字</option>
-            <option value="percentile">按分位</option>
-          </select>
-        </div>
-        <div class="param-inputs"></div>
-      </article>
-    </template>
-
-    <script src="./app.js"></script>
   </body>
 </html>

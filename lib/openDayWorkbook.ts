@@ -16,7 +16,7 @@ function normalizeCellValue(value: unknown) {
 }
 
 function countNonEmpty(values: unknown[]) {
-  return values.reduce((total, value) => total + (normalizeCellValue(value) ? 1 : 0), 0);
+  return values.reduce<number>((total, value) => total + (normalizeCellValue(value) ? 1 : 0), 0);
 }
 
 function findHeaderRow(grid: (string | number | null)[][]) {

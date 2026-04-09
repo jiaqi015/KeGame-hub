@@ -81,7 +81,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
       runtime(shadowRoot, window, activationKey);
       setBootError('');
     } catch (error) {
-      setBootError(error instanceof Error ? error.message : '开放日选址工作台加载失败。');
+      setBootError(error instanceof Error ? error.message : '小区开放日选址工作台加载失败。');
     }
 
     return () => {

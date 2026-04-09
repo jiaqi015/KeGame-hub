@@ -1,17 +1,18 @@
-# Sabrina Workspace
+# AI Model Sabrina II
 
-这是一个合并后的统一入口项目，验证通过后可以进入两个工作台：
+这是一个合并后的统一入口项目，验证通过后可以进入两个功能：
 
-- `AI Model Sabrina II`：多模型对比与核心差异总结
-- `开放日选址`：开放日候选小区测算与排名分析
+- `多模型PK`：多模型对比与核心差异总结
+- `小区开放日选址`：开放日候选小区测算与排名分析
 
 ## 当前结构
 
 - 前端：`Vite + React + TypeScript`
 - 后端：
   - Sabrina 相关接口：`/api/activate`、`/api/models`、`/api/compare`、`/api/compare-stream`
-  - 开放日 Excel 解析：`/api/parse-workbook`
-- 开放日原始静态页面已保存在 `src/open-day/legacy/`
+  - 小区开放日选址接口：`/api/parse-workbook`、`/api/open-day-catalog`、`/api/open-day-score`
+- 小区开放日选址原始静态页面已保存在 `src/open-day/legacy/`
+- 小区开放日选址 DDD 设计说明见 [docs/open-day-ddd-architecture.md](/Users/jiaqi/Documents/开放日测算/docs/open-day-ddd-architecture.md)
 
 ## 使用方式
 
@@ -26,11 +27,18 @@ npm run dev
 http://localhost:3000
 ```
 
+如果 `3000` 已被占用，服务会自动 fallback 到后续可用端口，并在终端打印实际地址。
+
 ## 环境变量
 
 参考 `.env.example`，至少需要：
 
 - `ACTIVATION_KEYS`
+
+开发环境可选：
+
+- `PORT`
+- `VITE_HMR_PORT`
 
 如果要使用 Sabrina 的模型对比能力，还需要按实际 provider 配置：
 
@@ -43,5 +51,8 @@ http://localhost:3000
 
 - 验证页沿用 Sabrina 的激活机制
 - 验证通过后先进入功能选择页
-- `开放日选址` 作为内嵌工作台接入，同样受激活校验保护
+- `小区开放日选址` 作为内嵌工作台接入，同样受激活校验保护
+- 代码内部仍沿用 `open-day` 作为模块与接口前缀，避免为了改产品名而引入路径和引用风险
 - Excel 上传会通过 `/api/parse-workbook` 在服务端解析 sheet 和数据
+- 默认参数和策略包目录会通过 `/api/open-day-catalog` 从后端下发
+- 开放日测算会通过 `/api/open-day-score` 进入后端领域服务，并使用缓存加速重复计算

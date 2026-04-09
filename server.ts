@@ -1,5 +1,6 @@
 import express from "express";
 import fs from "node:fs/promises";
+import http from "node:http";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
@@ -8,6 +9,9 @@ import { authorizeRequest, validateActivationKey } from "./lib/activation.js";
 import { compareModels, streamCompareModel } from "./lib/compare.js";
 import { AVAILABLE_MODELS } from "./lib/models.js";
 import { parseWorkbookBuffer } from "./lib/openDayWorkbook.js";
+import { handleOpenDayCatalog } from "./modules/open-day/interfaces/http/openDayCatalogHandler.js";
+import { handleOpenDaySnapshotList } from "./modules/open-day/interfaces/http/openDaySnapshotListHandler.js";
+import { handleOpenDayScore } from "./modules/open-day/interfaces/http/openDayScoreHandler.js";
 
 dotenv.config();
 
@@ -36,7 +40,8 @@ function getFirstFieldValue(value: string | string[] | undefined) {
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const preferredPort = Number(process.env.PORT || 3000);
+  const hmrPort = Number(process.env.VITE_HMR_PORT || 24700);
 
   app.use(express.json());
 
@@ -69,6 +74,19 @@ async function startServer() {
     res.json({ models: AVAILABLE_MODELS });
   });
 
+  app.get("/api/open-day-catalog", (_req, res) => {
+    return res.json(handleOpenDayCatalog());
+  });
+
+  app.get("/api/open-day-analyses", async (req, res) => {
+    try {
+      const payload = await handleOpenDaySnapshotList(req.query);
+      return res.json(payload);
+    } catch (error) {
+      return res.status(400).json({ error: error instanceof Error ? error.message : "开放日历史查询失败" });
+    }
+  });
+
   app.post("/api/parse-workbook", async (req, res) => {
     try {
       const { fields, files } = await parseMultipart(req);
@@ -83,6 +101,15 @@ async function startServer() {
       return res.json(payload);
     } catch (error) {
       return res.status(400).send(error instanceof Error ? error.message : "Excel 解析失败");
+    }
+  });
+
+  app.post("/api/open-day-score", async (req, res) => {
+    try {
+      const payload = await handleOpenDayScore(req.body);
+      return res.json(payload);
+    } catch (error) {
+      return res.status(400).json({ error: error instanceof Error ? error.message : "开放日测算失败" });
     }
   });
 
@@ -155,7 +182,12 @@ async function startServer() {
   // --- Vite Middleware ---
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: {
+          port: hmrPort,
+        },
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);
@@ -167,8 +199,39 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+  const server = http.createServer(app);
+  let currentPort = preferredPort;
+  const maxPortAttempts = 10;
+
+  await new Promise<void>((resolve, reject) => {
+    const tryListen = () => {
+      const onListening = () => {
+        server.off("error", onError);
+        console.log(`Server running on http://localhost:${currentPort}`);
+        if (currentPort !== preferredPort) {
+          console.log(`Port ${preferredPort} is busy, auto-fallback to ${currentPort}.`);
+        }
+        resolve();
+      };
+
+      const onError = (error: NodeJS.ErrnoException) => {
+        server.off("listening", onListening);
+
+        if (error.code === "EADDRINUSE" && currentPort < preferredPort + maxPortAttempts) {
+          currentPort += 1;
+          tryListen();
+          return;
+        }
+
+        reject(error);
+      };
+
+      server.once("listening", onListening);
+      server.once("error", onError);
+      server.listen(currentPort, "0.0.0.0");
+    };
+
+    tryListen();
   });
 }
 
