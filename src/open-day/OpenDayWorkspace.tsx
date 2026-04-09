@@ -108,15 +108,8 @@ function getPresetLabel(activePresetId: string, presets: OpenDayPreset[]) {
   return presets.find((preset) => preset.id === activePresetId)?.label || (activePresetId === 'custom' ? '自定义参数' : '自动巡航');
 }
 
-function buildDataSummary(sourceName: string, rowCount: number, headers: string[]) {
-  if (!rowCount) {
-    return '暂未加载数据。你可以上传 Excel，或先加载示例数据查看完整测算流程。';
-  }
-
-  return `已加载 ${sourceName}，共 ${rowCount} 行。当前测算由后端领域服务执行，前端只负责上传、映射、参数仪表盘与结果展示。字段包含：${headers.join(' / ')}`;
-}
-
 export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
+  const [step, setStep] = useState<'upload' | 'result'>('upload');
   const [catalog, setCatalog] = useState(fallbackCatalog);
   const [config, setConfig] = useState<OpenDayConfig>(cloneConfig(fallbackCatalog.defaultConfig));
   const [headers, setHeaders] = useState<string[]>([]);
@@ -129,7 +122,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
   const [activePresetId, setActivePresetId] = useState('auto');
   const [analysis, setAnalysis] = useState<OpenDayAnalysisResponse | null>(null);
   const [snapshots, setSnapshots] = useState<OpenDayAnalysisSnapshotSummary[]>([]);
-  const [statusMessage, setStatusMessage] = useState('请先上传数据，并完成字段映射。');
+  const [statusMessage, setStatusMessage] = useState('');
   const [catalogMessage, setCatalogMessage] = useState('');
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -138,7 +131,6 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
 
   const presets = catalog.presets;
   const missingMappings = getMissingMappings(mappings);
-  const missingMappingsKey = missingMappings.join('|');
   const eligibleRows = analysis?.results.filter((row) => row.isEligible) || [];
   const topRows = (eligibleRows.length ? eligibleRows : analysis?.results || []).slice(0, 3);
   const trafficLeader = analysis?.results.reduce<typeof analysis.results[number] | null>((leader, row) => {
@@ -208,16 +200,14 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
   }, [activationKey]);
 
   useEffect(() => {
-    if (!rows.length) {
+    if (!rows.length || step === 'upload') {
       setAnalysis(null);
-      setStatusMessage('请先上传数据，并完成字段映射。');
       setIsAnalyzing(false);
       return;
     }
 
     if (missingMappings.length > 0) {
       setAnalysis(null);
-      setStatusMessage(`请先完成字段映射：${missingMappings.join('、')}`);
       setIsAnalyzing(false);
       return;
     }
@@ -226,7 +216,6 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
       const currentVersion = requestVersionRef.current + 1;
       requestVersionRef.current = currentVersion;
       setIsAnalyzing(true);
-      setStatusMessage('正在调用后端测算服务...');
 
       void fetchOpenDayAnalysis(activationKey, {
         rows,
@@ -241,7 +230,6 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
           }
 
           setAnalysis(payload);
-          setStatusMessage('');
           setIsAnalyzing(false);
           void refreshSnapshots();
         })
@@ -264,8 +252,9 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     config,
     sourceName,
     activePresetId,
-    missingMappingsKey,
+    missingMappings.join('|'),
     recalculateTick,
+    step,
   ]);
 
   function applyParsedData(payload: ParsedWorkbookPayload | { headers: string[]; rows: OpenDayRawRow[] }, nextSourceName: string) {
@@ -331,165 +320,207 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     markCustomConfig();
   }
 
-  return (
-    <div className="open-day-workspace">
-      <div className="open-day-workspace__shell">
-        <header className="open-day-workspace__hero">
-          <div>
-            <p className="open-day-workspace__eyebrow">选址测算工作台</p>
-            <h1>小区开放日选址</h1>
-            <p className="open-day-workspace__hero-text">
-              上传 Excel 或 CSV 后，系统会自动计算规模、流量、商品、互动四维指数。默认按分位数巡航，也支持在控制台里直接覆盖 Alpha、权重、水位线和业务红线。
-            </p>
-          </div>
-          <div className="open-day-workspace__hero-metric">
-            <div className="open-day-workspace__hero-label">核心公式</div>
-            <div className="open-day-workspace__hero-value">Score = Scale × Traffic^Alpha × Catalyst</div>
-            <div className="open-day-workspace__hero-footnote">Catalyst = 0.65 商品 + 0.35 互动，Alpha 默认 0.8 且可调整</div>
-          </div>
-        </header>
+  function handleNextStep() {
+    if (!rows.length) {
+      setStatusMessage('请先上传文件');
+      return;
+    }
+    if (missingMappings.length > 0) {
+      setStatusMessage(`请完成字段映射：${missingMappings.join('、')}`);
+      return;
+    }
+    setStep('result');
+  }
 
-        {catalogMessage ? <div className="open-day-workspace__banner">{catalogMessage}</div> : null}
+  function handleBackStep() {
+    setStep('upload');
+  }
 
-        <main className="open-day-workspace__layout">
-          <section className="open-day-workspace__panel">
-            <div className="open-day-workspace__panel-header">
-              <div>
-                <p className="open-day-workspace__eyebrow">Step 1</p>
-                <h2>上传文件与字段映射</h2>
+  function handleRetryCalculation() {
+    setRecalculateTick((current) => current + 1);
+  }
+
+  if (step === 'upload') {
+    return (
+      <div className="open-day-workspace">
+        <div className="open-day-workspace__shell">
+          {catalogMessage ? <div className="open-day-workspace__banner">{catalogMessage}</div> : null}
+
+          <div className="open-day-upload-page">
+            <div className="open-day-upload-card">
+              <div className="open-day-upload-header">
+                <h2>上传数据</h2>
+                <p>支持 Excel / CSV，自动匹配字段</p>
               </div>
-              <a className="open-day-workspace__ghost-link" href="/open-day-sample-data.csv" download>
-                下载示例 CSV
-              </a>
-            </div>
 
-            <div className="open-day-workspace__upload-row">
-              <label className="open-day-workspace__upload-button">
-                <span>上传 Excel / CSV 文件</span>
-                <input
-                  type="file"
-                  accept=".csv,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
-                  onChange={(event) => {
-                    const nextFile = event.target.files?.[0];
-                    if (!nextFile) {
-                      return;
-                    }
-
-                    void handleFileSelection(nextFile).catch((error) => {
-                      setStatusMessage(error instanceof Error ? error.message : '文件读取失败');
-                    });
-                  }}
-                />
-              </label>
-              <button type="button" className="open-day-workspace__secondary-button" onClick={handleLoadSample}>
-                加载示例数据
-              </button>
-            </div>
-
-            <p className="open-day-workspace__helper">
-              建议字段：`楼盘名 / 小区名称`、`库存在售房源量`、`带看量`、`成交量`、`库存好房量`。互动质量会按 `成交量 / 带看量` 自动计算。
-            </p>
-
-            <div className={`open-day-workspace__summary ${rows.length ? '' : 'is-empty'}`}>
-              {buildDataSummary(sourceName, rows.length, headers)}
-            </div>
-
-            {workbookSheets.length > 0 ? (
-              <div className="open-day-workspace__sheet-picker">
-                <label>
-                  <span>Excel Sheet</span>
-                  <select
-                    value={activeSheet}
+              <div className="open-day-upload-actions">
+                <label className="open-day-upload-button">
+                  <span>上传文件</span>
+                  <input
+                    type="file"
+                    accept=".csv,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
                     onChange={(event) => {
-                      const nextSheet = event.target.value;
-                      setActiveSheet(nextSheet);
-                      if (!uploadedFile) {
+                      const nextFile = event.target.files?.[0];
+                      if (!nextFile) {
                         return;
                       }
 
-                      void handleWorkbookUpload(uploadedFile, nextSheet).catch((error) => {
-                        setStatusMessage(error instanceof Error ? error.message : '切换工作表失败');
+                      void handleFileSelection(nextFile).catch((error) => {
+                        setStatusMessage(error instanceof Error ? error.message : '文件读取失败');
                       });
                     }}
-                  >
-                    {workbookSheets.map((sheet) => (
-                      <option key={sheet} value={sheet}>
-                        {sheet}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </label>
+                <button type="button" className="open-day-upload-secondary" onClick={handleLoadSample}>
+                  加载示例
+                </button>
+                <a className="open-day-upload-link" href="/open-day-sample-data.csv" download>
+                  下载示例
+                </a>
+              </div>
+
+              {workbookSheets.length > 0 ? (
+                <div className="open-day-sheet-picker">
+                  <label>
+                    <span>Excel Sheet</span>
+                    <select
+                      value={activeSheet}
+                      onChange={(event) => {
+                        const nextSheet = event.target.value;
+                        setActiveSheet(nextSheet);
+                        if (!uploadedFile) {
+                          return;
+                        }
+
+                        void handleWorkbookUpload(uploadedFile, nextSheet).catch((error) => {
+                          setStatusMessage(error instanceof Error ? error.message : '切换工作表失败');
+                        });
+                      }}
+                    >
+                      {workbookSheets.map((sheet) => (
+                        <option key={sheet} value={sheet}>
+                          {sheet}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              ) : null}
+
+              {rows.length > 0 ? (
+                <div className="open-day-data-info">
+                  {sourceName}，共 {rows.length} 行
+                </div>
+              ) : null}
+
+              {statusMessage ? (
+                <div className="open-day-status-message">{statusMessage}</div>
+              ) : null}
+
+              <div className="open-day-mapping-grid">
+                {[
+                  ['area', '大区（可选）'],
+                  ['name', '小区名称'],
+                  ['inventory', '在售套数'],
+                  ['traffic', '带看量'],
+                  ['transactions', '成交量'],
+                  ['premium', '好房数'],
+                ].map(([key, label]) => (
+                  <label key={key}>
+                    <span>{label}</span>
+                    <select
+                      value={mappings[key as keyof OpenDayFormMappings]}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setMappings((current) => ({
+                          ...current,
+                          [key]: value,
+                        }));
+                      }}
+                    >
+                      <option value="">{key === 'area' ? '不使用' : '请选择'}</option>
+                      {headers.map((header) => (
+                        <option key={header} value={header}>
+                          {header}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ))}
+              </div>
+
+              <div className="open-day-upload-footer">
+                <button
+                  type="button"
+                  className="open-day-next-button"
+                  onClick={handleNextStep}
+                  disabled={!rows.length || missingMappings.length > 0}
+                >
+                  下一步 → 参数调整
+                </button>
+              </div>
+            </div>
+
+            {snapshots.length > 0 ? (
+              <div className="open-day-recent-card">
+                <h3>最近测算</h3>
+                <div className="open-day-recent-list">
+                  {snapshots.slice(0, 4).map((snapshot) => (
+                    <div key={snapshot.id} className="open-day-recent-item">
+                      <div className="open-day-recent-name">{snapshot.sourceName || '未命名'}</div>
+                      <div className="open-day-recent-meta">
+                        {snapshot.eligibleCount}/{snapshot.totalCount} · {formatNumber(snapshot.championScore, 1)}
+                      </div>
+                      <div className="open-day-recent-date">{formatDateTime(snapshot.createdAt)}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : null}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-            <div className="open-day-workspace__mapping-grid">
-              {[
-                ['area', '大区列（可选）'],
-                ['name', '小区名称列'],
-                ['inventory', '在售套数列'],
-                ['traffic', '带看量列'],
-                ['transactions', '成交量列'],
-                ['premium', '好房数列'],
-              ].map(([key, label]) => (
-                <label key={key}>
-                  <span>{label}</span>
-                  <select
-                    value={mappings[key as keyof OpenDayFormMappings]}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      setMappings((current) => ({
-                        ...current,
-                        [key]: value,
-                      }));
-                    }}
-                  >
-                    <option value="">{key === 'area' ? '不使用大区列' : '请选择字段'}</option>
-                    {headers.map((header) => (
-                      <option key={header} value={header}>
-                        {header}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ))}
-            </div>
-          </section>
+  return (
+    <div className="open-day-workspace">
+      <div className="open-day-workspace__shell">
+        <div className="open-day-result-header">
+          <button className="open-day-back-button" onClick={handleBackStep}>
+            ← 返回上传
+          </button>
+          <div className="open-day-result-title">
+            <h2>小区开放日测算</h2>
+            <p>{sourceName} · {rows.length} 个小区</p>
+          </div>
+        </div>
 
-          <section className="open-day-workspace__panel">
-            <div className="open-day-workspace__panel-header">
-              <div>
-                <p className="open-day-workspace__eyebrow">Step 2</p>
-                <h2>参数仪表盘</h2>
-              </div>
-              <button type="button" className="open-day-workspace__secondary-button" onClick={handleRestoreDefaults}>
-                恢复默认矩阵
+        {catalogMessage ? <div className="open-day-workspace__banner">{catalogMessage}</div> : null}
+
+        <div className="open-day-result-layout">
+          <section className="open-day-params-block">
+            <div className="open-day-params-header">
+              <h3>参数调整</h3>
+              <button type="button" className="open-day-reset-button" onClick={handleRestoreDefaults}>
+                恢复默认
               </button>
             </div>
 
-            <div className="open-day-workspace__formula-card">
-              raw_score = (规模分 / 100) × (流量分 / 100) × (商品分 × 商品权重 + 互动分 × 互动权重)
-            </div>
-
-            <div className="open-day-workspace__preset-grid">
+            <div className="open-day-preset-strip">
               {presets.map((preset) => (
                 <button
                   key={preset.id}
                   type="button"
-                  className={`open-day-workspace__preset-card ${activePresetId === preset.id ? 'is-active' : ''}`}
+                  className={`open-day-preset-tag ${activePresetId === preset.id ? 'is-active' : ''}`}
                   onClick={() => handleApplyPreset(preset.id)}
                 >
-                  <strong>{preset.label}</strong>
-                  <span>{preset.description}</span>
+                  {preset.label}
                 </button>
               ))}
             </div>
 
-            <div className="open-day-workspace__preset-caption">
-              当前策略：{getPresetLabel(activePresetId, presets)}
-              {activePresetId === 'custom' ? '，你正在使用手动覆写参数。' : '。'}
-            </div>
-
-            <div className="open-day-workspace__engine-grid">
+            <div className="open-day-basic-grid">
               <label>
                 <span>水位线模式</span>
                 <select
@@ -500,12 +531,12 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                     });
                   }}
                 >
-                  <option value="percentile">按分位自动推导</option>
-                  <option value="absolute">按固定数值约束</option>
+                  <option value="percentile">按分位自动</option>
+                  <option value="absolute">按固定数值</option>
                 </select>
               </label>
               <label>
-                <span>流量平滑指数 Alpha</span>
+                <span>流量 Alpha</span>
                 <input
                   type="number"
                   min="0"
@@ -551,9 +582,9 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
               </label>
             </div>
 
-            <div className="open-day-workspace__filter-grid">
+            <div className="open-day-filter-row">
               <label>
-                <span>最低在售要求</span>
+                <span>最低在售</span>
                 <input
                   type="number"
                   min="0"
@@ -567,7 +598,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                 />
               </label>
               <label>
-                <span>最低好房要求</span>
+                <span>最低好房</span>
                 <input
                   type="number"
                   min="0"
@@ -581,7 +612,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                 />
               </label>
               <label>
-                <span>最低成交要求</span>
+                <span>最低成交</span>
                 <input
                   type="number"
                   min="0"
@@ -596,7 +627,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
               </label>
             </div>
 
-            <div className="open-day-workspace__param-grid">
+            <div className="open-day-waterline-grid">
               {waterlineDefinitions.map((definition) => {
                 const absoluteValue = config.absolutes[definition.key];
                 const percentileValue = config.percentiles[definition.key];
@@ -606,20 +637,14 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                     : `${formatNumber(absoluteValue, 1)}${definition.unit}`;
 
                 return (
-                  <article key={definition.key} className="open-day-workspace__param-card">
-                    <div className="open-day-workspace__param-topline">
-                      <div>
-                        <h3>{definition.title}</h3>
-                        <p>{definition.description}</p>
-                      </div>
-                      <span className="open-day-workspace__mode-pill">
-                        {config.waterlineMode === 'percentile' ? '当前按分位生效' : '当前按固定值生效'}
-                      </span>
+                  <div key={definition.key} className="open-day-waterline-card">
+                    <div className="open-day-waterline-title">
+                      <h4>{definition.title}</h4>
+                      <span className="open-day-mode-badge">{config.waterlineMode === 'percentile' ? '分位' : '固定值'}</span>
                     </div>
-
-                    <div className="open-day-workspace__inline-pair">
+                    <div className="open-day-waterline-inputs">
                       <label>
-                        <span>{definition.percentileLabel} (%)</span>
+                        <span>{definition.percentileLabel}</span>
                         <input
                           type="number"
                           min="1"
@@ -648,220 +673,149 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                         />
                       </label>
                     </div>
-
-                    <div className="open-day-workspace__param-meta">默认固定值：{absoluteDisplay}</div>
-                  </article>
+                    <div className="open-day-waterline-desc">{definition.description}</div>
+                  </div>
                 );
               })}
             </div>
-          </section>
 
-          <section className="open-day-workspace__panel open-day-workspace__panel--wide">
-            <div className="open-day-workspace__panel-header">
-              <div>
-                <p className="open-day-workspace__eyebrow">Step 3</p>
-                <h2>排名结果与自动分析</h2>
-              </div>
+            <div className="open-day-recalc-footer">
               <button
                 type="button"
-                className="open-day-workspace__primary-button"
-                onClick={() => {
-                  setRecalculateTick((current) => current + 1);
-                }}
+                className="open-day-recalc-button"
+                onClick={handleRetryCalculation}
+                disabled={isAnalyzing}
               >
-                重新测算
+                {isAnalyzing ? '测算中...' : '重新测算'}
               </button>
+              <div className="open-day-current-preset">
+                当前：{getPresetLabel(activePresetId, presets)}
+              </div>
             </div>
+          </section>
 
-            <div className="open-day-workspace__headline-grid">
-              <article className="open-day-workspace__metric-card">
-                <div className="open-day-workspace__metric-label">样本小区数</div>
-                <div className="open-day-workspace__metric-value">{analysis?.meta.totalCount ?? rows.length}</div>
-                <div className="open-day-workspace__metric-footnote">{sourceName || '尚未加载数据'}</div>
-              </article>
-              <article className="open-day-workspace__metric-card">
-                <div className="open-day-workspace__metric-label">入围小区数</div>
-                <div className="open-day-workspace__metric-value">
-                  {analysis ? `${analysis.meta.eligibleCount}/${analysis.meta.totalCount}` : '--'}
-                </div>
-                <div className="open-day-workspace__metric-footnote">
-                  红线：在售 &gt;= {config.hardFilters.min_inventory}，好房 &gt;= {config.hardFilters.min_hq_rooms}，成交 &gt;= {config.hardFilters.min_transaction}
-                </div>
-              </article>
-              <article className="open-day-workspace__metric-card">
-                <div className="open-day-workspace__metric-label">冠军小区</div>
-                <div className="open-day-workspace__metric-value">
-                  {analysis?.results[0] ? analysis.results[0].name : '暂无'}
-                </div>
-                <div className="open-day-workspace__metric-footnote">
-                  {analysis?.results[0] ? `综合分 ${formatNumber(analysis.results[0].score, 1)}，分层 ${analysis.results[0].tierLabel}` : '等待测算结果'}
-                </div>
-              </article>
-              <article className="open-day-workspace__metric-card">
-                <div className="open-day-workspace__metric-label">执行模式</div>
-                <div className="open-day-workspace__metric-value">
-                  {analysis ? `${analysis.meta.waterlines.source} / Alpha ${formatNumber(analysis.meta.requestedConfig.alpha, 2)}` : '--'}
-                </div>
-                <div className="open-day-workspace__metric-footnote">
-                  {analysis
-                    ? `缓存：${analysis.meta.cacheHit ? '命中' : '未命中'} | Config ${analysis.meta.configVersion.slice(0, 12)}... | Snapshot ${analysis.meta.snapshotId ? analysis.meta.snapshotId.slice(0, 12) : '--'}`
-                    : '等待测算结果'}
-                </div>
-              </article>
-            </div>
-
-            <div className="open-day-workspace__analysis-grid">
-              <article className="open-day-workspace__analysis-card">
-                <h3>头部盘解读</h3>
+          <section className="open-day-analysis-block">
+            <h3>自动解读</h3>
+            <div className="open-day-analysis-grid">
+              <div className="open-day-analysis-item">
+                <h4>头部小区</h4>
                 <p>
                   {topRows.length
-                    ? `${topRows.map((row) => row.name).join('、')}位居前列，说明这些盘同时具备规模、带看和成交质量，更适合做开放日主会场。`
-                    : '当前还没有可用于分析的头部盘。'}
+                    ? `${topRows.map((row) => row.name).join('、')} 名列前茅，适合优先安排开放日主会场。`
+                    : '暂无数据'}
                 </p>
-              </article>
-              <article className="open-day-workspace__analysis-card">
-                <h3>流量与转化</h3>
+              </div>
+              <div className="open-day-analysis-item">
+                <h4>流量转化</h4>
                 <p>
                   {trafficLeader
-                    ? `${trafficLeader.name} 的带看量最高，但最终排名是第 ${trafficLeader.rank}。这能帮助运营判断“声量型盘”和“转化型盘”是否发生背离。`
-                    : '等待流量数据。'}
+                    ? `${trafficLeader.name} 带看最高，排名第 ${trafficLeader.rank}，可对比声量与转化是否匹配。`
+                    : '暂无数据'}
                 </p>
-              </article>
-              <article className="open-day-workspace__analysis-card">
-                <h3>红线过滤</h3>
+              </div>
+              <div className="open-day-analysis-item">
+                <h4>红线过滤</h4>
                 <p>
                   {analysis
                     ? analysis.results.length - eligibleRows.length > 0
-                      ? `当前有 ${analysis.results.length - eligibleRows.length} 个小区未过业务红线，会被统一打到 D 级，避免长尾盘凭偶发数据挤占开放日资源。`
-                      : '当前样本全部通过业务红线，可以放心在同一资源池内做排序。'
-                    : '等待测算结果。'}
+                      ? `${analysis.results.length - eligibleRows.length} 个小区未达标，已排除。`
+                      : '全部小区通过红线过滤。'
+                    : '等待测算'}
                 </p>
-              </article>
-              <article className="open-day-workspace__analysis-card">
-                <h3>策略建议</h3>
+              </div>
+              <div className="open-day-analysis-item">
+                <h4>策略建议</h4>
                 <p>
                   {analysis
                     ? opportunity
-                      ? `当前处于“${getPresetLabel(activePresetId, presets)}”配置。${opportunity.name} 没吃满规模分，但互动质量突出，适合做效率型开放日试点。`
-                      : `当前处于“${getPresetLabel(activePresetId, presets)}”配置。当前水位线来源是 ${analysis.meta.waterlines.source}，适合继续观察样本结构变化。`
-                    : '等待测算结果。'}
+                      ? `${opportunity.name} 互动质量突出，规模未满，适合效率型试点。`
+                      : `当前使用 ${getPresetLabel(activePresetId, presets)}，观察样本结构即可。`
+                    : '等待测算'}
                 </p>
-              </article>
+              </div>
             </div>
 
-            <section className="open-day-workspace__snapshot-panel">
-              <div className="open-day-workspace__subsection-header">
-                <div>
-                  <p className="open-day-workspace__eyebrow">History</p>
-                  <h3>最近测算快照</h3>
-                </div>
-                <p className="open-day-workspace__helper">
-                  每次新的参数组合与数据集测算都会落一份快照，方便回看冠军盘、配置版本和大盘水位。
-                </p>
-              </div>
-
-              <div className="open-day-workspace__snapshot-grid">
-                {snapshots.length ? (
-                  snapshots.map((snapshot) => (
-                    <article key={snapshot.id} className="open-day-workspace__snapshot-card">
-                      <div className="open-day-workspace__snapshot-head">
-                        <div>
-                          <h4>{snapshot.sourceName || '未命名数据集'}</h4>
-                          <p>{formatDateTime(snapshot.createdAt)}</p>
-                        </div>
-                        <span className="open-day-workspace__chip">#{snapshot.championName}</span>
-                      </div>
-                      <p>
-                        冠军盘：{snapshot.championName}，综合分 {formatNumber(snapshot.championScore, 1)}。样本 {snapshot.totalCount} 个，入围 {snapshot.eligibleCount} 个。
-                      </p>
-                      <div className="open-day-workspace__chip-row">
-                        <span className="open-day-workspace__chip">{snapshot.presetId || 'custom'}</span>
-                        <span className="open-day-workspace__chip">{snapshot.waterlineSource}</span>
-                        <span className="open-day-workspace__chip">{snapshot.configVersion.slice(0, 12)}</span>
-                      </div>
-                    </article>
-                  ))
-                ) : (
-                  <div className="open-day-workspace__placeholder">暂未生成快照。</div>
-                )}
-              </div>
-            </section>
-
-            <div className="open-day-workspace__chart">
-              {isAnalyzing ? (
-                <div className="open-day-workspace__placeholder">正在调用后端测算服务...</div>
-              ) : analysis ? (
-                (eligibleRows.length ? eligibleRows : analysis.results).slice(0, 6).map((row) => (
-                  <div key={row.name} className="open-day-workspace__bar-row">
-                    <div className="open-day-workspace__bar-label">{row.name}</div>
-                    <div className="open-day-workspace__bar-track">
-                      <div className="open-day-workspace__bar-fill" style={{ width: `${row.score.toFixed(1)}%` }} />
-                    </div>
-                    <div className="open-day-workspace__bar-value">{row.score.toFixed(1)}</div>
+            {analysis && !isAnalyzing ? (
+              <>
+                <div className="open-day-stats-row">
+                  <div className="open-day-stat-item">
+                    <span className="open-day-stat-label">样本</span>
+                    <span className="open-day-stat-value">{analysis.meta.totalCount}</span>
                   </div>
-                ))
-              ) : (
-                <div className="open-day-workspace__placeholder">{statusMessage}</div>
-              )}
-            </div>
+                  <div className="open-day-stat-item">
+                    <span className="open-day-stat-label">入围</span>
+                    <span className="open-day-stat-value">{analysis.meta.eligibleCount}/{analysis.meta.totalCount}</span>
+                  </div>
+                  <div className="open-day-stat-item">
+                    <span className="open-day-stat-label">冠军</span>
+                    <span className="open-day-stat-value">{analysis.results[0]?.name || '-'}</span>
+                  </div>
+                  <div className="open-day-stat-item">
+                    <span className="open-day-stat-label">缓存</span>
+                    <span className="open-day-stat-value">{analysis.meta.cacheHit ? '命中' : '未命中'}</span>
+                  </div>
+                </div>
 
-            <div className="open-day-workspace__table-wrap">
-              <table className="open-day-workspace__table">
-                <thead>
-                  <tr>
-                    <th>排名</th>
-                    <th>大区</th>
-                    <th>小区</th>
-                    <th>综合分</th>
-                    <th>分层</th>
-                    <th>入围</th>
-                    <th>规模分</th>
-                    <th>流量分</th>
-                    <th>商品分</th>
-                    <th>互动分</th>
-                    <th>成交量</th>
-                    <th>转化率</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {analysis ? (
-                    analysis.results.map((row) => (
-                      <tr key={`${row.rank}-${row.name}`}>
-                        <td><span className="open-day-workspace__chip">#{row.rank}</span></td>
-                        <td>{row.area || '—'}</td>
-                        <td>{row.name}</td>
-                        <td>{formatNumber(row.score, 1)}</td>
-                        <td>
-                          <div className="open-day-workspace__tier-cell">
-                            <span className={`open-day-workspace__grade open-day-workspace__grade--${row.tierCode}`}>{row.tierCode}</span>
-                            <span>{row.tierLabel}</span>
-                          </div>
-                        </td>
-                        <td>
-                          <span className={`open-day-workspace__eligibility ${row.isEligible ? 'is-on' : 'is-off'}`}>
-                            {row.isEligible ? '达标' : '未达标'}
-                          </span>
-                        </td>
-                        <td>{formatNumber(row.scaleIdx, 1)}</td>
-                        <td>{formatNumber(row.trafficIdx, 1)}</td>
-                        <td>{formatNumber(row.productIdx, 1)}</td>
-                        <td>{formatNumber(row.interactionIdx, 1)}</td>
-                        <td>{formatNumber(row.transactions, 0)}</td>
-                        <td>{formatPercent(row.convRate, 2)}</td>
+                <div className="open-day-chart-block">
+                  <h3>Top 6 评分</h3>
+                  {(eligibleRows.length ? eligibleRows : analysis.results).slice(0, 6).map((row) => (
+                    <div key={row.name} className="open-day-chart-row">
+                      <span className="open-day-chart-label">{row.name}</span>
+                      <div className="open-day-chart-bar">
+                        <div
+                          className="open-day-chart-fill"
+                          style={{ width: `${row.score.toFixed(1)}%` }}
+                        />
+                      </div>
+                      <span className="open-day-chart-value">{formatNumber(row.score, 1)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="open-day-table-block">
+                  <table className="open-day-result-table">
+                    <thead>
+                      <tr>
+                        <th>排</th>
+                        <th>小区</th>
+                        <th>分数</th>
+                        <th>分层</th>
+                        <th>入围</th>
+                        <th>规模</th>
+                        <th>流量</th>
+                        <th>商品</th>
+                        <th>互动</th>
                       </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={12} className="open-day-workspace__empty-cell">
-                        {isBootstrapping ? '正在初始化工作台...' : statusMessage}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    </thead>
+                    <tbody>
+                      {analysis.results.map((row) => (
+                        <tr key={`${row.rank}-${row.name}`}>
+                          <td>#{row.rank}</td>
+                          <td>{row.name}</td>
+                          <td>{formatNumber(row.score, 1)}</td>
+                          <td>{row.tierLabel}</td>
+                          <td>
+                            <span className={`open-day-eligibility-badge ${row.isEligible ? 'pass' : 'fail'}`}>
+                              {row.isEligible ? '是' : '否'}
+                            </span>
+                          </td>
+                          <td>{formatNumber(row.scaleIdx, 1)}</td>
+                          <td>{formatNumber(row.trafficIdx, 1)}</td>
+                          <td>{formatNumber(row.productIdx, 1)}</td>
+                          <td>{formatNumber(row.interactionIdx, 1)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : (
+              <div className="open-day-loading-placeholder">
+                {isAnalyzing ? '正在测算，请稍候...' : statusMessage || '等待测算开始'}
+              </div>
+            )}
           </section>
-        </main>
+        </div>
       </div>
     </div>
   );
