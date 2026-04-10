@@ -25,7 +25,7 @@
 
 .open-day-workspace label span {
   font-size: 13px;
-  color: #6b6156;
+  color: #4a433a;
 }
 
 .open-day-workspace input,
@@ -97,10 +97,10 @@
   grid-template-columns: 1fr;
   gap: 0;
   width: min(720px, 100%);
-  border: 1px solid rgba(76, 58, 42, 0.08);
+  border: 1px solid rgba(76, 58, 42, 0.12);
   border-radius: 24px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 8px 24px rgba(69, 45, 20, 0.04);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 8px 22px rgba(69, 45, 20, 0.06);
 }
 
 .open-day-upload-card__panel {
@@ -240,7 +240,8 @@
 .open-day-upload-stats,
 .open-day-sidebar-stats {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-top: 22px;
+  gap: 10px;
+  margin-top: 12px;
 }
 
 .open-day-upload-stats div,
@@ -396,19 +397,28 @@
 .open-day-panel,
 .open-day-hero-card,
 .open-day-analysis-card,
-.open-day-history-card {
-  border: 1px solid rgba(76, 58, 42, 0.08);
+.open-day-recent-card {
+  padding: 16px;
+  border: 1px solid rgba(76, 58, 42, 0.12);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 8px 22px rgba(69, 45, 20, 0.04);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 8px 22px rgba(69, 45, 20, 0.06);
 }
 
 .open-day-panel {
   padding: 16px;
+  border: 1px solid rgba(76, 58, 42, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 8px 22px rgba(69, 45, 20, 0.06);
 }
 
 .open-day-panel--flat {
   padding: 16px;
+  border: 1px solid rgba(76, 58, 42, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 8px 22px rgba(69, 45, 20, 0.06);
 }
 
 .open-day-main {
@@ -433,9 +443,10 @@
   letter-spacing: -0.03em;
 }
 
-.open-day-params-grid {
+.open-day-mapping-grid {
   grid-template-columns: 1fr;
-  gap: 10px;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 .open-day-filter-row {
@@ -509,6 +520,10 @@
   grid-template-columns: minmax(0, 1fr) 360px;
   gap: 16px;
   padding: 18px;
+  border: 1px solid rgba(76, 58, 42, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 8px 22px rgba(69, 45, 20, 0.06);
 }
 
 .open-day-hero-card__copy p {
@@ -528,7 +543,7 @@
 
 .open-day-analysis-card,
 .open-day-history-card {
-  padding: 18px;
+  padding: 14px;
 }
 
 .open-day-history-card.is-active {
