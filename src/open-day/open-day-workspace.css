@@ -382,7 +382,7 @@
 
 .open-day-workspace-layout {
   display: grid;
-  grid-template-columns: 340px minmax(0, 1fr);
+  grid-template-columns: 420px minmax(0, 1fr);
   gap: 20px;
   align-items: start;
 }
@@ -391,7 +391,7 @@
   position: sticky;
   top: 16px;
   display: grid;
-  gap: 14px;
+  gap: 12px;
 }
 
 .open-day-panel,

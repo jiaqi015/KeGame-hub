@@ -2,14 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
-  BarChart3,
-  Database,
-  FileSpreadsheet,
   FileUp,
-  History,
-  RefreshCcw,
-  Settings2,
-  Sparkles,
 } from 'lucide-react';
 import type { ParsedWorkbookPayload } from '../../lib/openDayWorkbook.ts';
 import type {
@@ -745,7 +738,6 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
 
           <div className="open-day-workspace-header__actions">
             <label className="open-day-button open-day-button--secondary open-day-button--file">
-              <FileUp className="open-day-button__icon" />
               <span>更换文件</span>
               <input
                 type="file"
@@ -765,112 +757,13 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
             </label>
 
             <button type="button" className="open-day-button open-day-button--primary" onClick={() => void executeAnalysis()}>
-              <RefreshCcw className="open-day-button__icon" />
-              <span>{isAnalyzing ? '测算中...' : '重新测算'}</span>
+              <span>{isAnalyzing ? '测算中...' : '测算'}</span>
             </button>
           </div>
         </div>
 
         <div className="open-day-workspace-layout">
           <aside className="open-day-sidebar">
-            <section className="open-day-panel">
-              <div className="open-day-panel__head">
-                <Database className="open-day-panel__icon" />
-                <div>
-                  <h3>数据源</h3>
-                  <p>在这里确认工作表和字段映射。</p>
-                </div>
-              </div>
-
-              <div className="open-day-sidebar-stats">
-                <div>
-                  <span>样本</span>
-                  <strong>{rows.length}</strong>
-                </div>
-                <div>
-                  <span>字段</span>
-                  <strong>{headers.length}</strong>
-                </div>
-                <div>
-                  <span>工作表</span>
-                  <strong>{workbookSheets.length || 1}</strong>
-                </div>
-              </div>
-
-              {workbookSheets.length > 0 ? (
-                <label>
-                  <span>Excel Sheet</span>
-                  <select
-                    value={activeSheet}
-                    onChange={(event) => {
-                      const nextSheet = event.target.value;
-                      setActiveSheet(nextSheet);
-                      if (!uploadedFile) {
-                        return;
-                      }
-
-                      void handleWorkbookUpload(uploadedFile, nextSheet).catch((error) => {
-                        setStatusMessage(error instanceof Error ? error.message : '切换工作表失败');
-                      });
-                    }}
-                  >
-                    {workbookSheets.map((sheet) => (
-                      <option key={sheet} value={sheet}>
-                        {sheet}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : null}
-
-              <div className="open-day-chip-list">
-                {headers.slice(0, 8).map((header) => (
-                  <span key={header}>{header}</span>
-                ))}
-              </div>
-
-              <div className="open-day-mapping-grid">
-                {[
-                  ['area', '大区（可选）'],
-                  ['name', '小区名称'],
-                  ['inventory', '在售套数'],
-                  ['traffic', '带看量'],
-                  ['transactions', '成交量'],
-                  ['premium', '好房数'],
-                ].map(([key, label]) => (
-                  <label key={key}>
-                    <span>{label}</span>
-                    <select
-                      value={mappings[key as keyof OpenDayFormMappings]}
-                      onChange={(event) => {
-                        const value = event.target.value;
-                        setMappings((current) => ({
-                          ...current,
-                          [key]: value,
-                        }));
-                        markDraftDirty('字段映射已更新，请点击重新测算。');
-                      }}
-                    >
-                      <option value="">{key === 'area' ? '不使用' : '请选择'}</option>
-                      {headers.map((header) => (
-                        <option key={header} value={header}>
-                          {header}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ))}
-              </div>
-
-              {missingMappings.length ? (
-                <div className="open-day-inline-warning">还需确认：{missingMappings.join('、')}</div>
-              ) : (
-                <div className="open-day-inline-success">字段已确认，点击“重新测算”后才会执行。</div>
-              )}
-
-              {uploadError ? <div className="open-day-inline-error">{uploadError}</div> : null}
-            </section>
-
             <section className="open-day-panel">
               <div className="open-day-panel__head">
                 <div>
@@ -1115,71 +1008,6 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                   <span>缓存</span>
                   <strong>{analysis ? (analysis.meta.cacheHit ? '命中' : '未命中') : '--'}</strong>
                 </div>
-              </div>
-            </section>
-
-            <section className="open-day-analysis-grid">
-              <article className="open-day-analysis-card">
-                <h4>头部小区</h4>
-                <p>
-                  {topRows.length
-                    ? `${topRows.map((row) => row.name).join('、')} 当前位居前列，更适合优先推进开放日。`
-                    : '等待测算结果。'}
-                </p>
-              </article>
-              <article className="open-day-analysis-card">
-                <h4>流量观察</h4>
-                <p>
-                  {trafficLeader
-                    ? `${trafficLeader.name} 带看量最高，排名第 ${trafficLeader.rank}，可判断“声量高”是否真的值得重点做。`
-                    : '等待测算结果。'}
-                </p>
-              </article>
-              <article className="open-day-analysis-card">
-                <h4>红线过滤</h4>
-                <p>
-                  {analysis
-                    ? analysis.results.length - eligibleRows.length > 0
-                      ? `${analysis.results.length - eligibleRows.length} 个小区未达标，已自动排除。`
-                      : '当前样本全部通过红线过滤。'
-                    : '等待测算结果。'}
-                </p>
-              </article>
-              <article className="open-day-analysis-card">
-                <h4>策略建议</h4>
-                <p>
-                  {analysis
-                    ? opportunity
-                      ? `${opportunity.name} 互动质量突出，但规模尚未吃满，适合效率型开放日试点。`
-                      : `当前使用 ${getPresetLabel(activePresetId, presets)}，可继续观察排名变化后再做调整。`
-                    : '等待测算结果。'}
-                </p>
-              </article>
-            </section>
-
-            <section className="open-day-panel open-day-panel--flat">
-              <div className="open-day-panel__head">
-                <div>
-                  <h3>Top 6 评分</h3>
-                </div>
-              </div>
-
-              <div className="open-day-chart">
-                {isAnalyzing ? (
-                  <div className="open-day-chart__placeholder">正在生成最新测算结果...</div>
-                ) : analysis ? (
-                  chartRows.map((row) => (
-                    <div key={row.name} className="open-day-chart__row">
-                      <div className="open-day-chart__label">{row.name}</div>
-                      <div className="open-day-chart__track">
-                        <div className="open-day-chart__fill" style={{ width: `${row.score.toFixed(1)}%` }} />
-                      </div>
-                      <div className="open-day-chart__value">{row.score.toFixed(1)}</div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="open-day-chart__placeholder">{statusMessage}</div>
-                )}
               </div>
             </section>
 
