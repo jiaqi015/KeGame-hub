@@ -381,16 +381,16 @@
 
 .open-day-workspace-layout {
   display: grid;
-  grid-template-columns: 330px minmax(0, 1fr);
+  grid-template-columns: 340px minmax(0, 1fr);
   gap: 20px;
   align-items: start;
 }
 
 .open-day-sidebar {
   position: sticky;
-  top: 20px;
+  top: 16px;
   display: grid;
-  gap: 18px;
+  gap: 14px;
 }
 
 .open-day-panel,
@@ -404,11 +404,11 @@
 }
 
 .open-day-panel {
-  padding: 20px;
+  padding: 16px;
 }
 
 .open-day-panel--flat {
-  padding: 20px;
+  padding: 16px;
 }
 
 .open-day-main {
@@ -433,19 +433,20 @@
   letter-spacing: -0.03em;
 }
 
-.open-day-params-grid,
-.open-day-mapping-grid {
+.open-day-params-grid {
   grid-template-columns: 1fr;
+  gap: 10px;
 }
 
 .open-day-filter-row {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-top: 16px;
+  margin-top: 12px;
 }
 
 .open-day-waterline-grid {
   grid-template-columns: 1fr;
-  margin-top: 16px;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 .open-day-waterline-card {
