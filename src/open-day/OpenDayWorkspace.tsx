@@ -873,7 +873,6 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
 
             <section className="open-day-panel">
               <div className="open-day-panel__head">
-                <Sparkles className="open-day-panel__icon" />
                 <div>
                   <h3>策略选择</h3>
                 </div>
@@ -896,7 +895,6 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
 
             <section className="open-day-panel">
               <div className="open-day-panel__head">
-                <Settings2 className="open-day-panel__icon" />
                 <div>
                   <h3>参数调整</h3>
                 </div>
@@ -1161,7 +1159,6 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
 
             <section className="open-day-panel open-day-panel--flat">
               <div className="open-day-panel__head">
-                <BarChart3 className="open-day-panel__icon" />
                 <div>
                   <h3>Top 6 评分</h3>
                 </div>
@@ -1188,7 +1185,6 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
 
             <section className="open-day-panel open-day-panel--flat">
               <div className="open-day-panel__head">
-                <Database className="open-day-panel__icon" />
                 <div>
                   <h3>完整排名</h3>
                 </div>

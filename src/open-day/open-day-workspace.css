@@ -1,5 +1,6 @@
 .open-day-workspace {
-  min-height: 100%;
+  height: 100%;
+  overflow-y: auto;
   background: linear-gradient(180deg, #f8f5f1 0%, #f2ede6 100%);
   color: #1f1b17;
 }
@@ -7,7 +8,7 @@
 .open-day-workspace__shell {
   max-width: 1440px;
   margin: 0 auto;
-  padding: 24px 24px 36px;
+  padding: 24px 24px 80px;
 }
 
 .open-day-workspace h2,
@@ -578,9 +579,11 @@
 }
 
 .open-day-table-wrap {
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: visible;
   border: 1px solid rgba(76, 58, 42, 0.08);
   border-radius: 18px;
+  margin-bottom: 0;
 }
 
 .open-day-table {
