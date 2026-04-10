@@ -614,7 +614,6 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
           <section className="open-day-upload-stage">
             <div className="open-day-upload-simple-head">
               <h2>先上传数据</h2>
-              <p>支持 Excel / CSV，系统会自动识别常用字段。确认后再进入下一步测算。</p>
             </div>
 
             <div className="open-day-upload-card">
