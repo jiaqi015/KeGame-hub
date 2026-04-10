@@ -172,6 +172,8 @@ export interface OpenDayAnalysisSnapshotSummary {
   createdAt: string;
   sourceName: string;
   sourceUploadId: string | null;
+  scenarioTemplateId: string | null;
+  scenarioTemplateName: string | null;
   presetId: string | null;
   parameterPackageId: string | null;
   configVersion: string;
@@ -231,6 +233,8 @@ export interface OpenDayScoreCommand {
   };
   sourceName?: string;
   sourceUploadId?: string;
+  activeScenarioTemplateId?: string;
+  activeScenarioTemplateName?: string;
   activePresetId?: string;
   activeParameterPackageId?: string;
 }

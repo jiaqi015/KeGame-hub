@@ -3,7 +3,7 @@ import type {
   OpenDayAnalysisSnapshotSummary,
   OpenDayAnalysisRow,
 } from '../domain/openDay.types.js';
-import type { OpenDaySnapshotRepository } from '../application/openDaySnapshotRepository.js';
+import type { OpenDaySnapshotListOptions, OpenDaySnapshotRepository } from '../application/openDaySnapshotRepository.js';
 import { withOpenDayNeon } from './neonOpenDayDatabase.js';
 
 interface SnapshotRow {
@@ -11,6 +11,8 @@ interface SnapshotRow {
   created_at: string;
   source_name: string;
   source_upload_id: string | null;
+  scenario_template_id: string | null;
+  scenario_template_name: string | null;
   preset_id: string | null;
   parameter_package_id: string | null;
   config_version: string;
@@ -31,6 +33,8 @@ export class NeonOpenDaySnapshotRepository implements OpenDaySnapshotRepository 
             created_at,
             source_name,
             source_upload_id,
+            scenario_template_id,
+            scenario_template_name,
             preset_id,
             parameter_package_id,
             config_version,
@@ -42,12 +46,14 @@ export class NeonOpenDaySnapshotRepository implements OpenDaySnapshotRepository 
             command_json,
             response_json
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14::jsonb)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb, $16::jsonb)
           ON CONFLICT (id)
           DO UPDATE SET
             created_at = EXCLUDED.created_at,
             source_name = EXCLUDED.source_name,
             source_upload_id = EXCLUDED.source_upload_id,
+            scenario_template_id = EXCLUDED.scenario_template_id,
+            scenario_template_name = EXCLUDED.scenario_template_name,
             preset_id = EXCLUDED.preset_id,
             parameter_package_id = EXCLUDED.parameter_package_id,
             config_version = EXCLUDED.config_version,
@@ -64,6 +70,8 @@ export class NeonOpenDaySnapshotRepository implements OpenDaySnapshotRepository 
           snapshot.summary.createdAt,
           snapshot.summary.sourceName,
           snapshot.summary.sourceUploadId,
+          snapshot.summary.scenarioTemplateId,
+          snapshot.summary.scenarioTemplateName,
           snapshot.summary.presetId,
           snapshot.summary.parameterPackageId,
           snapshot.summary.configVersion,
@@ -82,35 +90,67 @@ export class NeonOpenDaySnapshotRepository implements OpenDaySnapshotRepository 
     });
   }
 
-  async list(limit: number): Promise<OpenDayAnalysisSnapshotSummary[]> {
+  async list(limit: number, options?: OpenDaySnapshotListOptions): Promise<OpenDayAnalysisSnapshotSummary[]> {
     return withOpenDayNeon(async (sql) => {
-      const rows = (await sql.query(
-        `
-          SELECT
-            id,
-            created_at,
-            source_name,
-            source_upload_id,
-            preset_id,
-            parameter_package_id,
-            config_version,
-            waterline_source,
-            total_count,
-            eligible_count,
-            champion_name,
-            champion_score
-          FROM open_day_analysis_snapshots
-          ORDER BY created_at DESC
-          LIMIT $1
-        `,
-        [limit],
-      )) as SnapshotRow[];
+      const scenarioTemplateId = options?.scenarioTemplateId?.trim();
+      const rows = (
+        scenarioTemplateId
+          ? await sql.query(
+              `
+                SELECT
+                  id,
+                  created_at,
+                  source_name,
+                  source_upload_id,
+                  scenario_template_id,
+                  scenario_template_name,
+                  preset_id,
+                  parameter_package_id,
+                  config_version,
+                  waterline_source,
+                  total_count,
+                  eligible_count,
+                  champion_name,
+                  champion_score
+                FROM open_day_analysis_snapshots
+                WHERE scenario_template_id = $1
+                ORDER BY created_at DESC
+                LIMIT $2
+              `,
+              [scenarioTemplateId, limit],
+            )
+          : await sql.query(
+              `
+                SELECT
+                  id,
+                  created_at,
+                  source_name,
+                  source_upload_id,
+                  scenario_template_id,
+                  scenario_template_name,
+                  preset_id,
+                  parameter_package_id,
+                  config_version,
+                  waterline_source,
+                  total_count,
+                  eligible_count,
+                  champion_name,
+                  champion_score
+                FROM open_day_analysis_snapshots
+                ORDER BY created_at DESC
+                LIMIT $1
+              `,
+              [limit],
+            )
+      ) as SnapshotRow[];
 
       return rows.map((row) => ({
         id: row.id,
         createdAt: row.created_at,
         sourceName: row.source_name,
         sourceUploadId: row.source_upload_id,
+        scenarioTemplateId: row.scenario_template_id,
+        scenarioTemplateName: row.scenario_template_name,
         presetId: row.preset_id,
         parameterPackageId: row.parameter_package_id,
         configVersion: row.config_version,
@@ -120,6 +160,62 @@ export class NeonOpenDaySnapshotRepository implements OpenDaySnapshotRepository 
         championName: row.champion_name,
         championScore: Number(row.champion_score),
       }));
+    });
+  }
+
+  async get(id: string): Promise<OpenDayAnalysisSnapshotRecord | null> {
+    return withOpenDayNeon(async (sql) => {
+      const rows = (await sql.query(
+        `
+          SELECT
+            id,
+            created_at,
+            source_name,
+            source_upload_id,
+            scenario_template_id,
+            scenario_template_name,
+            preset_id,
+            parameter_package_id,
+            config_version,
+            waterline_source,
+            total_count,
+            eligible_count,
+            champion_name,
+            champion_score,
+            command_json,
+            response_json
+          FROM open_day_analysis_snapshots
+          WHERE id = $1
+          LIMIT 1
+        `,
+        [id],
+      )) as Array<SnapshotRow & { command_json: OpenDayAnalysisSnapshotRecord['command']; response_json: OpenDayAnalysisSnapshotRecord['response'] }>;
+
+      const row = rows[0];
+      if (!row) {
+        return null;
+      }
+
+      return {
+        summary: {
+          id: row.id,
+          createdAt: row.created_at,
+          sourceName: row.source_name,
+          sourceUploadId: row.source_upload_id,
+          scenarioTemplateId: row.scenario_template_id,
+          scenarioTemplateName: row.scenario_template_name,
+          presetId: row.preset_id,
+          parameterPackageId: row.parameter_package_id,
+          configVersion: row.config_version,
+          waterlineSource: row.waterline_source,
+          totalCount: Number(row.total_count),
+          eligibleCount: Number(row.eligible_count),
+          championName: row.champion_name,
+          championScore: Number(row.champion_score),
+        },
+        command: row.command_json,
+        response: row.response_json,
+      };
     });
   }
 

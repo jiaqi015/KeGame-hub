@@ -29,6 +29,7 @@ import {
 import {
   fetchOpenDayAnalysis,
   fetchOpenDayCatalog,
+  fetchOpenDaySnapshotDetail,
   fetchOpenDayScenarioDetail,
   fetchOpenDayScenarios,
   fetchOpenDaySnapshots,
@@ -161,6 +162,29 @@ function buildScenarioDraftName(sourceName: string, activePresetId: string, pres
   return `${baseName} ${label} ${timestamp}`;
 }
 
+function extractHeadersFromRows(rows: OpenDayRawRow[], mappings: OpenDayFormMappings) {
+  const seen = new Set<string>();
+  const ordered: string[] = [];
+
+  rows.forEach((row) => {
+    Object.keys(row).forEach((key) => {
+      if (!seen.has(key)) {
+        seen.add(key);
+        ordered.push(key);
+      }
+    });
+  });
+
+  Object.values(mappings).forEach((value) => {
+    if (value && !seen.has(value)) {
+      seen.add(value);
+      ordered.push(value);
+    }
+  });
+
+  return ordered;
+}
+
 export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
   const [stage, setStage] = useState<WorkspaceStage>('upload');
   const [catalog, setCatalog] = useState(fallbackCatalog);
@@ -176,6 +200,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
   const [activePresetId, setActivePresetId] = useState('auto');
   const [analysis, setAnalysis] = useState<OpenDayAnalysisResponse | null>(null);
   const [snapshots, setSnapshots] = useState<OpenDayAnalysisSnapshotSummary[]>([]);
+  const [scenarioSnapshots, setScenarioSnapshots] = useState<OpenDayAnalysisSnapshotSummary[]>([]);
   const [scenarios, setScenarios] = useState<OpenDayScenarioTemplateSummary[]>([]);
   const [catalogMessage, setCatalogMessage] = useState('');
   const [statusMessage, setStatusMessage] = useState('请先上传数据。');
@@ -185,8 +210,12 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSavingScenario, setIsSavingScenario] = useState(false);
   const [isLoadingScenario, setIsLoadingScenario] = useState('');
+  const [replayingSnapshotId, setReplayingSnapshotId] = useState('');
   const [hasPendingChanges, setHasPendingChanges] = useState(false);
   const [scenarioName, setScenarioName] = useState('');
+  const [activeScenarioTemplateId, setActiveScenarioTemplateId] = useState('');
+  const [activeScenarioTemplateName, setActiveScenarioTemplateName] = useState('');
+  const [showScenarioSnapshotsOnly, setShowScenarioSnapshotsOnly] = useState(false);
   const requestVersionRef = useRef(0);
 
   const presets = catalog.parameterPackages.length ? catalog.parameterPackages : catalog.presets;
@@ -207,6 +236,16 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     eligibleRows
       .filter((row) => row.score >= 40 && row.inventory < (analysis?.meta.waterlines.I_cap || 0))
       .sort((left, right) => right.interactionIdx - left.interactionIdx)[0] || null;
+  const relevantScenarioSnapshots =
+    activeScenarioTemplateId
+      ? scenarioSnapshots.filter((item) => item.id !== analysis?.meta.snapshotId)
+      : [];
+  const previousScenarioSnapshot = relevantScenarioSnapshots[0] || null;
+  const previousScenarioDelta =
+    previousScenarioSnapshot && analysis
+      ? Number((analysis.results[0]?.score || 0) - previousScenarioSnapshot.championScore)
+      : null;
+  const displayedSnapshots = showScenarioSnapshotsOnly && activeScenarioTemplateId ? scenarioSnapshots : snapshots;
 
   async function refreshSnapshots() {
     try {
@@ -214,6 +253,20 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
       setSnapshots(payload.items);
     } catch {
       setSnapshots([]);
+    }
+  }
+
+  async function refreshScenarioSnapshots(scenarioTemplateId: string) {
+    if (!scenarioTemplateId) {
+      setScenarioSnapshots([]);
+      return;
+    }
+
+    try {
+      const payload = await fetchOpenDaySnapshots(activationKey, 8, scenarioTemplateId);
+      setScenarioSnapshots(payload.items);
+    } catch {
+      setScenarioSnapshots([]);
     }
   }
 
@@ -262,6 +315,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
         setCatalog(nextCatalog);
         setConfig(cloneConfig(nextCatalog.defaultConfig));
         setSnapshots(nextSnapshots.items);
+        setScenarioSnapshots([]);
         setScenarios(nextScenarios.items);
         setActivePresetId('auto');
         setHasPendingChanges(false);
@@ -274,6 +328,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
         setCatalog(fallbackCatalog);
         setConfig(cloneConfig(fallbackCatalog.defaultConfig));
         setSnapshots([]);
+        setScenarioSnapshots([]);
         setScenarios([]);
         setHasPendingChanges(false);
         setCatalogMessage(
@@ -292,6 +347,15 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
       cancelled = true;
     };
   }, [activationKey]);
+
+  useEffect(() => {
+    if (!activeScenarioTemplateId) {
+      setScenarioSnapshots([]);
+      return;
+    }
+
+    void refreshScenarioSnapshots(activeScenarioTemplateId);
+  }, [activationKey, activeScenarioTemplateId]);
 
   function applyParsedData(payload: ParsedWorkbookPayload | { headers: string[]; rows: OpenDayRawRow[] }, nextSourceName: string) {
     setHeaders(payload.headers);
@@ -349,12 +413,18 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     const preset = presets.find((item) => item.id === presetId);
     setConfig(cloneConfig(preset?.resolvedConfig || mergeConfig(catalog.defaultConfig, preset?.overrides)));
     setActivePresetId(preset?.id || 'auto');
+    setActiveScenarioTemplateId('');
+    setActiveScenarioTemplateName('');
+    setShowScenarioSnapshotsOnly(false);
     markDraftDirty();
   }
 
   function handleRestoreDefaults() {
     setConfig(cloneConfig(catalog.defaultConfig));
     setActivePresetId('auto');
+    setActiveScenarioTemplateId('');
+    setActiveScenarioTemplateName('');
+    setShowScenarioSnapshotsOnly(false);
     markDraftDirty();
   }
 
@@ -376,9 +446,12 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
         activeParameterPackageId: activePresetId === 'custom' ? '' : activePresetId,
       });
 
+      setActiveScenarioTemplateId(record.summary.id);
+      setActiveScenarioTemplateName(record.summary.name);
       setScenarioName(record.summary.name);
       setScenarioMessage(`已保存方案：${record.summary.name}`);
       await refreshScenarios();
+      await refreshScenarioSnapshots(record.summary.id);
     } catch (error) {
       setScenarioMessage(error instanceof Error ? error.message : '方案保存失败');
     } finally {
@@ -394,13 +467,72 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
       const record = await fetchOpenDayScenarioDetail(activationKey, id);
       setConfig(cloneConfig(record.scenario.config));
       setActivePresetId(record.scenario.parameterPackageId || 'custom');
+      setActiveScenarioTemplateId(record.summary.id);
+      setActiveScenarioTemplateName(record.summary.name);
       setScenarioName(record.summary.name);
       markDraftDirty(`已加载方案“${record.summary.name}”，请点击重新测算。`);
       setScenarioMessage(`已载入方案：${record.summary.name}`);
+      await refreshScenarioSnapshots(record.summary.id);
     } catch (error) {
       setScenarioMessage(error instanceof Error ? error.message : '方案加载失败');
     } finally {
       setIsLoadingScenario('');
+    }
+  }
+
+  async function handleReplaySnapshot(id: string) {
+    setReplayingSnapshotId(id);
+    setScenarioMessage('');
+    setUploadError('');
+    setStatusMessage('正在回放历史测算...');
+
+    try {
+      const record = await fetchOpenDaySnapshotDetail(activationKey, id);
+      const restoredMappings: OpenDayFormMappings = {
+        area: record.command.mappings.area || '',
+        name: record.command.mappings.name || '',
+        inventory: record.command.mappings.inventory || '',
+        traffic: record.command.mappings.traffic || '',
+        transactions: record.command.mappings.transactions || '',
+        premium: record.command.mappings.premium || '',
+      };
+      const restoredRows = Array.isArray(record.command.rows) ? record.command.rows : [];
+      const restoredScenarioTemplateId = record.command.activeScenarioTemplateId || record.summary.scenarioTemplateId || '';
+      const restoredScenarioTemplateName =
+        record.command.activeScenarioTemplateName || record.summary.scenarioTemplateName || '';
+      const restoredPresetId =
+        record.command.activeParameterPackageId || record.command.activePresetId || record.summary.parameterPackageId || 'custom';
+      const restoredSourceName = record.command.sourceName || record.summary.sourceName || '未命名数据集';
+
+      setStage('workspace');
+      setRows(restoredRows);
+      setMappings(restoredMappings);
+      setHeaders(extractHeadersFromRows(restoredRows, restoredMappings));
+      setConfig(cloneConfig(record.response.meta.requestedConfig));
+      setSourceName(restoredSourceName);
+      setSourceUploadId(record.command.sourceUploadId || record.summary.sourceUploadId || '');
+      setWorkbookSheets([]);
+      setActiveSheet('');
+      setUploadedFile(null);
+      setAnalysis(record.response);
+      setActivePresetId(restoredPresetId);
+      setActiveScenarioTemplateId(restoredScenarioTemplateId);
+      setActiveScenarioTemplateName(restoredScenarioTemplateName);
+      setScenarioName(restoredScenarioTemplateName || buildScenarioDraftName(restoredSourceName, restoredPresetId, presets));
+      setHasPendingChanges(false);
+      setShowScenarioSnapshotsOnly(Boolean(restoredScenarioTemplateId));
+      setStatusMessage(`已回放 ${formatDateTime(record.summary.createdAt)} 的测算结果。`);
+
+      void refreshSnapshots();
+      if (restoredScenarioTemplateId) {
+        void refreshScenarioSnapshots(restoredScenarioTemplateId);
+      } else {
+        setScenarioSnapshots([]);
+      }
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : '快照回放失败');
+    } finally {
+      setReplayingSnapshotId('');
     }
   }
 
@@ -411,6 +543,9 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
       return next;
     });
     setActivePresetId('custom');
+    setActiveScenarioTemplateId('');
+    setActiveScenarioTemplateName('');
+    setShowScenarioSnapshotsOnly(false);
     markDraftDirty();
   }
 
@@ -444,6 +579,8 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
         config,
         sourceName,
         sourceUploadId,
+        activeScenarioTemplateId,
+        activeScenarioTemplateName,
         activePresetId,
         activeParameterPackageId: activePresetId,
       });
@@ -456,6 +593,9 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
       setHasPendingChanges(false);
       setStatusMessage('');
       void refreshSnapshots();
+      if (activeScenarioTemplateId) {
+        void refreshScenarioSnapshots(activeScenarioTemplateId);
+      }
     } catch (error) {
       if (requestVersionRef.current !== currentVersion) {
         return;
@@ -479,6 +619,11 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
           {catalogMessage ? <div className="open-day-workspace__banner">{catalogMessage}</div> : null}
 
           <section className="open-day-upload-stage">
+            <div className="open-day-upload-simple-head">
+              <h2>先上传数据</h2>
+              <p>支持 Excel / CSV，系统会自动识别常用字段。确认后再进入下一步测算。</p>
+            </div>
+
             <div className="open-day-upload-card">
               <div className="open-day-upload-card__panel">
                 <div className="open-day-upload-card__head">
@@ -590,10 +735,10 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
               <span>返回上传</span>
             </button>
             <div>
-              <span className="open-day-workspace-header__eyebrow">测算工作台</span>
-              <h2>{sourceName || '未命名数据集'}</h2>
+              <h2>测算工作台</h2>
               <p>
-                共 {rows.length} 行，{headers.length} 个字段{activeSheet ? `，当前 Sheet：${activeSheet}` : ''}。
+                {sourceName || '未命名数据集'} · 共 {rows.length} 行，{headers.length} 个字段
+                {activeSheet ? `，当前 Sheet：${activeSheet}` : ''}。
               </p>
             </div>
           </div>
@@ -647,8 +792,8 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                   <strong>{headers.length}</strong>
                 </div>
                 <div>
-                  <span>快照</span>
-                  <strong>{snapshots.length}</strong>
+                  <span>工作表</span>
+                  <strong>{workbookSheets.length || 1}</strong>
                 </div>
               </div>
 
@@ -746,69 +891,6 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                     <span>{preset.description}</span>
                   </button>
                 ))}
-              </div>
-            </section>
-
-            <section className="open-day-panel">
-              <div className="open-day-panel__head">
-                <History className="open-day-panel__icon" />
-                <div>
-                  <h3>方案保存</h3>
-                  <p>把当前公式、参数包和手动调整一起保存下来，方便后续回放。</p>
-                </div>
-              </div>
-
-              <div className="open-day-scenario-form">
-                <label>
-                  <span>方案名称</span>
-                  <input
-                    type="text"
-                    placeholder="例如：4月第一周主推盘"
-                    value={scenarioName}
-                    onChange={(event) => {
-                      setScenarioName(event.target.value);
-                      setScenarioMessage('');
-                    }}
-                  />
-                </label>
-
-                <button
-                  type="button"
-                  className="open-day-button open-day-button--secondary open-day-button--block"
-                  onClick={() => void handleSaveScenario()}
-                  disabled={isSavingScenario}
-                >
-                  <span>{isSavingScenario ? '保存中...' : '保存方案'}</span>
-                </button>
-              </div>
-
-              {scenarioMessage ? (
-                <div className={scenarioMessage.includes('失败') || scenarioMessage.includes('未找到') ? 'open-day-inline-error' : 'open-day-inline-success'}>
-                  {scenarioMessage}
-                </div>
-              ) : null}
-
-              <div className="open-day-scenario-grid">
-                {scenarios.length ? (
-                  scenarios.map((scenario) => (
-                    <button
-                      key={scenario.id}
-                      type="button"
-                      className={`open-day-scenario-card ${scenarioName === scenario.name ? 'is-active' : ''}`}
-                      onClick={() => void handleLoadScenario(scenario.id)}
-                      disabled={isLoadingScenario === scenario.id}
-                    >
-                      <strong>{scenario.name}</strong>
-                      <span>{scenario.description || '已保存的开放日方案'}</span>
-                      <div className="open-day-scenario-card__meta">
-                        <span>{scenario.parameterPackageId || 'custom'}</span>
-                        <span>{formatDateTime(scenario.updatedAt)}</span>
-                      </div>
-                    </button>
-                  ))
-                ) : (
-                  <div className="open-day-chart__placeholder">暂未保存方案。</div>
-                )}
               </div>
             </section>
 
@@ -1008,7 +1090,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
 
             <section className="open-day-hero-card">
               <div className="open-day-hero-card__copy">
-                <span className="open-day-workspace-header__eyebrow">结果概览</span>
+                <h3>结果总览</h3>
                 <p>
                   当前策略：{getPresetLabel(activePresetId, presets)}
                   {analysis
@@ -1169,38 +1251,6 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
               </div>
             </section>
 
-            <section className="open-day-panel open-day-panel--flat">
-              <div className="open-day-panel__head">
-                <History className="open-day-panel__icon" />
-                <div>
-                  <h3>最近测算</h3>
-                </div>
-              </div>
-
-              <div className="open-day-history-grid">
-                {snapshots.length ? (
-                  snapshots.map((snapshot) => (
-                    <article key={snapshot.id} className="open-day-history-card">
-                      <div className="open-day-history-card__head">
-                        <div>
-                          <h4>{snapshot.sourceName || '未命名数据集'}</h4>
-                          <p>{formatDateTime(snapshot.createdAt)}</p>
-                        </div>
-                        <span>{snapshot.championName}</span>
-                      </div>
-                      <p>冠军盘 {snapshot.championName}，综合分 {formatNumber(snapshot.championScore, 1)}。</p>
-                      <div className="open-day-history-card__meta">
-                        <span>{snapshot.eligibleCount}/{snapshot.totalCount}</span>
-                        <span>{snapshot.parameterPackageId || snapshot.presetId || 'custom'}</span>
-                        <span>{snapshot.waterlineSource}</span>
-                      </div>
-                    </article>
-                  ))
-                ) : (
-                  <div className="open-day-chart__placeholder">暂未生成快照。</div>
-                )}
-              </div>
-            </section>
           </main>
         </div>
       </div>

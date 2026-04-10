@@ -7,6 +7,7 @@ export interface SaveOpenDayUploadArtifactInput {
   buffer: Buffer;
   originalFilename: string;
   contentType?: string;
+  checksumSha256?: string;
 }
 
 function sanitizeFilename(filename: string) {
@@ -56,7 +57,7 @@ export class OpenDayUploadArtifactService {
 
   async save(input: SaveOpenDayUploadArtifactInput): Promise<OpenDayUploadArtifactSummary> {
     const originalFilename = input.originalFilename.trim() || 'workbook.xlsx';
-    const checksumSha256 = createHash('sha256').update(input.buffer).digest('hex');
+    const checksumSha256 = input.checksumSha256 || createHash('sha256').update(input.buffer).digest('hex');
     const existing = await this.repository.findExisting({
       originalFilename,
       byteSize: input.buffer.byteLength,

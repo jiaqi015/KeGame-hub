@@ -1,13 +1,27 @@
 import type { OpenDaySnapshotListResponse } from '../domain/openDay.types.js';
-import type { OpenDaySnapshotRepository } from './openDaySnapshotRepository.js';
+import type { OpenDaySnapshotListOptions, OpenDaySnapshotRepository } from './openDaySnapshotRepository.js';
 
 export class OpenDaySnapshotService {
   constructor(private readonly repository: OpenDaySnapshotRepository) {}
 
-  async listRecent(limit = 8): Promise<OpenDaySnapshotListResponse> {
+  async listRecent(limit = 8, options?: OpenDaySnapshotListOptions): Promise<OpenDaySnapshotListResponse> {
     const normalizedLimit = Number.isFinite(limit) ? Math.max(1, Math.min(20, Math.floor(limit))) : 8;
     return {
-      items: await this.repository.list(normalizedLimit),
+      items: await this.repository.list(normalizedLimit, options),
     };
+  }
+
+  async getById(id: string) {
+    const normalizedId = typeof id === 'string' ? id.trim() : '';
+    if (!normalizedId) {
+      throw new Error('缺少快照 ID。');
+    }
+
+    const record = await this.repository.get(normalizedId);
+    if (!record) {
+      throw new Error('未找到对应的测算快照。');
+    }
+
+    return record;
   }
 }

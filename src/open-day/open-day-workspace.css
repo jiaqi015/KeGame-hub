@@ -1,16 +1,13 @@
 .open-day-workspace {
   min-height: 100%;
-  background:
-    radial-gradient(circle at top left, rgba(203, 111, 69, 0.1), transparent 24%),
-    radial-gradient(circle at top right, rgba(37, 86, 72, 0.08), transparent 28%),
-    linear-gradient(180deg, #fbf8f3 0%, #f3ede3 100%);
+  background: linear-gradient(180deg, #f8f5f1 0%, #f2ede6 100%);
   color: #1f1b17;
 }
 
 .open-day-workspace__shell {
-  max-width: 1460px;
+  max-width: 1440px;
   margin: 0 auto;
-  padding: 32px 28px 40px;
+  padding: 24px 24px 36px;
 }
 
 .open-day-workspace h2,
@@ -62,38 +59,25 @@
 
 .open-day-upload-stage {
   display: grid;
-  gap: 24px;
+  gap: 18px;
   justify-items: center;
   align-content: center;
-  min-height: calc(100vh - 220px);
+  min-height: calc(100vh - 200px);
 }
 
-.open-day-upload-hero {
-  max-width: 760px;
+.open-day-upload-simple-head {
+  max-width: 560px;
   text-align: center;
 }
 
-.open-day-upload-hero__eyebrow,
-.open-day-workspace-header__eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: #c55a34;
-}
-
-.open-day-upload-hero h2,
+.open-day-upload-simple-head h2,
 .open-day-workspace-header h2 {
-  margin-top: 14px;
-  font-size: clamp(34px, 4vw, 56px);
-  line-height: 1.02;
-  letter-spacing: -0.05em;
+  font-size: clamp(28px, 3.4vw, 40px);
+  line-height: 1.08;
+  letter-spacing: -0.04em;
 }
 
-.open-day-upload-hero p,
+.open-day-upload-simple-head p,
 .open-day-workspace-header p,
 .open-day-panel__head p,
 .open-day-analysis-card p,
@@ -102,79 +86,24 @@
   line-height: 1.7;
 }
 
-.open-day-upload-hero p {
-  margin-top: 16px;
-  font-size: 16px;
-}
-
-.open-day-upload-steps {
-  display: inline-grid;
-  grid-auto-flow: column;
-  gap: 14px;
-  margin-top: 22px;
-}
-
-.open-day-upload-step {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  border-radius: 999px;
-  border: 1px solid rgba(76, 58, 42, 0.1);
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: 0 10px 24px rgba(69, 45, 20, 0.06);
-}
-
-.open-day-upload-step span {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  background: rgba(76, 58, 42, 0.08);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.open-day-upload-step strong {
-  font-size: 13px;
-}
-
-.open-day-upload-step.is-active {
-  border-color: rgba(203, 111, 69, 0.18);
-  background: linear-gradient(135deg, rgba(203, 111, 69, 0.12), rgba(43, 95, 79, 0.08));
-}
-
-.open-day-upload-step.is-active span {
-  background: #255648;
-  color: #fff;
+.open-day-upload-simple-head p {
+  margin-top: 10px;
+  font-size: 15px;
 }
 
 .open-day-upload-card {
   display: grid;
   grid-template-columns: 1fr;
   gap: 0;
-  width: min(860px, 100%);
-  overflow: hidden;
+  width: min(720px, 100%);
   border: 1px solid rgba(76, 58, 42, 0.08);
-  border-radius: 32px;
-  background: rgba(255, 253, 250, 0.92);
-  box-shadow: 0 16px 40px rgba(69, 45, 20, 0.08);
-}
-
-.open-day-upload-card__visual {
-  padding: 34px 34px 26px;
-  text-align: center;
-  border-bottom: 1px solid rgba(76, 58, 42, 0.08);
-  background:
-    radial-gradient(circle at top right, rgba(203, 111, 69, 0.14), transparent 28%),
-    linear-gradient(180deg, rgba(255, 248, 242, 0.96), rgba(252, 249, 244, 0.88));
-  color: #1f1b17;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 8px 24px rgba(69, 45, 20, 0.04);
 }
 
 .open-day-upload-card__panel {
-  padding: 30px 34px 34px;
+  padding: 28px;
 }
 
 .open-day-upload-card__head {
@@ -183,81 +112,16 @@
   text-align: center;
 }
 
-.open-day-upload-visual__badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: 999px;
-  background: rgba(203, 111, 69, 0.1);
-  color: #a14928;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-
-.open-day-upload-visual__icon {
-  width: 16px;
-  height: 16px;
-}
-
-.open-day-upload-card__visual h3,
 .open-day-upload-card__panel h3 {
-  margin-top: 18px;
   font-size: 30px;
   line-height: 1.1;
   letter-spacing: -0.04em;
 }
 
-.open-day-upload-card__visual p {
-  margin-top: 16px;
-  max-width: 620px;
-  margin-left: auto;
-  margin-right: auto;
-  color: #6b6156;
-  line-height: 1.8;
-}
-
-.open-day-upload-points {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 26px;
-}
-
-.open-day-upload-points div {
-  padding: 16px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.74);
-  border: 1px solid rgba(76, 58, 42, 0.08);
-  text-align: left;
-}
-
-.open-day-upload-points strong {
-  display: block;
-  font-size: 15px;
-}
-
-.open-day-upload-points span {
-  display: block;
-  margin-top: 6px;
-  font-size: 13px;
-  line-height: 1.6;
-  color: #6b6156;
-}
-
-.open-day-upload-card__label {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: #c55a34;
-}
-
 .open-day-upload-card__head p {
   margin-top: 12px;
   font-size: 14px;
-  max-width: 560px;
+  max-width: 480px;
 }
 
 .open-day-upload-actions,
@@ -266,6 +130,7 @@
 .open-day-workspace-header__main,
 .open-day-workspace-header__actions,
 .open-day-panel__head,
+.open-day-history-filter,
 .open-day-history-card__head {
   display: flex;
   align-items: center;
@@ -291,7 +156,7 @@
   font-weight: 700;
   text-decoration: none;
   cursor: pointer;
-  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease;
+  transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
 }
 
 .open-day-button:hover,
@@ -303,13 +168,18 @@
   border-color: transparent;
   background: #bf623b;
   color: #fff;
-  box-shadow: 0 10px 24px rgba(191, 98, 59, 0.18);
 }
 
 .open-day-button--secondary,
 .open-day-button--ghost {
   background: rgba(255, 255, 255, 0.88);
   color: #201b17;
+}
+
+.open-day-button--ghost.is-selected {
+  border-color: rgba(37, 86, 72, 0.16);
+  background: rgba(239, 248, 244, 0.92);
+  color: #255648;
 }
 
 .open-day-button--block {
@@ -376,9 +246,9 @@
 .open-day-sidebar-stats div,
 .open-day-hero-card__stats div {
   padding: 16px;
-  border-radius: 18px;
+  border-radius: 16px;
   border: 1px solid rgba(76, 58, 42, 0.08);
-  background: rgba(255, 255, 255, 0.84);
+  background: rgba(255, 255, 255, 0.9);
 }
 
 .open-day-upload-stats span,
@@ -402,9 +272,9 @@
 .open-day-upload-file {
   margin-top: 18px;
   padding: 18px;
-  border-radius: 18px;
+  border-radius: 16px;
   border: 1px solid rgba(76, 58, 42, 0.08);
-  background: rgba(255, 255, 255, 0.84);
+  background: rgba(255, 255, 255, 0.9);
   text-align: center;
 }
 
@@ -494,11 +364,10 @@
 .open-day-workspace-header {
   justify-content: space-between;
   margin-bottom: 20px;
-  padding: 22px 24px;
+  padding: 18px 20px;
   border: 1px solid rgba(76, 58, 42, 0.08);
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: 0 12px 30px rgba(69, 45, 20, 0.05);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.82);
 }
 
 .open-day-workspace-header__main {
@@ -506,8 +375,7 @@
 }
 
 .open-day-workspace-header h2 {
-  margin-top: 10px;
-  font-size: 30px;
+  font-size: 28px;
 }
 
 .open-day-workspace-layout {
@@ -529,9 +397,9 @@
 .open-day-analysis-card,
 .open-day-history-card {
   border: 1px solid rgba(76, 58, 42, 0.08);
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.76);
-  box-shadow: 0 12px 30px rgba(69, 45, 20, 0.05);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 8px 22px rgba(69, 45, 20, 0.04);
 }
 
 .open-day-panel {
@@ -560,7 +428,7 @@
 
 .open-day-panel__head h3,
 .open-day-hero-card h3 {
-  font-size: 22px;
+  font-size: 20px;
   letter-spacing: -0.03em;
 }
 
@@ -636,9 +504,9 @@
 
 .open-day-hero-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 420px;
-  gap: 20px;
-  padding: 22px;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 16px;
+  padding: 18px;
 }
 
 .open-day-hero-card__copy p {
@@ -658,6 +526,11 @@
 .open-day-analysis-card,
 .open-day-history-card {
   padding: 18px;
+}
+
+.open-day-history-card.is-active {
+  border-color: rgba(37, 86, 72, 0.2);
+  background: rgba(239, 248, 244, 0.92);
 }
 
 .open-day-analysis-card h4,
@@ -788,6 +661,10 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.open-day-history-filter {
+  margin-left: auto;
+}
+
 .open-day-scenario-grid {
   grid-template-columns: 1fr;
   margin-top: 14px;
@@ -849,12 +726,17 @@
   color: #255648;
 }
 
+.open-day-history-card__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
 @media (max-width: 1280px) {
   .open-day-workspace-layout,
   .open-day-hero-card,
   .open-day-history-grid,
-  .open-day-analysis-grid,
-  .open-day-upload-points {
+  .open-day-analysis-grid {
     grid-template-columns: 1fr;
   }
 
@@ -872,7 +754,6 @@
     width: 100%;
   }
 
-  .open-day-upload-steps,
   .open-day-upload-actions,
   .open-day-upload-footer,
   .open-day-workspace-header,
@@ -893,7 +774,7 @@
   }
 
   .open-day-workspace-header h2,
-  .open-day-upload-hero h2 {
+  .open-day-upload-simple-head h2 {
     font-size: 34px;
   }
 }

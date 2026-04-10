@@ -5,7 +5,17 @@ import { createOpenDayHash } from './openDayFingerprint.js';
 import type { OpenDaySnapshotRepository } from './openDaySnapshotRepository.js';
 
 function createCacheKey(command: OpenDayScoreCommand): string {
-  return createOpenDayHash(command, 'open-day');
+  return createOpenDayHash(
+    {
+      rows: command.rows,
+      mappings: command.mappings,
+      config: command.config,
+      scenario: command.scenario,
+      activePresetId: command.activePresetId,
+      activeParameterPackageId: command.activeParameterPackageId,
+    },
+    'open-day',
+  );
 }
 
 export class OpenDayAnalysisService {
@@ -55,6 +65,8 @@ export class OpenDayAnalysisService {
           createdAt: new Date().toISOString(),
           sourceName: command.sourceName || '未命名数据集',
           sourceUploadId: command.sourceUploadId || null,
+          scenarioTemplateId: command.activeScenarioTemplateId || null,
+          scenarioTemplateName: command.activeScenarioTemplateName || null,
           presetId: command.activePresetId || null,
           parameterPackageId:
             response.meta.scenario.parameterPackageId || command.activeParameterPackageId || command.activePresetId || null,

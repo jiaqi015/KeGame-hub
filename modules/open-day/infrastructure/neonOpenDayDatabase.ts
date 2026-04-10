@@ -37,6 +37,8 @@ async function ensureSchema(sql: OpenDaySqlClient) {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       source_name TEXT NOT NULL,
       source_upload_id TEXT NULL,
+      scenario_template_id TEXT NULL,
+      scenario_template_name TEXT NULL,
       preset_id TEXT NULL,
       parameter_package_id TEXT NULL,
       config_version TEXT NOT NULL,
@@ -53,6 +55,16 @@ async function ensureSchema(sql: OpenDaySqlClient) {
   await sql.query(`
     ALTER TABLE open_day_analysis_snapshots
     ADD COLUMN IF NOT EXISTS source_upload_id TEXT NULL;
+  `);
+
+  await sql.query(`
+    ALTER TABLE open_day_analysis_snapshots
+    ADD COLUMN IF NOT EXISTS scenario_template_id TEXT NULL;
+  `);
+
+  await sql.query(`
+    ALTER TABLE open_day_analysis_snapshots
+    ADD COLUMN IF NOT EXISTS scenario_template_name TEXT NULL;
   `);
 
   await sql.query(`
@@ -86,6 +98,11 @@ async function ensureSchema(sql: OpenDaySqlClient) {
   await sql.query(`
     CREATE INDEX IF NOT EXISTS idx_open_day_analysis_snapshots_created_at
     ON open_day_analysis_snapshots(created_at DESC);
+  `);
+
+  await sql.query(`
+    CREATE INDEX IF NOT EXISTS idx_open_day_analysis_snapshots_scenario_template_id
+    ON open_day_analysis_snapshots(scenario_template_id);
   `);
 
   await sql.query(`

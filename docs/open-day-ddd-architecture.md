@@ -168,6 +168,7 @@ flowchart LR
 - `dataset_fingerprint + config_fingerprint -> analysis_result`
 - 热点目录缓存
 - 重复测算结果复用
+- `checksum + requestedSheet -> workbook_parse_payload`
 
 建议策略：
 
@@ -243,6 +244,15 @@ flowchart LR
 8. 写缓存
 9. 可选写快照表
 10. 返回结果给前端
+
+### 2.6. 方案绑定与结果对比
+
+1. 用户可以把当前公式、参数包和手动覆写保存为 `ScenarioTemplate`
+2. 正式测算时，前端会把 `activeScenarioTemplateId / activeScenarioTemplateName` 一并提交
+3. 快照仓储会把方案身份和测算结果绑定在一起
+4. 历史列表既可以看全量，也可以按方案筛选
+5. 同一个方案的上一版快照可以作为“本次结果对比”的参照
+6. 某次快照也可以被直接回放，把当次的 `rows / mappings / config / result` 恢复回工作台
 
 ### 2.5. 配置目录加载
 

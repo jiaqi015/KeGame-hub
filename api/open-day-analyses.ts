@@ -1,4 +1,5 @@
 import { authorizeRequest } from '../lib/activation.js';
+import { handleOpenDaySnapshotGet } from '../modules/open-day/interfaces/http/openDaySnapshotGetHandler.js';
 import { handleOpenDaySnapshotList } from '../modules/open-day/interfaces/http/openDaySnapshotListHandler.js';
 
 export default async function handler(req: any, res: any) {
@@ -13,6 +14,11 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
+    if (typeof req.query?.id === 'string' && req.query.id) {
+      const payload = await handleOpenDaySnapshotGet(req.query || {});
+      return res.status(200).json(payload);
+    }
+
     const payload = await handleOpenDaySnapshotList(req.query || {});
     return res.status(200).json(payload);
   } catch (error) {

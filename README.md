@@ -61,6 +61,9 @@ http://localhost:3000
 - 开放日测算会通过 `/api/open-day-score` 进入后端领域服务，并使用缓存加速重复计算
 - 测算快照会通过 `/api/open-day-analyses` 查询
 - 业务方案模板会通过 `/api/open-day-scenarios` 查询和保存
+- 当一次测算绑定了已保存方案时，快照会记录 `scenarioTemplateId / scenarioTemplateName`，并支持按方案筛选历史
+- 历史快照现在支持直接回放，能把当次测算的原始数据、参数和结果恢复回当前工作台
 - 当存在 `DATABASE_URL / POSTGRES_URL` 时，开放日模块会自动切到 `Neon` 持久化；否则回退为本地文件仓储
 - 当运行在 Vercel 上时，开放日测算缓存会优先使用 `Runtime Cache`，本地开发默认回退为内存缓存
 - 当存在 `BLOB_READ_WRITE_TOKEN` 且结构化存储走 `Neon` 时，Excel 上传会在解析后自动归档到 `Vercel Blob`；否则回退为本地临时文件仓储
+- workbook 解析链现在带有 `checksum + requestedSheet` 级别的缓存，同一份 Excel 的重复解析会优先命中缓存，再配合上传归档去重，明显缩短二次加载耗时

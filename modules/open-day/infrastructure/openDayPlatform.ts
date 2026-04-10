@@ -6,16 +6,20 @@ import { OpenDaySnapshotService } from '../application/openDaySnapshotService.js
 import type { OpenDaySnapshotRepository } from '../application/openDaySnapshotRepository.js';
 import { OpenDayUploadArtifactService } from '../application/openDayUploadArtifactService.js';
 import type { OpenDayUploadArtifactRepository } from '../application/openDayUploadArtifactRepository.js';
+import type { OpenDayWorkbookParseCache } from '../application/openDayWorkbookParseCache.js';
 import { OpenDayWorkbookParseService } from '../application/openDayWorkbookParseService.js';
 import { BlobOpenDayUploadArtifactRepository } from './blobOpenDayUploadArtifactRepository.js';
 import { FileOpenDayScenarioRepository } from './fileOpenDayScenarioRepository.js';
 import { FileOpenDaySnapshotRepository } from './fileOpenDaySnapshotRepository.js';
 import { FileOpenDayUploadArtifactRepository } from './fileOpenDayUploadArtifactRepository.js';
 import { InMemoryOpenDayAnalysisCache } from './inMemoryOpenDayAnalysisCache.js';
+import { InMemoryOpenDayWorkbookParseCache } from './inMemoryOpenDayWorkbookParseCache.js';
 import { LayeredOpenDayAnalysisCache } from './layeredOpenDayAnalysisCache.js';
+import { LayeredOpenDayWorkbookParseCache } from './layeredOpenDayWorkbookParseCache.js';
 import { NeonOpenDayScenarioRepository } from './neonOpenDayScenarioRepository.js';
 import { NeonOpenDaySnapshotRepository } from './neonOpenDaySnapshotRepository.js';
 import { RuntimeCacheOpenDayAnalysisCache } from './runtimeCacheOpenDayAnalysisCache.js';
+import { RuntimeCacheOpenDayWorkbookParseCache } from './runtimeCacheOpenDayWorkbookParseCache.js';
 
 function isVercelRuntime() {
   return Boolean(process.env.VERCEL);
@@ -97,6 +101,15 @@ function createUploadArtifactRepository(): OpenDayUploadArtifactRepository {
     : new FileOpenDayUploadArtifactRepository();
 }
 
+function createWorkbookParseCache(): OpenDayWorkbookParseCache {
+  const memoryCache = new InMemoryOpenDayWorkbookParseCache();
+  if (resolveCacheBackend() !== 'runtime') {
+    return memoryCache;
+  }
+
+  return new LayeredOpenDayWorkbookParseCache(memoryCache, new RuntimeCacheOpenDayWorkbookParseCache());
+}
+
 export function getOpenDayAnalysisService() {
   if (!analysisServiceSingleton) {
     analysisServiceSingleton = new OpenDayAnalysisService(createAnalysisCache(), createSnapshotRepository());
@@ -131,7 +144,10 @@ export function getOpenDayUploadArtifactService() {
 
 export function getOpenDayWorkbookParseService() {
   if (!workbookParseServiceSingleton) {
-    workbookParseServiceSingleton = new OpenDayWorkbookParseService(getOpenDayUploadArtifactService());
+    workbookParseServiceSingleton = new OpenDayWorkbookParseService(
+      createWorkbookParseCache(),
+      getOpenDayUploadArtifactService(),
+    );
   }
 
   return workbookParseServiceSingleton;

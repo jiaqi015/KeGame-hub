@@ -4,7 +4,7 @@ import type {
   OpenDayAnalysisSnapshotRecord,
   OpenDayAnalysisSnapshotSummary,
 } from '../domain/openDay.types.js';
-import type { OpenDaySnapshotRepository } from '../application/openDaySnapshotRepository.js';
+import type { OpenDaySnapshotListOptions, OpenDaySnapshotRepository } from '../application/openDaySnapshotRepository.js';
 import { getRuntimeTempDir } from '../../../lib/runtimeTemp.js';
 
 interface SnapshotIndexFile {
@@ -44,9 +44,24 @@ export class FileOpenDaySnapshotRepository implements OpenDaySnapshotRepository 
     );
   }
 
-  async list(limit: number): Promise<OpenDayAnalysisSnapshotSummary[]> {
+  async list(limit: number, options?: OpenDaySnapshotListOptions): Promise<OpenDayAnalysisSnapshotSummary[]> {
     const current = await this.readIndex();
-    return current.items.slice(0, limit);
+    const scenarioTemplateId = options?.scenarioTemplateId?.trim();
+    const filtered = scenarioTemplateId
+      ? current.items.filter((item) => item.scenarioTemplateId === scenarioTemplateId)
+      : current.items;
+    return filtered.slice(0, limit);
+  }
+
+  async get(id: string): Promise<OpenDayAnalysisSnapshotRecord | null> {
+    const detailFile = path.join(this.snapshotDir, `${id}.json`);
+
+    try {
+      const content = await fs.readFile(detailFile, 'utf8');
+      return JSON.parse(content) as OpenDayAnalysisSnapshotRecord;
+    } catch {
+      return null;
+    }
   }
 
   private async readIndex(): Promise<SnapshotIndexFile> {
@@ -57,6 +72,8 @@ export class FileOpenDaySnapshotRepository implements OpenDaySnapshotRepository 
         items: Array.isArray(parsed.items)
           ? parsed.items.map((item) => ({
               sourceUploadId: null,
+              scenarioTemplateId: null,
+              scenarioTemplateName: null,
               ...item,
             }))
           : [],

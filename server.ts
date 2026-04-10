@@ -10,6 +10,7 @@ import { compareModels, streamCompareModel } from "./lib/compare.js";
 import { AVAILABLE_MODELS } from "./lib/models.js";
 import { ensureRuntimeTempDir } from "./lib/runtimeTemp.js";
 import { handleOpenDayCatalog } from "./modules/open-day/interfaces/http/openDayCatalogHandler.js";
+import { handleOpenDaySnapshotGet } from "./modules/open-day/interfaces/http/openDaySnapshotGetHandler.js";
 import { handleOpenDayWorkbookParse } from "./modules/open-day/interfaces/http/openDayWorkbookParseHandler.js";
 import { handleOpenDayScenarioGet } from "./modules/open-day/interfaces/http/openDayScenarioGetHandler.js";
 import { handleOpenDayScenarioList } from "./modules/open-day/interfaces/http/openDayScenarioListHandler.js";
@@ -89,6 +90,11 @@ async function startServer() {
 
   app.get("/api/open-day-analyses", async (req, res) => {
     try {
+      if (typeof req.query?.id === "string" && req.query.id) {
+        const payload = await handleOpenDaySnapshotGet(req.query);
+        return res.json(payload);
+      }
+
       const payload = await handleOpenDaySnapshotList(req.query);
       return res.json(payload);
     } catch (error) {

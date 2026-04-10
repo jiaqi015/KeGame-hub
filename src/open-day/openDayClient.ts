@@ -1,6 +1,7 @@
 import type { ParsedWorkbookPayload } from '../../lib/openDayWorkbook.ts';
 import type {
   OpenDayAnalysisResponse,
+  OpenDayAnalysisSnapshotRecord,
   OpenDayCatalogResponse,
   OpenDaySaveScenarioCommand,
   OpenDayScenarioListResponse,
@@ -33,10 +34,24 @@ export function fetchOpenDayCatalog(activationKey: string) {
   return requestJson<OpenDayCatalogResponse>(activationKey, '/api/open-day-catalog');
 }
 
-export function fetchOpenDaySnapshots(activationKey: string, limit = 8) {
+export function fetchOpenDaySnapshots(activationKey: string, limit = 8, scenarioId = '') {
+  const query = new URLSearchParams({
+    limit: String(limit),
+  });
+  if (scenarioId) {
+    query.set('scenarioId', scenarioId);
+  }
+
   return requestJson<OpenDaySnapshotListResponse>(
     activationKey,
-    `/api/open-day-analyses?limit=${encodeURIComponent(limit)}`,
+    `/api/open-day-analyses?${query.toString()}`,
+  );
+}
+
+export function fetchOpenDaySnapshotDetail(activationKey: string, id: string) {
+  return requestJson<OpenDayAnalysisSnapshotRecord>(
+    activationKey,
+    `/api/open-day-analyses?id=${encodeURIComponent(id)}`,
   );
 }
 
