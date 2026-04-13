@@ -617,13 +617,11 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                 <div className="open-day-upload-card__head">
                   <div>
                     <h3>先上传数据</h3>
-                    <p>{uploadSummary}</p>
                   </div>
                 </div>
 
                 <div className="open-day-upload-actions">
                   <label className="open-day-button open-day-button--primary open-day-button--file">
-                    <FileUp className="open-day-button__icon" />
                     <span>上传文件</span>
                     <input
                       type="file"
