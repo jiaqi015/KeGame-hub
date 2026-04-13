@@ -102,7 +102,11 @@
   border: 1px solid rgba(76, 58, 42, 0.08);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(249, 244, 238, 0.88));
   cursor: pointer;
-  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+  transition: var(--od-transition);
+}
+
+.open-day-preset-card:active {
+  transform: scale(0.96);
 }
 
 .open-day-preset-card strong {
@@ -157,6 +161,7 @@
 .open-day-waterline-table td {
   padding: 6px 4px;
   border-bottom: 1px solid rgba(76, 58, 42, 0.06);
+  transition: var(--od-transition);
 }
 
 .open-day-waterline-table td:first-child {
@@ -224,6 +229,11 @@
 .open-day-scenario-item.is-active {
   border-color: var(--od-primary);
   background: var(--od-primary-light);
+  transform: translateY(-1px);
+}
+
+.open-day-scenario-item:active {
+  transform: scale(0.98);
 }
 
 .open-day-scenario-item__info {

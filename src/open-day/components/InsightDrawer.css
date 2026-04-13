@@ -54,6 +54,10 @@
   transition: background 150ms ease;
 }
 
+.open-day-drawer__close:active {
+  transform: scale(0.92);
+}
+
 .open-day-drawer__close:hover {
   background: rgba(76, 58, 42, 0.08);
   color: var(--od-text-main);

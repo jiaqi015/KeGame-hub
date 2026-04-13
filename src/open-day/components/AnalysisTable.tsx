@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { BarChart3, RefreshCcw, Search, X, AlertTriangle, Maximize2, Minimize2, Download } from 'lucide-react';
 import type { OpenDayAnalysisResponse, OpenDayAnalysisRow } from '../../../modules/open-day/domain/openDay.types.ts';
 import type { DatasetQualityReport } from '../openDayConstants';
@@ -47,12 +48,12 @@ export function AnalysisTable({
   onSelectNext,
   onSelectPrev,
 }: AnalysisTableProps) {
-  const selectedRowRef = React.useRef<HTMLTableRowElement>(null);
+  const selectedRowRef = useRef<HTMLTableRowElement>(null);
   const filteredRows = analysis?.results.filter((row) => 
     !searchTerm || row.name.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (activeRow && selectedRowRef.current) {
       selectedRowRef.current.scrollIntoView({
         behavior: 'smooth',

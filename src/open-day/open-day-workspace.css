@@ -17,6 +17,7 @@
   --od-shadow-md: 0 8px 22px rgba(69, 45, 20, 0.06);
   --od-radius-lg: 18px;
   --od-radius-xl: 24px;
+  --od-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* =========================================
@@ -99,7 +100,11 @@
   font-weight: 700;
   text-decoration: none;
   cursor: pointer;
-  transition: transform 160ms ease, background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+  transition: var(--od-transition);
+}
+
+.open-day-button:active {
+  transform: scale(0.97);
 }
 
 .open-day-button:hover {
@@ -152,9 +157,29 @@
   font-size: 15px;
 }
 
-.open-day-button__icon {
-  width: 16px;
-  height: 16px;
+input.open-day-input,
+select.open-day-input {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(76, 58, 42, 0.12);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 14px;
+  color: var(--od-text-main);
+  transition: var(--od-transition);
+  outline: none;
+}
+
+input.open-day-input:hover,
+select.open-day-input:hover {
+  border-color: rgba(76, 58, 42, 0.2);
+  background: #fff;
+}
+
+input.open-day-input:focus,
+select.open-day-input:focus {
+  border-color: var(--od-primary);
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(191, 98, 59, 0.08);
 }
 
 /* =========================================
@@ -292,8 +317,8 @@
 
 /* Custom Scrollbars */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -301,12 +326,13 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(76, 58, 42, 0.16);
+  background: rgba(76, 58, 42, 0.12);
   border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(191, 98, 59, 0.4);
+  background: var(--od-primary);
+  opacity: 0.6;
 }
 
 /* Responsive Overrides */

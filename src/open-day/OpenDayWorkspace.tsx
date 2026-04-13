@@ -11,6 +11,7 @@ import type { ParsedWorkbookPayload } from '../../lib/openDayWorkbook.ts';
 import type {
   OpenDayConfig,
   OpenDayParameterKey,
+  OpenDayParameterPackage,
   OpenDayRawRow,
   OpenDayScenarioDraft,
 } from '../../modules/open-day/domain/openDay.types.ts';
@@ -158,7 +159,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     qualityReport,
   } = state;
 
-  const parameterPackages = catalog.parameterPackages.length ? catalog.parameterPackages : catalog.presets;
+  const parameterPackages = (catalog.parameterPackages?.length ? catalog.parameterPackages : (catalog.presets || [])) as OpenDayParameterPackage[];
 
   // ─── Derived ──────────────────────────────────────────────────────────────────
 
@@ -189,9 +190,9 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
   );
 
   const activeFormula = useMemo(
-    () => catalog.formulas.find((f) => f.id === scenarioDraft.formulaId) || fallbackCatalog.formulas[0],
+    () => (catalog.formulas || []).find((f) => f.id === scenarioDraft.formulaId) || fallbackCatalog.formulas[0],
     [catalog.formulas, scenarioDraft.formulaId],
-  );
+  ) || fallbackCatalog.formulas[0];
 
   const missingMappings = getMissingMappings(mappings);
   const normalizedPreviewRows =
@@ -680,7 +681,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
         <FormulaBar
           scenarioDraft={scenarioDraft}
           config={config}
-          formulas={catalog.formulas}
+          formulas={catalog.formulas || []}
           waterlineDefinitions={waterlineDefinitions}
           getResolvedParameter={getResolvedParameter}
           onFormulaChange={(formulaId) => updateConfig((draft) => { draft.formulaId = formulaId; })}
@@ -741,7 +742,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
               statusMessage={statusMessage}
               qualityReport={qualityReport}
               currentParameterLabel={getParameterPackageLabel(activeParameterPackageId, parameterPackages)}
-              currentFormulaLabel={activeFormula.label}
+              currentFormulaLabel={activeFormula?.label || '默认公式'}
               sampleCount={datasetDraft.rows.length}
               onSearchChange={(term) => dispatch({ type: 'SET_SEARCH_TERM', term })}
               onRowClick={(row) => dispatch({ type: 'SET_ACTIVE_ROW', row })}

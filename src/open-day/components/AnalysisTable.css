@@ -193,6 +193,12 @@
   color: var(--od-secondary);
   font-weight: 600;
   font-size: 15px;
+  animation: open-day-fade-in 0.3s ease-out;
+}
+
+@keyframes open-day-fade-in {
+  from { opacity: 0; backdrop-filter: blur(0); }
+  to { opacity: 1; backdrop-filter: blur(2px); }
 }
 
 .open-day-table-empty-state {
@@ -236,7 +242,7 @@
 
 .open-day-table tbody tr {
   cursor: pointer;
-  transition: background 160ms ease;
+  transition: var(--od-transition);
 }
 
 .open-day-table tbody tr:hover {
@@ -245,6 +251,7 @@
 
 .open-day-table tbody tr.is-selected {
   background: rgba(225, 240, 235, 0.6);
+  box-shadow: inset 2px 0 0 var(--od-secondary);
 }
 
 .open-day-data-bar {
@@ -259,6 +266,7 @@
   position: relative;
   z-index: 2;
   font-variant-numeric: tabular-nums;
+  font-family: inherit;
 }
 
 .open-day-button--icon-only {
