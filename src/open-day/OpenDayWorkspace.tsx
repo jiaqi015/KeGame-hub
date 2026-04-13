@@ -829,9 +829,34 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
             </label>
 
             <button type="button" className="open-day-button open-day-button--primary" onClick={() => void executeAnalysis()}>
-              <RefreshCcw className="open-day-button__icon" />
               <span>{isAnalyzing ? '测算中...' : '测算'}</span>
             </button>
+          </div>
+        </div>
+
+        <div className="open-day-formula-bar">
+          <div className="open-day-formula-bar__select">
+            <label>核心公式</label>
+            <select
+              value={scenarioDraft.formulaId}
+              onChange={(event) => {
+                const nextFormulaId = event.target.value as OpenDayConfig['formulaId'];
+                updateConfig((draft) => {
+                  draft.formulaId = nextFormulaId;
+                });
+              }}
+            >
+              {catalog.formulas.map((formula) => (
+                <option key={formula.id} value={formula.id}>
+                  {formula.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="open-day-formula-bar__math">
+            <code>
+              Score = 25 × (Scale + Traffic<sup>{config.alpha}</sup> + Product × {config.weights.product} + Interaction × {config.weights.interaction})
+            </code>
           </div>
         </div>
 
@@ -839,7 +864,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
           <aside className="open-day-sidebar">
             <div className="open-day-sidebar-card">
               <div className="open-day-sidebar-section">
-                <h3>策略选择</h3>
+                <h3>1. 策略预设</h3>
                 <div className="open-day-preset-grid">
                   {parameterPackages.map((preset) => (
                     <button
@@ -856,26 +881,8 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
               </div>
 
               <div className="open-day-sidebar-section">
-                <h3>参数调整</h3>
+                <h3>2. 核心参数</h3>
                 <div className="open-day-params-grid">
-                  <label>
-                    <span>评分公式</span>
-                    <select
-                      value={scenarioDraft.formulaId}
-                      onChange={(event) => {
-                        const nextFormulaId = event.target.value as OpenDayConfig['formulaId'];
-                        updateConfig((draft) => {
-                          draft.formulaId = nextFormulaId;
-                        });
-                      }}
-                    >
-                      {catalog.formulas.map((formula) => (
-                        <option key={formula.id} value={formula.id}>
-                          {formula.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
                   <label>
                     <span>水位线模式</span>
                     <select
@@ -990,22 +997,28 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                   </label>
                 </div>
 
-                <div className="open-day-waterline-grid">
-                  {waterlineDefinitions.map((definition) => (
-                    <div key={definition.key} className="open-day-waterline-card">
-                      <div className="open-day-waterline-card__head">
-                        <h4>{definition.title}</h4>
-                        <span>{config.waterlineMode === 'percentile' ? '分位' : '固定值'}</span>
-                      </div>
-                      <div className="open-day-waterline-card__inputs">
-                        <label>
-                          <span>{definition.percentileLabel}</span>
+                <div className="open-day-sidebar-section">
+                <h3>3. 水位线 (满分刻度)</h3>
+                <table className="open-day-waterline-table">
+                  <thead>
+                    <tr>
+                      <th>指标</th>
+                      <th>分位 (%)</th>
+                      <th>固定值</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {waterlineDefinitions.map((definition) => (
+                      <tr key={definition.key}>
+                        <td>{definition.title.replace('水位线', '')}</td>
+                        <td>
                           <input
                             type="number"
                             min="1"
                             max="99"
                             step="1"
                             value={config.percentiles[definition.key]}
+                            disabled={config.waterlineMode === 'absolute'}
                             onChange={(event) => {
                               const nextPercentile = Math.min(99, Math.max(1, Number(event.target.value) || 1));
                               updateConfig((draft) => {
@@ -1016,14 +1029,14 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                               });
                             }}
                           />
-                        </label>
-                        <label>
-                          <span>{definition.absoluteLabel}</span>
+                        </td>
+                        <td>
                           <input
                             type="number"
                             min="0"
                             step={definition.absoluteStep}
                             value={getDisplayedWaterlineValue(definition.key)}
+                            disabled={config.waterlineMode === 'percentile'}
                             onChange={(event) => {
                               const nextValue = Math.max(0, Number(event.target.value) || 0);
                               updateConfig((draft) => {
@@ -1045,11 +1058,12 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                               });
                             }}
                           />
-                        </label>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
                   <button type="button" className="open-day-button open-day-button--ghost" onClick={handleRestoreDefaults}>
