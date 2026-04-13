@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, RefreshCcw, Save, Upload } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RefreshCcw, Save, Upload, Library } from 'lucide-react';
 import type {
   OpenDayAnalysisSnapshotSummary,
   OpenDayConfig,
@@ -8,7 +8,6 @@ import type {
 } from '../../../modules/open-day/domain/openDay.types.ts';
 import type { NormalizedOpenDayRow } from '../../../modules/open-day/domain/openDay.types.ts';
 import { deriveOpenDayPercentileForValue } from '../../../modules/open-day/domain/openDayParameterResolver.js';
-import { HistoryPanel } from './HistoryPanel';
 import type { WaterlineDefinition } from '../openDayConstants';
 import './SidebarConfig.css';
 
@@ -35,10 +34,10 @@ interface SidebarConfigProps {
   onRestoreDefaults: () => void;
   onRefreshSnapshots: () => void;
   onReplaySnapshot: (id: string) => void;
-  // Scenario handlers
   onScenarioNameChange: (name: string) => void;
   onSaveScenario: () => void;
   onLoadScenario: (id: string) => void;
+  onToggleLibrary: () => void;
 }
 
 export function SidebarConfig({
@@ -66,6 +65,7 @@ export function SidebarConfig({
   onScenarioNameChange,
   onSaveScenario,
   onLoadScenario,
+  onToggleLibrary,
 }: SidebarConfigProps) {
   return (
     <aside className="open-day-sidebar">
@@ -80,10 +80,20 @@ export function SidebarConfig({
 
       <div className="open-day-sidebar-scrollable">
         <div className="open-day-sidebar-card">
+          {/* Library Entry */}
+          <div className="open-day-sidebar-section">
+            <button
+              className="open-day-button open-day-button--secondary w-full justify-start p-4"
+              onClick={onToggleLibrary}
+            >
+              <Library size={18} className="text-emerald-700" />
+              <strong>档案与方案库</strong>
+            </button>
+          </div>
+          <div className="open-day-sidebar-divider" />
           {/* Presets */}
           <div className="open-day-sidebar-section">
-            <h3>1. 测算场景模型</h3>
-            <p className="open-day-sidebar-section__desc">根据业务重心选择预设模型，系统将自动调整权重与基准水位。</p>
+            <h3>场景模型</h3>
             <div className="open-day-preset-grid">
               {parameterPackages.map((preset) => (
                 <button
@@ -101,10 +111,10 @@ export function SidebarConfig({
 
           {/* Core Weights */}
           <div className="open-day-sidebar-section">
-            <h3>2. 核心权重调整</h3>
+            <h3>权重与过滤</h3>
             <div className="open-day-params-grid">
               <label>
-                <span>带看敏感指数 (Alpha)</span>
+                <span>敏感指数 (Alpha)</span>
                 <input type="number" min="0" max="2" step="0.05" value={config.alpha}
                   onChange={(e) => onUpdateConfig((d) => { d.alpha = Math.max(0, Number(e.target.value) || 0); })} />
               </label>
@@ -140,7 +150,7 @@ export function SidebarConfig({
 
             {/* Waterline Table */}
             <div className="open-day-sidebar-section">
-              <h3>3. 测算基准线</h3>
+              <h3>基准水位</h3>
               <table className="open-day-waterline-table">
                 <thead>
                   <tr>
@@ -204,64 +214,6 @@ export function SidebarConfig({
               </button>
             </div>
           </div>
-
-          {/* Scenario Management */}
-          <div className="open-day-sidebar-section">
-            <h3>4. 测算方案管理</h3>
-            <p className="open-day-sidebar-section__desc">保存当前的参数配置为方案，方便后续一键载入数据快速复测。</p>
-
-            <div className="open-day-scenario-save-box">
-              <input
-                type="text"
-                placeholder="输入方案名称..."
-                value={scenarioName}
-                onChange={(e) => onScenarioNameChange(e.target.value)}
-              />
-              <button
-                type="button"
-                className="open-day-button open-day-button--primary open-day-button--sm"
-                onClick={onSaveScenario}
-                disabled={isSavingScenario}
-              >
-                {isSavingScenario ? <RefreshCcw className="animate-spin" size={14} /> : <Save size={14} />}
-                <span>保存方案</span>
-              </button>
-            </div>
-
-            {scenarioMessage && (
-              <div className={`open-day-scenario-msg ${scenarioMessage.includes('失败') ? 'is-error' : 'is-success'}`}>
-                {scenarioMessage}
-              </div>
-            )}
-
-            <div className="open-day-scenario-list">
-              {scenarios.map((s) => (
-                <div key={s.id} className={`open-day-scenario-item ${activeScenarioTemplateId === s.id ? 'is-active' : ''}`}>
-                  <div className="open-day-scenario-item__info">
-                    <strong>{s.name}</strong>
-                    <span>{new Date(s.updatedAt).toLocaleDateString()}</span>
-                  </div>
-                  <button
-                    type="button"
-                    className="open-day-button open-day-button--ghost open-day-button--xs"
-                    onClick={() => onLoadScenario(s.id)}
-                    disabled={isLoadingScenario === s.id}
-                  >
-                    {isLoadingScenario === s.id ? <RefreshCcw className="animate-spin" size={12} /> : <Upload size={12} />}
-                  </button>
-                </div>
-              ))}
-              {!scenarios.length && <div className="open-day-scenario-empty">暂无保存的方案</div>}
-            </div>
-          </div>
-
-          {/* History */}
-          <HistoryPanel
-            snapshots={displayedSnapshots}
-            activeSnapshotId={activeSnapshotId}
-            onRefresh={onRefreshSnapshots}
-            onReplay={onReplaySnapshot}
-          />
         </div>
       </div>
     </aside>

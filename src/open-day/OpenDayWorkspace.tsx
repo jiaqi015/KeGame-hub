@@ -2,6 +2,7 @@ import { useEffect, useMemo, useReducer, useRef } from 'react';
 import {
   ArrowLeft,
   Download,
+  FileUp,
   RefreshCcw,
   Settings2,
 } from 'lucide-react';
@@ -58,6 +59,7 @@ import { UploadStage } from './components/UploadStage';
 import { FormulaBar } from './components/FormulaBar';
 import { AnalysisTable } from './components/AnalysisTable';
 import { InsightDrawer } from './components/InsightDrawer';
+import { LibraryOverlay } from './components/LibraryOverlay';
 import { SidebarConfig } from './components/SidebarConfig';
 
 import './open-day-workspace.css';
@@ -106,6 +108,8 @@ function createInitialState(): OpenDayState {
     activeScenarioTemplateId: '',
     activeScenarioTemplateName: '',
     isSidebarCollapsed: false,
+    isFullScreen: false,
+    isLibraryOpen: false,
     qualityReport: null,
   };
 }
@@ -149,6 +153,8 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     activeScenarioTemplateName,
     showScenarioSnapshotsOnly,
     isSidebarCollapsed,
+    isFullScreen,
+    isLibraryOpen,
     qualityReport,
   } = state;
 
@@ -450,6 +456,18 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     URL.revokeObjectURL(url);
   }
 
+  // Effect to handle Esc key for full screen and library
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (state.isFullScreen) dispatch({ type: 'SET_IS_FULL_SCREEN', value: false });
+        if (state.isLibraryOpen) dispatch({ type: 'SET_IS_LIBRARY_OPEN', value: false });
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [state.isFullScreen, state.isLibraryOpen]);
+
   async function executeAnalysis() {
     if (stage !== 'workspace') {
       dispatch({ type: 'SET_STATUS_MESSAGE', message: '请先进入测算工作台。' });
@@ -592,48 +610,52 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
         {/* Header */}
         <div className="open-day-workspace-header">
           <div className="open-day-workspace-header__main">
-            <button type="button" className="open-day-button open-day-button--ghost" onClick={() => dispatch({ type: 'SET_STAGE', stage: 'upload' })}>
+            <button type="button" className="open-day-button open-day-button--secondary open-day-button--xs" onClick={() => dispatch({ type: 'SET_STAGE', stage: 'upload' })}>
               <ArrowLeft className="open-day-button__icon" />
               <span>返回上传</span>
             </button>
-            <div>
+            <div className="open-day-workspace-header__title-group">
               <h2>测算工作台</h2>
-              <p>
+              <div className="open-day-workspace-header__meta-sep" />
+              <p className="open-day-workspace-header__meta">
                 {datasetDraft.sourceName || '未命名数据集'}
                 {datasetDraft.activeSheet ? ` · ${datasetDraft.activeSheet}` : ''}
-                {datasetDraft.rows.length ? ` · ${datasetDraft.rows.length} 行数据` : ''}
               </p>
             </div>
           </div>
 
           <div className="open-day-workspace-header__actions">
+            <div className="open-day-header-secondary-group">
+              <button
+                type="button"
+                className="open-day-button open-day-button--secondary"
+                onClick={handleExportCsv}
+                disabled={!analysis || isAnalyzing}
+              >
+                <Download className="open-day-button__icon" />
+                <span>导出结果</span>
+              </button>
+              <label className="open-day-button open-day-button--secondary open-day-button--file">
+                <FileUp className="open-day-button__icon" />
+                <span>更换文件</span>
+                <input
+                  type="file"
+                  className="open-day-hidden-file-input"
+                  accept=".csv,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                  onChange={(event) => {
+                    const nextFile = event.target.files?.[0];
+                    event.currentTarget.value = '';
+                    if (!nextFile) return;
+                    void handleFileSelection(nextFile).catch((err) =>
+                      dispatch({ type: 'SET_UPLOAD_ERROR', error: err.message }),
+                    );
+                  }}
+                />
+              </label>
+            </div>
             <button
               type="button"
-              className="open-day-button open-day-button--secondary"
-              onClick={handleExportCsv}
-              disabled={!analysis || isAnalyzing}
-            >
-              <Download className="open-day-button__icon" />
-              <span>导出结果</span>
-            </button>
-            <label className="open-day-button open-day-button--secondary open-day-button--file">
-              <span>更换文件</span>
-              <input
-                type="file"
-                accept=".csv,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
-                onChange={(event) => {
-                  const nextFile = event.target.files?.[0];
-                  event.currentTarget.value = '';
-                  if (!nextFile) return;
-                  void handleFileSelection(nextFile).catch((err) =>
-                    dispatch({ type: 'SET_UPLOAD_ERROR', error: err.message }),
-                  );
-                }}
-              />
-            </label>
-            <button
-              type="button"
-              className={`open-day-button ${hasPendingChanges ? 'open-day-button--primary open-day-button--pulse' : 'open-day-button--primary'}`}
+              className={`open-day-button open-day-button--lg ${hasPendingChanges ? 'open-day-button--primary open-day-button--pulse' : 'open-day-button--primary'}`}
               disabled={isAnalyzing}
               onClick={() => void executeAnalysis()}
             >
@@ -666,7 +688,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
         />
 
         {/* Main Layout */}
-        <div className={`open-day-workspace-layout ${isSidebarCollapsed ? 'is-sidebar-collapsed' : ''}`}>
+        <div className={`open-day-workspace-layout ${isSidebarCollapsed || isFullScreen ? 'is-sidebar-collapsed' : ''}`}>
           {/* Sidebar */}
           <SidebarConfig
             config={config}
@@ -693,6 +715,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
             onScenarioNameChange={(name) => dispatch({ type: 'SET_SCENARIO_NAME', name })}
             onSaveScenario={() => void handleSaveScenario()}
             onLoadScenario={(id) => void handleLoadScenario(id)}
+            onToggleLibrary={() => dispatch({ type: 'TOGGLE_LIBRARY' })}
           />
 
           {/* Main Content */}
@@ -712,6 +735,8 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
               onSearchChange={(term) => dispatch({ type: 'SET_SEARCH_TERM', term })}
               onRowClick={(row) => dispatch({ type: 'SET_ACTIVE_ROW', row })}
               onExecuteAnalysis={() => void executeAnalysis()}
+              isFullScreen={isFullScreen}
+              onToggleFullScreen={() => dispatch({ type: 'TOGGLE_FULL_SCREEN' })}
             />
           </main>
         </div>
@@ -725,6 +750,24 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
           onClose={() => dispatch({ type: 'SET_ACTIVE_ROW', row: null })}
         />
       )}
+      {/* Library Overlay */}
+      <LibraryOverlay
+        isOpen={isLibraryOpen}
+        onClose={() => dispatch({ type: 'SET_IS_LIBRARY_OPEN', value: false })}
+        scenarios={scenarios}
+        scenarioName={scenarioName}
+        scenarioMessage={scenarioMessage}
+        isSavingScenario={isSavingScenario}
+        isLoadingScenario={isLoadingScenario}
+        activeScenarioTemplateId={activeScenarioTemplateId}
+        onScenarioNameChange={(name) => dispatch({ type: 'SET_SCENARIO_NAME', name })}
+        onSaveScenario={() => void handleSaveScenario()}
+        onLoadScenario={(id) => void handleLoadScenario(id)}
+        snapshots={displayedSnapshots}
+        activeSnapshotId={analysis?.meta.snapshotId}
+        onRefreshSnapshots={() => void refreshSnapshots()}
+        onReplaySnapshot={(id) => void handleReplaySnapshot(id)}
+      />
     </div>
   );
 }
