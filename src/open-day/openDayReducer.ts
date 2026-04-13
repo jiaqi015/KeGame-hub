@@ -61,6 +61,8 @@ export interface OpenDayState {
 
   // UI
   isSidebarCollapsed: boolean;
+  isFullScreen: boolean;
+  isLibraryOpen: boolean;
 
   // Validation
   qualityReport: DatasetQualityReport | null;
@@ -100,6 +102,10 @@ export type OpenDayAction =
   | { type: 'SET_IS_LOADING_SCENARIO'; id: string }
   | { type: 'SET_ACTIVE_SCENARIO_TEMPLATE'; id: string; name: string }
   | { type: 'SET_IS_SIDEBAR_COLLAPSED'; value: boolean }
+  | { type: 'TOGGLE_FULL_SCREEN' }
+  | { type: 'SET_IS_FULL_SCREEN'; value: boolean }
+  | { type: 'TOGGLE_LIBRARY' }
+  | { type: 'SET_IS_LIBRARY_OPEN'; value: boolean }
   | { type: 'MARK_DIRTY'; message?: string }
   | { type: 'APPLY_PRESET'; config: OpenDayConfig; packageId: string }
   | { type: 'RESTORE_DEFAULTS'; config: OpenDayConfig }
@@ -203,6 +209,14 @@ export function openDayReducer(state: OpenDayState, action: OpenDayAction): Open
       return { ...state, activeScenarioTemplateId: action.id, activeScenarioTemplateName: action.name };
     case 'SET_IS_SIDEBAR_COLLAPSED':
       return { ...state, isSidebarCollapsed: action.value };
+    case 'TOGGLE_FULL_SCREEN':
+      return { ...state, isFullScreen: !state.isFullScreen };
+    case 'SET_IS_FULL_SCREEN':
+      return { ...state, isFullScreen: action.value };
+    case 'TOGGLE_LIBRARY':
+      return { ...state, isLibraryOpen: !state.isLibraryOpen };
+    case 'SET_IS_LIBRARY_OPEN':
+      return { ...state, isLibraryOpen: action.value };
 
     case 'MARK_DIRTY':
       return {

@@ -1,4 +1,4 @@
-import { BarChart3, RefreshCcw, Search, X, AlertTriangle } from 'lucide-react';
+import { BarChart3, RefreshCcw, Search, X, AlertTriangle, Maximize2, Minimize2 } from 'lucide-react';
 import type { OpenDayAnalysisResponse, OpenDayAnalysisRow } from '../../../modules/open-day/domain/openDay.types.ts';
 import type { DatasetQualityReport } from '../openDayConstants';
 import { formatNumber, formatPercent } from '../formatters';
@@ -16,6 +16,8 @@ interface AnalysisTableProps {
   currentFormulaLabel: string;
   sampleCount: number;
   qualityReport: DatasetQualityReport | null;
+  isFullScreen: boolean;
+  onToggleFullScreen: () => void;
   onSearchChange: (term: string) => void;
   onRowClick: (row: OpenDayAnalysisRow) => void;
   onExecuteAnalysis: () => void;
@@ -33,12 +35,14 @@ export function AnalysisTable({
   currentFormulaLabel,
   sampleCount,
   qualityReport,
+  isFullScreen,
+  onToggleFullScreen,
   onSearchChange,
   onRowClick,
   onExecuteAnalysis,
 }: AnalysisTableProps) {
   return (
-    <div className="open-day-main-card">
+    <div className={`open-day-main-card ${isFullScreen ? 'is-full-screen' : ''}`}>
       {statusMessage ? (
         <div className={`open-day-status-card ${isAnalyzing ? 'is-loading' : ''} ${qualityReport?.invalidRows ? 'has-issue' : ''}`}>
           <div className="flex items-center gap-2">
@@ -66,26 +70,37 @@ export function AnalysisTable({
       <div className="open-day-table-controls">
         <div className="open-day-search-bar">
           <Search size={18} />
-          <input
-            type="text"
-            placeholder="按楼盘名称搜索..."
-            value={searchTerm}
-            onChange={(e) => onSearchChange(e.target.value)}
-          />
-          {searchTerm && (
-            <button className="open-day-search-clear" onClick={() => onSearchChange('')}>
-              <X size={14} />
-            </button>
-          )}
+            <input
+              type="text"
+              placeholder="按名字搜索..."
+              value={searchTerm}
+              onChange={(e) => onSearchChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') onSearchChange('');
+              }}
+            />
+            {searchTerm && (
+              <button className="open-day-search-clear" onClick={() => onSearchChange('')}>
+                <X size={14} />
+              </button>
+            )}
         </div>
+
+        <button 
+          className="open-day-button open-day-button--secondary open-day-button--icon-only"
+          onClick={onToggleFullScreen}
+          title={isFullScreen ? '退出全屏' : '全屏模式'}
+        >
+          {isFullScreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
+        </button>
 
         <div className="open-day-hero-card__stats">
           <div>
-            <span>当前参数包</span>
+            <span>策略</span>
             <strong>{currentParameterLabel}</strong>
           </div>
           <div>
-            <span>当前公式</span>
+            <span>公式</span>
             <strong>{currentFormulaLabel}</strong>
           </div>
           <div>
@@ -104,17 +119,16 @@ export function AnalysisTable({
           <thead>
             <tr>
               <th>排名</th>
-              <th>大区</th>
               <th>小区</th>
               <th>综合分</th>
               <th>梯队</th>
               <th>状态</th>
-              <th>规模分</th>
-              <th>流量分</th>
-              <th>商品分</th>
-              <th>互动分</th>
-              <th>成交量</th>
-              <th>转化率</th>
+              <th>规模</th>
+              <th>流量</th>
+              <th>货品</th>
+              <th>交互</th>
+              <th>成交</th>
+              <th>转化</th>
             </tr>
           </thead>
           <tbody>
@@ -142,8 +156,12 @@ export function AnalysisTable({
                         #{row.rank}
                       </span>
                     </td>
-                    <td>{row.area || '—'}</td>
-                    <td>{row.name}</td>
+                    <td>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold">{row.name}</span>
+                        {row.area && <span className="text-[10px] text-[#6E6E73] opacity-70 uppercase tracking-wider">{row.area}</span>}
+                      </div>
+                    </td>
                     <td>{formatNumber(row.score, 1)}</td>
                     <td>
                       <div className="open-day-tier">

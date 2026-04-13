@@ -150,6 +150,12 @@
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.5);
   width: 100%;
+  max-height: 600px; /* Default height to prevent infinite stretching */
+  overflow-y: auto;
+}
+
+.is-full-screen .open-day-table-wrap {
+  max-height: calc(100vh - 200px); /* Fill most of the screen in full mode */
 }
 
 .open-day-table-wrap.is-stale {
@@ -226,6 +232,33 @@
   position: relative;
   z-index: 2;
   font-variant-numeric: tabular-nums;
+}
+
+.open-day-button--icon-only {
+  width: 46px;
+  padding: 0;
+  border-radius: 12px;
+}
+
+.open-day-main-card.is-full-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  margin: 0;
+  border-radius: 0;
+  background: rgba(248, 245, 241, 0.98);
+  backdrop-filter: blur(20px);
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+}
+
+.is-full-screen .open-day-table-wrap {
+  flex: 1;
+}
+
+.is-full-screen .open-day-table {
+  min-width: 1400px; /* Wider in full screen */
 }
 
 .open-day-data-bar__bg {

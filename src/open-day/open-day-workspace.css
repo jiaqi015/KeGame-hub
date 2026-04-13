@@ -191,19 +191,68 @@
   z-index: 100;
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  padding: 18px 20px;
+  align-items: center; /* Back to center for single-row feel */
+  margin-bottom: 12px;
+  padding: 10px 16px;
   border: 1px solid rgba(76, 58, 42, 0.08);
-  border-radius: 18px;
+  border-radius: 99px; /* Pill shape for slimness */
   background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(12px);
   box-shadow: var(--od-shadow-sm);
 }
 
-.open-day-workspace-header h2 {
-  font-size: 28px;
-  letter-spacing: -0.02em;
+.open-day-workspace-header__main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.open-day-workspace-header__title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.open-day-workspace-header__title-group h2 {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-bottom: 0;
+}
+
+.open-day-workspace-header__meta-sep {
+  width: 1px;
+  height: 14px;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.open-day-workspace-header__meta {
+  color: var(--od-text-muted);
+  font-size: 13px;
+}
+
+.open-day-workspace-header__actions {
+  display: flex;
+  flex-direction: row; /* Force single row for speed */
+  align-items: center;
+  gap: 8px;
+}
+
+.open-day-header-secondary-group {
+  display: flex;
+  gap: 8px;
+}
+
+.open-day-hidden-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
 }
 
 .open-day-workspace-layout {
@@ -221,9 +270,9 @@
 
 .open-day-main-card {
   width: 100%;
-  padding: 16px;
+  padding: 12px;
   border: 1px solid var(--od-border-color);
-  border-radius: 20px;
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.88);
   box-shadow: var(--od-shadow-md);
   box-sizing: border-box;

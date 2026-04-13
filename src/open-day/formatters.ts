@@ -3,13 +3,13 @@
  * Single source of truth — all components import from here.
  */
 
-export function formatNumber(value: number, digits = 1): string {
-  if (!Number.isFinite(value)) return '--';
+export function formatNumber(value: number | null | undefined, digits = 1): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return '--';
   return Number(value).toFixed(digits);
 }
 
-export function formatPercent(value: number, digits = 2): string {
-  if (!Number.isFinite(value)) return '--';
+export function formatPercent(value: number | null | undefined, digits = 2): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return '--';
   return `${(value * 100).toFixed(digits)}%`;
 }
 

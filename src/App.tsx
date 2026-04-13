@@ -227,29 +227,26 @@ export default function App() {
           onLogout={() => lockApplication('', '')}
         />
       ) : activeWorkspace === 'open-day' ? (
-        <div className="flex-1 overflow-hidden px-6 py-5">
+        <div className="flex-1 overflow-hidden px-6 py-3">
           <div className="mx-auto flex h-full w-full max-w-[1520px] flex-col gap-4">
-            <div className="flex flex-col gap-3 rounded-[32px] border border-white/70 bg-white/85 p-5 shadow-[0_24px_70px_rgba(20,20,43,0.08)] backdrop-blur-2xl md:flex-row md:items-center md:justify-between shrink-0">
-              <div>
+            <div className="flex items-center justify-between rounded-full border border-white/70 bg-white/85 py-2.5 px-6 shadow-[0_12px_40px_rgba(20,20,43,0.06)] backdrop-blur-2xl shrink-0">
+              <div className="flex items-center gap-6">
                 <button
                   onClick={handleReturnToHub}
-                  className="mb-3 inline-flex items-center gap-2 text-sm font-medium text-emerald-700 transition hover:text-emerald-800"
+                  className="inline-flex items-center gap-2 text-sm font-medium text-emerald-700 transition hover:text-emerald-800"
                 >
                   <ArrowLeft className="h-4 w-4" />
                   返回功能页
                 </button>
-                <h1 className="text-[28px] font-semibold tracking-[-0.04em] text-[#111111]">小区开放日选址</h1>
-                <p className="mt-2 text-sm leading-7 text-[#6E6E73]">
-                  上传楼盘表格后，系统会自动整理数据并完成测算，帮你更快筛出值得优先做开放日的项目。
-                </p>
+                <div className="h-4 w-[1px] bg-black/10" />
+                <h1 className="text-xl font-semibold tracking-[-0.02em] text-[#111111]">小区开放日选址</h1>
               </div>
 
               <button
                 onClick={() => lockApplication('', '')}
-                className="inline-flex items-center gap-2 self-start rounded-full border border-black/10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-[#5C5C60] transition hover:border-black/20 hover:text-[#1D1D1F] md:self-auto"
+                className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#5C5C60] transition hover:border-black/20 hover:text-[#1D1D1F]"
               >
-                <LogOut className="h-3.5 w-3.5" />
-                退出登录
+                注销
               </button>
             </div>
 
