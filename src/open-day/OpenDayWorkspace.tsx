@@ -838,119 +838,8 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
         <div className="open-day-workspace-layout">
           <aside className="open-day-sidebar">
             <div className="open-day-sidebar-card">
-              <section className="open-day-panel">
-                <div className="open-day-panel__head">
-                  <Database className="open-day-panel__icon" />
-                  <div>
-                    <h3>数据源</h3>
-                    <p>确认当前工作表和字段映射，保证测算口径稳定。</p>
-                  </div>
-                </div>
-
-                <div className="open-day-sidebar-stats">
-                  <div>
-                    <span>样本</span>
-                    <strong>{datasetDraft.rows.length}</strong>
-                  </div>
-                  <div>
-                    <span>字段</span>
-                    <strong>{datasetDraft.headers.length}</strong>
-                  </div>
-                  <div>
-                    <span>历史</span>
-                    <strong>{snapshots.length}</strong>
-                  </div>
-                </div>
-
-                {datasetDraft.workbookSheets.length > 0 ? (
-                  <label>
-                    <span>Excel Sheet</span>
-                    <select
-                      value={datasetDraft.activeSheet}
-                      onChange={(event) => {
-                        const nextSheet = event.target.value;
-                        setActiveSheet(nextSheet);
-                        if (!uploadedFile) {
-                          return;
-                        }
-
-                        void handleWorkbookUpload(uploadedFile, nextSheet).catch((error) => {
-                          setStatusMessage(error instanceof Error ? error.message : '切换工作表失败');
-                        });
-                      }}
-                    >
-                      {datasetDraft.workbookSheets.map((sheet) => (
-                        <option key={sheet} value={sheet}>
-                          {sheet}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : null}
-
-                <div className="open-day-upload-file">
-                  <div className="open-day-upload-file__name">{datasetDraft.sourceName || '未命名数据集'}</div>
-                  <div className="open-day-upload-file__meta">
-                    {datasetDraft.activeSheet ? `当前 Sheet：${datasetDraft.activeSheet}` : '数据已准备完成'}
-                  </div>
-                  <div className="open-day-upload-file__chips">
-                    {datasetDraft.headers.slice(0, 8).map((header) => (
-                      <span key={header}>{header}</span>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="open-day-mapping-grid">
-                  {[
-                    ['area', '大区（可选）'],
-                    ['name', '小区名称'],
-                    ['inventory', '在售套数'],
-                    ['traffic', '带看量'],
-                    ['transactions', '成交量'],
-                    ['premium', '好房数'],
-                  ].map(([key, label]) => (
-                    <label key={key}>
-                      <span>{label}</span>
-                      <select
-                        value={datasetDraft.mappings[key as keyof OpenDayFormMappings]}
-                        onChange={(event) => {
-                          const value = event.target.value;
-                          setMappings((current) => ({
-                            ...current,
-                            [key]: value,
-                          }));
-                          markDraftDirty('字段映射已更新，请点击测算。');
-                        }}
-                      >
-                        <option value="">{key === 'area' ? '不使用' : '请选择'}</option>
-                        {datasetDraft.headers.map((header) => (
-                          <option key={header} value={header}>
-                            {header}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  ))}
-                </div>
-
-                {missingMappings.length ? (
-                  <div className="open-day-inline-warning">还需确认：{missingMappings.join('、')}</div>
-                ) : (
-                  <div className="open-day-inline-success">字段已确认，点击“测算”后才会正式执行。</div>
-                )}
-
-                {uploadError ? <div className="open-day-inline-error">{uploadError}</div> : null}
-              </section>
-
-              <section className="open-day-panel">
-                <div className="open-day-panel__head">
-                  <Sparkles className="open-day-panel__icon" />
-                  <div>
-                    <h3>策略选择</h3>
-                    <p>参数包是默认打法，公式决定总分的组合方式。</p>
-                  </div>
-                </div>
-
+              <div className="open-day-sidebar-section">
+                <h3>策略选择</h3>
                 <div className="open-day-preset-grid">
                   {parameterPackages.map((preset) => (
                     <button
@@ -964,80 +853,10 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                     </button>
                   ))}
                 </div>
-              </section>
+              </div>
 
-              <section className="open-day-panel">
-                <div className="open-day-panel__head">
-                  <History className="open-day-panel__icon" />
-                  <div>
-                    <h3>方案保存</h3>
-                    <p>把当前公式、参数包和手动调整保存下来，便于复盘和回放。</p>
-                  </div>
-                </div>
-
-                <div className="open-day-scenario-form">
-                  <label>
-                    <span>方案名称</span>
-                    <input
-                      type="text"
-                      placeholder="例如：4月第一周主推盘"
-                      value={scenarioName}
-                      onChange={(event) => {
-                        setScenarioName(event.target.value);
-                        setScenarioMessage('');
-                      }}
-                    />
-                  </label>
-
-                  <button
-                    type="button"
-                    className="open-day-button open-day-button--secondary open-day-button--block"
-                    onClick={() => void handleSaveScenario()}
-                    disabled={isSavingScenario}
-                  >
-                    <span>{isSavingScenario ? '保存中...' : '保存方案'}</span>
-                  </button>
-                </div>
-
-                {scenarioMessage ? (
-                  <div className={scenarioMessage.includes('失败') || scenarioMessage.includes('未找到') ? 'open-day-inline-error' : 'open-day-inline-success'}>
-                    {scenarioMessage}
-                  </div>
-                ) : null}
-
-                <div className="open-day-scenario-grid">
-                  {scenarios.length ? (
-                    scenarios.map((scenario) => (
-                      <button
-                        key={scenario.id}
-                        type="button"
-                        className={`open-day-scenario-card ${activeScenarioTemplateId === scenario.id ? 'is-active' : ''}`}
-                        onClick={() => void handleLoadScenario(scenario.id)}
-                        disabled={isLoadingScenario === scenario.id}
-                      >
-                        <strong>{scenario.name}</strong>
-                        <span>{scenario.description || '已保存的开放日方案'}</span>
-                        <div className="open-day-scenario-card__meta">
-                          <span>{scenario.parameterPackageId || 'custom'}</span>
-                          <span>{formatDateTime(scenario.updatedAt)}</span>
-                        </div>
-                      </button>
-                    ))
-                  ) : (
-                    <div className="open-day-chart__placeholder">暂未保存方案。</div>
-                  )}
-                </div>
-              </section>
-
-              <section className="open-day-panel">
-                <div className="open-day-panel__head">
-                  <Settings2 className="open-day-panel__icon" />
-                  <div>
-                    <h3>参数调整</h3>
-                    <p>分位和数值联动只是编辑视图，最终喂给公式的永远是数字参数。</p>
-                  </div>
-                </div>
-
+              <div className="open-day-sidebar-section">
+                <h3>参数调整</h3>
                 <div className="open-day-params-grid">
                   <label>
                     <span>评分公式</span>
@@ -1178,7 +997,6 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                         <h4>{definition.title}</h4>
                         <span>{config.waterlineMode === 'percentile' ? '分位' : '固定值'}</span>
                       </div>
-                      <p>{definition.description}</p>
                       <div className="open-day-waterline-card__inputs">
                         <label>
                           <span>{definition.percentileLabel}</span>
@@ -1233,10 +1051,12 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                   ))}
                 </div>
 
-                <button type="button" className="open-day-button open-day-button--ghost open-day-button--block" onClick={handleRestoreDefaults}>
-                  恢复默认
-                </button>
-              </section>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+                  <button type="button" className="open-day-button open-day-button--ghost" onClick={handleRestoreDefaults}>
+                    恢复默认
+                  </button>
+                </div>
+              </div>
             </div>
           </aside>
 
@@ -1244,117 +1064,27 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
             <div className="open-day-main-card">
               {statusMessage ? <div className={`open-day-status-card ${isAnalyzing ? 'is-loading' : ''}`}>{statusMessage}</div> : null}
 
-              <div className="open-day-hero-card">
-                <div className="open-day-hero-card__copy">
-                  <h3>结果总览</h3>
-                  <p>
-                    当前参数包：{getParameterPackageLabel(activeParameterPackageId, parameterPackages)}
-                    {activeScenarioTemplateName ? `，当前方案：${activeScenarioTemplateName}` : ''}
-                    {analysis
-                      ? hasPendingChanges
-                        ? '，当前参数已变更，结果待重新测算。'
-                        : `，当前公式为 ${activeFormula.label}，已完成 ${analysis.meta.totalCount} 个小区测算。`
-                      : `，当前公式为 ${activeFormula.label}，等待测算结果。`}
-                  </p>
+              <div className="open-day-hero-card__stats">
+                <div>
+                  <span>当前参数包</span>
+                  <strong>{getParameterPackageLabel(activeParameterPackageId, parameterPackages)}</strong>
                 </div>
-                <div className="open-day-hero-card__stats">
-                  <div>
-                    <span>当前参数包</span>
-                    <strong>{getParameterPackageLabel(activeParameterPackageId, parameterPackages)}</strong>
-                  </div>
-                  <div>
-                    <span>当前公式</span>
-                    <strong>{activeFormula.label}</strong>
-                  </div>
-                  <div>
-                    <span>样本</span>
-                    <strong>{analysis?.meta.totalCount ?? datasetDraft.rows.length}</strong>
-                  </div>
-                  <div>
-                    <span>入围</span>
-                    <strong>{analysis ? `${analysis.meta.eligibleCount}/${analysis.meta.totalCount}` : '--'}</strong>
-                  </div>
+                <div>
+                  <span>当前公式</span>
+                  <strong>{activeFormula.label}</strong>
+                </div>
+                <div>
+                  <span>样本</span>
+                  <strong>{analysis?.meta.totalCount ?? datasetDraft.rows.length}</strong>
+                </div>
+                <div>
+                  <span>入围</span>
+                  <strong>{analysis ? `${analysis.meta.eligibleCount}/${analysis.meta.totalCount}` : '--'}</strong>
                 </div>
               </div>
 
-              <section className="open-day-analysis-grid">
-                <article className="open-day-analysis-card">
-                  <h4>头部小区</h4>
-                  <p>
-                    {topRows.length
-                      ? `${topRows.map((row) => row.name).join('、')} 当前位居前列，更适合优先推进开放日。`
-                      : '等待测算结果。'}
-                  </p>
-                </article>
-                <article className="open-day-analysis-card">
-                  <h4>流量观察</h4>
-                  <p>
-                    {trafficLeader
-                      ? `${trafficLeader.name} 带看量最高，排名第 ${trafficLeader.rank}，适合判断“声量高”是否真的值得重点做。`
-                      : '等待测算结果。'}
-                  </p>
-                </article>
-                <article className="open-day-analysis-card">
-                  <h4>红线过滤</h4>
-                  <p>
-                    {analysis
-                      ? analysis.results.length - eligibleRows.length > 0
-                        ? `${analysis.results.length - eligibleRows.length} 个小区未达标，已自动排除。`
-                        : '当前样本全部通过红线过滤。'
-                      : '等待测算结果。'}
-                  </p>
-                </article>
-                <article className="open-day-analysis-card">
-                  <h4>策略建议</h4>
-                  <p>
-                    {analysis && previousScenarioSnapshot
-                      ? `${activeScenarioTemplateName || '当前方案'} 上次冠军是 ${previousScenarioSnapshot.championName}（${formatNumber(previousScenarioSnapshot.championScore, 1)}），本次${previousScenarioDelta !== null && previousScenarioDelta >= 0 ? '提升' : '回落'} ${formatNumber(Math.abs(previousScenarioDelta || 0), 1)} 分。`
-                      : analysis
-                        ? opportunity
-                          ? `${opportunity.name} 互动质量突出，但规模尚未吃满，适合效率型开放日试点。`
-                          : `当前使用 ${getParameterPackageLabel(activeParameterPackageId, parameterPackages)}，可继续观察排名变化后再做调整。`
-                        : '等待测算结果。'}
-                  </p>
-                </article>
-              </section>
-
-              <section className="open-day-panel open-day-panel--flat">
-                <div className="open-day-panel__head">
-                  <BarChart3 className="open-day-panel__icon" />
-                  <div>
-                    <h3>Top 6 评分</h3>
-                  </div>
-                </div>
-
-                <div className="open-day-chart">
-                  {isAnalyzing ? (
-                    <div className="open-day-chart__placeholder">正在生成最新测算结果...</div>
-                  ) : analysis ? (
-                    chartRows.map((row) => (
-                      <div key={row.name} className="open-day-chart__row">
-                        <div className="open-day-chart__label">{row.name}</div>
-                        <div className="open-day-chart__track">
-                          <div className="open-day-chart__fill" style={{ width: `${row.score.toFixed(1)}%` }} />
-                        </div>
-                        <div className="open-day-chart__value">{row.score.toFixed(1)}</div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="open-day-chart__placeholder">{statusMessage}</div>
-                  )}
-                </div>
-              </section>
-
-              <section className="open-day-panel open-day-panel--flat">
-                <div className="open-day-panel__head">
-                  <Database className="open-day-panel__icon" />
-                  <div>
-                    <h3>完整排名</h3>
-                  </div>
-                </div>
-
-                <div className="open-day-table-wrap">
-                  <table className="open-day-table">
+              <div className="open-day-table-wrap">
+                <table className="open-day-table">
                     <thead>
                       <tr>
                         <th>排名</th>
@@ -1408,72 +1138,6 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                     </tbody>
                   </table>
                 </div>
-              </section>
-
-              <section className="open-day-panel open-day-panel--flat">
-                <div className="open-day-panel__head">
-                  <History className="open-day-panel__icon" />
-                  <div>
-                    <h3>最近测算</h3>
-                  </div>
-                  <div className="open-day-history-filter">
-                    <button
-                      type="button"
-                      className={`open-day-button open-day-button--ghost ${!showScenarioSnapshotsOnly ? 'is-selected' : ''}`}
-                      onClick={() => setShowScenarioSnapshotsOnly(false)}
-                    >
-                      全部历史
-                    </button>
-                    <button
-                      type="button"
-                      className={`open-day-button open-day-button--ghost ${showScenarioSnapshotsOnly ? 'is-selected' : ''}`}
-                      onClick={() => setShowScenarioSnapshotsOnly((current) => !current)}
-                      disabled={!activeScenarioTemplateId}
-                    >
-                      当前方案
-                    </button>
-                  </div>
-                </div>
-
-                <div className="open-day-history-grid">
-                  {displayedSnapshots.length ? (
-                    displayedSnapshots.map((snapshot) => (
-                      <article
-                        key={snapshot.id}
-                        className={`open-day-history-card ${analysis?.meta.snapshotId === snapshot.id ? 'is-active' : ''}`}
-                      >
-                        <div className="open-day-history-card__head">
-                          <div>
-                            <h4>{snapshot.sourceName || '未命名数据集'}</h4>
-                            <p>{formatDateTime(snapshot.createdAt)}</p>
-                          </div>
-                          <span>{snapshot.championName}</span>
-                        </div>
-                        <p>冠军盘 {snapshot.championName}，综合分 {formatNumber(snapshot.championScore, 1)}。</p>
-                        <div className="open-day-history-card__meta">
-                          <span>{snapshot.eligibleCount}/{snapshot.totalCount}</span>
-                          <span>{snapshot.scenarioTemplateName || snapshot.parameterPackageId || snapshot.presetId || 'custom'}</span>
-                          <span>{snapshot.waterlineSource}</span>
-                        </div>
-                        <div className="open-day-history-card__actions">
-                          <button
-                            type="button"
-                            className="open-day-button open-day-button--ghost"
-                            onClick={() => void handleReplaySnapshot(snapshot.id)}
-                            disabled={replayingSnapshotId === snapshot.id}
-                          >
-                            {replayingSnapshotId === snapshot.id ? '回放中...' : '回放结果'}
-                          </button>
-                        </div>
-                      </article>
-                    ))
-                  ) : (
-                    <div className="open-day-chart__placeholder">
-                      {showScenarioSnapshotsOnly && activeScenarioTemplateId ? '当前方案还没有历史快照。' : '暂未生成快照。'}
-                    </div>
-                  )}
-                </div>
-              </section>
             </div>
           </main>
         </div>
