@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -9,9 +9,11 @@ import type {
   OpenDayAnalysisResponse,
   OpenDayAnalysisSnapshotSummary,
   OpenDayConfig,
+  OpenDayFormulaDefinition,
   OpenDayParameterKey,
-  OpenDayPreset,
+  OpenDayParameterPackage,
   OpenDayRawRow,
+  OpenDayScenarioDraft,
   OpenDayScenarioTemplateSummary,
 } from '../../modules/open-day/domain/openDay.types.ts';
 import { normalizeOpenDayRows } from '../../modules/open-day/domain/openDayDatasetNormalizer.js';
@@ -19,6 +21,7 @@ import {
   deriveOpenDayPercentileForValue,
   resolveOpenDayWaterlineContext,
 } from '../../modules/open-day/domain/openDayParameterResolver.js';
+import { resolveOpenDayScenarioDraft } from '../../modules/open-day/application/openDayScenarioDraft.js';
 import {
   fetchOpenDayAnalysis,
   fetchOpenDayCatalog,
@@ -56,6 +59,16 @@ interface WaterlineDefinition {
   absoluteLabel: string;
   absoluteStep: string;
   unit: string;
+}
+
+interface OpenDayDatasetDraft {
+  headers: string[];
+  rows: OpenDayRawRow[];
+  mappings: OpenDayFormMappings;
+  sourceName: string;
+  sourceUploadId: string;
+  workbookSheets: string[];
+  activeSheet: string;
 }
 
 const waterlineDefinitions: WaterlineDefinition[] = [
@@ -127,8 +140,13 @@ function formatDateTime(value: string) {
   }).format(date);
 }
 
-function getPresetLabel(activePresetId: string, presets: OpenDayPreset[]) {
-  return presets.find((preset) => preset.id === activePresetId)?.label || (activePresetId === 'custom' ? '自定义参数' : '自动巡航');
+function getParameterPackageLabel(activeParameterPackageId: string, parameterPackages: OpenDayParameterPackage[]) {
+  return parameterPackages.find((parameterPackage) => parameterPackage.id === activeParameterPackageId)?.label
+    || (activeParameterPackageId === 'custom' ? '自定义参数' : '自动巡航');
+}
+
+function getFormulaLabel(formulaId: string, formulas: OpenDayFormulaDefinition[]) {
+  return formulas.find((formula) => formula.id === formulaId)?.label || '默认公式';
 }
 
 function buildUploadSummary(sourceName: string, rowCount: number, headers: string[]) {
@@ -139,8 +157,15 @@ function buildUploadSummary(sourceName: string, rowCount: number, headers: strin
   return `已载入 ${sourceName}，共 ${rowCount} 行，识别到 ${headers.length} 个字段。下一步可以调整策略并查看结果。`;
 }
 
-function buildScenarioDraftName(sourceName: string, activePresetId: string, presets: OpenDayPreset[]) {
-  const label = getPresetLabel(activePresetId, presets);
+function buildScenarioDraftName(
+  sourceName: string,
+  scenarioDraft: OpenDayScenarioDraft,
+  parameterPackages: OpenDayParameterPackage[],
+  formulas: OpenDayFormulaDefinition[],
+) {
+  const label = scenarioDraft.parameterPackageId
+    ? getParameterPackageLabel(scenarioDraft.parameterPackageId, parameterPackages)
+    : getFormulaLabel(scenarioDraft.formulaId, formulas);
   const baseName = sourceName ? sourceName.split('/')[0].trim() : '开放日方案';
   const timestamp = new Intl.DateTimeFormat('zh-CN', {
     month: '2-digit',
@@ -190,7 +215,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
   const [activeSheet, setActiveSheet] = useState('');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [mappings, setMappings] = useState<OpenDayFormMappings>(createEmptyMappings());
-  const [activePresetId, setActivePresetId] = useState('auto');
+  const [activeParameterPackageId, setActiveParameterPackageId] = useState('auto');
   const [analysis, setAnalysis] = useState<OpenDayAnalysisResponse | null>(null);
   const [snapshots, setSnapshots] = useState<OpenDayAnalysisSnapshotSummary[]>([]);
   const [scenarioSnapshots, setScenarioSnapshots] = useState<OpenDayAnalysisSnapshotSummary[]>([]);
@@ -211,11 +236,36 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
   const [showScenarioSnapshotsOnly, setShowScenarioSnapshotsOnly] = useState(false);
   const requestVersionRef = useRef(0);
 
-  const presets = catalog.parameterPackages.length ? catalog.parameterPackages : catalog.presets;
+  const parameterPackages = catalog.parameterPackages.length ? catalog.parameterPackages : catalog.presets;
+  const datasetDraft = useMemo<OpenDayDatasetDraft>(
+    () => ({
+      headers,
+      rows,
+      mappings,
+      sourceName,
+      sourceUploadId,
+      workbookSheets,
+      activeSheet,
+    }),
+    [headers, rows, mappings, sourceName, sourceUploadId, workbookSheets, activeSheet],
+  );
+  const scenarioDraft = useMemo(
+    () =>
+      resolveOpenDayScenarioDraft({
+        scenario: {
+          formulaId: config.formulaId,
+          parameterPackageId: activeParameterPackageId === 'custom' ? null : activeParameterPackageId,
+          config,
+        },
+        activeParameterPackageId: activeParameterPackageId === 'custom' ? '' : activeParameterPackageId,
+      }),
+    [activeParameterPackageId, config],
+  );
   const missingMappings = getMissingMappings(mappings);
-  const normalizedPreviewRows = rows.length && missingMappings.length === 0 ? normalizeOpenDayRows(rows, mappings) : [];
+  const normalizedPreviewRows =
+    datasetDraft.rows.length && missingMappings.length === 0 ? normalizeOpenDayRows(datasetDraft.rows, datasetDraft.mappings) : [];
   const waterlinePreview =
-    normalizedPreviewRows.length > 0 ? resolveOpenDayWaterlineContext(normalizedPreviewRows, config) : null;
+    normalizedPreviewRows.length > 0 ? resolveOpenDayWaterlineContext(normalizedPreviewRows, scenarioDraft.config) : null;
   const eligibleRows = analysis?.results.filter((row) => row.isEligible) || [];
   const topRows = (eligibleRows.length ? eligibleRows : analysis?.results || []).slice(0, 3);
   const chartRows = (eligibleRows.length ? eligibleRows : analysis?.results || []).slice(0, 6);
@@ -310,7 +360,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
         setSnapshots(nextSnapshots.items);
         setScenarioSnapshots([]);
         setScenarios(nextScenarios.items);
-        setActivePresetId('auto');
+        setActiveParameterPackageId('auto');
         setHasPendingChanges(false);
         setCatalogMessage('');
       } catch (error) {
@@ -403,9 +453,9 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
   }
 
   function handleApplyPreset(presetId: string) {
-    const preset = presets.find((item) => item.id === presetId);
-    setConfig(cloneConfig(preset?.resolvedConfig || mergeConfig(catalog.defaultConfig, preset?.overrides)));
-    setActivePresetId(preset?.id || 'auto');
+    const parameterPackage = parameterPackages.find((item) => item.id === presetId);
+    setConfig(cloneConfig(parameterPackage?.resolvedConfig || mergeConfig(catalog.defaultConfig, parameterPackage?.overrides)));
+    setActiveParameterPackageId(parameterPackage?.id || 'auto');
     setActiveScenarioTemplateId('');
     setActiveScenarioTemplateName('');
     setShowScenarioSnapshotsOnly(false);
@@ -414,7 +464,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
 
   function handleRestoreDefaults() {
     setConfig(cloneConfig(catalog.defaultConfig));
-    setActivePresetId('auto');
+    setActiveParameterPackageId('auto');
     setActiveScenarioTemplateId('');
     setActiveScenarioTemplateName('');
     setShowScenarioSnapshotsOnly(false);
@@ -422,21 +472,17 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
   }
 
   async function handleSaveScenario() {
-    const name = scenarioName.trim() || buildScenarioDraftName(sourceName, activePresetId, presets);
+    const name = scenarioName.trim() || buildScenarioDraftName(datasetDraft.sourceName, scenarioDraft, parameterPackages, catalog.formulas);
     setIsSavingScenario(true);
     setScenarioMessage('');
 
     try {
       const record = await saveOpenDayScenario(activationKey, {
         name,
-        description: sourceName ? `来源：${sourceName}` : '',
-        scenario: {
-          formulaId: config.formulaId,
-          parameterPackageId: activePresetId === 'custom' ? null : activePresetId,
-          config,
-        },
-        activePresetId,
-        activeParameterPackageId: activePresetId === 'custom' ? '' : activePresetId,
+        description: datasetDraft.sourceName ? `来源：${datasetDraft.sourceName}` : '',
+        scenario: scenarioDraft,
+        activePresetId: activeParameterPackageId,
+        activeParameterPackageId: scenarioDraft.parameterPackageId || '',
       });
 
       setActiveScenarioTemplateId(record.summary.id);
@@ -459,7 +505,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     try {
       const record = await fetchOpenDayScenarioDetail(activationKey, id);
       setConfig(cloneConfig(record.scenario.config));
-      setActivePresetId(record.scenario.parameterPackageId || 'custom');
+      setActiveParameterPackageId(record.scenario.parameterPackageId || 'custom');
       setActiveScenarioTemplateId(record.summary.id);
       setActiveScenarioTemplateName(record.summary.name);
       setScenarioName(record.summary.name);
@@ -490,28 +536,30 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
         premium: record.command.mappings.premium || '',
       };
       const restoredRows = Array.isArray(record.command.rows) ? record.command.rows : [];
+      const restoredScenario = record.response.meta.scenario || resolveOpenDayScenarioDraft(record.command);
       const restoredScenarioTemplateId = record.command.activeScenarioTemplateId || record.summary.scenarioTemplateId || '';
-      const restoredScenarioTemplateName =
-        record.command.activeScenarioTemplateName || record.summary.scenarioTemplateName || '';
-      const restoredPresetId =
-        record.command.activeParameterPackageId || record.command.activePresetId || record.summary.parameterPackageId || 'custom';
+      const restoredScenarioTemplateName = record.command.activeScenarioTemplateName || record.summary.scenarioTemplateName || '';
+      const restoredParameterPackageId = restoredScenario.parameterPackageId || 'custom';
       const restoredSourceName = record.command.sourceName || record.summary.sourceName || '未命名数据集';
 
       setStage('workspace');
       setRows(restoredRows);
       setMappings(restoredMappings);
       setHeaders(extractHeadersFromRows(restoredRows, restoredMappings));
-      setConfig(cloneConfig(record.response.meta.requestedConfig));
+      setConfig(cloneConfig(restoredScenario.config));
       setSourceName(restoredSourceName);
       setSourceUploadId(record.command.sourceUploadId || record.summary.sourceUploadId || '');
       setWorkbookSheets([]);
       setActiveSheet('');
       setUploadedFile(null);
       setAnalysis(record.response);
-      setActivePresetId(restoredPresetId);
+      setActiveParameterPackageId(restoredParameterPackageId);
       setActiveScenarioTemplateId(restoredScenarioTemplateId);
       setActiveScenarioTemplateName(restoredScenarioTemplateName);
-      setScenarioName(restoredScenarioTemplateName || buildScenarioDraftName(restoredSourceName, restoredPresetId, presets));
+      setScenarioName(
+        restoredScenarioTemplateName
+          || buildScenarioDraftName(restoredSourceName, restoredScenario, parameterPackages, catalog.formulas),
+      );
       setHasPendingChanges(false);
       setShowScenarioSnapshotsOnly(Boolean(restoredScenarioTemplateId));
       setStatusMessage(`已回放 ${formatDateTime(record.summary.createdAt)} 的测算结果。`);
@@ -535,7 +583,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
       mutator(next);
       return next;
     });
-    setActivePresetId('custom');
+    setActiveParameterPackageId('custom');
     setActiveScenarioTemplateId('');
     setActiveScenarioTemplateName('');
     setShowScenarioSnapshotsOnly(false);
@@ -567,15 +615,15 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
 
     try {
       const payload = await fetchOpenDayAnalysis(activationKey, {
-        rows,
-        mappings,
-        config,
-        sourceName,
-        sourceUploadId,
+        rows: datasetDraft.rows,
+        mappings: datasetDraft.mappings,
+        scenario: scenarioDraft,
+        sourceName: datasetDraft.sourceName,
+        sourceUploadId: datasetDraft.sourceUploadId,
         activeScenarioTemplateId,
         activeScenarioTemplateName,
-        activePresetId,
-        activeParameterPackageId: activePresetId,
+        activePresetId: activeParameterPackageId,
+        activeParameterPackageId: scenarioDraft.parameterPackageId || '',
       });
 
       if (requestVersionRef.current !== currentVersion) {
@@ -762,11 +810,11 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                 </div>
 
               <div className="open-day-preset-grid">
-                {presets.map((preset) => (
+                {parameterPackages.map((preset) => (
                   <button
                     key={preset.id}
                     type="button"
-                    className={`open-day-preset-card ${activePresetId === preset.id ? 'is-active' : ''}`}
+                    className={`open-day-preset-card ${activeParameterPackageId === preset.id ? 'is-active' : ''}`}
                     onClick={() => handleApplyPreset(preset.id)}
                   >
                     <strong>{preset.label}</strong>
@@ -975,11 +1023,11 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
               <div className="open-day-hero-card__stats">
                 <div>
                   <span>当前策略</span>
-                  <strong>{getPresetLabel(activePresetId, presets)}</strong>
+                  <strong>{getParameterPackageLabel(activeParameterPackageId, parameterPackages)}</strong>
                 </div>
                 <div>
                   <span>样本</span>
-                  <strong>{analysis?.meta.totalCount ?? rows.length}</strong>
+                  <strong>{analysis?.meta.totalCount ?? datasetDraft.rows.length}</strong>
                 </div>
                 <div>
                   <span>入围</span>
