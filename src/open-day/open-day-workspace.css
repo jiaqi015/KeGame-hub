@@ -118,9 +118,11 @@
 }
 
 .open-day-upload-card__head p {
-  margin-top: 4px;
+  margin-top: 8px;
   font-size: 13px;
   color: #4a433a;
+  max-width: 700px;
+  line-height: 1.7;
 }
 
 .open-day-upload-actions,
@@ -267,6 +269,62 @@
   color: #75695d;
 }
 
+.open-day-upload-drop-area {
+  min-height: 280px;
+  border: 2px dashed rgba(76, 58, 42, 0.16);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: 180ms ease;
+}
+
+.open-day-upload-drop-area:hover {
+  border-color: rgba(191, 98, 59, 0.35);
+  background: rgba(191, 98, 59, 0.04);
+}
+
+.open-day-upload-empty {
+  text-align: center;
+}
+
+.open-day-upload-empty .open-day-upload-empty__icon {
+  width: 48px;
+  height: 48px;
+  color: rgba(76, 58, 42, 0.3);
+  margin-bottom: 16px;
+}
+
+.open-day-upload-empty strong {
+  display: block;
+  font-size: 20px;
+  margin-bottom: 8px;
+  color: #1f1b17;
+}
+
+.open-day-upload-empty p {
+  margin: 0;
+  font-size: 13px;
+  color: #6b6156;
+}
+
+.open-day-upload-drop-area:not(:has(.open-day-upload-empty)) {
+  min-height: auto;
+  padding: 16px 0;
+  border-style: solid;
+  border-color: rgba(76, 58, 42, 0.08);
+  background: transparent;
+  cursor: default;
+}
+
+.open-day-upload-drop-area:not(:has(.open-day-upload-empty)):hover {
+  border-color: rgba(76, 58, 42, 0.12);
+  background: rgba(255, 255, 255, 0.3);
+}
+
 .open-day-upload-stats strong,
 .open-day-sidebar-stats strong,
 .open-day-hero-card__stats strong {
@@ -372,9 +430,36 @@
   color: #6b6156;
 }
 
+.open-day-upload-empty p {
+  max-width: 360px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
 .open-day-upload-empty__icon {
   width: 28px;
   height: 28px;
+}
+
+.open-day-upload-drop-area {
+  display: grid;
+  gap: 14px;
+  min-height: 320px;
+  padding: 18px;
+  border-radius: 22px;
+  border: 1px dashed rgba(76, 58, 42, 0.16);
+  background:
+    radial-gradient(circle at top right, rgba(191, 98, 59, 0.08), transparent 30%),
+    rgba(252, 249, 245, 0.74);
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.open-day-upload-drop-area:hover {
+  border-color: rgba(191, 98, 59, 0.28);
+  background:
+    radial-gradient(circle at top right, rgba(191, 98, 59, 0.12), transparent 32%),
+    rgba(255, 255, 255, 0.82);
+  transform: translateY(-1px);
 }
 
 .open-day-workspace-header {
@@ -392,6 +477,12 @@
 
 .open-day-workspace-header h2 {
   font-size: 28px;
+}
+
+.open-day-workspace-header__main p {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #6b6156;
 }
 
 .open-day-workspace-layout {
@@ -416,6 +507,15 @@
   align-items: start;
 }
 
+.open-day-sidebar-card > .open-day-panel {
+  padding: 18px;
+  border: 1px solid rgba(76, 58, 42, 0.08);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(250, 246, 241, 0.84));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
 .open-day-main-card {
   width: 100%;
   padding: 18px;
@@ -425,6 +525,17 @@
   box-shadow: 0 8px 22px rgba(69, 45, 20, 0.06);
   display: grid;
   gap: 18px;
+}
+
+.open-day-main-card > .open-day-panel--flat,
+.open-day-analysis-card,
+.open-day-history-card {
+  padding: 18px;
+  border: 1px solid rgba(76, 58, 42, 0.08);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(251, 247, 242, 0.86));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
 }
 
 .open-day-panel,
@@ -480,6 +591,11 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+}
+
+.open-day-scenario-form {
+  display: grid;
+  gap: 12px;
 }
 
 .open-day-params-grid {
@@ -574,6 +690,8 @@
 .open-day-hero-card__copy p {
   margin-top: 12px;
   margin-bottom: 12px;
+  color: #6b6156;
+  line-height: 1.75;
 }
 
 .open-day-hero-card__stats {
@@ -603,6 +721,7 @@
 
 .open-day-analysis-card p {
   margin-top: 8px;
+  color: #6b6156;
 }
 
 .open-day-chart {
@@ -797,6 +916,10 @@
   margin-top: 14px;
 }
 
+.open-day-history-card p {
+  margin-top: 10px;
+}
+
 @media (max-width: 1280px) {
   .open-day-workspace-layout,
   .open-day-hero-card,
@@ -807,6 +930,15 @@
 
   .open-day-sidebar {
     position: static;
+  }
+
+  .open-day-sidebar-card {
+    grid-template-columns: 1fr;
+  }
+
+  .open-day-params-grid,
+  .open-day-waterline-grid {
+    grid-template-columns: 1fr 1fr;
   }
 }
 
@@ -828,7 +960,11 @@
   .open-day-waterline-card__inputs,
   .open-day-upload-stats,
   .open-day-sidebar-stats,
-  .open-day-hero-card__stats {
+  .open-day-hero-card__stats,
+  .open-day-params-grid,
+  .open-day-waterline-grid,
+  .open-day-preset-grid,
+  .open-day-mapping-grid {
     grid-template-columns: 1fr;
     flex-direction: column;
     align-items: stretch;
