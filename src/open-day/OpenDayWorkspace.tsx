@@ -763,12 +763,13 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
 
         <div className="open-day-workspace-layout">
           <aside className="open-day-sidebar">
-            <section className="open-day-panel">
-              <div className="open-day-panel__head">
-                <div>
-                  <h3>策略选择</h3>
+            <div className="open-day-sidebar-card">
+              <section className="open-day-panel">
+                <div className="open-day-panel__head">
+                  <div>
+                    <h3>策略选择</h3>
+                  </div>
                 </div>
-              </div>
 
               <div className="open-day-preset-grid">
                 {presets.map((preset) => (
@@ -973,9 +974,11 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                 恢复默认
               </button>
             </section>
+            </div>
           </aside>
 
           <main className="open-day-main">
+            <div className="open-day-main-card">
             {statusMessage ? <div className={`open-day-status-card ${isAnalyzing ? 'is-loading' : ''}`}>{statusMessage}</div> : null}
 
             <section className="open-day-hero-card">
@@ -1070,10 +1073,10 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                       </tr>
                     )}
                   </tbody>
-                </table>
-              </div>
-            </section>
-
+              </table>
+            </div>
+          </section>
+            </div>
           </main>
         </div>
       </div>

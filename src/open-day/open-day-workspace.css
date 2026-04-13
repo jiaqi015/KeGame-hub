@@ -381,44 +381,63 @@
 }
 
 .open-day-workspace-layout {
-  display: grid;
-  grid-template-columns: 420px minmax(0, 1fr);
-  gap: 20px;
-  align-items: start;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
 .open-day-sidebar {
-  position: sticky;
-  top: 16px;
+  width: 100%;
+}
+
+.open-day-sidebar-card {
+  padding: 18px;
+  border: 1px solid rgba(76, 58, 42, 0.12);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 8px 22px rgba(69, 45, 20, 0.06);
   display: grid;
-  gap: 12px;
+  grid-template-columns: 1fr 2fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.open-day-main-card {
+  width: 100%;
+  padding: 18px;
+  border: 1px solid rgba(76, 58, 42, 0.12);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 8px 22px rgba(69, 45, 20, 0.06);
+  display: grid;
+  gap: 18px;
 }
 
 .open-day-panel,
 .open-day-hero-card,
 .open-day-analysis-card,
 .open-day-recent-card {
-  padding: 16px;
-  border: 1px solid rgba(76, 58, 42, 0.12);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 8px 22px rgba(69, 45, 20, 0.06);
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .open-day-panel {
-  padding: 16px;
-  border: 1px solid rgba(76, 58, 42, 0.12);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 8px 22px rgba(69, 45, 20, 0.06);
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .open-day-panel--flat {
-  padding: 16px;
-  border: 1px solid rgba(76, 58, 42, 0.12);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 8px 22px rgba(69, 45, 20, 0.06);
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .open-day-main {
