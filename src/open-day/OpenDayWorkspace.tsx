@@ -80,7 +80,7 @@ interface OpenDayDatasetDraft {
 const waterlineDefinitions: WaterlineDefinition[] = [
   {
     key: 'I_cap',
-    title: '规模水位线',
+    title: '动员规模基准',
     description: '在售规模达到这个刻度后，视为开放日场域动员饱和。',
     percentileLabel: '规模分位',
     absoluteLabel: '满分套数',
@@ -89,7 +89,7 @@ const waterlineDefinitions: WaterlineDefinition[] = [
   },
   {
     key: 'V_cap',
-    title: '流量水位线',
+    title: '带看漏斗基准',
     description: '带看达到标杆后视为人气饱和，再高主要靠 Alpha 做平滑。',
     percentileLabel: '流量分位',
     absoluteLabel: '标杆带看',
@@ -98,7 +98,7 @@ const waterlineDefinitions: WaterlineDefinition[] = [
   },
   {
     key: 'H_cap',
-    title: '商品水位线',
+    title: '优质货品基准',
     description: '好房达到这个刻度后，单场活动已具备横向对比的货品密度。',
     percentileLabel: '商品分位',
     absoluteLabel: '好房套数',
@@ -107,7 +107,7 @@ const waterlineDefinitions: WaterlineDefinition[] = [
   },
   {
     key: 'R_cap',
-    title: '互动水位线',
+    title: '成交转化基准',
     description: '按成交量 / 带看量计算的互动质量健康线，用来衡量逼定氛围。',
     percentileLabel: '互动分位',
     absoluteLabel: '健康转化率',
@@ -341,7 +341,8 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
   }
 
   function markDraftDirty(message = '参数已更新，请点击重新测算。') {
-    setAnalysis(null);
+    // 之前会直接 setAnalysis(null) 导致表格瞬间变空，用户体验不好。
+    // 现在保留旧结果，但通过 hasPendingChanges 给予视觉反馈。
     setHasPendingChanges(true);
     if (stage === 'workspace') {
       setStatusMessage(message);
@@ -766,7 +767,8 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                         <button
                           type="button"
                           className="open-day-button open-day-button--primary"
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setStage('workspace');
                             setHasPendingChanges(true);
                             setStatusMessage('参数准备完成，请点击重新测算。');
@@ -855,7 +857,11 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
           </div>
           <div className="open-day-formula-bar__math">
             <code>
-              Score = 25 × (Scale + Traffic<sup>{config.alpha}</sup> + Product × {config.weights.product} + Interaction × {config.weights.interaction})
+              {scenarioDraft.formulaId === 'weighted_catalyst_v1' ? (
+                <>Score = (Scale × Traffic) × (Product × {config.weights.product} + Interaction × {config.weights.interaction}) × 100</>
+              ) : (
+                <>Score = √(Scale × Traffic) × Product × ({config.weights.product} + Interaction × {config.weights.interaction}) × 100</>
+              )}
             </code>
           </div>
         </div>
@@ -906,7 +912,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                     </select>
                   </label>
                   <label>
-                    <span>流量 Alpha</span>
+                    <span>带看敏感度</span>
                     <input
                       type="number"
                       min="0"
@@ -998,7 +1004,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                 </div>
 
                 <div className="open-day-sidebar-section">
-                <h3>3. 水位线 (满分刻度)</h3>
+                <h3>3. 测算基准线</h3>
                 <table className="open-day-waterline-table">
                   <thead>
                     <tr>
@@ -1010,7 +1016,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                   <tbody>
                     {waterlineDefinitions.map((definition) => (
                       <tr key={definition.key}>
-                        <td>{definition.title.replace('水位线', '')}</td>
+                        <td>{definition.title.replace('基准', '')}</td>
                         <td>
                           <input
                             type="number"
@@ -1035,7 +1041,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                             type="number"
                             min="0"
                             step={definition.absoluteStep}
-                            value={getDisplayedWaterlineValue(definition.key)}
+                            value={Number(getDisplayedWaterlineValue(definition.key)).toFixed(definition.absoluteStep.includes('.') ? definition.absoluteStep.split('.')[1].length : 0)}
                             disabled={config.waterlineMode === 'percentile'}
                             onChange={(event) => {
                               const nextValue = Math.max(0, Number(event.target.value) || 0);
@@ -1076,7 +1082,21 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
 
           <main className="open-day-main">
             <div className="open-day-main-card">
-              {statusMessage ? <div className={`open-day-status-card ${isAnalyzing ? 'is-loading' : ''}`}>{statusMessage}</div> : null}
+              {statusMessage ? (
+                <div className={`open-day-status-card ${isAnalyzing ? 'is-loading' : ''}`}>
+                  <span>{statusMessage}</span>
+                  {hasPendingChanges && !isAnalyzing && stage === 'workspace' && (
+                    <button
+                      type="button"
+                      className="open-day-button open-day-button--primary open-day-button--sm"
+                      onClick={() => void executeAnalysis()}
+                      style={{ marginLeft: 'auto' }}
+                    >
+                      立即测算
+                    </button>
+                  )}
+                </div>
+              ) : null}
 
               <div className="open-day-hero-card__stats">
                 <div>
@@ -1097,7 +1117,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                 </div>
               </div>
 
-              <div className="open-day-table-wrap">
+              <div className={`open-day-table-wrap ${hasPendingChanges ? 'is-stale' : ''}`}>
                 <table className="open-day-table">
                     <thead>
                       <tr>
@@ -1105,8 +1125,8 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                         <th>大区</th>
                         <th>小区</th>
                         <th>综合分</th>
-                        <th>分层</th>
-                        <th>入围</th>
+                        <th>梯队</th>
+                        <th>状态</th>
                         <th>规模分</th>
                         <th>流量分</th>
                         <th>商品分</th>
@@ -1134,10 +1154,30 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                                 {row.isEligible ? '达标' : '未达标'}
                               </span>
                             </td>
-                            <td>{formatNumber(row.scaleIdx, 1)}</td>
-                            <td>{formatNumber(row.trafficIdx, 1)}</td>
-                            <td>{formatNumber(row.productIdx, 1)}</td>
-                            <td>{formatNumber(row.interactionIdx, 1)}</td>
+                            <td>
+                              <div className="open-day-data-bar">
+                                <div className="open-day-data-bar__bg" style={{ width: `${Math.min(100, Math.max(0, row.scaleIdx))}%` }} />
+                                <span className="open-day-data-bar__value">{formatNumber(row.scaleIdx, 1)}</span>
+                              </div>
+                            </td>
+                            <td>
+                              <div className="open-day-data-bar">
+                                <div className="open-day-data-bar__bg" style={{ width: `${Math.min(100, Math.max(0, row.trafficIdx))}%` }} />
+                                <span className="open-day-data-bar__value">{formatNumber(row.trafficIdx, 1)}</span>
+                              </div>
+                            </td>
+                            <td>
+                              <div className="open-day-data-bar">
+                                <div className="open-day-data-bar__bg" style={{ width: `${Math.min(100, Math.max(0, row.productIdx))}%` }} />
+                                <span className="open-day-data-bar__value">{formatNumber(row.productIdx, 1)}</span>
+                              </div>
+                            </td>
+                            <td>
+                              <div className="open-day-data-bar">
+                                <div className="open-day-data-bar__bg" style={{ width: `${Math.min(100, Math.max(0, row.interactionIdx))}%` }} />
+                                <span className="open-day-data-bar__value">{formatNumber(row.interactionIdx, 1)}</span>
+                              </div>
+                            </td>
                             <td>{formatNumber(row.transactions, 0)}</td>
                             <td>{formatPercent(row.convRate, 2)}</td>
                           </tr>
@@ -1145,7 +1185,17 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                       ) : (
                         <tr>
                           <td colSpan={12} className="open-day-table__empty">
-                            {isBootstrapping ? '正在初始化工作台...' : statusMessage}
+                            {isBootstrapping ? (
+                              <div className="open-day-table-empty-state">
+                                <RefreshCcw size={48} className="animate-spin" />
+                                <p>正在初始化工作台...</p>
+                              </div>
+                            ) : (
+                              <div className="open-day-table-empty-state">
+                                <BarChart3 size={48} />
+                                <p>{statusMessage}</p>
+                              </div>
+                            )}
                           </td>
                         </tr>
                       )}

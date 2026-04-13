@@ -9,6 +9,13 @@ export interface OpenDayWeights {
   interaction: number;
 }
 
+export interface OpenDayTierThresholds {
+  s: number;
+  a: number;
+  b: number;
+  c: number;
+}
+
 export interface OpenDayPercentiles {
   I_cap: number;
   V_cap: number;
@@ -38,6 +45,7 @@ export interface OpenDayConfig {
   absolutes: OpenDayAbsolutes;
   waterlineOverrides?: Partial<OpenDayAbsolutes>;
   hardFilters: OpenDayHardFilters;
+  tierThresholds: OpenDayTierThresholds;
 }
 
 export interface OpenDayScenarioDraft {

@@ -50,6 +50,12 @@ export const fallbackOpenDayConfig: OpenDayConfig = {
     min_hq_rooms: 2,
     min_transaction: 1,
   },
+  tierThresholds: {
+    s: 65,
+    a: 50,
+    b: 35,
+    c: 20,
+  },
 };
 
 function clone<T>(value: T): T {

@@ -1,4 +1,6 @@
-export function resolveOpenDayTier(score: number, isEligible: boolean) {
+import type { OpenDayTierThresholds } from './openDay.types.js';
+
+export function resolveOpenDayTier(score: number, isEligible: boolean, thresholds: OpenDayTierThresholds) {
   if (!isEligible) {
     return {
       code: 'D' as const,
@@ -6,19 +8,19 @@ export function resolveOpenDayTier(score: number, isEligible: boolean) {
     };
   }
 
-  if (score > 65) {
+  if (score >= thresholds.s) {
     return { code: 'S' as const, label: 'S级(王牌)' };
   }
 
-  if (score > 50) {
+  if (score >= thresholds.a) {
     return { code: 'A' as const, label: 'A级(标杆)' };
   }
 
-  if (score > 35) {
+  if (score >= thresholds.b) {
     return { code: 'B' as const, label: 'B级(优质)' };
   }
 
-  if (score > 20) {
+  if (score >= thresholds.c) {
     return { code: 'C' as const, label: 'C级(潜力)' };
   }
 

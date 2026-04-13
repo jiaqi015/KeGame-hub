@@ -17,6 +17,7 @@ import { handleOpenDayScenarioList } from "./modules/open-day/interfaces/http/op
 import { handleOpenDayScenarioSave } from "./modules/open-day/interfaces/http/openDayScenarioSaveHandler.js";
 import { handleOpenDaySnapshotList } from "./modules/open-day/interfaces/http/openDaySnapshotListHandler.js";
 import { handleOpenDayScore } from "./modules/open-day/interfaces/http/openDayScoreHandler.js";
+import { openDayDisambiguationHandler } from "./modules/open-day/interfaces/http/openDayDisambiguationHandler.js";
 
 dotenv.config();
 
@@ -155,6 +156,10 @@ async function startServer() {
     } catch (error) {
       return res.status(400).json({ error: error instanceof Error ? error.message : "开放日测算失败" });
     }
+  });
+
+  app.post("/api/open-day-disambiguate", async (req, res) => {
+    await openDayDisambiguationHandler(req, res);
   });
 
   app.post("/api/compare", async (req, res) => {

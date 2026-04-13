@@ -13,6 +13,13 @@ function clamp(value: number, min = 0, max = 1): number {
   return Math.min(max, Math.max(min, value));
 }
 
+function calculateRatio(value: number, waterline: number): number {
+  if (waterline <= 0) {
+    return value > 0 ? 1 : 0;
+  }
+  return value / waterline;
+}
+
 export function scoreOpenDayDataset(command: OpenDayScoreCommand): Omit<OpenDayAnalysisResponse, 'meta'> & {
   meta: Omit<OpenDayAnalysisResponse['meta'], 'cacheHit' | 'cacheKey' | 'configVersion'>;
 } {
@@ -26,10 +33,10 @@ export function scoreOpenDayDataset(command: OpenDayScoreCommand): Omit<OpenDayA
   const formula = getOpenDayFormulaDefinition(mergedConfig.formulaId);
 
   const scoredRows = normalizedRows.map((row) => {
-    const scaleScore = clamp(row.inventory / Math.max(waterlines.I_cap, 0.00001));
-    const trafficScore = clamp(Math.pow(row.traffic / Math.max(waterlines.V_cap, 0.00001), mergedConfig.alpha));
-    const productScore = clamp(row.premium / Math.max(waterlines.H_cap, 0.00001));
-    const interactionScore = clamp(row.convRate / Math.max(waterlines.R_cap, 0.00001));
+    const scaleScore = clamp(calculateRatio(row.inventory, waterlines.I_cap));
+    const trafficScore = clamp(Math.pow(calculateRatio(row.traffic, waterlines.V_cap), mergedConfig.alpha));
+    const productScore = clamp(calculateRatio(row.premium, waterlines.H_cap));
+    const interactionScore = clamp(calculateRatio(row.convRate, waterlines.R_cap));
     const formulaResult = evaluateOpenDayFormula(mergedConfig.formulaId, {
       scaleScore,
       trafficScore,
@@ -62,7 +69,7 @@ export function scoreOpenDayDataset(command: OpenDayScoreCommand): Omit<OpenDayA
   const results = scoredRows
     .map((row) => {
       const score = row.isEligible ? row.rawScore : 0;
-      const tier = resolveOpenDayTier(score, row.isEligible);
+      const tier = resolveOpenDayTier(score, row.isEligible, mergedConfig.tierThresholds);
 
       return {
         ...row,

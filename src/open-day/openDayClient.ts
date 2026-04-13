@@ -116,3 +116,22 @@ export async function uploadWorkbook(
 
   return response.json() as Promise<ParsedWorkbookPayload>;
 }
+
+import type {
+  DisambiguationRequest,
+  DisambiguationResult,
+} from '../../modules/open-day/domain/openDayDisambiguation.types.js';
+
+export function disambiguateOpenDayNames(
+  activationKey: string,
+  request: DisambiguationRequest,
+  useAI = true,
+): Promise<DisambiguationResult> {
+  return requestJson<DisambiguationResult>(activationKey, '/api/open-day-disambiguate', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ ...request, useAI }),
+  });
+}
