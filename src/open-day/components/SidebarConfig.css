@@ -14,7 +14,7 @@
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 4px;
-  width: 360px;
+  width: 320px;
 }
 
 .is-sidebar-collapsed .open-day-sidebar-scrollable {
@@ -53,14 +53,14 @@
 }
 
 .open-day-sidebar-card {
-  padding: 20px;
+  padding: 16px;
   border: 1px solid var(--od-border-color);
-  border-radius: 16px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.9);
   box-shadow: var(--od-shadow-md);
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
 }
 
 .open-day-sidebar-section {
@@ -95,10 +95,10 @@
 
 .open-day-preset-card {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   text-align: left;
-  padding: 14px 16px;
-  border-radius: 18px;
+  padding: 10px 12px;
+  border-radius: 12px;
   border: 1px solid rgba(76, 58, 42, 0.08);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(249, 244, 238, 0.88));
   cursor: pointer;
@@ -124,13 +124,19 @@
 .open-day-params-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
 }
 
 .open-day-filter-row {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.open-day-filter-row label span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .open-day-waterline-table {
@@ -141,21 +147,34 @@
 
 .open-day-waterline-table th {
   text-align: left;
-  padding: 8px;
+  padding: 6px 4px;
   color: var(--od-text-muted);
   font-weight: 500;
   border-bottom: 1px solid var(--od-border-color);
+  white-space: nowrap;
 }
 
 .open-day-waterline-table td {
-  padding: 8px;
+  padding: 6px 4px;
   border-bottom: 1px solid rgba(76, 58, 42, 0.06);
 }
 
 .open-day-waterline-table td:first-child {
   font-weight: 500;
   color: var(--od-text-label);
-  width: 60px;
+  width: 70px;
+  font-size: 12px;
+}
+
+.open-day-waterline-table td:nth-child(2) {
+  width: 54px;
+}
+
+.open-day-waterline-table input {
+  min-height: 28px !important;
+  padding: 0 6px !important;
+  font-size: 12px !important;
+  border-radius: 6px !important;
 }
 
 .open-day-scenario-save-box {
@@ -217,9 +236,10 @@
   color: var(--od-text-main);
 }
 
-.open-day-scenario-item__info span {
-  font-size: 11px;
-  color: var(--od-text-muted);
+.open-day-workspace label span {
+  font-size: 12px;
+  color: var(--od-text-label);
+  margin-bottom: -2px;
 }
 
 .open-day-scenario-empty {

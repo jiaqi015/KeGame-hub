@@ -211,6 +211,27 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     return getResolvedParameter(key)?.finalValue ?? config.absolutes[key];
   }
 
+  const filteredResults = useMemo(() => {
+    if (!analysis) return [];
+    return analysis.results.filter((row) => 
+      !searchTerm || row.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [analysis, searchTerm]);
+
+  function handleSelectNext() {
+    if (!filteredResults.length) return;
+    const currentIndex = activeRow ? filteredResults.findIndex((r) => r.name === activeRow.name) : -1;
+    const nextIndex = (currentIndex + 1) % filteredResults.length;
+    dispatch({ type: 'SET_ACTIVE_ROW', row: filteredResults[nextIndex] });
+  }
+
+  function handleSelectPrev() {
+    if (!filteredResults.length) return;
+    const currentIndex = activeRow ? filteredResults.findIndex((r) => r.name === activeRow.name) : -1;
+    const prevIndex = currentIndex <= 0 ? filteredResults.length - 1 : currentIndex - 1;
+    dispatch({ type: 'SET_ACTIVE_ROW', row: filteredResults[prevIndex] });
+  }
+
   function updateConfig(mutator: (draft: OpenDayConfig) => void) {
     const next = cloneConfig(config);
     mutator(next);
@@ -626,18 +647,8 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
 
           <div className="open-day-workspace-header__actions">
             <div className="open-day-header-secondary-group">
-              <button
-                type="button"
-                className="open-day-button open-day-button--secondary"
-                onClick={handleExportCsv}
-                disabled={!analysis || isAnalyzing}
-              >
-                <Download className="open-day-button__icon" />
-                <span>导出结果</span>
-              </button>
-              <label className="open-day-button open-day-button--secondary open-day-button--file">
-                <FileUp className="open-day-button__icon" />
-                <span>更换文件</span>
+              <label className="open-day-button open-day-button--secondary open-day-button--sm open-day-button--file" title="更换数据文件">
+                <FileUp size={16} />
                 <input
                   type="file"
                   className="open-day-hidden-file-input"
@@ -736,7 +747,10 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
               onRowClick={(row) => dispatch({ type: 'SET_ACTIVE_ROW', row })}
               onExecuteAnalysis={() => void executeAnalysis()}
               isFullScreen={isFullScreen}
+              onSelectNext={handleSelectNext}
+              onSelectPrev={handleSelectPrev}
               onToggleFullScreen={() => dispatch({ type: 'TOGGLE_FULL_SCREEN' })}
+              onExport={handleExportCsv}
             />
           </main>
         </div>

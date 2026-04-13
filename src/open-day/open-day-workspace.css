@@ -59,9 +59,9 @@
 .open-day-workspace input,
 .open-day-workspace select {
   width: 100%;
-  min-height: 46px;
-  padding: 0 14px;
-  border-radius: 14px;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
   border: 1px solid var(--od-border-color);
   background: rgba(255, 255, 255, 0.92);
   color: var(--od-text-main);
@@ -90,9 +90,9 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 46px;
-  padding: 0 18px;
-  border-radius: 999px;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 10px;
   white-space: nowrap;
   border: 1px solid rgba(76, 58, 42, 0.1);
   font-size: 14px;
@@ -135,8 +135,8 @@
 }
 
 .open-day-button--sm {
-  min-height: 36px;
-  padding: 0 14px;
+  min-height: 32px;
+  padding: 0 12px;
   font-size: 13px;
 }
 
@@ -214,7 +214,7 @@
 }
 
 .open-day-workspace-header__title-group h2 {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
   letter-spacing: -0.01em;
   margin-bottom: 0;
@@ -257,8 +257,8 @@
 
 .open-day-workspace-layout {
   display: grid;
-  grid-template-columns: 360px minmax(0, 1fr);
-  gap: 20px;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 16px;
   align-items: start;
   transition: grid-template-columns 300ms cubic-bezier(0.4, 0, 0.2, 1);
 }

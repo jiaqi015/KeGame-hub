@@ -29,19 +29,19 @@
 }
 
 .open-day-upload-hero h1 {
-  font-size: clamp(32px, 4vw, 44px);
+  font-size: 32px;
   line-height: 1.1;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.03em;
   font-weight: 800;
   color: var(--od-text-main);
   margin: 0;
 }
 
 .open-day-upload-hero p {
-  font-size: 16px;
+  font-size: 14px;
   color: var(--od-text-muted);
-  max-width: 580px;
-  line-height: 1.6;
+  max-width: 500px;
+  line-height: 1.5;
 }
 
 .open-day-upload-card {
@@ -227,10 +227,10 @@
 
 .open-day-upload-drop-area {
   display: grid;
-  gap: 14px;
-  min-height: 320px;
-  padding: 18px;
-  border-radius: 22px;
+  gap: 12px;
+  min-height: 240px;
+  padding: 16px;
+  border-radius: 16px;
   border: 1px dashed rgba(76, 58, 42, 0.16);
   background:
     radial-gradient(circle at top right, rgba(191, 98, 59, 0.08), transparent 30%),
@@ -258,8 +258,8 @@
 
 .open-day-upload-empty strong {
   display: block;
-  font-size: 20px;
-  margin-bottom: 8px;
+  font-size: 18px;
+  margin-bottom: 4px;
   color: var(--od-text-main);
 }
 

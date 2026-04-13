@@ -178,11 +178,11 @@ const fallbackFormulas: OpenDayFormulaDefinition[] = [
 ];
 
 const fallbackParameterPackages: OpenDayParameterPackage[] = [
-  createFallbackPreset('auto', '自动巡航', '按动态分位适配当月大盘。', {}, 'package:auto'),
+  createFallbackPreset('auto', '动态分位模式', '按 95% 动态分位适配大盘，适应市场波动。', {}, 'package:auto'),
   createFallbackPreset(
     'sprint',
-    '逼单冲刺',
-    '互动权重拉高，强调转化效率。',
+    '高转化权重模式',
+    '互动权重拉高至 0.7，核心关注逼定表现。',
     {
       weights: {
         product: 0.3,
@@ -193,8 +193,8 @@ const fallbackParameterPackages: OpenDayParameterPackage[] = [
   ),
   createFallbackPreset(
     'kpi',
-    '强压 KPI',
-    '改用固定数值，强控规模与流量门槛。',
+    '固定阈值模式',
+    '使用固定绝对值门槛，强控规模与流量底线。',
     {
       waterlineMode: 'absolute',
       alpha: 0.6,
@@ -209,8 +209,8 @@ const fallbackParameterPackages: OpenDayParameterPackage[] = [
   ),
   createFallbackPreset(
     'all-market',
-    '全域深潜',
-    '红线归零，拉出全城所有盘做观察。',
+    '全域观察模式',
+    '准入过滤全部归零，透视全城楼盘底盘数据。',
     {
       hardFilters: {
         min_inventory: 0,

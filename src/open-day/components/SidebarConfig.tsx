@@ -9,6 +9,7 @@ import type {
 import type { NormalizedOpenDayRow } from '../../../modules/open-day/domain/openDay.types.ts';
 import { deriveOpenDayPercentileForValue } from '../../../modules/open-day/domain/openDayParameterResolver.js';
 import type { WaterlineDefinition } from '../openDayConstants';
+import { DebouncedNumberInput } from './DebouncedNumberInput';
 import './SidebarConfig.css';
 
 interface SidebarConfigProps {
@@ -83,11 +84,11 @@ export function SidebarConfig({
           {/* Library Entry */}
           <div className="open-day-sidebar-section">
             <button
-              className="open-day-button open-day-button--secondary w-full justify-start p-4"
+              className="open-day-button open-day-button--secondary w-full justify-start px-3 py-2"
               onClick={onToggleLibrary}
             >
-              <Library size={18} className="text-emerald-700" />
-              <strong>档案与方案库</strong>
+              <Library size={16} className="text-emerald-700" />
+              <span className="font-bold text-sm">档案与方案库</span>
             </button>
           </div>
           <div className="open-day-sidebar-divider" />
@@ -111,42 +112,47 @@ export function SidebarConfig({
 
           {/* Core Weights */}
           <div className="open-day-sidebar-section">
-            <h3>权重与过滤</h3>
+            <h3>权重分布</h3>
             <div className="open-day-params-grid">
               <label>
                 <span>敏感指数 (Alpha)</span>
-                <input type="number" min="0" max="2" step="0.05" value={config.alpha}
-                  onChange={(e) => onUpdateConfig((d) => { d.alpha = Math.max(0, Number(e.target.value) || 0); })} />
+                <DebouncedNumberInput min={0} max={2} step={0.05} value={config.alpha}
+                  onChange={(v) => onUpdateConfig((d) => { d.alpha = Math.max(0, v); })} />
               </label>
               <label>
                 <span>商品权重</span>
-                <input type="number" min="0" max="1" step="0.05" value={config.weights.product}
-                  onChange={(e) => onUpdateConfig((d) => { d.weights.product = Math.max(0, Number(e.target.value) || 0); })} />
+                <DebouncedNumberInput min={0} max={1} step={0.05} value={config.weights.product}
+                  onChange={(v) => onUpdateConfig((d) => { d.weights.product = Math.max(0, v); })} />
               </label>
               <label>
                 <span>互动权重</span>
-                <input type="number" min="0" max="1" step="0.05" value={config.weights.interaction}
-                  onChange={(e) => onUpdateConfig((d) => { d.weights.interaction = Math.max(0, Number(e.target.value) || 0); })} />
+                <DebouncedNumberInput min={0} max={1} step={0.05} value={config.weights.interaction}
+                  onChange={(v) => onUpdateConfig((d) => { d.weights.interaction = Math.max(0, v); })} />
               </label>
             </div>
+          </div>
 
+          {/* Hard Filters */}
+          <div className="open-day-sidebar-section">
+            <h3>入围过滤</h3>
             <div className="open-day-filter-row">
               <label>
                 <span>最低在售</span>
-                <input type="number" min="0" step="1" value={config.hardFilters.min_inventory}
-                  onChange={(e) => onUpdateConfig((d) => { d.hardFilters.min_inventory = Math.max(0, Number(e.target.value) || 0); })} />
+                <DebouncedNumberInput min={0} step={1} value={config.hardFilters.min_inventory}
+                  onChange={(v) => onUpdateConfig((d) => { d.hardFilters.min_inventory = Math.max(0, v); })} />
               </label>
               <label>
                 <span>最低好房</span>
-                <input type="number" min="0" step="1" value={config.hardFilters.min_hq_rooms}
-                  onChange={(e) => onUpdateConfig((d) => { d.hardFilters.min_hq_rooms = Math.max(0, Number(e.target.value) || 0); })} />
+                <DebouncedNumberInput min={0} step={1} value={config.hardFilters.min_hq_rooms}
+                  onChange={(v) => onUpdateConfig((d) => { d.hardFilters.min_hq_rooms = Math.max(0, v); })} />
               </label>
               <label>
                 <span>最低成交</span>
-                <input type="number" min="0" step="1" value={config.hardFilters.min_transaction}
-                  onChange={(e) => onUpdateConfig((d) => { d.hardFilters.min_transaction = Math.max(0, Number(e.target.value) || 0); })} />
+                <DebouncedNumberInput min={0} step={1} value={config.hardFilters.min_transaction}
+                  onChange={(v) => onUpdateConfig((d) => { d.hardFilters.min_transaction = Math.max(0, v); })} />
               </label>
             </div>
+          </div>
 
             {/* Waterline Table */}
             <div className="open-day-sidebar-section">
@@ -164,14 +170,14 @@ export function SidebarConfig({
                     <tr key={def.key}>
                       <td>{def.title.replace('基准', '')}</td>
                       <td>
-                        <input
-                          type="number" min="1" max="99" step="1"
+                        <DebouncedNumberInput
+                          min={1} max={99} step={1}
                           value={config.percentiles[def.key]}
                           disabled={config.waterlineMode === 'absolute'}
-                          onChange={(e) => {
-                            const v = Math.min(99, Math.max(1, Number(e.target.value) || 1));
+                          onChange={(v) => {
+                            const val = Math.min(99, Math.max(1, v));
                             onUpdateConfig((d) => {
-                              d.percentiles[def.key] = v;
+                              d.percentiles[def.key] = val;
                               if (d.waterlineOverrides?.[def.key] !== undefined) {
                                 delete d.waterlineOverrides[def.key];
                               }
@@ -180,24 +186,24 @@ export function SidebarConfig({
                         />
                       </td>
                       <td>
-                        <input
-                          type="number" min="0" step={def.absoluteStep}
-                          value={Number(getDisplayedWaterlineValue(def.key)).toFixed(def.absoluteStep.includes('.') ? def.absoluteStep.split('.')[1].length : 0)}
+                        <DebouncedNumberInput
+                          min={0} step={Number(def.absoluteStep)}
+                          value={Number(getDisplayedWaterlineValue(def.key))}
                           disabled={config.waterlineMode === 'percentile'}
-                          onChange={(e) => {
-                            const v = Math.max(0, Number(e.target.value) || 0);
+                          onChange={(v) => {
+                            const val = Math.max(0, v);
                             onUpdateConfig((d) => {
                               if (d.waterlineMode === 'absolute') {
-                                d.absolutes[def.key] = v;
+                                d.absolutes[def.key] = val;
                                 d.percentiles[def.key] = Math.round(
-                                  deriveOpenDayPercentileForValue(normalizedPreviewRows, def.key, v),
+                                  deriveOpenDayPercentileForValue(normalizedPreviewRows, def.key, val),
                                 );
                                 if (d.waterlineOverrides?.[def.key] !== undefined) {
                                   delete d.waterlineOverrides[def.key];
                                 }
                                 return;
                               }
-                              d.waterlineOverrides = { ...(d.waterlineOverrides || {}), [def.key]: v };
+                              d.waterlineOverrides = { ...(d.waterlineOverrides || {}), [def.key]: val };
                             });
                           }}
                         />
@@ -215,7 +221,6 @@ export function SidebarConfig({
             </div>
           </div>
         </div>
-      </div>
     </aside>
   );
 }
