@@ -5,19 +5,25 @@ function parseNumericValue(value: unknown): number {
     return Number.isFinite(value) ? value : 0;
   }
 
-  const text = String(value ?? '').trim().replace(/,/g, '');
-  const lowered = text.toLowerCase();
+  const raw = String(value ?? '').trim().replace(/,/g, '');
+  if (!raw) return 0;
 
-  if (!text || ['null', 'nan', '#div/0!', '#value!', '--', '-'].includes(lowered)) {
+  const lowered = raw.toLowerCase();
+  if (['null', 'nan', '#div/0!', '#value!', '--', '-'].includes(lowered)) {
     return 0;
   }
 
-  if (text.endsWith('%')) {
-    const numeric = Number(text.slice(0, -1));
+  // Handle percentage separately - remove extra chars but keep the number
+  if (raw.endsWith('%')) {
+    const cleanText = raw.replace(/[^\d.-]/g, '');
+    const numeric = parseFloat(cleanText);
     return Number.isFinite(numeric) ? numeric / 100 : 0;
   }
 
-  const numeric = Number(text);
+  // General number extraction: keep digits, decimal point, and leading minus
+  // This allows "100组" -> 100, "￥1,234.56" -> 1234.56
+  const cleanText = raw.replace(/[^\d.-]/g, '');
+  const numeric = parseFloat(cleanText);
   return Number.isFinite(numeric) ? numeric : 0;
 }
 

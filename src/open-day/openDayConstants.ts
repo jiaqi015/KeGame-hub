@@ -7,6 +7,65 @@ import type {
   OpenDayRawRow,
 } from '../../modules/open-day/domain/openDay.types.ts';
 
+export interface WaterlineDefinition {
+  key: keyof OpenDayConfig['absolutes'];
+  title: string;
+  description: string;
+  percentileLabel: string;
+  absoluteLabel: string;
+  absoluteStep: string;
+  unit: string;
+}
+
+export interface OpenDayDatasetDraft {
+  headers: string[];
+  rows: OpenDayRawRow[];
+  mappings: OpenDayFormMappings;
+  sourceName: string;
+  sourceUploadId: string;
+  workbookSheets: string[];
+  activeSheet: string;
+}
+
+export const waterlineDefinitions: WaterlineDefinition[] = [
+  {
+    key: 'I_cap',
+    title: '动员规模基准',
+    description: '在售规模达到这个刻度后，视为开放日场域动员饱和。',
+    percentileLabel: '规模分位',
+    absoluteLabel: '满分套数',
+    absoluteStep: '1',
+    unit: '套',
+  },
+  {
+    key: 'V_cap',
+    title: '带看漏斗基准',
+    description: '带看达到标杆后视为人气饱和，再高主要靠 Alpha 做平滑。',
+    percentileLabel: '流量分位',
+    absoluteLabel: '标杆带看',
+    absoluteStep: '1',
+    unit: '次',
+  },
+  {
+    key: 'H_cap',
+    title: '优质货品基准',
+    description: '好房达到这个刻度后，单场活动已具备横向对比的货品密度。',
+    percentileLabel: '商品分位',
+    absoluteLabel: '好房套数',
+    absoluteStep: '1',
+    unit: '套',
+  },
+  {
+    key: 'R_cap',
+    title: '成交转化基准',
+    description: '按成交量 / 带看量计算的互动质量健康线，用来衡量逼定氛围。',
+    percentileLabel: '互动分位',
+    absoluteLabel: '健康转化率',
+    absoluteStep: '0.001',
+    unit: '%',
+  },
+];
+
 export const sampleCsv = `大区,小区名称,在售套数,带看量,成交量,好房数
 学院大区,今典花园,45,655,11,8
 团结湖大区,慈云寺,66,422,7,12
@@ -191,6 +250,16 @@ export const requiredMappingKeys: Exclude<MappingKey, 'area'>[] = [
   'premium',
 ];
 
+export interface DatasetQualityReport {
+  totalRows: number;
+  validRows: number;
+  invalidRows: number;
+  missingFieldCounts: Record<MappingKey, number>;
+  typeErrorCounts: Record<MappingKey, number>;
+  isCriticallyDeficient: boolean;
+  score: number; // 0-100
+}
+
 export const fieldAliases: Record<MappingKey, string[]> = {
   area: ['大区', '区域', '商圈', '片区', 'area'],
   name: ['小区名称', '楼盘名', '楼盘名称', '小区', '名称', 'community', 'name'],
@@ -213,36 +282,112 @@ export function createEmptyMappings(): OpenDayFormMappings {
 
 export function guessMapping(key: MappingKey, headers: string[]) {
   const aliases = fieldAliases[key] || [];
+  const candidates: { header: string; score: number }[] = [];
+
   const normalizedHeaders = headers.map((header) => ({
     original: header,
     lowered: header.toLowerCase(),
   }));
 
   for (const alias of aliases) {
-    const exact = normalizedHeaders.find((header) => header.lowered === alias.toLowerCase());
-    if (exact) {
-      return exact.original;
+    const aliasLower = alias.toLowerCase();
+    
+    for (const h of normalizedHeaders) {
+      if (h.lowered === aliasLower) {
+        candidates.push({ header: h.original, score: 100 });
+      } else if (h.lowered.includes(aliasLower) || aliasLower.includes(h.lowered)) {
+        // Scoring based on similarity if not exact
+        const score = 50 + (h.lowered.length > 0 ? (Math.min(h.lowered.length, aliasLower.length) / Math.max(h.lowered.length, aliasLower.length)) * 30 : 0);
+        candidates.push({ header: h.original, score });
+      }
     }
   }
 
-  for (const alias of aliases) {
-    const partial = normalizedHeaders.find((header) => header.lowered.includes(alias.toLowerCase()));
-    if (partial) {
-      return partial.original;
-    }
-  }
-
-  return '';
+  if (candidates.length === 0) return '';
+  
+  // Return the one with the highest score
+  return candidates.sort((a, b) => b.score - a.score)[0].header;
 }
 
 export function guessMappings(headers: string[]): OpenDayFormMappings {
+  const result = createEmptyMappings();
+  const seenHeaders = new Set<string>();
+
+  // Order matters: pick the most unique ones first or just iterate usually
+  (Object.keys(fieldAliases) as MappingKey[]).forEach((key) => {
+    const matched = guessMapping(key, headers.filter(h => !seenHeaders.has(h)));
+    if (matched) {
+      result[key] = matched;
+      seenHeaders.add(matched);
+    }
+  });
+
+  return result;
+}
+
+export function generateDatasetQualityReport(rows: OpenDayRawRow[], mappings: OpenDayFormMappings): DatasetQualityReport {
+  const report: DatasetQualityReport = {
+    totalRows: rows.length,
+    validRows: 0,
+    invalidRows: 0,
+    missingFieldCounts: createEmptyCounts(),
+    typeErrorCounts: createEmptyCounts(),
+    isCriticallyDeficient: false,
+    score: 0,
+  };
+
+  if (rows.length === 0) {
+    report.isCriticallyDeficient = true;
+    return report;
+  }
+
+  rows.forEach((row) => {
+    let hasError = false;
+
+    (Object.entries(mappings) as [MappingKey, string][]).forEach(([key, header]) => {
+      if (!header) {
+        if (requiredMappingKeys.includes(key as any)) {
+          report.missingFieldCounts[key]++;
+          hasError = true;
+        }
+        return;
+      }
+
+      const val = row[header];
+      if (val === undefined || val === null || val === '') {
+        report.missingFieldCounts[key]++;
+        hasError = true;
+      } else if (key !== 'name' && key !== 'area') {
+        const num = parseFloat(String(val).replace(/[^\d.-]/g, ''));
+        if (isNaN(num)) {
+          report.typeErrorCounts[key]++;
+          hasError = true;
+        }
+      }
+    });
+
+    if (hasError) {
+      report.invalidRows++;
+    } else {
+      report.validRows++;
+    }
+  });
+
+  // Critical if more than 50% rows are invalid or NO valid rows
+  report.isCriticallyDeficient = report.validRows === 0 || (report.invalidRows / report.totalRows > 0.8);
+  report.score = Math.round((report.validRows / report.totalRows) * 100);
+
+  return report;
+}
+
+function createEmptyCounts(): Record<MappingKey, number> {
   return {
-    area: guessMapping('area', headers),
-    name: guessMapping('name', headers),
-    inventory: guessMapping('inventory', headers),
-    traffic: guessMapping('traffic', headers),
-    transactions: guessMapping('transactions', headers),
-    premium: guessMapping('premium', headers),
+    area: 0,
+    name: 0,
+    inventory: 0,
+    traffic: 0,
+    transactions: 0,
+    premium: 0,
   };
 }
 

@@ -1,0 +1,300 @@
+.open-day-table-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  gap: 20px;
+}
+
+.open-day-search-bar {
+  flex: 1;
+  max-width: 400px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: #fff;
+  border: 1px solid rgba(76, 58, 42, 0.16);
+  border-radius: 12px;
+  color: var(--od-text-muted);
+  transition: all 0.2s ease;
+}
+
+.open-day-search-bar:focus-within {
+  border-color: var(--od-primary);
+  box-shadow: 0 0 0 3px rgba(191, 98, 59, 0.1);
+}
+
+.open-day-search-bar input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  color: var(--od-text-main);
+}
+
+.open-day-status-card {
+  border: 1px solid rgba(37, 86, 72, 0.16);
+  background: rgba(239, 248, 244, 0.92);
+  color: var(--od-secondary);
+  padding: 14px 18px;
+  border-radius: 16px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.open-day-status-card.is-loading {
+  border-color: rgba(203, 111, 69, 0.16);
+  background: rgba(255, 244, 238, 0.92);
+  color: #944522;
+}
+
+.open-day-hero-card {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid var(--od-border-color);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: var(--od-shadow-md);
+  margin-bottom: 20px;
+}
+
+.open-day-hero-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at top right, rgba(191, 98, 59, 0.12), transparent 30%),
+    radial-gradient(circle at bottom left, rgba(37, 86, 72, 0.08), transparent 26%);
+  pointer-events: none;
+}
+
+.open-day-hero-card__stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.open-day-hero-card__stats div {
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(76, 58, 42, 0.08);
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.open-day-hero-card__stats strong {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--od-text-main);
+}
+
+.open-day-analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.open-day-analysis-card {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-height: 190px;
+  padding: 18px;
+  border: 1px solid rgba(76, 58, 42, 0.08);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(251, 247, 242, 0.86));
+}
+
+.open-day-chart {
+  display: grid;
+  gap: 12px;
+}
+
+.open-day-chart__row {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr) 56px;
+  gap: 12px;
+  align-items: center;
+}
+
+.open-day-chart__track {
+  height: 14px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--od-secondary-light);
+}
+
+.open-day-chart__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #cf6940, var(--od-secondary));
+}
+
+.open-day-table-wrap {
+  position: relative;
+  transition: opacity 200ms ease;
+  overflow-x: auto;
+  border: 1px solid var(--od-border-color);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.5);
+  width: 100%;
+}
+
+.open-day-table-wrap.is-stale {
+  opacity: 0.8;
+  filter: grayscale(0.2);
+  pointer-events: none;
+}
+
+.open-day-table-wrap.is-stale::after {
+  content: '参数有变更，尚未同步测算';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--od-text-main);
+  padding: 12px 24px;
+  border-radius: 12px;
+  border: 1px solid var(--od-border-color);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 12px 32px rgba(69, 45, 20, 0.12);
+  font-weight: 600;
+  font-size: 15px;
+  pointer-events: auto;
+  z-index: 10;
+}
+
+.open-day-table {
+  width: 100%;
+  min-width: 1160px;
+  border-collapse: collapse;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.open-day-table thead {
+  background: rgba(33, 30, 27, 0.95);
+  color: #fbf6f0;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.open-day-table th,
+.open-day-table td {
+  padding: 14px 12px;
+  text-align: left;
+  border-bottom: 1px solid rgba(76, 58, 42, 0.1);
+  font-size: 14px;
+  vertical-align: middle;
+}
+
+.open-day-table tbody tr {
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+
+.open-day-table tbody tr:hover {
+  background: rgba(244, 239, 233, 0.72);
+}
+
+.open-day-table tbody tr.is-selected {
+  background: rgba(225, 240, 235, 0.6);
+}
+
+.open-day-data-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 60px;
+}
+
+.open-day-data-bar__value {
+  position: relative;
+  z-index: 2;
+  font-variant-numeric: tabular-nums;
+}
+
+.open-day-data-bar__bg {
+  position: absolute;
+  top: 50%;
+  left: -4px;
+  transform: translateY(-50%);
+  height: 24px;
+  border-radius: 4px;
+  background: rgba(203, 111, 69, 0.12);
+  z-index: 1;
+  pointer-events: none;
+  transition: width 0.3s ease;
+}
+
+.open-day-tier {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.open-day-tier__code {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  min-height: 28px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 2px 8px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+}
+
+.open-day-tier__code--S { background: linear-gradient(135deg, #e57d3b, #c35a20); border-color: #b04e18; }
+.open-day-tier__code--A { background: linear-gradient(135deg, #37826d, var(--od-secondary)); border-color: #1e4539; }
+.open-day-tier__code--B { background: linear-gradient(135deg, #877e74, #5c5348); border-color: #4b433b; }
+.open-day-tier__code--C { background: linear-gradient(135deg, #c4a984, #a48252); border-color: #8c6e44; }
+.open-day-tier__code--D { background: linear-gradient(135deg, #8c5b5b, #c07d7d); }
+
+.open-day-rank-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: rgba(76, 58, 42, 0.08);
+  color: #4b433b;
+}
+
+.open-day-rank-chip--gold { background: linear-gradient(135deg, #ffd700, #ff8c00); color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+.open-day-rank-chip--silver { background: linear-gradient(135deg, #c0c0c0, #7b7b7b); color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+.open-day-rank-chip--bronze { background: linear-gradient(135deg, #cd7f32, #8b4513); color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+
+.open-day-eligibility {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.open-day-eligibility.is-on { background: rgba(37, 86, 72, 0.12); color: var(--od-secondary); }
+.open-day-eligibility.is-off { background: rgba(181, 70, 70, 0.12); color: #a33f3f; }

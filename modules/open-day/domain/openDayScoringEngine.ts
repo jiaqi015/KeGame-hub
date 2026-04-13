@@ -44,11 +44,11 @@ export function scoreOpenDayDataset(command: OpenDayScoreCommand): Omit<OpenDayA
       interactionScore,
       weights: mergedConfig.weights,
     });
-    const scaleIdx = scaleScore * 100;
-    const trafficIdx = trafficScore * 100;
-    const productIdx = productScore * 100;
-    const interactionIdx = interactionScore * 100;
-    const catalyst = formulaResult.catalystScore * 100;
+    const scaleIdx = Number((scaleScore * 100).toFixed(1));
+    const trafficIdx = Number((trafficScore * 100).toFixed(1));
+    const productIdx = Number((productScore * 100).toFixed(1));
+    const interactionIdx = Number((interactionScore * 100).toFixed(1));
+    const catalyst = Number((formulaResult.catalystScore * 100).toFixed(1));
     const rawScore = formulaResult.rawScore;
     const isEligible = isEligibleOpenDayRow(row, mergedConfig);
 

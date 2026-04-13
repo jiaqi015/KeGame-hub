@@ -5,22 +5,19 @@ import {
   RefreshCcw,
   Settings2,
 } from 'lucide-react';
+
 import type { ParsedWorkbookPayload } from '../../lib/openDayWorkbook.ts';
 import type {
-  OpenDayAnalysisRow,
   OpenDayConfig,
   OpenDayParameterKey,
-  OpenDayParameterPackage,
-  OpenDayFormulaDefinition,
   OpenDayRawRow,
   OpenDayScenarioDraft,
 } from '../../modules/open-day/domain/openDay.types.ts';
+
 import { normalizeOpenDayRows } from '../../modules/open-day/domain/openDayDatasetNormalizer.js';
-import {
-  deriveOpenDayPercentileForValue,
-  resolveOpenDayWaterlineContext,
-} from '../../modules/open-day/domain/openDayParameterResolver.js';
+import { resolveOpenDayWaterlineContext } from '../../modules/open-day/domain/openDayParameterResolver.js';
 import { resolveOpenDayScenarioDraft } from '../../modules/open-day/application/openDayScenarioDraft.js';
+
 import {
   fetchOpenDayAnalysis,
   fetchOpenDayCatalog,
@@ -31,6 +28,7 @@ import {
   saveOpenDayScenario,
   uploadWorkbook,
 } from './openDayClient';
+
 import {
   cloneConfig,
   createEmptyMappings,
@@ -40,9 +38,20 @@ import {
   mergeConfig,
   sampleCsv,
   type OpenDayFormMappings,
+  waterlineDefinitions,
+  type OpenDayDatasetDraft,
+  generateDatasetQualityReport,
 } from './openDayConstants';
+
+import {
+  getParameterPackageLabel,
+  buildScenarioDraftName,
+  extractHeadersFromRows,
+} from './openDayUtils';
+
 import { parseCsv } from './openDayCsv';
 import { openDayReducer, type OpenDayState } from './openDayReducer';
+import { formatNumber, formatPercent, formatDateTime } from './formatters';
 
 // Sub-components
 import { UploadStage } from './components/UploadStage';
@@ -57,122 +66,6 @@ import './open-day-workspace.css';
 
 interface OpenDayWorkspaceProps {
   activationKey: string;
-}
-
-interface WaterlineDefinition {
-  key: keyof OpenDayConfig['absolutes'];
-  title: string;
-  description: string;
-  percentileLabel: string;
-  absoluteLabel: string;
-  absoluteStep: string;
-  unit: string;
-}
-
-interface OpenDayDatasetDraft {
-  headers: string[];
-  rows: OpenDayRawRow[];
-  mappings: OpenDayFormMappings;
-  sourceName: string;
-  sourceUploadId: string;
-  workbookSheets: string[];
-  activeSheet: string;
-}
-
-// ─── Constants ──────────────────────────────────────────────────────────────────
-
-const waterlineDefinitions: WaterlineDefinition[] = [
-  {
-    key: 'I_cap',
-    title: '动员规模基准',
-    description: '在售规模达到这个刻度后，视为开放日场域动员饱和。',
-    percentileLabel: '规模分位',
-    absoluteLabel: '满分套数',
-    absoluteStep: '1',
-    unit: '套',
-  },
-  {
-    key: 'V_cap',
-    title: '带看漏斗基准',
-    description: '带看达到标杆后视为人气饱和，再高主要靠 Alpha 做平滑。',
-    percentileLabel: '流量分位',
-    absoluteLabel: '标杆带看',
-    absoluteStep: '1',
-    unit: '次',
-  },
-  {
-    key: 'H_cap',
-    title: '优质货品基准',
-    description: '好房达到这个刻度后，单场活动已具备横向对比的货品密度。',
-    percentileLabel: '商品分位',
-    absoluteLabel: '好房套数',
-    absoluteStep: '1',
-    unit: '套',
-  },
-  {
-    key: 'R_cap',
-    title: '成交转化基准',
-    description: '按成交量 / 带看量计算的互动质量健康线，用来衡量逼定氛围。',
-    percentileLabel: '互动分位',
-    absoluteLabel: '健康转化率',
-    absoluteStep: '0.001',
-    unit: '%',
-  },
-];
-
-import { formatNumber, formatPercent, formatDateTime } from './formatters';
-
-// ─── Helpers ────────────────────────────────────────────────────────────────────
-
-function getParameterPackageLabel(activeParameterPackageId: string, parameterPackages: OpenDayParameterPackage[]) {
-  return parameterPackages.find((p) => p.id === activeParameterPackageId)?.label
-    || (activeParameterPackageId === 'custom' ? '自定义参数' : '自动巡航');
-}
-
-function buildScenarioDraftName(
-  sourceName: string,
-  scenarioDraft: OpenDayScenarioDraft,
-  parameterPackages: OpenDayParameterPackage[],
-  formulas: OpenDayFormulaDefinition[],
-) {
-  const label = scenarioDraft.parameterPackageId
-    ? getParameterPackageLabel(scenarioDraft.parameterPackageId, parameterPackages)
-    : formulas.find((f) => f.id === scenarioDraft.formulaId)?.label || '默认公式';
-  const baseName = sourceName ? sourceName.split('/')[0].trim() : '开放日方案';
-  const timestamp = new Intl.DateTimeFormat('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-    .format(new Date())
-    .replace(/\//g, '-')
-    .replace(/\s+/g, ' ');
-
-  return `${baseName} ${label} ${timestamp}`;
-}
-
-function extractHeadersFromRows(rows: OpenDayRawRow[], mappings: OpenDayFormMappings) {
-  const seen = new Set<string>();
-  const ordered: string[] = [];
-
-  rows.forEach((row) => {
-    Object.keys(row).forEach((key) => {
-      if (!seen.has(key)) {
-        seen.add(key);
-        ordered.push(key);
-      }
-    });
-  });
-
-  Object.values(mappings).forEach((value) => {
-    if (value && !seen.has(value)) {
-      seen.add(value);
-      ordered.push(value);
-    }
-  });
-
-  return ordered;
 }
 
 // ─── Initial State ──────────────────────────────────────────────────────────────
@@ -213,6 +106,7 @@ function createInitialState(): OpenDayState {
     activeScenarioTemplateId: '',
     activeScenarioTemplateName: '',
     isSidebarCollapsed: false,
+    qualityReport: null,
   };
 }
 
@@ -255,6 +149,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     activeScenarioTemplateName,
     showScenarioSnapshotsOnly,
     isSidebarCollapsed,
+    qualityReport,
   } = state;
 
   const parameterPackages = catalog.parameterPackages.length ? catalog.parameterPackages : catalog.presets;
@@ -353,12 +248,16 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
   }
 
   function applyParsedData(payload: ParsedWorkbookPayload | { headers: string[]; rows: OpenDayRawRow[] }, nextSourceName: string) {
+    const nextMappings = guessMappings(payload.headers);
+    const qualityReport = generateDatasetQualityReport(payload.rows, nextMappings);
+    
     dispatch({
       type: 'APPLY_PARSED_DATA',
       headers: payload.headers,
       rows: payload.rows,
       sourceName: nextSourceName,
-      mappings: guessMappings(payload.headers),
+      mappings: nextMappings,
+      qualityReport,
       statusMessage: stage === 'workspace' ? '已载入新数据，准备重新测算。' : '数据已准备好，可以进入下一步。',
     });
   }
@@ -665,6 +564,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
         isParsingFile={isParsingFile}
         uploadError={uploadError}
         catalogMessage={catalogMessage}
+        qualityReport={qualityReport}
         onFileSelection={(file) => {
           void handleFileSelection(file).catch((err) =>
             dispatch({ type: 'SET_UPLOAD_ERROR', error: err.message }),
@@ -777,6 +677,12 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
             displayedSnapshots={displayedSnapshots}
             activeSnapshotId={analysis?.meta.snapshotId}
             isSidebarCollapsed={isSidebarCollapsed}
+            scenarios={scenarios}
+            scenarioName={scenarioName}
+            scenarioMessage={scenarioMessage}
+            isSavingScenario={isSavingScenario}
+            isLoadingScenario={isLoadingScenario}
+            activeScenarioTemplateId={activeScenarioTemplateId}
             getDisplayedWaterlineValue={getDisplayedWaterlineValue}
             onToggleCollapsed={() => dispatch({ type: 'SET_IS_SIDEBAR_COLLAPSED', value: !isSidebarCollapsed })}
             onApplyPreset={handleApplyPreset}
@@ -784,6 +690,9 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
             onRestoreDefaults={handleRestoreDefaults}
             onRefreshSnapshots={() => void refreshSnapshots()}
             onReplaySnapshot={(id) => void handleReplaySnapshot(id)}
+            onScenarioNameChange={(name) => dispatch({ type: 'SET_SCENARIO_NAME', name })}
+            onSaveScenario={() => void handleSaveScenario()}
+            onLoadScenario={(id) => void handleLoadScenario(id)}
           />
 
           {/* Main Content */}
@@ -796,6 +705,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
               isAnalyzing={isAnalyzing}
               hasPendingChanges={hasPendingChanges}
               statusMessage={statusMessage}
+              qualityReport={qualityReport}
               currentParameterLabel={getParameterPackageLabel(activeParameterPackageId, parameterPackages)}
               currentFormulaLabel={activeFormula.label}
               sampleCount={datasetDraft.rows.length}

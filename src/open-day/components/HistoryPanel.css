@@ -1,0 +1,115 @@
+.open-day-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.open-day-history-card {
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--od-bg-card);
+  border: 1px solid rgba(76, 58, 42, 0.08);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.open-day-history-card:hover {
+  border-color: rgba(191, 98, 59, 0.3);
+  background: rgba(251, 246, 239, 0.5);
+  transform: translateY(-1px);
+}
+
+.open-day-history-card.is-active {
+  border-color: var(--od-primary);
+  background: var(--od-primary-light);
+  box-shadow: 0 2px 8px rgba(191, 98, 59, 0.12);
+}
+
+.open-day-history-card__main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--od-text-dim);
+  font-size: 11px;
+}
+
+.open-day-history-card__time {
+  flex: 1;
+}
+
+.open-day-history-card__stats {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.open-day-history-card__stats strong {
+  font-size: 13px;
+  color: var(--od-text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+}
+
+.open-day-history-card__stats span {
+  font-size: 12px;
+  color: var(--od-primary);
+  font-weight: 600;
+}
+
+.open-day-history-empty {
+  text-align: center;
+  padding: 24px;
+  color: var(--od-text-dim);
+  font-size: 13px;
+  background: rgba(76, 58, 42, 0.04);
+  border-radius: 12px;
+  border: 1px dashed rgba(76, 58, 42, 0.12);
+}
+
+.open-day-history-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.open-day-history-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.open-day-history-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.open-day-history-card__head span {
+  background: var(--od-secondary-light);
+  color: var(--od-secondary);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.open-day-history-card__meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.open-day-history-card__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
+}
