@@ -93,36 +93,34 @@
 }
 
 .open-day-upload-card {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0;
-  width: min(720px, 100%);
+  width: 100%;
   border: 1px solid rgba(76, 58, 42, 0.12);
-  border-radius: 24px;
+  border-radius: 20px;
   background: rgba(255, 255, 255, 0.88);
   box-shadow: 0 8px 22px rgba(69, 45, 20, 0.06);
 }
 
 .open-day-upload-card__panel {
-  padding: 28px;
+  padding: 18px;
+  display: grid;
+  gap: 16px;
 }
 
 .open-day-upload-card__head {
-  display: flex;
-  justify-content: center;
-  text-align: center;
+  text-align: left;
 }
 
 .open-day-upload-card__panel h3 {
-  font-size: 30px;
-  line-height: 1.1;
-  letter-spacing: -0.04em;
+  font-size: 20px;
+  line-height: 1.3;
+  letter-spacing: -0.03em;
+  margin: 0;
 }
 
 .open-day-upload-card__head p {
-  margin-top: 12px;
-  font-size: 14px;
-  max-width: 480px;
+  margin-top: 4px;
+  font-size: 13px;
+  color: #4a433a;
 }
 
 .open-day-upload-actions,
@@ -140,8 +138,7 @@
 }
 
 .open-day-upload-actions {
-  margin-top: 24px;
-  justify-content: center;
+  justify-content: flex-start;
 }
 
 .open-day-button {
@@ -231,17 +228,26 @@
 .open-day-waterline-grid,
 .open-day-params-grid,
 .open-day-mapping-grid,
-.open-day-scenario-form,
 .open-day-filter-row {
   display: grid;
-  gap: 14px;
+  gap: 10px;
+}
+
+.open-day-mapping-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(76, 58, 42, 0.08);
 }
 
 .open-day-upload-stats,
 .open-day-sidebar-stats {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
-  margin-top: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(76, 58, 42, 0.08);
 }
 
 .open-day-upload-stats div,
@@ -332,17 +338,25 @@
 }
 
 .open-day-upload-footer {
-  justify-content: center;
+  justify-content: flex-end;
   margin-top: 20px;
-  flex-direction: column;
-  text-align: center;
+  padding-top: 16px;
+  border-top: 1px solid rgba(76, 58, 42, 0.08);
+  flex-direction: row;
+  text-align: right;
 }
 
 .open-day-upload-footer__hint {
+  margin-right: auto;
   max-width: 480px;
   font-size: 13px;
   line-height: 1.6;
   color: #6b6156;
+}
+
+.open-day-upload-footer button {
+  padding-left: 32px;
+  padding-right: 32px;
 }
 
 .open-day-upload-empty {

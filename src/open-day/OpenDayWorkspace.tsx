@@ -612,15 +612,11 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
           {catalogMessage ? <div className="open-day-workspace__banner">{catalogMessage}</div> : null}
 
           <section className="open-day-upload-stage">
-            <div className="open-day-upload-simple-head">
-              <h2>先上传数据</h2>
-            </div>
-
             <div className="open-day-upload-card">
               <div className="open-day-upload-card__panel">
                 <div className="open-day-upload-card__head">
                   <div>
-                    <h3>上传数据文件</h3>
+                    <h3>先上传数据</h3>
                     <p>{uploadSummary}</p>
                   </div>
                 </div>
@@ -728,10 +724,6 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
             </button>
             <div>
               <h2>测算工作台</h2>
-              <p>
-                {sourceName || '未命名数据集'} · 共 {rows.length} 行，{headers.length} 个字段
-                {activeSheet ? `，当前 Sheet：${activeSheet}` : ''}。
-              </p>
             </div>
           </div>
 
@@ -981,19 +973,12 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
             <div className="open-day-main-card">
             {statusMessage ? <div className={`open-day-status-card ${isAnalyzing ? 'is-loading' : ''}`}>{statusMessage}</div> : null}
 
-            <section className="open-day-hero-card">
-              <div className="open-day-hero-card__copy">
-                <h3>结果总览</h3>
-                <p>
-                  当前策略：{getPresetLabel(activePresetId, presets)}
-                  {analysis
-                    ? hasPendingChanges
-                      ? '，当前参数已变更，结果待重新测算。'
-                      : `，已完成 ${analysis.meta.totalCount} 个小区测算。`
-                    : '，等待测算结果。'}
-                </p>
-              </div>
+            <div className="open-day-hero-card">
               <div className="open-day-hero-card__stats">
+                <div>
+                  <span>当前策略</span>
+                  <strong>{getPresetLabel(activePresetId, presets)}</strong>
+                </div>
                 <div>
                   <span>样本</span>
                   <strong>{analysis?.meta.totalCount ?? rows.length}</strong>
@@ -1006,20 +991,10 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
                   <span>冠军</span>
                   <strong>{analysis?.results[0]?.name || '--'}</strong>
                 </div>
-                <div>
-                  <span>缓存</span>
-                  <strong>{analysis ? (analysis.meta.cacheHit ? '命中' : '未命中') : '--'}</strong>
-                </div>
               </div>
-            </section>
+            </div>
 
             <section className="open-day-panel open-day-panel--flat">
-              <div className="open-day-panel__head">
-                <div>
-                  <h3>完整排名</h3>
-                </div>
-              </div>
-
               <div className="open-day-table-wrap">
                 <table className="open-day-table">
                   <thead>
