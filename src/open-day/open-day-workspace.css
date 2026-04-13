@@ -462,21 +462,33 @@
   letter-spacing: -0.03em;
 }
 
-.open-day-mapping-grid {
-  grid-template-columns: 1fr;
+.open-day-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-  margin-top: 12px;
+}
+
+.open-day-params-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .open-day-filter-row {
+  display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-top: 12px;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(76, 58, 42, 0.08);
 }
 
 .open-day-waterline-grid {
-  grid-template-columns: 1fr;
-  gap: 8px;
-  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(76, 58, 42, 0.08);
 }
 
 .open-day-waterline-card {
