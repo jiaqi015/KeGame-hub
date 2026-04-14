@@ -52,6 +52,26 @@ export function scoreOpenDayDataset(command: OpenDayScoreCommand): Omit<OpenDayA
     const rawScore = formulaResult.rawScore;
     const isEligible = isEligibleOpenDayRow(row, mergedConfig);
 
+    // Logic Guard Scanning
+    const logicGuardTags: string[] = [];
+    let logicGuardSeverity: 'error' | 'warning' | null = null;
+
+    // Rule 1: Ghost Transactions (Transactions > 0 but Traffic == 0)
+    if (row.transactions > 0 && row.traffic === 0) {
+      logicGuardTags.push('有成交无带看 (数据存在严重逻辑矛盾)');
+      logicGuardSeverity = 'error';
+    }
+
+    // Rule 2: Hyper Conversion (convRate > 0.8)
+    if (row.convRate > 0.8 && row.transactions > 0) {
+      logicGuardTags.push('转化率异常高 (可能存在统计口径偏差)');
+      logicGuardSeverity = logicGuardSeverity === 'error' ? 'error' : 'warning';
+    }
+
+    // Rule 3: Extreme Scale Outlier (Inventory > Avg * 5)
+    // NOTE: For simplicity in this functional mapper, we'll use a fixed threshold or a more complex pass.
+    // We'll stick to local rules for now.
+
     return {
       ...row,
       scaleIdx,
@@ -61,6 +81,8 @@ export function scoreOpenDayDataset(command: OpenDayScoreCommand): Omit<OpenDayA
       catalyst,
       rawScore,
       isEligible,
+      logicGuardTags: logicGuardTags.length > 0 ? logicGuardTags : undefined,
+      logicGuardSeverity,
     };
   });
 

@@ -63,12 +63,11 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
   gap: 16px;
-  padding: 18px;
+  padding: 12px 14px;
   border: 1px solid var(--od-border-color);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow: var(--od-shadow-md);
-  margin-bottom: 20px;
+  border-radius: 12px;
+  background: #fff;
+  margin-bottom: 16px;
 }
 
 .open-day-hero-card::before {
@@ -125,11 +124,11 @@
   display: grid;
   align-content: start;
   gap: 12px;
-  min-height: 190px;
-  padding: 18px;
-  border: 1px solid rgba(76, 58, 42, 0.08);
-  border-radius: 18px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(251, 247, 242, 0.86));
+  min-height: 160px;
+  padding: 14px;
+  border: 1px solid var(--od-border-color);
+  border-radius: 12px;
+  background: #fff;
 }
 
 .open-day-chart {
@@ -225,32 +224,42 @@
 
 .open-day-table thead {
   position: sticky;
-  top: 56px; /* Optimized to stack perfectly below the pill-style workspace header */
-  z-index: 10; /* Elevated z-index to ensure it clips all row content */
-  background: rgba(33, 30, 27, 0.94);
-  color: #fbf6f0;
-  backdrop-filter: blur(12px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  top: 53px; /* Precise height of the workspace-header (36px + 8px*2 + 1px border) */
+  z-index: 10;
+  background: #fff;
+  color: var(--od-text-main);
+  border-bottom: 2px solid var(--od-primary);
 }
 
-.open-day-table th {
-  padding: 12px;
-  background: inherit; /* Ensure background-blur applies via parent */
-  border-bottom: 2px solid rgba(191, 98, 59, 0.2);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-size: 11px;
-  font-weight: 700;
-  white-space: nowrap;
+/* Clear gap guard: Prevent rows from showing above the sticky header if there's a minor pixel mismatch */
+.open-day-table thead::before {
+  content: "";
+  position: absolute;
+  top: -12px;
+  left: 0;
+  right: 0;
+  height: 12px;
+  background: var(--od-bg-base); /* Or same as workspace background */
+  z-index: -1;
 }
 
+.open-day-table th,
 .open-day-table td {
-  padding: 10px 12px;
+  padding: 8px 12px;
   text-align: left;
-  border-bottom: 1px solid rgba(76, 58, 42, 0.08);
+  border-bottom: 1px solid var(--od-border-color);
   font-size: 13px;
   vertical-align: middle;
+  background: #fff;
+}
+
+.open-day-table .is-numeric {
+  text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+.open-day-table th.is-numeric {
+  padding-right: 12px;
 }
 
 .open-day-table tbody tr {
@@ -258,13 +267,13 @@
   transition: var(--od-transition);
 }
 
-.open-day-table tbody tr:hover {
-  background: rgba(244, 239, 233, 0.72);
+.open-day-table tbody tr:hover td {
+  background: #fcfcfc;
 }
 
-.open-day-table tbody tr.is-selected {
-  background: rgba(225, 240, 235, 0.6);
-  box-shadow: inset 2px 0 0 var(--od-secondary);
+.open-day-table tbody tr.is-selected td {
+  background: #f8fafc;
+  border-bottom-color: var(--od-primary);
 }
 
 .open-day-data-bar {
@@ -303,12 +312,22 @@
 
 .is-full-screen .open-day-table-wrap {
   flex: 1;
-  max-height: calc(100vh - 200px);
+  max-height: calc(100vh - 160px); /* Tighter height for better fit */
   overflow-y: auto;
+  border-radius: 0; /* Corner-to-corner feel in full screen */
+  border-left: none;
+  border-right: none;
+}
+
+/* Fix sticky header when in full screen:
+   The scroll container is now .open-day-table-wrap, 
+   so the header should stick at top-0 within that container. */
+.is-full-screen .open-day-table thead {
+  top: 0;
 }
 
 .is-full-screen .open-day-table {
-  min-width: 1400px; /* Wider in full screen */
+  min-width: 1400px;
 }
 
 .open-day-data-bar__bg {
@@ -345,11 +364,11 @@
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
 }
 
-.open-day-tier__code--S { background: linear-gradient(135deg, #e57d3b, #c35a20); border-color: #b04e18; }
-.open-day-tier__code--A { background: linear-gradient(135deg, #37826d, var(--od-secondary)); border-color: #1e4539; }
-.open-day-tier__code--B { background: linear-gradient(135deg, #877e74, #5c5348); border-color: #4b433b; }
-.open-day-tier__code--C { background: linear-gradient(135deg, #c4a984, #a48252); border-color: #8c6e44; }
-.open-day-tier__code--D { background: linear-gradient(135deg, #8c5b5b, #c07d7d); }
+.open-day-tier__code--S { background: linear-gradient(135deg, #6366f1, #4f46e5); border-color: #4338ca; }
+.open-day-tier__code--A { background: linear-gradient(135deg, #10b981, #059669); border-color: #047857; }
+.open-day-tier__code--B { background: linear-gradient(135deg, #64748b, #475569); border-color: #334155; }
+.open-day-tier__code--C { background: linear-gradient(135deg, #94a3b8, #64748b); border-color: #475569; }
+.open-day-tier__code--D { background: linear-gradient(135deg, #cbd5e1, #94a3b8); }
 
 .open-day-rank-chip {
   display: inline-flex;
@@ -364,9 +383,9 @@
   color: #4b433b;
 }
 
-.open-day-rank-chip--gold { background: linear-gradient(135deg, #ffd700, #ff8c00); color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
-.open-day-rank-chip--silver { background: linear-gradient(135deg, #c0c0c0, #7b7b7b); color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
-.open-day-rank-chip--bronze { background: linear-gradient(135deg, #cd7f32, #8b4513); color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+.open-day-rank-chip--gold { background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; text-shadow: 0 1px 1px rgba(0,0,0,0.1); }
+.open-day-rank-chip--silver { background: linear-gradient(135deg, #94a3b8, #64748b); color: #fff; }
+.open-day-rank-chip--bronze { background: linear-gradient(135deg, #94a3b8, #475569); color: #fff; opacity: 0.8; }
 
 .open-day-eligibility {
   display: inline-flex;
@@ -381,3 +400,94 @@
 
 .open-day-eligibility.is-on { background: rgba(37, 86, 72, 0.12); color: var(--od-secondary); }
 .open-day-eligibility.is-off { background: rgba(181, 70, 70, 0.12); color: #a33f3f; }
+
+.open-day-table-cell--score-audit {
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.open-day-table-cell--score-audit:hover {
+  background: rgba(191, 98, 59, 0.05) !important;
+}
+
+.open-day-audit-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  color: var(--od-primary);
+  opacity: 0.85;
+  transition: all 0.2s;
+}
+
+.open-day-table-cell--score-audit:hover .open-day-audit-trigger {
+  opacity: 1;
+}
+
+.open-day-audit-value {
+  font-weight: 800;
+  font-size: 15px;
+}
+
+.open-day-audit-icon {
+  opacity: 0;
+  transform: scale(0.8);
+  transition: all 0.2s;
+}
+
+.open-day-table-cell--score-audit:hover .open-day-audit-icon {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Delta Styles */
+.open-day-delta-rank {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 4px;
+  letter-spacing: -0.02em;
+}
+
+.open-day-delta-rank.is-up { background: #e0e7ff; color: #4338ca; }
+.open-day-delta-rank.is-down { background: #fef2f2; color: #dc2626; }
+.open-day-delta-rank.is-new { background: #f0fdfa; color: #0d9488; border: 1px solid #14b8a6; }
+
+.open-day-delta-score {
+  font-size: 11px;
+  font-weight: 700;
+  margin-left: 6px;
+  opacity: 0.8;
+}
+
+.open-day-delta-score.is-plus { color: #059669; }
+.open-day-delta-score.is-minus { color: #dc2626; }
+
+/* Logic Guard Alerts */
+.open-day-logic-alert {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: help;
+  transition: transform 0.2s;
+}
+
+.open-day-logic-alert:hover {
+  transform: scale(1.2);
+}
+
+.open-day-logic-alert.is-error {
+  color: #ef4444;
+  animation: od-pulse-red 2s infinite;
+}
+
+.open-day-logic-alert.is-warning {
+  color: #f59e0b;
+}
+
+@keyframes od-pulse-red {
+  0% { opacity: 1; }
+  50% { opacity: 0.6; }
+  100% { opacity: 1; }
+}

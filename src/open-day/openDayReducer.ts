@@ -63,6 +63,9 @@ export interface OpenDayState {
   isSidebarCollapsed: boolean;
   isFullScreen: boolean;
   isLibraryOpen: boolean;
+  auditRow: OpenDayAnalysisRow | null;
+  baselineAnalysis: OpenDayAnalysisResponse | null;
+  baselineSnapshotId: string;
 
   // Validation
   qualityReport: DatasetQualityReport | null;
@@ -106,6 +109,9 @@ export type OpenDayAction =
   | { type: 'SET_IS_FULL_SCREEN'; value: boolean }
   | { type: 'TOGGLE_LIBRARY' }
   | { type: 'SET_IS_LIBRARY_OPEN'; value: boolean }
+  | { type: 'SET_AUDIT_ROW'; row: OpenDayAnalysisRow | null }
+  | { type: 'SET_BASELINE_ANALYSIS'; analysis: OpenDayAnalysisResponse | null; snapshotId: string }
+  | { type: 'CLEAR_BASELINE' }
   | { type: 'MARK_DIRTY'; message?: string }
   | { type: 'APPLY_PRESET'; config: OpenDayConfig; packageId: string }
   | { type: 'RESTORE_DEFAULTS'; config: OpenDayConfig }
@@ -217,6 +223,12 @@ export function openDayReducer(state: OpenDayState, action: OpenDayAction): Open
       return { ...state, isLibraryOpen: !state.isLibraryOpen };
     case 'SET_IS_LIBRARY_OPEN':
       return { ...state, isLibraryOpen: action.value };
+    case 'SET_AUDIT_ROW':
+      return { ...state, auditRow: action.row };
+    case 'SET_BASELINE_ANALYSIS':
+      return { ...state, baselineAnalysis: action.analysis, baselineSnapshotId: action.snapshotId, isLibraryOpen: false };
+    case 'CLEAR_BASELINE':
+      return { ...state, baselineAnalysis: null, baselineSnapshotId: '' };
 
     case 'MARK_DIRTY':
       return {

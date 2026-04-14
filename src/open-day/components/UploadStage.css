@@ -48,8 +48,8 @@
   width: 100%;
   border: 1px solid var(--od-border-color);
   border-radius: var(--od-radius-xl);
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 12px 32px rgba(69, 45, 20, 0.06);
+  background: white;
+  box-shadow: var(--od-shadow-md);
   overflow: hidden;
 }
 
@@ -119,8 +119,8 @@
   grid-template-columns: repeat(3, 1fr);
   gap: 16px;
   padding: 24px 0;
-  border-top: 1px dashed rgba(76, 58, 42, 0.1);
-  border-bottom: 1px dashed rgba(76, 58, 42, 0.1);
+  border-top: 1px dashed var(--od-border-color);
+  border-bottom: 1px dashed var(--od-border-color);
 }
 
 .open-day-stat-box strong.has-error {
@@ -176,8 +176,8 @@
 }
 
 .open-day-quality-details {
-  background: #fafafa;
-  border-radius: 16px;
+  background: #fff;
+  border-radius: 12px;
   padding: 20px;
   border: 1px solid var(--od-border-color);
 }
@@ -230,20 +230,16 @@
   gap: 12px;
   min-height: 240px;
   padding: 16px;
-  border-radius: 16px;
-  border: 1px dashed rgba(76, 58, 42, 0.16);
-  background:
-    radial-gradient(circle at top right, rgba(191, 98, 59, 0.08), transparent 30%),
-    rgba(252, 249, 245, 0.74);
+  border-radius: 12px;
+  border: 1px dashed var(--od-border-color);
+  background: #fff;
   transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
   cursor: pointer;
 }
 
 .open-day-upload-drop-area:hover {
-  border-color: rgba(191, 98, 59, 0.28);
-  background:
-    radial-gradient(circle at top right, rgba(191, 98, 59, 0.12), transparent 32%),
-    rgba(255, 255, 255, 0.82);
+  border-color: var(--od-primary);
+  background: #fbfbfb;
   transform: translateY(-1px);
 }
 
@@ -272,7 +268,7 @@
 .open-day-upload-empty__icon {
   width: 48px;
   height: 48px;
-  color: rgba(76, 58, 42, 0.3);
+  color: var(--od-text-dim);
   margin-bottom: 8px;
 }
 

@@ -22,8 +22,11 @@ interface LibraryOverlayProps {
   // History state
   snapshots: OpenDayAnalysisSnapshotSummary[];
   activeSnapshotId?: string;
+  baselineSnapshotId?: string;
   onRefreshSnapshots: () => void;
   onReplaySnapshot: (id: string) => void;
+  onSetBaseline: (id: string) => void;
+  onClearBaseline: () => void;
 }
 
 export function LibraryOverlay({
@@ -40,8 +43,11 @@ export function LibraryOverlay({
   onLoadScenario,
   snapshots,
   activeSnapshotId,
+  baselineSnapshotId,
   onRefreshSnapshots,
   onReplaySnapshot,
+  onSetBaseline,
+  onClearBaseline,
 }: LibraryOverlayProps) {
   if (!isOpen) return null;
 
@@ -123,8 +129,11 @@ export function LibraryOverlay({
             <HistoryPanel
               snapshots={snapshots}
               activeSnapshotId={activeSnapshotId}
+              baselineSnapshotId={baselineSnapshotId}
               onRefresh={onRefreshSnapshots}
               onReplay={onReplaySnapshot}
+              onSetBaseline={onSetBaseline}
+              onClearBaseline={onClearBaseline}
             />
           </section>
         </div>

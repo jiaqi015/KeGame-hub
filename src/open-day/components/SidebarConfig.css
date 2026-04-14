@@ -29,14 +29,14 @@
   right: -16px;
   width: 24px;
   height: 48px;
-  background: #fbf6ef;
-  border: 1px solid rgba(76, 58, 42, 0.2);
+  background: #fff;
+  border: 1px solid var(--od-border-color);
   border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #4a433a;
+  color: var(--od-text-muted);
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.05);
   z-index: 10;
   transition: all 150ms ease;
@@ -53,14 +53,13 @@
 }
 
 .open-day-sidebar-card {
-  padding: 16px;
+  padding: 12px;
   border: 1px solid var(--od-border-color);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: var(--od-shadow-md);
+  background: #fff;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
 }
 
 .open-day-sidebar-section {
@@ -97,10 +96,10 @@
   display: grid;
   gap: 4px;
   text-align: left;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(76, 58, 42, 0.08);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(249, 244, 238, 0.88));
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--od-border-color);
+  background: #fff;
   cursor: pointer;
   transition: var(--od-transition);
 }
@@ -120,9 +119,10 @@
 }
 
 .open-day-preset-card.is-active {
-  border-color: rgba(37, 86, 72, 0.22);
-  background: linear-gradient(180deg, rgba(241, 249, 245, 0.96), rgba(233, 245, 239, 0.9));
-  box-shadow: 0 12px 24px rgba(37, 86, 72, 0.08);
+  border-color: var(--od-primary);
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.08);
+  border-width: 2px;
 }
 
 .open-day-params-grid {

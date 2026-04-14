@@ -62,6 +62,8 @@ import { AnalysisTable } from './components/AnalysisTable';
 import { InsightDrawer } from './components/InsightDrawer';
 import { LibraryOverlay } from './components/LibraryOverlay';
 import { SidebarConfig } from './components/SidebarConfig';
+import { AuditLabDrawer } from './components/AuditLabDrawer';
+import { AnimatePresence } from 'motion/react';
 
 import './open-day-workspace.css';
 
@@ -111,6 +113,9 @@ function createInitialState(): OpenDayState {
     isSidebarCollapsed: false,
     isFullScreen: false,
     isLibraryOpen: false,
+    auditRow: null,
+    baselineAnalysis: null,
+    baselineSnapshotId: '',
     qualityReport: null,
   };
 }
@@ -156,6 +161,9 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     isSidebarCollapsed,
     isFullScreen,
     isLibraryOpen,
+    auditRow,
+    baselineAnalysis,
+    baselineSnapshotId,
     qualityReport,
   } = state;
 
@@ -232,6 +240,19 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     const prevIndex = currentIndex <= 0 ? filteredResults.length - 1 : currentIndex - 1;
     dispatch({ type: 'SET_ACTIVE_ROW', row: filteredResults[prevIndex] });
   }
+
+  const onSetBaseline = async (snapshotId: string) => {
+    try {
+      const detail = await fetchOpenDaySnapshotDetail(activationKey, snapshotId);
+      if (detail?.response) {
+        dispatch({ type: 'SET_BASELINE_ANALYSIS', analysis: detail.response, snapshotId });
+      }
+    } catch (err) {
+      console.error('Set baseline failed:', err);
+    }
+  };
+
+  const onClearBaseline = () => dispatch({ type: 'CLEAR_BASELINE' });
 
   function updateConfig(mutator: (draft: OpenDayConfig) => void) {
     const next = cloneConfig(config);
@@ -734,6 +755,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
           <main>
             <AnalysisTable
               analysis={analysis}
+              baselineAnalysis={baselineAnalysis}
               searchTerm={searchTerm}
               activeRow={activeRow}
               isBootstrapping={isBootstrapping}
@@ -752,6 +774,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
               onSelectPrev={handleSelectPrev}
               onToggleFullScreen={() => dispatch({ type: 'TOGGLE_FULL_SCREEN' })}
               onExport={handleExportCsv}
+              onAuditRow={(row) => dispatch({ type: 'SET_AUDIT_ROW', row })}
             />
           </main>
         </div>
@@ -780,9 +803,23 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
         onLoadScenario={(id) => void handleLoadScenario(id)}
         snapshots={displayedSnapshots}
         activeSnapshotId={analysis?.meta.snapshotId}
+        baselineSnapshotId={baselineSnapshotId}
         onRefreshSnapshots={() => void refreshSnapshots()}
         onReplaySnapshot={(id) => void handleReplaySnapshot(id)}
+        onSetBaseline={onSetBaseline}
+        onClearBaseline={onClearBaseline}
       />
+
+      {/* Audit Lab Drawer */}
+      <AnimatePresence>
+        {auditRow && (
+          <AuditLabDrawer
+            row={auditRow}
+            config={config}
+            onClose={() => dispatch({ type: 'SET_AUDIT_ROW', row: null })}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

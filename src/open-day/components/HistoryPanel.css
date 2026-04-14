@@ -8,27 +8,38 @@
 }
 
 .open-day-history-card {
-  padding: 12px;
-  border-radius: 12px;
-  background: var(--od-bg-card);
-  border: 1px solid rgba(76, 58, 42, 0.08);
-  cursor: pointer;
-  transition: all 0.2s ease;
+  position: relative;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid var(--od-border-color);
+  transition: var(--od-transition);
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  overflow: hidden;
 }
 
 .open-day-history-card:hover {
-  border-color: rgba(191, 98, 59, 0.3);
-  background: rgba(251, 246, 239, 0.5);
-  transform: translateY(-1px);
+  border-color: var(--od-primary);
+  background: var(--od-primary-light);
 }
 
 .open-day-history-card.is-active {
-  border-color: var(--od-primary);
   background: var(--od-primary-light);
-  box-shadow: 0 2px 8px rgba(191, 98, 59, 0.12);
+  border-color: var(--od-primary);
+  border-left: 4px solid var(--od-primary);
+}
+
+.open-day-history-card.is-baseline {
+  border-color: var(--od-secondary);
+  background: var(--od-secondary-light);
+}
+
+.open-day-history-card__body {
+  flex: 1;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
 }
 
 .open-day-history-card__main {
@@ -110,6 +121,45 @@
 
 .open-day-history-card__actions {
   display: flex;
-  justify-content: flex-end;
-  margin-top: auto;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  border-left: 1px dashed var(--od-border-color);
+  background: rgba(0, 0, 0, 0.01);
+}
+
+.open-day-baseline-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--od-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.open-day-baseline-btn:hover {
+  background: #fff;
+  color: var(--od-primary);
+  border-color: var(--od-primary);
+}
+
+.open-day-baseline-btn.is-active {
+  color: var(--od-secondary);
+  background: #fff;
+  border-color: var(--od-secondary);
+}
+
+.open-day-baseline-tag {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 6px;
+  background: var(--od-secondary);
+  color: #fff;
+  border-radius: 4px;
+  text-transform: uppercase;
 }

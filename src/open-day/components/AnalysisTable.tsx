@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { BarChart3, RotateCw, Search, X, ShieldAlert, Expand, Shrink, FileDown } from 'lucide-react';
+import { Activity, BarChart3, RotateCw, Search, X, ShieldAlert, Expand, Shrink, FileDown, AlertCircle } from 'lucide-react';
 import type { OpenDayAnalysisResponse, OpenDayAnalysisRow } from '../../../modules/open-day/domain/openDay.types.ts';
 import type { DatasetQualityReport } from '../openDayConstants';
 import { formatNumber, formatPercent } from '../formatters';
@@ -7,6 +7,7 @@ import './AnalysisTable.css';
 
 interface AnalysisTableProps {
   analysis: OpenDayAnalysisResponse | null;
+  baselineAnalysis: OpenDayAnalysisResponse | null;
   searchTerm: string;
   activeRow: OpenDayAnalysisRow | null;
   isBootstrapping: boolean;
@@ -25,10 +26,12 @@ interface AnalysisTableProps {
   onExecuteAnalysis: () => void;
   onSelectNext: () => void;
   onSelectPrev: () => void;
+  onAuditRow: (row: OpenDayAnalysisRow) => void;
 }
 
 export function AnalysisTable({
   analysis,
+  baselineAnalysis,
   searchTerm,
   activeRow,
   isBootstrapping,
@@ -47,6 +50,7 @@ export function AnalysisTable({
   onExecuteAnalysis,
   onSelectNext,
   onSelectPrev,
+  onAuditRow,
 }: AnalysisTableProps) {
   const selectedRowRef = useRef<HTMLTableRowElement>(null);
   const filteredRows = analysis?.results.filter((row) => 
@@ -165,15 +169,15 @@ export function AnalysisTable({
             <tr>
               <th>排名</th>
               <th>小区</th>
-              <th>综合分</th>
+              <th className="is-numeric">综合分</th>
               <th>梯队</th>
               <th>状态</th>
-              <th>规模</th>
-              <th>流量</th>
-              <th>货品</th>
-              <th>交互</th>
-              <th>成交</th>
-              <th>转化</th>
+              <th className="is-numeric">规模</th>
+              <th className="is-numeric">流量</th>
+              <th className="is-numeric">货品</th>
+              <th className="is-numeric">交互</th>
+              <th className="is-numeric">成交</th>
+              <th className="is-numeric">转化</th>
             </tr>
           </thead>
           <tbody>
@@ -187,27 +191,73 @@ export function AnalysisTable({
                     onClick={() => onRowClick(row)}
                   >
                     <td>
-                      <span
-                        className={`open-day-rank-chip ${
-                          row.rank === 1
-                            ? 'open-day-rank-chip--gold'
-                            : row.rank === 2
-                              ? 'open-day-rank-chip--silver'
-                              : row.rank === 3
-                                ? 'open-day-rank-chip--bronze'
-                                : ''
-                        }`}
-                      >
-                        #{row.rank}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`open-day-rank-chip ${
+                            row.rank === 1
+                              ? 'open-day-rank-chip--gold'
+                              : row.rank === 2
+                                ? 'open-day-rank-chip--silver'
+                                : row.rank === 3
+                                  ? 'open-day-rank-chip--bronze'
+                                  : ''
+                          }`}
+                        >
+                          #{row.rank}
+                        </span>
+                        
+                        {baselineAnalysis && (() => {
+                          const baselineRow = baselineAnalysis.results.find(br => br.name === row.name);
+                          if (!baselineRow) return <span className="open-day-delta-rank is-new">NEW</span>;
+                          const delta = baselineRow.rank - row.rank; // 比如 原本第8，现在第3，delta = 5 (提升)
+                          if (delta > 0) return <span className="open-day-delta-rank is-up">↑{delta}</span>;
+                          if (delta < 0) return <span className="open-day-delta-rank is-down">↓{Math.abs(delta)}</span>;
+                          return null;
+                        })()}
+                      </div>
                     </td>
                     <td>
-                      <div className="flex flex-col">
-                        <span className="text-sm font-bold">{row.name}</span>
+                      <div className="flex flex-col relative group">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm font-bold">{row.name}</span>
+                          {row.logicGuardTags && (
+                            <div 
+                              className={`open-day-logic-alert is-${row.logicGuardSeverity || 'warning'}`}
+                              title={`[智能诊断报告]\n${row.logicGuardTags.map(t => '• ' + t).join('\n')}`}
+                            >
+                              <AlertCircle size={14} />
+                            </div>
+                          )}
+                        </div>
                         {row.area && <span className="text-[10px] text-[#6E6E73] opacity-70 uppercase tracking-wider">{row.area}</span>}
                       </div>
                     </td>
-                    <td>{formatNumber(row.score, 1)}</td>
+                    <td 
+                      className="open-day-table-cell--score-audit is-numeric"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAuditRow(row);
+                      }}
+                      title="点击查看测算推演实验室 (Audit Lab)"
+                    >
+                      <div className="open-day-audit-trigger">
+                        <span className="open-day-audit-value">{formatNumber(row.score, 1)}</span>
+                        
+                        {baselineAnalysis && (() => {
+                          const baselineRow = baselineAnalysis.results.find(br => br.name === row.name);
+                          if (!baselineRow) return null;
+                          const delta = row.score - baselineRow.score;
+                          if (Math.abs(delta) < 0.05) return null;
+                          return (
+                            <span className={`open-day-delta-score ${delta > 0 ? 'is-plus' : 'is-minus'}`}>
+                              {delta > 0 ? '+' : ''}{formatNumber(delta, 1)}
+                            </span>
+                          );
+                        })()}
+
+                        <Activity size={12} className="open-day-audit-icon" />
+                      </div>
+                    </td>
                     <td>
                       <div className="open-day-tier">
                         <span className={`open-day-tier__code open-day-tier__code--${row.tierCode}`}>{row.tierCode}</span>
@@ -219,32 +269,32 @@ export function AnalysisTable({
                         {row.isEligible ? '达标' : '未达标'}
                       </span>
                     </td>
-                    <td>
+                    <td className="is-numeric">
                       <div className="open-day-data-bar" title={`规模基础分: ${formatNumber(row.scaleIdx, 1)}`}>
                         <div className="open-day-data-bar__bg" style={{ width: `${Math.min(100, Math.max(0, row.scaleIdx))}%` }} />
                         <span className="open-day-data-bar__value">{formatNumber(row.scaleIdx, 1)}</span>
                       </div>
                     </td>
-                    <td>
+                    <td className="is-numeric">
                       <div className="open-day-data-bar" title={`流量基础分: ${formatNumber(row.trafficIdx, 1)}`}>
                         <div className="open-day-data-bar__bg" style={{ width: `${Math.min(100, Math.max(0, row.trafficIdx))}%` }} />
                         <span className="open-day-data-bar__value">{formatNumber(row.trafficIdx, 1)}</span>
                       </div>
                     </td>
-                    <td>
+                    <td className="is-numeric">
                       <div className="open-day-data-bar" title={`货品质量分: ${formatNumber(row.productIdx, 1)}`}>
                         <div className="open-day-data-bar__bg" style={{ width: `${Math.min(100, Math.max(0, row.productIdx))}%` }} />
                         <span className="open-day-data-bar__value">{formatNumber(row.productIdx, 1)}</span>
                       </div>
                     </td>
-                    <td>
+                    <td className="is-numeric">
                       <div className="open-day-data-bar" title={`交互转化分: ${formatNumber(row.interactionIdx, 1)}`}>
                         <div className="open-day-data-bar__bg" style={{ width: `${Math.min(100, Math.max(0, row.interactionIdx))}%` }} />
                         <span className="open-day-data-bar__value">{formatNumber(row.interactionIdx, 1)}</span>
                       </div>
                     </td>
-                    <td>{formatNumber(row.transactions, 0)}</td>
-                    <td>{formatPercent(row.convRate, 2)}</td>
+                    <td className="is-numeric">{formatNumber(row.transactions, 0)}</td>
+                    <td className="is-numeric">{formatPercent(row.convRate, 2)}</td>
                   </tr>
                 ))
               ) : (

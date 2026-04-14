@@ -109,6 +109,8 @@ export interface OpenDayAnalysisRow extends NormalizedOpenDayRow {
   isEligible: boolean;
   tierCode: 'S' | 'A' | 'B' | 'C' | 'D';
   tierLabel: string;
+  logicGuardTags?: string[];
+  logicGuardSeverity?: 'error' | 'warning' | null;
 }
 
 export interface OpenDayFormulaDefinition {
