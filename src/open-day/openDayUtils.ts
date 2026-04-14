@@ -11,6 +11,15 @@ export function getParameterPackageLabel(activeParameterPackageId: string, param
     || (activeParameterPackageId === 'custom' ? '自定义参数' : '自动巡航');
 }
 
+export function formatWaterlineValue(key: string, value: number): number {
+  if (isNaN(value)) return 0;
+  // Conversion rate (R_cap) usually needs more precision, others are usually counts
+  if (key === 'R_cap') {
+    return Math.round(value * 10000) / 10000;
+  }
+  return Math.round(value);
+}
+
 export function buildScenarioDraftName(
   sourceName: string,
   scenarioDraft: OpenDayScenarioDraft,

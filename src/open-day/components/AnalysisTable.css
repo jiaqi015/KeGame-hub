@@ -224,20 +224,33 @@
 }
 
 .open-day-table thead {
-  background: rgba(33, 30, 27, 0.95);
-  color: #fbf6f0;
   position: sticky;
-  top: 72px; /* Offset to stay below the sticky workspace header */
-  z-index: 2;
+  top: 56px; /* Optimized to stack perfectly below the pill-style workspace header */
+  z-index: 10; /* Elevated z-index to ensure it clips all row content */
+  background: rgba(33, 30, 27, 0.94);
+  color: #fbf6f0;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-.open-day-table th,
+.open-day-table th {
+  padding: 12px;
+  background: inherit; /* Ensure background-blur applies via parent */
+  border-bottom: 2px solid rgba(191, 98, 59, 0.2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .open-day-table td {
-  padding: 14px 12px;
+  padding: 10px 12px;
   text-align: left;
-  border-bottom: 1px solid rgba(76, 58, 42, 0.1);
-  font-size: 14px;
+  border-bottom: 1px solid rgba(76, 58, 42, 0.08);
+  font-size: 13px;
   vertical-align: middle;
+  font-variant-numeric: tabular-nums;
 }
 
 .open-day-table tbody tr {

@@ -1,4 +1,4 @@
-import { X, History, Save, RefreshCcw, Upload } from 'lucide-react';
+import { X, History, Save, RotateCw, FileUp } from 'lucide-react';
 import { HistoryPanel } from './HistoryPanel';
 import type { 
   OpenDayAnalysisSnapshotSummary, 
@@ -83,7 +83,7 @@ export function LibraryOverlay({
                 onClick={onSaveScenario}
                 disabled={isSavingScenario}
               >
-                {isSavingScenario ? <RefreshCcw className="animate-spin" size={14} /> : <Save size={14} />}
+                {isSavingScenario ? <RotateCw className="animate-spin" size={14} /> : <Save size={14} />}
                 <span>保存当前配置</span>
               </button>
             </div>
@@ -107,7 +107,7 @@ export function LibraryOverlay({
                     onClick={() => onLoadScenario(s.id)}
                     disabled={isLoadingScenario === s.id}
                   >
-                    {isLoadingScenario === s.id ? <RefreshCcw className="animate-spin" size={12} /> : <Upload size={12} />}
+                    {isLoadingScenario === s.id ? <RotateCw className="animate-spin" size={12} /> : <FileUp size={12} />}
                     <span>载入</span>
                   </button>
                 </div>

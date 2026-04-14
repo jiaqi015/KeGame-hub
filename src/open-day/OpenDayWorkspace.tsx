@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useReducer, useRef } from 'react';
 import {
   ArrowLeft,
-  Download,
+  FileDown,
   FileUp,
-  RefreshCcw,
-  Settings2,
+  RotateCw,
+  Activity,
 } from 'lucide-react';
 
 import type { ParsedWorkbookPayload } from '../../lib/openDayWorkbook.ts';
@@ -671,8 +671,8 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
               disabled={isAnalyzing}
               onClick={() => void executeAnalysis()}
             >
-              {isAnalyzing ? <RefreshCcw className="open-day-button__icon animate-spin" /> : <Settings2 className="open-day-button__icon" />}
-              <span>{isAnalyzing ? '测算中...' : hasPendingChanges ? '重新测算' : '测算'}</span>
+              {isAnalyzing ? <RotateCw className="open-day-button__icon animate-spin" /> : <Activity className="open-day-button__icon" />}
+              <span>{isAnalyzing ? '测算中...' : '开始测算'}</span>
             </button>
           </div>
         </div>

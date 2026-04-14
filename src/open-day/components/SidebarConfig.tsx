@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, RefreshCcw, Save, Upload, Library } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RotateCw, Save, FileUp, Archive } from 'lucide-react';
 import type {
   OpenDayAnalysisSnapshotSummary,
   OpenDayConfig,
@@ -8,6 +8,7 @@ import type {
 } from '../../../modules/open-day/domain/openDay.types.ts';
 import type { NormalizedOpenDayRow } from '../../../modules/open-day/domain/openDay.types.ts';
 import { deriveOpenDayPercentileForValue } from '../../../modules/open-day/domain/openDayParameterResolver.js';
+import { formatWaterlineValue } from '../openDayUtils';
 import type { WaterlineDefinition } from '../openDayConstants';
 import { DebouncedNumberInput } from './DebouncedNumberInput';
 import './SidebarConfig.css';
@@ -87,7 +88,7 @@ export function SidebarConfig({
               className="open-day-button open-day-button--secondary w-full justify-start px-3 py-2"
               onClick={onToggleLibrary}
             >
-              <Library size={16} className="text-emerald-700" />
+              <Archive size={16} className="text-emerald-700" />
               <span className="font-bold text-sm">档案与方案库</span>
             </button>
           </div>
@@ -188,7 +189,7 @@ export function SidebarConfig({
                       <td>
                         <DebouncedNumberInput
                           min={0} step={Number(def.absoluteStep)}
-                          value={Number(getDisplayedWaterlineValue(def.key))}
+                          value={formatWaterlineValue(def.key, Number(getDisplayedWaterlineValue(def.key)))}
                           disabled={config.waterlineMode === 'percentile'}
                           onChange={(v) => {
                             const val = Math.max(0, v);

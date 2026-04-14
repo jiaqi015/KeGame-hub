@@ -1,4 +1,4 @@
-import { Clock, RefreshCcw } from 'lucide-react';
+import { Clock, RotateCw } from 'lucide-react';
 import type { OpenDayAnalysisSnapshotSummary } from '../../../modules/open-day/domain/openDay.types.ts';
 import { formatNumber, formatDateTime } from '../formatters';
 import './HistoryPanel.css';
@@ -19,8 +19,9 @@ export function HistoryPanel({ snapshots, activeSnapshotId, onRefresh, onReplay 
           type="button"
           className="open-day-button open-day-button--ghost open-day-button--xs"
           onClick={onRefresh}
+          title="刷新快照列表"
         >
-          <RefreshCcw size={12} />
+          <RotateCw size={14} />
         </button>
       </div>
       <p className="open-day-sidebar-section__desc">查看并快速回放之前的测算方案，支持跨场景对标。</p>

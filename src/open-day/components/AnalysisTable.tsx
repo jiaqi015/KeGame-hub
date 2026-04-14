@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { BarChart3, RefreshCcw, Search, X, AlertTriangle, Maximize2, Minimize2, Download } from 'lucide-react';
+import { BarChart3, RotateCw, Search, X, ShieldAlert, Expand, Shrink, FileDown } from 'lucide-react';
 import type { OpenDayAnalysisResponse, OpenDayAnalysisRow } from '../../../modules/open-day/domain/openDay.types.ts';
 import type { DatasetQualityReport } from '../openDayConstants';
 import { formatNumber, formatPercent } from '../formatters';
@@ -79,7 +79,7 @@ export function AnalysisTable({
       {statusMessage ? (
         <div className={`open-day-status-card ${isAnalyzing ? 'is-loading' : ''} ${qualityReport?.invalidRows ? 'has-issue' : ''}`}>
           <div className="flex items-center gap-2">
-            {qualityReport?.invalidRows ? <AlertTriangle size={16} className="text-amber-600" /> : null}
+            {qualityReport?.invalidRows ? <ShieldAlert size={16} className="text-amber-600" /> : null}
             <span>{statusMessage}</span>
           </div>
           {qualityReport?.invalidRows ? (
@@ -87,16 +87,6 @@ export function AnalysisTable({
               {qualityReport.invalidRows} 行数据存在不完整（已自动跳过或处理）
             </div>
           ) : null}
-          {hasPendingChanges && !isAnalyzing && (
-            <button
-              type="button"
-              className="open-day-button open-day-button--primary open-day-button--sm"
-              onClick={onExecuteAnalysis}
-              style={{ marginLeft: 'auto' }}
-            >
-              立即测算
-            </button>
-          )}
         </div>
       ) : null}
 
@@ -148,7 +138,7 @@ export function AnalysisTable({
               disabled={!analysis || isAnalyzing}
               title="导出当前结果为 CSV"
             >
-              <Download size={16} />
+              <FileDown size={16} />
               <span>导出</span>
             </button>
 
@@ -157,7 +147,7 @@ export function AnalysisTable({
               onClick={onToggleFullScreen}
               title={isFullScreen ? '退出全屏' : '全屏模式'}
             >
-              {isFullScreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+              {isFullScreen ? <Shrink size={18} /> : <Expand size={18} />}
             </button>
           </div>
         </div>
@@ -166,7 +156,7 @@ export function AnalysisTable({
       <div className={`open-day-table-wrap ${hasPendingChanges ? 'is-stale' : ''} ${isAnalyzing ? 'is-analyzing' : ''}`}>
         {isAnalyzing && (
           <div className="open-day-table-loading-overlay">
-            <RefreshCcw size={32} className="animate-spin text-emerald-700" />
+            <RotateCw size={32} className="animate-spin text-emerald-700" />
             <span>正在精准测算...</span>
           </div>
         )}
@@ -275,7 +265,7 @@ export function AnalysisTable({
                 <td colSpan={12} className="open-day-table__empty">
                   {isBootstrapping ? (
                     <div className="open-day-table-empty-state">
-                      <RefreshCcw size={48} className="animate-spin" />
+                      <RotateCw size={48} className="animate-spin" />
                       <p>正在初始化工作台...</p>
                     </div>
                   ) : (
