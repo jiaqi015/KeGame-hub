@@ -688,7 +688,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
             </div>
             <button
               type="button"
-              className={`open-day-button open-day-button--lg ${hasPendingChanges ? 'open-day-button--primary open-day-button--pulse' : 'open-day-button--primary'}`}
+              className={`open-day-button open-day-button--sm ${hasPendingChanges ? 'open-day-button--primary open-day-button--pulse' : 'open-day-button--primary'}`}
               disabled={isAnalyzing}
               onClick={() => void executeAnalysis()}
             >

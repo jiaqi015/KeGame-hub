@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .open-day-table-controls {
@@ -84,19 +84,19 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .open-day-hero-stat {
   flex: 1;
   min-width: 120px;
-  padding: 8px 12px;
+  padding: 6px 10px;
   border-radius: 10px;
   border: 1px solid rgba(76, 58, 42, 0.06);
   background: rgba(255, 255, 255, 0.6);
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  gap: 8px;
 }
 
 .open-day-hero-stat__label {
@@ -224,24 +224,13 @@
 
 .open-day-table thead {
   position: sticky;
-  top: 53px; /* Precise height of the workspace-header (36px + 8px*2 + 1px border) */
+  top: 46px; /* Optimized height to prevent covering Rank #1 */
   z-index: 10;
   background: #fff;
-  color: var(--od-text-main);
   border-bottom: 2px solid var(--od-primary);
 }
 
-/* Clear gap guard: Prevent rows from showing above the sticky header if there's a minor pixel mismatch */
-.open-day-table thead::before {
-  content: "";
-  position: absolute;
-  top: -12px;
-  left: 0;
-  right: 0;
-  height: 12px;
-  background: var(--od-bg-base); /* Or same as workspace background */
-  z-index: -1;
-}
+/* Removed Gap Guard to prevent Row #1 clipping */
 
 .open-day-table th,
 .open-day-table td {
