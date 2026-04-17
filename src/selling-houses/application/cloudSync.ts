@@ -37,6 +37,7 @@ export interface MaintainerRunRecord {
   day: number;
   cash: number;
   energy: number;
+  auxiliaryStats: MaintainerAuxiliaryStats;
   commission: number;
   reputation: number;
   soldCount: number;

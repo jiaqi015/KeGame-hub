@@ -155,12 +155,12 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
         <div className="z-10 space-y-3 border-b border-black/[0.04] bg-white/95 px-3 pb-3 pt-3 backdrop-blur">
           <div>
             <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">阶段</div>
-            <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+            <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1">
               {CASE_STAGE_FILTERS.map((filter) => (
                 <button
                   key={filter.id}
                   onClick={() => setStageFilter(filter.id)}
-                  className={`whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] ${
+                  className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-semibold ${
                     stageFilter === filter.id ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'
                   }`}
                 >
@@ -187,52 +187,52 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
           </div>
         </div>
         <div className="flex-1 space-y-2.5 overflow-y-auto p-3">
-          {visibleCases.map(c => (
-            <div
-              key={c.id}
-              onClick={() => onSelectCase(c.id)}
-              className={`relative cursor-pointer overflow-hidden rounded-[16px] border px-4 py-3.5 transition-all ${
-                c.id === selectedCaseId
-                  ? 'border-emerald-500 bg-emerald-50/60 shadow-inner'
-                  : 'border-transparent bg-white hover:bg-slate-50'
-              }`}
-            >
+        {visibleCases.map(c => (
+          <div
+            key={c.id}
+            onClick={() => onSelectCase(c.id)}
+            className={`relative cursor-pointer overflow-hidden rounded-[14px] border px-3 py-3 transition-all ${
+              c.id === selectedCaseId
+                ? 'border-emerald-500 bg-emerald-50/60 shadow-inner'
+                : 'border-transparent bg-white hover:bg-slate-50'
+            }`}
+          >
               {c.isFocused && (
                 <div className="absolute right-0 top-0 rounded-bl-xl bg-amber-500 p-1 text-white shadow-lg animate-pulse">
                   <Star size={10} fill="currentColor" />
                 </div>
               )}
-              <div className="mb-2.5 flex items-start justify-between gap-3">
-                <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${
-                  c.isFocused ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
-                }`}>
-                  {c.isFocused ? '本周聚焦' : c.stageLabel}
-                </span>
-                <small className="pt-1 text-[11px] font-medium text-slate-400">{c.district}</small>
-              </div>
-              <strong className="block line-clamp-1 text-[15px] font-semibold leading-6 text-slate-800">{c.title}</strong>
-              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-slate-500">
-                <span>{c.community}</span>
-                <span className="text-slate-300">/</span>
-                <span>{c.layout} · {c.area}㎡</span>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                <ListTag label="挂牌" value={deriveListingAgeLabel(c)} tone="amber" />
-                <ListTag
-                  label="好房分"
-                  value={`${Math.round(c.competitiveness)}分`}
-                  tone={deriveHouseScoreTone(c.competitiveness)}
-                />
-                <ListTag label="窗口" value={deriveWindowLabel(c, getActiveOpportunities(state, c.id))} tone="rose" />
-              </div>
-              <div className="mt-3.5 flex items-center gap-3">
-                <MiniStat label="信任" val={c.trust} />
-                <MiniStat label="热度" val={c.heat} />
-                <span className={`ml-auto rounded-full px-2 py-1 text-[10px] font-bold ${
-                  c.personality === 'pragmatic' ? 'bg-emerald-100 text-emerald-600' :
-                  c.personality === 'emotional' ? 'bg-indigo-100 text-indigo-600' : 'bg-rose-100 text-rose-600'
-                }`}>
-                  {PERSONALITIES[c.personality as keyof typeof PERSONALITIES]?.label}
+            <div className="mb-2 flex items-start justify-between gap-3">
+              <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] ${
+                c.isFocused ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
+              }`}>
+                {c.isFocused ? '本周聚焦' : c.stageLabel}
+              </span>
+              <small className="pt-0.5 text-[10px] font-medium text-slate-400">{c.district}</small>
+            </div>
+            <strong className="block line-clamp-1 text-[14px] font-semibold leading-5 text-slate-800">{c.title}</strong>
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-500">
+              <span>{c.community}</span>
+              <span className="text-slate-300">/</span>
+              <span>{c.layout} · {c.area}㎡</span>
+            </div>
+            <div className="mt-2.5 flex flex-wrap gap-1.5">
+              <CompactTag label="挂牌" value={deriveListingAgeLabel(c)} tone="amber" />
+              <CompactTag
+                label="好房分"
+                value={`${Math.round(c.competitiveness)}分`}
+                tone={deriveHouseScoreTone(c.competitiveness)}
+              />
+              <CompactTag label="窗口" value={deriveWindowLabel(c, getActiveOpportunities(state, c.id))} tone="rose" />
+            </div>
+            <div className="mt-2.5 flex items-center gap-2">
+              <CompactMetric label="信" val={c.trust} />
+              <CompactMetric label="热" val={c.heat} />
+              <span className={`ml-auto rounded-full px-2 py-0.5 text-[9px] font-bold ${
+                c.personality === 'pragmatic' ? 'bg-emerald-100 text-emerald-600' :
+                c.personality === 'emotional' ? 'bg-indigo-100 text-indigo-600' : 'bg-rose-100 text-rose-600'
+              }`}>
+                {PERSONALITIES[c.personality as keyof typeof PERSONALITIES]?.label}
                 </span>
               </div>
             </div>
@@ -252,35 +252,35 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_240px] xl:items-start">
                 <div className="space-y-3">
                   <div className="flex flex-wrap items-center gap-3">
-                    <h2 className="text-[28px] font-semibold tracking-tight text-slate-900">{selectedCase.title}</h2>
-                    <span className="rounded-full bg-slate-900 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-white">
+                    <h2 className="text-[22px] font-semibold tracking-tight text-slate-900">{selectedCase.title}</h2>
+                    <span className="rounded-full bg-slate-900 px-3 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-white">
                       {selectedCase.stageLabel}
                     </span>
                     {selectedCase.isFocused && (
-                      <span className="flex items-center gap-1 rounded-full bg-amber-500 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white shadow-lg shadow-amber-500/20">
+                      <span className="flex items-center gap-1 rounded-full bg-amber-500 px-3 py-1 text-[9px] font-black uppercase tracking-[0.16em] text-white shadow-lg shadow-amber-500/20">
                         <Star size={12} fill="currentColor" />
                         本周聚焦
                       </span>
                     )}
                     {selectedCase.personality && (
                       <div className="group relative">
-                        <span className={`flex items-center gap-1 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white shadow-sm ${
+                        <span className={`flex items-center gap-1 rounded-full px-3 py-1 text-[9px] font-bold uppercase tracking-[0.16em] text-white shadow-sm ${
                           selectedCase.personality === 'pragmatic' ? 'bg-emerald-500' :
                           selectedCase.personality === 'emotional' ? 'bg-indigo-500' : 'bg-rose-500'
                         }`}>
                           <Shield size={10} fill="currentColor" />
                           业主画像 · {PERSONALITIES[selectedCase.personality as keyof typeof PERSONALITIES]?.label}
                         </span>
-                        <div className="pointer-events-none absolute left-0 top-full z-50 mt-2 w-52 rounded-xl bg-slate-900 p-3 text-[10px] text-white opacity-0 shadow-2xl transition-opacity group-hover:opacity-100">
+                        <div className="pointer-events-none absolute left-0 top-full z-50 mt-2 w-52 rounded-xl bg-slate-900 p-3 text-[9px] text-white opacity-0 shadow-2xl transition-opacity group-hover:opacity-100">
                           <p className="mb-1 font-bold">{PERSONALITIES[selectedCase.personality as keyof typeof PERSONALITIES]?.label}</p>
                           <p className="leading-relaxed opacity-80">{PERSONALITIES[selectedCase.personality as keyof typeof PERSONALITIES]?.desc}</p>
                         </div>
                       </div>
                     )}
                   </div>
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-500">
-                    <div className="flex items-center gap-1"><HomeIcon size={14} /> <span>{selectedCase.community}</span></div>
-                    <div className="flex items-center gap-1"><MapPin size={14} /> <span>{selectedCase.district}</span></div>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] text-slate-500">
+                    <div className="flex items-center gap-1"><HomeIcon size={13} /> <span>{selectedCase.community}</span></div>
+                    <div className="flex items-center gap-1"><MapPin size={13} /> <span>{selectedCase.district}</span></div>
                     <div className="text-slate-300">/</div>
                     <div>{selectedCase.layout} · {selectedCase.area}㎡</div>
                   </div>
@@ -312,19 +312,19 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                   </div>
                 </div>
                 <div className="rounded-[22px] border border-black/[0.04] bg-white px-4 py-4 shadow-sm">
-                  <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">挂牌价格</div>
+                  <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400">挂牌价格</div>
                   <div className="mt-2 flex items-end gap-2 text-slate-900">
-                    <span className="text-[30px] font-semibold tracking-tight">{selectedCase.askPrice}</span>
-                    <span className="pb-1 text-sm text-slate-400">万</span>
+                    <span className="text-[24px] font-semibold tracking-tight">{selectedCase.askPrice}</span>
+                    <span className="pb-1 text-[12px] text-slate-400">万</span>
                   </div>
-                  <div className="mt-3 grid grid-cols-1 gap-2 text-sm">
+                  <div className="mt-3 grid grid-cols-1 gap-2 text-[12px]">
                     <div className="rounded-xl bg-slate-50 px-3 py-2">
-                      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">市场心理价</div>
+                      <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">市场心理价</div>
                       <div className="mt-1 font-semibold text-slate-700">{selectedCase.marketPrice} 万</div>
                     </div>
                     <div className="rounded-xl bg-slate-50 px-3 py-2">
-                      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">当前判断</div>
-                      <div className={`mt-1 text-[13px] font-semibold leading-relaxed ${selectedCase.askPrice <= selectedCase.marketPrice ? 'text-emerald-600' : 'text-amber-600'}`}>
+                      <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">当前判断</div>
+                      <div className={`mt-1 text-[11px] font-semibold leading-relaxed ${selectedCase.askPrice <= selectedCase.marketPrice ? 'text-emerald-600' : 'text-amber-600'}`}>
                         {derivePricePosition(selectedCase)}
                       </div>
                     </div>
@@ -336,10 +336,10 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
             <section className="mb-5 rounded-[20px] border border-black/[0.04] bg-slate-50/80 p-4">
               <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <div className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">动作区</div>
-                  <p className="mt-1 text-sm text-slate-500">先看主矛盾和推荐动作，再决定要不要展开全部动作。</p>
+                  <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">动作区</div>
+                  <p className="mt-1 text-[12px] text-slate-500">先看主矛盾和推荐动作，再决定要不要展开全部动作。</p>
                 </div>
-                <span className="rounded-full bg-white px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500 shadow-sm">
+                <span className="rounded-full bg-white px-3 py-1 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-500 shadow-sm">
                   {availableActionCount}/{ACTIONS.length} 现在可做
                 </span>
               </div>
@@ -348,12 +348,12 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                 <section className="rounded-[18px] border border-black/[0.04] bg-white p-4 shadow-sm">
                   {actionDiagnosis && (
                     <div className="mb-3 rounded-[16px] border border-black/[0.04] bg-slate-50 p-3">
-                      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">当前主矛盾</div>
-                      <h4 className="mt-1 text-sm font-semibold text-slate-900">{actionDiagnosis.title}</h4>
-                      <p className="mt-1 text-xs leading-relaxed text-slate-500">{actionDiagnosis.summary}</p>
+                      <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400">当前主矛盾</div>
+                      <h4 className="mt-1 text-[12px] font-semibold text-slate-900">{actionDiagnosis.title}</h4>
+                      <p className="mt-1 text-[11px] leading-relaxed text-slate-500">{actionDiagnosis.summary}</p>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {actionDiagnosis.evidence.map((item) => (
-                          <span key={item} className="rounded-full bg-white px-2.5 py-1 text-[10px] font-medium text-slate-500">
+                          <span key={item} className="rounded-full bg-white px-2.5 py-1 text-[9px] font-medium text-slate-500">
                             {item}
                           </span>
                         ))}
@@ -377,15 +377,15 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                 <section className="rounded-[18px] border border-black/[0.04] bg-white p-4 shadow-sm">
                   <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                     <div>
-                      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">全部动作</div>
-                      <p className="mt-1 text-xs leading-relaxed text-slate-500">建议看优先级，这里看全量动作和每个动作为什么能做或不能做。</p>
+                      <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400">全部动作</div>
+                      <p className="mt-1 text-[11px] leading-relaxed text-slate-500">建议看优先级，这里看全量动作和每个动作为什么能做或不能做。</p>
                     </div>
                     <div className="flex gap-2 overflow-x-auto pb-1">
                       {actionCardsByCategory.map(({ category, availableCards }) => (
                         <button
                           key={category.id}
                           onClick={() => setActiveActionTab(category.id as ActionCategoryTab)}
-                          className={`whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] transition-colors ${
+                          className={`whitespace-nowrap rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] transition-colors ${
                             activeActionCategory?.category.id === category.id
                               ? 'bg-slate-900 text-white'
                               : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
@@ -402,10 +402,10 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                       <div className="rounded-xl border border-black/[0.04] bg-slate-50 px-3.5 py-3">
                         <div className="flex items-start justify-between gap-4">
                           <div>
-                            <h5 className="text-sm font-semibold text-slate-800">{activeActionCategory.category.name}</h5>
-                            <p className="mt-1 text-xs leading-relaxed text-slate-500">{activeActionCategory.category.summary}</p>
+                            <h5 className="text-[12px] font-semibold text-slate-800">{activeActionCategory.category.name}</h5>
+                            <p className="mt-1 text-[11px] leading-relaxed text-slate-500">{activeActionCategory.category.summary}</p>
                           </div>
-                          <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                          <span className="rounded-full bg-white px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-500">
                             {activeActionCategory.availableCards.length}/{activeActionCategory.cards.length}
                           </span>
                         </div>
@@ -437,15 +437,15 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
               <div className="border-b border-black/[0.04] px-5 pt-5">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                   <div>
-                    <div className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">信息区</div>
-                    <p className="mt-1 text-sm text-slate-500">按问题切换信息维度，不把所有信息一次性压在一整页里。</p>
+                    <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">信息区</div>
+                    <p className="mt-1 text-[12px] text-slate-500">按问题切换信息维度，不把所有信息一次性压在一整页里。</p>
                   </div>
                   <div className="flex gap-2 overflow-x-auto pb-4">
                     {DETAIL_TABS.map(tab => (
                       <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
-                        className={`whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] transition-colors ${
+                        className={`whitespace-nowrap rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] transition-colors ${
                           activeTab === tab.id
                             ? 'bg-slate-900 text-white'
                             : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
@@ -463,17 +463,17 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                   <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.1fr_0.9fr]">
                     <section className="space-y-3">
                       <div className="flex items-center justify-between">
-                        <h4 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">判断依据</h4>
-                        <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-slate-300">{caseMatters.length} 条证据</span>
+                        <h4 className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">判断依据</h4>
+                        <span className="text-[9px] font-medium uppercase tracking-[0.16em] text-slate-300">{caseMatters.length} 条证据</span>
                       </div>
                       {caseMatters.map((matter, index) => (
                         <div key={`${matter.title}-${index}`} className="rounded-xl border border-black/[0.04] bg-slate-50 p-3.5">
                           <div className="flex items-start justify-between gap-4">
                             <div>
-                              <div className="text-[13px] font-semibold text-slate-800">{matter.title}</div>
-                              <p className="mt-1 text-xs leading-relaxed text-slate-500">{matter.detail}</p>
+                              <div className="text-[12px] font-semibold text-slate-800">{matter.title}</div>
+                              <p className="mt-1 text-[11px] leading-relaxed text-slate-500">{matter.detail}</p>
                             </div>
-                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] ${
+                            <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.16em] ${
                               matter.tone === 'rose'
                                 ? 'bg-rose-100 text-rose-600'
                                 : matter.tone === 'amber'
@@ -489,11 +489,11 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
 
                     <section className="space-y-4">
                       <div className="rounded-[18px] border border-black/[0.04] bg-slate-50 p-4">
-                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">为什么先做这个</div>
-                        <div className="mt-2 text-[15px] font-semibold leading-6 text-slate-800">
+                        <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400">为什么先做这个</div>
+                        <div className="mt-2 text-[12px] font-semibold leading-5 text-slate-800">
                           {actionDiagnosis?.summary || deriveManagerTake(selectedCase, activeOpportunities)}
                         </div>
-                        <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                        <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
                           {actionDiagnosis?.evidence.join(' · ') || `${derivePricePosition(selectedCase)} · ${deriveWindowLabel(selectedCase, activeOpportunities)}`}
                         </p>
                       </div>
@@ -518,12 +518,12 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                       </div>
                       <section className="rounded-[18px] border border-black/[0.04] bg-white p-4 shadow-sm">
                         <div className="mb-3 flex items-center justify-between">
-                          <h4 className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
+                          <h4 className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
                             <History size={14} />
                             最近变化
                           </h4>
                           {latestScoreSnapshot && (
-                            <span className={`text-xs font-bold ${latestScoreSnapshot.delta >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            <span className={`text-[11px] font-bold ${latestScoreSnapshot.delta >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                               {latestScoreSnapshot.delta >= 0 ? '+' : ''}
                               {Math.round(latestScoreSnapshot.delta * 10) / 10}pts
                             </span>
@@ -538,11 +538,11 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                               <AttributionItem key={`d3-${index}`} driver={driver} category="业主" />
                             ))}
                             {(!latestScoreSnapshot.breakdown.d1_drivers?.length && !latestScoreSnapshot.breakdown.d3_drivers?.length) && (
-                              <p className="text-xs italic text-slate-400">最近没有明显波动，先继续推进动作。</p>
+                              <p className="text-[11px] italic text-slate-400">最近没有明显波动，先继续推进动作。</p>
                             )}
                           </div>
                         ) : (
-                          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-400">
+                          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-[12px] text-slate-400">
                             还没有足够的变化证据，先推进动作再看结果。
                           </div>
                         )}
@@ -553,20 +553,20 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
 
                 {activeTab === 'owner' && (
                   <section className="rounded-[20px] border border-black/[0.04] bg-slate-50/80 p-5">
-                    <div className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
+                    <div className="mb-4 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
                       <MessagesSquare size={14} />
                       业主状态
                     </div>
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                       <div className="rounded-xl border border-black/[0.04] bg-white p-4">
-                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">当前状态</div>
-                        <div className="mt-2 text-sm font-semibold text-slate-800">{selectedCase.ownerMood || '待观察'}</div>
-                        <p className="mt-2 text-xs leading-relaxed text-slate-500">{deriveSellerGuidance(selectedCase)}</p>
+                        <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400">当前状态</div>
+                        <div className="mt-2 text-[12px] font-semibold text-slate-800">{selectedCase.ownerMood || '待观察'}</div>
+                        <p className="mt-2 text-[11px] leading-relaxed text-slate-500">{deriveSellerGuidance(selectedCase)}</p>
                       </div>
                       <div className="rounded-xl border border-black/[0.04] bg-white p-4">
-                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">沟通建议</div>
-                        <div className="mt-2 text-sm font-semibold text-slate-800">{deriveCommunicationMode(selectedCase)}</div>
-                        <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                        <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400">沟通建议</div>
+                        <div className="mt-2 text-[12px] font-semibold text-slate-800">{deriveCommunicationMode(selectedCase)}</div>
+                        <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
                           {selectedCase.personality
                             ? PERSONALITIES[selectedCase.personality as keyof typeof PERSONALITIES]?.desc
                             : '先用反馈把业主拉回同一页。'}
@@ -584,22 +584,22 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                 {activeTab === 'score' && (
                   <div className="grid grid-cols-1 gap-5 xl:grid-cols-[0.95fr_1.05fr]">
                     <section className="rounded-[20px] border border-black/[0.04] bg-slate-50/80 p-5">
-                      <div className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
+                      <div className="mb-4 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
                         <Trophy size={14} />
                         价格与好房分
                       </div>
                       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                         <div className="rounded-xl border border-black/[0.04] bg-white p-4">
-                          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">挂牌价格</div>
-                          <div className="mt-2 text-2xl font-bold text-slate-900">
-                            {selectedCase.askPrice} <span className="text-sm font-normal text-slate-400">万</span>
+                          <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400">挂牌价格</div>
+                          <div className="mt-2 text-[22px] font-bold text-slate-900">
+                            {selectedCase.askPrice} <span className="text-[12px] font-normal text-slate-400">万</span>
                           </div>
-                          <p className="mt-2 text-xs leading-relaxed text-slate-500">市场心理价 {selectedCase.marketPrice} 万，底价 {selectedCase.bottomPrice} 万。</p>
+                          <p className="mt-2 text-[11px] leading-relaxed text-slate-500">市场心理价 {selectedCase.marketPrice} 万，底价 {selectedCase.bottomPrice} 万。</p>
                         </div>
                         <div className="rounded-xl border border-black/[0.04] bg-white p-4">
-                          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">价格判断</div>
-                          <div className="mt-2 text-sm font-semibold text-slate-800">{derivePricePosition(selectedCase)}</div>
-                          <p className="mt-2 text-xs leading-relaxed text-slate-500">{deriveNextFix(selectedCase, activeOpportunities)}</p>
+                          <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400">价格判断</div>
+                          <div className="mt-2 text-[12px] font-semibold text-slate-800">{derivePricePosition(selectedCase)}</div>
+                          <p className="mt-2 text-[11px] leading-relaxed text-slate-500">{deriveNextFix(selectedCase, activeOpportunities)}</p>
                         </div>
                       </div>
                       <div className="mt-4 grid grid-cols-1 gap-2.5 md:grid-cols-3">
@@ -610,7 +610,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                     </section>
 
                     <section className="rounded-[20px] border border-black/[0.04] bg-white p-5 shadow-sm">
-                      <div className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
+                      <div className="mb-4 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
                         <Trophy size={14} />
                         好房分拆解
                       </div>
@@ -627,8 +627,8 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                 {activeTab === 'pool' && (
                   <section className="flex flex-col">
                     <div className="mb-4 flex items-center justify-between">
-                      <h4 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">准客池</h4>
-                      <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-slate-300">{activeOpportunities.length} 位活跃准客</span>
+                      <h4 className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">准客池</h4>
+                      <span className="text-[9px] font-medium uppercase tracking-[0.16em] text-slate-300">{activeOpportunities.length} 位活跃准客</span>
                     </div>
                     <div className="mb-4 grid grid-cols-2 gap-2.5 xl:grid-cols-4">
                       <PoolMetric label="池子总量" value={activeOpportunities.length} tone="slate" />
@@ -640,10 +640,10 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                       <section className="rounded-xl border border-amber-200 bg-amber-50/40 p-4">
                         <div className="mb-3 flex items-center justify-between">
                           <div>
-                            <h5 className="text-sm font-semibold text-slate-800">预测客群</h5>
-                            <p className="mt-1 text-xs leading-relaxed text-slate-500">这批人群和房源可能匹配，但真实预算、需求和成交力度还没被验证。</p>
+                            <h5 className="text-[12px] font-semibold text-slate-800">预测客群</h5>
+                            <p className="mt-1 text-[11px] leading-relaxed text-slate-500">这批人群和房源可能匹配，但真实预算、需求和成交力度还没被验证。</p>
                           </div>
-                          <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-amber-700">
+                          <span className="rounded-full bg-white px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.16em] text-amber-700">
                             {predictedOpportunities.length} 组
                           </span>
                         </div>
@@ -651,12 +651,12 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                           {predictedOpportunities.map(o => (
                             <div key={o.id} className="rounded-xl border border-dashed border-amber-200 bg-white/80 p-3.5">
                               <div className="mb-2 flex items-center justify-between">
-                                <strong className="text-slate-800">{`预测客群 #${o.id.split('-').pop()}`}</strong>
-                                <span className="rounded bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                                <strong className="text-[12px] text-slate-800">{`预测客群 #${o.id.split('-').pop()}`}</strong>
+                                <span className="rounded bg-amber-100 px-2 py-0.5 text-[9px] font-bold text-amber-700">
                                   待确认
                                 </span>
                               </div>
-                              <div className="flex flex-wrap gap-4 text-xs text-slate-500">
+                              <div className="flex flex-wrap gap-4 text-[11px] text-slate-500">
                                 <span>来源 {o.channelName}</span>
                                 <span>先和合作经纪人确认真实需求</span>
                                 <span className="ml-auto text-slate-300">{o.daysLeft} 天后可能流失</span>
@@ -664,7 +664,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                             </div>
                           ))}
                           {predictedOpportunities.length === 0 && (
-                            <div className="rounded-xl border border-dashed border-amber-200 bg-white/80 p-4 text-sm text-slate-400">
+                            <div className="rounded-xl border border-dashed border-amber-200 bg-white/80 p-4 text-[12px] text-slate-400">
                               当前没有需要先摸清的预测客群。
                             </div>
                           )}
@@ -674,20 +674,20 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                       <section className="rounded-xl border border-black/[0.04] bg-slate-50 p-4">
                         <div className="mb-3 flex items-center justify-between">
                           <div>
-                            <h5 className="text-sm font-semibold text-slate-800">接洽中的客户</h5>
-                            <p className="mt-1 text-xs leading-relaxed text-slate-500">这部分客户已经接上话，可以继续经营推进到看房、报价或成交。</p>
+                            <h5 className="text-[12px] font-semibold text-slate-800">接洽中的客户</h5>
+                            <p className="mt-1 text-[11px] leading-relaxed text-slate-500">这部分客户已经接上话，可以继续经营推进到看房、报价或成交。</p>
                           </div>
-                          <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                          <span className="rounded-full bg-white px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-500">
                             {engagedOpportunities.length} 位
                           </span>
                         </div>
                         <div className="mb-4 rounded-xl border border-black/[0.04] bg-white p-4">
-                          <div className="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">推进阶段分布</div>
+                          <div className="mb-3 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400">推进阶段分布</div>
                           <div className="grid grid-cols-2 gap-2.5 md:grid-cols-5">
                             {derivePoolStages(engagedOpportunities).map(stage => (
                               <div key={stage.label} className="rounded-lg bg-slate-50 px-3 py-2 text-center shadow-sm">
-                                <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">{stage.label}</div>
-                                <div className="mt-1 text-[17px] font-bold text-slate-800">{stage.count}</div>
+                                <div className="text-[9px] font-bold uppercase tracking-[0.12em] text-slate-400">{stage.label}</div>
+                                <div className="mt-1 text-[15px] font-bold text-slate-800">{stage.count}</div>
                               </div>
                             ))}
                           </div>
@@ -696,12 +696,12 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                           {engagedOpportunities.map(o => (
                             <div key={o.id} className="rounded-xl border border-slate-200 p-3.5">
                               <div className="mb-2 flex items-center justify-between">
-                                <strong className="text-slate-800">{o.customerName}</strong>
-                                <span className="rounded bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-600">
+                                <strong className="text-[12px] text-slate-800">{o.customerName}</strong>
+                                <span className="rounded bg-blue-50 px-2 py-0.5 text-[9px] font-bold text-blue-600">
                                   {o.stageLabel}
                                 </span>
                               </div>
-                              <div className="flex flex-wrap gap-4 text-xs text-slate-500">
+                              <div className="flex flex-wrap gap-4 text-[11px] text-slate-500">
                                 <span>意向 {Math.round(o.intent)}%</span>
                                 <span>把握度 {Math.round(o.confidence)}%</span>
                                 <span>来源 {o.channelName}</span>
@@ -711,7 +711,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                             </div>
                           ))}
                           {engagedOpportunities.length === 0 && (
-                            <div className="rounded-xl border border-dashed border-slate-200 bg-white p-4 text-sm text-slate-400">
+                            <div className="rounded-xl border border-dashed border-slate-200 bg-white p-4 text-[12px] text-slate-400">
                               目前还没有进入接洽阶段的客户，先补客群或先摸清预测客群。
                             </div>
                           )}
@@ -732,7 +732,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
       {decisionConfig && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6 backdrop-blur-sm">
           <div className="max-w-lg w-full animate-in zoom-in rounded-[32px] bg-white p-8 shadow-2xl fade-in duration-200">
-            <h3 className="mb-2 text-xl font-bold text-slate-900">{decisionConfig.title}</h3>
+            <h3 className="mb-2 text-[18px] font-bold text-slate-900">{decisionConfig.title}</h3>
             <div className="mb-4 flex flex-wrap gap-2 text-[10px] font-bold uppercase tracking-[0.18em]">
               <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-500">{decisionConfig.actorLabel}</span>
               {decisionConfig.metricFocus.map(metric => (
@@ -741,8 +741,8 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                 </span>
               ))}
             </div>
-            <p className="mb-2 text-sm font-semibold leading-relaxed text-slate-800">{decisionConfig.summary}</p>
-            <p className="mb-6 text-sm leading-relaxed text-slate-500">{decisionConfig.body}</p>
+            <p className="mb-2 text-[13px] font-semibold leading-relaxed text-slate-800">{decisionConfig.summary}</p>
+            <p className="mb-6 text-[12px] leading-relaxed text-slate-500">{decisionConfig.body}</p>
             <div className="space-y-3">
               {decisionConfig.options.map((opt) => (
                 <button
@@ -754,14 +754,14 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                   className="group w-full rounded-2xl border border-black/[0.03] bg-slate-50 p-4 text-left transition-all hover:border-emerald-500 hover:bg-emerald-50"
                 >
                   <strong className="block text-slate-800 group-hover:text-emerald-700">{opt.title}</strong>
-                  <p className="mt-1 text-xs text-slate-400">{opt.note}</p>
+                  <p className="mt-1 text-[11px] text-slate-400">{opt.note}</p>
                 </button>
               ))}
             </div>
             <div className="mt-8 flex justify-end">
               <button
                 onClick={() => setDecisionConfig(null)}
-                className="rounded-full px-6 py-2 text-sm font-bold uppercase tracking-widest text-slate-400 transition-colors hover:text-slate-600"
+                className="rounded-full px-6 py-2 text-[12px] font-bold uppercase tracking-widest text-slate-400 transition-colors hover:text-slate-600"
               >
                 取消
               </button>
@@ -776,7 +776,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
 function DetailStat({ label, val, icon, color = "bg-slate-900" }: { label: string; val: number; icon: React.ReactNode; color?: string }) {
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2 text-[11px] font-bold text-slate-400 uppercase tracking-[0.16em]">
+      <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-[0.14em]">
         {icon} <span>{label}</span>
       </div>
       <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
@@ -785,7 +785,7 @@ function DetailStat({ label, val, icon, color = "bg-slate-900" }: { label: strin
           style={{ width: `${val}%` }} 
         />
       </div>
-      <div className="text-right text-[11px] font-semibold text-slate-500">{Math.round(val)}</div>
+      <div className="text-right text-[10px] font-semibold text-slate-500">{Math.round(val)}</div>
     </div>
   );
 }
@@ -797,9 +797,9 @@ function AttributionItem({ driver, category }: { driver: any; category: string; 
         <span className="rounded-md border border-black/5 bg-white px-1.5 py-0.5 text-[8px] font-bold uppercase text-slate-400">
           {category}
         </span>
-        <span className="text-xs text-slate-600 font-medium">{driver.reason}</span>
+        <span className="text-[11px] text-slate-600 font-medium">{driver.reason}</span>
       </div>
-      <span className={`text-[10px] font-bold ${driver.contribution >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+      <span className={`text-[9px] font-bold ${driver.contribution >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
         {driver.contribution >= 0 ? '+' : ''}{driver.contribution}
       </span>
     </div>
@@ -814,6 +814,20 @@ function MiniStat({ label, val }: { label: string; val: number }) {
         <span>{Math.round(val)}</span>
       </div>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-black/5">
+        <div className="h-full bg-emerald-500" style={{ width: `${val}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function CompactMetric({ label, val }: { label: string; val: number }) {
+  return (
+    <div className="min-w-0 flex-1">
+      <div className="mb-1 flex justify-between text-[9px] font-bold uppercase tracking-[0.12em] text-slate-400">
+        <span>{label}</span>
+        <span>{Math.round(val)}</span>
+      </div>
+      <div className="h-1 w-full overflow-hidden rounded-full bg-black/5">
         <div className="h-full bg-emerald-500" style={{ width: `${val}%` }} />
       </div>
     </div>
@@ -838,11 +852,11 @@ function SummaryCallout({
       : 'bg-slate-50 text-slate-700 border-slate-200';
   return (
     <div className={`rounded-xl border px-4 py-3.5 ${toneClass}`}>
-      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] opacity-75">
+      <div className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-[0.14em] opacity-75">
         {icon}
         {label}
       </div>
-      <div className="mt-2 text-[14px] font-semibold leading-6">{value}</div>
+      <div className="mt-2 text-[13px] font-semibold leading-5">{value}</div>
     </div>
   );
 }
@@ -855,8 +869,8 @@ function MetricChip({ label, value, tone }: { label: string; value: string; tone
       : 'bg-slate-100 text-slate-700';
   return (
     <div className={`rounded-xl px-4 py-3 ${toneClass}`}>
-      <div className="text-[10px] font-bold uppercase tracking-[0.16em] opacity-70">{label}</div>
-      <div className="mt-1.5 text-[14px] font-semibold leading-6">{value}</div>
+      <div className="text-[9px] font-bold uppercase tracking-[0.14em] opacity-70">{label}</div>
+      <div className="mt-1.5 text-[13px] font-semibold leading-5">{value}</div>
     </div>
   );
 }
@@ -871,8 +885,8 @@ function PoolMetric({ label, value, tone }: { label: string; value: number; tone
         : 'bg-slate-50 text-slate-700';
   return (
     <div className={`rounded-xl px-4 py-3 ${toneClass}`}>
-      <div className="text-[10px] font-bold uppercase tracking-[0.16em] opacity-70">{label}</div>
-      <div className="mt-1.5 text-[22px] font-semibold">{value}</div>
+      <div className="text-[9px] font-bold uppercase tracking-[0.14em] opacity-70">{label}</div>
+      <div className="mt-1.5 text-[20px] font-semibold">{value}</div>
     </div>
   );
 }
@@ -894,25 +908,25 @@ function SuggestedActionCard({
   return (
     <div className={`rounded-[16px] border px-3.5 py-3.5 ${blocked ? 'border-slate-200 bg-slate-100/80' : 'border-emerald-100 bg-emerald-50/50'}`}>
       <div className="flex items-start gap-3">
-        <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-black ${
+        <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-black ${
           blocked ? 'bg-slate-200 text-slate-500' : 'bg-slate-900 text-white'
         }`}>
           {rank}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <div className="text-[14px] font-semibold text-slate-800">{action.name}</div>
-            <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
+            <div className="text-[13px] font-semibold text-slate-800">{action.name}</div>
+            <span className="rounded-full bg-white px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-500">
               {label}
             </span>
-            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] ${
+            <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.16em] ${
               blocked ? 'bg-slate-200 text-slate-500' : 'bg-emerald-100 text-emerald-700'
             }`}>
               {blocked ? '暂时卡住' : deriveActionFitLabel(priority, true)}
             </span>
           </div>
-          <p className="mt-1.5 text-[12px] leading-5 text-slate-500">{hint}</p>
-          <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-medium">
+          <p className="mt-1.5 text-[11px] leading-5 text-slate-500">{hint}</p>
+          <div className="mt-2 flex flex-wrap gap-2 text-[10px] font-medium">
             <span className="rounded-full bg-white px-2.5 py-1 text-slate-500">{costText(action)}</span>
             <span className={`rounded-full px-2.5 py-1 ${blocked ? 'bg-slate-200 text-slate-500' : 'bg-white text-emerald-700'}`}>
               {blocked ? availability.reason : action.summary}
@@ -921,7 +935,7 @@ function SuggestedActionCard({
           <button
             disabled={blocked || !availability.enabled}
             onClick={() => onExecute(action.id)}
-            className={`mt-2 rounded-xl px-4 py-2 text-xs font-bold transition-all ${
+            className={`mt-2 rounded-xl px-4 py-2 text-[11px] font-bold transition-all ${
               blocked || !availability.enabled
                 ? 'cursor-not-allowed bg-slate-200 text-slate-400'
                 : 'border border-black/5 bg-slate-900 text-white hover:bg-emerald-600'
@@ -953,8 +967,8 @@ function ActionSubsection({
   return (
     <section>
       <div className="mb-2 flex items-center justify-between">
-        <h5 className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">{title}</h5>
-        <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-slate-300">{count} 个</span>
+        <h5 className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">{title}</h5>
+        <span className="text-[9px] font-medium uppercase tracking-[0.16em] text-slate-300">{count} 个</span>
       </div>
       <div className="grid grid-cols-1 gap-3 2xl:grid-cols-2">
         {cards.map(card => (
@@ -966,7 +980,7 @@ function ActionSubsection({
           />
         ))}
         {cards.length === 0 && (
-          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-400">
+          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-[12px] text-slate-400">
             {emptyText}
           </div>
         )}
@@ -995,8 +1009,8 @@ function ActionWorkspaceCardView({
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <div className="text-[14px] font-semibold text-slate-800">{action.name}</div>
-            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] ${
+            <div className="text-[13px] font-semibold text-slate-800">{action.name}</div>
+            <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.16em] ${
               blocked
                 ? 'bg-slate-200 text-slate-500'
                 : priority >= 80
@@ -1006,8 +1020,8 @@ function ActionWorkspaceCardView({
               {deriveActionFitLabel(priority, !blocked)}
             </span>
           </div>
-          <p className="mt-2 text-[12px] leading-6 text-slate-500">{action.description}</p>
-          <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-medium">
+          <p className="mt-2 text-[11px] leading-5 text-slate-500">{action.description}</p>
+          <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-medium">
             <span className="rounded-full bg-white px-2.5 py-1 text-slate-500">{costText(action)}</span>
             <span className={`rounded-full px-2.5 py-1 ${
               blocked ? 'bg-slate-200 text-slate-500' : 'bg-emerald-50 text-emerald-700'
@@ -1019,7 +1033,7 @@ function ActionWorkspaceCardView({
         <button
           disabled={blocked || !availability.enabled}
           onClick={() => onExecute(action.id)}
-          className={`shrink-0 rounded-xl px-4 py-2 text-xs font-bold transition-all ${
+          className={`shrink-0 rounded-xl px-4 py-2 text-[11px] font-bold transition-all ${
             blocked || !availability.enabled
               ? 'cursor-not-allowed bg-slate-200 text-slate-400'
               : 'border border-black/5 bg-slate-900 text-white hover:bg-emerald-600'
@@ -1412,7 +1426,33 @@ function ListTag({
           : 'bg-slate-50 text-slate-600 border-slate-200';
 
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-semibold leading-none ${toneClass}`}>
+    <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[9px] font-semibold leading-none ${toneClass}`}>
+      <span className="text-slate-400">{label}</span>
+      <span>{value}</span>
+    </span>
+  );
+}
+
+function CompactTag({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: 'slate' | 'amber' | 'emerald' | 'rose';
+}) {
+  const toneClass =
+    tone === 'emerald'
+      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+      : tone === 'amber'
+        ? 'bg-amber-50 text-amber-700 border-amber-200'
+        : tone === 'rose'
+          ? 'bg-rose-50 text-rose-700 border-rose-200'
+          : 'bg-slate-50 text-slate-600 border-slate-200';
+
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-semibold leading-none ${toneClass}`}>
       <span className="text-slate-400">{label}</span>
       <span>{value}</span>
     </span>

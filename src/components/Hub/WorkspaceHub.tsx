@@ -15,36 +15,34 @@ export function WorkspaceHub({ onSelect, onLogout, allowedWorkspaces }: Workspac
     <motion.div
       initial={{ opacity: 0, y: 18 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex-1 overflow-auto px-6 py-8"
+      className="flex-1 overflow-auto px-6 py-12 bg-[#FBFBFD]"
     >
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-5">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-10">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div className="max-w-3xl">
-            <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.22em] text-[#8E8E93]">
-              Sabrina Workspace
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-black/5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-[#8E8E93]">
+              <Sparkles className="h-3 w-3" />
+              Sabrina AI Ecosystem
             </div>
-            <h1 className="text-[34px] font-semibold tracking-[-0.05em] text-[#111111]">
-              选择今天要处理的业务判断
-            </h1>
-            <p className="mt-2 max-w-2xl text-[15px] leading-7 text-[#6E6E73]">
-              从模型对比、开放日测算到资产顾问训练，把不同场景里的复杂决策拆成可执行的下一步。
+            <p className="max-w-xl text-[22px] font-semibold leading-[1.4] tracking-tight text-[#1D1D1F]">
+              把不同场景里的复杂决策，<br />拆解为可实时感知的下一步。
             </p>
           </div>
 
           <button
             onClick={onLogout}
-            className="inline-flex items-center gap-2 self-start rounded-full border border-black/10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-[#5C5C60] transition hover:border-black/20 hover:text-[#1D1D1F] md:self-auto"
+            className="inline-flex items-center gap-2 self-start rounded-full border border-black/10 bg-white px-5 py-2.5 text-[11px] font-bold uppercase tracking-[0.18em] text-[#5C5C60] transition-all hover:border-black/20 hover:bg-[#F5F5F7] hover:text-[#1D1D1F] active:scale-95 md:self-auto"
           >
             <LogOut className="h-3.5 w-3.5" />
-            退出登录
+            退出
           </button>
         </div>
 
-        <div className="grid gap-5 xl:grid-cols-3">
+        <div className="grid gap-6 xl:grid-cols-3">
           {canAccess('sabrina') ? (
             <button
               onClick={() => onSelect('sabrina')}
-              className="group flex h-full flex-col rounded-[32px] border border-black/5 bg-white p-7 text-left shadow-[0_18px_50px_rgba(20,20,43,0.06)] transition hover:-translate-y-1 hover:shadow-[0_26px_70px_rgba(20,20,43,0.1)]"
+              className="group flex h-full flex-col rounded-[32px] border border-black/5 bg-white p-8 text-left shadow-[0_4px_24px_rgba(0,0,0,0.03)] transition-all hover:-translate-y-1.5 hover:shadow-[0_24px_50px_rgba(0,0,0,0.08)]"
             >
               <div className="flex items-center gap-4">
                 <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-[#111111] text-white shadow-[0_18px_40px_rgba(17,17,17,0.18)]">

@@ -13,7 +13,7 @@ export function Market({ state }: MarketProps) {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h3 className="text-[22px] font-bold text-slate-900">板块行情分析</h3>
+        <h3 className="text-[22px] font-bold text-slate-900">情报台</h3>
         <p className="text-sm text-slate-400">行情波动同时受世界月份曲线、竞争压力和剧本事件驱动</p>
       </div>
 

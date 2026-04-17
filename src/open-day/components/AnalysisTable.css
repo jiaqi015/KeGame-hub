@@ -1,15 +1,15 @@
 .open-day-table-header-group {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 16px;
+  margin-bottom: 20px;
 }
 
 .open-day-table-controls {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 16px;
+  gap: 20px;
 }
 
 .open-day-search-bar {
@@ -89,14 +89,15 @@
 
 .open-day-hero-stat {
   flex: 1;
-  min-width: 120px;
-  padding: 6px 10px;
-  border-radius: 10px;
-  border: 1px solid rgba(76, 58, 42, 0.06);
-  background: rgba(255, 255, 255, 0.6);
+  min-width: 140px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(76, 58, 42, 0.04);
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(8px);
   display: flex;
-  align-items: baseline;
-  gap: 8px;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .open-day-hero-stat__label {

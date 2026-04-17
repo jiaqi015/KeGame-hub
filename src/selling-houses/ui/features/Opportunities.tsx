@@ -14,7 +14,7 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h3 className="text-[22px] font-bold text-slate-900">线索池跟进</h3>
+        <h3 className="text-[22px] font-bold text-slate-900">准客池</h3>
         <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-600 text-xs font-bold">
           {activeOpportunities.length} 个活跃机会
         </span>
@@ -95,7 +95,7 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
         {activeOpportunities.length === 0 && (
           <div className="col-span-full flex flex-col items-center justify-center rounded-[24px] border-2 border-dashed border-slate-200 bg-slate-50 py-16 text-slate-400">
             <Info size={40} className="mb-4 opacity-20" />
-            <p className="italic">线索池已干涸，请通过投放流量补充。</p>
+            <p className="italic">准客池暂时见底，请通过投放和带看继续补厚。</p>
           </div>
         )}
       </div>

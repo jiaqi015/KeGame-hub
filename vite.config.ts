@@ -26,6 +26,9 @@ export default defineConfig(({mode}) => {
             if (id.includes('/lucide-react/')) {
               return 'icons-vendor';
             }
+            if (id.includes('/xlsx/')) {
+              return 'xlsx-vendor';
+            }
             if (id.includes('/marked/') || id.includes('/highlight.js/') || id.includes('/katex/')) {
               return 'content-vendor';
             }

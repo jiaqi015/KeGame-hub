@@ -110,6 +110,13 @@ function mapRunRow(row: GameRunRow): MaintainerRunRecord {
   const reputation = toNumber(auxiliaryStats?.reputation);
   const soldCount = toNumber(auxiliaryStats?.soldCount);
   const withdrawnCount = toNumber(auxiliaryStats?.withdrawnCount);
+  const resolvedAuxiliaryStats = {
+    commission,
+    promotionBudget: toNumber(auxiliaryStats?.promotionBudget) || toNumber(row.cash),
+    reputation: auxiliaryStats && 'reputation' in auxiliaryStats ? reputation : toNumber(row.reputation),
+    soldCount: auxiliaryStats && 'soldCount' in auxiliaryStats ? soldCount : row.sold_count,
+    withdrawnCount: auxiliaryStats && 'withdrawnCount' in auxiliaryStats ? withdrawnCount : row.withdrawn_count,
+  };
   return {
     runId: row.run_id,
     userId: row.user_id,
@@ -125,10 +132,11 @@ function mapRunRow(row: GameRunRow): MaintainerRunRecord {
     day: row.day,
     cash: toNumber(row.cash),
     energy: row.energy,
-    commission,
-    reputation: auxiliaryStats && 'reputation' in auxiliaryStats ? reputation : toNumber(row.reputation),
-    soldCount: auxiliaryStats && 'soldCount' in auxiliaryStats ? soldCount : row.sold_count,
-    withdrawnCount: auxiliaryStats && 'withdrawnCount' in auxiliaryStats ? withdrawnCount : row.withdrawn_count,
+    auxiliaryStats: resolvedAuxiliaryStats,
+    commission: resolvedAuxiliaryStats.commission,
+    reputation: resolvedAuxiliaryStats.reputation,
+    soldCount: resolvedAuxiliaryStats.soldCount,
+    withdrawnCount: resolvedAuxiliaryStats.withdrawnCount,
     score: row.score,
     syncVersion: toNumber(row.sync_version),
     saveData,
@@ -589,6 +597,70 @@ function resolveClosedMatterStatus(
     resolutionCode: 'lost_to_rival',
     resolutionSummary: '竞品先行收口，当前事项已失效。',
   };
+}
+
+function normalizeSearchText(value: string | undefined | null) {
+  return (value || '').trim().toLowerCase();
+}
+
+function resolveEventMatterId(
+  event: {
+    actor?: string;
+    message?: string;
+    runListingId?: string | null;
+  },
+  matterRows: Array<{
+    matter_id: string;
+    run_listing_id: string | null;
+    status: string;
+    title: string;
+    summary: string;
+    priority_score: string | number | null;
+  }>,
+) {
+  const haystack = normalizeSearchText(`${event.actor || ''} ${event.message || ''}`);
+  const candidateRows = event.runListingId
+    ? matterRows.filter((row) => row.run_listing_id === event.runListingId)
+    : matterRows;
+
+  const openRows = candidateRows.filter((row) => row.status === 'open');
+  const preferredRows = openRows.length ? openRows : candidateRows;
+  if (!preferredRows.length) {
+    return null;
+  }
+
+  const keywordMatched = preferredRows.find((row) => {
+    const title = normalizeSearchText(row.title);
+    const summary = normalizeSearchText(row.summary);
+    return (title && haystack.includes(title)) || (summary && haystack.includes(summary));
+  });
+  if (keywordMatched) {
+    return keywordMatched.matter_id;
+  }
+
+  if (haystack.includes('竞品') || haystack.includes('流失') || haystack.includes('窗口')) {
+    const riskMatter = preferredRows.find((row) => {
+      const text = normalizeSearchText(`${row.title} ${row.summary}`);
+      return text.includes('窗口') || text.includes('稳住') || text.includes('失控') || text.includes('流失');
+    });
+    if (riskMatter) {
+      return riskMatter.matter_id;
+    }
+  }
+
+  if (haystack.includes('带看') || haystack.includes('兴趣') || haystack.includes('谈判') || haystack.includes('成交')) {
+    const followupMatter = preferredRows.find((row) => {
+      const text = normalizeSearchText(`${row.title} ${row.summary}`);
+      return text.includes('推进') || text.includes('客户') || text.includes('带看') || text.includes('谈判');
+    });
+    if (followupMatter) {
+      return followupMatter.matter_id;
+    }
+  }
+
+  return preferredRows
+    .slice()
+    .sort((left, right) => Number(right.priority_score || 0) - Number(left.priority_score || 0))[0]?.matter_id || null;
 }
 
 export class MaintainerSyncConflictError extends Error {
@@ -1666,15 +1738,41 @@ export class NeonGameRunRepository {
       }
 
       if (eventLog.length) {
+        const matterRows = await sql.query(
+          `
+            SELECT matter_id, run_listing_id, status, title, summary, priority_score
+            FROM maintainer_matters
+            WHERE run_id = $1
+            ORDER BY priority_score DESC, created_at ASC
+          `,
+          [runId],
+        ) as Array<{
+          matter_id: string;
+          run_listing_id: string | null;
+          status: string;
+          title: string;
+          summary: string;
+          priority_score: string | number | null;
+        }>;
+
         const values: unknown[] = [];
         const placeholders = eventLog.map((entry, index) => {
-          const offset = index * 11;
+          const offset = index * 12;
           const actor = typeof entry?.actor === 'string' ? entry.actor : '';
           const message = typeof entry?.message === 'string' ? entry.message : '';
+          const runListingId = guessEventRunListingId(runId, state, actor, message);
+          const causedMatterId = resolveEventMatterId(
+            {
+              actor,
+              message,
+              runListingId,
+            },
+            matterRows,
+          );
           values.push(
             `${runId}:event:${index + 1}`,
             runId,
-            guessEventRunListingId(runId, state, actor, message),
+            runListingId,
             Number(entry?.day) || 1,
             Number(entry?.day) || 1,
             resolveEventTypeCode(actor, message),
@@ -1686,8 +1784,9 @@ export class NeonGameRunRepository {
               tone: typeof entry?.tone === 'string' ? entry.tone : 'accent',
               date: typeof entry?.date === 'string' ? entry.date : null,
             }),
+            causedMatterId,
           );
-          return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}::jsonb)`;
+          return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}::jsonb, $${offset + 12})`;
         }).join(',\n');
 
         await sql.query(
@@ -1703,7 +1802,8 @@ export class NeonGameRunRepository {
               source_code,
               title,
               summary,
-              payload
+              payload,
+              caused_matter_id
             )
             VALUES ${placeholders}
           `,

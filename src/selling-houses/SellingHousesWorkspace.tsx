@@ -3,6 +3,7 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
+  CircleDollarSign,
   FastForward,
   History,
   Home,
@@ -121,6 +122,22 @@ export function SellingHousesWorkspace({ activationKey }: { activationKey: strin
 
   const routine = getRoutine(state.day, WEEKLY_ROUTINE);
   const dow = getDayOfWeek(state.day);
+  const recentBudgetEntries = state.budgetLedger.slice(0, 8);
+  const weeklyBudgetIncome = state.budgetLedger
+    .filter((entry) => entry.kind === 'weekly-allocation')
+    .reduce((sum, entry) => sum + entry.amount, 0);
+  const saleBudgetIncome = state.budgetLedger
+    .filter((entry) => entry.kind === 'sale-rebate')
+    .reduce((sum, entry) => sum + entry.amount, 0);
+  const budgetSpend = Math.abs(state.budgetLedger
+    .filter((entry) => entry.amount < 0)
+    .reduce((sum, entry) => sum + entry.amount, 0));
+  const budgetHealthText = state.cash <= Math.max(4, state.rules.weeklyBudgetAllowance)
+    ? '余额偏紧，后续动作要更聚焦到重点盘。'
+    : state.cash >= state.rules.weeklyBudgetAllowance * 3
+      ? '结余比较健康，还有继续做经营动作的空间。'
+      : '余额还在可控区间，保持按优先级使用即可。';
+  const commissionDisplay = Number.isInteger(state.commission) ? `${state.commission}` : state.commission.toFixed(1);
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[linear-gradient(180deg,rgba(255,251,235,0.4),rgba(255,255,255,1))] font-sans text-slate-900">
@@ -148,24 +165,42 @@ export function SellingHousesWorkspace({ activationKey }: { activationKey: strin
           </div>
 
           <div className="flex items-center gap-6">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 rounded-[24px] border border-black/5 bg-white/90 p-2 shadow-sm">
               <button
                 type="button"
                 onClick={() => setIsBudgetPanelOpen(true)}
-                className="rounded-2xl border border-black/5 bg-white px-3 py-2 text-left shadow-sm transition-all hover:border-black/10 hover:bg-slate-50"
+                className="min-w-[168px] rounded-[18px] border border-transparent bg-transparent px-3 py-2 text-left transition-all hover:border-black/5 hover:bg-slate-50"
                 aria-label="查看推广金详情"
                 title="查看推广金详情"
               >
-                <StatItem icon={<Wallet size={16} />} label="推广金" value={`${state.cash} 点`} color="text-slate-900" />
+                <ResourceTile
+                  icon={<Wallet size={16} />}
+                  label="推广金"
+                  value={`${state.cash} 点`}
+                  color="text-slate-900"
+                  trailing={(
+                    <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-400">
+                      <span>明细</span>
+                      <ChevronRight size={14} />
+                    </div>
+                  )}
+                />
               </button>
-              <StatItem icon={<Zap size={16} />} label="精力" value={`${state.energy}/${state.maxEnergy}`} color="text-amber-600" />
+              <div className="h-10 w-px bg-slate-100" />
+              <div className="min-w-[132px] rounded-[18px] px-3 py-2">
+                <ResourceTile icon={<CircleDollarSign size={16} />} label="佣金" value={`${commissionDisplay} 点`} color="text-emerald-700" />
+              </div>
+              <div className="h-10 w-px bg-slate-100" />
+              <div className="min-w-[124px] rounded-[18px] px-3 py-2">
+                <ResourceTile icon={<Zap size={16} />} label="精力" value={`${state.energy}/${state.maxEnergy}`} color="text-amber-600" />
+              </div>
             </div>
             <div className="h-6 w-px bg-slate-200" />
             <div className="flex items-center gap-2">
               <button
                 onClick={() => handleAdvanceDays(7, displayMessage)}
                 disabled={state.gameOver}
-                className="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white shadow-lg shadow-slate-900/10 transition-all hover:scale-105 disabled:scale-100 disabled:opacity-50"
+                className="flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2 text-sm font-bold text-slate-900 transition-all hover:bg-slate-200 disabled:opacity-50"
               >
                 <FastForward size={16} />
                 <span>推进一周</span>
@@ -173,7 +208,7 @@ export function SellingHousesWorkspace({ activationKey }: { activationKey: strin
               <button
                 onClick={() => handleAdvanceDays(1, displayMessage)}
                 disabled={state.gameOver}
-                className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-bold text-slate-900 transition-all hover:bg-slate-200 disabled:opacity-50"
+                className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white shadow-lg shadow-slate-900/10 transition-all hover:scale-105 disabled:scale-100 disabled:opacity-50"
               >
                 结束今日
               </button>
@@ -201,9 +236,9 @@ export function SellingHousesWorkspace({ activationKey }: { activationKey: strin
           <div className="flex h-full flex-col space-y-2">
             <NavItem collapsed={isNavCollapsed} active={activeView === 'dashboard'} onClick={() => setActiveView('dashboard')} icon={<LayoutDashboard size={20} />} label="经营概览" />
             <NavItem collapsed={isNavCollapsed} active={activeView === 'cases'} onClick={() => setActiveView('cases')} icon={<Home size={20} />} label="房源管理" />
-            <NavItem collapsed={isNavCollapsed} active={activeView === 'opportunities'} onClick={() => setActiveView('opportunities')} icon={<Users size={20} />} label="线索跟进" />
-            <NavItem collapsed={isNavCollapsed} active={activeView === 'market'} onClick={() => setActiveView('market')} icon={<LineChart size={20} />} label="市场研究" />
-            <NavItem collapsed={isNavCollapsed} active={activeView === 'review'} onClick={() => setActiveView('review')} icon={<History size={20} />} label="日志周报" />
+            <NavItem collapsed={isNavCollapsed} active={activeView === 'opportunities'} onClick={() => setActiveView('opportunities')} icon={<Users size={20} />} label="准客池" />
+            <NavItem collapsed={isNavCollapsed} active={activeView === 'market'} onClick={() => setActiveView('market')} icon={<LineChart size={20} />} label="情报台" />
+            <NavItem collapsed={isNavCollapsed} active={activeView === 'review'} onClick={() => setActiveView('review')} icon={<History size={20} />} label="活动" />
 
             <div className="flex-1" />
 
@@ -247,15 +282,18 @@ export function SellingHousesWorkspace({ activationKey }: { activationKey: strin
       {isBudgetPanelOpen && (
         <div className="fixed inset-0 z-[90] flex justify-end bg-slate-900/30 backdrop-blur-sm" onClick={() => setIsBudgetPanelOpen(false)}>
           <div
-            className="h-full w-full max-w-[420px] overflow-y-auto border-l border-black/5 bg-white p-6 shadow-2xl"
+            className="h-full w-full max-w-[560px] overflow-y-auto border-l border-black/5 bg-[linear-gradient(180deg,#fffdf8_0%,#ffffff_28%)] p-7 shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="mb-5 flex items-start justify-between gap-4">
-              <div>
-                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">资源详情</div>
-                <h3 className="mt-1 text-xl font-semibold tracking-tight text-slate-900">推广金</h3>
-                <p className="mt-1 text-sm leading-6 text-slate-500">
-                  当前余额 {state.cash} 点。这里看最近的补给、消耗和返投记录。
+            <div className="mb-6 flex items-start justify-between gap-4">
+              <div className="max-w-[360px]">
+                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                  <CircleDollarSign size={13} className="text-emerald-500" />
+                  资源详情
+                </div>
+                <h3 className="mt-2 text-[28px] font-semibold tracking-tight text-slate-900">推广金</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  这里不只是看余额，也顺手判断这局资源是不是花在了该花的地方。
                 </p>
               </div>
               <button
@@ -267,31 +305,84 @@ export function SellingHousesWorkspace({ activationKey }: { activationKey: strin
               </button>
             </div>
 
-            <div className="mb-5 rounded-[20px] border border-emerald-100 bg-emerald-50 px-4 py-4">
-              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">当前余额</div>
-              <div className="mt-1 text-[30px] font-bold tracking-tight text-emerald-900">{state.cash} 点</div>
-              <div className="mt-1 text-xs text-emerald-700/80">
-                每周补给 {state.rules.weeklyBudgetAllowance} 点，成交后按返投规则回补。
+            <div className="mb-5 rounded-[28px] border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-amber-50 px-5 py-5">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">当前余额</div>
+                  <div className="mt-2 text-[38px] font-bold tracking-tight text-emerald-950">{state.cash} 点</div>
+                  <div className="mt-2 max-w-md text-sm leading-6 text-emerald-800/80">
+                    每周固定补给 {state.rules.weeklyBudgetAllowance} 点，成交后再按返投规则补回。{budgetHealthText}
+                  </div>
+                </div>
+                <div className="grid min-w-[220px] grid-cols-3 gap-2">
+                  <BudgetMiniStat label="周补给" value={`+${weeklyBudgetIncome}`} tone="emerald" />
+                  <BudgetMiniStat label="成交返投" value={`+${saleBudgetIncome}`} tone="sky" />
+                  <BudgetMiniStat label="累计投放" value={`-${budgetSpend}`} tone="rose" />
+                </div>
+              </div>
+            </div>
+
+            <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="rounded-[20px] border border-black/[0.05] bg-white px-4 py-4 shadow-sm">
+                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">规则摘要</div>
+                <div className="mt-3 space-y-3 text-sm text-slate-600">
+                  <div className="flex items-start justify-between gap-3">
+                    <span>周度补给</span>
+                    <strong className="text-slate-900">{state.rules.weeklyBudgetAllowance} 点 / 周</strong>
+                  </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <span>最近可看流水</span>
+                    <strong className="text-slate-900">{recentBudgetEntries.length} 条</strong>
+                  </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <span>当前模拟日</span>
+                    <strong className="text-slate-900">Day {state.day}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[20px] border border-amber-100 bg-amber-50/80 px-4 py-4">
+                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-amber-700">使用建议</div>
+                <p className="mt-3 text-sm leading-6 text-amber-900/85">
+                  推广金更适合用来放大重点盘、关键窗口和高价值动作，不适合平均摊到所有房源上。
+                </p>
               </div>
             </div>
 
             <div className="space-y-3">
-              {state.budgetLedger.slice(0, 8).map((entry) => (
-                <div key={entry.id} className="rounded-xl border border-black/[0.04] bg-slate-50 px-4 py-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-800">{entry.title}</div>
-                      <div className="mt-1 text-xs leading-relaxed text-slate-500">{entry.detail}</div>
+              <div className="flex items-end justify-between gap-3 px-1">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">最近流水</div>
+                  <p className="mt-1 text-xs text-slate-500">默认展示最近 8 条，先看近因，再决定要不要回看更早记录。</p>
+                </div>
+                <div className="text-[11px] font-semibold text-slate-400">按时间倒序</div>
+              </div>
+              {recentBudgetEntries.map((entry) => (
+                <div key={entry.id} className="rounded-[18px] border border-black/[0.04] bg-white px-4 py-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="text-sm font-semibold text-slate-800">{entry.title}</div>
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                          Day {entry.day}
+                        </span>
+                      </div>
+                      <div className="mt-1.5 text-xs leading-relaxed text-slate-500">{entry.detail}</div>
                     </div>
-                    <div className="text-right">
-                      <div className={`text-sm font-bold ${entry.amount >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                    <div className="min-w-[92px] text-right">
+                      <div className={`text-base font-bold ${entry.amount >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
                         {entry.amount >= 0 ? '+' : ''}{entry.amount}
                       </div>
-                      <div className="text-[10px] font-medium text-slate-400">余额 {entry.balanceAfter}</div>
+                      <div className="mt-1 text-[10px] font-medium text-slate-400">余额 {entry.balanceAfter}</div>
                     </div>
                   </div>
                 </div>
               ))}
+              {recentBudgetEntries.length === 0 && (
+                <div className="rounded-[18px] border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-400">
+                  暂时还没有推广金流水，先做一笔经营动作再回来看看。
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -331,14 +422,52 @@ function NavItem({
   );
 }
 
-function StatItem({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: string; color: string }) {
+function ResourceTile({
+  icon,
+  label,
+  value,
+  color,
+  trailing,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  color: string;
+  trailing?: React.ReactNode;
+}) {
   return (
-    <div className="flex items-center gap-2">
-      <div className="text-slate-300">{icon}</div>
-      <div className="flex flex-col leading-none">
-        <span className="mb-0.5 text-[10px] font-bold uppercase tracking-tighter text-slate-300">{label}</span>
-        <span className={`text-sm font-bold ${color}`}>{value}</span>
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2">
+        <div className="text-slate-300">{icon}</div>
+        <div className="flex flex-col leading-none">
+          <span className="mb-0.5 text-[10px] font-bold uppercase tracking-tighter text-slate-300">{label}</span>
+          <span className={`text-sm font-bold ${color}`}>{value}</span>
+        </div>
       </div>
+      {trailing}
+    </div>
+  );
+}
+
+function BudgetMiniStat({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: 'emerald' | 'sky' | 'rose';
+}) {
+  const toneClass = tone === 'emerald'
+    ? 'bg-white text-emerald-700'
+    : tone === 'sky'
+      ? 'bg-white text-sky-700'
+      : 'bg-white text-rose-600';
+
+  return (
+    <div className={`rounded-2xl px-3 py-3 text-center shadow-sm ${toneClass}`}>
+      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">{label}</div>
+      <div className="mt-1 text-base font-bold">{value}</div>
     </div>
   );
 }
