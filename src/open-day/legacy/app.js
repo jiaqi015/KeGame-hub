@@ -559,7 +559,7 @@ function getScorePayload() {
 }
 
 async function fetchOpenDayAnalysis() {
-  const response = await fetch("/api/open-day-score", {
+  const response = await fetch("/api/open-day-analyses", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

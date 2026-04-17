@@ -2,6 +2,7 @@ import { authorizeRequest } from '../lib/activation.js';
 import { handleOpenDayScenarioGet } from '../modules/open-day/interfaces/http/openDayScenarioGetHandler.js';
 import { handleOpenDayScenarioList } from '../modules/open-day/interfaces/http/openDayScenarioListHandler.js';
 import { handleOpenDayScenarioSave } from '../modules/open-day/interfaces/http/openDayScenarioSaveHandler.js';
+import { handleOpenDayScenarioVersionList } from '../modules/open-day/interfaces/http/openDayScenarioVersionListHandler.js';
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'GET' && req.method !== 'POST') {
@@ -16,6 +17,11 @@ export default async function handler(req: any, res: any) {
 
   try {
     if (req.method === 'GET') {
+      if (req.query?.view === 'versions' || (typeof req.query?.templateId === 'string' && req.query.templateId)) {
+        const payload = await handleOpenDayScenarioVersionList(req.query || {});
+        return res.status(200).json(payload);
+      }
+
       if (typeof req.query?.id === 'string' && req.query.id) {
         const payload = await handleOpenDayScenarioGet(req.query || {});
         return res.status(200).json(payload);
@@ -29,6 +35,6 @@ export default async function handler(req: any, res: any) {
     const payload = await handleOpenDayScenarioSave(body);
     return res.status(200).json(payload);
   } catch (error) {
-    return res.status(400).json({ error: error instanceof Error ? error.message : '开放日方案接口失败' });
+    return res.status(400).json({ error: error instanceof Error ? error.message : '开放日方案/版本接口失败' });
   }
 }

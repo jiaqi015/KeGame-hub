@@ -14,6 +14,7 @@ import { updateCompetitiveness, calculateUrgency } from '../domain/scoring';
 import { instantiateScenarioCases } from '../domain/generator';
 import {
   type Case,
+  type GoalTier,
   type CompetitionGroup,
   type GameState,
   type Opportunity,
@@ -52,6 +53,20 @@ function buildRunContext(snapshot: ScenarioSnapshot, seed: number) {
     createdAt: new Date().toISOString(),
     scenarioSnapshot: snapshot,
   };
+}
+
+function deriveDefaultGoalTier(caseItem: any): GoalTier {
+  if (caseItem?.goalTier === 'core' || caseItem?.goalTier === 'important' || caseItem?.goalTier === 'normal') {
+    return caseItem.goalTier;
+  }
+
+  if (Number(caseItem?.windowDays) <= 7 || Number(caseItem?.urgency) >= 76) {
+    return 'core';
+  }
+  if (Number(caseItem?.trust) <= 58 || Number(caseItem?.windowDays) <= 10 || Number(caseItem?.patience) <= 45) {
+    return 'important';
+  }
+  return 'normal';
 }
 
 export function createInitialState(snapshot: ScenarioSnapshot, seed: number): GameState {
@@ -109,6 +124,8 @@ export function seedCase(base: Case): Case {
     touchedToday: false,
     touchedOwnerToday: false,
     lastTouchedDay: 0,
+    lastOwnerTouchedDay: 0,
+    hasCompletedFirstVisit: false,
     lastAction: '',
     lastPriceActionDay: -99,
     openDayCooldown: 0,
@@ -121,6 +138,13 @@ export function seedCase(base: Case): Case {
     competitivenessSnapshots: [],
     competitionGroupIds: base.competitionGroupIds || [],
     lastAskPrice: base.askPrice,
+    goalTier: deriveDefaultGoalTier(base),
+    storylineState: 'healthy',
+    relativeOutcome: undefined,
+    ownerSatisfaction: undefined,
+    defenseOutcome: undefined,
+    endingType: undefined,
+    endingSummary: '',
   };
 }
 
@@ -213,6 +237,18 @@ function buildLegacySnapshot(parsed: any): ScenarioSnapshot {
         { templateId: 'policy-shift', weight: 3 },
         { templateId: 'competitor-cut', weight: 3 },
       ],
+      goalContext: 'ability',
+      targetScore: 68,
+      scoreThresholds: {
+        pass: 56,
+        strong: 82,
+        ace: 92,
+      },
+      boardPressureProfile: {
+        abilityPressure: 58,
+        defensePressure: 54,
+        satisfactionPressure: 50,
+      },
       published: true,
     },
   };
@@ -226,6 +262,22 @@ function normalizeCase(caseItem: any): Case {
     personality: caseItem?.personality || 'pragmatic',
     competitionGroupIds: Array.isArray(caseItem?.competitionGroupIds) ? caseItem.competitionGroupIds : [],
     lastAskPrice: Number(caseItem?.lastAskPrice) || Number(caseItem?.askPrice) || 0,
+    lastTouchedDay: Number.isFinite(caseItem?.lastTouchedDay) ? Number(caseItem.lastTouchedDay) : 0,
+    lastOwnerTouchedDay: Number.isFinite(caseItem?.lastOwnerTouchedDay)
+      ? Number(caseItem.lastOwnerTouchedDay)
+      : Number.isFinite(caseItem?.lastTouchedDay)
+        ? Number(caseItem.lastTouchedDay)
+        : 0,
+    hasCompletedFirstVisit: Boolean(caseItem?.hasCompletedFirstVisit)
+      || (caseItem?.lastAction === 'first-visit')
+      || (Number(caseItem?.lastTouchedDay) > 0 && caseItem?.lastAction !== 'init'),
+    goalTier: deriveDefaultGoalTier(caseItem),
+    storylineState: caseItem?.storylineState || 'healthy',
+    relativeOutcome: caseItem?.relativeOutcome,
+    ownerSatisfaction: caseItem?.ownerSatisfaction,
+    defenseOutcome: caseItem?.defenseOutcome,
+    endingType: caseItem?.endingType,
+    endingSummary: caseItem?.endingSummary || '',
   };
 }
 
@@ -336,6 +388,7 @@ export function updateDerivedState(world: GameState) {
     caseItem.priceGapPct = Math.round(((caseItem.askPrice - caseItem.marketPrice) / Math.max(caseItem.marketPrice, 1)) * 1000) / 10;
     updateCompetitiveness(world, caseItem);
     caseItem.riskFlags = deriveRiskFlags(world, caseItem, opportunities);
+    caseItem.storylineState = deriveStorylineState(caseItem, opportunities);
   });
 
   world.schedule = deriveSchedule(world);
@@ -360,6 +413,15 @@ function deriveRiskFlags(world: GameState, caseItem: Case, opportunities: Opport
   if (caseItem.competitionGroupIds.length > 0) flags.push('竞品联动');
   if (!flags.length) flags.push('节奏稳定');
   return flags;
+}
+
+function deriveStorylineState(caseItem: Case, opportunities: Opportunity[]) {
+  if (caseItem.status === 'sold') return 'healthy' as const;
+  if (caseItem.status === 'withdrawn') return 'critical' as const;
+  if (caseItem.windowDays <= 2 || caseItem.trust <= 45) return 'critical' as const;
+  if (caseItem.windowDays <= 4 || caseItem.trust <= 55 || !opportunities.length) return 'sliding' as const;
+  if (caseItem.heat < 50 || caseItem.competitionGroupIds.length > 0) return 'fragile' as const;
+  return 'healthy' as const;
 }
 
 function deriveSchedule(world: GameState) {
@@ -401,10 +463,17 @@ function derivePriorities(world: GameState) {
     .sort((left, right) => calculateUrgency(right) - calculateUrgency(left))
     .slice(0, 2)
     .forEach((caseItem) => {
+      const urgencyLabel = caseItem.storylineState === 'critical'
+        ? '这套房已经快滑出可控区了。'
+        : caseItem.storylineState === 'sliding'
+          ? '这套房正在往难看收尾滑。'
+          : caseItem.storylineState === 'fragile'
+            ? '这套房还能守，但已经不能再放。'
+            : '这套房目前还在你能控住的区间里。';
       items.push({
         kind: 'case',
         title: `先稳住 ${caseItem.title}`,
-        detail: `${caseItem.ownerName} 当前信任 ${Math.round(caseItem.trust)}，D3 意愿分 ${Math.round(caseItem.d3)}。`,
+        detail: `${urgencyLabel} ${caseItem.ownerName} 当前信任 ${Math.round(caseItem.trust)}，D3 意愿分 ${Math.round(caseItem.d3)}。`,
         caseId: caseItem.id,
       });
     });

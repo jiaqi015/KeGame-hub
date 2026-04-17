@@ -65,6 +65,21 @@ export interface ActionDefinition {
 }
 
 export type DifficultyId = 'warmup' | 'easy' | 'standard' | 'advanced' | 'hard' | 'extreme';
+export type GoalContextId = 'ability' | 'defense' | 'satisfaction';
+export type GoalTier = 'core' | 'important' | 'normal';
+export type ListingRelativeOutcome = 'outrun' | 'flat' | 'lose';
+export type OwnerSatisfactionState = 'happy' | 'neutral' | 'no_regret' | 'regret' | 'unhappy';
+export type DefenseOutcome = 'held' | 'at_risk' | 'lost_to_rival' | 'withdrawn';
+export type StorylineState = 'healthy' | 'fragile' | 'sliding' | 'critical';
+export type ListingEndingType =
+  | 'sold_by_you_happy'
+  | 'sold_by_you_neutral'
+  | 'sold_by_you_regret'
+  | 'sold_by_other'
+  | 'not_sold_no_regret'
+  | 'not_sold_regret'
+  | 'switch_to_rent_no_regret'
+  | 'withdrawn_unhappy';
 
 export interface DifficultyPreviewMetric {
   label: string;
@@ -79,6 +94,18 @@ export interface DifficultyOption {
   scenarioCount: number;
   featuredSeed: number;
   preview: DifficultyPreviewMetric[];
+}
+
+export interface ScoreThresholds {
+  pass: number;
+  strong: number;
+  ace: number;
+}
+
+export interface BoardPressureProfile {
+  abilityPressure: number;
+  defensePressure: number;
+  satisfactionPressure: number;
 }
 
 export interface GameRules {
@@ -181,6 +208,7 @@ export interface ScenarioCase {
   initialHeat: number;
   initialUrgency: number;
   windowDays: number;
+  goalTier?: GoalTier;
 }
 
 export interface CompetitionGroup {
@@ -250,6 +278,10 @@ export interface ScenarioDefinition {
   competitionGroups: CompetitionGroup[];
   scriptedEvents: ScriptedEvent[];
   randomEventPool: WeightedRandomEventRef[];
+  goalContext?: GoalContextId;
+  targetScore?: number;
+  scoreThresholds?: ScoreThresholds;
+  boardPressureProfile?: BoardPressureProfile;
   rules?: Partial<GameRules>;
   published: boolean;
 }
@@ -318,6 +350,8 @@ export interface Case {
   touchedToday: boolean;
   touchedOwnerToday: boolean;
   lastTouchedDay: number;
+  lastOwnerTouchedDay: number;
+  hasCompletedFirstVisit: boolean;
   lastAction: string;
   lastPriceActionDay: number;
   openDayCooldown: number;
@@ -330,8 +364,67 @@ export interface Case {
   competitivenessSnapshots: CompetitivenessSnapshot[];
   competitionGroupIds: string[];
   lastAskPrice: number;
+  goalTier: GoalTier;
+  storylineState: StorylineState;
+  relativeOutcome?: ListingRelativeOutcome;
+  ownerSatisfaction?: OwnerSatisfactionState;
+  defenseOutcome?: DefenseOutcome;
+  endingType?: ListingEndingType;
+  endingSummary?: string;
   isFocused?: boolean;
   personality: 'pragmatic' | 'emotional' | 'urgent';
+}
+
+export interface ScoreDimensionResult {
+  label: string;
+  score: number;
+  maxScore: number;
+  summary: string;
+}
+
+export interface CaseFinalResult {
+  caseId: string;
+  title: string;
+  ownerName: string;
+  community: string;
+  status: Case['status'];
+  goalTier: GoalTier;
+  endingType: ListingEndingType;
+  endingLabel: string;
+  endingSummary: string;
+  relativeOutcome: ListingRelativeOutcome;
+  relativeOutcomeLabel: string;
+  ownerSatisfaction: OwnerSatisfactionState;
+  ownerSatisfactionLabel: string;
+  defenseOutcome: DefenseOutcome;
+  defenseOutcomeLabel: string;
+  soldPrice: number | null;
+  finalTrust: number;
+  finalCompetitiveness: number;
+  remainingWindowDays: number;
+}
+
+export interface FinalResult {
+  title: string;
+  summary: string;
+  reason: string;
+  grade: string;
+  goalContext: GoalContextId;
+  targetScore: number;
+  score: number;
+  dimensions: {
+    ability: ScoreDimensionResult;
+    defense: ScoreDimensionResult;
+    satisfaction: ScoreDimensionResult;
+  };
+  scoreBreakdown: Array<{ label: string; value: number; maxValue?: number; summary?: string }>;
+  highlights: string[];
+  improvements: string[];
+  promotionNotes: string[];
+  coachNotes: string[];
+  nextRunAdvice: string[];
+  caseResults: CaseFinalResult[];
+  stats: Array<{ label: string; value: string }>;
 }
 
 export interface Opportunity {
@@ -425,7 +518,7 @@ export interface GameState {
   withdrawnCount: number;
   selectedCaseId: string | null;
   gameOver: boolean;
-  finalResult: any;
+  finalResult: FinalResult | null;
   lastMessage: string;
   rules: GameRules;
   scheduledEvents: ScriptedEvent[];

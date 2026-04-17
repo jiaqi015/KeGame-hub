@@ -73,6 +73,10 @@ export function deriveRunStatus(state: GameState): MaintainerRunStatus {
 }
 
 export function deriveRunScore(state: GameState) {
+  if (state.finalResult?.score) {
+    return state.finalResult.score;
+  }
+
   return Math.round(
     state.soldCount * 45
       + state.commission * 1.4
@@ -83,14 +87,26 @@ export function deriveRunScore(state: GameState) {
 }
 
 export function deriveRankTitle(state: GameState) {
+  if (state.finalResult?.title) {
+    return state.finalResult.title;
+  }
+
   const score = deriveRunScore(state);
-  if (score >= 185) return '能控节奏的成交机器';
-  if (score >= 145) return '稳健推进的组合经营者';
-  if (score >= 110) return '开始看懂盘面的资产顾问';
-  return '还在摸盘的经营者';
+  if (score >= 90) return '这局你真正控住了局势';
+  if (score >= 75) return '这局明显是你压住了节奏';
+  if (score >= 60) return '至少把关键局面撑住了';
+  return '这局还是被盘面带着走了';
 }
 
 export function buildScoreBreakdown(state: GameState) {
+  if (Array.isArray(state.finalResult?.scoreBreakdown) && state.finalResult.scoreBreakdown.length > 0) {
+    return {
+      dimensions: state.finalResult.scoreBreakdown,
+      targetScore: state.finalResult.targetScore,
+      grade: state.finalResult.grade,
+    };
+  }
+
   return {
     soldCount: state.soldCount,
     commission: state.commission,
@@ -112,5 +128,7 @@ export function buildFinalStats(state: GameState) {
     commission: state.commission,
     reputation: Math.round(state.reputation),
     score: deriveRunScore(state),
+    grade: state.finalResult?.grade,
+    targetScore: state.finalResult?.targetScore,
   };
 }

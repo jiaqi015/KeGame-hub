@@ -10,16 +10,14 @@ interface ResultOverlayProps {
 export function ResultOverlay({ state, onRestart }: ResultOverlayProps) {
   const { finalResult } = state;
   const { scenarioName, difficultyId } = state.runContext;
-  const caseResults = [...state.cases].sort((left, right) => {
-    const statusRank = { sold: 0, active: 1, withdrawn: 2 } as const;
-    return statusRank[left.status] - statusRank[right.status];
-  });
+  const caseResults = Array.isArray(finalResult?.caseResults) ? finalResult.caseResults : [];
   const scoreBreakdown = Array.isArray(finalResult?.scoreBreakdown) ? finalResult.scoreBreakdown : [];
   const highlights = Array.isArray(finalResult?.highlights) ? finalResult.highlights : [];
   const improvements = Array.isArray(finalResult?.improvements) ? finalResult.improvements : [];
   const promotionNotes = Array.isArray(finalResult?.promotionNotes) ? finalResult.promotionNotes : [];
   const coachNotes = Array.isArray(finalResult?.coachNotes) ? finalResult.coachNotes : [];
   const nextRunAdvice = Array.isArray(finalResult?.nextRunAdvice) ? finalResult.nextRunAdvice : [];
+  const grade = finalResult?.grade || '结算';
 
   return (
     <div className="fixed inset-0 z-[100] overflow-y-auto bg-slate-900/50 backdrop-blur-md p-6">
@@ -38,6 +36,9 @@ export function ResultOverlay({ state, onRestart }: ResultOverlayProps) {
             </span>
             <span className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-bold tracking-[0.04em] text-white/80">
               {scenarioName}
+            </span>
+            <span className="rounded-full bg-emerald-500/20 px-3 py-1 text-[10px] font-bold tracking-[0.16em] text-emerald-200">
+              {grade}
             </span>
           </div>
           <p className="mx-auto mt-2 max-w-2xl text-sm leading-relaxed text-slate-400">
@@ -64,9 +65,12 @@ export function ResultOverlay({ state, onRestart }: ResultOverlayProps) {
               <div className="space-y-3">
                 {scoreBreakdown.map((entry: any) => (
                   <div key={entry.label} className="flex items-center justify-between rounded-xl bg-white px-4 py-3 shadow-sm">
-                    <span className="text-sm font-medium text-slate-600">{entry.label}</span>
-                    <span className={`text-sm font-bold ${entry.value >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-                      {entry.value >= 0 ? '+' : ''}{entry.value}
+                    <div>
+                      <div className="text-sm font-medium text-slate-600">{entry.label}</div>
+                      {entry.summary && <div className="mt-1 text-[11px] text-slate-400">{entry.summary}</div>}
+                    </div>
+                    <span className="text-sm font-bold text-emerald-600">
+                      {entry.value}{entry.maxValue ? ` / ${entry.maxValue}` : ''}
                     </span>
                   </div>
                 ))}
@@ -113,27 +117,29 @@ export function ResultOverlay({ state, onRestart }: ResultOverlayProps) {
             </div>
             <div className="grid grid-cols-1 gap-4 p-6 lg:grid-cols-2">
               {caseResults.map((caseItem) => (
-                <div key={caseItem.id} className="rounded-2xl border border-black/[0.04] bg-slate-50 p-5">
+                <div key={caseItem.caseId} className="rounded-2xl border border-black/[0.04] bg-slate-50 p-5">
                   <div className="mb-3 flex items-start justify-between gap-3">
                     <div>
                       <div className="text-lg font-semibold text-slate-900">{caseItem.title}</div>
                       <div className="mt-1 text-xs text-slate-400">{caseItem.ownerName} · {caseItem.community}</div>
                     </div>
                     <span className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${
-                      caseItem.status === 'sold'
+                      caseItem.ownerSatisfaction === 'happy'
                         ? 'bg-emerald-100 text-emerald-700'
-                        : caseItem.status === 'withdrawn'
+                        : caseItem.defenseOutcome === 'lost_to_rival' || caseItem.ownerSatisfaction === 'regret' || caseItem.ownerSatisfaction === 'unhappy'
                           ? 'bg-rose-100 text-rose-600'
-                          : 'bg-slate-200 text-slate-600'
+                          : 'bg-amber-100 text-amber-700'
                     }`}>
-                      {caseItem.status === 'sold' ? '已成交' : caseItem.status === 'withdrawn' ? '已撤盘' : '未收口'}
+                      {caseItem.endingLabel}
                     </span>
                   </div>
 
+                  <p className="mb-3 text-sm leading-relaxed text-slate-500">{caseItem.endingSummary}</p>
+
                   <div className="grid grid-cols-2 gap-3 text-sm">
-                    <ResultMiniStat icon={<Clock3 size={14} />} label="剩余窗口" value={`${caseItem.windowDays} 天`} />
-                    <ResultMiniStat icon={<TrendingUp size={14} />} label="竞争力" value={`${Math.round(caseItem.competitiveness)}`} />
-                    <ResultMiniStat icon={<ArrowRightLeft size={14} />} label="业主信任" value={`${Math.round(caseItem.trust)}`} />
+                    <ResultMiniStat icon={<TrendingUp size={14} />} label="能力结果" value={caseItem.relativeOutcomeLabel} />
+                    <ResultMiniStat icon={<ArrowRightLeft size={14} />} label="守盘结果" value={caseItem.defenseOutcomeLabel} />
+                    <ResultMiniStat icon={<Clock3 size={14} />} label="业主感受" value={caseItem.ownerSatisfactionLabel} />
                     <ResultMiniStat icon={<CircleDollarSign size={14} />} label="结果价格" value={caseItem.soldPrice ? `${caseItem.soldPrice} 万` : '--'} />
                   </div>
                 </div>

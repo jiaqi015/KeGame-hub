@@ -118,7 +118,7 @@ export default function App() {
           : prompt;
 
         try {
-          const response = await authorizedFetch('/api/compare-stream', {
+          const response = await authorizedFetch('/api/compare?stream=1', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ prompt: requestPrompt, modelId }),

@@ -84,16 +84,17 @@ export function fetchOpenDayScenarioVersions(activationKey: string, templateId: 
   const query = new URLSearchParams({
     templateId,
     limit: String(limit),
+    view: 'versions',
   });
 
   return requestJson<OpenDayScenarioVersionListResponse>(
     activationKey,
-    `/api/open-day-scenario-versions?${query.toString()}`,
+    `/api/open-day-scenarios?${query.toString()}`,
   );
 }
 
 export function fetchOpenDayAnalysis(activationKey: string, command: OpenDayScoreCommand) {
-  return requestJson<OpenDayAnalysisResponse>(activationKey, '/api/open-day-score', {
+  return requestJson<OpenDayAnalysisResponse>(activationKey, '/api/open-day-analyses', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

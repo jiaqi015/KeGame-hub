@@ -23,6 +23,7 @@ import { getScenarioBlueprintsForDifficulty } from './scenarioBlueprints';
 import type {
   CaseRole,
   DifficultyProfile,
+  GeneratedGoalContext,
   GeneratedRoleAssignment,
   ScenarioBlueprint,
   ScenarioGenerationRequest,
@@ -278,6 +279,16 @@ function buildOwnerMood(role: CaseRole, ownerArchetype: OwnerArchetype, prototyp
   return '一旦局面不顺，很快就会想止损';
 }
 
+function deriveGoalTier(role: CaseRole): 'core' | 'important' | 'normal' {
+  if (role === 'anchor') {
+    return 'core';
+  }
+  if (role === 'fragile' || role === 'spoiler') {
+    return 'important';
+  }
+  return 'normal';
+}
+
 function buildScenarioCase(
   selection: SelectedSlot,
   slot: ScenarioBlueprint['caseRoleSlots'][number],
@@ -320,7 +331,62 @@ function buildScenarioCase(
     initialHeat: targetHeat,
     initialUrgency: clamp(targetUrgency - selection.ownerArchetype.urgencyGrowthBonus, 40, 90),
     windowDays: targetWindow,
+    goalTier: deriveGoalTier(selection.role),
   } satisfies ScenarioCase;
+}
+
+function buildGoalContext(profile: DifficultyProfile, blueprint: ScenarioBlueprint): GeneratedGoalContext {
+  const abilityPressure = Math.min(
+    95,
+    Math.round(
+      44
+      + profile.difficultyScoreTarget.min * 0.55
+      + (blueprint.eventArcId === 'double_market_balance' || blueprint.eventArcId === 'cross_pressure' ? 8 : 0),
+    ),
+  );
+  const defensePressure = Math.min(
+    95,
+    Math.round(
+      42
+      + profile.difficultyScoreTarget.min * 0.48
+      + (blueprint.competitionTopology === 'paired_pressure' || blueprint.competitionTopology === 'chain_clusters' ? 12 : 6),
+    ),
+  );
+  const satisfactionPressure = Math.min(
+    95,
+    Math.round(
+      40
+      + profile.difficultyScoreTarget.min * 0.42
+      + (blueprint.eventArcId === 'relationship_recovery' ? 6 : 0)
+      + (blueprint.eventArcId === 'window_squeeze' || blueprint.eventArcId === 'competition_collapse' ? 10 : 0),
+    ),
+  );
+
+  const goalContext = defensePressure >= abilityPressure && defensePressure >= satisfactionPressure
+    ? 'defense'
+    : satisfactionPressure >= abilityPressure
+      ? 'satisfaction'
+      : 'ability';
+
+  const targetScore = Math.round((profile.difficultyScoreTarget.min + profile.difficultyScoreTarget.max) / 2) + 24;
+  const pass = Math.max(42, targetScore - 12);
+  const strong = Math.min(94, targetScore + 12);
+  const ace = Math.min(98, strong + 8);
+
+  return {
+    goalContext,
+    targetScore,
+    scoreThresholds: {
+      pass,
+      strong,
+      ace,
+    },
+    boardPressureProfile: {
+      abilityPressure,
+      defensePressure,
+      satisfactionPressure,
+    },
+  };
 }
 
 function groupNameFromMarket(world: WorldSpec, marketCellId: string, suffix: string) {
@@ -658,6 +724,7 @@ export function assembleGeneratedScenario(request: ScenarioGenerationRequest) {
   const assignments: GeneratedRoleAssignment[] = selections.map((selection, index) => ({
     slotId: selection.slotId,
     role: selection.role,
+    goalTier: deriveGoalTier(selection.role),
     caseId: scenarioCases[index].id,
     housePrototypeId: selection.prototype.id,
     ownerArchetypeId: selection.ownerArchetype.id,
@@ -668,6 +735,7 @@ export function assembleGeneratedScenario(request: ScenarioGenerationRequest) {
   const competitionGroups = buildCompetitionGroups(blueprint, world, scenarioCases, assignments, source);
   const scriptedEvents = buildScriptedEvents(blueprint, world, scenarioCases, assignments, maxDay, source);
   const presentation = buildScenarioPresentation(blueprint, scenarioCases.length, scriptedEvents.length, source);
+  const goalContext = buildGoalContext(profile, blueprint);
 
   const scenario: ScenarioDefinition = {
     id: `generated-${generationVersion}-${request.difficultyId}-${blueprint.id}-${request.seed}`,
@@ -684,6 +752,10 @@ export function assembleGeneratedScenario(request: ScenarioGenerationRequest) {
     competitionGroups,
     scriptedEvents,
     randomEventPool: buildRandomEventPool(profile, blueprint),
+    goalContext: goalContext.goalContext,
+    targetScore: goalContext.targetScore,
+    scoreThresholds: goalContext.scoreThresholds,
+    boardPressureProfile: goalContext.boardPressureProfile,
     rules: {
       ...profile.ruleAdjustments,
       ...blueprint.ruleAdjustments,

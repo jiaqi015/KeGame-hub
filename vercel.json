@@ -2,6 +2,20 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/api/compare-stream",
+      "destination": "/api/compare?stream=1"
+    },
+    {
+      "source": "/api/open-day-score",
+      "destination": "/api/open-day-analyses"
+    },
+    {
+      "source": "/api/open-day-scenario-versions",
+      "destination": "/api/open-day-scenarios?view=versions"
+    }
+  ],
   "functions": {
     "api/*.ts": {
       "maxDuration": 300

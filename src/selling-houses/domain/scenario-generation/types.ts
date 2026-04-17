@@ -1,6 +1,10 @@
 import type {
+  BoardPressureProfile,
   DifficultyId,
   GameRules,
+  GoalContextId,
+  GoalTier,
+  ScoreThresholds,
   ScenarioDefinition,
   ScenarioSnapshot,
   WorldSpec,
@@ -97,11 +101,19 @@ export interface ScenarioBlueprint {
 export interface GeneratedRoleAssignment {
   slotId: string;
   role: CaseRole;
+  goalTier: GoalTier;
   caseId: string;
   housePrototypeId: string;
   ownerArchetypeId: string;
   marketCellId: string;
   layout: string;
+}
+
+export interface GeneratedGoalContext {
+  goalContext: GoalContextId;
+  targetScore: number;
+  scoreThresholds: ScoreThresholds;
+  boardPressureProfile: BoardPressureProfile;
 }
 
 export interface DifficultyScoreBreakdown {

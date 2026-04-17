@@ -2,15 +2,81 @@ import type { DifficultyId, ScenarioDefinition, ScenarioSnapshot, ScenarioSummar
 import { mergeRules } from '../config/baseRules';
 import { BUILT_IN_WORLD, getBuiltInWorld } from '../worlds/builtinWorld';
 
-function buildScenarioSummary(scenario: ScenarioDefinition): ScenarioSummary {
+function inferGoalContext(scenario: ScenarioDefinition) {
+  if (scenario.goalContext) {
+    return scenario.goalContext;
+  }
+  const urgentCount = scenario.cases.filter((entry) => entry.windowDays <= 8 || entry.initialUrgency >= 76).length;
+  const fragileCount = scenario.cases.filter((entry) => entry.initialTrust <= 58 || entry.initialPatience <= 45).length;
+  if (fragileCount >= Math.ceil(scenario.cases.length / 2)) {
+    return 'satisfaction' as const;
+  }
+  if (urgentCount >= Math.ceil(scenario.cases.length / 2)) {
+    return 'defense' as const;
+  }
+  return 'ability' as const;
+}
+
+function inferTargetScore(difficultyId: DifficultyId) {
+  if (difficultyId === 'warmup') return 58;
+  if (difficultyId === 'easy') return 64;
+  if (difficultyId === 'standard') return 72;
+  if (difficultyId === 'advanced') return 78;
+  if (difficultyId === 'hard') return 84;
+  return 88;
+}
+
+function inferScoreThresholds(targetScore: number) {
   return {
-    id: scenario.id,
-    difficultyId: scenario.difficultyId,
-    name: scenario.name,
-    theme: scenario.theme,
-    description: scenario.description,
-    caseCount: scenario.cases.length,
-    maxDay: scenario.maxDay,
+    pass: Math.max(42, targetScore - 12),
+    strong: Math.min(94, targetScore + 12),
+    ace: Math.min(98, targetScore + 20),
+  };
+}
+
+function inferBoardPressureProfile(scenario: ScenarioDefinition) {
+  const abilityPressure = Math.min(92, 44 + scenario.cases.length * 4);
+  const defensePressure = Math.min(92, 40 + scenario.competitionGroups.length * 10);
+  const satisfactionPressure = Math.min(
+    92,
+    38 + scenario.cases.filter((entry) => entry.initialTrust <= 60 || entry.initialPatience <= 48).length * 8,
+  );
+  return {
+    abilityPressure,
+    defensePressure,
+    satisfactionPressure,
+  };
+}
+
+function enrichScenarioDefinition(scenario: ScenarioDefinition): ScenarioDefinition {
+  const goalContext = inferGoalContext(scenario);
+  const targetScore = scenario.targetScore || inferTargetScore(scenario.difficultyId);
+  return {
+    ...scenario,
+    goalContext,
+    targetScore,
+    scoreThresholds: scenario.scoreThresholds || inferScoreThresholds(targetScore),
+    boardPressureProfile: scenario.boardPressureProfile || inferBoardPressureProfile(scenario),
+    cases: scenario.cases.map((entry) => ({
+      ...entry,
+      goalTier: entry.goalTier
+        || (entry.windowDays <= 8 || entry.initialUrgency >= 76 ? 'core'
+          : entry.initialTrust <= 58 || entry.initialPatience <= 45 ? 'important'
+            : 'normal'),
+    })),
+  };
+}
+
+function buildScenarioSummary(scenario: ScenarioDefinition): ScenarioSummary {
+  const enriched = enrichScenarioDefinition(scenario);
+  return {
+    id: enriched.id,
+    difficultyId: enriched.difficultyId,
+    name: enriched.name,
+    theme: enriched.theme,
+    description: enriched.description,
+    caseCount: enriched.cases.length,
+    maxDay: enriched.maxDay,
   };
 }
 
@@ -341,11 +407,12 @@ export function getBuiltInScenario(id: string) {
 }
 
 export function buildScenarioSnapshot(scenario: ScenarioDefinition, source: 'builtin' | 'cloud' = 'builtin'): ScenarioSnapshot {
+  const enriched = enrichScenarioDefinition(structuredClone(scenario));
   return {
     world: getBuiltInWorld(),
     scenario: {
-      ...structuredClone(scenario),
-      rules: mergeRules(scenario.rules),
+      ...enriched,
+      rules: mergeRules(enriched.rules),
     },
     source,
   };
