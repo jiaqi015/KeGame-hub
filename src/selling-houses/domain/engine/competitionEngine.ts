@@ -33,37 +33,71 @@ function shouldLoseToRival(world: GameState, caseItem: Case, groupPricePremiumRa
     return false;
   }
 
+  if (Number.isFinite(caseItem.lastRivalThreatDay) && world.day - (caseItem.lastRivalThreatDay || 0) < 3) {
+    return false;
+  }
+
   const brokerShadowLeads = world.opportunities.filter((entry) => {
     return entry.caseId === caseItem.id
       && entry.status === 'active'
       && entry.leadSource === 'broker'
       && entry.visibility === 'shadow';
   }).length;
+  const ownedActiveLeads = world.opportunities.filter((entry) => {
+    return entry.caseId === caseItem.id
+      && entry.status === 'active'
+      && entry.visibility !== 'shadow';
+  });
+  const ownedQualifiedLeads = ownedActiveLeads.filter((entry) => entry.stageIndex >= 2).length;
   const priceGapRatio = Math.max(0, caseItem.askPrice - caseItem.marketPrice) / Math.max(caseItem.marketPrice, 1);
   const pressureOverLine = Math.max(0, cell.competitivePressure - world.rules.competitionPressureThreshold);
-  const vulnerable = caseItem.windowDays <= 3
-    || caseItem.trust <= 48
-    || caseItem.heat <= 34
+  const relationshipGap = caseItem.lastOwnerTouchedDay <= 0 ? world.day : world.day - caseItem.lastOwnerTouchedDay;
+  const urgentOpening = caseItem.windowDays <= 1 || brokerShadowLeads >= 2;
+  const relationshipOpening = relationshipGap >= 4 && caseItem.trust <= 58;
+  const trustCollapse = caseItem.trust <= 36;
+  const coldAndNeglected = caseItem.heat <= 24 && relationshipGap >= 3;
+  const pipelineOpening = (
+    ownedActiveLeads.length === 0
+    || (ownedQualifiedLeads === 0 && caseItem.heat <= 34)
+  ) && (
+    pressureOverLine >= 16
+    || groupPricePremiumRatio >= 0.075
+    || priceGapRatio >= 0.085
+  );
+  const priceAndPressureTrap = (
+    pressureOverLine >= 18
+    || groupPricePremiumRatio >= 0.085
+    || priceGapRatio >= 0.09
+  ) && (
+    caseItem.trust <= 48
+    || relationshipGap >= 3
+    || caseItem.windowDays <= 2
+  );
+  const recentlyMaintained = relationshipGap <= 2 && caseItem.trust >= 58;
+  const visibleSlip = urgentOpening
+    || relationshipOpening
+    || trustCollapse
+    || coldAndNeglected
+    || pipelineOpening
+    || priceAndPressureTrap;
+  const rivalHasOpening = pressureOverLine >= 14
+    || groupPricePremiumRatio >= 0.065
+    || priceGapRatio >= 0.08
     || brokerShadowLeads >= 2;
-  const rivalHasOpening = pressureOverLine >= 8
-    || groupPricePremiumRatio >= 0.04
-    || priceGapRatio >= 0.055
-    || brokerShadowLeads > 0;
 
-  if (!vulnerable || !rivalHasOpening) {
+  if (!visibleSlip || !rivalHasOpening || (recentlyMaintained && !urgentOpening && !pipelineOpening)) {
     return false;
   }
 
-  const probability = clamp(
-    0.06
-      + pressureOverLine * 0.012
-      + Math.max(0, groupPricePremiumRatio - 0.02) * 2.4
-      + Math.max(0, priceGapRatio - 0.035) * 2
-      + brokerShadowLeads * 0.04
-      + (caseItem.windowDays <= 1 ? 0.08 : 0),
-    0.06,
-    0.32,
-  );
+  const rawProbability = 0.03
+    + pressureOverLine * 0.008
+    + Math.max(0, groupPricePremiumRatio - 0.04) * 1.8
+    + Math.max(0, priceGapRatio - 0.055) * 1.5
+    + brokerShadowLeads * 0.035
+    + (caseItem.windowDays <= 1 ? 0.05 : 0);
+  const maintainedGuard = recentlyMaintained && pipelineOpening ? 0.6 : 1;
+  const probability = clamp(rawProbability * world.rules.rivalLossProbabilityScale * maintainedGuard, 0.005, 0.18);
+  caseItem.lastRivalThreatDay = world.day;
 
   return chance(probability, world);
 }

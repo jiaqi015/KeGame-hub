@@ -1,6 +1,6 @@
 export {AVAILABLE_MODELS} from '../lib/models.js';
 export type {AIModel, ModelChannel} from '../lib/models.js';
-export type {ActivationWorkspaceId} from '../lib/activation.js';
+export type {ActivationWorkspaceId} from '../lib/workspaces.js';
 
 export interface ComparisonResult {
   modelId: string;

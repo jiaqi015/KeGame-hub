@@ -454,27 +454,28 @@ function buildCoachNotes(caseResults: CaseFinalResult[]) {
   const risk = [...caseResults].reverse().find((entry) => entry.endingBucket === 'bad') || caseResults[caseResults.length - 1];
   const notes: string[] = [];
   if (best) {
-    notes.push(`${best.title} 是这局最像样的一套房，说明这类盘的节奏你已经摸到门了。`);
+    notes.push(`${best.title} 是这局收尾最完整的一套房，最终落在 ${best.endingLabel}。`);
   }
   if (risk && risk.caseId !== best?.caseId) {
-    notes.push(`${risk.title} 是这局最值得复盘的一套房，重点看它为什么会滑向 ${risk.endingLabel}。`);
+    notes.push(`${risk.title} 是这局损失最大的房源，最终落在 ${risk.endingLabel}。`);
   }
   return notes;
 }
 
 function buildNextRunAdvice(caseResults: CaseFinalResult[], dimensions: FinalResult['dimensions']) {
   const advice: string[] = [];
-  if (caseResults.some((entry) => entry.goalTier === 'core' && entry.defenseOutcome !== 'held')) {
-    advice.push('下一局开场先把核心盘圈出来，前三天只做最值钱的保盘动作。');
+  const coreLossCount = caseResults.filter((entry) => entry.goalTier === 'core' && entry.defenseOutcome !== 'held').length;
+  if (coreLossCount > 0) {
+    advice.push(`本局有 ${coreLossCount} 套核心盘没有守住，开局三天的资源分配直接影响了后段容错。`);
   }
   if (dimensions.satisfaction.score <= dimensions.ability.score && dimensions.satisfaction.score <= dimensions.defense.score) {
-    advice.push('下一局别只想着推进，先把容易做崩的盘稳住，满意分自然会上来。');
+    advice.push('满意分是三轴里最低的一项，说明成交推进和业主体感没有一起被守住。');
   }
   if (dimensions.ability.score < 24) {
-    advice.push('下一局优先练“把能打的房打穿”，不要平均用力。');
+    advice.push('能力分偏低，说明有效推进主要集中在少数房源，更多房源停留在中前段。');
   }
   if (!advice.length) {
-    advice.push('下一局可以挑战更高压的局，重点练在强联动里守核心盘。');
+    advice.push('三项分数比较接近，这局没有明显单一短板，主要差异来自具体房源收尾。');
   }
   return advice;
 }

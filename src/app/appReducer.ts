@@ -3,6 +3,7 @@ import { AIModel, ComparisonResult, ActivationWorkspaceId } from '../types';
 export type DifferenceSummaryStatus = 'idle' | 'waiting' | 'thinking' | 'completed' | 'error';
 export type AuthStatus = 'checking' | 'locked' | 'submitting' | 'authenticated';
 export type WorkspaceId = 'hub' | ActivationWorkspaceId;
+export type AuthMode = 'email' | 'verify' | 'activate';
 
 export interface DifferenceSummaryState {
   modelId: string | null;
@@ -12,11 +13,16 @@ export interface DifferenceSummaryState {
 
 export interface AppState {
   // Auth
+  loginEmail: string;
+  verificationCode: string;
   activationInput: string;
   authorizedKey: string;
   allowedWorkspaces: ActivationWorkspaceId[];
   authStatus: AuthStatus;
   authError: string;
+  authMode: AuthMode;
+  authHint: string;
+  currentUserEmail: string;
   
   // Navigation
   activeWorkspace: WorkspaceId;
@@ -37,8 +43,11 @@ export interface AppState {
 
 export type AppAction =
   | { type: 'SET_AUTH_STATUS'; status: AuthStatus; error?: string }
+  | { type: 'SET_AUTH_MODE'; mode: AuthMode; hint?: string }
+  | { type: 'SET_LOGIN_EMAIL'; value: string }
+  | { type: 'SET_VERIFICATION_CODE'; value: string }
   | { type: 'SET_ACTIVATION_INPUT'; value: string }
-  | { type: 'COMPLETE_ACTIVATION'; key: string; allowedWorkspaces: ActivationWorkspaceId[] }
+  | { type: 'COMPLETE_ACTIVATION'; key: string; allowedWorkspaces: ActivationWorkspaceId[]; email?: string }
   | { type: 'LOCK_APPLICATION'; message: string; nextInput: string }
   | { type: 'SET_WORKSPACE'; workspace: WorkspaceId }
   | { type: 'SET_CATALOG'; models: AIModel[]; selected: string[] }
@@ -55,11 +64,16 @@ export type AppAction =
   | { type: 'RESET_WORKSPACE' };
 
 export const initialState: AppState = {
+  loginEmail: '',
+  verificationCode: '',
   activationInput: '',
   authorizedKey: '',
   allowedWorkspaces: [],
   authStatus: 'checking',
   authError: '',
+  authMode: 'email',
+  authHint: '',
+  currentUserEmail: '',
   activeWorkspace: 'hub',
   previewData: null,
   availableModels: [],
@@ -80,6 +94,15 @@ export function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case 'SET_AUTH_STATUS':
       return { ...state, authStatus: action.status, authError: action.error ?? '' };
+
+    case 'SET_AUTH_MODE':
+      return { ...state, authMode: action.mode, authHint: action.hint ?? state.authHint, authError: '' };
+
+    case 'SET_LOGIN_EMAIL':
+      return { ...state, loginEmail: action.value };
+
+    case 'SET_VERIFICATION_CODE':
+      return { ...state, verificationCode: action.value };
       
     case 'SET_ACTIVATION_INPUT':
       return { ...state, activationInput: action.value };
@@ -89,8 +112,9 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         ...state,
         authorizedKey: action.key,
         allowedWorkspaces: action.allowedWorkspaces,
-        activationInput: action.key,
+        currentUserEmail: action.email ?? state.currentUserEmail,
         authError: '',
+        authHint: '',
         activeWorkspace: 'hub',
         authStatus: 'authenticated',
       };
@@ -101,6 +125,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         authStatus: 'locked',
         authError: action.message,
         activationInput: action.nextInput,
+        loginEmail: state.loginEmail,
       };
       
     case 'SET_WORKSPACE':
@@ -185,6 +210,8 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         ...initialState,
         authorizedKey: state.authorizedKey,
         authStatus: state.authStatus,
+        allowedWorkspaces: state.allowedWorkspaces,
+        currentUserEmail: state.currentUserEmail,
       };
       
     default:

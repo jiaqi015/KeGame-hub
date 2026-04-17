@@ -20,17 +20,9 @@
 
 ## Overview
 
-### 为什么这个仓库值得单独存在
-
 - 它把 `模型对比`、`数据驱动的开放日测算`、`经营模拟` 放进同一产品入口，而不是分散成多个互相脱节的小项目
 - 它不是只做前端页面，而是在继续沉淀可演进的后端接口、领域服务、持久化和缓存策略
-- 它已经具备从本地开发到 Vercel / Neon / Blob 的多层回退和演进路径，适合继续往产品化方向推进
-
-### 当前产品判断
-
-- `开放日选址` 是最成熟、最稳定的一条业务线
-- `我是王牌资产顾问` 是变化最快、投入最多的一条业务线
-- `统一入口 + 开放日后端领域化 + 资产顾问云化` 是当前最需要一起理解的三条主线
+- 它已经具备从本地开发到 `Vercel / Neon / Blob` 的多层回退和演进路径，适合继续往产品化方向推进
 
 ### Project Status
 
@@ -107,7 +99,7 @@ http://localhost:3000
 2. [docs/project-memory/current-focus.md](/Users/jiaqi/Documents/开放日测算/docs/project-memory/current-focus.md)
 3. [docs/project-memory/module-map.md](/Users/jiaqi/Documents/开放日测算/docs/project-memory/module-map.md)
 
-### 继续开发前先确认
+继续开发前先确认：
 
 - 当前改动主要落在哪条业务线
 - 当前任务更像是产品收口、后端闭环、玩法演进还是文档整理
@@ -174,7 +166,7 @@ http://localhost:3000
 
 ## Documentation Map
 
-### 项目记忆
+### Project Memory
 
 - [项目记忆入口](MEMORY.md)
 - [当前状态](docs/project-memory/current-state.md)
@@ -291,9 +283,14 @@ npm run selfplay:lab
 
 ## Persistence and Runtime Behavior
 
+### Entry and workspace flow
+
 - 验证页沿用 Sabrina 的激活机制
 - 验证通过后先进入功能选择页，再切入具体工作台
 - 代码内部继续保留 `open-day` 作为模块与接口前缀，避免为了产品文案变化做高风险重命名
+
+### Open Day runtime
+
 - Excel 上传通过 `/api/parse-workbook` 在服务端解析 sheet 和数据
 - 默认参数与策略包目录通过 `/api/open-day-catalog` 从后端下发
 - 开放日测算由 `/api/open-day-score` 承担评分入口，并与历史分析能力协同
@@ -301,10 +298,13 @@ npm run selfplay:lab
 - 方案模板与方案版本通过 `/api/open-day-scenarios` 和 `/api/open-day-scenario-versions` 查询和保存
 - 当一次测算绑定了已保存方案时，会记录 `scenarioTemplateId / scenarioTemplateName`
 - 开放日测算会记录 `datasetId / datasetProfileId`，用于追溯数据集和字段质量画像
+- workbook 解析链带有 `checksum + requestedSheet` 级别缓存，用于缩短重复解析耗时
+
+### Persistence strategy
+
 - 当存在 `DATABASE_URL` 或 `POSTGRES_URL` 时，开放日模块优先使用 `Neon` 持久化，否则回退为本地文件仓储
 - 当运行在 Vercel 上时，开放日缓存优先使用 `Runtime Cache`，本地开发默认回退为内存缓存
 - 当存在 `BLOB_READ_WRITE_TOKEN` 且结构化存储走 `Neon` 时，原始 Excel 会优先归档到 `Vercel Blob`
-- workbook 解析链带有 `checksum + requestedSheet` 级别缓存，用于缩短重复解析耗时
 - 资产顾问云端 schema 已按 `Neon Postgres` 预留，可与开放日模块共用同一库、不同表
 
 ## Project Rules
@@ -314,12 +314,3 @@ npm run selfplay:lab
 - 开放日工作台保持“两步式”主流程，不回退成大单页混合流
 - 关键背景优先沉淀在仓库内文档，而不是只留在对话里
 - 自动生成记忆只能作为线索，不能直接替代人工整理的项目记忆
-
-## Inspiration
-
-这份 README 的结构参考了几个高 star 产品仓库常见的组织方式：先给一句话定位，再给能力亮点、快速启动、文档导航和社区 / 研发入口。我主要参考了这些仓库的 README 组织思路，而不是照搬它们的文案：
-
-- [Supabase](https://github.com/supabase/supabase)
-- [Next.js](https://github.com/vercel/next.js)
-- [n8n](https://github.com/n8n-io/n8n)
-- [Dify](https://github.com/langgenius/dify)

@@ -217,13 +217,13 @@ export function ResultOverlay({ state, onRestart }: ResultOverlayProps) {
             />
             <ResultInsightCard
               icon={<Lightbulb size={16} />}
-              title="教练点评"
+              title="关键复盘"
               tone="emerald"
               items={coachNotes}
             />
             <ResultInsightCard
               icon={<Route size={16} />}
-              title="下局建议"
+              title="局面观察"
               tone="amber"
               items={nextRunAdvice}
             />

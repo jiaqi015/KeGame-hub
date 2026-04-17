@@ -82,6 +82,7 @@ export function instantiateScenarioCases(snapshot: ScenarioSnapshot, source?: Ra
       priceGapPct: 0,
       competitionGroupIds,
       lastAskPrice: askPrice,
+      lastRivalThreatDay: undefined,
       goalTier: definition.goalTier || 'normal',
       storylineState: 'healthy',
       isFocused: false,

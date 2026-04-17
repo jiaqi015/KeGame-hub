@@ -3,9 +3,10 @@ import type {
   MaintainerCreateRunCommand,
   MaintainerSaveRunCommand,
 } from '../../application/cloudSync.js';
-import { MaintainerSyncConflictError, NeonGameRunRepository } from '../../infrastructure/neonGameRunRepository.js';
+import { MaintainerSyncConflictError } from '../../application/maintainerSyncConflictError.js';
+import { getMaintainerRunRepository } from '../../infrastructure/sellingHousesPlatform.js';
 
-const repository = new NeonGameRunRepository();
+const repository = getMaintainerRunRepository();
 
 function normalizeCreateBody(body: unknown): MaintainerCreateRunCommand {
   if (!body || typeof body !== 'object') {

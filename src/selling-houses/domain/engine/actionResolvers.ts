@@ -118,7 +118,7 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
       shadowOpportunity.intent = clamp(shadowOpportunity.intent + 6, 0, 100);
       shadowOpportunity.confidence = clamp(shadowOpportunity.confidence + 8, 0, 100);
       refreshOpportunityLabel(shadowOpportunity);
-      logEvent(state, '诊断反馈', `${caseItem.title} 的诊断过程中，你顺带摸清了一位预测客群的真实需求。`, 'success');
+      logEvent(state, '诊断反馈', `${caseItem.title} 的诊断过程中，你顺带摸清了一位待确认客户的真实需求。`, 'success');
     }
     logEvent(state, caseItem.ownerName, `${caseItem.title} 完成一轮深度诊断，业主开始更理解盘面的真实问题。`, 'accent');
     onMessage?.(`${caseItem.title} 已完成深度诊断。`);

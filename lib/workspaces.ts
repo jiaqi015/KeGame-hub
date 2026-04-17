@@ -1,0 +1,132 @@
+type WorkspacePathMatcher =
+  | { type: 'exact'; value: string }
+  | { type: 'prefix'; value: string };
+
+export const WORKSPACE_DEFINITIONS = [
+  {
+    id: 'sabrina',
+    label: '多模型PK',
+    legacyCode: '1',
+    aliases: ['sabrina', 'compare', 'comparison', 'pk'],
+    pathMatchers: [
+      { type: 'exact', value: '/api/models' },
+      { type: 'exact', value: '/api/compare' },
+      { type: 'exact', value: '/api/compare-stream' },
+      { type: 'exact', value: '/models' },
+      { type: 'exact', value: '/compare' },
+      { type: 'exact', value: '/compare-stream' },
+    ] satisfies WorkspacePathMatcher[],
+  },
+  {
+    id: 'open-day',
+    label: '小区开放日选址',
+    legacyCode: '2',
+    aliases: ['open-day', 'open_day', 'openday'],
+    pathMatchers: [
+      { type: 'prefix', value: '/api/open-day-' },
+      { type: 'exact', value: '/api/parse-workbook' },
+      { type: 'prefix', value: '/open-day-' },
+      { type: 'exact', value: '/parse-workbook' },
+    ] satisfies WorkspacePathMatcher[],
+  },
+  {
+    id: 'selling-houses',
+    label: '我是王牌资产顾问',
+    legacyCode: '3',
+    aliases: ['selling-houses', 'selling_houses', 'sellinghouses', 'maintainer'],
+    pathMatchers: [
+      { type: 'prefix', value: '/api/maintainer-' },
+      { type: 'prefix', value: '/maintainer-' },
+      { type: 'exact', value: '/api/selling-houses-scenarios' },
+      { type: 'exact', value: '/selling-houses-scenarios' },
+    ] satisfies WorkspacePathMatcher[],
+  },
+  {
+    id: 'market-management',
+    label: '经营好商圈',
+    legacyCode: '4',
+    aliases: ['market-management', 'market_management', 'marketmanagement'],
+    pathMatchers: [] satisfies WorkspacePathMatcher[],
+  },
+  {
+    id: 'rational-owner',
+    label: '做最理性的业主',
+    legacyCode: '5',
+    aliases: ['rational-owner', 'rational_owner', 'rationalowner'],
+    pathMatchers: [] satisfies WorkspacePathMatcher[],
+  },
+] as const;
+
+export type WorkspaceId = (typeof WORKSPACE_DEFINITIONS)[number]['id'];
+
+export const WORKSPACE_IDS = WORKSPACE_DEFINITIONS.map((workspace) => workspace.id) as WorkspaceId[];
+export type ActivationWorkspaceId = WorkspaceId;
+
+const WORKSPACE_ALIAS_MAP = Object.fromEntries(
+  WORKSPACE_DEFINITIONS.flatMap((workspace) => {
+    const tokens = [
+      workspace.id,
+      ...workspace.aliases,
+      ...('legacyCode' in workspace ? [workspace.legacyCode] : []),
+    ];
+    return tokens.map((token) => [token.toLowerCase(), workspace.id] as const);
+  }),
+) as Record<string, WorkspaceId>;
+
+const LEGACY_WORKSPACE_CODE_MAP = Object.fromEntries(
+  WORKSPACE_DEFINITIONS
+    .filter((workspace): workspace is (typeof WORKSPACE_DEFINITIONS)[number] & { legacyCode: string } => 'legacyCode' in workspace)
+    .map((workspace) => [workspace.legacyCode, workspace.id] as const),
+) as Record<string, WorkspaceId>;
+
+const LEGACY_WORKSPACE_CODES = Object.keys(LEGACY_WORKSPACE_CODE_MAP);
+
+const WORKSPACE_LABEL_MAP = Object.fromEntries(
+  WORKSPACE_DEFINITIONS.map((workspace) => [workspace.id, workspace.label] as const),
+) as Record<WorkspaceId, string>;
+
+export function normalizeWorkspaceToken(rawToken: string): WorkspaceId | null {
+  const token = rawToken.trim().toLowerCase();
+  return WORKSPACE_ALIAS_MAP[token] || null;
+}
+
+export function decodeLegacyWorkspaceCodes(rawValue: string): WorkspaceId[] {
+  const trimmed = rawValue.trim();
+
+  if (!trimmed || LEGACY_WORKSPACE_CODES.length === 0) {
+    return [];
+  }
+
+  if (!trimmed.split('').every((token) => LEGACY_WORKSPACE_CODES.includes(token))) {
+    return [];
+  }
+
+  return trimmed
+    .split('')
+    .map((token) => LEGACY_WORKSPACE_CODE_MAP[token])
+    .filter((workspace, index, list): workspace is WorkspaceId => Boolean(workspace) && list.indexOf(workspace) === index);
+}
+
+export function getWorkspaceLabel(workspace: WorkspaceId): string {
+  return WORKSPACE_LABEL_MAP[workspace];
+}
+
+export function inferWorkspaceFromPath(pathname: string): WorkspaceId | null {
+  if (!pathname) {
+    return null;
+  }
+
+  for (const workspace of WORKSPACE_DEFINITIONS) {
+    for (const matcher of workspace.pathMatchers) {
+      if (matcher.type === 'exact' && pathname === matcher.value) {
+        return workspace.id;
+      }
+
+      if (matcher.type === 'prefix' && pathname.startsWith(matcher.value)) {
+        return workspace.id;
+      }
+    }
+  }
+
+  return null;
+}

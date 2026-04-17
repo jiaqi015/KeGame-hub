@@ -2,16 +2,20 @@ import React, { useEffect, useCallback } from 'react';
 import { AppState, AppAction } from '../app/appReducer';
 import { 
   ACTIVATION_STORAGE_KEY, 
-  verifyActivationKey, 
-  buildAuthorizedHeaders 
+  AUTH_EMAIL_STORAGE_KEY,
+  buildAuthorizedHeaders,
+  fetchAuthenticatedUser,
+  logoutCurrentSession,
 } from '../services/apiService';
 import { AIModel } from '../types';
 
 export function useAppSession(state: AppState, dispatch: React.Dispatch<AppAction>) {
-  const { authorizedKey, authStatus, allowedWorkspaces } = state;
+  const { authorizedKey, authStatus, allowedWorkspaces, currentUserEmail } = state;
 
   const lockApplication = useCallback((message: string, nextInput = '') => {
     window.localStorage.removeItem(ACTIVATION_STORAGE_KEY);
+    window.localStorage.removeItem(AUTH_EMAIL_STORAGE_KEY);
+    void logoutCurrentSession().catch(() => {});
     dispatch({ type: 'LOCK_APPLICATION', message, nextInput });
   }, [dispatch]);
 
@@ -35,29 +39,20 @@ export function useAppSession(state: AppState, dispatch: React.Dispatch<AppActio
   useEffect(() => {
     let disposed = false;
     const restoreActivation = async () => {
-      const storedKey = window.localStorage.getItem(ACTIVATION_STORAGE_KEY)?.trim() || '';
-      if (!storedKey) {
-        if (!disposed) dispatch({ type: 'SET_AUTH_STATUS', status: 'locked' });
-        return;
-      }
-
-      if (!disposed) {
-        dispatch({ type: 'SET_ACTIVATION_INPUT', value: storedKey });
-        dispatch({ type: 'SET_AUTH_STATUS', status: 'checking' });
-      }
-
       try {
-        const verified = await verifyActivationKey(storedKey);
+        const user = await fetchAuthenticatedUser();
         if (!disposed) {
           dispatch({
             type: 'COMPLETE_ACTIVATION',
-            key: verified.key,
-            allowedWorkspaces: verified.allowedWorkspaces,
+            key: window.localStorage.getItem(ACTIVATION_STORAGE_KEY)?.trim() || 'session-authenticated',
+            allowedWorkspaces: user.allowedWorkspaces,
+            email: user.email,
           });
+          dispatch({ type: 'SET_LOGIN_EMAIL', value: user.email });
         }
       } catch (error) {
         if (!disposed) {
-          lockApplication(error instanceof Error ? error.message : '激活失败。', storedKey);
+          dispatch({ type: 'SET_AUTH_STATUS', status: 'locked' });
         }
       }
     };
@@ -92,6 +87,12 @@ export function useAppSession(state: AppState, dispatch: React.Dispatch<AppActio
     loadModels();
     return () => { disposed = true; };
   }, [authStatus, authorizedKey, authorizedFetch, allowedWorkspaces, dispatch]);
+
+  useEffect(() => {
+    if (authStatus === 'authenticated' && currentUserEmail) {
+      window.localStorage.setItem(AUTH_EMAIL_STORAGE_KEY, currentUserEmail);
+    }
+  }, [authStatus, currentUserEmail]);
 
   return { authorizedFetch, lockApplication };
 }

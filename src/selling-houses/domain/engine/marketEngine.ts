@@ -125,13 +125,13 @@ export function createWeeklyReview(world: GameState) {
     .filter((entry) => entry.status === 'active')
     .sort((left, right) => (right.heat + right.competitiveness) - (left.heat + left.competitiveness))[0];
   const note = hottestCase
-    ? `活跃机会 ${activeOpportunities} 个，平均业主信任 ${Math.round(averageTrust)}。本周最值得继续压资源的是 ${hottestCase.title}。`
+    ? `活跃机会 ${activeOpportunities} 个，平均业主信任 ${Math.round(averageTrust)}。本周热度最高的房源是 ${hottestCase.title}。`
     : `活跃机会 ${activeOpportunities} 个。当前在售盘已经不多，应转入复盘和结算。`;
   const suggestion = averageTrust < 60
-    ? '下周优先稳关系，别急着拼动作。'
+    ? '平均业主信任偏低，关系压力更明显。'
     : activeOpportunities < 4
-      ? '下周先补线索，再推带看。'
-      : '下周把高阶段机会压到报价和议价。';
+      ? '活跃机会数量偏少，准客池厚度不足。'
+      : '高阶段机会数量较多，后段转化压力更明显。';
 
   world.weeklyReviews.unshift({
     id: `week-${world.day}`,

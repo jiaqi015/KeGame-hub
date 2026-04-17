@@ -1,16 +1,20 @@
-import React, { Suspense, lazy, useMemo, useReducer, useRef } from 'react';
+import React, { Suspense, useMemo, useReducer, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Sparkles } from 'lucide-react';
 
 import { appReducer, initialState } from './app/appReducer';
 import { useAppSession } from './hooks/useAppSession';
 import { 
+  ACTIVATION_STORAGE_KEY,
+  AUTH_EMAIL_STORAGE_KEY,
   verifyActivationKey, 
   readCompareStream, 
   shouldUsePromptThinkingFallback, 
   wrapPromptForVisibleThinking,
   buildDifferenceSummaryPrompt,
-  DIFFERENCE_SUMMARY_MODEL_ID
+  completeEmailLogin,
+  DIFFERENCE_SUMMARY_MODEL_ID,
+  startEmailLogin,
 } from './services/apiService';
 import { ComparisonResult, ActivationWorkspaceId } from './types';
 
@@ -19,20 +23,7 @@ import { AuthOverlay } from './components/Auth/AuthOverlay';
 import { WorkspaceHub } from './components/Hub/WorkspaceHub';
 import { ComparisonWorkspace } from './components/Comparison/ComparisonWorkspace';
 import { PreviewModal } from './components/Common/PreviewModal';
-
-const OpenDayWorkspace = lazy(() => import('./open-day/OpenDayWorkspace').then((module) => ({ default: module.OpenDayWorkspace })));
-const SellingHousesWorkspace = lazy(() => import('./selling-houses/SellingHousesWorkspace').then((module) => ({ default: module.SellingHousesWorkspace })));
-
-const workspaceMeta = {
-  'open-day': {
-    title: '小区开放日选址',
-    accentClassName: 'text-emerald-700 hover:text-emerald-800',
-  },
-  'selling-houses': {
-    title: '我是王牌资产顾问',
-    accentClassName: 'text-amber-700 hover:text-amber-800',
-  },
-} as const;
+import { WORKSPACE_REGISTRY_BY_ID } from './workspaces/workspaceRegistry';
 
 export default function App() {
   const [state, dispatch] = useReducer(appReducer, initialState);
@@ -41,11 +32,15 @@ export default function App() {
   
   const {
     prompt,
+    loginEmail,
+    verificationCode,
     activationInput,
     authorizedKey,
     allowedWorkspaces,
     authStatus,
     authError,
+    authMode,
+    authHint,
     activeWorkspace,
     availableModels,
     selectedModels,
@@ -70,24 +65,68 @@ export default function App() {
 
   const submitActivationKey = async (event?: React.FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
-    const candidateKey = activationInput.trim();
-    if (!candidateKey) {
-      dispatch({ type: 'SET_AUTH_STATUS', status: 'locked', error: '请输入激活密钥。' });
-      return;
-    }
     dispatch({ type: 'SET_AUTH_STATUS', status: 'submitting' });
+
     try {
-      const verified = await verifyActivationKey(candidateKey);
+      if (authMode === 'email') {
+        const result = await startEmailLogin(loginEmail);
+        dispatch({ type: 'SET_LOGIN_EMAIL', value: result.email });
+        window.localStorage.setItem(AUTH_EMAIL_STORAGE_KEY, result.email);
+
+        if (result.mode === 'trusted-bypass') {
+          const user = await completeEmailLogin({ email: result.email });
+          dispatch({
+            type: 'COMPLETE_ACTIVATION',
+            key: 'session-authenticated',
+            allowedWorkspaces: user.allowedWorkspaces,
+            email: user.email,
+          });
+          return;
+        }
+
+        dispatch({
+          type: 'SET_AUTH_MODE',
+          mode: result.mode === 'activation_required' ? 'activate' : 'verify',
+          hint: result.verificationCode
+            ? `开发占位：验证码 ${result.verificationCode}`
+            : '验证码已发送，请查收邮件。',
+        });
+        dispatch({ type: 'SET_AUTH_STATUS', status: 'locked' });
+        return;
+      }
+
+      const user = await completeEmailLogin({
+        email: loginEmail,
+        code: verificationCode,
+        activationKey: authMode === 'activate' ? activationInput : '',
+      });
+
+      let authorizedSessionKey = 'session-authenticated';
+      if (authMode === 'activate' && activationInput.trim()) {
+        const verified = await verifyActivationKey(activationInput.trim());
+        authorizedSessionKey = verified.key;
+        window.localStorage.setItem(ACTIVATION_STORAGE_KEY, verified.key);
+      }
+
       dispatch({
         type: 'COMPLETE_ACTIVATION',
-        key: verified.key,
-        allowedWorkspaces: verified.allowedWorkspaces,
+        key: authorizedSessionKey,
+        allowedWorkspaces: user.allowedWorkspaces,
+        email: user.email,
       });
     } catch (error) {
+      const message = error instanceof Error ? error.message : '激活失败。';
+      if (message.includes('激活密钥')) {
+        dispatch({
+          type: 'SET_AUTH_MODE',
+          mode: 'activate',
+          hint: '这是首次登录，请补充当前分配给你的激活密钥。',
+        });
+      }
       dispatch({ 
         type: 'SET_AUTH_STATUS', 
         status: 'locked', 
-        error: error instanceof Error ? error.message : '激活失败。' 
+        error: message,
       });
     }
   };
@@ -241,8 +280,8 @@ export default function App() {
     dispatch({ type: 'SET_WORKSPACE', workspace });
   };
 
-  const renderWorkspaceShell = (workspace: keyof typeof workspaceMeta, content: React.ReactNode) => {
-    const meta = workspaceMeta[workspace];
+  const renderWorkspaceShell = (workspace: ActivationWorkspaceId, content: React.ReactNode) => {
+    const meta = WORKSPACE_REGISTRY_BY_ID[workspace];
 
     return (
       <div className="flex-1 overflow-hidden px-6 py-3">
@@ -256,8 +295,6 @@ export default function App() {
                 <ArrowLeft className="h-4 w-4" />
                 返回功能页
               </button>
-              <div className="h-4 w-[1px] bg-black/10" />
-              <h1 className="text-xl font-semibold tracking-[-0.02em] text-[#111111]">{meta.title}</h1>
             </div>
 
             <button
@@ -280,9 +317,15 @@ export default function App() {
     <div className="h-screen bg-[#FAFAFA] text-[#1D1D1F] font-sans selection:bg-blue-100 overflow-hidden flex flex-col">
       {authStatus !== 'authenticated' ? (
         <AuthOverlay
+          loginEmail={loginEmail}
+          verificationCode={verificationCode}
           activationInput={activationInput}
+          authMode={authMode}
+          authHint={authHint}
           authStatus={authStatus}
           authError={authError}
+          onEmailChange={(value) => dispatch({ type: 'SET_LOGIN_EMAIL', value })}
+          onCodeChange={(value) => dispatch({ type: 'SET_VERIFICATION_CODE', value })}
           onChange={(val) => dispatch({ type: 'SET_ACTIVATION_INPUT', value: val })}
           onSubmit={submitActivationKey}
         />
@@ -292,20 +335,6 @@ export default function App() {
           onLogout={() => lockApplication('', '')}
           allowedWorkspaces={allowedWorkspaces}
         />
-      ) : activeWorkspace === 'open-day' && canAccessWorkspace('open-day') ? (
-        renderWorkspaceShell(
-          'open-day',
-          <Suspense fallback={workspaceFallback}>
-            <OpenDayWorkspace activationKey={authorizedKey} />
-          </Suspense>,
-        )
-      ) : activeWorkspace === 'selling-houses' && canAccessWorkspace('selling-houses') ? (
-        renderWorkspaceShell(
-          'selling-houses',
-          <Suspense fallback={workspaceFallback}>
-            <SellingHousesWorkspace activationKey={authorizedKey} />
-          </Suspense>,
-        )
       ) : activeWorkspace === 'sabrina' && canAccessWorkspace('sabrina') ? (
         <ComparisonWorkspace
           state={state}
@@ -324,6 +353,13 @@ export default function App() {
           onLogout={() => lockApplication('', '')}
           onPreview={(title, subtitle, content) => dispatch({ type: 'SET_PREVIEW', data: { title, subtitle, content } })}
         />
+      ) : activeWorkspace !== 'hub' && canAccessWorkspace(activeWorkspace) ? (
+        renderWorkspaceShell(
+          activeWorkspace,
+          <Suspense fallback={workspaceFallback}>
+            {WORKSPACE_REGISTRY_BY_ID[activeWorkspace].render({ activationKey: authorizedKey })}
+          </Suspense>,
+        )
       ) : (
         <WorkspaceHub
           onSelect={handleSelectWorkspace}
@@ -335,7 +371,7 @@ export default function App() {
       <footer className="shrink-0 py-3 text-center text-[#86868B] text-[11px] border-t border-black/5 bg-white">
         <div className="flex items-center justify-center gap-2">
           <Sparkles className="w-3.5 h-3.5" />
-          <span>AI Model Sabrina II • 多模型PK + 开放日选址 + 我是王牌资产顾问</span>
+          <span>AI Model Sabrina II • 多模型PK + 开放日选址 + 资产顾问 + 商圈经营 + 理性业主</span>
           <span className="text-black/10">|</span>
           <span>© 2026</span>
         </div>

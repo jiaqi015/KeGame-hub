@@ -19,6 +19,10 @@ import {
   type GameState,
   type Opportunity,
   type ScenarioSnapshot,
+  type ShadowMarketState,
+  type RivalStore,
+  type RivalListing,
+  type CompanyPressureState,
 } from '../domain/models';
 import { createInitialBudgetLedger, normalizeBudgetLedger } from '../domain/budget';
 import { getBuiltInWorld, resolveScenarioRules } from '../domain/scenarioCatalog';
@@ -56,6 +60,126 @@ function buildRunContext(snapshot: ScenarioSnapshot, seed: number) {
   };
 }
 
+function normalizeCompanyPressure(input?: Partial<CompanyPressureState>): CompanyPressureState {
+  return {
+    sharedLeadPressure: clamp(Number(input?.sharedLeadPressure ?? 34), 0, 100),
+    focusSlotPressure: clamp(Number(input?.focusSlotPressure ?? 28), 0, 100),
+    internalReferralChance: clamp(Number(input?.internalReferralChance ?? 0.08), 0, 0.5),
+    internalCompetitionHeat: clamp(Number(input?.internalCompetitionHeat ?? 32), 0, 100),
+  };
+}
+
+function normalizeRivalStore(entry: any, index: number): RivalStore {
+  return {
+    id: String(entry?.id || `rival-store-${index + 1}`),
+    name: String(entry?.name || `竞品门店 ${index + 1}`),
+    type: entry?.type === 'same_company' ? 'same_company' : 'external_company',
+    style: ['aggressive', 'steady', 'relationship', 'traffic'].includes(entry?.style) ? entry.style : 'steady',
+    districtFocus: Array.isArray(entry?.districtFocus) ? entry.districtFocus.map(String) : [],
+    leadCapturePower: clamp(Number(entry?.leadCapturePower ?? 45), 0, 100),
+    sellerInfluencePower: clamp(Number(entry?.sellerInfluencePower ?? 45), 0, 100),
+    pricingPressurePower: clamp(Number(entry?.pricingPressurePower ?? 45), 0, 100),
+    activityHeat: clamp(Number(entry?.activityHeat ?? 50), 0, 100),
+  };
+}
+
+function normalizeRivalListing(entry: any, index: number): RivalListing {
+  return {
+    id: String(entry?.id || `rival-listing-${index + 1}`),
+    storeId: String(entry?.storeId || 'unknown-rival-store'),
+    title: String(entry?.title || `竞品房源 ${index + 1}`),
+    district: String(entry?.district || ''),
+    marketCellId: String(entry?.marketCellId || ''),
+    segment: String(entry?.segment || '竞品'),
+    askPrice: Number(entry?.askPrice) || 0,
+    heat: clamp(Number(entry?.heat ?? 55), 0, 100),
+    freshness: clamp(Number(entry?.freshness ?? 60), 0, 100),
+    storyStrength: clamp(Number(entry?.storyStrength ?? 50), 0, 100),
+    leadSiphonPower: clamp(Number(entry?.leadSiphonPower ?? 45), 0, 100),
+    ownerAnchorPower: clamp(Number(entry?.ownerAnchorPower ?? 45), 0, 100),
+    status: ['active', 'sold', 'withdrawn'].includes(entry?.status) ? entry.status : 'active',
+    daysLeft: Math.max(1, Number(entry?.daysLeft) || 8),
+    source: ['seed', 'daily_event', 'inbound'].includes(entry?.source) ? entry.source : 'seed',
+  };
+}
+
+export function createInitialShadowMarket(snapshot: ScenarioSnapshot): ShadowMarketState {
+  const scenario = snapshot.scenario;
+  const world = snapshot.world;
+  const seededStores = Array.isArray(scenario.initialRivalStores) && scenario.initialRivalStores.length
+    ? scenario.initialRivalStores
+    : (world.rivalStoreArchetypes || []).slice(0, scenario.difficultyId === 'warmup' ? 1 : 2).map((entry) => ({
+        ...entry,
+        activityHeat: scenario.difficultyId === 'warmup' ? 28 : scenario.difficultyId === 'easy' ? 36 : 46,
+      }));
+
+  const seededListings = Array.isArray(scenario.initialRivalListings) && scenario.initialRivalListings.length
+    ? scenario.initialRivalListings
+    : [];
+
+  return {
+    rivalStores: seededStores.map(normalizeRivalStore),
+    rivalListings: seededListings.map(normalizeRivalListing),
+    companyPressure: normalizeCompanyPressure(scenario.companyPressureProfile),
+    marketSignals: [],
+    dailyMarketEvent: null,
+    activeRuleEffects: [],
+    inboundQueue: [],
+  };
+}
+
+function normalizeShadowMarket(input: any, snapshot: ScenarioSnapshot): ShadowMarketState {
+  const fallback = createInitialShadowMarket(snapshot);
+  if (!input || typeof input !== 'object') {
+    return fallback;
+  }
+
+  return {
+    rivalStores: Array.isArray(input.rivalStores) ? input.rivalStores.map(normalizeRivalStore) : fallback.rivalStores,
+    rivalListings: Array.isArray(input.rivalListings) ? input.rivalListings.map(normalizeRivalListing) : fallback.rivalListings,
+    companyPressure: normalizeCompanyPressure(input.companyPressure || fallback.companyPressure),
+    marketSignals: Array.isArray(input.marketSignals)
+      ? input.marketSignals.map((entry: any, index: number) => ({
+          id: String(entry?.id || `signal-${index + 1}`),
+          type: ['buyer_demand', 'seller_intent', 'rival_activity'].includes(entry?.type) ? entry.type : 'rival_activity',
+          district: String(entry?.district || ''),
+          confidence: clamp(Number(entry?.confidence ?? 50), 0, 100),
+          title: String(entry?.title || '市场信号'),
+          message: String(entry?.message || ''),
+          expiresInDays: Math.max(1, Number(entry?.expiresInDays) || 3),
+        }))
+      : [],
+    dailyMarketEvent: input.dailyMarketEvent
+      ? {
+          ...input.dailyMarketEvent,
+          day: Number(input.dailyMarketEvent.day) || 0,
+        }
+      : null,
+    activeRuleEffects: Array.isArray(input.activeRuleEffects)
+      ? input.activeRuleEffects.map((entry: any, index: number) => ({
+          id: String(entry?.id || `effect-${index + 1}`),
+          source: ['daily_market_event', 'company_pressure', 'rival_listing'].includes(entry?.source) ? entry.source : 'daily_market_event',
+          label: String(entry?.label || '临时规则'),
+          expiresInDays: Math.max(1, Number(entry?.expiresInDays) || 1),
+        }))
+      : [],
+    inboundQueue: Array.isArray(input.inboundQueue)
+      ? input.inboundQueue.map((entry: any, index: number) => ({
+          id: String(entry?.id || `inbound-${index + 1}`),
+          type: ['customer_to_player', 'listing_to_player', 'rival_listing_to_market', 'signal_to_player'].includes(entry?.type)
+            ? entry.type
+            : 'signal_to_player',
+          source: ['same_company', 'external_company', 'seller_referral', 'market_event', 'system_seed'].includes(entry?.source)
+            ? entry.source
+            : 'market_event',
+          title: String(entry?.title || '外部入场'),
+          message: String(entry?.message || ''),
+          payload: entry?.payload && typeof entry.payload === 'object' ? entry.payload : {},
+        }))
+      : [],
+  };
+}
+
 function deriveDefaultGoalTier(caseItem: any): GoalTier {
   if (caseItem?.goalTier === 'core' || caseItem?.goalTier === 'important' || caseItem?.goalTier === 'normal') {
     return caseItem.goalTier;
@@ -78,7 +202,7 @@ export function createInitialState(snapshot: ScenarioSnapshot, seed: number): Ga
   const clonedWorld = cloneWorld(snapshot);
 
   return {
-    version: 4,
+    version: 5,
     runContext: buildRunContext(snapshot, normalizedSeed),
     day: 1,
     maxDay: rules.maxDay,
@@ -111,6 +235,7 @@ export function createInitialState(snapshot: ScenarioSnapshot, seed: number): Ga
     priorities: [],
     metrics: {},
     currentReport: null,
+    marketShadow: createInitialShadowMarket(snapshot),
   };
 }
 
@@ -139,6 +264,7 @@ export function seedCase(base: Case): Case {
     competitivenessSnapshots: [],
     competitionGroupIds: base.competitionGroupIds || [],
     lastAskPrice: base.askPrice,
+    lastRivalThreatDay: undefined,
     goalTier: deriveDefaultGoalTier(base),
     storylineState: 'healthy',
     relativeOutcome: undefined,
@@ -268,6 +394,9 @@ function normalizeCase(caseItem: any): Case {
     personality: caseItem?.personality || 'pragmatic',
     competitionGroupIds: Array.isArray(caseItem?.competitionGroupIds) ? caseItem.competitionGroupIds : [],
     lastAskPrice: Number(caseItem?.lastAskPrice) || Number(caseItem?.askPrice) || 0,
+    lastRivalThreatDay: Number.isFinite(caseItem?.lastRivalThreatDay)
+      ? Number(caseItem.lastRivalThreatDay)
+      : undefined,
     lastTouchedDay: Number.isFinite(caseItem?.lastTouchedDay) ? Number(caseItem.lastTouchedDay) : 0,
     lastOwnerTouchedDay: Number.isFinite(caseItem?.lastOwnerTouchedDay)
       ? Number(caseItem.lastOwnerTouchedDay)
@@ -328,7 +457,7 @@ export function normalizeLoadedState(parsed: any): GameState | null {
     return null;
   }
 
-  if (parsed.version !== 4 && parsed.version !== 3) {
+  if (parsed.version !== 5 && parsed.version !== 4 && parsed.version !== 3) {
     return null;
   }
 
@@ -336,7 +465,7 @@ export function normalizeLoadedState(parsed: any): GameState | null {
   const rules = normalizeRules(snapshot, parsed?.rules);
   const state = {
     ...parsed,
-    version: 4,
+    version: 5,
     runContext: parsed?.runContext || buildRunContext(snapshot, Number(parsed?.rngState) || Date.now()),
     rules,
     maxDay: Number(parsed?.maxDay) || rules.maxDay,
@@ -352,6 +481,7 @@ export function normalizeLoadedState(parsed: any): GameState | null {
     opportunities: Array.isArray(parsed?.opportunities) ? parsed.opportunities.map(normalizeOpportunity) : [],
     budgetLedger: normalizeBudgetLedger(parsed?.budgetLedger, Number(parsed?.cash) || 0),
     currentReport: parsed?.currentReport || null,
+    marketShadow: normalizeShadowMarket(parsed?.marketShadow, snapshot),
   } as GameState;
 
   return state;
@@ -450,7 +580,7 @@ function deriveSchedule(world: GameState) {
         key: `${caseItem.id}-window`,
         title: '业主窗口逼近',
         badge: `${caseItem.windowDays} 天内`,
-        note: `${caseItem.title} 需要先稳住 ${caseItem.ownerName} 的预期。`,
+        note: `${caseItem.title} 处在业主窗口收缩阶段，${caseItem.ownerName} 的预期正在变紧。`,
         urgency: 100 - caseItem.windowDays * 10,
       });
     }
@@ -460,12 +590,12 @@ function deriveSchedule(world: GameState) {
     .filter((entry) => entry.status === 'active' && entry.daysLeft <= 2)
     .forEach((entry) => {
       const isShadow = entry.visibility === 'shadow';
-      const displayName = isShadow ? `预测客群 #${entry.id.split('-').pop()}` : entry.customerName;
+      const displayName = isShadow ? `待确认客户 #${entry.id.split('-').pop()}` : entry.customerName;
       items.push({
         key: entry.id,
-        title: isShadow ? '确认预测客群' : entry.stageLabel,
+        title: isShadow ? '确认客户需求' : entry.stageLabel,
         badge: `${entry.daysLeft} 天后流失`,
-        note: `${displayName} 正在从 ${world.cases.find((caseItem) => caseItem.id === entry.caseId)?.title || '房源'} 上流失，最好今天就碰一下。`,
+        note: `${displayName} 正在从 ${world.cases.find((caseItem) => caseItem.id === entry.caseId)?.title || '房源'} 上流失，剩余窗口已经不多。`,
         urgency: 86 - entry.daysLeft * 10 + entry.stageIndex * 4,
       });
     });
@@ -489,7 +619,7 @@ function derivePriorities(world: GameState) {
             : '这套房目前还在你能控住的区间里。';
       items.push({
         kind: 'case',
-        title: `先稳住 ${caseItem.title}`,
+        title: `${caseItem.title} 风险抬升`,
         detail: `${urgencyLabel} ${caseItem.ownerName} 当前信任 ${Math.round(caseItem.trust)}，D3 意愿分 ${Math.round(caseItem.d3)}。`,
         caseId: caseItem.id,
       });
@@ -500,12 +630,12 @@ function derivePriorities(world: GameState) {
     .slice(0, 2)
     .forEach((entry) => {
       const isShadow = entry.visibility === 'shadow';
-      const displayName = isShadow ? `预测客群 #${entry.id.split('-').pop()}` : entry.customerName;
+      const displayName = isShadow ? `待确认客户 #${entry.id.split('-').pop()}` : entry.customerName;
       items.push({
         kind: 'opportunity',
-        title: isShadow ? `确认 ${displayName}` : `推进 ${displayName}`,
+        title: isShadow ? `${displayName} 待确认` : `${displayName} 进入 ${entry.stageLabel}`,
         detail: isShadow
-          ? `这是一位待确认客户，建议先和经纪人 ${entry.brokerName} 确认真实需求。`
+          ? `这是一位待确认客户，当前信息来自经纪人 ${entry.brokerName}。`
           : `${displayName} 已进入 ${entry.stageLabel}，${entry.daysLeft} 天后可能流失。`,
         caseId: entry.caseId,
       });

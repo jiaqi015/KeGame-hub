@@ -16,6 +16,8 @@
   - 资产顾问玩法的前端、领域、基础设施和接口实现。
 - `docs/`
   - 业务架构、数据模型、迁移文档和项目记忆。
+  - `docs/global-persistence-dba-unified-design.md`
+    - 全局持久化与 DBA 统一设计总纲。
 - `server.ts`
   - 本地开发服务入口，承接前端开发服务和本地 API。
 
@@ -115,6 +117,10 @@
   - 云同步状态。
 - `src/selling-houses/application/cloudSync.ts`
   - 云同步流程。
+- `src/selling-houses/application/maintainerRunRepository.ts`
+  - run repository contract。
+- `src/selling-houses/application/sellingHousesScenarioRepository.ts`
+  - scenario repository contract。
 - `src/selling-houses/application/localAdversarialSelfPlayArena.ts`
   - 自对抗 arena。
 - `src/selling-houses/application/localAdversarialSelfPlayLab.ts`
@@ -149,6 +155,8 @@
   - run repository。
 - `src/selling-houses/infrastructure/neonScenarioRepository.ts`
   - scenario repository。
+- `src/selling-houses/infrastructure/sellingHousesPlatform.ts`
+  - selling-houses platform resolver。
 - `src/selling-houses/interfaces/http/maintainerRunHandlers.ts`
   - run 相关 handler。
 - `src/selling-houses/interfaces/http/maintainerLeaderboardHandler.ts`

@@ -128,11 +128,20 @@ export interface GameRules {
   competitionHeatPenaltyMax: number;
   competitionTrustLossChance: number;
   competitionLogChance: number;
+  rivalLossProbabilityScale: number;
   ownerUntouchedTrustLoss: number;
   urgentOwnerUntouchedTrustLoss: number;
   ownerPatienceDecayAfterDays: number;
   ownerPatienceDecayAmount: number;
   scriptedEventImpactScale: number;
+  dailyMarketEventProbability: number;
+  rivalListingSpawnChance: number;
+  rivalPressureHeatImpact: number;
+  rivalPressureTrustImpact: number;
+  companySharedLeadPressureBase: number;
+  companyReferralChanceBase: number;
+  marketSignalDecayDays: number;
+  marketSignalMaxVisible: number;
 }
 
 export interface MarketCell {
@@ -227,9 +236,158 @@ export interface RandomEventTemplate {
   actor: string;
 }
 
+export interface RivalStoreArchetype {
+  id: string;
+  name: string;
+  type: 'same_company' | 'external_company';
+  style: 'aggressive' | 'steady' | 'relationship' | 'traffic';
+  districtFocus: string[];
+  leadCapturePower: number;
+  sellerInfluencePower: number;
+  pricingPressurePower: number;
+}
+
+export interface RivalListingArchetype {
+  id: string;
+  titlePrefix: string;
+  segment: string;
+  sourceBias: 'same_company' | 'external_company' | 'mixed';
+  baseHeat: number;
+  freshness: number;
+  storyStrength: number;
+  leadSiphonPower: number;
+  ownerAnchorPower: number;
+}
+
+export interface SignalTemplate {
+  id: string;
+  type: 'buyer_demand' | 'seller_intent' | 'rival_activity';
+  title: string;
+  message: string;
+}
+
+export interface DailyEventTemplate {
+  id: string;
+  title: string;
+  message: string;
+  tone: Tone;
+  layer: 'market' | 'rival' | 'company' | 'seller';
+  effectType:
+    | 'heat_wave'
+    | 'rival_listing_inflow'
+    | 'company_pressure_shift'
+    | 'customer_return'
+    | 'listing_inbound'
+    | 'signal_only';
+}
+
 export interface WeightedRandomEventRef {
   templateId: string;
   weight: number;
+}
+
+export interface WeightedDailyEventRef {
+  templateId: string;
+  weight: number;
+}
+
+export interface RivalStore {
+  id: string;
+  name: string;
+  type: 'same_company' | 'external_company';
+  style: 'aggressive' | 'steady' | 'relationship' | 'traffic';
+  districtFocus: string[];
+  leadCapturePower: number;
+  sellerInfluencePower: number;
+  pricingPressurePower: number;
+  activityHeat: number;
+}
+
+export interface RivalListing {
+  id: string;
+  storeId: string;
+  title: string;
+  district: string;
+  marketCellId: string;
+  segment: string;
+  askPrice: number;
+  heat: number;
+  freshness: number;
+  storyStrength: number;
+  leadSiphonPower: number;
+  ownerAnchorPower: number;
+  status: 'active' | 'sold' | 'withdrawn';
+  daysLeft: number;
+  source: 'seed' | 'daily_event' | 'inbound';
+}
+
+export interface CompanyPressureState {
+  sharedLeadPressure: number;
+  focusSlotPressure: number;
+  internalReferralChance: number;
+  internalCompetitionHeat: number;
+}
+
+export interface MarketSignal {
+  id: string;
+  type: 'buyer_demand' | 'seller_intent' | 'rival_activity';
+  district: string;
+  confidence: number;
+  title: string;
+  message: string;
+  expiresInDays: number;
+}
+
+export interface RuleEffect {
+  id: string;
+  source: 'daily_market_event' | 'company_pressure' | 'rival_listing';
+  label: string;
+  expiresInDays: number;
+}
+
+export interface DailyMarketEvent {
+  id: string;
+  day: number;
+  title: string;
+  message: string;
+  tone: Tone;
+  layer: 'market' | 'rival' | 'company' | 'seller';
+  effectType:
+    | 'heat_wave'
+    | 'rival_listing_inflow'
+    | 'company_pressure_shift'
+    | 'customer_return'
+    | 'listing_inbound'
+    | 'signal_only';
+  targetMarketCellId?: string;
+}
+
+export interface InboundOpportunity {
+  id: string;
+  type:
+    | 'customer_to_player'
+    | 'listing_to_player'
+    | 'rival_listing_to_market'
+    | 'signal_to_player';
+  source:
+    | 'same_company'
+    | 'external_company'
+    | 'seller_referral'
+    | 'market_event'
+    | 'system_seed';
+  title: string;
+  message: string;
+  payload: Record<string, unknown>;
+}
+
+export interface ShadowMarketState {
+  rivalStores: RivalStore[];
+  rivalListings: RivalListing[];
+  companyPressure: CompanyPressureState;
+  marketSignals: MarketSignal[];
+  dailyMarketEvent: DailyMarketEvent | null;
+  activeRuleEffects: RuleEffect[];
+  inboundQueue: InboundOpportunity[];
 }
 
 export interface ScriptedEvent {
@@ -262,6 +420,10 @@ export interface WorldSpec {
   ownerArchetypes: OwnerArchetype[];
   housePrototypes: HousePrototype[];
   randomEventTemplates: RandomEventTemplate[];
+  rivalStoreArchetypes?: RivalStoreArchetype[];
+  rivalListingArchetypes?: RivalListingArchetype[];
+  signalTemplates?: SignalTemplate[];
+  dailyEventTemplates?: DailyEventTemplate[];
 }
 
 export interface ScenarioDefinition {
@@ -279,6 +441,10 @@ export interface ScenarioDefinition {
   competitionGroups: CompetitionGroup[];
   scriptedEvents: ScriptedEvent[];
   randomEventPool: WeightedRandomEventRef[];
+  initialRivalStores?: RivalStore[];
+  initialRivalListings?: RivalListing[];
+  dailyEventPool?: WeightedDailyEventRef[];
+  companyPressureProfile?: Partial<CompanyPressureState>;
   goalContext?: GoalContextId;
   targetScore?: number;
   scoreThresholds?: ScoreThresholds;
@@ -365,6 +531,7 @@ export interface Case {
   competitivenessSnapshots: CompetitivenessSnapshot[];
   competitionGroupIds: string[];
   lastAskPrice: number;
+  lastRivalThreatDay?: number;
   goalTier: GoalTier;
   storylineState: StorylineState;
   relativeOutcome?: ListingRelativeOutcome;
@@ -550,4 +717,5 @@ export interface GameState {
   priorities: any[];
   metrics: any;
   currentReport: DailyReport | null;
+  marketShadow: ShadowMarketState;
 }

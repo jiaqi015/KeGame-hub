@@ -27,20 +27,10 @@ type ActionDecisionConfig = {
 type ActionWorkspaceCard = {
   action: typeof ACTIONS[number];
   availability: ReturnType<typeof getActionAvailability>;
-  priority: number;
   hint: string;
 };
 type CaseStageFilter = 'all' | 'pre-visit' | 'operating' | 'pricing' | 'negotiating' | 'closed';
 type CaseQuickFilter = 'focused' | 'urgent' | 'price' | 'late-stage';
-type ActionDiagnosis = {
-  title: string;
-  summary: string;
-  evidence: string[];
-  primaryActionId: string;
-  secondaryActionIds: string[];
-  fallbackActionIds: string[];
-};
-
 const CASE_STAGE_FILTERS: Array<{ id: CaseStageFilter; label: string }> = [
   { id: 'all', label: '全部' },
   { id: 'pre-visit', label: '待面访' },
@@ -58,9 +48,9 @@ const CASE_QUICK_FILTERS: Array<{ id: CaseQuickFilter; label: string }> = [
 ];
 
 const DETAIL_TABS: Array<{ id: CaseDetailTab; label: string }> = [
-  { id: 'judgment', label: '经营判断' },
+  { id: 'judgment', label: '怎么判断' },
   { id: 'owner', label: '业主' },
-  { id: 'score', label: '价格与好房分' },
+  { id: 'score', label: '价格' },
   { id: 'pool', label: '准客池' },
 ];
 
@@ -81,7 +71,6 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
   const latestScoreSnapshot = selectedCase?.competitivenessSnapshots?.[0];
   const predictedOpportunities = activeOpportunities.filter(opportunity => opportunity.visibility === 'shadow');
   const engagedOpportunities = activeOpportunities.filter(opportunity => opportunity.visibility !== 'shadow');
-  const actionDiagnosis = selectedCase ? deriveActionDiagnosis(selectedCase, activeOpportunities) : null;
   const actionCards: ActionWorkspaceCard[] = selectedCase
     ? [...ACTIONS]
         .map(action => {
@@ -89,7 +78,6 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
           return {
             action,
             availability,
-            priority: deriveActionPriority(action.id, selectedCase, activeOpportunities, availability.enabled, actionDiagnosis),
             hint: deriveActionHint(action.id, selectedCase, activeOpportunities),
           };
         })
@@ -97,12 +85,8 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
           if (a.availability.enabled !== b.availability.enabled) {
             return Number(b.availability.enabled) - Number(a.availability.enabled);
           }
-          return b.priority - a.priority;
+          return 0;
         })
-    : [];
-  const actionCardMap = Object.fromEntries(actionCards.map((card) => [card.action.id, card])) as Record<string, ActionWorkspaceCard>;
-  const suggestedActions = actionDiagnosis
-    ? deriveSuggestedActionCards(actionDiagnosis, actionCardMap)
     : [];
   const actionCardsByCategory = ACTION_CATEGORIES.map(category => {
     const cards = actionCards.filter(({ action }) => action.categoryId === category.id);
@@ -117,9 +101,8 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
   const availableActionCount = actionCards.filter(({ availability }) => availability.enabled).length;
 
   useEffect(() => {
-    if (!actionDiagnosis) return;
-    setActiveActionTab(resolveActionTab(actionDiagnosis.primaryActionId));
-  }, [selectedCase?.id, actionDiagnosis?.primaryActionId]);
+    setActiveActionTab('feedback');
+  }, [selectedCase?.id]);
 
   const handleAction = (actionId: string) => {
     if (!selectedCase) return;
@@ -150,7 +133,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
   };
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-1 gap-5 lg:grid-cols-[312px_1fr]">
+    <div className="grid min-h-full grid-cols-1 gap-5 lg:grid-cols-[312px_1fr]">
       <aside className="sticky top-0 flex max-h-full flex-col overflow-hidden rounded-[20px] border border-black/5 bg-white shadow-sm">
         <div className="z-10 space-y-3 border-b border-black/[0.04] bg-white/95 px-3 pb-3 pt-3 backdrop-blur">
           <div>
@@ -217,10 +200,10 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
               <span>{c.layout} · {c.area}㎡</span>
             </div>
             <div className="mt-2.5 flex flex-wrap gap-1.5">
-              <CompactTag label="挂牌" value={deriveListingAgeLabel(c)} tone="amber" />
+              <CompactTag label="剩余" value={deriveListingAgeLabel(c)} tone="amber" />
               <CompactTag
-                label="好房分"
-                value={`${Math.round(c.competitiveness)}分`}
+                label="状态"
+                value={deriveShortCaseState(c, getActiveOpportunities(state, c.id))}
                 tone={deriveHouseScoreTone(c.competitiveness)}
               />
               <CompactTag label="窗口" value={deriveWindowLabel(c, getActiveOpportunities(state, c.id))} tone="rose" />
@@ -245,7 +228,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
         </div>
       </aside>
 
-      <main className="flex flex-col overflow-y-auto rounded-[20px] border border-black/5 bg-white p-6 shadow-sm">
+      <main className="flex flex-col rounded-[20px] border border-black/5 bg-white p-6 shadow-sm">
         {selectedCase ? (
           <>
             <div className="mb-5 rounded-[24px] border border-black/[0.04] bg-gradient-to-br from-slate-50 via-white to-emerald-50/40 p-5">
@@ -287,14 +270,14 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                   <div className="grid grid-cols-1 gap-2.5 md:grid-cols-3">
                     <SummaryCallout
                       icon={<TrendingUp size={15} />}
-                      label="现在是什么局"
+                      label="盘面状态"
                       value={deriveManagerTake(selectedCase, activeOpportunities)}
                       tone="slate"
                     />
                     <SummaryCallout
                       icon={<Target size={15} />}
-                      label="先处理什么"
-                      value={actionDiagnosis?.title || deriveTargetLabel(selectedCase, activeOpportunities.length)}
+                      label="当前卡点"
+                      value={deriveNextFix(selectedCase, activeOpportunities)}
                       tone="emerald"
                     />
                     <SummaryCallout
@@ -336,49 +319,20 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
             <section className="mb-5 rounded-[20px] border border-black/[0.04] bg-slate-50/80 p-4">
               <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">动作区</div>
-                  <p className="mt-1 text-[12px] text-slate-500">先看主矛盾和推荐动作，再决定要不要展开全部动作。</p>
+                  <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">可执行动作</div>
+                  <p className="mt-1 text-[12px] text-slate-500">系统只告诉你现在能做什么、为什么能做或不能做，不替你排答案。</p>
                 </div>
                 <span className="rounded-full bg-white px-3 py-1 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-500 shadow-sm">
                   {availableActionCount}/{ACTIONS.length} 现在可做
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-[300px_1fr]">
-                <section className="rounded-[18px] border border-black/[0.04] bg-white p-4 shadow-sm">
-                  {actionDiagnosis && (
-                    <div className="mb-3 rounded-[16px] border border-black/[0.04] bg-slate-50 p-3">
-                      <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400">当前主矛盾</div>
-                      <h4 className="mt-1 text-[12px] font-semibold text-slate-900">{actionDiagnosis.title}</h4>
-                      <p className="mt-1 text-[11px] leading-relaxed text-slate-500">{actionDiagnosis.summary}</p>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {actionDiagnosis.evidence.map((item) => (
-                          <span key={item} className="rounded-full bg-white px-2.5 py-1 text-[9px] font-medium text-slate-500">
-                            {item}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="space-y-2.5">
-                    {suggestedActions.map((card, index) => (
-                      <SuggestedActionCard
-                        key={card.action.id}
-                        rank={index + 1}
-                        label={index === 0 ? '主建议' : index <= 2 ? '辅助建议' : '备选动作'}
-                        card={card}
-                        onExecute={handleAction}
-                      />
-                    ))}
-                  </div>
-                </section>
-
+              <div className="grid grid-cols-1 gap-4">
                 <section className="rounded-[18px] border border-black/[0.04] bg-white p-4 shadow-sm">
                   <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                     <div>
-                      <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400">全部动作</div>
-                      <p className="mt-1 text-[11px] leading-relaxed text-slate-500">建议看优先级，这里看全量动作和每个动作为什么能做或不能做。</p>
+                      <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400">动作清单</div>
+                      <p className="mt-1 text-[11px] leading-relaxed text-slate-500">点开就执行；不能做的会直接告诉你卡在哪里。</p>
                     </div>
                     <div className="flex gap-2 overflow-x-auto pb-1">
                       {actionCardsByCategory.map(({ category, availableCards }) => (
@@ -433,12 +387,12 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
               </div>
             </section>
 
-            <section className="min-h-0 flex flex-1 flex-col rounded-[20px] border border-black/[0.04] bg-white shadow-sm">
+            <section className="rounded-[20px] border border-black/[0.04] bg-white shadow-sm">
               <div className="border-b border-black/[0.04] px-5 pt-5">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                   <div>
-                    <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">信息区</div>
-                    <p className="mt-1 text-[12px] text-slate-500">按问题切换信息维度，不把所有信息一次性压在一整页里。</p>
+                    <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">为什么这么判断</div>
+                    <p className="mt-1 text-[12px] text-slate-500">只看跟这套房有关的证据。</p>
                   </div>
                   <div className="flex gap-2 overflow-x-auto pb-4">
                     {DETAIL_TABS.map(tab => (
@@ -458,7 +412,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                 </div>
               </div>
 
-              <div className="min-h-0 flex-1 overflow-y-auto p-5">
+              <div className="p-5">
                 {activeTab === 'judgment' && (
                   <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.1fr_0.9fr]">
                     <section className="space-y-3">
@@ -489,18 +443,18 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
 
                     <section className="space-y-4">
                       <div className="rounded-[18px] border border-black/[0.04] bg-slate-50 p-4">
-                        <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400">为什么先做这个</div>
+                        <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400">当前变化</div>
                         <div className="mt-2 text-[12px] font-semibold leading-5 text-slate-800">
-                          {actionDiagnosis?.summary || deriveManagerTake(selectedCase, activeOpportunities)}
+                          {deriveManagerTake(selectedCase, activeOpportunities)}
                         </div>
                         <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
-                          {actionDiagnosis?.evidence.join(' · ') || `${derivePricePosition(selectedCase)} · ${deriveWindowLabel(selectedCase, activeOpportunities)}`}
+                          {`${derivePricePosition(selectedCase)} · ${deriveWindowLabel(selectedCase, activeOpportunities)}`}
                         </p>
                       </div>
                       <div className="grid grid-cols-1 gap-2.5 md:grid-cols-3">
                         <MetricChip label="好的一面" value={deriveStrongPoint(selectedCase)} tone="emerald" />
                         <MetricChip label="卡点" value={deriveWeakPoint(selectedCase)} tone="amber" />
-                        <MetricChip label="下一步" value={deriveNextFix(selectedCase, activeOpportunities)} tone="slate" />
+                        <MetricChip label="当前卡点" value={deriveNextFix(selectedCase, activeOpportunities)} tone="slate" />
                       </div>
                       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                         <SummaryCallout
@@ -538,12 +492,12 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                               <AttributionItem key={`d3-${index}`} driver={driver} category="业主" />
                             ))}
                             {(!latestScoreSnapshot.breakdown.d1_drivers?.length && !latestScoreSnapshot.breakdown.d3_drivers?.length) && (
-                              <p className="text-[11px] italic text-slate-400">最近没有明显波动，先继续推进动作。</p>
+                              <p className="text-[11px] italic text-slate-400">最近没有明显波动，当前还看不到新增驱动项。</p>
                             )}
                           </div>
                         ) : (
                           <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-[12px] text-slate-400">
-                            还没有足够的变化证据，先推进动作再看结果。
+                            还没有足够的变化证据，当前只记录到基础状态。
                           </div>
                         )}
                       </section>
@@ -564,12 +518,12 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                         <p className="mt-2 text-[11px] leading-relaxed text-slate-500">{deriveSellerGuidance(selectedCase)}</p>
                       </div>
                       <div className="rounded-xl border border-black/[0.04] bg-white p-4">
-                        <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400">沟通建议</div>
+                        <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400">沟通方式</div>
                         <div className="mt-2 text-[12px] font-semibold text-slate-800">{deriveCommunicationMode(selectedCase)}</div>
                         <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
                           {selectedCase.personality
                             ? PERSONALITIES[selectedCase.personality as keyof typeof PERSONALITIES]?.desc
-                            : '先用反馈把业主拉回同一页。'}
+                            : '当前还没有更明确的业主画像。'}
                         </p>
                       </div>
                     </div>
@@ -632,7 +586,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                     </div>
                     <div className="mb-4 grid grid-cols-2 gap-2.5 xl:grid-cols-4">
                       <PoolMetric label="池子总量" value={activeOpportunities.length} tone="slate" />
-                      <PoolMetric label="预测客群" value={predictedOpportunities.length} tone="amber" />
+                      <PoolMetric label="待确认客户" value={predictedOpportunities.length} tone="amber" />
                       <PoolMetric label="接洽中" value={engagedOpportunities.length} tone="emerald" />
                       <PoolMetric label="3天内转冷" value={engagedOpportunities.filter(o => o.daysLeft <= 3).length} tone="rose" />
                     </div>
@@ -640,8 +594,8 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                       <section className="rounded-xl border border-amber-200 bg-amber-50/40 p-4">
                         <div className="mb-3 flex items-center justify-between">
                           <div>
-                            <h5 className="text-[12px] font-semibold text-slate-800">预测客群</h5>
-                            <p className="mt-1 text-[11px] leading-relaxed text-slate-500">这批人群和房源可能匹配，但真实预算、需求和成交力度还没被验证。</p>
+                            <h5 className="text-[12px] font-semibold text-slate-800">待确认客户</h5>
+                            <p className="mt-1 text-[11px] leading-relaxed text-slate-500">看起来可能匹配，但预算、需求和成交意愿还没确认。</p>
                           </div>
                           <span className="rounded-full bg-white px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.16em] text-amber-700">
                             {predictedOpportunities.length} 组
@@ -651,21 +605,21 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                           {predictedOpportunities.map(o => (
                             <div key={o.id} className="rounded-xl border border-dashed border-amber-200 bg-white/80 p-3.5">
                               <div className="mb-2 flex items-center justify-between">
-                                <strong className="text-[12px] text-slate-800">{`预测客群 #${o.id.split('-').pop()}`}</strong>
+                                <strong className="text-[12px] text-slate-800">{`待确认客户 #${o.id.split('-').pop()}`}</strong>
                                 <span className="rounded bg-amber-100 px-2 py-0.5 text-[9px] font-bold text-amber-700">
                                   待确认
                                 </span>
                               </div>
                               <div className="flex flex-wrap gap-4 text-[11px] text-slate-500">
                                 <span>来源 {o.channelName}</span>
-                                <span>先和合作经纪人确认真实需求</span>
+                                <span>需求信息仍待合作经纪人确认</span>
                                 <span className="ml-auto text-slate-300">{o.daysLeft} 天后可能流失</span>
                               </div>
                             </div>
                           ))}
                           {predictedOpportunities.length === 0 && (
                             <div className="rounded-xl border border-dashed border-amber-200 bg-white/80 p-4 text-[12px] text-slate-400">
-                              当前没有需要先摸清的预测客群。
+                              当前没有待确认客户。
                             </div>
                           )}
                         </div>
@@ -712,7 +666,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                           ))}
                           {engagedOpportunities.length === 0 && (
                             <div className="rounded-xl border border-dashed border-slate-200 bg-white p-4 text-[12px] text-slate-400">
-                              目前还没有进入接洽阶段的客户，先补客群或先摸清预测客群。
+                              目前还没有进入接洽阶段的客户，当前客户池还停留在前段。
                             </div>
                           )}
                         </div>
@@ -891,64 +845,6 @@ function PoolMetric({ label, value, tone }: { label: string; value: number; tone
   );
 }
 
-function SuggestedActionCard({
-  rank,
-  label,
-  card,
-  onExecute,
-}: {
-  key?: React.Key;
-  rank: number;
-  label: string;
-  card: ActionWorkspaceCard;
-  onExecute: (actionId: string) => void;
-}) {
-  const { action, availability, priority, hint } = card;
-  const blocked = !availability.enabled;
-  return (
-    <div className={`rounded-[16px] border px-3.5 py-3.5 ${blocked ? 'border-slate-200 bg-slate-100/80' : 'border-emerald-100 bg-emerald-50/50'}`}>
-      <div className="flex items-start gap-3">
-        <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-black ${
-          blocked ? 'bg-slate-200 text-slate-500' : 'bg-slate-900 text-white'
-        }`}>
-          {rank}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="text-[13px] font-semibold text-slate-800">{action.name}</div>
-            <span className="rounded-full bg-white px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-500">
-              {label}
-            </span>
-            <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.16em] ${
-              blocked ? 'bg-slate-200 text-slate-500' : 'bg-emerald-100 text-emerald-700'
-            }`}>
-              {blocked ? '暂时卡住' : deriveActionFitLabel(priority, true)}
-            </span>
-          </div>
-          <p className="mt-1.5 text-[11px] leading-5 text-slate-500">{hint}</p>
-          <div className="mt-2 flex flex-wrap gap-2 text-[10px] font-medium">
-            <span className="rounded-full bg-white px-2.5 py-1 text-slate-500">{costText(action)}</span>
-            <span className={`rounded-full px-2.5 py-1 ${blocked ? 'bg-slate-200 text-slate-500' : 'bg-white text-emerald-700'}`}>
-              {blocked ? availability.reason : action.summary}
-            </span>
-          </div>
-          <button
-            disabled={blocked || !availability.enabled}
-            onClick={() => onExecute(action.id)}
-            className={`mt-2 rounded-xl px-4 py-2 text-[11px] font-bold transition-all ${
-              blocked || !availability.enabled
-                ? 'cursor-not-allowed bg-slate-200 text-slate-400'
-                : 'border border-black/5 bg-slate-900 text-white hover:bg-emerald-600'
-            }`}
-          >
-            执行
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function ActionSubsection({
   title,
   count,
@@ -999,7 +895,7 @@ function ActionWorkspaceCardView({
   onExecute: (actionId: string) => void;
   blocked?: boolean;
 }) {
-  const { action, availability, priority, hint } = card;
+  const { action, availability, hint } = card;
   return (
     <div className={`rounded-[16px] border px-4 py-4 transition-all ${
       blocked
@@ -1013,11 +909,9 @@ function ActionWorkspaceCardView({
             <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.16em] ${
               blocked
                 ? 'bg-slate-200 text-slate-500'
-                : priority >= 80
-                  ? 'bg-emerald-100 text-emerald-700'
-                  : 'bg-slate-100 text-slate-600'
+                : 'bg-emerald-100 text-emerald-700'
             }`}>
-              {deriveActionFitLabel(priority, !blocked)}
+              {blocked ? '暂不可用' : '可执行'}
             </span>
           </div>
           <p className="mt-2 text-[11px] leading-5 text-slate-500">{action.description}</p>
@@ -1073,172 +967,29 @@ function deriveMetricLabel(metric: string) {
   return labels[metric] || metric;
 }
 
-function deriveActionPriority(
-  actionId: string,
-  caseItem: Case,
-  opportunities: any[],
-  enabled: boolean,
-  diagnosis: ActionDiagnosis | null,
-) {
-  let score = enabled ? 40 : 0;
-
-  if (diagnosis?.primaryActionId === actionId) score += 58;
-  if (diagnosis?.secondaryActionIds.includes(actionId)) score += 34;
-  if (diagnosis?.fallbackActionIds.includes(actionId)) score += 16;
-
-  if (actionId === 'first-visit' && !caseItem.hasCompletedFirstVisit) score += 52;
-  if (actionId === 'weekly-feedback' && (caseItem.trust < 60 || caseItem.patience < 45 || caseItem.urgency > 78)) score += 46;
-  if (actionId === 'deep-diagnosis' && (opportunities.some(o => o.visibility === 'shadow') || caseItem.askPrice > caseItem.marketPrice * 1.03)) score += 44;
-  if (actionId === 'story' && (caseItem.d2 < 70 || caseItem.heat < 60)) score += 24;
-  if (actionId === 'pricing-advice' && (caseItem.askPrice > caseItem.marketPrice * 1.02 || caseItem.d3 < 65)) score += 42;
-  if (actionId === 'ask-psychological-price' && caseItem.bottomPrice >= caseItem.marketPrice * 0.97) score += 34;
-  if (actionId === 'adjust-listing-price' && caseItem.askPrice > caseItem.marketPrice * 1.03) score += 52;
-  if (actionId === 'xiaohongshu-boost' && opportunities.length <= 2) score += 28;
-  if (actionId === 'broker-broadcast' && !opportunities.some(o => o.visibility === 'shadow')) score += 30;
-  if (actionId === 'private-referral' && caseItem.trust >= 62 && opportunities.length <= 3) score += 26;
-  if (actionId === 'open-day' && opportunities.length <= 3 && caseItem.heat < 70) score += 26;
-  if (actionId === 'showing' && opportunities.some(o => o.stageIndex >= 1 && o.visibility !== 'shadow')) score += 44;
-  if (actionId === 'sincerity-sale' && opportunities.some(o => o.stageIndex >= 2 && o.visibility !== 'shadow')) score += 38;
-  if (actionId === 'invite-customer-negotiation' && opportunities.some(o => o.stageIndex >= 3 && o.visibility !== 'shadow')) score += 56;
-
-  return score;
-}
-
-function deriveActionFitLabel(priority: number, enabled: boolean) {
-  if (!enabled) return '稍后再做';
-  if (priority >= 85) return '优先做';
-  return '可安排';
-}
-
 function deriveActionHint(actionId: string, caseItem: Case, opportunities: any[]) {
-  if (actionId === 'first-visit') return !caseItem.hasCompletedFirstVisit ? '适合先把经营路径讲清楚' : '首次面访已经完成，优先考虑后续维护动作';
-  if (actionId === 'weekly-feedback') return caseItem.trust < 60 ? '适合先稳住业主关系' : '适合做一次节奏反馈';
-  if (actionId === 'deep-diagnosis') return opportunities.some(o => o.visibility === 'shadow') ? '适合把预测客群和盘面问题讲透' : '适合重新诊断真实卡点';
-  if (actionId === 'story') return caseItem.d2 < 70 ? '适合补强卖点表达' : '可继续优化讲法';
-  if (actionId === 'pricing-advice') return caseItem.askPrice > caseItem.marketPrice * 1.03 ? '适合先讲清价格站位' : '适合先统一定价口径';
-  if (actionId === 'ask-psychological-price') return '先摸清业主真实心理价，再决定怎么往下谈';
-  if (actionId === 'adjust-listing-price') return caseItem.askPrice > caseItem.marketPrice * 1.03 ? '价格偏硬时优先考虑' : '先确认是否真的需要调价';
-  if (actionId === 'xiaohongshu-boost') return opportunities.length <= 2 ? '公开客群偏薄时值得补量' : '当前更适合先转化现有客户';
-  if (actionId === 'broker-broadcast') return opportunities.some(o => o.visibility === 'shadow') ? '待确认客户已经不少，先消化现有客群' : '适合补一批经纪人侧客群';
-  if (actionId === 'private-referral') return caseItem.trust >= 62 ? '关系比较顺时，私域线索质量更好' : '先稳住业主和卖点，再做私域转介绍';
-  if (actionId === 'open-day') return caseItem.heat < 70 ? '适合用活动拉热度' : '热度已在线，按需再开';
-  if (actionId === 'showing') return opportunities.some(o => o.stageIndex >= 1 && o.visibility !== 'shadow') ? '已有客户可推进到看房' : '先把客户接上再安排带看';
-  if (actionId === 'sincerity-sale') return opportunities.some(o => o.stageIndex >= 2 && o.visibility !== 'shadow') ? '适合把成熟客户推进到诚意阶段' : '还没到适合做诚意卖的时候';
-  if (actionId === 'invite-customer-negotiation') return opportunities.some(o => o.stageIndex >= 3 && o.visibility !== 'shadow') ? '已经有人接近成交桌' : '还没到谈判时机';
+  if (actionId === 'first-visit') return !caseItem.hasCompletedFirstVisit ? '当前还没完成首次面访。' : '首次面访已经完成。';
+  if (actionId === 'weekly-feedback') return caseItem.trust < 60 ? `当前信任 ${Math.round(caseItem.trust)}，关系波动较明显。`
+    : `当前信任 ${Math.round(caseItem.trust)}，业主关系相对稳定。`;
+  if (actionId === 'deep-diagnosis') return opportunities.some(o => o.visibility === 'shadow') ? `当前有 ${opportunities.filter(o => o.visibility === 'shadow').length} 位待确认客户。`
+    : '当前没有待确认客户，诊断重点会落在价格和带看反馈。';
+  if (actionId === 'story') return caseItem.d2 < 70 ? `当前货盘素质 ${Math.round(caseItem.d2)}，卖点表达空间较大。`
+    : `当前货盘素质 ${Math.round(caseItem.d2)}，卖点基础已在线。`;
+  if (actionId === 'pricing-advice') return `挂牌 ${caseItem.askPrice} 万，对比市场心理价 ${caseItem.marketPrice} 万。`;
+  if (actionId === 'ask-psychological-price') return `当前底价 ${caseItem.bottomPrice} 万，业主真实心理价还未完全显性。`;
+  if (actionId === 'adjust-listing-price') return caseItem.askPrice > caseItem.marketPrice * 1.03 ? '当前挂牌价明显高于市场心理价。'
+    : '当前挂牌价和市场心理价差距较小。';
+  if (actionId === 'xiaohongshu-boost') return `当前活跃客户 ${opportunities.length} 位，公开客群厚度会受投放影响。`;
+  if (actionId === 'broker-broadcast') return `待确认客户 ${opportunities.filter(o => o.visibility === 'shadow').length} 位，经纪人侧会补充更多外部线索。`;
+  if (actionId === 'private-referral') return `当前业主信任 ${Math.round(caseItem.trust)}，私域质量更依赖关系基础。`;
+  if (actionId === 'open-day') return `当前热度 ${Math.round(caseItem.heat)}，开放日会直接抬升到访量和筛客压力。`;
+  if (actionId === 'showing') return opportunities.some(o => o.stageIndex >= 1 && o.visibility !== 'shadow') ? '当前已有客户进入可带看阶段。'
+    : '当前还没有客户进入可带看阶段。';
+  if (actionId === 'sincerity-sale') return opportunities.some(o => o.stageIndex >= 2 && o.visibility !== 'shadow') ? '当前已有客户进入中后段。'
+    : '当前客户阶段还不足以触发诚意卖。';
+  if (actionId === 'invite-customer-negotiation') return opportunities.some(o => o.stageIndex >= 3 && o.visibility !== 'shadow') ? '当前已有客户接近报价或议价阶段。'
+    : '当前还没有客户进入谈判区。';
   return '结合当前节奏安排';
-}
-
-function deriveActionDiagnosis(caseItem: Case, opportunities: any[]): ActionDiagnosis {
-  const predictedCount = opportunities.filter((o) => o.visibility === 'shadow').length;
-  const engagedCount = opportunities.filter((o) => o.visibility !== 'shadow').length;
-  const lateStageCount = opportunities.filter((o) => o.visibility !== 'shadow' && o.stageIndex >= 3).length;
-  const urgentLeads = opportunities.filter((o) => o.visibility !== 'shadow' && o.daysLeft <= 2).length;
-  const priceGapRatio = caseItem.askPrice / Math.max(caseItem.marketPrice, 1);
-
-  if (!caseItem.hasCompletedFirstVisit) {
-    return {
-      title: '先把第一轮共识建立起来',
-      summary: '先把经营路径讲到同一页，不然后面动作都会打散。',
-      evidence: ['未面访', `信任 ${Math.round(caseItem.trust)}`, `窗口 ${caseItem.windowDays} 天`],
-      primaryActionId: 'first-visit',
-      secondaryActionIds: ['weekly-feedback', 'deep-diagnosis'],
-      fallbackActionIds: ['story'],
-    };
-  }
-
-  if (caseItem.trust < 58 || caseItem.patience < 42 || caseItem.urgency > 84) {
-    return {
-      title: '先稳业主，不要急着堆动作',
-      summary: '这套盘当前先保关系和授权，再谈补量、调价或收口。',
-      evidence: [`信任 ${Math.round(caseItem.trust)}`, `耐心 ${Math.round(caseItem.patience)}`, `紧迫度 ${Math.round(caseItem.urgency)}`],
-      primaryActionId: 'weekly-feedback',
-      secondaryActionIds: ['deep-diagnosis', 'pricing-advice'],
-      fallbackActionIds: ['ask-psychological-price'],
-    };
-  }
-
-  if (lateStageCount > 0 || urgentLeads > 0) {
-    return {
-      title: '后段客户要先收口',
-      summary: '已经有成熟客户了，别再把精力撒回前段。',
-      evidence: [`后段 ${lateStageCount} 位`, `快转冷 ${urgentLeads} 位`, `接洽中 ${engagedCount} 位`],
-      primaryActionId: lateStageCount >= 2 ? 'invite-customer-negotiation' : 'sincerity-sale',
-      secondaryActionIds: ['showing', 'weekly-feedback'],
-      fallbackActionIds: ['pricing-advice'],
-    };
-  }
-
-  if (priceGapRatio > 1.04 || caseItem.priceGapPct > 5 || caseItem.d3 < 62) {
-    return {
-      title: '价格认知还没对齐',
-      summary: '先把竞争、客户和业主预期讲清，再决定怎么调。',
-      evidence: [`挂牌 ${caseItem.askPrice} 万`, `市场 ${caseItem.marketPrice} 万`, `业主配合 ${Math.round(caseItem.d3)}`],
-      primaryActionId: 'pricing-advice',
-      secondaryActionIds: ['ask-psychological-price', 'adjust-listing-price'],
-      fallbackActionIds: ['deep-diagnosis'],
-    };
-  }
-
-  if (predictedCount > 0) {
-    return {
-      title: '先把客群摸清，不要盲推',
-      summary: '先判断谁是真机会、卡点在哪，再决定推进谁。',
-      evidence: [`预测客群 ${predictedCount} 组`, `接洽中 ${engagedCount} 位`, `好房分 ${Math.round(caseItem.competitiveness)} 分`],
-      primaryActionId: 'deep-diagnosis',
-      secondaryActionIds: ['showing', 'broker-broadcast'],
-      fallbackActionIds: ['weekly-feedback'],
-    };
-  }
-
-  if (caseItem.heat < 55 || engagedCount === 0) {
-    return {
-      title: '先补热度和有效进线',
-      summary: '没有足够进线，后段动作都只是空转。',
-      evidence: [`热度 ${Math.round(caseItem.heat)}`, `接洽中 ${engagedCount} 位`, `好房分 ${Math.round(caseItem.competitiveness)} 分`],
-      primaryActionId: caseItem.heat < 48 ? 'open-day' : 'xiaohongshu-boost',
-      secondaryActionIds: ['broker-broadcast', 'story'],
-      fallbackActionIds: ['private-referral'],
-    };
-  }
-
-  return {
-    title: '节奏是稳的，继续往前推',
-    summary: '这套盘没有明显爆点，重点是保持连续推进。',
-    evidence: [`信任 ${Math.round(caseItem.trust)}`, `接洽中 ${engagedCount} 位`, `窗口 ${caseItem.windowDays} 天`],
-    primaryActionId: 'weekly-feedback',
-    secondaryActionIds: ['showing', 'story'],
-    fallbackActionIds: ['private-referral'],
-  };
-}
-
-function deriveSuggestedActionCards(
-  diagnosis: ActionDiagnosis,
-  actionCardMap: Record<string, ActionWorkspaceCard>,
-) {
-  const ordered = [
-    actionCardMap[diagnosis.primaryActionId],
-    ...diagnosis.secondaryActionIds.map((id) => actionCardMap[id]),
-    ...diagnosis.fallbackActionIds.map((id) => actionCardMap[id]),
-  ].filter((card, index, list): card is ActionWorkspaceCard => Boolean(card)
-    && list.findIndex((entry) => entry?.action.id === card.action.id) === index);
-
-  const available = ordered.filter((card) => card.availability.enabled);
-  const blocked = ordered.filter((card) => !card.availability.enabled);
-
-  if (available.length === 0) {
-    return blocked.slice(0, 4);
-  }
-
-  return [...available.slice(0, 1), ...blocked.slice(0, 1), ...available.slice(1, 3)].slice(0, 4);
-}
-
-function resolveActionTab(actionId: string): ActionCategoryTab {
-  const action = ACTIONS.find((entry) => entry.id === actionId);
-  const categoryId = action?.categoryId || 'feedback';
-  if (categoryId === 'marketing' || categoryId === 'pricing' || categoryId === 'negotiation') {
-    return categoryId;
-  }
-  return 'feedback';
 }
 
 function deriveCaseListPriority(state: GameState, caseItem: Case) {
@@ -1275,44 +1026,39 @@ function matchQuickFilter(state: GameState, caseItem: Case, filter: CaseQuickFil
 }
 
 function derivePricePosition(caseItem: Case) {
-  if (caseItem.askPrice <= caseItem.marketPrice) return '价格站位稳，可主打转化';
-  if (caseItem.askPrice <= caseItem.marketPrice * 1.03) return '价格略硬，但还在可沟通区间';
-  return `较市场高 ${caseItem.askPrice - caseItem.marketPrice} 万，需要重新校准口径`;
+  if (caseItem.askPrice <= caseItem.marketPrice) return '价格能打，可以推转化';
+  if (caseItem.askPrice <= caseItem.marketPrice * 1.03) return '价格略高，还能沟通';
+  return `高出市场 ${caseItem.askPrice - caseItem.marketPrice} 万，价格压力明显`;
 }
 
 function deriveWindowLabel(caseItem: Case, opportunities: any[]) {
-  if (caseItem.windowDays <= 5) return '窗口偏短';
-  if (opportunities.some(o => o.daysLeft <= 2 && o.visibility !== 'shadow')) return '有客户接近流失';
-  if (opportunities.some(o => o.visibility === 'shadow')) return '先确认预测客群';
-  return '窗口尚稳';
-}
-
-function deriveTargetLabel(caseItem: Case, activeCount: number) {
-  if (caseItem.stageIndex >= 4) return '把高阶段准客压到报价和议价';
-  if (activeCount === 0) return '先把准客池重新补厚';
-  if (caseItem.heat < 50) return '先把盘面热起来，再谈转化';
-  return '把现有带看转成再看和报价';
+  if (caseItem.windowDays <= 5) return '快到期';
+  if (opportunities.some(o => o.daysLeft <= 2 && o.visibility !== 'shadow')) return '客户快冷了';
+  if (opportunities.some(o => o.visibility === 'shadow')) return '客户待确认';
+  return '还稳';
 }
 
 function deriveManagerTake(caseItem: Case, opportunities: any[]) {
-  if (caseItem.riskFlags?.includes('价格锚偏高')) return '先校准价格口径，别急着继续堆热度';
-  if (opportunities.some(o => o.visibility === 'shadow')) return '池子里有还在判断中的预测客群，先摸清需求再安排带看';
-  if (opportunities.some(o => o.stageIndex >= 3)) return '后段准客已出现，优先追转化';
-  return '这套盘还能继续经营，但本周要让业主看到进展';
+  if (caseItem.status === 'lost_to_rival') return '已经被别人截走，复盘前面哪里断了';
+  if (caseItem.status === 'withdrawn') return '业主撤了，复盘为什么没守住';
+  if (caseItem.riskFlags?.includes('价格锚偏高')) return '价格高于市场心理价，价格口径是当前主要矛盾';
+  if (opportunities.some(o => o.visibility === 'shadow')) return '有待确认客户，客户画像还不完整';
+  if (opportunities.some(o => o.stageIndex >= 3)) return '有客户进入后段，房源已经靠近成交区';
+  return '房源仍在场，当前主要看持续推进是否不断档';
 }
 
 function deriveSellerGuidance(caseItem: Case) {
   if (caseItem.trust < 55) return '业主已经开始怀疑推进节奏，周反馈要讲结果，也要讲依据。';
-  if (caseItem.patience < 45) return '业主耐心不高，适合先谈确定性，再谈更大的资源投入。';
-  if (caseItem.urgency > 80) return '业主目标很急，沟通时更看重速度和确定性。';
-  return '业主当前尚可协同，适合用本周进展去换下一步配合。';
+  if (caseItem.patience < 45) return '业主耐心不高，沟通里会更看重确定性。';
+  if (caseItem.urgency > 80) return '业主目标很急，沟通时更看重速度和结果。';
+  return '业主当前尚可协同，进展和依据都能被听进去。';
 }
 
 function deriveCommunicationMode(caseItem: Case) {
   if (caseItem.personality === 'pragmatic') return '用带看反馈和竞品数据说话';
-  if (caseItem.personality === 'emotional') return '先稳情绪，再给业主信心';
+  if (caseItem.personality === 'emotional') return '情绪波动更大，沟通里更吃关系承接';
   if (caseItem.personality === 'urgent') return '强调速度和结果，不要绕太久';
-  return '先把业主拉回统一口径';
+  return '把业主拉回统一口径';
 }
 
 function deriveStrongPoint(caseItem: Case) {
@@ -1330,10 +1076,22 @@ function deriveWeakPoint(caseItem: Case) {
 }
 
 function deriveNextFix(caseItem: Case, opportunities: any[]) {
-  if (opportunities.length === 0) return '先补池子，再谈开放日和议价';
-  if (opportunities.some(o => o.visibility === 'shadow')) return '先摸清预测客群，再决定重点推进谁';
-  if (caseItem.askPrice > caseItem.marketPrice * 1.05) return '先修价格口径，再继续拉热度';
-  return '把现有反馈沉淀成更顺的卖点表达';
+  if (opportunities.length === 0) return '当前缺少活跃客户';
+  if (opportunities.some(o => o.visibility === 'shadow')) return '当前待确认客户较多';
+  if (caseItem.askPrice > caseItem.marketPrice * 1.05) return '当前价格明显高于市场心理价';
+  return '当前主要看带看后的持续转化';
+}
+
+function deriveShortCaseState(caseItem: Case, opportunities: any[]) {
+  if (caseItem.status === 'sold') return '已成交';
+  if (caseItem.status === 'lost_to_rival') return '被截走';
+  if (caseItem.status === 'withdrawn') return '已撤盘';
+  if (caseItem.windowDays <= 3 || caseItem.trust < 50) return '快失守';
+  if (opportunities.some(o => o.visibility !== 'shadow' && o.stageIndex >= 3)) return '可收口';
+  if (opportunities.length === 0) return '缺客户';
+  if (caseItem.askPrice > caseItem.marketPrice * 1.05) return '价格硬';
+  if (caseItem.heat < 45) return '偏冷';
+  return '能推进';
 }
 
 function deriveCaseMatters(state: GameState, caseItem: Case, opportunities: any[]) {
@@ -1347,8 +1105,8 @@ function deriveCaseMatters(state: GameState, caseItem: Case, opportunities: any[
 
   if (opportunities.some(o => o.daysLeft <= 2)) {
     derived.unshift({
-      title: '处理快转冷的准客',
-      detail: '池子里已经有人接近流失边缘，今天要先碰一下，不然转化温度会断。',
+      title: '准客接近流失',
+      detail: '池子里已经有人接近流失边缘，今天的转化温度正在下降。',
       badge: '紧急',
       tone: 'rose',
     });
@@ -1364,7 +1122,7 @@ function deriveCaseMatters(state: GameState, caseItem: Case, opportunities: any[
   if (derived.length === 0) {
     derived.push({
       title: '准备本周反馈',
-      detail: '这套盘暂无突发事项，适合先整理进展、补证据、稳住业主预期。',
+      detail: '这套盘暂无突发事项，本周进展和证据链相对完整。',
       badge: '固定',
       tone: 'emerald',
     });
@@ -1387,11 +1145,11 @@ function derivePoolStages(opportunities: any[]) {
 }
 
 function deriveLeadSuggestion(opportunity: any) {
-  if (opportunity.visibility === 'shadow') return '先确认需求，再决定是否推进';
-  if (opportunity.stageIndex >= 4) return '可进入报价管理';
-  if (opportunity.stageIndex === 3) return '优先安排再看';
-  if (opportunity.intent >= 70) return '适合追转化';
-  return '先继续培养兴趣';
+  if (opportunity.visibility === 'shadow') return '客户需求仍待确认';
+  if (opportunity.stageIndex >= 4) return '已进入报价管理区';
+  if (opportunity.stageIndex === 3) return '已进入再看阶段';
+  if (opportunity.intent >= 70) return '意向度较高';
+  return '仍在培养兴趣阶段';
 }
 
 function deriveListingAgeLabel(caseItem: Case) {

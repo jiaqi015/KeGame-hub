@@ -1,6 +1,6 @@
 import React from 'react';
 import { GameState } from '../../domain/models';
-import { History, Target, Lightbulb, CheckCircle2 } from 'lucide-react';
+import { History, Target, Lightbulb } from 'lucide-react';
 
 interface ReviewProps {
   state: GameState;
@@ -14,12 +14,12 @@ export function Review({ state }: ReviewProps) {
     <div className="mx-auto max-w-4xl space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-[22px] font-bold text-slate-900">活动</h3>
+          <h3 className="text-[22px] font-bold text-slate-900">周复盘</h3>
           <p className="mt-1 text-sm text-slate-400">
             当前剧本：{scenarioName} · {difficultyId.toUpperCase()}
           </p>
         </div>
-        <span className="text-sm text-slate-400">系统每周日自动生成复盘建议</span>
+        <span className="text-sm text-slate-400">系统每周日自动记录经营变化</span>
       </div>
 
       <div className="space-y-4">
@@ -47,7 +47,7 @@ export function Review({ state }: ReviewProps) {
                   <Lightbulb size={20} />
                 </div>
                 <div className="space-y-1">
-                  <div className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest">下周经营策略建议</div>
+                  <div className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest">本周变化记录</div>
                   <p className="text-sm text-emerald-900 font-medium">{r.suggestion}</p>
                 </div>
               </div>

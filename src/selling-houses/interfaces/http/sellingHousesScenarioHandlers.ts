@@ -1,18 +1,17 @@
 import type { DifficultyId } from '../../domain/models.js';
 import { listBuiltInScenarioSummaries, getScenarioSnapshotById } from '../../domain/scenarioCatalog.js';
-import { NeonScenarioRepository } from '../../infrastructure/neonScenarioRepository.js';
+import {
+  getSellingHousesScenarioRepository,
+  hasSellingHousesDatabaseConfig,
+} from '../../infrastructure/sellingHousesPlatform.js';
 
-function hasDatabaseConfig() {
-  return Boolean((process.env.DATABASE_URL || process.env.POSTGRES_URL || '').trim());
-}
-
-const repository = new NeonScenarioRepository();
+const repository = getSellingHousesScenarioRepository();
 
 export async function handleSellingHousesScenarioList(query: Record<string, unknown>) {
   const difficulty = typeof query.difficulty === 'string' ? query.difficulty.trim() : undefined;
   const limit = typeof query.limit === 'string' ? Number(query.limit) : 24;
 
-  if (!hasDatabaseConfig()) {
+  if (!hasSellingHousesDatabaseConfig()) {
     return {
       scenarios: listBuiltInScenarioSummaries(difficulty as DifficultyId | undefined).slice(0, limit),
     };
@@ -28,7 +27,7 @@ export async function handleSellingHousesScenarioGet(query: Record<string, unkno
     throw new Error('查询剧本时缺少 id。');
   }
 
-  if (!hasDatabaseConfig()) {
+  if (!hasSellingHousesDatabaseConfig()) {
     const snapshot = getScenarioSnapshotById(scenarioId);
     if (!snapshot) {
       throw new Error('未找到对应剧本。');

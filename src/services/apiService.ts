@@ -2,6 +2,7 @@ import { ComparisonResult, AIModel, ActivationWorkspaceId } from '../types';
 
 export const ACTIVATION_STORAGE_KEY = 'sabrina-activation-key';
 export const ACTIVATION_HEADER_NAME = 'x-activation-key';
+export const AUTH_EMAIL_STORAGE_KEY = 'sabrina-auth-email';
 export const DIFFERENCE_SUMMARY_MODEL_ID = 'doubao-seed-2-0-pro-260215';
 export const DIFFERENCE_SUMMARY_MODEL_NAME = 'Doubao-Seed-2.0-pro';
 export const SUMMARY_INPUT_CHAR_LIMIT = 6000;
@@ -20,6 +21,21 @@ export interface CompareStreamEvent {
 export interface ActivationPayload {
   key: string;
   allowedWorkspaces: ActivationWorkspaceId[];
+}
+
+export interface AuthenticatedUserPayload {
+  email: string;
+  displayName: string;
+  allowedWorkspaces: ActivationWorkspaceId[];
+  source?: 'session' | 'activation-key';
+}
+
+export interface AuthStartPayload {
+  email: string;
+  mode: 'trusted-bypass' | 'verification_required' | 'activation_required';
+  expiresAt?: string | null;
+  verificationCode?: string | null;
+  user?: AuthenticatedUserPayload | null;
 }
 
 export function truncateForSummary(value: string, limit = SUMMARY_INPUT_CHAR_LIMIT): string {
@@ -152,6 +168,63 @@ export async function verifyActivationKey(key: string): Promise<ActivationPayloa
     key: typeof payload?.key === 'string' ? payload.key.trim() : key.trim(),
     allowedWorkspaces,
   };
+}
+
+export async function startEmailLogin(email: string): Promise<AuthStartPayload> {
+  const response = await fetch('/api/auth?mode=start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(typeof payload?.error === 'string' ? payload.error : '登录初始化失败。');
+  }
+
+  return {
+    email: typeof payload?.email === 'string' ? payload.email : email.trim().toLowerCase(),
+    mode: payload?.mode,
+    expiresAt: typeof payload?.expiresAt === 'string' ? payload.expiresAt : null,
+    verificationCode: typeof payload?.verificationCode === 'string' ? payload.verificationCode : null,
+    user: payload?.user ?? null,
+  };
+}
+
+export async function completeEmailLogin(input: {
+  email: string;
+  code?: string;
+  activationKey?: string;
+}): Promise<AuthenticatedUserPayload> {
+  const response = await fetch('/api/auth?mode=complete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(typeof payload?.error === 'string' ? payload.error : '登录失败。');
+  }
+
+  return payload.user as AuthenticatedUserPayload;
+}
+
+export async function fetchAuthenticatedUser(): Promise<AuthenticatedUserPayload> {
+  const response = await fetch('/api/auth?mode=me');
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(typeof payload?.error === 'string' ? payload.error : '获取用户信息失败。');
+  }
+
+  return payload.user as AuthenticatedUserPayload;
+}
+
+export async function logoutCurrentSession(): Promise<void> {
+  await fetch('/api/auth?mode=logout', {
+    method: 'POST',
+  });
 }
 
 export async function readCompareStream(

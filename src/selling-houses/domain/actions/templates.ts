@@ -32,7 +32,7 @@ export const ACTION_TEMPLATES: Record<string, ActionBattleTemplate> = {
     metricFocus: ['trust', 'patience', 'd3', 'windowDays'],
     buildBody: (state, caseItem) => {
       const { predicted, engaged } = summarizeOpportunities(state, caseItem);
-      return `${caseItem.ownerName} 当前状态：${caseItem.ownerMood || '平稳'}。这次面访要把房源现状、客群情况和后续经营路径讲清楚。当前已有 ${engaged} 位接洽中的客户，另有 ${predicted} 组还在判断中的预测客群。`;
+      return `${caseItem.ownerName} 当前状态：${caseItem.ownerMood || '平稳'}。这次面访要把房源现状、客户情况和后续经营路径讲清楚。当前已有 ${engaged} 位接洽中的客户，另有 ${predicted} 位待确认客户。`;
     },
     getStrategies: () => [
       { id: 'rapport-first', title: '先聊目标和顾虑', note: '先建立情绪信任，适合关系还没真正建立的时候。' },
@@ -64,7 +64,7 @@ export const ACTION_TEMPLATES: Record<string, ActionBattleTemplate> = {
     metricFocus: ['trust', 'd3', 'competitiveness', 'intent'],
     buildBody: (state, caseItem) => {
       const { predicted, engaged } = summarizeOpportunities(state, caseItem);
-      return `${caseItem.title} 当前价格 ${caseItem.askPrice} 万，市场心理价 ${caseItem.marketPrice} 万。盘面已经出现卡点，这次诊断需要讲清楚：问题到底来自价格、讲法，还是客户匹配。当前 ${predicted} 组预测客群、${engaged} 位接洽客户。`;
+      return `${caseItem.title} 当前价格 ${caseItem.askPrice} 万，市场心理价 ${caseItem.marketPrice} 万。盘面已经出现卡点，这次诊断需要讲清楚：问题到底来自价格、讲法，还是客户匹配。当前 ${predicted} 位待确认客户、${engaged} 位接洽客户。`;
     },
     getStrategies: () => [
       { id: 'market-dive', title: '从竞品切入', note: '更像专业顾问视角，适合务实型业主。' },
@@ -95,7 +95,7 @@ export const ACTION_TEMPLATES: Record<string, ActionBattleTemplate> = {
     metricFocus: ['heat', 'd1', 'competitiveness'],
     buildBody: (state, caseItem) => {
       const { predicted, engaged } = summarizeOpportunities(state, caseItem);
-      return `${caseItem.title} 当前热度 ${Math.round(caseItem.heat)}。小红书推广会直接影响公开客群进入速度，但也可能引来更多需要筛选的人。当前预测客群 ${predicted} 组，接洽客户 ${engaged} 位。`;
+      return `${caseItem.title} 当前热度 ${Math.round(caseItem.heat)}。小红书推广会直接影响公开客户进入速度，但也可能引来更多需要筛选的人。当前待确认客户 ${predicted} 位，接洽客户 ${engaged} 位。`;
     },
     getStrategies: () => [
       { id: 'traffic-push', title: '冲流量', note: '更容易补量，但线索质量更参差。' },
@@ -111,7 +111,7 @@ export const ACTION_TEMPLATES: Record<string, ActionBattleTemplate> = {
     metricFocus: ['heat', 'd1', 'competitiveness'],
     buildBody: (state, caseItem) => {
       const { predicted } = summarizeOpportunities(state, caseItem);
-      return `${caseItem.title} 当前已有 ${predicted} 组预测客群。你要决定这轮经纪人投放是补覆盖、补质量，还是找少数核心经纪人深推。`;
+      return `${caseItem.title} 当前已有 ${predicted} 位待确认客户。你要决定这轮经纪人投放是补覆盖、补质量，还是找少数核心经纪人深推。`;
     },
     getStrategies: () => [
       { id: 'wide-network', title: '广撒网络', note: '更容易补量，但后续要花时间消化。' },

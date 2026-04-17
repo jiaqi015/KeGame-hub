@@ -8,6 +8,11 @@ import { executeAction, getActionAvailability } from './engine/actionResolvers';
 import { tickCompetition } from './engine/competitionEngine';
 import { fireScheduledEvents, triggerRandomEvent } from './engine/eventEngine';
 import { createWeeklyReview, tickCases, tickSeasonality, updateCustomers, updateMarkets } from './engine/marketEngine';
+import { applyCompanyPressure, tickCompanyPressure } from './company/companyPressureEngine';
+import { applyDailyMarketEvent, rollDailyMarketEvent } from './market/dailyEventDirector';
+import { settleMarketSignals } from './market/signalEngine';
+import { applyRivalPressure, tickRivalListings } from './rivals/rivalListingEngine';
+import { tickRivalStores } from './rivals/rivalStoreEngine';
 import {
   adjustCaseOpportunities,
   closeOpportunity,
@@ -41,7 +46,15 @@ export {
   seedInitialOpportunities,
   spawnPassiveLeads,
   tickCompetition,
+  applyCompanyPressure,
+  applyDailyMarketEvent,
+  applyRivalPressure,
+  rollDailyMarketEvent,
+  settleMarketSignals,
+  tickCompanyPressure,
   tickOpportunities,
+  tickRivalListings,
+  tickRivalStores,
   tickSeasonality,
   triggerRandomEvent,
   updateCustomers,
@@ -72,6 +85,13 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void) {
 
   updateMarkets(state);
   tickSeasonality(state);
+  rollDailyMarketEvent(state);
+  applyDailyMarketEvent(state);
+  tickRivalStores(state);
+  tickRivalListings(state);
+  applyRivalPressure(state);
+  tickCompanyPressure(state);
+  applyCompanyPressure(state);
   updateCustomers(state);
   tickOpportunities(state);
   tickCompetition(state);
@@ -79,6 +99,7 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void) {
   tickCases(state);
   spawnPassiveLeads(state);
   triggerRandomEvent(state);
+  settleMarketSignals(state);
 
   if (state.day % 7 === 0) {
     createWeeklyReview(state);

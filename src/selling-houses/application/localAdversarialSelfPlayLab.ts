@@ -3,6 +3,8 @@ import {
   buildSelfPlayRunSnapshot,
   type SelfPlayReport,
 } from './localAdversarialSelfPlayArena';
+import { getScenarioSnapshotById } from '../domain/scenarioCatalog';
+import type { DifficultyId } from '../domain/models';
 
 export interface SelfPlayLabRunSummary {
   seed: number;
@@ -15,6 +17,13 @@ export interface SelfPlayLabRunSummary {
   endingBad: number;
   coreBadCount: number;
   lostToRivalCount: number;
+  activeRivalListings: number;
+  totalRivalListings: number;
+  marketSignals: number;
+  inboundCount: number;
+  dailyEventCount: number;
+  rivalPressureEvents: number;
+  companyPressureEvents: number;
   verdict: string;
   remainingActiveCases: number;
   remainingActiveOpportunities: number;
@@ -38,6 +47,12 @@ export interface SelfPlayLabReport {
   averageEndingBad: number;
   coreBadRunRate: number;
   rivalLossRunRate: number;
+  averageTotalRivalListings: number;
+  averageMarketSignals: number;
+  averageInboundCount: number;
+  averageDailyEventCount: number;
+  averageRivalPressureEvents: number;
+  averageCompanyPressureEvents: number;
   scoreSpread: number;
   runs: SelfPlayLabRunSummary[];
   findings: SelfPlayLabFinding[];
@@ -51,6 +66,7 @@ interface SelfPlayLabOptions {
 export class LocalAdversarialSelfPlayLab {
   private readonly scenarioId: string;
   private readonly seeds: number[];
+  private readonly difficultyId: DifficultyId;
 
   constructor(options: SelfPlayLabOptions) {
     if (!options.seeds.length) {
@@ -59,6 +75,7 @@ export class LocalAdversarialSelfPlayLab {
 
     this.scenarioId = options.scenarioId;
     this.seeds = options.seeds;
+    this.difficultyId = getScenarioSnapshotById(options.scenarioId)?.scenario.difficultyId || 'standard';
   }
 
   runBatch() {
@@ -77,6 +94,12 @@ export class LocalAdversarialSelfPlayLab {
     const satisfactionScores = runs.map((entry) => entry.satisfactionScore);
     const endingGoods = runs.map((entry) => entry.endingGood);
     const endingBads = runs.map((entry) => entry.endingBad);
+    const totalRivalListings = runs.map((entry) => entry.totalRivalListings);
+    const marketSignals = runs.map((entry) => entry.marketSignals);
+    const inboundCounts = runs.map((entry) => entry.inboundCount);
+    const dailyEventCounts = runs.map((entry) => entry.dailyEventCount);
+    const rivalPressureEvents = runs.map((entry) => entry.rivalPressureEvents);
+    const companyPressureEvents = runs.map((entry) => entry.companyPressureEvents);
     const coreBadRuns = runs.filter((entry) => entry.coreBadCount > 0).length;
     const rivalLossRuns = runs.filter((entry) => entry.lostToRivalCount > 0).length;
 
@@ -92,6 +115,12 @@ export class LocalAdversarialSelfPlayLab {
       averageEndingBad: average(endingBads),
       coreBadRunRate: round((coreBadRuns / runs.length) * 100),
       rivalLossRunRate: round((rivalLossRuns / runs.length) * 100),
+      averageTotalRivalListings: average(totalRivalListings),
+      averageMarketSignals: average(marketSignals),
+      averageInboundCount: average(inboundCounts),
+      averageDailyEventCount: average(dailyEventCounts),
+      averageRivalPressureEvents: average(rivalPressureEvents),
+      averageCompanyPressureEvents: average(companyPressureEvents),
       scoreSpread: round(Math.max(...scores) - Math.min(...scores)),
       runs,
       findings: this.buildFindings(runs),
@@ -111,6 +140,13 @@ export class LocalAdversarialSelfPlayLab {
       endingBad: snapshot.endingBad,
       coreBadCount: snapshot.coreBadCount,
       lostToRivalCount: snapshot.lostToRivalCount,
+      activeRivalListings: report.shadowStats.activeRivalListings,
+      totalRivalListings: report.shadowStats.totalRivalListings,
+      marketSignals: report.shadowStats.marketSignals,
+      inboundCount: report.shadowStats.inboundCount,
+      dailyEventCount: report.shadowStats.dailyEventCount,
+      rivalPressureEvents: report.shadowStats.rivalPressureEvents,
+      companyPressureEvents: report.shadowStats.companyPressureEvents,
       verdict: report.evaluation.verdict,
       remainingActiveCases: report.remainingActiveCases,
       remainingActiveOpportunities: report.remainingActiveOpportunities,
@@ -123,6 +159,9 @@ export class LocalAdversarialSelfPlayLab {
     const defenseScores = runs.map((entry) => entry.defenseScore);
     const endingBadCounts = runs.map((entry) => entry.endingBad);
     const lostToRivalCounts = runs.map((entry) => entry.lostToRivalCount);
+    const averageInboundCount = average(runs.map((entry) => entry.inboundCount));
+    const averageDailyEventCount = average(runs.map((entry) => entry.dailyEventCount));
+    const averageRivalPressureEvents = average(runs.map((entry) => entry.rivalPressureEvents));
     const averageScore = average(scores);
     const averageDefenseScore = average(defenseScores);
     const averageEndingBad = average(endingBadCounts);
@@ -172,11 +211,45 @@ export class LocalAdversarialSelfPlayLab {
       });
     }
 
-    if (rivalLossRuns >= Math.ceil(runs.length / 2)) {
+    const rivalLossRate = (rivalLossRuns / runs.length) * 100;
+    const rivalLossCeilingByDifficulty: Record<DifficultyId, number> = {
+      warmup: 15,
+      easy: 35,
+      standard: 75,
+      advanced: 85,
+      hard: 95,
+      extreme: 100,
+    };
+    if (rivalLossRate > rivalLossCeilingByDifficulty[this.difficultyId]) {
       findings.push({
         severity: 'major',
         title: '被截走频率偏高',
-        detail: `${rivalLossRuns}/${runs.length} 局出现被竞品截走，说明竞品压力已经成为常规后果，需要确认是不是过强。`,
+        detail: `${rivalLossRuns}/${runs.length} 局出现被竞品截走，超过 ${this.difficultyId} 难度建议上限 ${rivalLossCeilingByDifficulty[this.difficultyId]}%。`,
+      });
+    }
+
+    const eventCeilingByDifficulty: Record<DifficultyId, { daily: number; inbound: number; rivalPressure: number }> = {
+      warmup: { daily: 2, inbound: 5, rivalPressure: 2 },
+      easy: { daily: 4, inbound: 8, rivalPressure: 5 },
+      standard: { daily: 5, inbound: 8, rivalPressure: 6 },
+      advanced: { daily: 6, inbound: 9, rivalPressure: 8 },
+      hard: { daily: 7, inbound: 9, rivalPressure: 10 },
+      extreme: { daily: 8, inbound: 10, rivalPressure: 12 },
+    };
+    const eventCeiling = eventCeilingByDifficulty[this.difficultyId];
+    if (averageDailyEventCount > eventCeiling.daily || averageInboundCount > eventCeiling.inbound) {
+      findings.push({
+        severity: 'major',
+        title: '商圈事件密度偏高',
+        detail: `平均每日事件累计 ${round(averageDailyEventCount)}，外部入场累计 ${round(averageInboundCount)}，超过 ${this.difficultyId} 难度建议密度。`,
+      });
+    }
+
+    if (averageRivalPressureEvents > eventCeiling.rivalPressure) {
+      findings.push({
+        severity: 'major',
+        title: '竞品提示过密',
+        detail: `平均竞品压力事件 ${round(averageRivalPressureEvents)} 次，超过 ${this.difficultyId} 难度建议密度。`,
       });
     }
 

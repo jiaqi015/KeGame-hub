@@ -15,6 +15,7 @@ const headline = [
   `平均好/坏收尾: ${report.averageEndingGood} / ${report.averageEndingBad}`,
   `核心盘坏收尾率: ${report.coreBadRunRate}%`,
   `被截走触发率: ${report.rivalLossRunRate}%`,
+  `影子商圈均值: 竞品 ${report.averageTotalRivalListings} 套，信号 ${report.averageMarketSignals} 条，入场 ${report.averageInboundCount} 次，主事件 ${report.averageDailyEventCount} 次`,
   `波动分差: ${report.scoreSpread}`,
 ].join('\n');
 

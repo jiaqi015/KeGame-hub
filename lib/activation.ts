@@ -1,38 +1,24 @@
 import {timingSafeEqual} from 'node:crypto';
+import { authorizeSession } from './auth.js';
+import {
+  WORKSPACE_IDS,
+  WorkspaceId,
+  decodeLegacyWorkspaceCodes,
+  getWorkspaceLabel,
+  inferWorkspaceFromPath,
+  normalizeWorkspaceToken,
+} from './workspaces.js';
 
 export const ACTIVATION_KEYS_ENV_NAME = 'ACTIVATION_KEYS';
 export const ACTIVATION_KEY_PERMISSIONS_ENV_NAME = 'ACTIVATION_KEY_PERMISSIONS';
 export const ACTIVATION_HEADER_NAME = 'x-activation-key';
-export const ACTIVATION_WORKSPACES = ['sabrina', 'open-day', 'selling-houses'] as const;
+export const ACTIVATION_WORKSPACES = WORKSPACE_IDS;
 
-export type ActivationWorkspaceId = (typeof ACTIVATION_WORKSPACES)[number];
+export type ActivationWorkspaceId = WorkspaceId;
 
 type ActivationValidationResult =
   | {ok: true; status: 200; error: ''; key: string; allowedWorkspaces: ActivationWorkspaceId[]}
   | {ok: false; status: number; error: string};
-
-const WORKSPACE_CODE_MAP: Record<string, ActivationWorkspaceId> = {
-  '1': 'sabrina',
-  '2': 'open-day',
-  '3': 'selling-houses',
-};
-
-const WORKSPACE_ALIAS_MAP: Record<string, ActivationWorkspaceId> = {
-  '1': 'sabrina',
-  sabrina: 'sabrina',
-  compare: 'sabrina',
-  comparison: 'sabrina',
-  pk: 'sabrina',
-  '2': 'open-day',
-  'open-day': 'open-day',
-  open_day: 'open-day',
-  openday: 'open-day',
-  '3': 'selling-houses',
-  'selling-houses': 'selling-houses',
-  selling_houses: 'selling-houses',
-  sellinghouses: 'selling-houses',
-  maintainer: 'selling-houses',
-};
 
 function parseActivationKeys(rawValue: string): string[] {
   const trimmed = rawValue.trim();
@@ -60,11 +46,6 @@ function parseActivationKeys(rawValue: string): string[] {
     .filter(Boolean);
 }
 
-function normalizeWorkspaceToken(rawToken: string): ActivationWorkspaceId | null {
-  const token = rawToken.trim().toLowerCase();
-  return WORKSPACE_ALIAS_MAP[token] || null;
-}
-
 function decodeWorkspaceValue(rawValue: unknown): ActivationWorkspaceId[] {
   if (Array.isArray(rawValue)) {
     const resolved = rawValue
@@ -82,11 +63,9 @@ function decodeWorkspaceValue(rawValue: unknown): ActivationWorkspaceId[] {
     return [];
   }
 
-  if (/^[123]+$/.test(trimmed)) {
-    return trimmed
-      .split('')
-      .map((token) => WORKSPACE_CODE_MAP[token])
-      .filter((workspace, index, list): workspace is ActivationWorkspaceId => Boolean(workspace) && list.indexOf(workspace) === index);
+  const legacyDecoded = decodeLegacyWorkspaceCodes(trimmed);
+  if (legacyDecoded.length > 0) {
+    return legacyDecoded;
   }
 
   return trimmed
@@ -176,7 +155,7 @@ function getAllowedWorkspacesForKey(key: string): ActivationWorkspaceId[] {
     return mapped;
   }
 
-  return [...ACTIVATION_WORKSPACES];
+  return [...WORKSPACE_IDS];
 }
 
 function getRequestPath(req: any): string {
@@ -197,52 +176,6 @@ function getRequestPath(req: any): string {
   }
 
   return '';
-}
-
-function inferWorkspaceFromPath(pathname: string): ActivationWorkspaceId | null {
-  if (!pathname) {
-    return null;
-  }
-
-  if (
-    pathname === '/api/models' ||
-    pathname === '/api/compare' ||
-    pathname === '/api/compare-stream' ||
-    pathname === '/models' ||
-    pathname === '/compare' ||
-    pathname === '/compare-stream'
-  ) {
-    return 'sabrina';
-  }
-
-  if (
-    pathname.startsWith('/api/open-day-') ||
-    pathname === '/api/parse-workbook' ||
-    pathname.startsWith('/open-day-') ||
-    pathname === '/parse-workbook'
-  ) {
-    return 'open-day';
-  }
-
-  if (
-    pathname.startsWith('/api/maintainer-') ||
-    pathname.startsWith('/maintainer-')
-  ) {
-    return 'selling-houses';
-  }
-
-  return null;
-}
-
-function getWorkspaceLabel(workspace: ActivationWorkspaceId): string {
-  switch (workspace) {
-    case 'sabrina':
-      return '多模型PK';
-    case 'open-day':
-      return '小区开放日选址';
-    case 'selling-houses':
-      return '我是王牌资产顾问';
-  }
 }
 
 export function validateActivationKey(candidate: string): ActivationValidationResult {
@@ -290,6 +223,26 @@ export function validateActivationKey(candidate: string): ActivationValidationRe
 }
 
 export function authorizeRequest(req: any, requiredWorkspace?: ActivationWorkspaceId): ActivationValidationResult {
+  const sessionAuthorization = authorizeSession(req);
+  if (sessionAuthorization.ok) {
+    const workspace = requiredWorkspace || inferWorkspaceFromPath(getRequestPath(req));
+    if (workspace && !sessionAuthorization.allowedWorkspaces.includes(workspace)) {
+      return {
+        ok: false,
+        status: 403,
+        error: `当前账号无权访问「${getWorkspaceLabel(workspace)}」。`,
+      };
+    }
+
+    return {
+      ok: true,
+      status: 200,
+      error: '',
+      key: sessionAuthorization.activationKey || 'session-authenticated',
+      allowedWorkspaces: sessionAuthorization.allowedWorkspaces,
+    };
+  }
+
   const validation = validateActivationKey(getHeaderValue(req, ACTIVATION_HEADER_NAME));
 
   if (!validation.ok) {

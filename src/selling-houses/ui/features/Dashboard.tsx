@@ -23,9 +23,12 @@ interface DashboardProps {
 
 export function Dashboard({ state, onSelectCase, onSetView }: DashboardProps) {
   const { metrics, schedule, priorities, day, maxDay, currentDate } = state;
-  const { scenarioSnapshot } = state.runContext;
   const routine = getRoutine(day, WEEKLY_ROUTINE);
   const activeCases = state.cases.filter((entry) => entry.status === 'active');
+  const activeRivalListings = state.marketShadow?.rivalListings?.filter((entry) => entry.status === 'active') || [];
+  const marketSignals = state.marketShadow?.marketSignals || [];
+  const companyPressure = state.marketShadow?.companyPressure;
+  const dailyMarketEvent = state.marketShadow?.dailyMarketEvent;
   const focusCases = state.cases.filter((entry) => entry.status === 'active' && entry.isFocused).slice(0, 2);
   const leadCase = focusCases[0]
     || [...activeCases]
@@ -43,13 +46,14 @@ export function Dashboard({ state, onSelectCase, onSetView }: DashboardProps) {
   const activeCoreCount = tierSummaries.find((entry) => entry.goalTier === 'core')?.active || 0;
   const dangerCount = activeCases.filter((entry) => entry.storylineState === 'critical' || entry.storylineState === 'sliding').length;
   const leadCoreRisk = tierSummaries.find((entry) => entry.goalTier === 'core')?.leadCaseTitle || null;
-  const todayGoal = topPriority?.title
-    || (leadCase ? `围绕 ${leadCase.title} 做推进` : `按 ${routine.theme} 稳步推进`);
+  const todayFocus = leadCase
+    ? `${leadCase.title} · ${Math.round(leadCase.competitiveness)} 分`
+    : '暂无聚焦盘';
   const todayRisk = topRisk?.title
     || leadCase?.riskFlags?.[0]
     || (state.energy <= 1 ? '今日资源很紧，只能做关键动作' : '暂无显著风险');
-  const todayAdvice = topPriority?.detail
-    || deriveTodayAdvice(routine.theme, leadCase?.title, state.energy);
+  const todayResourceState = `${state.energy}/${state.maxEnergy} 精力 · 剩余 ${daysRemaining} 天`;
+  const todayBriefs = buildTodayBriefs(state);
   const visiblePriorities = priorities.slice(0, 4);
   const overflowPriorityCount = Math.max(priorities.length - visiblePriorities.length, 0);
   const visibleSchedule = schedule.slice(0, 4);
@@ -64,87 +68,47 @@ export function Dashboard({ state, onSelectCase, onSetView }: DashboardProps) {
         <MetricCard label="模拟周期" value={`${day}/${maxDay} 天`} icon={<Calendar size={20} />} color="text-slate-600" />
       </div>
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.15fr_0.85fr]">
-        <section className="rounded-[28px] border border-black/5 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center gap-3">
-            <Flag size={18} className="text-amber-500" />
-            <div>
-              <h3 className="text-sm font-bold uppercase tracking-widest text-slate-800">今日经营</h3>
-              <p className="mt-1 text-xs text-slate-400">首页只回答今天最重要的三件事：目标、风险、下一步。</p>
-            </div>
+      <section className="rounded-[28px] border border-black/5 bg-white p-5 shadow-sm">
+        <div className="mb-4 flex items-end justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold uppercase tracking-widest text-slate-800">今日事实</h3>
+            <p className="mt-1 text-xs text-slate-400">只展示今天发生的变化、影响范围和当前可见机会。</p>
           </div>
-
-          <div className="rounded-[24px] border border-black/[0.04] bg-gradient-to-br from-amber-50 via-white to-emerald-50/60 p-5">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
-                  {state.runContext.scenarioName} · {scenarioSnapshot.scenario.theme}
-                </div>
-                <div className="mt-1.5 text-[24px] font-bold tracking-tight text-slate-900">
-                  第 {day} 天 · {routine.label}
-                </div>
-                <div className="mt-1 text-[13px] font-semibold text-amber-700">{routine.theme}</div>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                  {daysRemaining > 0 ? `距离本局结束还剩 ${daysRemaining} 天。` : '已经来到本局最后一天。'}
-                  {leadCase ? ` 今天优先盯住 ${leadCase.title}。` : ' 今天先处理最确定的一步动作。'}
-                </p>
-              </div>
-
-              <div className="grid min-w-[220px] grid-cols-2 gap-3">
-                <SnapshotStat label="今日资源" value={`${state.energy}/${state.maxEnergy}`} helper="精力" />
-                <SnapshotStat label="剩余时限" value={`${daysRemaining}`} helper="天" />
-                <SnapshotStat label="聚焦房源" value={`${focusCases.length}`} helper="套" />
-                <SnapshotStat label="待处理风险" value={`${Math.min(schedule.length, 9)}${schedule.length > 9 ? '+' : ''}`} helper="条" />
-              </div>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold text-slate-500">
+            Day {day}
+          </span>
+        </div>
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+          {todayBriefs.map((brief) => (
+            <div key={`${brief.label}-${brief.title}`}>
+              <TodayBriefCard brief={brief} />
             </div>
+          ))}
+        </div>
+      </section>
 
-            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-              <DecisionCard icon={<Target size={15} />} label="今日目标" value={todayGoal} tone="emerald" />
-              <DecisionCard icon={<Siren size={15} />} label="主风险" value={todayRisk} tone="rose" />
-              <DecisionCard icon={<Sparkles size={15} />} label="建议打法" value={todayAdvice} tone="slate" />
-            </div>
+      <section className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+        <ShadowPulseCard
+          label={dailyMarketEvent ? `第 ${dailyMarketEvent.day} 天` : '商圈动静'}
+          title={dailyMarketEvent?.title || '今天没大事'}
+          detail={dailyMarketEvent?.message || '没有明显外部冲击，按当前经营节奏推进。'}
+          tone={dailyMarketEvent?.tone || 'accent'}
+        />
+        <ShadowPulseCard
+          label="别人也在卖"
+          title={activeRivalListings.length > 0 ? `${activeRivalListings.length} 套竞品在抢客` : '暂未看到强竞品'}
+          detail={activeRivalListings[0] ? `${activeRivalListings[0].title} 正在分走同板块客户。` : '当前没有看到强势竞品在分流。'}
+          tone={activeRivalListings.length >= 2 ? 'danger' : 'accent'}
+        />
+        <ShadowPulseCard
+          label="客户池"
+          title={(companyPressure?.sharedLeadPressure || 0) >= 58 ? '共享客户偏紧' : '客户池还算平稳'}
+          detail={marketSignals[0]?.message || '市场侧暂未出现明确新需求信号。'}
+          tone={(companyPressure?.sharedLeadPressure || 0) >= 58 ? 'danger' : 'accent'}
+        />
+      </section>
 
-            {focusCases.length > 0 && (
-              <div className="mt-4">
-                <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">今日聚焦盘</div>
-                <div className="flex flex-wrap gap-2">
-                  {focusCases.map((caseItem) => (
-                    <button
-                      key={caseItem.id}
-                      type="button"
-                      onClick={() => {
-                        onSelectCase(caseItem.id);
-                        onSetView('cases');
-                      }}
-                      className="rounded-full bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:text-slate-900"
-                    >
-                      {caseItem.title}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="mt-5 rounded-[22px] border border-black/[0.05] bg-white/90 p-4">
-              <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
-                <ShieldAlert size={14} className="text-rose-500" />
-                当前盘型结构
-              </div>
-              <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-                {tierSummaries.map((entry) => (
-                  <div key={entry.goalTier}>
-                    <TierStructureCard entry={entry} />
-                  </div>
-                ))}
-              </div>
-              <div className="mt-3 rounded-2xl border border-rose-100 bg-rose-50/80 px-4 py-3 text-sm text-rose-900">
-                <span className="font-semibold">现在最不能掉的：</span>
-                {leadCoreRisk ? ` ${leadCoreRisk}` : ' 核心盘暂时都还稳着。'}
-              </div>
-            </div>
-          </div>
-        </section>
-
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[0.85fr_1.15fr]">
         <div className="space-y-5">
           <section className="rounded-[28px] border border-black/5 bg-white p-5 shadow-sm">
             <div className="mb-4 flex items-center gap-3">
@@ -205,6 +169,70 @@ export function Dashboard({ state, onSelectCase, onSetView }: DashboardProps) {
             </section>
           )}
         </div>
+
+        <section className="rounded-[28px] border border-black/5 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Flag size={18} className="text-amber-500" />
+              <div>
+                <h3 className="text-sm font-bold uppercase tracking-widest text-slate-800">今日盘面</h3>
+                <p className="mt-1 text-xs text-slate-400">这里只看今天最关键的事实：焦点、风险和资源状态。</p>
+              </div>
+            </div>
+
+            <div className="grid min-w-[220px] grid-cols-2 gap-2">
+              <SnapshotStat label="今日资源" value={`${state.energy}/${state.maxEnergy}`} helper="精力" />
+              <SnapshotStat label="剩余时限" value={`${daysRemaining}`} helper="天" />
+              <SnapshotStat label="聚焦房源" value={`${focusCases.length}`} helper="套" />
+              <SnapshotStat label="待处理风险" value={`${Math.min(schedule.length, 9)}${schedule.length > 9 ? '+' : ''}`} helper="条" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <DecisionCard icon={<Target size={15} />} label="当前焦点" value={todayFocus} tone="emerald" />
+            <DecisionCard icon={<Siren size={15} />} label="风险变化" value={todayRisk} tone="rose" />
+            <DecisionCard icon={<Sparkles size={15} />} label="资源状态" value={todayResourceState} tone="slate" />
+          </div>
+
+          {focusCases.length > 0 && (
+            <div className="mt-4">
+              <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">今日聚焦盘</div>
+              <div className="flex flex-wrap gap-2">
+                {focusCases.map((caseItem) => (
+                  <button
+                    key={caseItem.id}
+                    type="button"
+                    onClick={() => {
+                      onSelectCase(caseItem.id);
+                      onSetView('cases');
+                    }}
+                    className="rounded-full border border-black/[0.05] bg-slate-50 px-3 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:bg-white hover:text-slate-900"
+                  >
+                    {caseItem.title}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-5 rounded-[22px] border border-black/[0.05] bg-slate-50/70 p-4">
+            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+              <ShieldAlert size={14} className="text-rose-500" />
+              当前盘型结构
+            </div>
+            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+              {tierSummaries.map((entry) => (
+                <div key={entry.goalTier}>
+                  <TierStructureCard entry={entry} />
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 rounded-2xl border border-rose-100 bg-rose-50/80 px-4 py-3 text-sm text-rose-900">
+              <span className="font-semibold">现在最不能掉的：</span>
+              {leadCoreRisk ? ` ${leadCoreRisk}` : ' 核心盘暂时都还稳着。'}
+            </div>
+          </div>
+        </section>
       </div>
 
       <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[1.16fr_0.84fr]">
@@ -212,9 +240,9 @@ export function Dashboard({ state, onSelectCase, onSetView }: DashboardProps) {
           <div className="mb-5">
             <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-slate-500">
               <Zap className="text-amber-500" size={16} />
-              建议决策
+              盘面变化
             </h3>
-            <p className="mt-1 text-xs text-slate-400">只保留最值得你现在点进去处理的几件事，别让首页像待办清单。</p>
+            <p className="mt-1 text-xs text-slate-400">系统只把变化较大的事项摆出来，不替你决定先做哪一个。</p>
           </div>
           <div className="space-y-2.5">
             {visiblePriorities.map((p, i) => (
@@ -228,28 +256,23 @@ export function Dashboard({ state, onSelectCase, onSetView }: DashboardProps) {
                   }
                 }}
               >
-                <div className="flex items-start gap-3">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-100 text-[11px] font-bold text-amber-700">
-                    {i + 1}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <strong className="text-sm font-bold tracking-tight text-slate-800">{p.title}</strong>
+                    <span className="shrink-0 text-[8px] font-bold uppercase tracking-widest text-slate-300">{p.kind}</span>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-3">
-                      <strong className="text-sm font-bold tracking-tight text-slate-800">{p.title}</strong>
-                      <span className="shrink-0 text-[8px] font-bold uppercase tracking-widest text-slate-300">{p.kind}</span>
-                    </div>
-                    <p className="mt-1.5 line-clamp-2 text-[12px] leading-relaxed text-slate-500">{p.detail}</p>
-                  </div>
+                  <p className="mt-1.5 line-clamp-2 text-[12px] leading-relaxed text-slate-500">{p.detail}</p>
                 </div>
               </div>
             ))}
             {overflowPriorityCount > 0 && (
               <div className="rounded-xl border border-dashed border-amber-200 bg-amber-50/70 px-4 py-3 text-xs text-amber-800">
-                还有 {overflowPriorityCount} 条次优先建议没有在首页展开，避免首页继续堆满。
+                还有 {overflowPriorityCount} 条变化没有在首页展开，避免首页继续堆满。
               </div>
             )}
             {priorities.length === 0 && (
               <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-8 text-center text-xs italic text-slate-400">
-                当前没有强优先级事项，可以先盘一遍业主反馈和准客池。
+                当前没有明显新增变化，可以继续按既定节奏推进。
               </div>
             )}
           </div>
@@ -261,7 +284,7 @@ export function Dashboard({ state, onSelectCase, onSetView }: DashboardProps) {
               <ShieldAlert className="text-rose-500" size={16} />
               预警监控
             </h3>
-            <p className="mt-1 text-xs text-slate-400">这块只保留风险提醒，不和行动建议争主舞台。</p>
+            <p className="mt-1 text-xs text-slate-400">这块只保留风险提醒，集中展示正在抬头的问题。</p>
           </div>
           <div className="mb-4 rounded-[18px] border border-rose-100 bg-rose-50/70 px-4 py-3">
             <div className="flex items-start justify-between gap-3">
@@ -352,34 +375,22 @@ function deriveRecentTimelineSummary(
   offset: number,
 ) {
   if (events.length === 0) {
-    return offset === 0 ? '本日经营还没开始，先定今天第一步。' : '这一天没有留下关键记录。';
+    return offset === 0 ? '本日经营还没开始，还没有新增记录。' : '这一天没有留下关键记录。';
   }
 
   if (events.some((event) => event.tone === 'danger')) {
-    return '这一天出现了风险波动，适合回看当时的承接动作。';
+    return '这一天出现了风险波动，记录里能看到承接动作。';
   }
 
   if (events.some((event) => event.tone === 'success')) {
-    return '这一天有正向反馈，可以复用对应打法。';
+    return '这一天出现了正向反馈，结果已经被记录下来。';
   }
 
   if (events.some((event) => event.tone === 'accent')) {
-    return '这一天有节奏变化，值得补看一下推进节点。';
+    return '这一天有节奏变化，推进节点比较明显。';
   }
 
-  return '这一天完成了常规推进，可以快速扫一眼。';
-}
-
-function deriveTodayAdvice(theme: string, leadCaseTitle?: string | null, energy?: number) {
-  if ((energy || 0) <= 1) {
-    return '资源偏紧，优先做一件最关键的稳定动作，不要同时铺太多线。';
-  }
-
-  if (leadCaseTitle) {
-    return `先围绕 ${leadCaseTitle} 做推进，再把剩余资源投到最可能见效的线索上。`;
-  }
-
-  return `按照“${theme}”的节奏推进，先做高确定性动作，再处理次优事项。`;
+  return '这一天完成了常规推进，节奏比较平稳。';
 }
 
 function SnapshotStat({ label, value, helper }: { label: string; value: string; helper: string }) {
@@ -580,7 +591,7 @@ function deriveFixedAgenda(day: number, state: GameState) {
     items.push({
       label: '固定事项',
       title: '房源聚焦会',
-      detail: names.length > 0 ? `建议优先提报 ${names.join('、')}，争取本周资源位。` : '这周仍需要准备可提报的盘源材料。',
+      detail: names.length > 0 ? `本周资源位会围绕 ${names.join('、')} 展开。` : '这周仍需要准备可提报的盘源材料。',
       tone: 'accent',
     });
   }
@@ -598,7 +609,7 @@ function deriveFixedAgenda(day: number, state: GameState) {
     items.push({
       label: '固定事项',
       title: dow === 6 ? '周末带看高峰' : '开放日后追客',
-      detail: dow === 6 ? '适合把本周积累的准客压到带看和再看。' : '如果周末做过动作，今天要优先吃后续结果。',
+      detail: dow === 6 ? '周末通常会集中承接本周积累的准客。' : '如果周末做过动作，今天通常会看到后续反馈。',
       tone: 'accent',
     });
   }
@@ -635,6 +646,142 @@ function MetricCard({ label, value, icon, color }: { label: string; value: strin
   );
 }
 
+function buildTodayBriefs(state: GameState) {
+  const activeCases = state.cases.filter((entry) => entry.status === 'active');
+  const activeRivals = state.marketShadow?.rivalListings?.filter((entry) => entry.status === 'active') || [];
+  const signal = state.marketShadow?.marketSignals?.[0];
+  const dailyEvent = state.marketShadow?.dailyMarketEvent;
+  const urgentCase = [...activeCases]
+    .sort((left, right) => scoreCurrentDanger(right) - scoreCurrentDanger(left))[0];
+  const lateCase = activeCases.find((caseItem) => {
+    return state.opportunities.some((entry) => (
+      entry.caseId === caseItem.id
+      && entry.status === 'active'
+      && entry.visibility !== 'shadow'
+      && entry.stageIndex >= 3
+    ));
+  });
+
+  const firstBrief = dailyEvent
+    ? {
+        label: '商圈变化',
+        title: dailyEvent.title,
+        detail: dailyEvent.message,
+        tone: dailyEvent.tone,
+      }
+    : {
+        label: '商圈变化',
+        title: '今天没有大冲击',
+        detail: '商圈暂时平稳，重点看手里房源有没有断档。',
+        tone: 'accent',
+      };
+
+  const secondBrief = urgentCase
+    ? {
+        label: '受影响房源',
+        title: urgentCase.title,
+        detail: buildPlainCaseReason(state, urgentCase),
+        tone: urgentCase.storylineState === 'critical' || urgentCase.windowDays <= 3 ? 'danger' : 'accent',
+      }
+    : {
+        label: '受影响房源',
+        title: '暂无明显危险房',
+        detail: '没有房源进入明显失守区，先按计划做推进。',
+        tone: 'success',
+      };
+
+  const thirdBrief = lateCase
+    ? {
+        label: '客户与机会',
+        title: `${lateCase.title} 已有后段客户`,
+        detail: '已有客户进入后段阶段，接下来的结果会更快显现。',
+        tone: 'success',
+      }
+    : activeRivals[0]
+      ? {
+          label: '客户与机会',
+          title: '竞品正在分流客户',
+          detail: `${activeRivals[0].title} 正在抢同类客户。`,
+          tone: 'danger',
+        }
+      : signal
+        ? {
+            label: '客户与机会',
+            title: signal.title,
+            detail: signal.message,
+            tone: 'accent',
+          }
+        : {
+            label: '客户与机会',
+            title: '当前没有新增机会',
+            detail: '今天的机会面比较安静，盘面主要看现有房源和现有客户。',
+            tone: 'accent',
+          };
+
+  return [firstBrief, secondBrief, thirdBrief];
+}
+
+function buildPlainCaseReason(state: GameState, caseItem: GameState['cases'][number]) {
+  const opportunities = state.opportunities.filter((entry) => entry.caseId === caseItem.id && entry.status === 'active');
+  if (caseItem.status === 'lost_to_rival') return '已经被别家截走，这局只能复盘原因。';
+  if (caseItem.status === 'withdrawn') return '业主已经撤盘，重点复盘前面哪里断了。';
+  if (caseItem.windowDays <= 3) return `只剩 ${caseItem.windowDays} 天窗口，今天不能再拖。`;
+  if (caseItem.trust < 55) return '业主已经动摇，先把推进节奏讲清楚。';
+  if (opportunities.length === 0) return '客户池偏空，继续谈价也很难收口。';
+  if (caseItem.heat < 45) return '看房热度偏冷，需要先把盘面拉起来。';
+  return '这套还在场，但需要用一次明确动作推进。';
+}
+
+function TodayBriefCard({
+  brief,
+}: {
+  brief: {
+    label: string;
+    title: string;
+    detail: string;
+    tone: string;
+  };
+}) {
+  const toneClass = brief.tone === 'danger'
+    ? 'border-rose-100 bg-rose-50/70'
+    : brief.tone === 'success'
+      ? 'border-emerald-100 bg-emerald-50/70'
+      : 'border-amber-100 bg-amber-50/70';
+  return (
+    <div className={`rounded-[22px] border p-4 ${toneClass}`}>
+      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">{brief.label}</div>
+      <div className="mt-1 text-base font-bold text-slate-900">{brief.title}</div>
+      <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-slate-600">{brief.detail}</p>
+    </div>
+  );
+}
+
+function ShadowPulseCard({
+  label,
+  title,
+  detail,
+  tone,
+}: {
+  label: string;
+  title: string;
+  detail: string;
+  tone: string;
+}) {
+  const toneClass = tone === 'danger'
+    ? 'border-rose-100 bg-rose-50/70 text-rose-700'
+    : tone === 'success'
+      ? 'border-emerald-100 bg-emerald-50/70 text-emerald-700'
+      : 'border-amber-100 bg-amber-50/70 text-amber-700';
+
+  return (
+    <div className={`rounded-[22px] border p-4 shadow-sm ${toneClass}`}>
+      <div className="text-[10px] font-bold uppercase tracking-[0.16em] opacity-70">{label}</div>
+      <div className="mt-1 text-base font-bold text-slate-900">{title}</div>
+      <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-slate-600">{detail}</p>
+    </div>
+  );
+}
+
 function buildTierStructure(state: GameState) {
   return (['core', 'important', 'normal'] as const).map((goalTier) => {
     const cases = state.cases.filter((entry) => entry.goalTier === goalTier);
@@ -654,7 +801,7 @@ function buildTierStructure(state: GameState) {
       danger: dangerCases.length,
       settled,
       failed,
-      leadCaseTitle: leadCase ? `${leadCase.title} 最需要先盯住。` : null,
+      leadCaseTitle: leadCase ? `${leadCase.title}` : null,
       note: buildTierStructureNote(goalTier, activeCases.length, dangerCases.length, settled, failed, leadCase?.title),
     };
   });
@@ -673,8 +820,8 @@ function buildTierStructureNote(
   }
   if (danger > 0) {
     return leadCaseTitle
-      ? `这组还有 ${danger} 套在抖，先盯 ${leadCaseTitle}。`
-      : `这组还有 ${danger} 套在抖，今天优先稳住。`;
+      ? `这组还有 ${danger} 套在抖，当前风险最高的是 ${leadCaseTitle}。`
+      : `这组还有 ${danger} 套在抖，当前处在波动阶段。`;
   }
   if (active > 0) {
     return `${goalTierLabel(goalTier)}还有 ${active} 套在场，当前节奏基本稳得住。`;

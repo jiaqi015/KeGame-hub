@@ -12,6 +12,7 @@ import {
   deriveRunStatus,
   normalizePlayerName,
 } from '../application/cloudSync.js';
+import { MaintainerSyncConflictError } from '../application/maintainerSyncConflictError.js';
 import { ACTIONS } from '../domain/actions/definitions.js';
 import { withSellingHousesNeon } from './neonGameDatabase.js';
 
@@ -661,16 +662,6 @@ function resolveEventMatterId(
   return preferredRows
     .slice()
     .sort((left, right) => Number(right.priority_score || 0) - Number(left.priority_score || 0))[0]?.matter_id || null;
-}
-
-export class MaintainerSyncConflictError extends Error {
-  latest: MaintainerRunRecord | null;
-
-  constructor(latest: MaintainerRunRecord | null) {
-    super('云端进度已更新，请先同步最新存档。');
-    this.name = 'MaintainerSyncConflictError';
-    this.latest = latest;
-  }
 }
 
 export class NeonGameRunRepository {

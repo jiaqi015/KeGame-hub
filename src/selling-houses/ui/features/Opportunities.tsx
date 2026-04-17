@@ -10,6 +10,7 @@ interface OpportunitiesProps {
 
 export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesProps) {
   const activeOpportunities = state.opportunities.filter(o => o.status === 'active');
+  const marketSignals = state.marketShadow?.marketSignals || [];
 
   return (
     <div className="space-y-5">
@@ -19,6 +20,31 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
           {activeOpportunities.length} 个活跃机会
         </span>
       </div>
+
+      {marketSignals.length > 0 && (
+        <section className="rounded-[24px] border border-amber-100 bg-gradient-to-br from-amber-50 via-white to-white p-5 shadow-sm">
+          <div className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-amber-700">
+            <EyeOff size={15} />
+            潜在机会
+          </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            {marketSignals.slice(0, 3).map((signal) => (
+              <div key={signal.id} className="rounded-2xl border border-white bg-white/80 p-4 shadow-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <h4 className="text-sm font-bold text-slate-800">{signal.title}</h4>
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                    {signal.confidence}%
+                  </span>
+                </div>
+                <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">{signal.message}</p>
+                <div className="mt-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                  {signal.district} · 信号剩余 {signal.expiresInDays} 天
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {activeOpportunities.map(o => {
@@ -46,7 +72,7 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
                   <span className={`text-[10px] font-bold px-2 py-1 rounded-lg uppercase tracking-wider ${
                     isShadow ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-500'
                   }`}>
-                    {isShadow ? '待揭秘' : o.stageLabel}
+                    {isShadow ? '待确认' : o.stageLabel}
                   </span>
                   {o.leadSource === 'broker' && (
                     <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
@@ -57,10 +83,10 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
               </div>
               
               <h4 className="mb-1 text-[17px] font-bold text-slate-900">
-                {isShadow ? `预测客群 #${o.id.split('-').pop()}` : o.customerName}
+                {isShadow ? `待确认客户 #${o.id.split('-').pop()}` : o.customerName}
               </h4>
               <p className="mb-3.5 line-clamp-1 text-xs text-slate-400">
-                {isShadow ? '这位客户由合作经纪人带来，需求还需要进一步确认' : o.profile}
+                {isShadow ? '别人带来的客户，需求还没摸清' : o.profile}
               </p>
               
               <div className="mb-5 space-y-2.5">
@@ -95,7 +121,7 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
         {activeOpportunities.length === 0 && (
           <div className="col-span-full flex flex-col items-center justify-center rounded-[24px] border-2 border-dashed border-slate-200 bg-slate-50 py-16 text-slate-400">
             <Info size={40} className="mb-4 opacity-20" />
-            <p className="italic">准客池暂时见底，请通过投放和带看继续补厚。</p>
+            <p className="italic">准客池暂时见底，当前没有活跃机会。</p>
           </div>
         )}
       </div>

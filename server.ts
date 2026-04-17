@@ -5,6 +5,14 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import formidable from "formidable";
+import {
+  authorizeSession,
+  clearSessionCookie,
+  completeEmailLogin,
+  isSessionAuthorizationFailure,
+  setAuthCookie,
+  startEmailLogin,
+} from "./lib/auth.js";
 import { authorizeRequest, validateActivationKey } from "./lib/activation.js";
 import { compareModels, streamCompareModel } from "./lib/compare.js";
 import { AVAILABLE_MODELS } from "./lib/models.js";
@@ -32,7 +40,8 @@ import {
   handleSellingHousesScenarioList,
 } from "./src/selling-houses/interfaces/http/sellingHousesScenarioHandlers.js";
 
-dotenv.config();
+dotenv.config({ path: ".env.local", override: false });
+dotenv.config({ path: ".env", override: false });
 
 async function parseMultipart(req: Parameters<typeof formidable>[0]) {
   const uploadDir = await ensureRuntimeTempDir("uploads");
@@ -84,8 +93,137 @@ async function startServer() {
     });
   });
 
+  app.post("/api/auth-start", (req, res) => {
+    try {
+      const email = typeof req.body?.email === "string" ? req.body.email : "";
+      const result = startEmailLogin(email);
+      return res.json({
+        ok: true,
+        email: result.email,
+        mode: result.mode,
+        expiresAt: result.expiresAt || null,
+        verificationCode: result.verificationCode || null,
+        user: result.user || null,
+      });
+    } catch (error) {
+      return res.status(400).json({ error: error instanceof Error ? error.message : "登录初始化失败。" });
+    }
+  });
+
+  app.post("/api/auth", (req, res, next) => {
+    if (req.query?.mode !== "start") {
+      return next();
+    }
+
+    try {
+      const email = typeof req.body?.email === "string" ? req.body.email : "";
+      const result = startEmailLogin(email);
+      return res.json({
+        ok: true,
+        email: result.email,
+        mode: result.mode,
+        expiresAt: result.expiresAt || null,
+        verificationCode: result.verificationCode || null,
+        user: result.user || null,
+      });
+    } catch (error) {
+      return res.status(400).json({ error: error instanceof Error ? error.message : "登录初始化失败。" });
+    }
+  });
+
+  app.post("/api/auth-complete", (req, res) => {
+    try {
+      const result = completeEmailLogin({
+        email: typeof req.body?.email === "string" ? req.body.email : "",
+        code: typeof req.body?.code === "string" ? req.body.code : "",
+        activationKey: typeof req.body?.activationKey === "string" ? req.body.activationKey : "",
+      });
+      setAuthCookie(res, result.cookie);
+      return res.json({ ok: true, user: result.user });
+    } catch (error) {
+      return res.status(400).json({ error: error instanceof Error ? error.message : "登录失败。" });
+    }
+  });
+
+  app.post("/api/auth", (req, res, next) => {
+    if (req.query?.mode !== "complete") {
+      return next();
+    }
+
+    try {
+      const result = completeEmailLogin({
+        email: typeof req.body?.email === "string" ? req.body.email : "",
+        code: typeof req.body?.code === "string" ? req.body.code : "",
+        activationKey: typeof req.body?.activationKey === "string" ? req.body.activationKey : "",
+      });
+      setAuthCookie(res, result.cookie);
+      return res.json({ ok: true, user: result.user });
+    } catch (error) {
+      return res.status(400).json({ error: error instanceof Error ? error.message : "登录失败。" });
+    }
+  });
+
+  app.get("/api/auth-me", (req, res) => {
+    const authorization = authorizeSession(req);
+    if (isSessionAuthorizationFailure(authorization)) {
+      return res.status(authorization.status).json({ error: authorization.error });
+    }
+
+    return res.json({
+      ok: true,
+      user: {
+        email: authorization.email,
+        displayName: authorization.displayName,
+        allowedWorkspaces: authorization.allowedWorkspaces,
+        source: authorization.source,
+      },
+    });
+  });
+
+  app.get("/api/auth", (req, res, next) => {
+    if (req.query?.mode !== "me") {
+      return next();
+    }
+
+    const authorization = authorizeSession(req);
+    if (isSessionAuthorizationFailure(authorization)) {
+      return res.status(authorization.status).json({ error: authorization.error });
+    }
+
+    return res.json({
+      ok: true,
+      user: {
+        email: authorization.email,
+        displayName: authorization.displayName,
+        allowedWorkspaces: authorization.allowedWorkspaces,
+        source: authorization.source,
+      },
+    });
+  });
+
+  app.post("/api/auth-logout", (_req, res) => {
+    setAuthCookie(res, clearSessionCookie());
+    return res.json({ ok: true });
+  });
+
+  app.post("/api/auth", (req, res, next) => {
+    if (req.query?.mode !== "logout") {
+      return next();
+    }
+
+    setAuthCookie(res, clearSessionCookie());
+    return res.json({ ok: true });
+  });
+
   app.use("/api", (req, res, next) => {
-    if (req.path === "/activate") {
+    if (
+      req.path === "/activate"
+      || req.path === "/auth"
+      || req.path === "/auth-start"
+      || req.path === "/auth-complete"
+      || req.path === "/auth-me"
+      || req.path === "/auth-logout"
+    ) {
       return next();
     }
 

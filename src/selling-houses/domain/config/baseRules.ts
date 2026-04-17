@@ -19,11 +19,20 @@ export const BASE_RULES: GameRules = {
   competitionHeatPenaltyMax: 5,
   competitionTrustLossChance: 0.4,
   competitionLogChance: 0.3,
+  rivalLossProbabilityScale: 0.18,
   ownerUntouchedTrustLoss: 1,
   urgentOwnerUntouchedTrustLoss: 3,
   ownerPatienceDecayAfterDays: 7,
   ownerPatienceDecayAmount: 2,
   scriptedEventImpactScale: 1,
+  dailyMarketEventProbability: 0.22,
+  rivalListingSpawnChance: 0.18,
+  rivalPressureHeatImpact: 1.6,
+  rivalPressureTrustImpact: 0.7,
+  companySharedLeadPressureBase: 34,
+  companyReferralChanceBase: 0.08,
+  marketSignalDecayDays: 4,
+  marketSignalMaxVisible: 5,
 };
 
 type LegacyGameRuleOverrides = Partial<GameRules> & {

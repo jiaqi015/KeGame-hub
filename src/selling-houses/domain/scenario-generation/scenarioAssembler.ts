@@ -3,9 +3,12 @@ import type {
   CompetitionGroup,
   HousePrototype,
   OwnerArchetype,
+  RivalListing,
+  RivalStore,
   ScenarioCase,
   ScenarioDefinition,
   ScriptedEvent,
+  WeightedDailyEventRef,
   WorldSpec,
 } from '../models';
 import {
@@ -450,6 +453,80 @@ function buildCompetitionGroups(
   return groups;
 }
 
+function buildShadowMarketConfig(
+  profile: DifficultyProfile,
+  world: WorldSpec,
+  cases: ScenarioCase[],
+  source: RandomSource,
+) {
+  const difficultyIndex = ['warmup', 'easy', 'standard', 'advanced', 'hard', 'extreme'].indexOf(profile.id);
+  const pressureLevel = Math.max(0, difficultyIndex);
+  const storeCount = clamp(profile.id === 'warmup' ? 1 : profile.id === 'easy' ? 1 : 2 + Math.floor(pressureLevel / 2), 1, 4);
+  const listingCount = clamp(
+    profile.id === 'warmup' || profile.id === 'easy'
+      ? 0
+      : profile.id === 'standard'
+        ? 1
+        : 1 + Math.floor(pressureLevel / 2),
+    0,
+    4,
+  );
+  const stores: RivalStore[] = (world.rivalStoreArchetypes || [])
+    .slice(0, storeCount)
+    .map((entry, index) => ({
+      ...entry,
+      id: `${entry.id}-${profile.id}-${index + 1}`,
+      activityHeat: clamp(24 + pressureLevel * 9 + randomInt(-4, 6, source), 12, 92),
+    }));
+
+  const archetypes = world.rivalListingArchetypes || [];
+  const listings: RivalListing[] = [];
+  for (let index = 0; index < listingCount; index += 1) {
+    const targetCase = cases[randomInt(0, cases.length - 1, source)];
+    const prototype = world.housePrototypes.find((entry) => entry.id === targetCase.housePrototypeId);
+    const archetype = archetypes[randomInt(0, Math.max(0, archetypes.length - 1), source)];
+    const store = stores[randomInt(0, Math.max(0, stores.length - 1), source)];
+    if (!prototype || !archetype || !store) continue;
+    listings.push({
+      id: `seed-rival-${profile.id}-${index + 1}`,
+      storeId: store.id,
+      title: `${prototype.district} ${archetype.titlePrefix}`,
+      district: prototype.district,
+      marketCellId: prototype.marketCellId,
+      segment: archetype.segment,
+      askPrice: Math.round(prototype.marketPrice * (1 + randomInt(-3, 3, source) / 100)),
+      heat: clamp(archetype.baseHeat + pressureLevel * 2 + randomInt(-5, 6, source), 20, 96),
+      freshness: clamp(archetype.freshness + randomInt(-8, 8, source), 0, 100),
+      storyStrength: clamp(archetype.storyStrength + randomInt(-6, 8, source), 0, 100),
+      leadSiphonPower: clamp(archetype.leadSiphonPower + pressureLevel * 2, 0, 100),
+      ownerAnchorPower: clamp(archetype.ownerAnchorPower + pressureLevel * 2, 0, 100),
+      status: 'active',
+      daysLeft: randomInt(7, 12, source),
+      source: 'seed',
+    });
+  }
+
+  const dailyEventPool: WeightedDailyEventRef[] = [
+    { templateId: 'shadow-demand-signal', weight: profile.id === 'warmup' ? 5 : 3 },
+    { templateId: 'shadow-customer-return', weight: profile.id === 'warmup' ? 3 : 2 },
+    { templateId: 'shadow-rival-inflow', weight: pressureLevel >= 2 ? 3 + pressureLevel : 1 },
+    { templateId: 'shadow-company-squeeze', weight: pressureLevel >= 2 ? 2 + pressureLevel : 1 },
+    { templateId: 'shadow-seller-referral', weight: pressureLevel >= 3 ? 2 : 1 },
+  ];
+
+  return {
+    initialRivalStores: stores,
+    initialRivalListings: listings,
+    dailyEventPool,
+    companyPressureProfile: {
+      sharedLeadPressure: clamp(20 + pressureLevel * 9, 10, 78),
+      focusSlotPressure: clamp(16 + pressureLevel * 8, 8, 74),
+      internalReferralChance: clamp(0.13 - pressureLevel * 0.012, 0.04, 0.18),
+      internalCompetitionHeat: clamp(20 + pressureLevel * 10, 10, 86),
+    },
+  };
+}
+
 function getFirstAssignmentByRole(assignments: GeneratedRoleAssignment[], role: CaseRole) {
   return assignments.find((assignment) => assignment.role === role);
 }
@@ -736,6 +813,7 @@ export function assembleGeneratedScenario(request: ScenarioGenerationRequest) {
   const scriptedEvents = buildScriptedEvents(blueprint, world, scenarioCases, assignments, maxDay, source);
   const presentation = buildScenarioPresentation(blueprint, scenarioCases.length, scriptedEvents.length, source);
   const goalContext = buildGoalContext(profile, blueprint);
+  const shadowMarketConfig = buildShadowMarketConfig(profile, world, scenarioCases, source);
 
   const scenario: ScenarioDefinition = {
     id: `generated-${generationVersion}-${request.difficultyId}-${blueprint.id}-${request.seed}`,
@@ -752,6 +830,10 @@ export function assembleGeneratedScenario(request: ScenarioGenerationRequest) {
     competitionGroups,
     scriptedEvents,
     randomEventPool: buildRandomEventPool(profile, blueprint),
+    initialRivalStores: shadowMarketConfig.initialRivalStores,
+    initialRivalListings: shadowMarketConfig.initialRivalListings,
+    dailyEventPool: shadowMarketConfig.dailyEventPool,
+    companyPressureProfile: shadowMarketConfig.companyPressureProfile,
     goalContext: goalContext.goalContext,
     targetScore: goalContext.targetScore,
     scoreThresholds: goalContext.scoreThresholds,

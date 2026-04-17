@@ -43,9 +43,20 @@ export interface SelfPlayReport {
   reputation: number;
   remainingActiveCases: number;
   remainingActiveOpportunities: number;
+  shadowStats: SelfPlayShadowStats;
   decisions: SelfPlayDecision[];
   findings: SelfPlayFinding[];
   evaluation: SelfPlayEvaluation;
+}
+
+export interface SelfPlayShadowStats {
+  activeRivalListings: number;
+  totalRivalListings: number;
+  marketSignals: number;
+  inboundCount: number;
+  dailyEventCount: number;
+  rivalPressureEvents: number;
+  companyPressureEvents: number;
 }
 
 export interface SelfPlayRunSnapshot {
@@ -74,7 +85,8 @@ interface PlannedMove {
 }
 
 interface ArenaOptions {
-  scenarioId: string;
+  scenarioId?: string;
+  snapshot?: ScenarioSnapshot;
   seed?: number;
 }
 
@@ -85,9 +97,9 @@ export class LocalAdversarialSelfPlayArena {
   private readonly decisions: SelfPlayDecision[] = [];
 
   constructor(options: ArenaOptions) {
-    const snapshot = getScenarioSnapshotById(options.scenarioId);
+    const snapshot = options.snapshot || (options.scenarioId ? getScenarioSnapshotById(options.scenarioId) : null);
     if (!snapshot) {
-      throw new Error(`未找到剧本 ${options.scenarioId}`);
+      throw new Error(`未找到剧本 ${options.scenarioId || 'unknown'}`);
     }
 
     this.snapshot = snapshot;
@@ -121,6 +133,7 @@ export class LocalAdversarialSelfPlayArena {
       reputation: state.reputation,
       remainingActiveCases: state.cases.filter((entry) => entry.status === 'active').length,
       remainingActiveOpportunities: state.opportunities.filter((entry) => entry.status === 'active').length,
+      shadowStats: buildShadowStats(state),
       decisions: this.decisions,
       findings: this.dedupeFindings(),
       evaluation: this.buildEvaluation(state),
@@ -217,7 +230,7 @@ export class LocalAdversarialSelfPlayArena {
       candidates.push({
         actionId: 'deep-diagnosis',
         optionId: null,
-        rationale: '先把预测客群和真实卡点讲透，避免后面动作都打偏。',
+        rationale: '先把待确认客户和真实卡点讲透，避免后面动作都打偏。',
         weight: 98,
       });
     }
@@ -484,5 +497,18 @@ export function buildSelfPlayRunSnapshot(finalResult: FinalResult | null): SelfP
     endingBad: finalResult?.endingStats.bad ?? 0,
     coreBadCount: finalResult?.endingStats.coreBadCount ?? 0,
     lostToRivalCount: finalResult?.caseResults.filter((entry) => entry.defenseOutcome === 'lost_to_rival').length ?? 0,
+  };
+}
+
+function buildShadowStats(state: GameState): SelfPlayShadowStats {
+  const logEntries = state.eventLog || [];
+  return {
+    activeRivalListings: state.marketShadow.rivalListings.filter((entry) => entry.status === 'active').length,
+    totalRivalListings: state.marketShadow.rivalListings.length,
+    marketSignals: state.marketShadow.marketSignals.length,
+    inboundCount: state.marketShadow.inboundQueue.length,
+    dailyEventCount: logEntries.filter((entry) => entry.actor === '商圈动态').length,
+    rivalPressureEvents: logEntries.filter((entry) => entry.actor === '竞品压制' || entry.actor === '竞品房源').length,
+    companyPressureEvents: logEntries.filter((entry) => entry.actor === '公司资源').length,
   };
 }
