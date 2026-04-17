@@ -1,4 +1,6 @@
 export const STORAGE_KEY = "selling-world-save-v3";
+export const CLOUD_USER_STORAGE_KEY = "selling-world-user-v1";
+export const CLOUD_META_STORAGE_KEY = "selling-world-cloud-meta-v1";
 
 export const CASE_STAGES = ["获客启动", "经营加热", "带看推进", "意向报价", "议价中", "成交冲刺", "成交"];
 export const OPPORTUNITY_STAGES = ["了解", "咨询", "看房", "再看", "出价", "谈判", "成交"];
@@ -151,3 +153,27 @@ export const STORY_TEMPLATES = [
 
 export const DEFECT_POOL = ["报价偏硬", "次卧偏小", "竞品新", "总价高", "朝向一般", "邻近马路", "得房率低"];
 export const TAG_POOL = ["学区", "地铁近", "采光好", "总价友好", "地段强", "出租回报", "江景", "改善", "车位"];
+
+export const WEEKLY_ROUTINE = [
+  { day: 1, label: "周一", theme: "业主反馈日", energy: 8 },
+  { day: 2, label: "周二", theme: "公休放假", energy: 1 },
+  { day: 3, label: "周三", theme: "获客攻坚", energy: 4 },
+  { day: 4, label: "周四", theme: "房源聚焦", energy: 3 },
+  { day: 5, label: "周五", theme: "获客攻坚", energy: 5 },
+  { day: 6, label: "周六", theme: "看房高峰", energy: 6 },
+  { day: 0, label: "周日", theme: "看房高峰", energy: 6 },
+];
+
+export const PERSONALITIES = {
+  pragmatic: { label: "务实型", desc: "非常在乎价格反馈。如果报价超过市场价，信任度极难维持。成交心态稳健。" },
+  emotional: { label: "情绪型", desc: "非常看重热度和面子。带看多他就高兴，如果没带看，信任度会崩盘式下跌。" },
+  urgent: { label: "迫切型", desc: "由于急于换房或变现，他的紧迫感提升极快，对大幅降价的忍受度较高。" },
+};
+
+export const MARKET_EVENT_PROBABILITY = 0.15;
+
+export const MARKET_EVENT_LABELS = {
+  policyShift: "政策利空",
+  schoolDistrictBoom: "学区利好",
+  competitorActivity: "竞对博弈",
+} as const;

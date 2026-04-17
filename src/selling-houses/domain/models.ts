@@ -1,5 +1,215 @@
+export type Tone = 'accent' | 'danger' | 'success';
+
+export type DifficultyId = 'easy' | 'standard' | 'hard';
+
+export interface DifficultyOption {
+  id: DifficultyId;
+  label: string;
+  summary: string;
+  detail: string;
+  scenarioCount: number;
+}
+
+export interface GameRules {
+  maxDay: number;
+  baseMaxEnergy: number;
+  initialCash: number;
+  initialReputation: number;
+  initialCommission: number;
+  initialEnergy: number;
+  passiveLeadBaseMultiplier: number;
+  passiveLeadFocusedMultiplier: number;
+  randomEventProbability: number;
+  seasonalityImpact: number;
+  competitionPressureThreshold: number;
+  competitionHeatPenaltyMin: number;
+  competitionHeatPenaltyMax: number;
+  competitionTrustLossChance: number;
+  competitionLogChance: number;
+  ownerUntouchedTrustLoss: number;
+  urgentOwnerUntouchedTrustLoss: number;
+  ownerPatienceDecayAfterDays: number;
+  ownerPatienceDecayAmount: number;
+  scriptedEventImpactScale: number;
+}
+
+export interface MarketCell {
+  id: string;
+  name: string;
+  demandHeat: number;
+  supplyPressure: number;
+  competitivePressure: number;
+  sentiment: number;
+  monthlyFactors?: number[];
+}
+
+export interface CustomerProfile {
+  id: string;
+  name: string;
+  profile: string;
+  budgetMin: number;
+  budgetMax: number;
+  targetDistrict: string;
+  layouts: string[];
+  activity: number;
+  urgency: number;
+  priceSensitivity: number;
+  preferences: string[];
+}
+
+export interface ChannelProfile {
+  id: string;
+  name: string;
+  quality: number;
+  controllability: number;
+}
+
+export interface OwnerArchetype {
+  id: string;
+  label: string;
+  description: string;
+  trustDecayMultiplier: number;
+  priceElasticity: number;
+  urgencyGrowthBonus: number;
+  heatSensitivity: number;
+  patienceDelta: number;
+  preferredTactic: 'hold-story' | 'small-cut' | 'deep-cut';
+}
+
+export interface HousePrototype {
+  id: string;
+  title: string;
+  community: string;
+  district: string;
+  layout: string;
+  area: number;
+  marketCellId: string;
+  marketPrice: number;
+  bottomPrice: number;
+  story: string;
+  tags: string[];
+  defects: string[];
+  axisScores: Record<string, number>;
+}
+
+export interface ScenarioCase {
+  id: string;
+  housePrototypeId: string;
+  ownerArchetypeId: string;
+  ownerName: string;
+  ownerMood: string;
+  maintainerName: string;
+  askPrice: number;
+  bottomPrice: number;
+  initialTrust: number;
+  initialPatience: number;
+  initialHeat: number;
+  initialUrgency: number;
+  windowDays: number;
+}
+
+export interface CompetitionGroup {
+  id: string;
+  name: string;
+  members: string[];
+  priceElasticity: number;
+  customerSpillover: number;
+}
+
+export interface RandomEventTemplate {
+  id: string;
+  title: string;
+  tone: Tone;
+  actor: string;
+}
+
+export interface WeightedRandomEventRef {
+  templateId: string;
+  weight: number;
+}
+
+export interface ScriptedEvent {
+  id: string;
+  day: number;
+  actor: string;
+  title: string;
+  message: string;
+  tone: Tone;
+  targetCaseId?: string;
+  targetMarketCellId?: string;
+  trustDelta?: number;
+  heatDelta?: number;
+  urgencyDelta?: number;
+  askPriceDelta?: number;
+  windowDaysDelta?: number;
+  confidenceDelta?: number;
+  sentimentDelta?: number;
+  demandHeatDelta?: number;
+  competitionPressureDelta?: number;
+}
+
+export interface WorldSpec {
+  id: string;
+  version: number;
+  name: string;
+  marketCells: MarketCell[];
+  customers: CustomerProfile[];
+  channels: ChannelProfile[];
+  ownerArchetypes: OwnerArchetype[];
+  housePrototypes: HousePrototype[];
+  randomEventTemplates: RandomEventTemplate[];
+}
+
+export interface ScenarioDefinition {
+  id: string;
+  worldId: string;
+  worldVersion: number;
+  difficultyId: DifficultyId;
+  name: string;
+  theme: string;
+  description: string;
+  startMonth: number;
+  startDay: number;
+  maxDay: number;
+  cases: ScenarioCase[];
+  competitionGroups: CompetitionGroup[];
+  scriptedEvents: ScriptedEvent[];
+  randomEventPool: WeightedRandomEventRef[];
+  rules?: Partial<GameRules>;
+  published: boolean;
+}
+
+export interface ScenarioSummary {
+  id: string;
+  difficultyId: DifficultyId;
+  name: string;
+  theme: string;
+  description: string;
+  caseCount: number;
+  maxDay: number;
+}
+
+export interface ScenarioSnapshot {
+  world: WorldSpec;
+  scenario: ScenarioDefinition;
+  source: 'builtin' | 'cloud';
+}
+
+export interface RunContext {
+  scenarioId: string;
+  scenarioName: string;
+  difficultyId: DifficultyId;
+  worldId: string;
+  worldVersion: number;
+  rngSeed: number;
+  createdAt: string;
+  scenarioSnapshot: ScenarioSnapshot;
+}
+
 export interface Case {
   id: string;
+  housePrototypeId: string;
+  ownerArchetypeId: string;
   title: string;
   community: string;
   district: string;
@@ -43,6 +253,10 @@ export interface Case {
   soldPrice: number | null;
   priceGapPct: number;
   competitivenessSnapshots: CompetitivenessSnapshot[];
+  competitionGroupIds: string[];
+  lastAskPrice: number;
+  isFocused?: boolean;
+  personality: 'pragmatic' | 'emotional' | 'urgent';
 }
 
 export interface Opportunity {
@@ -92,10 +306,19 @@ export interface DailyReport {
   majorEvents: { actor: string; message: string; tone: string }[];
   metricsDelta: { label: string; value: number; unit: string }[];
   marketNews: string[];
+  todayPlan: {
+    label: string;
+    theme: string;
+    energy: number;
+    focusCases: string[];
+    priorities: string[];
+  };
+  randomEvents: { actor: string; message: string; tone: string }[];
 }
 
 export interface GameState {
   version: number;
+  runContext: RunContext;
   day: number;
   maxDay: number;
   currentDate: string;
@@ -110,13 +333,18 @@ export interface GameState {
   gameOver: boolean;
   finalResult: any;
   lastMessage: string;
+  rules: GameRules;
+  scheduledEvents: ScriptedEvent[];
+  competitionGroups: CompetitionGroup[];
+  rngState: number;
+  rngCalls: number;
   cases: Case[];
   opportunities: Opportunity[];
   eventLog: any[];
   weeklyReviews: any[];
-  markets: any[];
-  customers: any[];
-  channels: any[];
+  markets: MarketCell[];
+  customers: CustomerProfile[];
+  channels: ChannelProfile[];
   schedule: any[];
   priorities: any[];
   metrics: any;

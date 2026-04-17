@@ -1,4 +1,4 @@
-import { ComparisonResult, AIModel } from '../types';
+import { ComparisonResult, AIModel, ActivationWorkspaceId } from '../types';
 
 export const ACTIVATION_STORAGE_KEY = 'sabrina-activation-key';
 export const ACTIVATION_HEADER_NAME = 'x-activation-key';
@@ -15,6 +15,11 @@ export interface CompareStreamEvent {
   result?: string;
   error?: string;
   reasoning?: string;
+}
+
+export interface ActivationPayload {
+  key: string;
+  allowedWorkspaces: ActivationWorkspaceId[];
 }
 
 export function truncateForSummary(value: string, limit = SUMMARY_INPUT_CHAR_LIMIT): string {
@@ -127,7 +132,7 @@ export function buildAuthorizedHeaders(activationKey: string, headers?: HeadersI
   return mergedHeaders;
 }
 
-export async function verifyActivationKey(key: string): Promise<string> {
+export async function verifyActivationKey(key: string): Promise<ActivationPayload> {
   const response = await fetch('/api/activate', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -139,7 +144,14 @@ export async function verifyActivationKey(key: string): Promise<string> {
     throw new Error(typeof payload?.error === 'string' ? payload.error : '激活失败。');
   }
 
-  return key.trim();
+  const allowedWorkspaces = Array.isArray(payload?.allowedWorkspaces)
+    ? payload.allowedWorkspaces.filter((item: unknown): item is ActivationWorkspaceId => typeof item === 'string')
+    : [];
+
+  return {
+    key: typeof payload?.key === 'string' ? payload.key.trim() : key.trim(),
+    allowedWorkspaces,
+  };
 }
 
 export async function readCompareStream(

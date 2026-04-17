@@ -1,11 +1,12 @@
-import { GameState, Case, Opportunity } from './models';
 import { 
-  ACTIONS, OPPORTUNITY_STAGES, BROKER_NAMES 
+  ACTIONS, OPPORTUNITY_STAGES, BROKER_NAMES, WEEKLY_ROUTINE, MARKET_EVENT_PROBABILITY, MARKET_EVENT_LABELS
 } from './constants';
 import { 
-  clamp, randomInt, wave, chance, average, addDays, 
-  getOpportunityPriority, intersections, getCaseById 
+  clamp, randomInt, wave, chance, average, addDays, pickWeighted,
+  getOpportunityPriority, intersections, getCaseById,
+  getDayOfWeek, getRoutine
 } from './utils';
+import type { Case, GameState, Opportunity } from './models';
 import { logEvent, updateDerivedState, saveGameState } from '../application/gameState';
 
 export function advanceDays(state: GameState, count: number, onMessage?: (msg: string) => void) {
@@ -31,9 +32,11 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void) {
   const beforeRep = state.reputation;
 
   updateMarkets(state);
+  tickSeasonality(state);
   updateCustomers(state);
   tickOpportunities(state);
-  resolveCompetitivePressure(state);
+  tickCompetition(state);
+  fireScheduledEvents(state);
   tickCases(state);
   spawnPassiveLeads(state);
   triggerRandomEvent(state);
@@ -49,11 +52,44 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void) {
 
   const dayEvents = state.eventLog.filter(e => e.day === state.day);
   const majorEvents = dayEvents.filter(e => e.tone === 'success' || e.tone === 'danger' || e.tone === 'accent');
-  const marketNews = dayEvents.filter(e => e.actor === '市场').map(e => e.message);
+  const randomEvents = dayEvents
+    .filter(e => e.actor === '市场' || e.actor === '宏观' || e.actor === '市场竞争')
+    .map(e => ({ actor: e.actor, message: e.message, tone: e.tone }));
+  const marketNews = randomEvents.map(e => e.message);
+
+  if (state.day >= state.maxDay || !state.cases.some((entry) => entry.status === "active")) {
+    finishGame(state, state.day >= state.maxDay ? `${state.maxDay} 天经营周期结束。` : "所有房源都已经结算。", onMessage);
+    return;
+  }
+
+  state.day += 1;
+  state.currentDate = addDays(state.currentDate, 1);
+
+  // Apply Weekly Routine to Max Energy
+  const routine = getRoutine(state.day, WEEKLY_ROUTINE);
+  state.maxEnergy = routine.energy;
+  state.energy = state.maxEnergy;
+
+  // Thursday Selection Logic (房源聚焦)
+  state.cases.forEach(c => c.isFocused = false); // Clear focus
+  if (getDayOfWeek(state.day) === 4) {
+    const activeCases = state.cases.filter(c => c.status === 'active');
+    const candidates = [...activeCases].sort((a, b) => b.competitiveness - a.competitiveness);
+    const selected = candidates.slice(0, 2);
+    selected.forEach(c => {
+      c.isFocused = true;
+      c.heat = clamp(c.heat + 15, 0, 100);
+    });
+    if (selected.length > 0) {
+      logEvent(state, "房源聚焦", `今日周四，${selected.map(s => s.title).join(' 和 ')} 脱颖而出，流量集中爆发。`, "accent");
+    }
+  }
+
+  updateDerivedState(state);
 
   state.currentReport = {
-    day: state.day,
-    title: `第 ${state.day} 天经营简报`,
+    day: state.day - 1,
+    title: `第 ${state.day - 1} 天经营简报`,
     majorEvents: majorEvents.map(e => ({ actor: e.actor, message: e.message, tone: e.tone })),
     metricsDelta: [
       { label: "漏斗健康 (D1)", value: Math.round((afterD1 - beforeD1) * 10) / 10, unit: "pts" },
@@ -61,44 +97,58 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void) {
       { label: "预算变动", value: state.cash - beforeCash, unit: "万" },
       { label: "声誉增长", value: Math.round(state.reputation - beforeRep), unit: "pts" },
     ],
-    marketNews
+    marketNews,
+    todayPlan: {
+      label: routine.label,
+      theme: routine.theme,
+      energy: state.maxEnergy,
+      focusCases: state.cases.filter(c => c.isFocused).map(c => c.title).slice(0, 3),
+      priorities: state.priorities.slice(0, 3).map((entry: any) => entry.title),
+    },
+    randomEvents,
   };
 
-  if (state.day >= state.maxDay || !state.cases.some((entry) => entry.status === "active")) {
-    finishGame(state, state.day >= state.maxDay ? "18 天经营周期结束。" : "所有房源都已经结算。", onMessage);
-    return;
-  }
-
-  state.day += 1;
-  state.currentDate = addDays(state.currentDate, 1);
-  state.energy = state.maxEnergy;
-  onMessage?.(`第 ${state.day} 天开始。精力已恢复，自动存档已更新。`);
-  logEvent(state, "系统", `第 ${state.day} 天开始，精力恢复到 ${state.maxEnergy}。`, "accent");
+  onMessage?.(`第 ${state.day} 天 (${routine.label}) 开始。精力恢复到 ${state.maxEnergy}，今日主题：${routine.theme}。`);
+  logEvent(state, "系统", `第 ${state.day} 天开始 (${routine.label})，主题：${routine.theme}。`, "accent");
 }
 
 function updateMarkets(world: GameState) {
   world.markets.forEach((cell, index) => {
     const pulse = wave(world.day, index + 4);
-    cell.demandHeat = clamp(cell.demandHeat + pulse * 3 + randomInt(-2, 2), 35, 92);
-    cell.supplyPressure = clamp(cell.supplyPressure - pulse * 2 + randomInt(-2, 2), 30, 88);
-    cell.competitivePressure = clamp(cell.competitivePressure + randomInt(-2, 3), 36, 92);
-    cell.sentiment = clamp(cell.sentiment + (cell.demandHeat - cell.supplyPressure) * 0.06 + randomInt(-2, 2), 38, 90);
+    cell.demandHeat = clamp(cell.demandHeat + pulse * 3 + randomInt(-2, 2, world), 35, 92);
+    cell.supplyPressure = clamp(cell.supplyPressure - pulse * 2 + randomInt(-2, 2, world), 30, 88);
+    cell.competitivePressure = clamp(cell.competitivePressure + randomInt(-2, 3, world), 36, 92);
+    cell.sentiment = clamp(cell.sentiment + (cell.demandHeat - cell.supplyPressure) * 0.06 + randomInt(-2, 2, world), 38, 90);
   });
 
   world.cases.forEach((caseItem) => {
     if (caseItem.status !== "active") return;
     const cell = getMarketCell(world, caseItem.marketCellId);
     caseItem.marketPrice = Math.max(
-      Math.round(caseItem.marketPrice + (cell.demandHeat - cell.supplyPressure) / 18 + randomInt(-3, 3)),
+      Math.round(caseItem.marketPrice + (cell.demandHeat - cell.supplyPressure) / 18 + randomInt(-3, 3, world)),
       Math.round(caseItem.askPrice * 0.84),
     );
   });
 }
 
+function tickSeasonality(world: GameState) {
+  const monthIndex = new Date(world.currentDate).getUTCMonth();
+  world.markets.forEach((cell) => {
+    const monthlyFactors = Array.isArray(cell.monthlyFactors) ? cell.monthlyFactors : [];
+    const seasonalFactor = monthlyFactors[monthIndex] || 0;
+    if (!seasonalFactor) {
+      return;
+    }
+
+    cell.demandHeat = clamp(cell.demandHeat + seasonalFactor * (world.rules.seasonalityImpact / 10), 30, 96);
+    cell.sentiment = clamp(cell.sentiment + seasonalFactor * (world.rules.seasonalityImpact / 14), 28, 95);
+  });
+}
+
 function updateCustomers(world: GameState) {
   world.customers.forEach((customer, index) => {
-    customer.activity = clamp(customer.activity + wave(world.day, index + 11) * 4 + randomInt(-3, 3), 28, 96);
-    customer.urgency = clamp(customer.urgency + randomInt(-2, 3), 24, 95);
+    customer.activity = clamp(customer.activity + wave(world.day, index + 11) * 4 + randomInt(-3, 3, world), 28, 96);
+    customer.urgency = clamp(customer.urgency + randomInt(-2, 3, world), 24, 95);
   });
 }
 
@@ -114,16 +164,16 @@ function tickOpportunities(world: GameState) {
 
     opportunity.daysLeft -= 1;
     opportunity.stagnationTicks += 1;
-    
+
     // Redundant check removed to resolve duplicate variable name error
 
     const pricePenalty = Math.max(0, caseItem.askPrice - opportunity.budgetMax) / 9;
     opportunity.intent = clamp(
-      opportunity.intent + (caseItem.heat - 55) / 10 + (caseItem.d1 - 50) / 16 + randomInt(-4, 4) - pricePenalty,
+      opportunity.intent + (caseItem.heat - 55) / 10 + (caseItem.d1 - 50) / 16 + randomInt(-4, 4, world) - pricePenalty,
       8, 98
     );
     opportunity.confidence = clamp(
-      opportunity.confidence + (caseItem.d3 - 50) / 14 + randomInt(-3, 3),
+      opportunity.confidence + (caseItem.d3 - 50) / 14 + randomInt(-3, 3, world),
       10, 98
     );
 
@@ -132,7 +182,7 @@ function tickOpportunities(world: GameState) {
     }
 
     // Aligned to 7-stage model logic
-    if (opportunity.stageIndex < 6 && opportunity.intent >= 82 && chance(0.35)) {
+    if (opportunity.stageIndex < 6 && opportunity.intent >= 82 && chance(0.35, world)) {
       opportunity.stageIndex += 1;
       opportunity.stagnationTicks = 0; // Reset stagnation
       opportunity.history.push({ day: world.day, stage: OPPORTUNITY_STAGES[opportunity.stageIndex] });
@@ -161,28 +211,52 @@ function tickCases(world: GameState) {
     caseItem.openDayCooldown = Math.max(0, caseItem.openDayCooldown - 1);
     caseItem.windowDays -= 1;
 
+    const isPragmatic = caseItem.personality === 'pragmatic';
+    const isEmotional = caseItem.personality === 'emotional';
+    const isUrgent = caseItem.personality === 'urgent';
+    const ownerArchetype = world.runContext.scenarioSnapshot.world.ownerArchetypes.find((entry) => entry.id === caseItem.ownerArchetypeId);
+    const priceGapPct = ((caseItem.askPrice - caseItem.marketPrice) / Math.max(caseItem.marketPrice, 1)) * 100;
+
     if (!caseItem.touchedOwnerToday) {
-      caseItem.trust -= caseItem.urgency > 70 ? 3 : 1;
-      // §2.3 Patience Drift
-      if (world.day - caseItem.lastTouchedDay > 7) {
-        caseItem.patience = clamp(caseItem.patience - 2, 0, 100);
+      const trustLoss = caseItem.urgency > 70
+        ? world.rules.urgentOwnerUntouchedTrustLoss
+        : world.rules.ownerUntouchedTrustLoss;
+      const decayMultiplier = ownerArchetype?.trustDecayMultiplier || 1;
+      caseItem.trust -= trustLoss * decayMultiplier;
+      if (world.day - caseItem.lastTouchedDay > world.rules.ownerPatienceDecayAfterDays) {
+        caseItem.patience = clamp(caseItem.patience - world.rules.ownerPatienceDecayAmount, 0, 100);
       }
     } else {
       caseItem.lastTouchedDay = world.day;
     }
 
     if (!caseItem.touchedToday) {
-      caseItem.heat -= 2;
+      caseItem.heat -= isEmotional ? 4 + (ownerArchetype?.heatSensitivity || 0) : 2;
     }
+
+    if (isPragmatic) {
+      if (priceGapPct < 3) {
+        caseItem.trust += 2;
+      } else if (priceGapPct > 5) {
+        caseItem.trust -= 2;
+      }
+    }
+
     if (caseItem.askPrice > caseItem.marketPrice * 1.05) {
-      caseItem.trust -= 1;
+      caseItem.trust -= isPragmatic ? 3 : 1 + Math.max(0, (ownerArchetype?.priceElasticity || 1) - 1);
       caseItem.heat -= 2;
-      caseItem.patience = clamp(caseItem.patience - 1, 0, 100); // Bad pricing hurts patience
+      caseItem.patience = clamp(caseItem.patience - 1, 0, 100);
     }
-    
-    caseItem.urgency = clamp(caseItem.urgency + randomInt(-2, 3) + (caseItem.windowDays < 6 ? 2 : 0), 18, 96);
-    caseItem.heat = clamp(caseItem.heat, 18, 98);
-    caseItem.trust = clamp(caseItem.trust, 14, 100);
+
+    if (isEmotional && caseItem.heat < 40) {
+      caseItem.trust -= 3;
+    }
+
+    const urgencyGrowth = isUrgent ? 5 : randomInt(2, 3, world);
+    caseItem.urgency = clamp(caseItem.urgency + urgencyGrowth + (caseItem.windowDays < 6 ? 2 : 0), 18, 96);
+
+    caseItem.heat = clamp(caseItem.heat, 10, 100);
+    caseItem.trust = clamp(caseItem.trust, 10, 100);
 
     if (caseItem.windowDays <= 0) {
       if (caseItem.trust >= 76 && world.reputation >= 60) {
@@ -201,45 +275,69 @@ function tickCases(world: GameState) {
   });
 }
 
-export function spawnPassiveLeads(world: GameState) {
-  world.cases.forEach((caseItem, index) => {
+export function spawnPassiveLeads(state: GameState) {
+  state.cases.forEach((caseItem) => {
     if (caseItem.status !== "active") return;
-    const activeCount = getActiveOpportunities(world, caseItem.id).length;
-    const baseChance = caseItem.heat > 65 ? 0.42 : 0.22;
-    if (activeCount < 2 && chance(baseChance)) {
-      createOpportunity(world, caseItem, world.channels[(world.day + index) % world.channels.length].id, 8);
+
+    // Boost factor for Focused properties on Thursdays
+    const focusMultiplier = caseItem.isFocused ? state.rules.passiveLeadFocusedMultiplier : 1.0;
+
+    const baseChance = ((caseItem.heat / 240) + (caseItem.d1 / 600)) * state.rules.passiveLeadBaseMultiplier;
+    if (chance(baseChance * focusMultiplier, state)) {
+      const channelId = caseItem.isFocused ? "recommend" : getRandomChannel(state);
+      createOpportunity(state, caseItem, channelId, 0, false);
     }
   });
 }
 
 function triggerRandomEvent(world: GameState) {
-  if (!chance(0.3)) return;
-  const activeCases = world.cases.filter((entry) => entry.status === "active");
-  if (!activeCases.length) return;
-  const eventType = ["competitor", "warming", "referral", "pressure"][randomInt(0, 3)];
+  if (!chance(world.rules.randomEventProbability || MARKET_EVENT_PROBABILITY, world)) {
+    return;
+  }
 
-  if (eventType === "competitor") {
-    const caseItem = activeCases[randomInt(0, activeCases.length - 1)];
-    caseItem.competitiveness = clamp(caseItem.competitiveness - 6, 0, 100);
-    caseItem.heat = clamp(caseItem.heat - 3, 0, 100);
-    logEvent(world, "竞品", `${caseItem.title} 所在板块有竞品突然降价，盘面竞争压力上升。`, "danger");
+  const weightedPool = world.runContext.scenarioSnapshot.scenario.randomEventPool || [];
+  const selected = pickWeighted(
+    weightedPool.length
+      ? weightedPool
+      : world.runContext.scenarioSnapshot.world.randomEventTemplates.map((template) => ({
+          templateId: template.id,
+          weight: 1,
+        })),
+    world,
+  );
+
+  if (selected.templateId === 'policy-shift') {
+    world.opportunities.forEach((opportunity) => {
+      if (opportunity.status === 'active') {
+        opportunity.confidence = clamp(opportunity.confidence - 10, 10, 100);
+      }
+    });
+    logEvent(world, "宏观", `【${MARKET_EVENT_LABELS.policyShift}】利率上行预期强化，所有活跃客户的成交置信度同步回落。`, "danger");
     return;
   }
-  if (eventType === "warming") {
-    const cell = world.markets[randomInt(0, world.markets.length - 1)];
-    cell.sentiment = clamp(cell.sentiment + 5, 0, 100);
-    cell.demandHeat = clamp(cell.demandHeat + 4, 0, 100);
-    logEvent(world, "市场", `${cell.name} 今天出现成交回暖，板块情绪升高。`, "success");
+
+  if (selected.templateId === 'school-boom') {
+    const luckyMarket = world.markets[randomInt(0, world.markets.length - 1, world)];
+    world.cases
+      .filter((caseItem) => caseItem.marketCellId === luckyMarket.id)
+      .forEach((caseItem) => {
+        caseItem.heat = clamp(caseItem.heat + 18, 0, 100);
+        caseItem.trust = clamp(caseItem.trust + 2, 0, 100);
+      });
+    luckyMarket.sentiment = clamp(luckyMarket.sentiment + 12, 0, 100);
+    logEvent(world, "市场", `【${MARKET_EVENT_LABELS.schoolDistrictBoom}】${luckyMarket.name} 传出学区升级消息，区域房源热度被快速点燃。`, "success");
     return;
   }
-  if (eventType === "referral") {
-    const caseItem = activeCases[randomInt(0, activeCases.length - 1)];
-    createOpportunity(world, caseItem, "private", 12);
-    return;
-  }
-  const urgentCase = activeCases.slice().sort((left, right) => (right.urgency + (8 - right.windowDays)) - (left.urgency + (8 - left.windowDays)))[0];
-  urgentCase.trust = clamp(urgentCase.trust - 5, 0, 100);
-  logEvent(world, urgentCase.ownerName, `${urgentCase.title} 的业主催进度，关系出现额外波动。`, "danger");
+
+  world.markets.forEach((market) => {
+    market.competitivePressure = clamp(market.competitivePressure + 18, 0, 100);
+  });
+  world.cases
+    .filter((caseItem) => caseItem.status === 'active')
+    .forEach((caseItem) => {
+      caseItem.heat = clamp(caseItem.heat - 4, 10, 100);
+    });
+  logEvent(world, "市场", `【${MARKET_EVENT_LABELS.competitorActivity}】周边竞品突然降价，区域竞争压力显著抬升。`, "danger");
 }
 
 function createWeeklyReview(world: GameState) {
@@ -321,7 +419,7 @@ export function executeAction(state: GameState, actionId: string, caseItem: any,
     caseItem.heat = clamp(caseItem.heat + 10, 0, 100);
     state.reputation = clamp(state.reputation + 1, 0, 100);
     createOpportunity(state, caseItem, preferredChannel(caseItem), 10);
-    if (caseItem.heat > 72 && chance(0.38)) {
+    if (caseItem.heat > 72 && chance(0.38, state)) {
       createOpportunity(state, caseItem, "search", 8);
     }
     logEvent(state, "投放", `${caseItem.title} 补了一轮精选流量，盘面热度明显上升。`, "accent");
@@ -378,10 +476,14 @@ export function executeAction(state: GameState, actionId: string, caseItem: any,
     caseItem.touchedOwnerToday = true;
     caseItem.lastPriceActionDay = state.day;
 
+    const isUrgent = caseItem.personality === 'urgent';
+    const isPragmatic = caseItem.personality === 'pragmatic';
+    const isEmotional = caseItem.personality === 'emotional';
+
     if (optionId === "hold-story") {
-      caseItem.trust = clamp(caseItem.trust + 2, 0, 100);
+      caseItem.trust = clamp(caseItem.trust + (isEmotional ? 4 : isPragmatic ? 1 : 2), 0, 100);
       caseItem.competitiveness = clamp(caseItem.competitiveness + 6, 0, 100);
-      caseItem.heat = clamp(caseItem.heat + 3, 0, 100);
+      caseItem.heat = clamp(caseItem.heat + (isEmotional ? 5 : 3), 0, 100);
       adjustCaseOpportunities(state, caseItem.id, 5, 4);
       logEvent(state, caseItem.ownerName, `${caseItem.title} 这次没有降价，而是先统一了新的卖点说辞。`, "accent");
       onMessage?.(`${caseItem.title} 选择了“保价换话术”的调价方案。`);
@@ -389,7 +491,7 @@ export function executeAction(state: GameState, actionId: string, caseItem: any,
 
     if (optionId === "small-cut") {
       caseItem.askPrice = Math.max(Math.round(caseItem.marketPrice * 0.95), Math.round(caseItem.askPrice * 0.985));
-      caseItem.trust = clamp(caseItem.trust + 5, 0, 100);
+      caseItem.trust = clamp(caseItem.trust + (isPragmatic ? 8 : isUrgent ? 6 : 4), 0, 100);
       caseItem.competitiveness = clamp(caseItem.competitiveness + 9, 0, 100);
       caseItem.heat = clamp(caseItem.heat + 6, 0, 100);
       adjustCaseOpportunities(state, caseItem.id, 8, 6);
@@ -399,7 +501,7 @@ export function executeAction(state: GameState, actionId: string, caseItem: any,
 
     if (optionId === "deep-cut") {
       caseItem.askPrice = Math.max(Math.round(caseItem.marketPrice * 0.92), Math.round(caseItem.askPrice * 0.97));
-      caseItem.trust = clamp(caseItem.trust + 8, 0, 100);
+      caseItem.trust = clamp(caseItem.trust + (isUrgent ? 12 : isPragmatic ? 6 : 7), 0, 100);
       caseItem.competitiveness = clamp(caseItem.competitiveness + 14, 0, 100);
       caseItem.heat = clamp(caseItem.heat + 10, 0, 100);
       adjustCaseOpportunities(state, caseItem.id, 12, 8);
@@ -446,15 +548,18 @@ function resolveNegotiation(state: GameState, caseItem: any, opportunity: any, o
   } as Record<string, any>;
   
   const strategy = strategyCfg[optionId || 'balanced'];
+  const isUrgent = caseItem.personality === 'urgent';
+  const isPragmatic = caseItem.personality === 'pragmatic';
+  const isEmotional = caseItem.personality === 'emotional';
 
   const score = opportunity.intent * 0.46
     + opportunity.confidence * 0.24
-    + caseItem.trust * 0.18
+    + caseItem.trust * (isUrgent ? 0.25 : 0.18) // Urgent owners are easier to sway in negotiation
     + caseItem.competitiveness * 0.16
     - Math.max(0, caseItem.askPrice - caseItem.marketPrice) * 0.6
     + strategy.shift;
 
-  if (randomInt(0, 100) < score) {
+  if (randomInt(0, 100, state) < score) {
     const soldPrice = Math.round(caseItem.askPrice * strategy.priceFactor);
     sellCase(state, caseItem, opportunity, soldPrice, strategy.bonusReputation);
     onMessage?.(`${caseItem.title} 成交了，新的预算也回到你手上。`);
@@ -465,7 +570,12 @@ function resolveNegotiation(state: GameState, caseItem: any, opportunity: any, o
   opportunity.confidence = clamp(opportunity.confidence - 8, 0, 100);
   opportunity.daysLeft = 2;
   opportunity.touchedToday = true;
-  caseItem.trust = clamp(caseItem.trust - 3, 0, 100);
+  const trustHit = strategyCfg[optionId || 'balanced'].priceFactor === 1
+    ? (isUrgent ? 1 : isPragmatic ? 4 : 3)
+    : optionId === 'close'
+      ? (isUrgent ? 0 : isEmotional ? 1 : 2)
+      : (isUrgent ? 1 : isPragmatic ? 3 : 2);
+  caseItem.trust = clamp(caseItem.trust - trustHit, 0, 100);
 
   if (opportunity.intent < 35) {
     closeOpportunity(state, opportunity, "lost", `${opportunity.customerName} 在议价桌上转身离场。`, "danger");
@@ -506,7 +616,7 @@ export function createOpportunity(world: GameState, caseItem: any, channelId: st
   });
   if (!candidates.length) return null;
   const ranked = candidates.map((customer) => ({ customer, score: computeCustomerFit(caseItem, customer) })).sort((left, right) => right.score - left.score).slice(0, 3);
-  const chosen = ranked[randomInt(0, ranked.length - 1)];
+  const chosen = ranked[randomInt(0, ranked.length - 1, world)];
   const channel = world.channels.find((entry) => entry.id === channelId) ?? world.channels[0];
   const stageIndex = bonus >= 14 ? 1 : 0;
   const pricePenalty = Math.max(0, caseItem.askPrice - chosen.customer.budgetMax) / 5;
@@ -515,7 +625,7 @@ export function createOpportunity(world: GameState, caseItem: any, channelId: st
   const visibility = leadSource === 'broker' ? 'shadow' : 'revealed';
 
   const opportunity: Opportunity = {
-    id: `${caseItem.id}-${chosen.customer.id}-${world.day}-${Math.floor(Math.random() * 999)}`,
+    id: `${caseItem.id}-${chosen.customer.id}-${world.day}-${randomInt(100, 999, world)}`,
     caseId: caseItem.id, customerId: chosen.customer.id, customerName: chosen.customer.name, profile: chosen.customer.profile, channelId: channel.id, channelName: channel.name, fit: Math.round(chosen.score),
     intent: clamp(46 + bonus + chosen.score * 0.24 + caseItem.heat * 0.14 + chosen.customer.activity * 0.12 + channel.quality * 10 - pricePenalty, 35, 89),
     confidence: clamp(48 + chosen.score * 0.25 + caseItem.trust * 0.16, 30, 92),
@@ -523,7 +633,7 @@ export function createOpportunity(world: GameState, caseItem: any, channelId: st
     stagnationTicks: 0, history: [],
     leadSource,
     visibility,
-    brokerName: leadSource === 'broker' ? BROKER_NAMES[randomInt(0, BROKER_NAMES.length - 1)] : undefined
+    brokerName: leadSource === 'broker' ? BROKER_NAMES[randomInt(0, BROKER_NAMES.length - 1, world)] : undefined
   };
   world.opportunities.unshift(opportunity);
   if (!silent) logEvent(world, leadSource === 'broker' ? "经纪人推介" : channel.name, `${chosen.customer.name} 被吸引，${leadSource === 'broker' ? '这似乎是一个来自同行的线索。' : '直接进线。'}`, leadSource === 'broker' ? "accent" : "success");
@@ -548,7 +658,13 @@ export function getMarketCell(world: GameState, id: string) {
   return world.markets.find(m => m.id === id);
 }
 
-export function closeOpportunity(world: GameState, opportunity: any, status: string, reason: string = "", tone: string = "accent") {
+export function closeOpportunity(
+  world: GameState,
+  opportunity: any,
+  status: string,
+  reason: string = "",
+  tone: 'accent' | 'danger' | 'success' = 'accent',
+) {
   opportunity.status = status;
   refreshOpportunityLabel(opportunity);
   if (reason) logEvent(world, opportunity.customerName, reason, tone);
@@ -620,6 +736,11 @@ function preferredChannel(caseItem: any) {
   return "private";
 }
 
+function getRandomChannel(world: GameState) {
+  const candidates = ["search", "recommend", "private"];
+  return candidates[randomInt(0, candidates.length - 1, world)];
+}
+
 export function getActionAvailability(state: GameState, caseItem: any, actionId: string) {
   if (state.gameOver) {
     return { enabled: false, reason: "本局已经结束。" };
@@ -651,22 +772,108 @@ export function getActionAvailability(state: GameState, caseItem: any, actionId:
   return { enabled: true, reason: "" };
 }
 
-function resolveCompetitivePressure(world: GameState) {
-  world.cases.forEach((caseItem) => {
-    if (caseItem.status !== "active") return;
-    const cell = getMarketCell(world, caseItem.marketCellId);
-    if (!cell) return;
+function resolveCompetitivePressure(world: GameState, caseItem: Case) {
+  const cell = getMarketCell(world, caseItem.marketCellId);
+  if (!cell) return;
 
-    // High pressure hits heat and trust
-    if (cell.competitivePressure > 72) {
-      const heatLoss = randomInt(2, 5);
-      const trustLoss = chance(0.4) ? 1 : 0;
-      caseItem.heat = clamp(caseItem.heat - heatLoss, 10, 100);
-      caseItem.trust = clamp(caseItem.trust - trustLoss, 10, 100);
-      
-      if (chance(0.3)) {
-        logEvent(world, "市场竞争", `${caseItem.title} 所在区域竞品动作频繁，盘面拉力受压。`, "danger");
+  if (cell.competitivePressure > world.rules.competitionPressureThreshold) {
+    const heatLoss = randomInt(world.rules.competitionHeatPenaltyMin, world.rules.competitionHeatPenaltyMax, world);
+    const trustLoss = chance(world.rules.competitionTrustLossChance, world) ? 1 : 0;
+    caseItem.heat = clamp(caseItem.heat - heatLoss, 10, 100);
+    caseItem.trust = clamp(caseItem.trust - trustLoss, 10, 100);
+
+    if (chance(world.rules.competitionLogChance, world)) {
+      logEvent(world, "市场竞争", `${caseItem.title} 所在区域竞品动作频繁，盘面拉力受压。`, "danger");
+    }
+  }
+}
+
+function tickCompetition(world: GameState) {
+  const activeSoldIds = new Set(
+    world.cases.filter((entry) => entry.status === 'sold').map((entry) => entry.id),
+  );
+
+  world.competitionGroups.forEach((group) => {
+    const members = group.members
+      .map((memberId) => world.cases.find((entry) => entry.id === memberId))
+      .filter((entry): entry is Case => Boolean(entry));
+
+    const activeMembers = members.filter((entry) => entry.status === 'active');
+    if (!activeMembers.length) {
+      return;
+    }
+
+    const cheapestAsk = Math.min(...activeMembers.map((entry) => entry.askPrice));
+    const recentPriceCutters = activeMembers.filter((entry) => entry.askPrice < entry.lastAskPrice);
+
+    activeMembers.forEach((caseItem) => {
+      resolveCompetitivePressure(world, caseItem);
+
+      const premiumRatio = Math.max(0, caseItem.askPrice - cheapestAsk) / Math.max(cheapestAsk, 1);
+      const premiumPenalty = premiumRatio * 100 * group.priceElasticity * 0.22;
+
+      if (premiumPenalty > 0.8) {
+        caseItem.heat = clamp(caseItem.heat - premiumPenalty, 10, 100);
+      }
+
+      recentPriceCutters
+        .filter((entry) => entry.id !== caseItem.id)
+        .forEach((entry) => {
+          caseItem.heat = clamp(caseItem.heat - group.priceElasticity * 1.4, 10, 100);
+          caseItem.trust = clamp(caseItem.trust - group.priceElasticity * 0.35, 10, 100);
+          logEvent(world, '竞品联动', `${entry.title} 降价后，${caseItem.title} 的价格压力也被同步放大。`, 'danger');
+        });
+
+      if (members.some((entry) => entry.id !== caseItem.id && activeSoldIds.has(entry.id))) {
+        caseItem.heat = clamp(caseItem.heat - group.customerSpillover * 6, 10, 100);
+        caseItem.urgency = clamp(caseItem.urgency + group.customerSpillover * 8, 0, 100);
+      }
+    });
+  });
+
+  world.cases.forEach((caseItem) => {
+    caseItem.lastAskPrice = caseItem.askPrice;
+  });
+}
+
+function fireScheduledEvents(world: GameState) {
+  const todaysEvents = world.scheduledEvents.filter((entry) => entry.day === world.day);
+  if (!todaysEvents.length) {
+    return;
+  }
+
+  world.scheduledEvents = world.scheduledEvents.filter((entry) => entry.day !== world.day);
+
+  todaysEvents.forEach((event) => {
+    const scale = world.rules.scriptedEventImpactScale;
+    if (event.targetCaseId) {
+      const caseItem = world.cases.find((entry) => entry.id === event.targetCaseId);
+      if (caseItem) {
+        caseItem.trust = clamp(caseItem.trust + (event.trustDelta || 0) * scale, 0, 100);
+        caseItem.heat = clamp(caseItem.heat + (event.heatDelta || 0) * scale, 0, 100);
+        caseItem.urgency = clamp(caseItem.urgency + (event.urgencyDelta || 0) * scale, 0, 100);
+        caseItem.askPrice = Math.max(caseItem.bottomPrice, Math.round(caseItem.askPrice + (event.askPriceDelta || 0) * scale));
+        caseItem.windowDays = Math.max(1, caseItem.windowDays + (event.windowDaysDelta || 0));
       }
     }
+
+    if (event.targetMarketCellId) {
+      const market = world.markets.find((entry) => entry.id === event.targetMarketCellId);
+      if (market) {
+        market.sentiment = clamp(market.sentiment + (event.sentimentDelta || 0) * scale, 0, 100);
+        market.demandHeat = clamp(market.demandHeat + (event.demandHeatDelta || 0) * scale, 0, 100);
+        market.competitivePressure = clamp(market.competitivePressure + (event.competitionPressureDelta || 0) * scale, 0, 100);
+      }
+    }
+
+    if (event.confidenceDelta) {
+      world.opportunities
+        .filter((entry) => entry.status === 'active')
+        .forEach((entry) => {
+          entry.confidence = clamp(entry.confidence + event.confidenceDelta * scale, 0, 100);
+        });
+    }
+
+    logEvent(world, event.actor, `【${event.title}】${event.message}`, event.tone);
   });
 }

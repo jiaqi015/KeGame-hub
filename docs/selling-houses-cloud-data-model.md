@@ -1,0 +1,425 @@
+# 我是王牌维护人 · 云端数据模型（融合版）
+
+这版设计把两条路线融合到一起：
+
+- 保留 `run + sync_version + leaderboard` 的轻快照能力，方便先把云存档跑起来
+- 同时把玩法主轴拆成结构化表，围绕 `画像 / 阶段 / 竞争力 / 事项 / 交互` 建模
+
+一句话总结：
+
+> 运行层保快照兜底，玩法层做结构化拆表。
+
+## 设计主轴
+
+这套系统的核心主轴有 3 个：
+
+- 业主画像
+- 房源阶段
+- 房源竞争力
+
+再叠加 4 个运行层：
+
+- 整局
+- 房源
+- 事项
+- 交互 / 事件
+
+## 总体 ER
+
+```mermaid
+erDiagram
+    MAINTAINER_USERS ||--o{ MAINTAINER_GAME_RUNS : "owns"
+    MAINTAINER_USERS ||--o{ MAINTAINER_LEADERBOARD_ENTRIES : "records"
+    MAINTAINER_GAME_RUNS ||--o| MAINTAINER_LEADERBOARD_ENTRIES : "finalizes to"
+
+    MAINTAINER_GAME_RUNS ||--o{ MAINTAINER_RUN_LISTINGS : "contains"
+    MAINTAINER_GAME_RUNS ||--o{ MAINTAINER_MATTERS : "generates"
+    MAINTAINER_GAME_RUNS ||--o{ MAINTAINER_WEEK_CYCLES : "organizes"
+    MAINTAINER_GAME_RUNS ||--o{ MAINTAINER_EVENTS : "records"
+    MAINTAINER_GAME_RUNS ||--o{ MAINTAINER_RECOMMENDATIONS : "suggests"
+
+    MAINTAINER_RUN_LISTINGS ||--|| MAINTAINER_LISTING_SELLERS : "has seller state"
+    MAINTAINER_RUN_LISTINGS ||--|| MAINTAINER_LISTING_COMPETITIVENESS : "has competitiveness"
+    MAINTAINER_RUN_LISTINGS ||--o{ MAINTAINER_LISTING_LEADS : "contains leads"
+    MAINTAINER_RUN_LISTINGS ||--o{ MAINTAINER_LISTING_FLAGS : "accumulates"
+    MAINTAINER_RUN_LISTINGS ||--o{ MAINTAINER_MATTERS : "triggers"
+    MAINTAINER_RUN_LISTINGS ||--o{ MAINTAINER_EVENTS : "suffers"
+
+    MAINTAINER_LISTING_LEADS ||--o{ MAINTAINER_LEAD_FEEDBACKS : "collects"
+    MAINTAINER_MATTERS ||--o{ MAINTAINER_MATTER_INTERACTIONS : "plays"
+
+    MAINTAINER_WEEK_CYCLES ||--o{ MAINTAINER_FOCUS_MEETING_ENTRIES : "contains"
+
+    SELLER_PROFILE_DEFINITIONS ||--o{ MAINTAINER_RUN_LISTINGS : "labels"
+    SELLER_PROFILE_DEFINITIONS ||--o{ MAINTAINER_LISTING_SELLERS : "defines"
+    LISTING_STAGE_DEFINITIONS ||--o{ MAINTAINER_RUN_LISTINGS : "stages"
+    MATTER_TYPE_DEFINITIONS ||--o{ MAINTAINER_MATTERS : "types"
+    INTERACTION_TEMPLATE_DEFINITIONS ||--o{ MAINTAINER_MATTERS : "drives"
+    EVENT_TYPE_DEFINITIONS ||--o{ MAINTAINER_EVENTS : "types"
+```
+
+## 一、运行主表
+
+### `maintainer_game_runs`
+
+一局游戏一条，承接：
+
+- 当前进度
+- 核心经济值
+- 乐观锁同步版本
+- 全量快照兜底
+
+关键字段：
+
+- `run_id`
+- `user_id`
+- `season_id`
+- `status`
+- `schema_version`
+- `day`
+- `cash`
+- `energy`
+- `reputation`
+- `sold_count`
+- `withdrawn_count`
+- `score`
+- `save_data`
+- `daily_logs`
+- `sync_version`
+- `started_at`
+- `finished_at`
+- `last_played_at`
+- `client_updated_at`
+- `updated_at`
+
+### 为什么保留 `save_data`
+
+因为当前前端状态机已经很完整，保留全量 JSONB 快照可以：
+
+- 减少首版 API 接入成本
+- 避免前端状态被数据库结构反向绑死
+- 让结构化表和快照并行演进
+
+## 二、房源核心表
+
+### `maintainer_run_listings`
+
+每局里的每套房一条，是玩法主表。
+
+它回答的是：
+
+- 这套盘在哪个经营阶段
+- 这套盘当前能不能打
+- 这套盘最缺什么
+
+关键字段：
+
+- `run_listing_id`
+- `run_id`
+- `template_listing_id`
+- `title`
+- `community`
+- `district`
+- `layout`
+- `area`
+- `status`
+- `listing_stage_code`
+- `seller_profile_code`
+- `competitiveness_score`
+- `pricing_power`
+- `product_power`
+- `story_power`
+- `traffic_power`
+- `conversion_power`
+- `listing_heat`
+- `showing_readiness`
+- `focus_score`
+- `active_lead_count`
+- `high_intent_lead_count`
+- `shadow_lead_count`
+- `last_major_event_at`
+- `updated_at`
+
+## 三、房东状态表
+
+### `maintainer_listing_sellers`
+
+一套盘一条动态房东状态。
+
+注意这里区分：
+
+- `seller_profile_code`：画像类别
+- 动态状态字段：运行中的实时数值
+
+关键字段：
+
+- `seller_profile_code`
+- `seller_name`
+- `pressure_source_code`
+- `seller_trust`
+- `seller_confidence`
+- `seller_patience`
+- `price_flex_readiness`
+- `cooperation_level`
+- `emotion_level`
+- `communication_debt`
+- `feedback_preference_code`
+- `cooperation_style_code`
+- `trust_baseline`
+
+## 四、房源竞争力表
+
+### `maintainer_listing_competitiveness`
+
+这张表专门负责“为什么这套盘现在强/弱”。
+
+主表只保常用查询字段，这张表保细拆。
+
+关键字段：
+
+- `overall_score`
+- `pricing_power`
+- `product_power`
+- `story_power`
+- `traffic_power`
+- `conversion_power`
+- `pricing_position_score`
+- `market_fit_score`
+- `story_clarity_score`
+- `open_day_readiness_score`
+- `broker_pushability_score`
+- `showing_feedback_score`
+- `breakdown_payload`
+
+## 五、线索与漏斗
+
+### `maintainer_listing_leads`
+
+每个客户机会一条。
+
+关键字段：
+
+- `lead_source_type`
+- `visibility`
+- `stage_code`
+- `intent_score`
+- `confidence_score`
+- `budget_fit_score`
+- `days_to_cold`
+- `broker_name`
+- `is_key_lead`
+
+### `maintainer_lead_feedbacks`
+
+带看、复看、议价、异议反馈日志。
+
+这张表是后续“带看反馈整理”“客户反对点归因”的基础。
+
+## 六、事项系统
+
+### `maintainer_matters`
+
+这是玩法的心脏。
+
+它承接：
+
+- 固定事项
+- 事件触发事项
+- 连锁事项
+- 推荐系统
+
+关键字段：
+
+- `type_code`
+- `source_code`
+- `status`
+- `stakeholder_code`
+- `interaction_template_code`
+- `priority_score`
+- `deadline_day`
+- `context_payload`
+- `recommended_action_payload`
+- `resolution_code`
+- `resolution_summary`
+
+### `maintainer_matter_interactions`
+
+一条事项内的多轮互动。
+
+没有这张表，就很难做：
+
+- 回放
+- 复盘
+- 选项调优
+- prompt / 模板迭代
+
+关键字段：
+
+- `turn_index`
+- `actor_code`
+- `prompt_text`
+- `player_choice_code`
+- `response_text`
+- `outcome_code`
+- `effects_payload`
+
+## 七、周节奏系统
+
+### `maintainer_week_cycles`
+
+一周一条，承接周主题和节奏槽位：
+
+- `theme_code`
+- `focus_meeting_day`
+- `weekly_feedback_day`
+- `weekend_peak_day`
+- `focus_slots`
+- `open_day_slots`
+- `schedule_payload`
+
+### `maintainer_focus_meeting_entries`
+
+“房源聚焦会”的提报记录。
+
+这块很关键，因为它不是普通日志，而是带决策结果的经营动作。
+
+## 八、事件系统
+
+### `maintainer_events`
+
+事件和事项必须分开。
+
+- 事件：发生了什么
+- 事项：你要处理什么
+
+字段包括：
+
+- `event_type_code`
+- `severity_code`
+- `source_code`
+- `title`
+- `summary`
+- `payload`
+- `caused_matter_id`
+
+## 九、长期痕迹系统
+
+### `maintainer_listing_flags`
+
+用来存“后遗症”与长期状态，不建议全塞在 JSON 里。
+
+例子：
+
+- `seller_accepts_market_feedback`
+- `focus_meeting_rejected_recently`
+- `open_day_failed_once`
+- `broker_trust_high`
+- `needs_price_reposition`
+
+## 十、字典表
+
+当前 schema 里已经预留：
+
+- `seller_profile_definitions`
+- `listing_stage_definitions`
+- `matter_type_definitions`
+- `interaction_template_definitions`
+- `event_type_definitions`
+
+这样做的好处是：
+
+- 前后端不会把 code 写死在业务表里
+- 后面调文案和玩法迭代不会越来越乱
+
+## 十一、推荐系统
+
+### `maintainer_recommendations`
+
+不是首批必接，但表已经预留，方便后面做：
+
+- 今日先处理哪个事项
+- 不处理会怎样
+- 预期收益是什么
+
+## 结构化 vs JSONB
+
+### 必须结构化的
+
+因为这些字段要参与筛选、排序、推荐、分析：
+
+- `listing_stage_code`
+- `seller_profile_code`
+- `competitiveness_score`
+- `seller_trust`
+- `seller_confidence`
+- `matter.status`
+- `matter.priority_score`
+- `lead.stage_code`
+
+### 适合 JSONB 的
+
+因为这些上下文变化快、结构不稳定：
+
+- `save_data`
+- `daily_logs`
+- `context_payload`
+- `recommended_action_payload`
+- `effects_payload`
+- `proposal_payload`
+- `breakdown_payload`
+- `schedule_payload`
+- `payload`
+
+## 同步策略
+
+`sync_version` 仍然保留在 `maintainer_game_runs`，作为多端同步的主入口。
+
+推荐服务端使用 compare-and-swap：
+
+1. 客户端提交 `expectedSyncVersion`
+2. 服务端要求 `expectedSyncVersion == DB.sync_version`
+3. 成功后服务端把 `sync_version` 加一
+
+不要直接用“谁传得更大谁覆盖”。
+
+## 当前代码落点
+
+当前可执行 schema 在：
+
+- [src/selling-houses/infrastructure/neonGameDatabase.ts](/Users/jiaqi/Documents/开放日测算/src/selling-houses/infrastructure/neonGameDatabase.ts)
+
+## 建议接入顺序
+
+不要一次性把所有表都接进 API。
+
+推荐顺序：
+
+1. `maintainer_users`
+2. `maintainer_game_runs`
+3. `maintainer_run_listings`
+4. `maintainer_matters`
+5. `maintainer_matter_interactions`
+6. `maintainer_week_cycles`
+7. `maintainer_focus_meeting_entries`
+8. `maintainer_listing_leads`
+9. `maintainer_lead_feedbacks`
+10. `maintainer_events`
+11. `maintainer_listing_flags`
+12. `maintainer_recommendations`
+
+这样前 4 到 5 张表先接起来，玩法骨架就能跑。
+
+## 最核心的设计判断
+
+这套数据库不应该再只围绕：
+
+- case
+- event log
+
+来设计。
+
+它现在真正的主链路应该是：
+
+> `run -> listing -> seller/stage/competitiveness -> matter -> interaction`
+
+而 `leaderboard`、`events`、`flags`、`recommendations` 是围绕这条主链路展开的配套系统。

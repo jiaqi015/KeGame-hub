@@ -1,8 +1,8 @@
-import { AIModel, ComparisonResult } from '../types';
+import { AIModel, ComparisonResult, ActivationWorkspaceId } from '../types';
 
 export type DifferenceSummaryStatus = 'idle' | 'waiting' | 'thinking' | 'completed' | 'error';
 export type AuthStatus = 'checking' | 'locked' | 'submitting' | 'authenticated';
-export type WorkspaceId = 'hub' | 'sabrina' | 'open-day' | 'selling-houses';
+export type WorkspaceId = 'hub' | ActivationWorkspaceId;
 
 export interface DifferenceSummaryState {
   modelId: string | null;
@@ -14,6 +14,7 @@ export interface AppState {
   // Auth
   activationInput: string;
   authorizedKey: string;
+  allowedWorkspaces: ActivationWorkspaceId[];
   authStatus: AuthStatus;
   authError: string;
   
@@ -37,7 +38,7 @@ export interface AppState {
 export type AppAction =
   | { type: 'SET_AUTH_STATUS'; status: AuthStatus; error?: string }
   | { type: 'SET_ACTIVATION_INPUT'; value: string }
-  | { type: 'COMPLETE_ACTIVATION'; key: string }
+  | { type: 'COMPLETE_ACTIVATION'; key: string; allowedWorkspaces: ActivationWorkspaceId[] }
   | { type: 'LOCK_APPLICATION'; message: string; nextInput: string }
   | { type: 'SET_WORKSPACE'; workspace: WorkspaceId }
   | { type: 'SET_CATALOG'; models: AIModel[]; selected: string[] }
@@ -56,6 +57,7 @@ export type AppAction =
 export const initialState: AppState = {
   activationInput: '',
   authorizedKey: '',
+  allowedWorkspaces: [],
   authStatus: 'checking',
   authError: '',
   activeWorkspace: 'hub',
@@ -86,6 +88,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return {
         ...state,
         authorizedKey: action.key,
+        allowedWorkspaces: action.allowedWorkspaces,
         activationInput: action.key,
         authError: '',
         activeWorkspace: 'hub',

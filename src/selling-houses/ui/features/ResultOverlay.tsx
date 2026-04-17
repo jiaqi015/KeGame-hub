@@ -1,6 +1,6 @@
 import React from 'react';
 import { GameState } from '../../domain/models';
-import { Trophy, RefreshCw, Star, Wallet, Users, Award } from 'lucide-react';
+import { Trophy, RefreshCw } from 'lucide-react';
 
 interface ResultOverlayProps {
   state: GameState;
@@ -9,6 +9,7 @@ interface ResultOverlayProps {
 
 export function ResultOverlay({ state, onRestart }: ResultOverlayProps) {
   const { finalResult, reputation, soldCount, commission } = state;
+  const { scenarioName, difficultyId } = state.runContext;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-md p-6">
@@ -21,6 +22,14 @@ export function ResultOverlay({ state, onRestart }: ResultOverlayProps) {
           </div>
           
           <h2 className="text-3xl font-bold text-white mt-4">{finalResult?.title || '经营报告'}</h2>
+          <div className="mt-3 flex items-center justify-center gap-2">
+            <span className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white/80">
+              {difficultyId}
+            </span>
+            <span className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-bold tracking-[0.04em] text-white/80">
+              {scenarioName}
+            </span>
+          </div>
           <p className="text-slate-400 mt-2 text-sm leading-relaxed max-w-md mx-auto">
             {finalResult?.summary}
           </p>
@@ -42,10 +51,10 @@ export function ResultOverlay({ state, onRestart }: ResultOverlayProps) {
               className="w-full flex items-center justify-center gap-3 py-5 bg-slate-900 text-white rounded-2xl font-bold text-lg hover:scale-[1.02] transition-all shadow-xl shadow-slate-900/20"
             >
               <RefreshCw size={20} />
-              <span>再战一局</span>
+              <span>回到难度选择</span>
             </button>
             <p className="text-center text-[10px] font-bold text-slate-300 uppercase tracking-widest mt-2">
-              王牌维护人 · 资产经营模拟
+              王牌维护人 · 随机剧本经营模拟
             </p>
           </div>
         </div>

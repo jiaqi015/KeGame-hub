@@ -12,15 +12,15 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
   const activeOpportunities = state.opportunities.filter(o => o.status === 'active');
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h3 className="text-2xl font-bold text-slate-900">线索池跟进</h3>
+        <h3 className="text-[22px] font-bold text-slate-900">线索池跟进</h3>
         <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-600 text-xs font-bold">
           {activeOpportunities.length} 个活跃机会
         </span>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {activeOpportunities.map(o => {
           const caseItem = state.cases.find(c => c.id === o.caseId);
           const isShadow = o.visibility === 'shadow';
@@ -28,7 +28,7 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
           return (
             <div 
               key={o.id} 
-              className={`group bg-white rounded-3xl border p-6 shadow-sm hover:shadow-xl transition-all cursor-pointer ${
+              className={`group cursor-pointer rounded-[22px] border bg-white p-4 shadow-sm transition-all hover:shadow-lg ${
                 isShadow ? 'border-amber-100 bg-amber-50/10' : 'border-black/5 hover:border-blue-500/20'
               }`}
               onClick={() => {
@@ -36,7 +36,7 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
                 onSetView('cases');
               }}
             >
-              <div className="flex justify-between items-start mb-4">
+              <div className="mb-3.5 flex items-start justify-between">
                 <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${
                   isShadow ? 'bg-amber-100 text-amber-600' : 'bg-blue-50 text-blue-600'
                 }`}>
@@ -56,14 +56,14 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
                 </div>
               </div>
               
-              <h4 className="text-lg font-bold text-slate-900 mb-1">
+              <h4 className="mb-1 text-[17px] font-bold text-slate-900">
                 {isShadow ? `影子客 #${o.id.split('-').pop()}` : o.customerName}
               </h4>
-              <p className="text-xs text-slate-400 line-clamp-1 mb-4">
+              <p className="mb-3.5 line-clamp-1 text-xs text-slate-400">
                 {isShadow ? '该线索由同业提供，底牌暂不可见' : o.profile}
               </p>
               
-              <div className="space-y-3 mb-6">
+              <div className="mb-5 space-y-2.5">
                 <ProgressItem 
                   label="购房意向" 
                   val={o.intent} 
@@ -78,7 +78,7 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
                 />
               </div>
 
-              <div className="pt-4 border-t border-black/5 flex items-center justify-between">
+              <div className="flex items-center justify-between border-t border-black/5 pt-3.5">
                 <div className="flex flex-col">
                   <span className="text-[10px] font-bold text-slate-300 uppercase italic">意向房源</span>
                   <span className="text-xs font-bold text-slate-600">{caseItem?.title || '未知房源'}</span>
@@ -93,7 +93,7 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
           );
         })}
         {activeOpportunities.length === 0 && (
-          <div className="col-span-full py-20 bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center text-slate-400">
+          <div className="col-span-full flex flex-col items-center justify-center rounded-[24px] border-2 border-dashed border-slate-200 bg-slate-50 py-16 text-slate-400">
             <Info size={40} className="mb-4 opacity-20" />
             <p className="italic">线索池已干涸，请通过投放流量补充。</p>
           </div>

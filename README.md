@@ -14,6 +14,17 @@
   - 小区开放日选址接口：`/api/parse-workbook`、`/api/open-day-catalog`、`/api/open-day-score`、`/api/open-day-analyses`、`/api/open-day-scenarios`
 - 小区开放日选址原始静态页面已保存在 `src/open-day/legacy/`
 - 小区开放日选址 DDD 设计说明见 [docs/open-day-ddd-architecture.md](/Users/jiaqi/Documents/开放日测算/docs/open-day-ddd-architecture.md)
+- 我是王牌维护人的云端数据模型见 [docs/selling-houses-cloud-data-model.md](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-cloud-data-model.md)
+- 我是王牌维护人的玩法重构草图见 [docs/selling-houses-game-architecture.md](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-game-architecture.md)
+
+## 项目记忆
+
+- 项目内人工整理版记忆入口： [MEMORY.md](/Users/jiaqi/Documents/开放日测算/MEMORY.md)
+- 当前状态： [docs/project-memory/current-state.md](/Users/jiaqi/Documents/开放日测算/docs/project-memory/current-state.md)
+- 稳定决策： [docs/project-memory/durable-decisions.md](/Users/jiaqi/Documents/开放日测算/docs/project-memory/durable-decisions.md)
+- 当前焦点： [docs/project-memory/current-focus.md](/Users/jiaqi/Documents/开放日测算/docs/project-memory/current-focus.md)
+- 模块地图： [docs/project-memory/module-map.md](/Users/jiaqi/Documents/开放日测算/docs/project-memory/module-map.md)
+- 接手清单： [docs/project-memory/handoff-checklist.md](/Users/jiaqi/Documents/开放日测算/docs/project-memory/handoff-checklist.md)
 
 ## 使用方式
 
@@ -65,6 +76,7 @@ http://localhost:3000
 - 当一次测算绑定了已保存方案时，快照会记录 `scenarioTemplateId / scenarioTemplateName`，并支持按方案筛选历史
 - 历史快照现在支持直接回放，能把当次测算的原始数据、参数和结果恢复回当前工作台
 - 当存在 `DATABASE_URL / POSTGRES_URL` 时，开放日模块会自动切到 `Neon` 持久化；否则回退为本地文件仓储
+- 我是王牌维护人的云端存档 schema 也已经按 `Neon Postgres` 预留，可与开放日模块共用同一库、不同表
 - 当运行在 Vercel 上时，开放日测算缓存会优先使用 `Runtime Cache`，本地开发默认回退为内存缓存
 - 当存在 `BLOB_READ_WRITE_TOKEN` 且结构化存储走 `Neon` 时，Excel 上传会在解析后自动归档到 `Vercel Blob`；否则回退为本地临时文件仓储
 - workbook 解析链现在带有 `checksum + requestedSheet` 级别的缓存，同一份 Excel 的重复解析会优先命中缓存，再配合上传归档去重，明显缩短二次加载耗时

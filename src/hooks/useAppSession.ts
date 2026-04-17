@@ -8,7 +8,7 @@ import {
 import { AIModel } from '../types';
 
 export function useAppSession(state: AppState, dispatch: React.Dispatch<AppAction>) {
-  const { authorizedKey, authStatus } = state;
+  const { authorizedKey, authStatus, allowedWorkspaces } = state;
 
   const lockApplication = useCallback((message: string, nextInput = '') => {
     window.localStorage.removeItem(ACTIVATION_STORAGE_KEY);
@@ -47,8 +47,14 @@ export function useAppSession(state: AppState, dispatch: React.Dispatch<AppActio
       }
 
       try {
-        const verifiedKey = await verifyActivationKey(storedKey);
-        if (!disposed) dispatch({ type: 'COMPLETE_ACTIVATION', key: verifiedKey });
+        const verified = await verifyActivationKey(storedKey);
+        if (!disposed) {
+          dispatch({
+            type: 'COMPLETE_ACTIVATION',
+            key: verified.key,
+            allowedWorkspaces: verified.allowedWorkspaces,
+          });
+        }
       } catch (error) {
         if (!disposed) {
           lockApplication(error instanceof Error ? error.message : '激活失败。', storedKey);
@@ -63,7 +69,7 @@ export function useAppSession(state: AppState, dispatch: React.Dispatch<AppActio
   // Catalog loading
   useEffect(() => {
     let disposed = false;
-    if (authStatus !== 'authenticated' || !authorizedKey) return;
+    if (authStatus !== 'authenticated' || !authorizedKey || !allowedWorkspaces.includes('sabrina')) return;
 
     const loadModels = async () => {
       try {
@@ -85,7 +91,7 @@ export function useAppSession(state: AppState, dispatch: React.Dispatch<AppActio
 
     loadModels();
     return () => { disposed = true; };
-  }, [authStatus, authorizedKey, authorizedFetch, dispatch]);
+  }, [authStatus, authorizedKey, authorizedFetch, allowedWorkspaces, dispatch]);
 
   return { authorizedFetch, lockApplication };
 }

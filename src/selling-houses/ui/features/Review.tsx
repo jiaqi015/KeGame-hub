@@ -8,19 +8,25 @@ interface ReviewProps {
 
 export function Review({ state }: ReviewProps) {
   const { weeklyReviews } = state;
+  const { scenarioName, difficultyId } = state.runContext;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
+    <div className="mx-auto max-w-4xl space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="text-2xl font-bold text-slate-900">经营日志与周报</h3>
+        <div>
+          <h3 className="text-[22px] font-bold text-slate-900">经营日志与周报</h3>
+          <p className="mt-1 text-sm text-slate-400">
+            当前剧本：{scenarioName} · {difficultyId.toUpperCase()}
+          </p>
+        </div>
         <span className="text-sm text-slate-400">系统每周日自动生成复盘建议</span>
       </div>
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {weeklyReviews.map((r, i) => (
-          <div key={r.id || i} className="bg-white rounded-3xl border border-black/5 overflow-hidden shadow-sm">
-            <div className="bg-slate-900 p-6 flex items-center justify-between">
-              <h4 className="text-lg font-bold text-white flex items-center gap-3">
+          <div key={r.id || i} className="overflow-hidden rounded-[22px] border border-black/5 bg-white shadow-sm">
+            <div className="flex items-center justify-between bg-slate-900 p-5">
+              <h4 className="flex items-center gap-3 text-[17px] font-bold text-white">
                 <Target className="text-emerald-400" size={20} />
                 {r.title}
               </h4>
@@ -28,7 +34,7 @@ export function Review({ state }: ReviewProps) {
                 COMPLETED
               </span>
             </div>
-            <div className="p-8 space-y-6">
+            <div className="space-y-5 p-6">
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest">
                   <History size={14} /> 经营总结
@@ -36,7 +42,7 @@ export function Review({ state }: ReviewProps) {
                 <p className="text-slate-600 leading-relaxed">{r.note}</p>
               </div>
 
-              <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-500/10 flex gap-4">
+              <div className="flex gap-4 rounded-xl border border-emerald-500/10 bg-emerald-50 p-4">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-emerald-600 shadow-sm">
                   <Lightbulb size={20} />
                 </div>
@@ -50,9 +56,9 @@ export function Review({ state }: ReviewProps) {
         ))}
 
         {weeklyReviews.length === 0 && (
-          <div className="py-20 bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center text-slate-400">
+          <div className="flex flex-col items-center justify-center rounded-[24px] border-2 border-dashed border-slate-200 bg-slate-50 py-16 text-slate-400">
             <History size={40} className="mb-4 opacity-20" />
-            <p className="italic">尚未产生周报，请至少完成一周的经营。</p>
+            <p className="italic">这局还没跑满一周，请先把 {scenarioName} 往前推进几天。</p>
           </div>
         )}
       </div>

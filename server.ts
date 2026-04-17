@@ -18,6 +18,18 @@ import { handleOpenDayScenarioSave } from "./modules/open-day/interfaces/http/op
 import { handleOpenDaySnapshotList } from "./modules/open-day/interfaces/http/openDaySnapshotListHandler.js";
 import { handleOpenDayScore } from "./modules/open-day/interfaces/http/openDayScoreHandler.js";
 import { openDayDisambiguationHandler } from "./modules/open-day/interfaces/http/openDayDisambiguationHandler.js";
+import {
+  handleMaintainerRunCreate,
+  handleMaintainerRunGet,
+  handleMaintainerRunList,
+  handleMaintainerRunSave,
+  isMaintainerSyncConflictError,
+} from "./src/selling-houses/interfaces/http/maintainerRunHandlers.js";
+import { handleMaintainerLeaderboardList } from "./src/selling-houses/interfaces/http/maintainerLeaderboardHandler.js";
+import {
+  handleSellingHousesScenarioGet,
+  handleSellingHousesScenarioList,
+} from "./src/selling-houses/interfaces/http/sellingHousesScenarioHandlers.js";
 
 dotenv.config();
 
@@ -64,7 +76,11 @@ async function startServer() {
       return res.status(validation.status).json({ error: validation.error });
     }
 
-    return res.json({ ok: true });
+    return res.json({
+      ok: true,
+      key: validation.key,
+      allowedWorkspaces: validation.allowedWorkspaces,
+    });
   });
 
   app.use("/api", (req, res, next) => {
@@ -160,6 +176,65 @@ async function startServer() {
 
   app.post("/api/open-day-disambiguate", async (req, res) => {
     await openDayDisambiguationHandler(req, res);
+  });
+
+  app.get("/api/maintainer-runs", async (req, res) => {
+    try {
+      if (typeof req.query?.id === "string" && req.query.id) {
+        const payload = await handleMaintainerRunGet(req.query);
+        return res.json(payload);
+      }
+
+      const payload = await handleMaintainerRunList(req.query);
+      return res.json(payload);
+    } catch (error) {
+      return res.status(400).json({ error: error instanceof Error ? error.message : "云端存档查询失败" });
+    }
+  });
+
+  app.post("/api/maintainer-runs", async (req, res) => {
+    try {
+      const payload = await handleMaintainerRunCreate(req.body);
+      return res.json(payload);
+    } catch (error) {
+      return res.status(400).json({ error: error instanceof Error ? error.message : "云端存档创建失败" });
+    }
+  });
+
+  app.put("/api/maintainer-runs", async (req, res) => {
+    try {
+      const payload = await handleMaintainerRunSave(req.body);
+      return res.json(payload);
+    } catch (error) {
+      if (isMaintainerSyncConflictError(error)) {
+        return res.status(409).json({ error: error.message, latest: error.latest });
+      }
+
+      return res.status(400).json({ error: error instanceof Error ? error.message : "云端存档保存失败" });
+    }
+  });
+
+  app.get("/api/maintainer-leaderboard", async (req, res) => {
+    try {
+      const payload = await handleMaintainerLeaderboardList(req.query);
+      return res.json(payload);
+    } catch (error) {
+      return res.status(400).json({ error: error instanceof Error ? error.message : "排行榜查询失败" });
+    }
+  });
+
+  app.get("/api/selling-houses-scenarios", async (req, res) => {
+    try {
+      if (typeof req.query?.id === "string" && req.query.id) {
+        const payload = await handleSellingHousesScenarioGet(req.query || {});
+        return res.json(payload);
+      }
+
+      const payload = await handleSellingHousesScenarioList(req.query || {});
+      return res.json(payload);
+    } catch (error) {
+      return res.status(400).json({ error: error instanceof Error ? error.message : "剧本查询失败" });
+    }
   });
 
   app.post("/api/compare", async (req, res) => {

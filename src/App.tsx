@@ -14,7 +14,7 @@ import {
   buildDifferenceSummaryPrompt,
   DIFFERENCE_SUMMARY_MODEL_ID
 } from './services/apiService';
-import { ComparisonResult } from './types';
+import { ComparisonResult, ActivationWorkspaceId } from './types';
 
 // UI Components
 import { AuthOverlay } from './components/Auth/AuthOverlay';
@@ -41,6 +41,7 @@ export default function App() {
     prompt,
     activationInput,
     authorizedKey,
+    allowedWorkspaces,
     authStatus,
     authError,
     activeWorkspace,
@@ -74,8 +75,12 @@ export default function App() {
     }
     dispatch({ type: 'SET_AUTH_STATUS', status: 'submitting' });
     try {
-      const verifiedKey = await verifyActivationKey(candidateKey);
-      dispatch({ type: 'COMPLETE_ACTIVATION', key: verifiedKey });
+      const verified = await verifyActivationKey(candidateKey);
+      dispatch({
+        type: 'COMPLETE_ACTIVATION',
+        key: verified.key,
+        allowedWorkspaces: verified.allowedWorkspaces,
+      });
     } catch (error) {
       dispatch({ 
         type: 'SET_AUTH_STATUS', 
@@ -223,6 +228,17 @@ export default function App() {
     dispatch({ type: 'SET_WORKSPACE', workspace: 'hub' });
   };
 
+  const canAccessWorkspace = (workspace: ActivationWorkspaceId) =>
+    allowedWorkspaces.includes(workspace);
+
+  const handleSelectWorkspace = (workspace: ActivationWorkspaceId) => {
+    if (!canAccessWorkspace(workspace)) {
+      return;
+    }
+
+    dispatch({ type: 'SET_WORKSPACE', workspace });
+  };
+
   const renderWorkspaceShell = (workspace: keyof typeof workspaceMeta, content: React.ReactNode) => {
     const meta = workspaceMeta[workspace];
 
@@ -270,14 +286,15 @@ export default function App() {
         />
       ) : activeWorkspace === 'hub' ? (
         <WorkspaceHub
-          onSelect={(id) => dispatch({ type: 'SET_WORKSPACE', workspace: id })}
+          onSelect={handleSelectWorkspace}
           onLogout={() => lockApplication('', '')}
+          allowedWorkspaces={allowedWorkspaces}
         />
-      ) : activeWorkspace === 'open-day' ? (
+      ) : activeWorkspace === 'open-day' && canAccessWorkspace('open-day') ? (
         renderWorkspaceShell('open-day', <OpenDayWorkspace activationKey={authorizedKey} />)
-      ) : activeWorkspace === 'selling-houses' ? (
-        renderWorkspaceShell('selling-houses', <SellingHousesWorkspace />)
-      ) : (
+      ) : activeWorkspace === 'selling-houses' && canAccessWorkspace('selling-houses') ? (
+        renderWorkspaceShell('selling-houses', <SellingHousesWorkspace activationKey={authorizedKey} />)
+      ) : activeWorkspace === 'sabrina' && canAccessWorkspace('sabrina') ? (
         <ComparisonWorkspace
           state={state}
           onSetPrompt={(val) => dispatch({ type: 'SET_PROMPT', prompt: val })}
@@ -294,6 +311,12 @@ export default function App() {
           onReturnToHub={handleReturnToHub}
           onLogout={() => lockApplication('', '')}
           onPreview={(title, subtitle, content) => dispatch({ type: 'SET_PREVIEW', data: { title, subtitle, content } })}
+        />
+      ) : (
+        <WorkspaceHub
+          onSelect={handleSelectWorkspace}
+          onLogout={() => lockApplication('', '')}
+          allowedWorkspaces={allowedWorkspaces}
         />
       )}
 

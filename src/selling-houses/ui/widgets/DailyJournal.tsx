@@ -13,10 +13,10 @@ export function DailyJournal({ state }: DailyJournalProps) {
   const days = Array.from({ length: day }, (_, i) => day - i);
   
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between">
-        <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-          <Calendar className="text-amber-500" size={24} />
+        <h3 className="flex items-center gap-2 text-lg font-bold text-slate-900">
+          <Calendar className="text-amber-500" size={20} />
           经营日历 (Day {day})
         </h3>
         <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
@@ -24,18 +24,18 @@ export function DailyJournal({ state }: DailyJournalProps) {
         </span>
       </div>
 
-      <div className="space-y-8 relative before:absolute before:inset-0 before:left-[19px] before:w-0.5 before:bg-slate-100 before:pointer-events-none">
+      <div className="relative space-y-6 before:pointer-events-none before:absolute before:inset-0 before:left-[15px] before:w-0.5 before:bg-slate-100">
         {days.map(d => {
           const dayEvents = eventLog.filter(e => e.day === d);
           if (dayEvents.length === 0 && d !== day) return null;
 
           return (
-            <div key={d} className="relative pl-12">
-              <div className="absolute left-0 top-0 w-10 h-10 rounded-full bg-white border-4 border-slate-50 flex items-center justify-center z-10 shadow-sm">
+            <div key={d} className="relative pl-10">
+              <div className="absolute left-0 top-0 z-10 flex h-8 w-8 items-center justify-center rounded-full border-4 border-slate-50 bg-white shadow-sm">
                 <span className="text-xs font-bold text-slate-500">{d}</span>
               </div>
               
-              <div className="space-y-3">
+              <div className="space-y-2.5">
                 <div className="flex items-center gap-3">
                   <h4 className="text-sm font-bold text-slate-800">Day {d} · {d === day ? '今日经营' : '历史轨迹'}</h4>
                   <div className="h-px flex-1 bg-slate-50" />
@@ -45,7 +45,7 @@ export function DailyJournal({ state }: DailyJournalProps) {
                   {dayEvents.map((e, i) => (
                     <div 
                       key={i} 
-                      className={`p-3 rounded-2xl border flex items-start gap-3 transition-all ${
+                      className={`flex items-start gap-3 rounded-xl border p-3 transition-all ${
                         e.tone === 'success' ? 'bg-emerald-50/50 border-emerald-500/10' :
                         e.tone === 'danger' ? 'bg-rose-50/50 border-rose-500/10' :
                         e.tone === 'accent' ? 'bg-amber-50/50 border-amber-500/10' :

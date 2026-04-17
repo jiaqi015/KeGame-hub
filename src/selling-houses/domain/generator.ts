@@ -1,97 +1,75 @@
-import { 
-  MARKET_CELLS, 
-  COMMUNITY_TEMPLATES, 
-  OWNER_NAMES, 
-  MAINTAINER_NAMES, 
-  LAYOUT_TEMPLATES, 
-  STORY_TEMPLATES, 
-  DEFECT_POOL, 
-  TAG_POOL 
-} from './constants';
-import { Case } from './models';
+import { MAINTAINER_NAMES, OWNER_NAMES } from './constants';
+import type { Case, OwnerArchetype, ScenarioCase, ScenarioSnapshot } from './models';
+import { pickRandom, randomFloat, randomInt, type RandomSource } from './utils';
 
-function getRandomItem<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
+function resolvePersonality(archetype: OwnerArchetype): Case['personality'] {
+  if (archetype.id === 'anxious') {
+    return 'urgent';
+  }
+
+  if (archetype.id === 'fair-value') {
+    return 'pragmatic';
+  }
+
+  return 'emotional';
 }
 
-function getRandomRange(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+function buildCaseId(definition: ScenarioCase) {
+  return definition.id || definition.housePrototypeId;
 }
 
-export function generateInitialCases(count: number = 8): Case[] {
-  const cases: Case[] = [];
-  
-  for (let i = 0; i < count; i++) {
-    // 1. Pick a market (alternating to ensure balance)
-    const market = MARKET_CELLS[i % MARKET_CELLS.length];
-    
-    // 2. Pick a layout template
-    const layoutTpt = getRandomItem(LAYOUT_TEMPLATES);
-    const area = getRandomRange(layoutTpt.areaRange[0], layoutTpt.areaRange[1]);
-    
-    // 3. Calculate Prices (with some random variance)
-    const basePrice = area * layoutTpt.pricePerSqm; // in 万
-    const marketPrice = Math.round(basePrice * (0.95 + Math.random() * 0.1)); // +/- 5%
-    const askPrice = Math.round(marketPrice * (1.02 + Math.random() * 0.05)); // 2-7% markup
-    const bottomPrice = Math.round(marketPrice * (0.92 + Math.random() * 0.05)); // 3-8% discount
-    
-    // 4. Initial Scores
-    const trust = getRandomRange(40, 75);
-    const patience = getRandomRange(30, 85);
-    const urgency = getRandomRange(30, 90);
-    const windowDays = getRandomRange(5, 30);
-    
-    // 5. Assets Axis (D2)
-    const axisScores = {
-      layout: getRandomRange(50, 90),
-      light: getRandomRange(40, 95),
-      floor: getRandomRange(30, 95),
-      decor: getRandomRange(20, 90),
-      amenity: getRandomRange(50, 95),
-      neighborhood: getRandomRange(60, 98),
-      structure: getRandomRange(50, 95),
-    };
+export function instantiateScenarioCases(snapshot: ScenarioSnapshot, source?: RandomSource): Case[] {
+  return snapshot.scenario.cases.map((definition) => {
+    const prototype = snapshot.world.housePrototypes.find((entry) => entry.id === definition.housePrototypeId);
+    const ownerArchetype = snapshot.world.ownerArchetypes.find((entry) => entry.id === definition.ownerArchetypeId);
 
-    const districtName = market.name.split(' | ')[0];
-    const community = getRandomItem(COMMUNITY_TEMPLATES[market.id] || ["未知小区"]);
+    if (!prototype || !ownerArchetype) {
+      throw new Error(`Scenario case ${definition.id} 引用了不存在的 prototype / archetype。`);
+    }
 
-    const caseItem: Case = {
-      id: `rcase-${1000 + i}`,
-      title: `${community} ${area}㎡ ${layoutTpt.layout.slice(0, 2)}`,
-      community,
-      district: districtName,
-      layout: layoutTpt.layout,
-      area,
+    const askPrice = definition.askPrice;
+    const marketPrice = Math.round(prototype.marketPrice * (1 + randomFloat(-0.015, 0.015, source)));
+    const bottomPrice = Math.min(definition.bottomPrice, askPrice - 8);
+    const competitionGroupIds = snapshot.scenario.competitionGroups
+      .filter((group) => group.members.includes(buildCaseId(definition)))
+      .map((group) => group.id);
+
+    return {
+      id: buildCaseId(definition),
+      housePrototypeId: prototype.id,
+      ownerArchetypeId: ownerArchetype.id,
+      title: prototype.title,
+      community: prototype.community,
+      district: prototype.district,
+      layout: prototype.layout,
+      area: prototype.area,
       askPrice,
       marketPrice,
       bottomPrice,
-      patience,
-      trust,
-      heat: getRandomRange(30, 70),
-      competitiveness: 0, // Will be calculated by updateDerivedState
-      urgency,
-      windowDays,
-      ownerName: getRandomItem(OWNER_NAMES),
-      ownerMood: "待观察",
-      maintainerName: getRandomItem(MAINTAINER_NAMES),
-      marketCellId: market.id,
-      story: getRandomItem(STORY_TEMPLATES),
-      tags: [getRandomItem(TAG_POOL), getRandomItem(TAG_POOL)],
-      defects: [getRandomItem(DEFECT_POOL)],
-      d1: 50,
-      d2: 50,
-      d3: 50,
-      axisScores,
+      patience: definition.initialPatience + ownerArchetype.patienceDelta,
+      trust: definition.initialTrust,
+      heat: definition.initialHeat,
+      competitiveness: 0,
+      urgency: definition.initialUrgency + ownerArchetype.urgencyGrowthBonus,
+      windowDays: definition.windowDays,
+      ownerName: definition.ownerName || pickRandom(OWNER_NAMES, source),
+      ownerMood: definition.ownerMood,
+      maintainerName: definition.maintainerName || pickRandom(MAINTAINER_NAMES, source),
+      marketCellId: prototype.marketCellId,
+      story: prototype.story,
+      tags: [...prototype.tags],
+      defects: [...prototype.defects],
+      axisScores: { ...prototype.axisScores },
       competitivenessSnapshots: [],
       stageIndex: 0,
-      stageLabel: "获客启动",
-      status: "active",
+      stageLabel: '获客启动',
+      status: 'active',
       riskFlags: [],
       actionsToday: 0,
       touchedToday: true,
       touchedOwnerToday: true,
       lastTouchedDay: 0,
-      lastAction: "init",
+      lastAction: 'init',
       lastPriceActionDay: 0,
       openDayCooldown: 0,
       qualityStory: 0,
@@ -100,10 +78,13 @@ export function generateInitialCases(count: number = 8): Case[] {
       offers: 0,
       soldPrice: null,
       priceGapPct: 0,
+      competitionGroupIds,
+      lastAskPrice: askPrice,
+      isFocused: false,
+      personality: resolvePersonality(ownerArchetype),
+      d1: 50 + randomInt(-3, 4, source),
+      d2: 50 + randomInt(-2, 3, source),
+      d3: 50 + randomInt(-2, 4, source),
     };
-
-    cases.push(caseItem);
-  }
-
-  return cases;
+  });
 }

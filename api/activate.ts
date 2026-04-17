@@ -14,5 +14,9 @@ export default async function handler(req: any, res: any) {
     return res.status(validation.status).json({error: validation.error});
   }
 
-  return res.status(200).json({ok: true});
+  return res.status(200).json({
+    ok: true,
+    key: validation.key,
+    allowedWorkspaces: validation.allowedWorkspaces,
+  });
 }
