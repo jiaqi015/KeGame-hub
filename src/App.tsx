@@ -1,8 +1,9 @@
 import React, { useReducer, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, LogOut, Sparkles } from 'lucide-react';
+import { ArrowLeft, Sparkles } from 'lucide-react';
 
 import { OpenDayWorkspace } from './open-day/OpenDayWorkspace';
+import { SellingHousesWorkspace } from './selling-houses/SellingHousesWorkspace';
 import { appReducer, initialState } from './app/appReducer';
 import { useAppSession } from './hooks/useAppSession';
 import { 
@@ -20,6 +21,17 @@ import { AuthOverlay } from './components/Auth/AuthOverlay';
 import { WorkspaceHub } from './components/Hub/WorkspaceHub';
 import { ComparisonWorkspace } from './components/Comparison/ComparisonWorkspace';
 import { PreviewModal } from './components/Common/PreviewModal';
+
+const workspaceMeta = {
+  'open-day': {
+    title: '小区开放日选址',
+    accentClassName: 'text-emerald-700 hover:text-emerald-800',
+  },
+  'selling-houses': {
+    title: '推盘经营模拟',
+    accentClassName: 'text-amber-700 hover:text-amber-800',
+  },
+} as const;
 
 export default function App() {
   const [state, dispatch] = useReducer(appReducer, initialState);
@@ -211,6 +223,41 @@ export default function App() {
     dispatch({ type: 'SET_WORKSPACE', workspace: 'hub' });
   };
 
+  const renderWorkspaceShell = (workspace: keyof typeof workspaceMeta, content: React.ReactNode) => {
+    const meta = workspaceMeta[workspace];
+
+    return (
+      <div className="flex-1 overflow-hidden px-6 py-3">
+        <div className="mx-auto flex h-full w-full max-w-[1520px] flex-col gap-4">
+          <div className="flex items-center justify-between rounded-full border border-white/70 bg-white/85 px-6 py-2.5 shadow-[0_12px_40px_rgba(20,20,43,0.06)] backdrop-blur-2xl shrink-0">
+            <div className="flex items-center gap-6">
+              <button
+                onClick={handleReturnToHub}
+                className={`inline-flex items-center gap-2 text-sm font-medium transition ${meta.accentClassName}`}
+              >
+                <ArrowLeft className="h-4 w-4" />
+                返回功能页
+              </button>
+              <div className="h-4 w-[1px] bg-black/10" />
+              <h1 className="text-xl font-semibold tracking-[-0.02em] text-[#111111]">{meta.title}</h1>
+            </div>
+
+            <button
+              onClick={() => lockApplication('', '')}
+              className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#5C5C60] transition hover:border-black/20 hover:text-[#1D1D1F]"
+            >
+              注销
+            </button>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-hidden rounded-[36px] border border-black/5 bg-white/70 shadow-[0_24px_70px_rgba(20,20,43,0.08)]">
+            {content}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="h-screen bg-[#FAFAFA] text-[#1D1D1F] font-sans selection:bg-blue-100 overflow-hidden flex flex-col">
       {authStatus !== 'authenticated' ? (
@@ -227,34 +274,9 @@ export default function App() {
           onLogout={() => lockApplication('', '')}
         />
       ) : activeWorkspace === 'open-day' ? (
-        <div className="flex-1 overflow-hidden px-6 py-3">
-          <div className="mx-auto flex h-full w-full max-w-[1520px] flex-col gap-4">
-            <div className="flex items-center justify-between rounded-full border border-white/70 bg-white/85 py-2.5 px-6 shadow-[0_12px_40px_rgba(20,20,43,0.06)] backdrop-blur-2xl shrink-0">
-              <div className="flex items-center gap-6">
-                <button
-                  onClick={handleReturnToHub}
-                  className="inline-flex items-center gap-2 text-sm font-medium text-emerald-700 transition hover:text-emerald-800"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                  返回功能页
-                </button>
-                <div className="h-4 w-[1px] bg-black/10" />
-                <h1 className="text-xl font-semibold tracking-[-0.02em] text-[#111111]">小区开放日选址</h1>
-              </div>
-
-              <button
-                onClick={() => lockApplication('', '')}
-                className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#5C5C60] transition hover:border-black/20 hover:text-[#1D1D1F]"
-              >
-                注销
-              </button>
-            </div>
-
-            <div className="min-h-0 flex-1 overflow-hidden rounded-[36px] border border-black/5 bg-white/70 shadow-[0_24px_70px_rgba(20,20,43,0.08)]">
-              <OpenDayWorkspace activationKey={authorizedKey} />
-            </div>
-          </div>
-        </div>
+        renderWorkspaceShell('open-day', <OpenDayWorkspace activationKey={authorizedKey} />)
+      ) : activeWorkspace === 'selling-houses' ? (
+        renderWorkspaceShell('selling-houses', <SellingHousesWorkspace />)
       ) : (
         <ComparisonWorkspace
           state={state}
@@ -278,7 +300,7 @@ export default function App() {
       <footer className="shrink-0 py-3 text-center text-[#86868B] text-[11px] border-t border-black/5 bg-white">
         <div className="flex items-center justify-center gap-2">
           <Sparkles className="w-3.5 h-3.5" />
-          <span>AI Model Sabrina II • 多模型PK + 小区开放日选址</span>
+          <span>AI Model Sabrina II • 多模型PK + 开放日选址 + 推盘经营模拟</span>
           <span className="text-black/10">|</span>
           <span>© 2026</span>
         </div>

@@ -2,7 +2,7 @@ import { AIModel, ComparisonResult } from '../types';
 
 export type DifferenceSummaryStatus = 'idle' | 'waiting' | 'thinking' | 'completed' | 'error';
 export type AuthStatus = 'checking' | 'locked' | 'submitting' | 'authenticated';
-export type WorkspaceId = 'hub' | 'sabrina' | 'open-day';
+export type WorkspaceId = 'hub' | 'sabrina' | 'open-day' | 'selling-houses';
 
 export interface DifferenceSummaryState {
   modelId: string | null;

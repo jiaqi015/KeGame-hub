@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { LogOut, Sparkles, CheckCircle2, ArrowRight, Layers } from 'lucide-react';
+import { LogOut, Sparkles, CheckCircle2, ArrowRight, Layers, Building2 } from 'lucide-react';
 import { WorkspaceId } from '../../app/appReducer';
 
 interface WorkspaceHubProps {
@@ -14,7 +14,7 @@ export function WorkspaceHub({ onSelect, onLogout }: WorkspaceHubProps) {
       animate={{ opacity: 1, y: 0 }}
       className="flex-1 overflow-auto px-6 py-8"
     >
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-5">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div className="max-w-3xl">
               {/* Optional header text can go here */}
@@ -29,7 +29,7 @@ export function WorkspaceHub({ onSelect, onLogout }: WorkspaceHubProps) {
           </button>
         </div>
 
-        <div className="grid gap-5 lg:grid-cols-2">
+        <div className="grid gap-5 xl:grid-cols-3">
           {/* Multi-Model Comparison (Sabrina) */}
           <button
             onClick={() => onSelect('sabrina')}
@@ -108,6 +108,48 @@ export function WorkspaceHub({ onSelect, onLogout }: WorkspaceHubProps) {
             <div className="mt-auto flex items-center justify-between pt-8 text-sm font-semibold text-[#111111]">
               <span>开始楼盘测算</span>
               <span className="inline-flex items-center gap-1 text-emerald-700 transition group-hover:translate-x-1">
+                打开
+                <ArrowRight className="h-4 w-4" />
+              </span>
+            </div>
+          </button>
+
+          {/* Selling Houses */}
+          <button
+            onClick={() => onSelect('selling-houses')}
+            className="group flex h-full flex-col rounded-[32px] border border-black/5 bg-white p-7 text-left shadow-[0_18px_50px_rgba(20,20,43,0.06)] transition hover:-translate-y-1 hover:shadow-[0_26px_70px_rgba(20,20,43,0.1)]"
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-[#B45309] text-white shadow-[0_18px_40px_rgba(180,83,9,0.18)]">
+                <Building2 className="h-5 w-5" />
+              </div>
+              <div className="rounded-full bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-700">
+                推盘经营模拟
+              </div>
+            </div>
+            <h2 className="mt-6 text-[30px] font-semibold tracking-[-0.05em] text-[#111111]">
+              在模拟环境中磨炼你的推盘直觉
+            </h2>
+            <p className="mt-3 text-[15px] leading-7 text-[#6E6E73]">
+              从房源经营、线索推进到调价议价，把真实业务节奏压缩进 28 天，练出更稳的判断。
+            </p>
+            <div className="mt-6 space-y-3 text-sm text-[#424245]">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-amber-700" />
+                多维指标还原盘面、关系和窗口压力
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-amber-700" />
+                体验调价、开放日、带看与议价闭环
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-amber-700" />
+                适合熟悉业务节奏和经营取舍
+              </div>
+            </div>
+            <div className="mt-auto flex items-center justify-between pt-8 text-sm font-semibold text-[#111111]">
+              <span>进入推盘经营</span>
+              <span className="inline-flex items-center gap-1 text-amber-700 transition group-hover:translate-x-1">
                 打开
                 <ArrowRight className="h-4 w-4" />
               </span>
