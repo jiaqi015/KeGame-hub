@@ -149,7 +149,7 @@ export function buildAuthorizedHeaders(activationKey: string, headers?: HeadersI
 }
 
 export async function verifyActivationKey(key: string): Promise<ActivationPayload> {
-  const response = await fetch('/api/activate', {
+  const response = await fetch('/api/auth?mode=activate', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({key}),

@@ -1,4 +1,5 @@
 import { clearSessionCookie, completeEmailLogin, isSessionAuthorizationFailure, setAuthCookie, startEmailLogin, authorizeSession } from '../lib/auth.js';
+import { validateActivationKey } from '../lib/activation.js';
 
 function getMode(req: any): string {
   const value = req?.query?.mode;
@@ -11,6 +12,27 @@ function getMode(req: any): string {
 
 export default async function handler(req: any, res: any) {
   const mode = getMode(req);
+
+  if (mode === 'activate') {
+    if (req.method !== 'POST') {
+      res.setHeader('Allow', 'POST');
+      return res.status(405).json({ error: 'Method Not Allowed' });
+    }
+
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    const key = typeof body?.key === 'string' ? body.key.trim() : '';
+    const validation = validateActivationKey(key);
+
+    if (!validation.ok) {
+      return res.status(validation.status).json({ error: validation.error });
+    }
+
+    return res.status(200).json({
+      ok: true,
+      key: validation.key,
+      allowedWorkspaces: validation.allowedWorkspaces,
+    });
+  }
 
   if (mode === 'start') {
     if (req.method !== 'POST') {

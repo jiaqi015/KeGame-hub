@@ -4,6 +4,18 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/api/activate",
+      "destination": "/api/auth?mode=activate"
+    },
+    {
+      "source": "/api/models",
+      "destination": "/api/compare"
+    },
+    {
+      "source": "/api/maintainer-leaderboard",
+      "destination": "/api/maintainer-runs?view=leaderboard"
+    },
+    {
       "source": "/api/compare-stream",
       "destination": "/api/compare?stream=1"
     },

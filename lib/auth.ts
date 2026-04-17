@@ -1,4 +1,4 @@
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import {
   ACTIVATION_HEADER_NAME,
   ACTIVATION_WORKSPACES,
@@ -12,6 +12,7 @@ export const AUTH_USER_STORAGE_ENV_NAME = 'AUTH_USER_STORAGE';
 export const AUTH_DEFAULT_USERS_ENV_NAME = 'AUTH_DEFAULT_USERS';
 export const AUTH_VERIFICATION_BYPASS_ENV_NAME = 'AUTH_VERIFICATION_BYPASS_EMAILS';
 export const AUTH_LOCAL_WHITELIST_ENV_NAME = 'AUTH_LOCAL_WHITELIST';
+export const AUTH_SESSION_SECRET_ENV_NAME = 'AUTH_SESSION_SECRET';
 export const AUTH_EMAIL_DOMAIN = '@ke.com';
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 14;
 const VERIFICATION_CODE_TTL_MS = 1000 * 60 * 10;
@@ -34,7 +35,6 @@ interface VerificationChallenge {
 
 interface AuthStore {
   users: Record<string, AuthUserRecord>;
-  sessions: Record<string, { email: string; expiresAt: string }>;
   challenges: Record<string, VerificationChallenge>;
 }
 
@@ -83,6 +83,13 @@ export interface LoginCompleteResult {
   cookie: string;
 }
 
+interface SessionPayload {
+  email: string;
+  displayName: string;
+  allowedWorkspaces: ActivationWorkspaceId[];
+  exp: number;
+}
+
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
@@ -95,7 +102,6 @@ function parseAuthStore(rawValue: string): AuthStore {
   if (!rawValue.trim()) {
     return {
       users: {},
-      sessions: {},
       challenges: {},
     };
   }
@@ -104,13 +110,11 @@ function parseAuthStore(rawValue: string): AuthStore {
     const parsed = JSON.parse(rawValue) as Partial<AuthStore>;
     return {
       users: parsed.users || {},
-      sessions: parsed.sessions || {},
       challenges: parsed.challenges || {},
     };
   } catch {
     return {
       users: {},
-      sessions: {},
       challenges: {},
     };
   }
@@ -292,6 +296,83 @@ function buildSessionCookie(sessionToken: string): string {
   return `${AUTH_SESSION_COOKIE_NAME}=${sessionToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}`;
 }
 
+function encodeBase64Url(value: string): string {
+  return Buffer.from(value, 'utf8').toString('base64url');
+}
+
+function decodeBase64Url(value: string): string {
+  return Buffer.from(value, 'base64url').toString('utf8');
+}
+
+function getSessionSecret(): string {
+  const configured = (process.env[AUTH_SESSION_SECRET_ENV_NAME] || '').trim();
+  if (configured) {
+    return configured;
+  }
+
+  const activationKeys = (process.env.ACTIVATION_KEYS || '').trim();
+  const configuredUsers = (process.env[AUTH_DEFAULT_USERS_ENV_NAME] || '').trim();
+  const localWhitelist = (process.env[AUTH_LOCAL_WHITELIST_ENV_NAME] || '').trim();
+  return `fallback-session-secret:${activationKeys}:${configuredUsers}:${localWhitelist}:kegame`;
+}
+
+function signSessionPayload(payload: string): string {
+  return createHmac('sha256', getSessionSecret()).update(payload).digest('base64url');
+}
+
+function createSessionToken(user: AuthUserRecord): string {
+  const payload: SessionPayload = {
+    email: user.email,
+    displayName: user.displayName,
+    allowedWorkspaces: user.allowedWorkspaces,
+    exp: Date.now() + SESSION_TTL_MS,
+  };
+  const serializedPayload = JSON.stringify(payload);
+  const encodedPayload = encodeBase64Url(serializedPayload);
+  const signature = signSessionPayload(encodedPayload);
+  return `${encodedPayload}.${signature}`;
+}
+
+function parseSessionToken(token: string): SessionPayload | null {
+  const [encodedPayload, signature] = token.split('.');
+  if (!encodedPayload || !signature) {
+    return null;
+  }
+
+  const expectedSignature = signSessionPayload(encodedPayload);
+  const signatureBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expectedSignature);
+  if (signatureBuffer.length !== expectedBuffer.length || !timingSafeEqual(signatureBuffer, expectedBuffer)) {
+    return null;
+  }
+
+  try {
+    const payload = JSON.parse(decodeBase64Url(encodedPayload)) as Partial<SessionPayload>;
+    if (
+      typeof payload?.email !== 'string'
+      || typeof payload?.displayName !== 'string'
+      || typeof payload?.exp !== 'number'
+      || !Array.isArray(payload?.allowedWorkspaces)
+    ) {
+      return null;
+    }
+
+    const allowedWorkspaces = payload.allowedWorkspaces.filter(isActivationWorkspaceId);
+    if (allowedWorkspaces.length === 0) {
+      return null;
+    }
+
+    return {
+      email: normalizeEmail(payload.email),
+      displayName: payload.displayName,
+      allowedWorkspaces,
+      exp: payload.exp,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function extractCookieValue(req: any, name: string): string {
   const rawCookie = req?.headers?.cookie;
   if (typeof rawCookie !== 'string' || !rawCookie) {
@@ -318,15 +399,10 @@ function safeCompareHash(candidate: string, expectedHash: string): boolean {
 function issueSession(store: AuthStore, email: string): LoginCompleteResult {
   const normalizedEmail = normalizeEmail(email);
   const user = store.users[normalizedEmail];
-  const sessionToken = randomBytes(24).toString('hex');
-  const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
 
   user.lastLoginAt = new Date().toISOString();
-  store.sessions[sessionToken] = {
-    email: normalizedEmail,
-    expiresAt,
-  };
   saveAuthStore(store);
+  const sessionToken = createSessionToken(user);
 
   return {
     user,
@@ -444,14 +520,36 @@ export function completeEmailLogin(input: {
 export function authorizeSession(req: any): SessionAuthorizationResult {
   const sessionToken = extractCookieValue(req, AUTH_SESSION_COOKIE_NAME);
   if (sessionToken) {
+    const payload = parseSessionToken(sessionToken);
+    if (payload && payload.exp > Date.now()) {
+      return {
+        ok: true,
+        email: payload.email,
+        displayName: payload.displayName,
+        allowedWorkspaces: payload.allowedWorkspaces,
+        source: 'session',
+      };
+    }
+
     const store = getAuthStore();
-    const session = store.sessions[sessionToken];
-    if (session) {
-      if (new Date(session.expiresAt).getTime() < Date.now()) {
-        delete store.sessions[sessionToken];
-        saveAuthStore(store);
-      } else {
-        const user = store.users[session.email];
+    const configuredUser = store.users[normalizeEmail(payload?.email || '')];
+    if (configuredUser && payload?.exp && payload.exp > Date.now()) {
+      return {
+        ok: true,
+        email: configuredUser.email,
+        displayName: configuredUser.displayName,
+        allowedWorkspaces: configuredUser.allowedWorkspaces,
+        source: 'session',
+      };
+    }
+
+    if (!payload) {
+      const legacyStore = getAuthStore() as AuthStore & {
+        sessions?: Record<string, { email: string; expiresAt: string }>;
+      };
+      const legacySession = legacyStore.sessions?.[sessionToken];
+      if (legacySession && new Date(legacySession.expiresAt).getTime() > Date.now()) {
+        const user = legacyStore.users[legacySession.email];
         if (user) {
           return {
             ok: true,

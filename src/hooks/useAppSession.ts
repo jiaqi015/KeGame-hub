@@ -68,7 +68,7 @@ export function useAppSession(state: AppState, dispatch: React.Dispatch<AppActio
 
     const loadModels = async () => {
       try {
-        const response = await authorizedFetch('/api/models');
+        const response = await authorizedFetch('/api/compare');
         const payload = await response.json();
         const models = Array.isArray(payload?.models) ? (payload.models as AIModel[]) : [];
         

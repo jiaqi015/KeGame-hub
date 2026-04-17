@@ -64,11 +64,12 @@ export function fetchMaintainerLeaderboard(activationKey: string, seasonId = 'se
   const query = new URLSearchParams({
     seasonId,
     limit: String(limit),
+    view: 'leaderboard',
   });
 
   return requestJson<{ seasonId: string; entries: MaintainerLeaderboardEntry[] }>(
     activationKey,
-    `/api/maintainer-leaderboard?${query.toString()}`,
+    `/api/maintainer-runs?${query.toString()}`,
   );
 }
 

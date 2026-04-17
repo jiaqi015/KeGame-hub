@@ -1,4 +1,5 @@
 import { authorizeRequest } from '../lib/activation.js';
+import { handleMaintainerLeaderboardList } from '../src/selling-houses/interfaces/http/maintainerLeaderboardHandler.js';
 import {
   handleMaintainerRunCreate,
   handleMaintainerRunGet,
@@ -20,6 +21,11 @@ export default async function handler(req: any, res: any) {
 
   try {
     if (req.method === 'GET') {
+      if (req.query?.view === 'leaderboard') {
+        const payload = await handleMaintainerLeaderboardList(req.query || {});
+        return res.status(200).json(payload);
+      }
+
       if (typeof req.query?.id === 'string' && req.query.id) {
         const payload = await handleMaintainerRunGet(req.query || {});
         return res.status(200).json(payload);

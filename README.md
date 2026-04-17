@@ -141,8 +141,7 @@ http://localhost:3000
 ### API
 
 - Sabrina：
-  - `/api/activate`
-  - `/api/models`
+  - `/api/auth?mode=activate`
   - `/api/compare`
   - `/api/compare-stream`
 - Open Day：
@@ -154,7 +153,6 @@ http://localhost:3000
   - `/api/open-day-scenario-versions`
 - Selling Houses：
   - `/api/maintainer-runs`
-  - `/api/maintainer-leaderboard`
   - `/api/selling-houses-scenarios`
 
 ### Design Constraints

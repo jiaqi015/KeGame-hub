@@ -78,21 +78,6 @@ async function startServer() {
 
   app.use(express.json());
 
-  app.post("/api/activate", (req, res) => {
-    const key = typeof req.body?.key === "string" ? req.body.key.trim() : "";
-    const validation = validateActivationKey(key);
-
-    if (!validation.ok) {
-      return res.status(validation.status).json({ error: validation.error });
-    }
-
-    return res.json({
-      ok: true,
-      key: validation.key,
-      allowedWorkspaces: validation.allowedWorkspaces,
-    });
-  });
-
   app.post("/api/auth-start", (req, res) => {
     try {
       const email = typeof req.body?.email === "string" ? req.body.email : "";
@@ -111,6 +96,21 @@ async function startServer() {
   });
 
   app.post("/api/auth", (req, res, next) => {
+    if (req.query?.mode === "activate") {
+      const key = typeof req.body?.key === "string" ? req.body.key.trim() : "";
+      const validation = validateActivationKey(key);
+
+      if (!validation.ok) {
+        return res.status(validation.status).json({ error: validation.error });
+      }
+
+      return res.json({
+        ok: true,
+        key: validation.key,
+        allowedWorkspaces: validation.allowedWorkspaces,
+      });
+    }
+
     if (req.query?.mode !== "start") {
       return next();
     }
@@ -217,8 +217,7 @@ async function startServer() {
 
   app.use("/api", (req, res, next) => {
     if (
-      req.path === "/activate"
-      || req.path === "/auth"
+      req.path === "/auth"
       || req.path === "/auth-start"
       || req.path === "/auth-complete"
       || req.path === "/auth-me"
@@ -234,10 +233,6 @@ async function startServer() {
     }
 
     return next();
-  });
-
-  app.get("/api/models", (_req, res) => {
-    res.json({ models: AVAILABLE_MODELS });
   });
 
   app.get("/api/open-day-catalog", (_req, res) => {
@@ -327,6 +322,11 @@ async function startServer() {
 
   app.get("/api/maintainer-runs", async (req, res) => {
     try {
+      if (req.query?.view === "leaderboard") {
+        const payload = await handleMaintainerLeaderboardList(req.query);
+        return res.json(payload);
+      }
+
       if (typeof req.query?.id === "string" && req.query.id) {
         const payload = await handleMaintainerRunGet(req.query);
         return res.json(payload);
@@ -361,15 +361,6 @@ async function startServer() {
     }
   });
 
-  app.get("/api/maintainer-leaderboard", async (req, res) => {
-    try {
-      const payload = await handleMaintainerLeaderboardList(req.query);
-      return res.json(payload);
-    } catch (error) {
-      return res.status(400).json({ error: error instanceof Error ? error.message : "排行榜查询失败" });
-    }
-  });
-
   app.get("/api/selling-houses-scenarios", async (req, res) => {
     try {
       if (typeof req.query?.id === "string" && req.query.id) {
@@ -382,6 +373,10 @@ async function startServer() {
     } catch (error) {
       return res.status(400).json({ error: error instanceof Error ? error.message : "剧本查询失败" });
     }
+  });
+
+  app.get("/api/compare", (_req, res) => {
+    res.json({ models: AVAILABLE_MODELS });
   });
 
   app.post("/api/compare", async (req, res) => {

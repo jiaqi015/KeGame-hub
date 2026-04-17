@@ -9,10 +9,8 @@ export const WORKSPACE_DEFINITIONS = [
     legacyCode: '1',
     aliases: ['sabrina', 'compare', 'comparison', 'pk'],
     pathMatchers: [
-      { type: 'exact', value: '/api/models' },
       { type: 'exact', value: '/api/compare' },
       { type: 'exact', value: '/api/compare-stream' },
-      { type: 'exact', value: '/models' },
       { type: 'exact', value: '/compare' },
       { type: 'exact', value: '/compare-stream' },
     ] satisfies WorkspacePathMatcher[],
@@ -36,6 +34,7 @@ export const WORKSPACE_DEFINITIONS = [
     aliases: ['selling-houses', 'selling_houses', 'sellinghouses', 'maintainer'],
     pathMatchers: [
       { type: 'prefix', value: '/api/maintainer-' },
+      { type: 'exact', value: '/api/maintainer-runs' },
       { type: 'prefix', value: '/maintainer-' },
       { type: 'exact', value: '/api/selling-houses-scenarios' },
       { type: 'exact', value: '/selling-houses-scenarios' },

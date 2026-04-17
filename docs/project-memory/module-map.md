@@ -38,12 +38,10 @@
   - 模型对比工作区。
 - `src/services/apiService.ts`
   - 前端调用模型相关接口的主要封装。
-- `api/activate.ts`
-  - 激活验证。
-- `api/models.ts`
-  - 模型列表。
+- `api/auth.ts`
+  - 认证入口，同时承接邮箱登录与激活验证。
 - `api/compare.ts`
-  - 模型对比入口，同时承接非流式与流式对比。
+  - 模型对比入口，同时承接模型列表、非流式与流式对比。
 
 ## 开放日选址
 
@@ -164,9 +162,7 @@
 - `src/selling-houses/interfaces/http/sellingHousesScenarioHandlers.ts`
   - selling-houses scenario handlers。
 - `api/maintainer-runs.ts`
-  - run API 入口。
-- `api/maintainer-leaderboard.ts`
-  - leaderboard API 入口。
+  - run API 入口，同时承接 leaderboard 查询。
 - `api/selling-houses-scenarios.ts`
   - scenario API 入口。
 
