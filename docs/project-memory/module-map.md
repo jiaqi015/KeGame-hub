@@ -151,6 +151,8 @@
   - Neon 数据库初始化和 schema 方向。
 - `src/selling-houses/infrastructure/neonGameRunRepository.ts`
   - run repository。
+- `src/selling-houses/infrastructure/fileMaintainerRunRepository.ts`
+  - file fallback run repository，同时维护本地 shadow summary sidecar。
 - `src/selling-houses/infrastructure/neonScenarioRepository.ts`
   - scenario repository。
 - `src/selling-houses/infrastructure/sellingHousesPlatform.ts`
@@ -212,6 +214,14 @@
   - `npm run selfplay:lab`：本地 lab
 - `scripts/verify-selling-houses.ts`
   - 资产顾问专项验证入口。
+- `scripts/verify-selling-houses-shadow-sync.ts`
+  - Neon 影子表校验入口。
+- `scripts/verify-selling-houses-file-shadow-sync.ts`
+  - file fallback shadow summary 校验入口。
+- `scripts/rebuild-selling-houses-shadow-sync.ts`
+  - Neon 影子表重建入口。
+- `scripts/rebuild-selling-houses-file-shadow-sync.ts`
+  - file fallback shadow summary 重建入口。
 - `scripts/verify-generated-selling-houses.ts`
   - 生成式剧本验证入口。
 - `scripts/run-selling-houses-agent.ts`

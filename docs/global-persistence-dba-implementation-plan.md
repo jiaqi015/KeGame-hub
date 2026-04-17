@@ -196,6 +196,7 @@
 
 1. `selling-houses` fallback 设计
 2. `open-day` legacy 边界清理
+3. `selling-houses` file fallback shadow summary verify / rebuild
 
 ### 第三批
 
@@ -215,3 +216,21 @@
 如果要做 DBA 巡检：
 
 - 直接从任务组 E 衍生固定 SOP
+
+## 当前进展补记
+
+截至 2026-04-18：
+
+- `selling-houses` 已补 run 级 file fallback
+- file fallback 已补最小一致语义：
+  - `createRun / getRun / listRuns / saveRun / listLeaderboard`
+  - `syncVersion` CAS
+- file fallback 已补 sidecar shadow summary
+- 已具备 file 模式下的 verify / rebuild 脚本：
+  - `verify:maintainer-file-shadow`
+  - `rebuild:maintainer-file-shadow`
+
+这一步仍属于：
+
+- 不切业务主读路径
+- 只增强 fallback 可运行性与 DBA 可巡检性

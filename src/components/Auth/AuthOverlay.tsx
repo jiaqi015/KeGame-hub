@@ -55,7 +55,7 @@ export function AuthOverlay({
               <div>
                 <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-black/5 bg-[#F5F5F7] px-3 py-1 text-[11px] font-semibold tracking-[0.22em] text-[#6E6E73] uppercase">
                   <KeGameHubMark size={16} />
-                  KeGame Access
+                  KeGame
                 </div>
                 <div className="flex items-center gap-3">
                   <KeGameHubMark size={36} />
@@ -174,7 +174,7 @@ export function AuthOverlay({
             <div className="mt-6 flex items-center justify-between gap-4 text-xs text-[#8E8E93]">
               <span>{authStatus === 'checking' ? '正在恢复已登录状态' : '登录后会记住当前设备'}</span>
               <span className="rounded-full bg-[#F5F5F7] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#6E6E73]">
-                Private Access
+                KeGame
               </span>
             </div>
           </div>

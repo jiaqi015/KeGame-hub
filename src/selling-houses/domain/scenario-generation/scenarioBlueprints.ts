@@ -45,7 +45,7 @@ const SCENARIO_BLUEPRINTS: ScenarioBlueprint[] = [
     naming: {
       titlePool: ['热身起步局', '平稳开场局', '节奏找手感'],
       themeFragments: ['先把基本节奏跑顺', '重在熟悉保盘和推进', '不急着把难点同时压上来'],
-      descriptionFragments: ['适合先找操作手感', '整体窗口更宽', '是一张更友好的代表局'],
+      descriptionFragments: ['适合先找操作手感', '整体窗口更宽', '是一张更友好的标准局'],
     },
   },
   {
@@ -543,7 +543,7 @@ const SCENARIO_BLUEPRINTS: ScenarioBlueprint[] = [
     naming: {
       titlePool: ['极限残局局', '识别优先级局', '低容错收口局'],
       themeFragments: ['重点不是全盘通吃，而是识别谁该保', '高噪声里先判断再动作', '你需要接受一部分盘只能止损'],
-      descriptionFragments: ['是更极端的代表局', '非常适合感受残局压力', '局面会更快逼你做决定'],
+      descriptionFragments: ['是更极端的标准局', '非常适合感受残局压力', '局面会更快逼你做决定'],
     },
   },
   {

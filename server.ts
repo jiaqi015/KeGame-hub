@@ -78,10 +78,10 @@ async function startServer() {
 
   app.use(express.json());
 
-  app.post("/api/auth-start", (req, res) => {
+  app.post("/api/auth-start", async (req, res) => {
     try {
       const email = typeof req.body?.email === "string" ? req.body.email : "";
-      const result = startEmailLogin(email);
+      const result = await startEmailLogin(email);
       return res.json({
         ok: true,
         email: result.email,
@@ -95,7 +95,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/auth", (req, res, next) => {
+  app.post("/api/auth", async (req, res, next) => {
     if (req.query?.mode === "activate") {
       const key = typeof req.body?.key === "string" ? req.body.key.trim() : "";
       const validation = validateActivationKey(key);
@@ -117,7 +117,7 @@ async function startServer() {
 
     try {
       const email = typeof req.body?.email === "string" ? req.body.email : "";
-      const result = startEmailLogin(email);
+      const result = await startEmailLogin(email);
       return res.json({
         ok: true,
         email: result.email,
@@ -173,6 +173,7 @@ async function startServer() {
       ok: true,
       user: {
         email: authorization.email,
+        nickname: authorization.nickname,
         displayName: authorization.displayName,
         allowedWorkspaces: authorization.allowedWorkspaces,
         source: authorization.source,
@@ -194,6 +195,7 @@ async function startServer() {
       ok: true,
       user: {
         email: authorization.email,
+        nickname: authorization.nickname,
         displayName: authorization.displayName,
         allowedWorkspaces: authorization.allowedWorkspaces,
         source: authorization.source,

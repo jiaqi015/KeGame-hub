@@ -47,6 +47,7 @@ export function useAppSession(state: AppState, dispatch: React.Dispatch<AppActio
             key: window.localStorage.getItem(ACTIVATION_STORAGE_KEY)?.trim() || 'session-authenticated',
             allowedWorkspaces: user.allowedWorkspaces,
             email: user.email,
+            nickname: user.nickname,
           });
           dispatch({ type: 'SET_LOGIN_EMAIL', value: user.email });
         }

@@ -8,12 +8,14 @@ import {
   Home,
   LayoutDashboard,
   LineChart,
+  LogOut,
   MessageSquare,
   RefreshCw,
   Users,
   Wallet,
   Zap,
 } from 'lucide-react';
+import { ConfirmBackButton } from '../components/Common/ConfirmBackButton';
 import { useGame } from './application/useGame';
 import { WEEKLY_ROUTINE } from './domain/constants';
 import { getDayOfWeek, getRoutine } from './domain/utils';
@@ -29,7 +31,13 @@ const ScenarioSetup = lazy(() => import('./ui/features/ScenarioSetup').then((mod
 
 type ResourcePanelType = 'budget' | 'commission' | 'energy';
 
-export function SellingHousesWorkspace({ activationKey }: { activationKey: string }) {
+interface SellingHousesWorkspaceProps {
+  activationKey: string;
+  onReturnToHub: () => void;
+  onLogout: () => void;
+}
+
+export function SellingHousesWorkspace({ activationKey, onReturnToHub, onLogout }: SellingHousesWorkspaceProps) {
   const {
     phase,
     state,
@@ -187,76 +195,109 @@ export function SellingHousesWorkspace({ activationKey }: { activationKey: strin
     <div className="flex h-full flex-col overflow-hidden bg-[linear-gradient(180deg,rgba(255,251,235,0.4),rgba(255,255,255,1))] font-sans text-slate-900">
       <header className="shrink-0 border-b border-black/5 bg-white/85 px-5 py-3 backdrop-blur-xl">
         <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex min-w-[260px] items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-[16px] bg-[#8B5A2B] text-white shadow-[0_12px_22px_rgba(139,90,43,0.14)]">
-                <Home size={17} />
-              </div>
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-amber-700">
-                    {state.runContext.scenarioSnapshot.scenario.theme}
-                  </div>
-                  <div className="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold text-amber-700">
-                    <Calendar size={10} />
-                    {routine.label} · {routine.theme}
-                  </div>
-                  <div className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-slate-500">
-                    {state.runContext.difficultyId}
-                  </div>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex min-w-[320px] flex-1 items-start gap-3">
+              <ConfirmBackButton
+                onConfirm={onReturnToHub}
+                title="确认返回？"
+                description="将离开当前经营局，回到功能入口。当前进度会按系统状态保留。"
+                buttonClassName="inline-flex h-10 items-center gap-2 rounded-full border border-black/8 bg-white px-4 text-[11px] font-semibold text-slate-600 transition hover:border-black/15 hover:text-slate-900"
+              />
+              <div className="flex min-w-0 flex-1 items-center gap-3 rounded-[24px] border border-[#EADBC9] bg-[linear-gradient(180deg,rgba(255,248,240,0.95),rgba(255,255,255,0.98))] px-3.5 py-2.5 shadow-[0_10px_30px_rgba(139,90,43,0.08)]">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] bg-[#8B5A2B] text-white shadow-[0_12px_22px_rgba(139,90,43,0.14)]">
+                  <Home size={18} />
                 </div>
-                <h2 className="truncate text-[16px] font-semibold tracking-[-0.03em] text-slate-900">{state.runContext.scenarioName}</h2>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <div className="rounded-full bg-[#FFF1D6] px-2.5 py-1 text-[10px] font-bold text-[#A35B00]">
+                      {state.runContext.scenarioSnapshot.scenario.theme}
+                    </div>
+                    <div className="flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold text-amber-700">
+                      <Calendar size={10} />
+                      {routine.label} · {routine.theme}
+                    </div>
+                    <div className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                      {state.runContext.difficultyId}
+                    </div>
+                  </div>
+                  <h2 className="mt-1 truncate text-[18px] font-semibold tracking-[-0.03em] text-slate-900">
+                    {state.runContext.scenarioName}
+                  </h2>
+                </div>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <div className="flex items-center gap-1 rounded-[22px] border border-black/5 bg-white/90 p-1.5 shadow-sm">
+            <div className="flex items-center justify-end">
+              <button
+                type="button"
+                onClick={onLogout}
+                className="inline-flex h-10 items-center gap-1.5 rounded-full border border-black/8 bg-white px-4 text-[11px] font-semibold text-slate-500 transition hover:border-black/15 hover:text-slate-900"
+              >
+                <LogOut size={14} />
+                退出
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-[24px] border border-black/[0.05] bg-[linear-gradient(180deg,rgba(248,250,252,0.9),rgba(255,255,255,0.98))] p-1.5 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
+            <nav className="flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-[18px] bg-white/55 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
+              <NavItem active={activeView === 'dashboard'} onClick={() => setActiveView('dashboard')} icon={<LayoutDashboard size={16} />} label="经营概览" />
+              <NavItem active={activeView === 'cases'} onClick={() => setActiveView('cases')} icon={<Home size={16} />} label="房源管理" />
+              <NavItem active={activeView === 'opportunities'} onClick={() => setActiveView('opportunities')} icon={<Users size={16} />} label="准客池" />
+              <NavItem active={activeView === 'market'} onClick={() => setActiveView('market')} icon={<LineChart size={16} />} label="商圈动静" />
+              <NavItem active={activeView === 'review'} onClick={() => setActiveView('review')} icon={<History size={16} />} label="活动" />
+            </nav>
+
+            <div className="hidden h-8 w-px bg-black/[0.06] xl:block" />
+
+            <div className="flex flex-wrap items-center gap-1.5">
+              <div className="flex items-center gap-1 rounded-[18px] border border-[#E8DED2] bg-[linear-gradient(180deg,rgba(255,252,247,0.98),rgba(255,255,255,0.98))] p-1 shadow-[0_8px_18px_rgba(139,90,43,0.05)]">
                 <button
                   type="button"
                   onClick={() => setActiveResourcePanel('budget')}
-                  className="min-w-[136px] rounded-[16px] border border-transparent bg-transparent px-2.5 py-2 text-left transition-all hover:border-black/5 hover:bg-slate-50"
+                  className="min-w-[114px] rounded-[14px] border border-transparent bg-transparent px-2.5 py-2 text-left transition-all hover:border-black/5 hover:bg-slate-50"
                   aria-label="查看推广金详情"
                   title="查看推广金详情"
                 >
                   <ResourceTile
-                    icon={<Wallet size={16} />}
+                    icon={<Wallet size={15} />}
                     label="推广金"
                     value={`${state.cash} 点`}
                     color="text-slate-900"
                     trailing={(
-                      <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-400">
+                      <div className="flex items-center gap-1 text-[10px] font-semibold text-slate-400">
                         <span>明细</span>
-                        <ChevronRight size={14} />
+                        <ChevronRight size={13} />
                       </div>
                     )}
                   />
                 </button>
-                <div className="h-9 w-px bg-slate-100" />
+                <div className="h-8 w-px bg-slate-100" />
                 <button
                   type="button"
                   onClick={() => setActiveResourcePanel('commission')}
-                  className="min-w-[108px] rounded-[16px] border border-transparent bg-transparent px-2.5 py-2 text-left transition-all hover:border-black/5 hover:bg-slate-50"
+                  className="min-w-[96px] rounded-[14px] border border-transparent bg-transparent px-2.5 py-2 text-left transition-all hover:border-black/5 hover:bg-slate-50"
                   aria-label="查看佣金详情"
                   title="查看佣金详情"
                 >
                   <ResourceTile
-                    icon={<CircleDollarSign size={16} />}
+                    icon={<CircleDollarSign size={15} />}
                     label="佣金"
                     value={`${commissionDisplay} 点`}
                     color="text-emerald-700"
                     trailing={<ResourceDetailHint />}
                   />
                 </button>
-                <div className="h-9 w-px bg-slate-100" />
+                <div className="h-8 w-px bg-slate-100" />
                 <button
                   type="button"
                   onClick={() => setActiveResourcePanel('energy')}
-                  className="min-w-[96px] rounded-[16px] border border-transparent bg-transparent px-2.5 py-2 text-left transition-all hover:border-black/5 hover:bg-slate-50"
+                  className="min-w-[90px] rounded-[14px] border border-transparent bg-transparent px-2.5 py-2 text-left transition-all hover:border-black/5 hover:bg-slate-50"
                   aria-label="查看精力详情"
                   title="查看精力详情"
                 >
                   <ResourceTile
-                    icon={<Zap size={16} />}
+                    icon={<Zap size={15} />}
                     label="精力"
                     value={`${state.energy}/${state.maxEnergy}`}
                     color="text-amber-600"
@@ -264,11 +305,12 @@ export function SellingHousesWorkspace({ activationKey }: { activationKey: strin
                   />
                 </button>
               </div>
-              <div className="flex items-center gap-2">
+
+              <div className="flex items-center gap-1 rounded-[18px] border border-[#DDE5F0] bg-[linear-gradient(180deg,rgba(247,250,255,0.98),rgba(255,255,255,0.98))] p-1 shadow-[0_8px_18px_rgba(15,23,42,0.05)]">
                 <button
                   onClick={() => handleAdvanceDays(7, displayMessage)}
                   disabled={state.gameOver}
-                  className="flex items-center gap-2 rounded-xl bg-slate-100 px-3.5 py-2 text-[12px] font-bold text-slate-900 transition-all hover:bg-slate-200 disabled:opacity-50"
+                  className="flex h-11 items-center gap-1.5 rounded-[14px] bg-white px-3.5 text-[12px] font-bold text-slate-700 transition-all hover:bg-slate-100 disabled:opacity-50"
                 >
                   <FastForward size={16} />
                   <span>推进一周</span>
@@ -276,21 +318,13 @@ export function SellingHousesWorkspace({ activationKey }: { activationKey: strin
                 <button
                   onClick={() => handleAdvanceDays(1, displayMessage)}
                   disabled={state.gameOver}
-                  className="rounded-xl bg-slate-900 px-3.5 py-2 text-[12px] font-bold text-white shadow-lg shadow-slate-900/10 transition-all hover:scale-105 disabled:scale-100 disabled:opacity-50"
+                  className="h-11 rounded-[14px] bg-[#1F2B3D] px-3.5 text-[12px] font-bold text-white shadow-lg shadow-slate-900/10 transition-all hover:scale-[1.02] hover:bg-[#162233] disabled:scale-100 disabled:opacity-50"
                 >
                   结束今日
                 </button>
               </div>
             </div>
           </div>
-
-          <nav className="flex gap-1 overflow-x-auto rounded-[18px] border border-black/[0.04] bg-slate-100/80 p-1">
-            <NavItem active={activeView === 'dashboard'} onClick={() => setActiveView('dashboard')} icon={<LayoutDashboard size={16} />} label="经营概览" />
-            <NavItem active={activeView === 'cases'} onClick={() => setActiveView('cases')} icon={<Home size={16} />} label="房源管理" />
-            <NavItem active={activeView === 'opportunities'} onClick={() => setActiveView('opportunities')} icon={<Users size={16} />} label="准客池" />
-            <NavItem active={activeView === 'market'} onClick={() => setActiveView('market')} icon={<LineChart size={16} />} label="商圈动静" />
-            <NavItem active={activeView === 'review'} onClick={() => setActiveView('review')} icon={<History size={16} />} label="活动" />
-          </nav>
         </div>
       </header>
 
@@ -620,10 +654,10 @@ function NavItem({
   return (
     <button
       onClick={onClick}
-      className={`flex shrink-0 items-center gap-2 rounded-[14px] px-3.5 py-2 text-[12px] font-bold transition-all ${
+      className={`flex h-11 shrink-0 items-center gap-2 rounded-[14px] px-3.5 text-[12px] font-bold transition-all ${
         active
-          ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/10'
-          : 'text-slate-500 hover:bg-white hover:text-slate-900'
+          ? 'border border-slate-200 bg-[linear-gradient(180deg,#2F3C4F,#243244)] text-white shadow-[0_8px_18px_rgba(36,50,68,0.16)]'
+          : 'border border-transparent text-slate-500 hover:bg-white hover:text-slate-900'
       }`}
     >
       {icon}
@@ -650,8 +684,8 @@ function ResourceTile({
       <div className="flex items-center gap-2">
         <div className="text-slate-300">{icon}</div>
         <div className="flex flex-col leading-none">
-          <span className="mb-0.5 text-[10px] font-bold uppercase tracking-tighter text-slate-300">{label}</span>
-          <span className={`text-sm font-bold ${color}`}>{value}</span>
+          <span className="mb-1 text-[10px] font-bold uppercase tracking-tight text-slate-300">{label}</span>
+          <span className={`text-[13px] font-bold ${color}`}>{value}</span>
         </div>
       </div>
       {trailing}
@@ -661,7 +695,7 @@ function ResourceTile({
 
 function ResourceDetailHint() {
   return (
-    <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-400">
+    <div className="flex items-center gap-1 text-[10px] font-semibold text-slate-400">
       <span>详情</span>
       <ChevronRight size={14} />
     </div>

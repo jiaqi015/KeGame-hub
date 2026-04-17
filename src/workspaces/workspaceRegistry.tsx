@@ -32,12 +32,15 @@ function PlaceholderWorkspace({
 
 type WorkspaceRenderProps = {
   activationKey: string;
+  onReturnToHub: () => void;
+  onLogout: () => void;
 };
 
 export interface WorkspaceRegistryItem {
   id: ActivationWorkspaceId;
   title: string;
   shortLabel: string;
+  isAvailable: boolean;
   accentClassName: string;
   icon: LucideIcon;
   iconContainerClassName: string;
@@ -54,6 +57,7 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
     id: 'sabrina',
     title: '多模型PK',
     shortLabel: '多模型PK',
+    isAvailable: true,
     accentClassName: 'text-blue-700 hover:text-blue-800',
     icon: Sparkles,
     iconContainerClassName: 'bg-[#111111] text-white shadow-[0_18px_40px_rgba(17,17,17,0.18)]',
@@ -68,6 +72,7 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
     id: 'open-day',
     title: '小区开放日选址',
     shortLabel: '小区开放日选址',
+    isAvailable: true,
     accentClassName: 'text-emerald-700 hover:text-emerald-800',
     icon: Layers,
     iconContainerClassName: 'bg-[#1F5F4A] text-white shadow-[0_18px_40px_rgba(31,95,74,0.18)]',
@@ -82,6 +87,7 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
     id: 'selling-houses',
     title: '我是王牌资产顾问',
     shortLabel: '我是王牌资产顾问',
+    isAvailable: true,
     accentClassName: 'text-[#8B5A2B] hover:text-[#72461f]',
     icon: UserRound,
     iconContainerClassName: 'bg-[#8B5A2B] text-white shadow-[0_18px_34px_rgba(139,90,43,0.16)]',
@@ -90,12 +96,19 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
     highlights: ['快速看清每套房现在该怎么推', '练习定价沟通、开放日和议价取舍', '在窗口压力和业主预期之间做稳判断'],
     ctaLabel: '进入顾问训练',
     sortOrder: 30,
-    render: ({ activationKey }) => <SellingHousesWorkspace activationKey={activationKey} />,
+    render: ({ activationKey, onReturnToHub, onLogout }) => (
+      <SellingHousesWorkspace
+        activationKey={activationKey}
+        onReturnToHub={onReturnToHub}
+        onLogout={onLogout}
+      />
+    ),
   },
   {
     id: 'market-management',
     title: '经营好商圈',
     shortLabel: '经营好商圈',
+    isAvailable: false,
     accentClassName: 'text-sky-700 hover:text-sky-800',
     icon: Building2,
     iconContainerClassName: 'bg-[#0F4C81] text-white shadow-[0_18px_34px_rgba(15,76,129,0.18)]',
@@ -115,6 +128,7 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
     id: 'rational-owner',
     title: '做最理性的业主',
     shortLabel: '做最理性的业主',
+    isAvailable: false,
     accentClassName: 'text-rose-700 hover:text-rose-800',
     icon: Target,
     iconContainerClassName: 'bg-[#B9385D] text-white shadow-[0_18px_34px_rgba(185,56,93,0.18)]',

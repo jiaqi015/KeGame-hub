@@ -1,6 +1,6 @@
 import React, { Suspense, useMemo, useReducer, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 
 import { appReducer, initialState } from './app/appReducer';
 import { useAppSession } from './hooks/useAppSession';
@@ -20,6 +20,7 @@ import { ComparisonResult, ActivationWorkspaceId } from './types';
 
 // UI Components
 import { AuthOverlay } from './components/Auth/AuthOverlay';
+import { UserIdentityBadge } from './components/Auth/UserIdentityBadge';
 import { WorkspaceHub } from './components/Hub/WorkspaceHub';
 import { ComparisonWorkspace } from './components/Comparison/ComparisonWorkspace';
 import { PreviewModal } from './components/Common/PreviewModal';
@@ -42,6 +43,8 @@ export default function App() {
     authMode,
     authHint,
     activeWorkspace,
+    currentUserEmail,
+    currentUserNickname,
     availableModels,
     selectedModels,
     isComparing,
@@ -80,6 +83,7 @@ export default function App() {
             key: 'session-authenticated',
             allowedWorkspaces: user.allowedWorkspaces,
             email: user.email,
+            nickname: user.nickname,
           });
           return;
         }
@@ -87,9 +91,7 @@ export default function App() {
         dispatch({
           type: 'SET_AUTH_MODE',
           mode: result.mode === 'activation_required' ? 'activate' : 'verify',
-          hint: result.verificationCode
-            ? `开发占位：验证码 ${result.verificationCode}`
-            : '验证码已发送，请查收邮件。',
+          hint: '验证码已发送，请查收邮件。',
         });
         dispatch({ type: 'SET_AUTH_STATUS', status: 'locked' });
         return;
@@ -113,6 +115,7 @@ export default function App() {
         key: authorizedSessionKey,
         allowedWorkspaces: user.allowedWorkspaces,
         email: user.email,
+        nickname: user.nickname,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : '激活失败。';
@@ -282,28 +285,33 @@ export default function App() {
 
   const renderWorkspaceShell = (workspace: ActivationWorkspaceId, content: React.ReactNode) => {
     const meta = WORKSPACE_REGISTRY_BY_ID[workspace];
+    const shouldRenderShellHeader = workspace !== 'selling-houses';
 
     return (
       <div className="flex-1 overflow-hidden px-6 py-3">
         <div className="mx-auto flex h-full w-full max-w-[1520px] flex-col gap-4">
-          <div className="flex items-center justify-between rounded-full border border-white/70 bg-white/85 px-6 py-2.5 shadow-[0_12px_40px_rgba(20,20,43,0.06)] backdrop-blur-2xl shrink-0">
-            <div className="flex items-center gap-6">
-              <button
-                onClick={handleReturnToHub}
-                className={`inline-flex items-center gap-2 text-sm font-medium transition ${meta.accentClassName}`}
-              >
-                <ArrowLeft className="h-4 w-4" />
-                返回功能页
-              </button>
-            </div>
+          {shouldRenderShellHeader ? (
+            <div className="flex items-center justify-between rounded-full border border-white/70 bg-white/85 px-6 py-2.5 shadow-[0_12px_40px_rgba(20,20,43,0.06)] backdrop-blur-2xl shrink-0">
+              <div className="flex items-center gap-6">
+                <button
+                  onClick={handleReturnToHub}
+                  className={`inline-flex items-center gap-2 text-sm font-medium transition ${meta.accentClassName}`}
+                >
+                  返回
+                </button>
+              </div>
 
-            <button
-              onClick={() => lockApplication('', '')}
-              className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#5C5C60] transition hover:border-black/20 hover:text-[#1D1D1F]"
-            >
-              注销
-            </button>
-          </div>
+              <div className="flex items-center gap-3">
+                <UserIdentityBadge nickname={currentUserNickname} email={currentUserEmail} compact />
+                <button
+                  onClick={() => lockApplication('', '')}
+                  className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#5C5C60] transition hover:border-black/20 hover:text-[#1D1D1F]"
+                >
+                  注销
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           <div className="min-h-0 flex-1 overflow-hidden rounded-[36px] border border-black/5 bg-white/70 shadow-[0_24px_70px_rgba(20,20,43,0.08)]">
             {content}
@@ -334,6 +342,8 @@ export default function App() {
           onSelect={handleSelectWorkspace}
           onLogout={() => lockApplication('', '')}
           allowedWorkspaces={allowedWorkspaces}
+          currentUserNickname={currentUserNickname}
+          currentUserEmail={currentUserEmail}
         />
       ) : activeWorkspace === 'sabrina' && canAccessWorkspace('sabrina') ? (
         <ComparisonWorkspace
@@ -357,7 +367,11 @@ export default function App() {
         renderWorkspaceShell(
           activeWorkspace,
           <Suspense fallback={workspaceFallback}>
-            {WORKSPACE_REGISTRY_BY_ID[activeWorkspace].render({ activationKey: authorizedKey })}
+            {WORKSPACE_REGISTRY_BY_ID[activeWorkspace].render({
+              activationKey: authorizedKey,
+              onReturnToHub: handleReturnToHub,
+              onLogout: () => lockApplication('', ''),
+            })}
           </Suspense>,
         )
       ) : (
@@ -365,6 +379,8 @@ export default function App() {
           onSelect={handleSelectWorkspace}
           onLogout={() => lockApplication('', '')}
           allowedWorkspaces={allowedWorkspaces}
+          currentUserNickname={currentUserNickname}
+          currentUserEmail={currentUserEmail}
         />
       )}
 

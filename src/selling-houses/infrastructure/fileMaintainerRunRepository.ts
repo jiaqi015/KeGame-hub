@@ -16,6 +16,12 @@ import {
 } from '../application/cloudSync.js';
 import type { MaintainerRunRepository } from '../application/maintainerRunRepository.js';
 import { MaintainerSyncConflictError } from '../application/maintainerSyncConflictError.js';
+import {
+  buildShadowWriteSummary,
+  createEmptyShadowWriteSummary,
+  type ShadowSyncVerificationSummary,
+  type ShadowWriteSummary,
+} from '../application/shadowSyncSummary.js';
 import { getRuntimeTempDir } from '../../../lib/runtimeTemp.js';
 
 interface FileRunIndexItem {
@@ -38,6 +44,13 @@ interface FileLeaderboardIndex {
 
 interface FileRunDetail {
   record: MaintainerRunRecord;
+}
+
+interface FileShadowSummaryDetail {
+  runId: string;
+  userId: string;
+  updatedAt: string;
+  summary: ShadowWriteSummary;
 }
 
 function clampLimit(limit: number | undefined, fallback: number, max: number) {
@@ -137,12 +150,14 @@ function buildLeaderboardEntry(
 export class FileMaintainerRunRepository implements MaintainerRunRepository {
   private readonly baseDir: string;
   private readonly detailDir: string;
+  private readonly shadowDir: string;
   private readonly indexFile: string;
   private readonly leaderboardFile: string;
 
   constructor(baseDir = getRuntimeTempDir('selling-houses-runtime', 'runs')) {
     this.baseDir = baseDir;
     this.detailDir = path.join(baseDir, 'details');
+    this.shadowDir = path.join(baseDir, 'shadow-summaries');
     this.indexFile = path.join(baseDir, 'index.json');
     this.leaderboardFile = path.join(baseDir, 'leaderboard.json');
   }
@@ -154,6 +169,7 @@ export class FileMaintainerRunRepository implements MaintainerRunRepository {
     await this.writeRunDetail(record);
     await this.upsertRunIndex(record);
     await this.upsertLeaderboard(record);
+    await this.writeShadowSummary(record);
     return record;
   }
 
@@ -173,6 +189,7 @@ export class FileMaintainerRunRepository implements MaintainerRunRepository {
     await this.writeRunDetail(record);
     await this.upsertRunIndex(record);
     await this.upsertLeaderboard(record);
+    await this.writeShadowSummary(record);
     return record;
   }
 
@@ -211,12 +228,43 @@ export class FileMaintainerRunRepository implements MaintainerRunRepository {
       .slice(0, clampLimit(limit, 20, 50));
   }
 
+  async verifyShadowSync(runId: string, userId: string): Promise<ShadowSyncVerificationSummary> {
+    const run = await this.getRun(runId, userId);
+    if (!run) {
+      throw new Error('未找到对应 run，无法校验文件影子摘要。');
+    }
+
+    const expected = buildShadowWriteSummary(run.saveData);
+    const actual = await this.readShadowSummary(run.runId);
+
+    return {
+      runId,
+      expected,
+      actual: actual?.summary || createEmptyShadowWriteSummary(),
+    };
+  }
+
+  async rebuildShadowTables(runId: string, userId: string): Promise<ShadowSyncVerificationSummary> {
+    const run = await this.getRun(runId, userId);
+    if (!run) {
+      throw new Error('未找到对应 run，无法重建文件影子摘要。');
+    }
+
+    await this.writeShadowSummary(run);
+    return this.verifyShadowSync(runId, userId);
+  }
+
   private async ensureDirs() {
     await fs.mkdir(this.detailDir, { recursive: true });
+    await fs.mkdir(this.shadowDir, { recursive: true });
   }
 
   private detailFile(runId: string) {
     return path.join(this.detailDir, `${runId}.json`);
+  }
+
+  private shadowFile(runId: string) {
+    return path.join(this.shadowDir, `${runId}.json`);
   }
 
   private async writeRunDetail(record: MaintainerRunRecord) {
@@ -228,6 +276,25 @@ export class FileMaintainerRunRepository implements MaintainerRunRepository {
     try {
       const content = await fs.readFile(this.detailFile(runId), 'utf8');
       return JSON.parse(content) as FileRunDetail;
+    } catch {
+      return null;
+    }
+  }
+
+  private async writeShadowSummary(record: MaintainerRunRecord) {
+    const payload: FileShadowSummaryDetail = {
+      runId: record.runId,
+      userId: record.userId,
+      updatedAt: record.updatedAt,
+      summary: buildShadowWriteSummary(record.saveData),
+    };
+    await fs.writeFile(this.shadowFile(record.runId), JSON.stringify(payload, null, 2), 'utf8');
+  }
+
+  private async readShadowSummary(runId: string): Promise<FileShadowSummaryDetail | null> {
+    try {
+      const content = await fs.readFile(this.shadowFile(runId), 'utf8');
+      return JSON.parse(content) as FileShadowSummaryDetail;
     } catch {
       return null;
     }

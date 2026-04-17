@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import path from 'node:path';
 
 import { getRuntimeTempDir } from '../lib/runtimeTemp.js';
 import { createInitialState } from '../src/selling-houses/application/gameState.js';
@@ -95,6 +96,29 @@ const leaderboard = await repository.listLeaderboard('season-1', 10);
 assert.equal(leaderboard.length, 1, 'Expected finished run to enter leaderboard');
 assert.equal(leaderboard[0]?.runId, created.runId, 'Expected leaderboard to reference saved run');
 assert.equal(leaderboard[0]?.score, 88, 'Expected leaderboard score to match final score');
+
+const verifiedBeforeRebuild = await repository.verifyShadowSync(created.runId, created.userId);
+assert.deepEqual(
+  verifiedBeforeRebuild.actual,
+  verifiedBeforeRebuild.expected,
+  'Expected initial file shadow summary to match derived summary',
+);
+
+await fs.rm(path.join(baseDir, 'shadow-summaries', `${created.runId}.json`), { force: true });
+
+const verifiedAfterRemoval = await repository.verifyShadowSync(created.runId, created.userId);
+assert.notDeepEqual(
+  verifiedAfterRemoval.actual,
+  verifiedAfterRemoval.expected,
+  'Expected missing file shadow summary to be detectable',
+);
+
+const rebuilt = await repository.rebuildShadowTables(created.runId, created.userId);
+assert.deepEqual(
+  rebuilt.actual,
+  rebuilt.expected,
+  'Expected rebuildShadowTables to restore file shadow summary',
+);
 
 let conflictCaught = false;
 try {

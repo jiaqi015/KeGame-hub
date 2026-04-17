@@ -11,7 +11,9 @@
     "lint": "tsc --noEmit",
     "verify:maintainer": "tsx scripts/verify-selling-houses.ts",
     "verify:maintainer-shadow": "tsx scripts/verify-selling-houses-shadow-sync.ts",
+    "verify:maintainer-file-shadow": "tsx scripts/verify-selling-houses-file-shadow-sync.ts",
     "rebuild:maintainer-shadow": "tsx scripts/rebuild-selling-houses-shadow-sync.ts",
+    "rebuild:maintainer-file-shadow": "tsx scripts/rebuild-selling-houses-file-shadow-sync.ts",
     "verify:generated-maintainer": "tsx scripts/verify-generated-selling-houses.ts",
     "verify:generated-maintainer-fullrun": "tsx scripts/verify-generated-selling-houses-fullrun.ts",
     "selfplay:maintainer": "tsx scripts/run-selling-houses-agent.ts",
@@ -20,6 +22,7 @@
   "dependencies": {
     "@google/genai": "^1.29.0",
     "@neondatabase/serverless": "^1.0.2",
+    "@types/nodemailer": "^8.0.0",
     "@vercel/blob": "^2.3.3",
     "@vercel/functions": "^3.4.3",
     "dotenv": "^17.2.3",
@@ -27,6 +30,7 @@
     "formidable": "^3.5.4",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
+    "nodemailer": "^8.0.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "xlsx": "^0.18.5"

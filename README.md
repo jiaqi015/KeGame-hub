@@ -184,6 +184,7 @@ http://localhost:3000
 
 ### Selling Houses
 
+- [玩法说明](docs/selling-houses-how-to-play.md)
 - [云端数据模型](docs/selling-houses-cloud-data-model.md)
 - [玩法架构草图](docs/selling-houses-game-architecture.md)
 - [统一玩法架构](docs/selling-houses-unified-game-architecture.md)

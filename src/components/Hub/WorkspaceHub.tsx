@@ -3,14 +3,17 @@ import { LogOut, Sparkles, CheckCircle2, ArrowRight } from 'lucide-react';
 import { ActivationWorkspaceId } from '../../types';
 import { WORKSPACE_REGISTRY } from '../../workspaces/workspaceRegistry';
 import { KeGameHubMark } from '../Brand/KeGameHubMark';
+import { UserIdentityBadge } from '../Auth/UserIdentityBadge';
 
 interface WorkspaceHubProps {
   onSelect: (id: ActivationWorkspaceId) => void;
   onLogout: () => void;
   allowedWorkspaces: ActivationWorkspaceId[];
+  currentUserNickname?: string;
+  currentUserEmail?: string;
 }
 
-export function WorkspaceHub({ onSelect, onLogout, allowedWorkspaces }: WorkspaceHubProps) {
+export function WorkspaceHub({ onSelect, onLogout, allowedWorkspaces, currentUserNickname, currentUserEmail }: WorkspaceHubProps) {
   const visibleWorkspaces = WORKSPACE_REGISTRY
     .filter((workspace) => allowedWorkspaces.includes(workspace.id))
     .sort((a, b) => a.sortOrder - b.sortOrder);
@@ -26,16 +29,16 @@ export function WorkspaceHub({ onSelect, onLogout, allowedWorkspaces }: Workspac
           <div className="max-w-3xl">
             <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-black/5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-[#8E8E93]">
               <KeGameHubMark size={16} />
-              KeGame Hub
+              KeGame
             </div>
             <div className="flex items-center gap-3">
               <KeGameHubMark size={34} />
               <div>
                 <h1 className="text-[32px] font-semibold tracking-[-0.05em] text-[#111111]">KeGame Hub</h1>
-                <p className="mt-1 text-[14px] leading-6 text-[#6E6E73]">
-                  统一进入你的经营模拟、策略测算与对比分析工作台。
-                </p>
               </div>
+            </div>
+            <div className="mt-5">
+              <UserIdentityBadge nickname={currentUserNickname} email={currentUserEmail} />
             </div>
           </div>
 
@@ -51,12 +54,20 @@ export function WorkspaceHub({ onSelect, onLogout, allowedWorkspaces }: Workspac
         <div className="grid gap-6 xl:grid-cols-3">
           {visibleWorkspaces.map((workspace) => {
             const Icon = workspace.icon;
+            const isAvailable = workspace.isAvailable;
+            const footerLabel = isAvailable ? workspace.ctaLabel : '开发中，请期待';
+            const cardClassName = isAvailable
+              ? 'group flex h-full flex-col rounded-[32px] border border-black/5 bg-white p-8 text-left shadow-[0_4px_24px_rgba(0,0,0,0.03)] transition-all hover:-translate-y-1.5 hover:shadow-[0_24px_50px_rgba(0,0,0,0.08)]'
+              : 'flex h-full flex-col rounded-[32px] border border-black/5 bg-[linear-gradient(180deg,#ffffff,#fbfbfd)] p-8 text-left shadow-[0_4px_24px_rgba(0,0,0,0.03)] opacity-80';
 
             return (
               <button
                 key={workspace.id}
-                onClick={() => onSelect(workspace.id)}
-                className="group flex h-full flex-col rounded-[32px] border border-black/5 bg-white p-8 text-left shadow-[0_4px_24px_rgba(0,0,0,0.03)] transition-all hover:-translate-y-1.5 hover:shadow-[0_24px_50px_rgba(0,0,0,0.08)]"
+                type="button"
+                onClick={isAvailable ? () => onSelect(workspace.id) : undefined}
+                disabled={!isAvailable}
+                aria-disabled={!isAvailable}
+                className={cardClassName}
               >
                 <div className="flex items-center gap-4">
                   <div className={`flex h-14 w-14 items-center justify-center rounded-[20px] ${workspace.iconContainerClassName}`}>
@@ -81,11 +92,19 @@ export function WorkspaceHub({ onSelect, onLogout, allowedWorkspaces }: Workspac
                   ))}
                 </div>
                 <div className="mt-auto flex items-center justify-between pt-8 text-sm font-semibold text-[#111111]">
-                  <span>{workspace.ctaLabel}</span>
-                  <span className={`inline-flex items-center gap-1 transition group-hover:translate-x-1 ${workspace.accentClassName.split(' ').slice(0, 1).join(' ')}`}>
-                    打开
-                    <ArrowRight className="h-4 w-4" />
-                  </span>
+                  <span>{footerLabel}</span>
+                  {isAvailable ? (
+                    <span
+                      className={`inline-flex items-center gap-1 transition group-hover:translate-x-1 ${workspace.accentClassName.split(' ').slice(0, 1).join(' ')}`}
+                    >
+                      打开
+                      <ArrowRight className="h-4 w-4" />
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[#8E8E93]">
+                      开发中
+                    </span>
+                  )}
                 </div>
               </button>
             );

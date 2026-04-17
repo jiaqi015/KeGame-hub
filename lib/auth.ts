@@ -5,6 +5,7 @@ import {
   type ActivationWorkspaceId,
   validateActivationKey,
 } from './activation.js';
+import { sendVerificationEmail } from './email.js';
 import { decodeLegacyWorkspaceCodes } from './workspaces.js';
 
 export const AUTH_SESSION_COOKIE_NAME = 'sabrina-session';
@@ -19,6 +20,7 @@ const VERIFICATION_CODE_TTL_MS = 1000 * 60 * 10;
 
 export interface AuthUserRecord {
   email: string;
+  nickname: string;
   displayName: string;
   allowedWorkspaces: ActivationWorkspaceId[];
   activationBound: boolean;
@@ -47,6 +49,7 @@ type ConfiguredUserInput = Omit<Partial<AuthUserRecord>, 'allowedWorkspaces'> & 
 export interface SessionAuthorizationSuccess {
   ok: true;
   email: string;
+  nickname: string;
   displayName: string;
   allowedWorkspaces: ActivationWorkspaceId[];
   source: 'session' | 'activation-key';
@@ -85,6 +88,7 @@ export interface LoginCompleteResult {
 
 interface SessionPayload {
   email: string;
+  nickname: string;
   displayName: string;
   allowedWorkspaces: ActivationWorkspaceId[];
   exp: number;
@@ -92,6 +96,12 @@ interface SessionPayload {
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
+}
+
+export function deriveNicknameFromEmail(email: string): string {
+  const normalized = normalizeEmail(email);
+  const [prefix] = normalized.split('@');
+  return prefix?.trim() || normalized || 'user';
 }
 
 function hashValue(value: string): string {
@@ -137,6 +147,9 @@ function getAuthStore(): AuthStore {
     }
 
     existing.allowedWorkspaces = Array.from(new Set([...existing.allowedWorkspaces, ...user.allowedWorkspaces]));
+    if (!existing.nickname) {
+      existing.nickname = user.nickname;
+    }
     if (!existing.displayName) {
       existing.displayName = user.displayName;
     }
@@ -210,11 +223,15 @@ function buildConfiguredUser(
   now: string,
 ): AuthUserRecord {
   const email = normalizeEmail(item.email || '');
+  const nickname = typeof item.nickname === 'string' && item.nickname.trim()
+    ? item.nickname.trim()
+    : deriveNicknameFromEmail(email);
   return {
     email,
+    nickname,
     displayName: typeof item.displayName === 'string' && item.displayName.trim()
       ? item.displayName.trim()
-      : email.split('@')[0],
+      : nickname,
     allowedWorkspaces: normalizeAllowedWorkspaces(item.allowedWorkspaces),
     activationBound: item.activationBound !== false,
     activationKey: typeof item.activationKey === 'string' ? item.activationKey : undefined,
@@ -323,6 +340,7 @@ function signSessionPayload(payload: string): string {
 function createSessionToken(user: AuthUserRecord): string {
   const payload: SessionPayload = {
     email: user.email,
+    nickname: user.nickname,
     displayName: user.displayName,
     allowedWorkspaces: user.allowedWorkspaces,
     exp: Date.now() + SESSION_TTL_MS,
@@ -350,6 +368,7 @@ function parseSessionToken(token: string): SessionPayload | null {
     const payload = JSON.parse(decodeBase64Url(encodedPayload)) as Partial<SessionPayload>;
     if (
       typeof payload?.email !== 'string'
+      || typeof payload?.nickname !== 'string'
       || typeof payload?.displayName !== 'string'
       || typeof payload?.exp !== 'number'
       || !Array.isArray(payload?.allowedWorkspaces)
@@ -364,6 +383,7 @@ function parseSessionToken(token: string): SessionPayload | null {
 
     return {
       email: normalizeEmail(payload.email),
+      nickname: payload.nickname.trim() || deriveNicknameFromEmail(payload.email),
       displayName: payload.displayName,
       allowedWorkspaces,
       exp: payload.exp,
@@ -411,7 +431,7 @@ function issueSession(store: AuthStore, email: string): LoginCompleteResult {
   };
 }
 
-export function startEmailLogin(emailInput: string): LoginStartResult {
+export async function startEmailLogin(emailInput: string): Promise<LoginStartResult> {
   const email = normalizeEmail(emailInput);
   if (!email) {
     throw new Error('请输入邮箱。');
@@ -429,7 +449,8 @@ export function startEmailLogin(emailInput: string): LoginStartResult {
     if (!existingUser) {
       store.users[email] = {
         email,
-        displayName: email.split('@')[0],
+        nickname: deriveNicknameFromEmail(email),
+        displayName: deriveNicknameFromEmail(email),
         allowedWorkspaces: [...ACTIVATION_WORKSPACES],
         activationBound: true,
         createdAt: new Date().toISOString(),
@@ -453,6 +474,11 @@ export function startEmailLogin(emailInput: string): LoginStartResult {
     expiresAt,
   };
   saveAuthStore(store);
+  await sendVerificationEmail({
+    to: email,
+    code,
+    expiresAt,
+  });
 
   return {
     email,
@@ -505,7 +531,8 @@ export function completeEmailLogin(input: {
 
     store.users[email] = {
       email,
-      displayName: email.split('@')[0],
+      nickname: deriveNicknameFromEmail(email),
+      displayName: deriveNicknameFromEmail(email),
       allowedWorkspaces: validation.allowedWorkspaces,
       activationBound: true,
       activationKey: validation.key,
@@ -525,6 +552,7 @@ export function authorizeSession(req: any): SessionAuthorizationResult {
       return {
         ok: true,
         email: payload.email,
+        nickname: payload.nickname,
         displayName: payload.displayName,
         allowedWorkspaces: payload.allowedWorkspaces,
         source: 'session',
@@ -537,6 +565,7 @@ export function authorizeSession(req: any): SessionAuthorizationResult {
       return {
         ok: true,
         email: configuredUser.email,
+        nickname: configuredUser.nickname,
         displayName: configuredUser.displayName,
         allowedWorkspaces: configuredUser.allowedWorkspaces,
         source: 'session',
@@ -554,6 +583,7 @@ export function authorizeSession(req: any): SessionAuthorizationResult {
           return {
             ok: true,
             email: user.email,
+            nickname: user.nickname,
             displayName: user.displayName,
             allowedWorkspaces: user.allowedWorkspaces,
             source: 'session',
@@ -570,6 +600,7 @@ export function authorizeSession(req: any): SessionAuthorizationResult {
       return {
         ok: true,
         email: 'activation-key-user',
+        nickname: 'activation',
         displayName: 'Activation Key User',
         allowedWorkspaces: validation.allowedWorkspaces,
         source: 'activation-key',

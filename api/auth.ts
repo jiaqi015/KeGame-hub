@@ -43,7 +43,7 @@ export default async function handler(req: any, res: any) {
     try {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
       const email = typeof body?.email === 'string' ? body.email : '';
-      const result = startEmailLogin(email);
+      const result = await startEmailLogin(email);
 
       return res.status(200).json({
         ok: true,
@@ -102,6 +102,7 @@ export default async function handler(req: any, res: any) {
       ok: true,
       user: {
         email: authorization.email,
+        nickname: authorization.nickname,
         displayName: authorization.displayName,
         allowedWorkspaces: authorization.allowedWorkspaces,
         source: authorization.source,

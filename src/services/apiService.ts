@@ -25,6 +25,7 @@ export interface ActivationPayload {
 
 export interface AuthenticatedUserPayload {
   email: string;
+  nickname: string;
   displayName: string;
   allowedWorkspaces: ActivationWorkspaceId[];
   source?: 'session' | 'activation-key';
