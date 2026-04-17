@@ -11,7 +11,6 @@ import {
   Target,
   TrendingUp,
   Zap,
-  Wallet,
 } from 'lucide-react';
 import { DailyJournal } from '../widgets/DailyJournal';
 import { WEEKLY_ROUTINE } from '../../domain/constants';
@@ -54,7 +53,7 @@ export function Dashboard({ state, onSelectCase, onSetView }: DashboardProps) {
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <MetricCard label="平均业主信任" value={metrics.averageTrust} icon={<TrendingUp size={20} />} color="text-emerald-600" />
         <MetricCard label="在场核心盘" value={`${activeCoreCount} 套`} icon={<Target size={20} />} color="text-rose-600" />
         <MetricCard label="高危房源" value={`${dangerCount} 套`} icon={<ShieldAlert size={20} />} color="text-amber-600" />
@@ -143,47 +142,22 @@ export function Dashboard({ state, onSelectCase, onSetView }: DashboardProps) {
         </section>
 
         <div className="space-y-5">
-          <section className="rounded-[24px] border border-black/5 bg-white p-5 shadow-sm">
-            <div className="mb-4 flex items-center gap-3">
-              <Wallet size={18} className="text-emerald-600" />
-              <div>
-                <h3 className="text-sm font-bold uppercase tracking-widest text-slate-800">推广金</h3>
-                <p className="mt-1 text-xs text-slate-400">
-                  开局拨付 {state.runContext.scenarioSnapshot.scenario.rules?.initialCash ?? state.rules.initialCash} 点，每周补给 {state.rules.weeklyBudgetAllowance} 点，成交后按佣金的 {Math.round(state.rules.promotionRebateRatio * 100)}% 返投，保底 {state.rules.promotionRebateFloor} 点。
-                </p>
-              </div>
-            </div>
-            <div className="mb-4 rounded-[18px] border border-emerald-100 bg-emerald-50 px-4 py-3">
-              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">当前余额</div>
-              <div className="mt-1 text-[28px] font-bold text-emerald-900">{state.cash} 点</div>
-            </div>
-            <div className="space-y-2.5">
-              {state.budgetLedger.slice(0, 5).map((entry) => (
-                <div key={entry.id} className="rounded-xl border border-black/[0.04] bg-slate-50 px-3.5 py-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-[12px] font-semibold text-slate-800">{entry.title}</div>
-                      <div className="mt-1 text-[11px] leading-relaxed text-slate-500">{entry.detail}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className={`text-sm font-bold ${entry.amount >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-                        {entry.amount >= 0 ? '+' : ''}{entry.amount}
-                      </div>
-                      <div className="text-[10px] font-medium text-slate-400">余额 {entry.balanceAfter}</div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
           <section className="rounded-[28px] border border-black/5 bg-white p-5 shadow-sm">
             <div className="mb-4 flex items-center gap-3">
               <Clock3 size={18} className="text-slate-700" />
               <div>
-                <h3 className="text-sm font-bold uppercase tracking-widest text-slate-800">未来节奏</h3>
-                <p className="mt-1 text-xs text-slate-400">未来只看稳定节奏，不在首页预演完整事件。</p>
+                <h3 className="text-sm font-bold uppercase tracking-widest text-slate-800">本周视角</h3>
+                <p className="mt-1 text-xs text-slate-400">今天是主角，其他几天只做轻预告，方便你提前知道节奏。</p>
               </div>
+            </div>
+            <div className="mb-4 rounded-[18px] border border-black/[0.04] bg-slate-50 px-4 py-3">
+              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">本周提醒</div>
+              <div className="mt-1 text-sm font-semibold text-slate-800">
+                {routine.label} · {routine.theme}
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                {leadCoreRisk ? `这周最要提前防的是 ${leadCoreRisk}。` : '这周没有明显提前爆炸的核心盘，先按节奏推进。'}
+              </p>
             </div>
             <div className="space-y-2.5">
               {upcomingDays.map((entry) => (

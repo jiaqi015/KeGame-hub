@@ -151,8 +151,8 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
 
   return (
     <div className="grid h-full min-h-0 grid-cols-1 gap-5 lg:grid-cols-[312px_1fr]">
-      <aside className="space-y-2.5 overflow-y-auto rounded-[20px] border border-black/5 bg-white p-3 shadow-sm">
-        <div className="sticky top-0 z-10 -mx-3 -mt-3 space-y-3 border-b border-black/[0.04] bg-white/95 px-3 pb-3 pt-3 backdrop-blur">
+      <aside className="sticky top-0 flex max-h-full flex-col overflow-hidden rounded-[20px] border border-black/5 bg-white shadow-sm">
+        <div className="z-10 space-y-3 border-b border-black/[0.04] bg-white/95 px-3 pb-3 pt-3 backdrop-blur">
           <div>
             <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">阶段</div>
             <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
@@ -186,70 +186,71 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
             </div>
           </div>
         </div>
-
-        {visibleCases.map(c => (
-          <div
-            key={c.id}
-            onClick={() => onSelectCase(c.id)}
-            className={`relative cursor-pointer overflow-hidden rounded-[16px] border px-4 py-3.5 transition-all ${
-              c.id === selectedCaseId
-                ? 'border-emerald-500 bg-emerald-50/60 shadow-inner'
-                : 'border-transparent bg-white hover:bg-slate-50'
-            }`}
-          >
-            {c.isFocused && (
-              <div className="absolute right-0 top-0 rounded-bl-xl bg-amber-500 p-1 text-white shadow-lg animate-pulse">
-                <Star size={10} fill="currentColor" />
+        <div className="flex-1 space-y-2.5 overflow-y-auto p-3">
+          {visibleCases.map(c => (
+            <div
+              key={c.id}
+              onClick={() => onSelectCase(c.id)}
+              className={`relative cursor-pointer overflow-hidden rounded-[16px] border px-4 py-3.5 transition-all ${
+                c.id === selectedCaseId
+                  ? 'border-emerald-500 bg-emerald-50/60 shadow-inner'
+                  : 'border-transparent bg-white hover:bg-slate-50'
+              }`}
+            >
+              {c.isFocused && (
+                <div className="absolute right-0 top-0 rounded-bl-xl bg-amber-500 p-1 text-white shadow-lg animate-pulse">
+                  <Star size={10} fill="currentColor" />
+                </div>
+              )}
+              <div className="mb-2.5 flex items-start justify-between gap-3">
+                <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${
+                  c.isFocused ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
+                }`}>
+                  {c.isFocused ? '本周聚焦' : c.stageLabel}
+                </span>
+                <small className="pt-1 text-[11px] font-medium text-slate-400">{c.district}</small>
               </div>
-            )}
-            <div className="mb-2.5 flex items-start justify-between gap-3">
-              <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${
-                c.isFocused ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
-              }`}>
-                {c.isFocused ? '本周聚焦' : c.stageLabel}
-              </span>
-              <small className="pt-1 text-[11px] font-medium text-slate-400">{c.district}</small>
+              <strong className="block line-clamp-1 text-[15px] font-semibold leading-6 text-slate-800">{c.title}</strong>
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-slate-500">
+                <span>{c.community}</span>
+                <span className="text-slate-300">/</span>
+                <span>{c.layout} · {c.area}㎡</span>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                <ListTag label="挂牌" value={deriveListingAgeLabel(c)} tone="amber" />
+                <ListTag
+                  label="好房分"
+                  value={`${Math.round(c.competitiveness)}分`}
+                  tone={deriveHouseScoreTone(c.competitiveness)}
+                />
+                <ListTag label="窗口" value={deriveWindowLabel(c, getActiveOpportunities(state, c.id))} tone="rose" />
+              </div>
+              <div className="mt-3.5 flex items-center gap-3">
+                <MiniStat label="信任" val={c.trust} />
+                <MiniStat label="热度" val={c.heat} />
+                <span className={`ml-auto rounded-full px-2 py-1 text-[10px] font-bold ${
+                  c.personality === 'pragmatic' ? 'bg-emerald-100 text-emerald-600' :
+                  c.personality === 'emotional' ? 'bg-indigo-100 text-indigo-600' : 'bg-rose-100 text-rose-600'
+                }`}>
+                  {PERSONALITIES[c.personality as keyof typeof PERSONALITIES]?.label}
+                </span>
+              </div>
             </div>
-            <strong className="block line-clamp-1 text-[15px] font-semibold leading-6 text-slate-800">{c.title}</strong>
-            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-slate-500">
-              <span>{c.community}</span>
-              <span className="text-slate-300">/</span>
-              <span>{c.layout} · {c.area}㎡</span>
+          ))}
+          {visibleCases.length === 0 && (
+            <div className="rounded-[16px] border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-400">
+              当前筛选下没有房源，换个阶段或取消快速筛选看看。
             </div>
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              <ListTag label="挂牌" value={deriveListingAgeLabel(c)} tone="amber" />
-              <ListTag
-                label="好房分"
-                value={`${Math.round(c.competitiveness)}分`}
-                tone={deriveHouseScoreTone(c.competitiveness)}
-              />
-              <ListTag label="窗口" value={deriveWindowLabel(c, getActiveOpportunities(state, c.id))} tone="rose" />
-            </div>
-            <div className="mt-3.5 flex items-center gap-3">
-              <MiniStat label="信任" val={c.trust} />
-              <MiniStat label="热度" val={c.heat} />
-              <span className={`ml-auto rounded-full px-2 py-1 text-[10px] font-bold ${
-                c.personality === 'pragmatic' ? 'bg-emerald-100 text-emerald-600' :
-                c.personality === 'emotional' ? 'bg-indigo-100 text-indigo-600' : 'bg-rose-100 text-rose-600'
-              }`}>
-                {PERSONALITIES[c.personality as keyof typeof PERSONALITIES]?.label}
-              </span>
-            </div>
-          </div>
-        ))}
-        {visibleCases.length === 0 && (
-          <div className="rounded-[16px] border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-400">
-            当前筛选下没有房源，换个阶段或取消快速筛选看看。
-          </div>
-        )}
+          )}
+        </div>
       </aside>
 
       <main className="flex flex-col overflow-y-auto rounded-[20px] border border-black/5 bg-white p-6 shadow-sm">
         {selectedCase ? (
           <>
-            <div className="mb-6 rounded-[24px] border border-black/[0.04] bg-gradient-to-br from-slate-50 via-white to-emerald-50/40 p-5">
-              <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_260px] xl:items-start">
-                <div className="space-y-4">
+            <div className="mb-5 rounded-[24px] border border-black/[0.04] bg-gradient-to-br from-slate-50 via-white to-emerald-50/40 p-5">
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_240px] xl:items-start">
+                <div className="space-y-3">
                   <div className="flex flex-wrap items-center gap-3">
                     <h2 className="text-[28px] font-semibold tracking-tight text-slate-900">{selectedCase.title}</h2>
                     <span className="rounded-full bg-slate-900 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-white">
@@ -283,7 +284,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                     <div className="text-slate-300">/</div>
                     <div>{selectedCase.layout} · {selectedCase.area}㎡</div>
                   </div>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-2.5 md:grid-cols-3">
                     <SummaryCallout
                       icon={<TrendingUp size={15} />}
                       label="现在是什么局"
@@ -303,7 +304,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                       tone={selectedCase.askPrice <= selectedCase.marketPrice ? 'emerald' : 'rose'}
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
                     <ListTag label="信任" value={`${Math.round(selectedCase.trust)}`} tone="slate" />
                     <ListTag label="热度" value={`${Math.round(selectedCase.heat)}`} tone="slate" />
                     <ListTag label="好房分" value={`${Math.round(selectedCase.competitiveness)}分`} tone={deriveHouseScoreTone(selectedCase.competitiveness)} />
@@ -332,25 +333,25 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
               </div>
             </div>
 
-            <section className="mb-6 rounded-[20px] border border-black/[0.04] bg-slate-50/80 p-5">
-              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <section className="mb-5 rounded-[20px] border border-black/[0.04] bg-slate-50/80 p-4">
+              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <div className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">动作区</div>
-                  <p className="mt-1 text-sm text-slate-500">左边先回答现在优先做什么，右边再完整展开所有动作和约束。</p>
+                  <p className="mt-1 text-sm text-slate-500">先看主矛盾和推荐动作，再决定要不要展开全部动作。</p>
                 </div>
                 <span className="rounded-full bg-white px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500 shadow-sm">
                   {availableActionCount}/{ACTIONS.length} 现在可做
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-[360px_1fr]">
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-[300px_1fr]">
                 <section className="rounded-[18px] border border-black/[0.04] bg-white p-4 shadow-sm">
                   {actionDiagnosis && (
-                    <div className="mb-4 rounded-[16px] border border-black/[0.04] bg-slate-50 p-3.5">
+                    <div className="mb-3 rounded-[16px] border border-black/[0.04] bg-slate-50 p-3">
                       <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">当前主矛盾</div>
                       <h4 className="mt-1 text-sm font-semibold text-slate-900">{actionDiagnosis.title}</h4>
                       <p className="mt-1 text-xs leading-relaxed text-slate-500">{actionDiagnosis.summary}</p>
-                      <div className="mt-3 flex flex-wrap gap-2">
+                      <div className="mt-2 flex flex-wrap gap-2">
                         {actionDiagnosis.evidence.map((item) => (
                           <span key={item} className="rounded-full bg-white px-2.5 py-1 text-[10px] font-medium text-slate-500">
                             {item}
@@ -360,7 +361,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                     </div>
                   )}
 
-                  <div className="space-y-3">
+                  <div className="space-y-2.5">
                     {suggestedActions.map((card, index) => (
                       <SuggestedActionCard
                         key={card.action.id}
@@ -374,7 +375,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                 </section>
 
                 <section className="rounded-[18px] border border-black/[0.04] bg-white p-4 shadow-sm">
-                  <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                  <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                     <div>
                       <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">全部动作</div>
                       <p className="mt-1 text-xs leading-relaxed text-slate-500">建议看优先级，这里看全量动作和每个动作为什么能做或不能做。</p>
@@ -397,7 +398,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                   </div>
 
                   {activeActionCategory && (
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                       <div className="rounded-xl border border-black/[0.04] bg-slate-50 px-3.5 py-3">
                         <div className="flex items-start justify-between gap-4">
                           <div>
@@ -891,7 +892,7 @@ function SuggestedActionCard({
   const { action, availability, priority, hint } = card;
   const blocked = !availability.enabled;
   return (
-    <div className={`rounded-[16px] border px-4 py-4 ${blocked ? 'border-slate-200 bg-slate-100/80' : 'border-emerald-100 bg-emerald-50/50'}`}>
+    <div className={`rounded-[16px] border px-3.5 py-3.5 ${blocked ? 'border-slate-200 bg-slate-100/80' : 'border-emerald-100 bg-emerald-50/50'}`}>
       <div className="flex items-start gap-3">
         <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-black ${
           blocked ? 'bg-slate-200 text-slate-500' : 'bg-slate-900 text-white'
@@ -910,8 +911,8 @@ function SuggestedActionCard({
               {blocked ? '暂时卡住' : deriveActionFitLabel(priority, true)}
             </span>
           </div>
-          <p className="mt-2 text-[12px] leading-6 text-slate-500">{hint}</p>
-          <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-medium">
+          <p className="mt-1.5 text-[12px] leading-5 text-slate-500">{hint}</p>
+          <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-medium">
             <span className="rounded-full bg-white px-2.5 py-1 text-slate-500">{costText(action)}</span>
             <span className={`rounded-full px-2.5 py-1 ${blocked ? 'bg-slate-200 text-slate-500' : 'bg-white text-emerald-700'}`}>
               {blocked ? availability.reason : action.summary}
@@ -920,7 +921,7 @@ function SuggestedActionCard({
           <button
             disabled={blocked || !availability.enabled}
             onClick={() => onExecute(action.id)}
-            className={`mt-3 rounded-xl px-4 py-2 text-xs font-bold transition-all ${
+            className={`mt-2 rounded-xl px-4 py-2 text-xs font-bold transition-all ${
               blocked || !availability.enabled
                 ? 'cursor-not-allowed bg-slate-200 text-slate-400'
                 : 'border border-black/5 bg-slate-900 text-white hover:bg-emerald-600'

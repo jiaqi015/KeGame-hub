@@ -1,6 +1,26 @@
-import type { GameState } from '../domain/models.js';
+import type { CaseFinalResult, FinalResult, GameState } from '../domain/models.js';
 
 export type MaintainerRunStatus = 'active' | 'finished' | 'abandoned';
+
+export interface MaintainerAuxiliaryStats {
+  commission: number;
+  promotionBudget: number;
+  reputation: number;
+  soldCount: number;
+  withdrawnCount: number;
+}
+
+export interface MaintainerFinalStats {
+  title: string;
+  summary: string;
+  stats: Array<{ label: string; value: string }>;
+  score: number;
+  grade?: string;
+  targetScore?: number;
+  endingStats?: FinalResult['endingStats'];
+  caseResults: CaseFinalResult[];
+  auxiliaryStats: MaintainerAuxiliaryStats;
+}
 
 export interface MaintainerRunRecord {
   runId: string;
@@ -57,7 +77,7 @@ export interface MaintainerLeaderboardEntry {
   seasonId: string;
   score: number;
   rankTitle: string;
-  finalStats: Record<string, unknown>;
+  finalStats: MaintainerFinalStats;
   scoreBreakdown: Record<string, unknown>;
   finishedAt: string;
   createdAt: string;
@@ -127,5 +147,5 @@ export function buildFinalStats(state: GameState) {
       soldCount: state.soldCount,
       withdrawnCount: state.withdrawnCount,
     },
-  };
+  } satisfies MaintainerFinalStats;
 }

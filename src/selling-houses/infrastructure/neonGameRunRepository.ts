@@ -149,7 +149,20 @@ function mapLeaderboardRow(row: LeaderboardRow): MaintainerLeaderboardEntry {
     seasonId: row.season_id,
     score: toNumber(row.score),
     rankTitle: row.rank_title,
-    finalStats: toJsonValue(row.final_stats, {}),
+    finalStats: toJsonValue(row.final_stats, {
+      title: row.rank_title || '这局还没有生成新的房源结局结算。',
+      summary: '这局还没有生成新的房源结局结算。',
+      stats: [],
+      score: toNumber(row.score),
+      caseResults: [],
+      auxiliaryStats: {
+        commission: 0,
+        promotionBudget: 0,
+        reputation: 0,
+        soldCount: 0,
+        withdrawnCount: 0,
+      },
+    }),
     scoreBreakdown: toJsonValue(row.score_breakdown, {}),
     finishedAt: row.finished_at,
     createdAt: row.created_at,
@@ -519,6 +532,63 @@ function buildMatterResponseText(
   }
 
   return `建议先处理：${matter.title}。优先考虑 ${actionNames.join(' / ')}。`;
+}
+
+function buildResolvedCaseMatterSummary(
+  caseItem: MaintainerRunRecord['saveData']['cases'][number],
+) {
+  if (caseItem.endingSummary) {
+    return caseItem.endingSummary;
+  }
+
+  if (caseItem.status === 'sold') {
+    return `${caseItem.title} 已完成成交收口，当前应转入复盘与佣金确认。`;
+  }
+
+  if (caseItem.status === 'withdrawn') {
+    return `${caseItem.title} 已撤盘，当前经营动作应视为取消。`;
+  }
+
+  if (caseItem.status === 'lost_to_rival') {
+    return `${caseItem.title} 已被竞品截走，本轮经营窗口已经失效。`;
+  }
+
+  return `${caseItem.title} 当前已不在活跃经营阶段。`;
+}
+
+function buildResolvedCaseMatterTitle(
+  caseItem: MaintainerRunRecord['saveData']['cases'][number],
+) {
+  if (caseItem.status === 'sold') return `${caseItem.title} 已成交收口`;
+  if (caseItem.status === 'withdrawn') return `${caseItem.title} 已撤盘收口`;
+  if (caseItem.status === 'lost_to_rival') return `${caseItem.title} 已失守收口`;
+  return `${caseItem.title} 已结束`;
+}
+
+function resolveClosedMatterStatus(
+  caseItem: MaintainerRunRecord['saveData']['cases'][number],
+) {
+  if (caseItem.status === 'sold') {
+    return {
+      status: 'resolved' as const,
+      resolutionCode: 'sold',
+      resolutionSummary: '房源已成交，事项闭环。',
+    };
+  }
+
+  if (caseItem.status === 'withdrawn') {
+    return {
+      status: 'cancelled' as const,
+      resolutionCode: 'withdrawn',
+      resolutionSummary: '房源已撤盘，后续动作取消。',
+    };
+  }
+
+  return {
+    status: 'expired' as const,
+    resolutionCode: 'lost_to_rival',
+    resolutionSummary: '竞品先行收口，当前事项已失效。',
+  };
 }
 
 export class MaintainerSyncConflictError extends Error {
@@ -1054,9 +1124,39 @@ export class NeonGameRunRepository {
       try {
         const priorities = Array.isArray(state?.priorities) ? state.priorities : [];
         const schedule = Array.isArray(state?.schedule) ? state.schedule : [];
+        const closedCaseEntries = cases
+          .filter((caseItem) => caseItem.status === 'sold' || caseItem.status === 'withdrawn' || caseItem.status === 'lost_to_rival')
+          .map((caseItem, index) => {
+            const closure = resolveClosedMatterStatus(caseItem);
+            return {
+              source: 'chain',
+              sourceIndex: index,
+              fallbackTypeCode: 'case_priority' as const,
+              kind: 'case',
+              key: `${caseItem.id}:closure`,
+              caseId: caseItem.id,
+              title: buildResolvedCaseMatterTitle(caseItem),
+              detail: buildResolvedCaseMatterSummary(caseItem),
+              urgency: 40,
+              priority: 40,
+              stakeholderCode: 'case',
+              matterStatus: closure.status,
+              resolutionCode: closure.resolutionCode,
+              resolutionSummary: closure.resolutionSummary,
+              resolvedAt: syncTime,
+              contextPatch: {
+                caseStatus: caseItem.status,
+                endingType: caseItem.endingType || null,
+                endingSummary: caseItem.endingSummary || null,
+                soldPrice: caseItem.soldPrice == null ? null : Number(caseItem.soldPrice),
+              },
+            };
+          });
+
         const matterEntries = [
           ...priorities.map((entry, index) => ({ ...entry, source: 'priority', sourceIndex: index, fallbackTypeCode: 'case_priority' as const })),
           ...schedule.map((entry, index) => ({ ...entry, source: 'schedule', sourceIndex: index, fallbackTypeCode: 'schedule_risk' as const })),
+          ...closedCaseEntries,
         ].slice(0, 20);
 
         const values: unknown[] = [];
@@ -1072,17 +1172,27 @@ export class NeonGameRunRepository {
             Number(state?.day) || 1,
             resolveMatterTypeCode(entry, entry.fallbackTypeCode),
             entry.source === 'schedule' ? 'fixed' : 'chain',
-            'open',
-            caseId ? 'case' : 'system',
+            String(entry.matterStatus || 'open'),
+            String(entry.stakeholderCode || (caseId ? 'case' : 'system')),
             Number(entry.urgency) || Number(entry.priority) || 50,
             typeof entry.deadlineDay === 'number' ? entry.deadlineDay : null,
             String(entry.title || '待处理事项'),
             String(entry.detail || entry.note || entry.badge || ''),
-            JSON.stringify(entry),
-            JSON.stringify({ caseId, source: entry.source }),
-            null,
+            JSON.stringify({
+              ...entry,
+              ...(entry.contextPatch && typeof entry.contextPatch === 'object' ? { contextPatch: entry.contextPatch } : {}),
+            }),
+            JSON.stringify({
+              caseId,
+              source: entry.source,
+              resolutionCode: entry.resolutionCode || null,
+              suggestedActionMode: entry.matterStatus && entry.matterStatus !== 'open' ? 'archive' : 'execute',
+            }),
+            entry.resolutionCode || null,
+            entry.resolutionSummary || null,
+            entry.resolvedAt || null,
           );
-          return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}, $${offset + 12}, $${offset + 13}, $${offset + 14}::jsonb, $${offset + 15}::jsonb, $${offset + 16})`;
+          return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}, $${offset + 12}, $${offset + 13}, $${offset + 14}::jsonb, $${offset + 15}::jsonb, $${offset + 16}, $${offset + 17}, $${offset + 18}::timestamptz)`;
         }).join(',\n');
 
         if (placeholders) {
@@ -1104,6 +1214,9 @@ export class NeonGameRunRepository {
                 summary,
                 context_payload,
                 recommended_action_payload,
+                resolution_code,
+                resolution_summary,
+                resolved_at,
                 interaction_template_code
               )
               VALUES ${placeholders}

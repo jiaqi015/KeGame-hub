@@ -46,6 +46,7 @@ export function SellingHousesWorkspace({ activationKey }: { activationKey: strin
 
   const [activeView, setActiveView] = useState('dashboard');
   const [isNavCollapsed, setIsNavCollapsed] = useState(false);
+  const [isBudgetPanelOpen, setIsBudgetPanelOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const viewFallback = useMemo(() => <WorkspacePanelSkeleton />, []);
   const overlayFallback = useMemo(() => <WorkspaceOverlaySkeleton />, []);
@@ -148,22 +149,19 @@ export function SellingHousesWorkspace({ activationKey }: { activationKey: strin
 
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-4">
-              <StatItem icon={<Wallet size={16} />} label="推广金" value={`${state.cash} 点`} color="text-slate-900" />
+              <button
+                type="button"
+                onClick={() => setIsBudgetPanelOpen(true)}
+                className="rounded-2xl border border-black/5 bg-white px-3 py-2 text-left shadow-sm transition-all hover:border-black/10 hover:bg-slate-50"
+                aria-label="查看推广金详情"
+                title="查看推广金详情"
+              >
+                <StatItem icon={<Wallet size={16} />} label="推广金" value={`${state.cash} 点`} color="text-slate-900" />
+              </button>
               <StatItem icon={<Zap size={16} />} label="精力" value={`${state.energy}/${state.maxEnergy}`} color="text-amber-600" />
             </div>
             <div className="h-6 w-px bg-slate-200" />
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsNavCollapsed((value) => !value)}
-                className="inline-flex items-center gap-2 rounded-xl border border-black/5 bg-white px-3 py-2 text-sm font-bold text-slate-600 transition-all hover:border-black/10 hover:bg-slate-50 hover:text-slate-900"
-                aria-expanded={!isNavCollapsed}
-                aria-label={isNavCollapsed ? '展开左侧列表' : '收起左侧列表'}
-                title={isNavCollapsed ? '展开左侧列表' : '收起左侧列表'}
-              >
-                {isNavCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-                <span className="hidden lg:inline">{isNavCollapsed ? '展开列表' : '收起列表'}</span>
-              </button>
               <button
                 onClick={() => handleAdvanceDays(7, displayMessage)}
                 disabled={state.gameOver}
@@ -186,10 +184,20 @@ export function SellingHousesWorkspace({ activationKey }: { activationKey: strin
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <nav
-          className={`shrink-0 border-r border-black/5 bg-white/80 p-4 backdrop-blur-xl transition-all duration-200 ${
+          className={`relative shrink-0 border-r border-black/5 bg-white/80 p-4 backdrop-blur-xl transition-all duration-200 ${
             isNavCollapsed ? 'w-20' : 'w-20 lg:w-64'
           }`}
         >
+          <button
+            type="button"
+            onClick={() => setIsNavCollapsed((value) => !value)}
+            className="absolute right-0 top-5 z-20 translate-x-1/2 rounded-xl border border-black/5 bg-white p-2 text-slate-600 shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition-all hover:border-black/10 hover:bg-slate-50 hover:text-slate-900"
+            aria-expanded={!isNavCollapsed}
+            aria-label={isNavCollapsed ? '展开左侧列表' : '收起左侧列表'}
+            title={isNavCollapsed ? '展开左侧列表' : '收起左侧列表'}
+          >
+            {isNavCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+          </button>
           <div className="flex h-full flex-col space-y-2">
             <NavItem collapsed={isNavCollapsed} active={activeView === 'dashboard'} onClick={() => setActiveView('dashboard')} icon={<LayoutDashboard size={20} />} label="经营概览" />
             <NavItem collapsed={isNavCollapsed} active={activeView === 'cases'} onClick={() => setActiveView('cases')} icon={<Home size={20} />} label="房源管理" />
@@ -234,6 +242,59 @@ export function SellingHousesWorkspace({ activationKey }: { activationKey: strin
         <Suspense fallback={overlayFallback}>
           <DailySummaryOverlay report={state.currentReport} onContinue={handleClearReport} />
         </Suspense>
+      )}
+
+      {isBudgetPanelOpen && (
+        <div className="fixed inset-0 z-[90] flex justify-end bg-slate-900/30 backdrop-blur-sm" onClick={() => setIsBudgetPanelOpen(false)}>
+          <div
+            className="h-full w-full max-w-[420px] overflow-y-auto border-l border-black/5 bg-white p-6 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">资源详情</div>
+                <h3 className="mt-1 text-xl font-semibold tracking-tight text-slate-900">推广金</h3>
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  当前余额 {state.cash} 点。这里看最近的补给、消耗和返投记录。
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBudgetPanelOpen(false)}
+                className="rounded-xl border border-black/5 px-3 py-2 text-sm font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-slate-900"
+              >
+                关闭
+              </button>
+            </div>
+
+            <div className="mb-5 rounded-[20px] border border-emerald-100 bg-emerald-50 px-4 py-4">
+              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">当前余额</div>
+              <div className="mt-1 text-[30px] font-bold tracking-tight text-emerald-900">{state.cash} 点</div>
+              <div className="mt-1 text-xs text-emerald-700/80">
+                每周补给 {state.rules.weeklyBudgetAllowance} 点，成交后按返投规则回补。
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {state.budgetLedger.slice(0, 8).map((entry) => (
+                <div key={entry.id} className="rounded-xl border border-black/[0.04] bg-slate-50 px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-800">{entry.title}</div>
+                      <div className="mt-1 text-xs leading-relaxed text-slate-500">{entry.detail}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className={`text-sm font-bold ${entry.amount >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                        {entry.amount >= 0 ? '+' : ''}{entry.amount}
+                      </div>
+                      <div className="text-[10px] font-medium text-slate-400">余额 {entry.balanceAfter}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
