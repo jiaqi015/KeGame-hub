@@ -241,7 +241,7 @@ function getWorkspaceLabel(workspace: ActivationWorkspaceId): string {
     case 'open-day':
       return '小区开放日选址';
     case 'selling-houses':
-      return '我是王牌维护人';
+      return '我是王牌资产顾问';
   }
 }
 

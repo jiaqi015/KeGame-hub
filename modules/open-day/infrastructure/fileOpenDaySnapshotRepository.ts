@@ -47,9 +47,24 @@ export class FileOpenDaySnapshotRepository implements OpenDaySnapshotRepository 
   async list(limit: number, options?: OpenDaySnapshotListOptions): Promise<OpenDayAnalysisSnapshotSummary[]> {
     const current = await this.readIndex();
     const scenarioTemplateId = options?.scenarioTemplateId?.trim();
-    const filtered = scenarioTemplateId
-      ? current.items.filter((item) => item.scenarioTemplateId === scenarioTemplateId)
-      : current.items;
+    const scenarioTemplateVersionId = options?.scenarioTemplateVersionId?.trim();
+    const datasetId = options?.datasetId?.trim();
+    const sourceUploadId = options?.sourceUploadId?.trim();
+    const filtered = current.items.filter((item) => {
+      if (scenarioTemplateId && item.scenarioTemplateId !== scenarioTemplateId) {
+        return false;
+      }
+      if (scenarioTemplateVersionId && item.scenarioTemplateVersionId !== scenarioTemplateVersionId) {
+        return false;
+      }
+      if (datasetId && item.datasetId !== datasetId) {
+        return false;
+      }
+      if (sourceUploadId && item.sourceUploadId !== sourceUploadId) {
+        return false;
+      }
+      return true;
+    });
     return filtered.slice(0, limit);
   }
 
@@ -72,6 +87,8 @@ export class FileOpenDaySnapshotRepository implements OpenDaySnapshotRepository 
         items: Array.isArray(parsed.items)
           ? parsed.items.map((item) => ({
               sourceUploadId: null,
+              datasetId: null,
+              datasetProfileId: null,
               scenarioTemplateId: null,
               scenarioTemplateName: null,
               ...item,

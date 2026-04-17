@@ -2,6 +2,8 @@ import type {
   OpenDaySaveScenarioCommand,
   OpenDayScenarioListResponse,
   OpenDayScenarioTemplateRecord,
+  OpenDayScenarioTemplateSummary,
+  OpenDayScenarioVersionListResponse,
 } from '../domain/openDay.types.js';
 import { createOpenDayHash } from './openDayFingerprint.js';
 import type { OpenDayScenarioRepository } from './openDayScenarioRepository.js';
@@ -17,6 +19,18 @@ export class OpenDayScenarioService {
     };
   }
 
+  async listVersions(templateId: string, limit = 20): Promise<OpenDayScenarioVersionListResponse> {
+    const normalizedTemplateId = typeof templateId === 'string' ? templateId.trim() : '';
+    if (!normalizedTemplateId) {
+      throw new Error('缺少方案模板 ID。');
+    }
+
+    const normalizedLimit = Number.isFinite(limit) ? Math.max(1, Math.min(50, Math.floor(limit))) : 20;
+    return {
+      items: await this.repository.listVersions(normalizedTemplateId, normalizedLimit),
+    };
+  }
+
   async save(command: OpenDaySaveScenarioCommand): Promise<OpenDayScenarioTemplateRecord> {
     const name = typeof command.name === 'string' ? command.name.trim() : '';
     if (!name) {
@@ -26,27 +40,51 @@ export class OpenDayScenarioService {
     const description = typeof command.description === 'string' ? command.description.trim() : '';
     const scenario = resolveOpenDayScenarioDraft(command);
     const updatedAt = new Date().toISOString();
-    const summary = {
-      id: createOpenDayHash(
-        {
-          name,
-          parameterPackageId: scenario.parameterPackageId,
-          formulaId: scenario.formulaId,
-          updatedAt,
-        },
-        'scenario',
-      ).replace(/^scenario:/, ''),
+    const requestedTemplateId = typeof command.templateId === 'string' ? command.templateId.trim() : '';
+    const existingTemplate = requestedTemplateId ? await this.repository.get(requestedTemplateId) : null;
+    const summaryBase: OpenDayScenarioTemplateSummary = {
+      id:
+        existingTemplate?.summary.id
+        || createOpenDayHash(
+          {
+            name,
+            createdAt: updatedAt,
+          },
+          'scenario-template',
+        ).replace(/^scenario-template:/, ''),
       name,
       description,
       formulaId: scenario.formulaId,
       parameterPackageId: scenario.parameterPackageId,
       configVersion: createOpenDayHash(scenario.config, 'cfg'),
       updatedAt,
+      latestVersionId: '',
+      currentVersionNo: (existingTemplate?.summary.currentVersionNo || 0) + 1,
+    };
+    const latestVersion = {
+      id: createOpenDayHash(
+        {
+          templateId: summaryBase.id,
+          versionNo: summaryBase.currentVersionNo,
+          configVersion: summaryBase.configVersion,
+          updatedAt,
+        },
+        'scenario-version',
+      ).replace(/^scenario-version:/, ''),
+      templateId: summaryBase.id,
+      versionNo: summaryBase.currentVersionNo || 1,
+      createdAt: updatedAt,
+      configVersion: summaryBase.configVersion,
+    };
+    const summary = {
+      ...summaryBase,
+      latestVersionId: latestVersion.id,
     };
 
     const record: OpenDayScenarioTemplateRecord = {
       summary,
       scenario,
+      latestVersion,
     };
 
     await this.repository.save(record);

@@ -82,6 +82,8 @@ function createInitialState(): OpenDayState {
     catalogMessage: '',
     config: cloneConfig(fallbackCatalog.defaultConfig),
     activeParameterPackageId: 'auto',
+    datasetId: '',
+    datasetProfileId: '',
     headers: [],
     rows: [],
     sourceName: '',
@@ -110,6 +112,7 @@ function createInitialState(): OpenDayState {
     isLoadingScenario: '',
     activeScenarioTemplateId: '',
     activeScenarioTemplateName: '',
+    activeScenarioTemplateVersionId: '',
     isSidebarCollapsed: false,
     isFullScreen: false,
     isLibraryOpen: false,
@@ -132,6 +135,8 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     catalogMessage,
     config,
     activeParameterPackageId,
+    datasetId,
+    datasetProfileId,
     headers,
     rows,
     sourceName,
@@ -157,6 +162,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     isLoadingScenario,
     activeScenarioTemplateId,
     activeScenarioTemplateName,
+    activeScenarioTemplateVersionId,
     showScenarioSnapshotsOnly,
     isSidebarCollapsed,
     isFullScreen,
@@ -173,6 +179,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
 
   const datasetDraft = useMemo<OpenDayDatasetDraft>(
     () => ({
+      datasetId,
       headers,
       rows,
       mappings,
@@ -181,7 +188,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
       workbookSheets,
       activeSheet,
     }),
-    [headers, rows, mappings, sourceName, sourceUploadId, workbookSheets, activeSheet],
+    [datasetId, headers, rows, mappings, sourceName, sourceUploadId, workbookSheets, activeSheet],
   );
 
   const scenarioDraft = useMemo(
@@ -304,11 +311,23 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
       type: 'APPLY_PARSED_DATA',
       headers: payload.headers,
       rows: payload.rows,
+      datasetId: 'dataset' in payload ? payload.dataset?.id || '' : '',
       sourceName: nextSourceName,
       mappings: nextMappings,
       qualityReport,
       statusMessage: stage === 'workspace' ? '已载入新数据，准备重新测算。' : '数据已准备好，可以进入下一步。',
     });
+  }
+
+  function restoreQualityReport(value: unknown) {
+    if (!value || typeof value !== 'object') {
+      return undefined;
+    }
+
+    const candidate = value as Partial<typeof qualityReport>;
+    return typeof candidate?.totalRows === 'number' && typeof candidate?.score === 'number'
+      ? candidate as NonNullable<typeof qualityReport>
+      : undefined;
   }
 
   async function handleWorkbookUpload(file: File, requestedSheet = '') {
@@ -375,6 +394,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
 
     try {
       const record = await saveOpenDayScenario(activationKey, {
+        templateId: activeScenarioTemplateId,
         name,
         description: datasetDraft.sourceName ? `来源：${datasetDraft.sourceName}` : '',
         scenario: scenarioDraft,
@@ -382,7 +402,12 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
         activeParameterPackageId: scenarioDraft.parameterPackageId || '',
       });
 
-      dispatch({ type: 'SET_ACTIVE_SCENARIO_TEMPLATE', id: record.summary.id, name: record.summary.name });
+      dispatch({
+        type: 'SET_ACTIVE_SCENARIO_TEMPLATE',
+        id: record.summary.id,
+        name: record.summary.name,
+        versionId: record.latestVersion?.id || record.summary.latestVersionId || '',
+      });
       dispatch({ type: 'SET_SCENARIO_NAME', name: record.summary.name });
       dispatch({ type: 'SET_SCENARIO_MESSAGE', message: `已保存方案：${record.summary.name}` });
       await refreshScenarios();
@@ -402,7 +427,12 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
       const record = await fetchOpenDayScenarioDetail(activationKey, id);
       dispatch({ type: 'SET_CONFIG', config: cloneConfig(record.scenario.config) });
       dispatch({ type: 'SET_PARAMETER_PACKAGE_ID', id: record.scenario.parameterPackageId || 'custom' });
-      dispatch({ type: 'SET_ACTIVE_SCENARIO_TEMPLATE', id: record.summary.id, name: record.summary.name });
+      dispatch({
+        type: 'SET_ACTIVE_SCENARIO_TEMPLATE',
+        id: record.summary.id,
+        name: record.summary.name,
+        versionId: record.latestVersion?.id || record.summary.latestVersionId || '',
+      });
       dispatch({ type: 'SET_SCENARIO_NAME', name: record.summary.name });
       dispatch({ type: 'MARK_DIRTY', message: `已加载方案"${record.summary.name}"，请点击重新测算。` });
       dispatch({ type: 'SET_SCENARIO_MESSAGE', message: `已载入方案：${record.summary.name}` });
@@ -434,26 +464,37 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
       const restoredScenario = record.response.meta.scenario || resolveOpenDayScenarioDraft(record.command);
       const restoredScenarioTemplateId = record.command.activeScenarioTemplateId || record.summary.scenarioTemplateId || '';
       const restoredScenarioTemplateName = record.command.activeScenarioTemplateName || record.summary.scenarioTemplateName || '';
+      const restoredScenarioTemplateVersionId = record.command.activeScenarioTemplateVersionId || record.summary.scenarioTemplateVersionId || '';
       const restoredParameterPackageId = restoredScenario.parameterPackageId || 'custom';
       const restoredSourceName = record.command.sourceName || record.summary.sourceName || '未命名数据集';
+      const restoredActiveSheet = record.command.activeSheet || '';
+      const restoredHeaders = Array.isArray(record.command.headers) && record.command.headers.length
+        ? record.command.headers
+        : extractHeadersFromRows(restoredRows, restoredMappings);
+      const restoredQualityReport = restoreQualityReport(record.command.qualityReport);
 
       dispatch({
         type: 'REPLAY_SNAPSHOT',
         payload: {
           rows: restoredRows,
-          headers: extractHeadersFromRows(restoredRows, restoredMappings),
+          headers: restoredHeaders,
           mappings: restoredMappings,
           config: cloneConfig(restoredScenario.config),
           sourceName: restoredSourceName,
           sourceUploadId: record.command.sourceUploadId || record.summary.sourceUploadId || '',
+          datasetId: record.command.datasetId || record.summary.datasetId || '',
+          datasetProfileId: record.summary.datasetProfileId || '',
+          activeSheet: restoredActiveSheet,
           analysis: record.response,
           parameterPackageId: restoredParameterPackageId,
           scenarioTemplateId: restoredScenarioTemplateId,
           scenarioTemplateName: restoredScenarioTemplateName,
+          scenarioTemplateVersionId: restoredScenarioTemplateVersionId,
           scenarioName:
             restoredScenarioTemplateName
             || buildScenarioDraftName(restoredSourceName, restoredScenario, parameterPackages, catalog.formulas),
           statusMessage: `已回放 ${formatDateTime(record.summary.createdAt)} 的测算结果。`,
+          qualityReport: restoredQualityReport,
         },
       });
 
@@ -541,8 +582,13 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
         scenario: scenarioDraft,
         sourceName: datasetDraft.sourceName,
         sourceUploadId: datasetDraft.sourceUploadId,
+        datasetId: datasetDraft.datasetId,
+        activeSheet: datasetDraft.activeSheet,
+        headers: datasetDraft.headers,
+        qualityReport,
         activeScenarioTemplateId,
         activeScenarioTemplateName,
+        activeScenarioTemplateVersionId,
         activePresetId: activeParameterPackageId,
         activeParameterPackageId: scenarioDraft.parameterPackageId || '',
       });

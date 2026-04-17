@@ -1,3 +1,5 @@
+export { ACTIONS, ACTION_CATEGORIES } from './actions/definitions';
+
 export const STORAGE_KEY = "selling-world-save-v3";
 export const CLOUD_USER_STORAGE_KEY = "selling-world-user-v1";
 export const CLOUD_META_STORAGE_KEY = "selling-world-cloud-meta-v1";
@@ -40,22 +42,11 @@ export const PORTAL_URGENCY_WEIGHTS = {
   timeWindowWeight: 0.15
 };
 
-export const ACTIONS = [
-  { id: "owner-call", name: "业主沟通", costEnergy: 1, costCash: 0, description: "先稳关系，再换窗口。适合信任偏低或窗口紧的盘。", type: "direct" },
-  { id: "story", name: "精修卖点", costEnergy: 1, costCash: 0, description: "把房子的讲法修好，提升竞争力和带看转化。", type: "direct" },
-  { id: "price-talk", name: "调价沟通", costEnergy: 1, costCash: 0, description: "在价格、速度和关系之间做真实取舍。", type: "scenario" },
-  { id: "promote", name: "流量投放", costEnergy: 1, costCash: 2, description: "买来今天的曝光，快速补进线。", type: "direct" },
-  { id: "open-day", name: "举办开放日", costEnergy: 2, costCash: 4, description: "集中拉热度，冷却 4 天，适合冲看房。", type: "direct" },
-  { id: "showing", name: "安排带看", costEnergy: 1, costCash: 0, description: "把线索推进到看房后和报价前。", type: "direct" },
-  { id: "negotiate", name: "议价冲刺", costEnergy: 1, costCash: 0, description: "对高阶段机会发起最后一推。", type: "scenario" },
-  { id: "agent-sync", name: "经纪人对线", costEnergy: 1, costCash: 0, description: "跟合作经纪人交换情报，看透黑盒线索的底牌。", type: "direct" },
-];
-
 export const CHANNELS = [
-  { id: "search", name: "搜索流量", quality: 0.54, controllability: 0.4 },
-  { id: "recommend", name: "推荐流量", quality: 0.66, controllability: 0.46 },
-  { id: "open-day", name: "开放日", quality: 0.74, controllability: 0.76 },
-  { id: "private", name: "私域转介", quality: 0.62, controllability: 0.69 },
+  { id: "xiaohongshu", name: "小红书推广", quality: 0.56, controllability: 0.48, leadSource: "direct" },
+  { id: "broker-network", name: "经纪人投放", quality: 0.67, controllability: 0.36, leadSource: "broker" },
+  { id: "open-day", name: "开放日", quality: 0.74, controllability: 0.76, leadSource: "direct" },
+  { id: "private-referral", name: "私域转介绍", quality: 0.72, controllability: 0.72, leadSource: "direct" },
 ];
 
 export const MARKET_CELLS = [

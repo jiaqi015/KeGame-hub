@@ -14,7 +14,10 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    if (typeof req.query?.id === 'string' && req.query.id) {
+    if (
+      (typeof req.query?.id === 'string' && req.query.id)
+      || (typeof req.query?.runId === 'string' && req.query.runId)
+    ) {
       const payload = await handleOpenDaySnapshotGet(req.query || {});
       return res.status(200).json(payload);
     }

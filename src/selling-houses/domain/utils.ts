@@ -83,7 +83,7 @@ export function formatDate(dateStr: string): string {
 export function costText(action: any): string {
   const parts = [];
   if (action.costEnergy > 0) parts.push(`${action.costEnergy} 精力`);
-  if (action.costCash > 0) parts.push(`${action.costCash} W 预算`);
+  if (action.costPromotionBudget > 0) parts.push(`${action.costPromotionBudget} 点推广金`);
   return parts.join(' + ') || '免费';
 }
 

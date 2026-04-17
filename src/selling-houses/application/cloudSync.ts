@@ -65,7 +65,7 @@ export interface MaintainerLeaderboardEntry {
 
 export function normalizePlayerName(value: string | undefined) {
   const trimmed = typeof value === 'string' ? value.trim() : '';
-  return trimmed || '匿名维护人';
+  return trimmed || '匿名资产顾问';
 }
 
 export function deriveRunStatus(state: GameState): MaintainerRunStatus {
@@ -86,7 +86,7 @@ export function deriveRankTitle(state: GameState) {
   const score = deriveRunScore(state);
   if (score >= 185) return '能控节奏的成交机器';
   if (score >= 145) return '稳健推进的组合经营者';
-  if (score >= 110) return '开始看懂盘面的维护人';
+  if (score >= 110) return '开始看懂盘面的资产顾问';
   return '还在摸盘的经营者';
 }
 

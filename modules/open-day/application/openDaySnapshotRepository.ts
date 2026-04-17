@@ -5,6 +5,9 @@ import type {
 
 export interface OpenDaySnapshotListOptions {
   scenarioTemplateId?: string;
+  scenarioTemplateVersionId?: string;
+  datasetId?: string;
+  sourceUploadId?: string;
 }
 
 export interface OpenDaySnapshotRepository {

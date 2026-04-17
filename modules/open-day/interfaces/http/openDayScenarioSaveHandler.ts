@@ -10,6 +10,7 @@ function normalizeBody(body: unknown): OpenDaySaveScenarioCommand {
 
   const candidate = body as Partial<OpenDaySaveScenarioCommand>;
   return {
+    templateId: typeof candidate.templateId === 'string' ? candidate.templateId : '',
     name: typeof candidate.name === 'string' ? candidate.name : '',
     description: typeof candidate.description === 'string' ? candidate.description : '',
     scenario: candidate.scenario,

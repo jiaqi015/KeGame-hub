@@ -12,7 +12,7 @@
 4. 读 [模块地图](module-map.md)，找到对应代码入口。
 5. 再决定是否需要补看业务文档：
    - 开放日：`docs/open-day-ddd-architecture.md`
-   - 维护人：`docs/selling-houses-cloud-data-model.md`、`docs/selling-houses-game-architecture.md`
+   - 资产顾问：`docs/selling-houses-cloud-data-model.md`、`docs/selling-houses-game-architecture.md`
 
 ## 如果要继续做开放日
 
@@ -31,7 +31,7 @@
   - `src/open-day/openDayClient.ts`
   - `api/open-day-*.ts`
 
-## 如果要继续做维护人
+## 如果要继续做资产顾问
 
 - 先确认当前目标是：
   - 玩法设计

@@ -9,7 +9,10 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "verify:maintainer": "tsx scripts/verify-selling-houses.ts"
+    "verify:maintainer": "tsx scripts/verify-selling-houses.ts",
+    "verify:generated-maintainer": "tsx scripts/verify-generated-selling-houses.ts",
+    "selfplay:maintainer": "tsx scripts/run-selling-houses-agent.ts",
+    "selfplay:lab": "tsx scripts/run-selling-houses-lab.ts"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

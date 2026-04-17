@@ -15,6 +15,7 @@ import { handleOpenDayWorkbookParse } from "./modules/open-day/interfaces/http/o
 import { handleOpenDayScenarioGet } from "./modules/open-day/interfaces/http/openDayScenarioGetHandler.js";
 import { handleOpenDayScenarioList } from "./modules/open-day/interfaces/http/openDayScenarioListHandler.js";
 import { handleOpenDayScenarioSave } from "./modules/open-day/interfaces/http/openDayScenarioSaveHandler.js";
+import { handleOpenDayScenarioVersionList } from "./modules/open-day/interfaces/http/openDayScenarioVersionListHandler.js";
 import { handleOpenDaySnapshotList } from "./modules/open-day/interfaces/http/openDaySnapshotListHandler.js";
 import { handleOpenDayScore } from "./modules/open-day/interfaces/http/openDayScoreHandler.js";
 import { openDayDisambiguationHandler } from "./modules/open-day/interfaces/http/openDayDisambiguationHandler.js";
@@ -107,7 +108,10 @@ async function startServer() {
 
   app.get("/api/open-day-analyses", async (req, res) => {
     try {
-      if (typeof req.query?.id === "string" && req.query.id) {
+      if (
+        (typeof req.query?.id === "string" && req.query.id)
+        || (typeof req.query?.runId === "string" && req.query.runId)
+      ) {
         const payload = await handleOpenDaySnapshotGet(req.query);
         return res.json(payload);
       }
@@ -130,6 +134,15 @@ async function startServer() {
       return res.json(payload);
     } catch (error) {
       return res.status(400).json({ error: error instanceof Error ? error.message : "开放日方案查询失败" });
+    }
+  });
+
+  app.get("/api/open-day-scenario-versions", async (req, res) => {
+    try {
+      const payload = await handleOpenDayScenarioVersionList(req.query);
+      return res.json(payload);
+    } catch (error) {
+      return res.status(400).json({ error: error instanceof Error ? error.message : "开放日方案版本查询失败" });
     }
   });
 

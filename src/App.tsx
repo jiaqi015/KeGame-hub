@@ -28,7 +28,7 @@ const workspaceMeta = {
     accentClassName: 'text-emerald-700 hover:text-emerald-800',
   },
   'selling-houses': {
-    title: '我是王牌维护人',
+    title: '我是王牌资产顾问',
     accentClassName: 'text-amber-700 hover:text-amber-800',
   },
 } as const;
@@ -323,7 +323,7 @@ export default function App() {
       <footer className="shrink-0 py-3 text-center text-[#86868B] text-[11px] border-t border-black/5 bg-white">
         <div className="flex items-center justify-center gap-2">
           <Sparkles className="w-3.5 h-3.5" />
-          <span>AI Model Sabrina II • 多模型PK + 开放日选址 + 我是王牌维护人</span>
+          <span>AI Model Sabrina II • 多模型PK + 开放日选址 + 我是王牌资产顾问</span>
           <span className="text-black/10">|</span>
           <span>© 2026</span>
         </div>

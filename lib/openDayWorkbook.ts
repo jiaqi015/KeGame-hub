@@ -2,6 +2,7 @@ import type { OpenDayUploadArtifactSummary } from '../modules/open-day/domain/op
 import { read, utils } from 'xlsx';
 
 export interface ParsedWorkbookPayload {
+  dataset?: import('../modules/open-day/domain/openDay.types.js').OpenDayDatasetSummary;
   activeSheet: string;
   headers: string[];
   rows: Record<string, string>[];

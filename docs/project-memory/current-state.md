@@ -10,7 +10,7 @@
 - 本地服务：`server.ts`
 - 接口目录：`api/`
 - 领域/历史模块：`src/open-day/`
-- 维护人玩法模块：`src/selling-houses/`
+- 资产顾问玩法模块：`src/selling-houses/`
 
 ## 现有业务线
 
@@ -29,7 +29,7 @@
 - 代码仍保留 `open-day` 前缀，属于刻意保留的内部命名，不等于产品文案。
 - 服务端负责 Excel 解析、默认参数目录、评分计算、历史快照、方案模板。
 
-### 3. 我是王牌维护人
+### 3. 我是王牌资产顾问
 
 - 已从单机玩法逐步转向“可云存档、可同步、可排行榜”的结构。
 - 代码主目录在 `src/selling-houses/`。
@@ -54,7 +54,7 @@
   - `docs/selling-houses-*`
   - `server.ts`
   - `src/App.tsx`
-- 这说明当前主战场已经明显从“只做开放日”扩展到了“统一入口 + 维护人玩法云化”。
+- 这说明当前主战场已经明显从“只做开放日”扩展到了“统一入口 + 资产顾问玩法云化”。
 
 ## 推荐阅读顺序
 
@@ -64,7 +64,7 @@
 2. `docs/open-day-ddd-architecture.md`
 3. `src/open-day/OpenDayWorkspace.tsx`
 
-如果要继续做维护人：
+如果要继续做资产顾问：
 
 1. `docs/selling-houses-game-architecture.md`
 2. `docs/selling-houses-cloud-data-model.md`

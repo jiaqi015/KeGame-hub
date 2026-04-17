@@ -132,6 +132,24 @@ export interface OpenDayUploadArtifactSummary {
   downloadUrl: string | null;
 }
 
+export interface OpenDayDatasetSummary {
+  id: string;
+  createdAt: string;
+  sourceUploadId: string | null;
+  sourceName: string;
+  sheetName: string;
+  rowCount: number;
+  headerCount: number;
+  datasetFingerprint: string;
+}
+
+export interface OpenDayDatasetProfileSummary {
+  id: string;
+  createdAt: string;
+  datasetId: string;
+  profileFingerprint: string;
+}
+
 export interface OpenDayParameterPackageDefinition {
   id: string;
   label: string;
@@ -159,8 +177,12 @@ export interface OpenDayAnalysisMeta {
   waterlines: OpenDayWaterlines;
   resolvedParameters: OpenDayResolvedParameter[];
   requestedConfig: OpenDayConfig;
+  runId?: string;
+  runCreatedAt?: string;
   snapshotId?: string;
   snapshotCreatedAt?: string;
+  datasetId?: string | null;
+  datasetProfileId?: string | null;
 }
 
 export interface OpenDayAnalysisResponse {
@@ -182,8 +204,11 @@ export interface OpenDayAnalysisSnapshotSummary {
   createdAt: string;
   sourceName: string;
   sourceUploadId: string | null;
+  datasetId?: string | null;
+  datasetProfileId?: string | null;
   scenarioTemplateId: string | null;
   scenarioTemplateName: string | null;
+  scenarioTemplateVersionId?: string | null;
   presetId: string | null;
   parameterPackageId: string | null;
   configVersion: string;
@@ -200,6 +225,9 @@ export interface OpenDayAnalysisSnapshotRecord {
   response: OpenDayAnalysisResponse;
 }
 
+export type OpenDayAnalysisRunSummary = OpenDayAnalysisSnapshotSummary;
+export type OpenDayAnalysisRunRecord = OpenDayAnalysisSnapshotRecord;
+
 export interface OpenDayScenarioTemplateSummary {
   id: string;
   name: string;
@@ -208,18 +236,34 @@ export interface OpenDayScenarioTemplateSummary {
   parameterPackageId: string | null;
   configVersion: string;
   updatedAt: string;
+  latestVersionId?: string;
+  currentVersionNo?: number;
+}
+
+export interface OpenDayScenarioTemplateVersionSummary {
+  id: string;
+  templateId: string;
+  versionNo: number;
+  createdAt: string;
+  configVersion: string;
 }
 
 export interface OpenDayScenarioTemplateRecord {
   summary: OpenDayScenarioTemplateSummary;
   scenario: OpenDayScenarioDraft;
+  latestVersion?: OpenDayScenarioTemplateVersionSummary;
 }
 
 export interface OpenDayScenarioListResponse {
   items: OpenDayScenarioTemplateSummary[];
 }
 
+export interface OpenDayScenarioVersionListResponse {
+  items: OpenDayScenarioTemplateVersionSummary[];
+}
+
 export interface OpenDaySaveScenarioCommand {
+  templateId?: string;
   name: string;
   description?: string;
   scenario?: Partial<OpenDayScenarioDraft> & {
@@ -234,6 +278,8 @@ export interface OpenDaySnapshotListResponse {
   items: OpenDayAnalysisSnapshotSummary[];
 }
 
+export type OpenDayAnalysisRunListResponse = OpenDaySnapshotListResponse;
+
 export interface OpenDayScoreCommand {
   rows: OpenDayRawRow[];
   mappings: OpenDayMappings;
@@ -243,8 +289,13 @@ export interface OpenDayScoreCommand {
   };
   sourceName?: string;
   sourceUploadId?: string;
+  datasetId?: string;
+  activeSheet?: string;
+  headers?: string[];
+  qualityReport?: unknown;
   activeScenarioTemplateId?: string;
   activeScenarioTemplateName?: string;
+  activeScenarioTemplateVersionId?: string;
   activePresetId?: string;
   activeParameterPackageId?: string;
 }

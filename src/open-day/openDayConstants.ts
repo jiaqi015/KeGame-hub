@@ -18,6 +18,7 @@ export interface WaterlineDefinition {
 }
 
 export interface OpenDayDatasetDraft {
+  datasetId: string;
   headers: string[];
   rows: OpenDayRawRow[];
   mappings: OpenDayFormMappings;

@@ -24,6 +24,8 @@ export interface OpenDayState {
   activeParameterPackageId: string;
 
   // Upload / Dataset
+  datasetId: string;
+  datasetProfileId: string;
   headers: string[];
   rows: OpenDayRawRow[];
   sourceName: string;
@@ -58,6 +60,7 @@ export interface OpenDayState {
   isLoadingScenario: string;
   activeScenarioTemplateId: string;
   activeScenarioTemplateName: string;
+  activeScenarioTemplateVersionId: string;
 
   // UI
   isSidebarCollapsed: boolean;
@@ -79,6 +82,8 @@ export type OpenDayAction =
   | { type: 'SET_PARAMETER_PACKAGE_ID'; id: string }
   | { type: 'SET_HEADERS'; headers: string[] }
   | { type: 'SET_ROWS'; rows: OpenDayRawRow[] }
+  | { type: 'SET_DATASET_ID'; id: string }
+  | { type: 'SET_DATASET_PROFILE_ID'; id: string }
   | { type: 'SET_SOURCE_NAME'; name: string }
   | { type: 'SET_SOURCE_UPLOAD_ID'; id: string }
   | { type: 'SET_WORKBOOK_SHEETS'; sheets: string[] }
@@ -103,7 +108,7 @@ export type OpenDayAction =
   | { type: 'SET_SCENARIO_MESSAGE'; message: string }
   | { type: 'SET_IS_SAVING_SCENARIO'; value: boolean }
   | { type: 'SET_IS_LOADING_SCENARIO'; id: string }
-  | { type: 'SET_ACTIVE_SCENARIO_TEMPLATE'; id: string; name: string }
+  | { type: 'SET_ACTIVE_SCENARIO_TEMPLATE'; id: string; name: string; versionId?: string }
   | { type: 'SET_IS_SIDEBAR_COLLAPSED'; value: boolean }
   | { type: 'TOGGLE_FULL_SCREEN' }
   | { type: 'SET_IS_FULL_SCREEN'; value: boolean }
@@ -119,6 +124,7 @@ export type OpenDayAction =
       type: 'APPLY_PARSED_DATA'; 
       headers: string[]; 
       rows: OpenDayRawRow[]; 
+      datasetId?: string;
       sourceName: string; 
       mappings: OpenDayFormMappings; 
       qualityReport: DatasetQualityReport;
@@ -138,10 +144,14 @@ export interface ReplaySnapshotPayload {
   config: OpenDayConfig;
   sourceName: string;
   sourceUploadId: string;
+  datasetId: string;
+  datasetProfileId: string;
+  activeSheet: string;
   analysis: OpenDayAnalysisResponse;
   parameterPackageId: string;
   scenarioTemplateId: string;
   scenarioTemplateName: string;
+  scenarioTemplateVersionId: string;
   scenarioName: string;
   statusMessage: string;
   qualityReport?: DatasetQualityReport;
@@ -163,6 +173,10 @@ export function openDayReducer(state: OpenDayState, action: OpenDayAction): Open
       return { ...state, headers: action.headers };
     case 'SET_ROWS':
       return { ...state, rows: action.rows };
+    case 'SET_DATASET_ID':
+      return { ...state, datasetId: action.id };
+    case 'SET_DATASET_PROFILE_ID':
+      return { ...state, datasetProfileId: action.id };
     case 'SET_SOURCE_NAME':
       return { ...state, sourceName: action.name };
     case 'SET_SOURCE_UPLOAD_ID':
@@ -212,7 +226,12 @@ export function openDayReducer(state: OpenDayState, action: OpenDayAction): Open
     case 'SET_IS_LOADING_SCENARIO':
       return { ...state, isLoadingScenario: action.id };
     case 'SET_ACTIVE_SCENARIO_TEMPLATE':
-      return { ...state, activeScenarioTemplateId: action.id, activeScenarioTemplateName: action.name };
+      return {
+        ...state,
+        activeScenarioTemplateId: action.id,
+        activeScenarioTemplateName: action.name,
+        activeScenarioTemplateVersionId: action.versionId || '',
+      };
     case 'SET_IS_SIDEBAR_COLLAPSED':
       return { ...state, isSidebarCollapsed: action.value };
     case 'TOGGLE_FULL_SCREEN':
@@ -244,6 +263,7 @@ export function openDayReducer(state: OpenDayState, action: OpenDayAction): Open
         activeParameterPackageId: action.packageId,
         activeScenarioTemplateId: '',
         activeScenarioTemplateName: '',
+        activeScenarioTemplateVersionId: '',
         showScenarioSnapshotsOnly: false,
         hasPendingChanges: true,
         statusMessage: state.stage === 'workspace' ? '参数已更新，请点击重新测算。' : state.statusMessage,
@@ -256,6 +276,7 @@ export function openDayReducer(state: OpenDayState, action: OpenDayAction): Open
         activeParameterPackageId: 'auto',
         activeScenarioTemplateId: '',
         activeScenarioTemplateName: '',
+        activeScenarioTemplateVersionId: '',
         showScenarioSnapshotsOnly: false,
         hasPendingChanges: true,
         statusMessage: state.stage === 'workspace' ? '参数已更新，请点击重新测算。' : state.statusMessage,
@@ -266,6 +287,8 @@ export function openDayReducer(state: OpenDayState, action: OpenDayAction): Open
         ...state,
         headers: action.headers,
         rows: action.rows,
+        datasetId: action.datasetId || '',
+        datasetProfileId: '',
         sourceName: action.sourceName,
         mappings: action.mappings,
         qualityReport: action.qualityReport,
@@ -311,17 +334,20 @@ export function openDayReducer(state: OpenDayState, action: OpenDayAction): Open
         stage: 'workspace',
         rows: p.rows,
         headers: p.headers,
+        datasetId: p.datasetId,
+        datasetProfileId: p.datasetProfileId,
         mappings: p.mappings,
         config: p.config,
         sourceName: p.sourceName,
         sourceUploadId: p.sourceUploadId,
         workbookSheets: [],
-        activeSheet: '',
+        activeSheet: p.activeSheet,
         uploadedFile: null,
         analysis: p.analysis,
         activeParameterPackageId: p.parameterPackageId,
         activeScenarioTemplateId: p.scenarioTemplateId,
         activeScenarioTemplateName: p.scenarioTemplateName,
+        activeScenarioTemplateVersionId: p.scenarioTemplateVersionId,
         scenarioName: p.scenarioName,
         hasPendingChanges: false,
         showScenarioSnapshotsOnly: Boolean(p.scenarioTemplateId),
@@ -334,6 +360,8 @@ export function openDayReducer(state: OpenDayState, action: OpenDayAction): Open
       return {
         ...state,
         analysis: action.analysis,
+        datasetId: action.analysis.meta.datasetId || state.datasetId,
+        datasetProfileId: action.analysis.meta.datasetProfileId || state.datasetProfileId,
         hasPendingChanges: false,
         statusMessage: '',
         isAnalyzing: false,
@@ -352,6 +380,8 @@ export function openDayReducer(state: OpenDayState, action: OpenDayAction): Open
         ...state,
         rows: [],
         headers: [],
+        datasetId: '',
+        datasetProfileId: '',
         qualityReport: null,
       };
 

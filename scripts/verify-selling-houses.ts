@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 
 import { createInitialState, updateDerivedState } from '../src/selling-houses/application/gameState';
-import { advanceDays, seedInitialOpportunities } from '../src/selling-houses/domain/engine';
+import { LocalAdversarialSelfPlayArena } from '../src/selling-houses/application/localAdversarialSelfPlayArena';
+import { LocalAdversarialSelfPlayLab } from '../src/selling-houses/application/localAdversarialSelfPlayLab';
+import { advanceDays, executeAction, seedInitialOpportunities } from '../src/selling-houses/domain/engine';
 import { getScenarioSnapshotById } from '../src/selling-houses/domain/scenarioCatalog';
 
 function buildWorld() {
@@ -54,6 +56,137 @@ function buildWorld() {
     after.every((confidence, index) => confidence <= before[index]),
     'Expected policy shift event to reduce confidence for every active opportunity'
   );
+}
+
+{
+  const world = buildWorld();
+  const targetCase = world.cases[0];
+  const opportunity = world.opportunities.find((entry) => entry.caseId === targetCase.id && entry.status === 'active');
+
+  assert.ok(opportunity, 'Expected an initial opportunity for showing verification');
+  if (!opportunity) {
+    throw new Error('Expected an initial opportunity for showing verification');
+  }
+
+  opportunity.stageIndex = 0;
+  opportunity.stageLabel = '了解';
+
+  const success = executeAction(world, 'showing', targetCase, null);
+
+  assert.ok(success, 'Expected showing action to execute');
+  assert.ok(opportunity.stageIndex >= 2, `Expected showing to advance lead into viewing stage, got ${opportunity.stageIndex}`);
+}
+
+{
+  const world = buildWorld();
+  const targetCase = world.cases[0];
+
+  const first = executeAction(world, 'weekly-feedback', targetCase, null);
+  const second = executeAction(world, 'weekly-feedback', targetCase, null);
+
+  assert.ok(first, 'Expected first weekly-feedback to execute');
+  assert.equal(second, false, 'Expected second weekly-feedback on the same day to be blocked');
+}
+
+{
+  const world = buildWorld();
+  const targetCase = world.cases[0];
+
+  assert.ok(executeAction(world, 'story', targetCase, null), 'Expected first action of the day to execute');
+  assert.equal(executeAction(world, 'story', targetCase, null), false, 'Expected repeated story action on the same day to be blocked');
+}
+
+{
+  const world = buildWorld();
+  const targetCase = world.cases[0];
+
+  assert.ok(executeAction(world, 'showing', targetCase, null), 'Expected first showing to execute');
+  assert.equal(executeAction(world, 'showing', targetCase, null), false, 'Expected repeated showing on the same day to be blocked');
+}
+
+{
+  const world = buildWorld();
+  const targetCase = world.cases[0];
+  const opportunity = world.opportunities.find((entry) => entry.caseId === targetCase.id && entry.status === 'active');
+
+  if (!opportunity) {
+    throw new Error('Expected an initial opportunity for negotiation verification');
+  }
+
+  opportunity.stageIndex = 3;
+  opportunity.stageLabel = '再看';
+  opportunity.intent = 92;
+  opportunity.confidence = 88;
+  updateDerivedState(world);
+
+  assert.ok(executeAction(world, 'invite-customer-negotiation', targetCase, 'balanced'), 'Expected first negotiation invite to execute');
+  assert.equal(
+    executeAction(world, 'invite-customer-negotiation', targetCase, 'balanced'),
+    false,
+    'Expected repeated negotiation invite on the same day to be blocked',
+  );
+}
+
+{
+  const world = buildWorld();
+  const targetCase = world.cases[0];
+
+  world.day = 10;
+  world.opportunities = [
+    {
+      id: 'closed-opportunity',
+      caseId: targetCase.id,
+      customerId: 'test-customer',
+      customerName: '测试客户',
+      profile: '验证 D1',
+      channelId: 'search',
+      channelName: '搜索流量',
+      fit: 80,
+      intent: 45,
+      confidence: 40,
+      stageIndex: 0,
+      stageLabel: '了解',
+      status: 'closed',
+      leadSource: 'direct',
+      visibility: 'revealed',
+      createdDay: world.day,
+      daysLeft: 5,
+      touchedToday: false,
+      budgetMax: targetCase.askPrice,
+      priceSensitivity: 60,
+      stagnationTicks: 0,
+      history: [],
+    },
+  ];
+  targetCase.competitivenessSnapshots = [];
+
+  updateDerivedState(world);
+
+  assert.ok(targetCase.d1 > 0, `Expected D1 to recognize recently created opportunity, got ${targetCase.d1}`);
+}
+
+{
+  const arena = new LocalAdversarialSelfPlayArena({
+    scenarioId: 'standard-window-chain',
+    seed: 123456,
+  });
+  const report = arena.playOneGame();
+
+  assert.ok(report.finalResult, 'Expected self-play arena to finish a game');
+  assert.ok(report.decisions.length > 0, 'Expected self-play arena to produce decisions');
+  assert.ok(report.evaluation.verdict.length > 0, 'Expected self-play arena to produce evaluation');
+}
+
+{
+  const lab = new LocalAdversarialSelfPlayLab({
+    scenarioId: 'standard-window-chain',
+    seeds: [101, 202],
+  });
+  const report = lab.runBatch();
+
+  assert.equal(report.runCount, 2, 'Expected self-play lab to run all requested seeds');
+  assert.equal(report.runs.length, 2, 'Expected self-play lab to expose run summaries');
+  assert.ok(report.findings.length > 0, 'Expected self-play lab to produce aggregate findings');
 }
 
 console.log('selling-houses verification passed');

@@ -1,12 +1,15 @@
 import type { ParsedWorkbookPayload } from '../../lib/openDayWorkbook.ts';
 import type {
   OpenDayAnalysisResponse,
+  OpenDayAnalysisRunListResponse,
+  OpenDayAnalysisRunRecord,
   OpenDayAnalysisSnapshotRecord,
   OpenDayCatalogResponse,
   OpenDaySaveScenarioCommand,
   OpenDayScenarioListResponse,
   OpenDayScenarioTemplateSummary,
   OpenDayScenarioTemplateRecord,
+  OpenDayScenarioVersionListResponse,
   OpenDayScoreCommand,
   OpenDaySnapshotListResponse,
 } from '../../modules/open-day/domain/openDay.types.ts';
@@ -35,6 +38,10 @@ export function fetchOpenDayCatalog(activationKey: string) {
 }
 
 export function fetchOpenDaySnapshots(activationKey: string, limit = 8, scenarioId = '') {
+  return fetchOpenDayAnalysisRuns(activationKey, limit, scenarioId);
+}
+
+export function fetchOpenDayAnalysisRuns(activationKey: string, limit = 8, scenarioId = '') {
   const query = new URLSearchParams({
     limit: String(limit),
   });
@@ -42,16 +49,20 @@ export function fetchOpenDaySnapshots(activationKey: string, limit = 8, scenario
     query.set('scenarioId', scenarioId);
   }
 
-  return requestJson<OpenDaySnapshotListResponse>(
+  return requestJson<OpenDayAnalysisRunListResponse>(
     activationKey,
     `/api/open-day-analyses?${query.toString()}`,
   );
 }
 
 export function fetchOpenDaySnapshotDetail(activationKey: string, id: string) {
-  return requestJson<OpenDayAnalysisSnapshotRecord>(
+  return fetchOpenDayAnalysisRunDetail(activationKey, id);
+}
+
+export function fetchOpenDayAnalysisRunDetail(activationKey: string, id: string) {
+  return requestJson<OpenDayAnalysisRunRecord>(
     activationKey,
-    `/api/open-day-analyses?id=${encodeURIComponent(id)}`,
+    `/api/open-day-analyses?runId=${encodeURIComponent(id)}`,
   );
 }
 
@@ -66,6 +77,18 @@ export function fetchOpenDayScenarioDetail(activationKey: string, id: string) {
   return requestJson<OpenDayScenarioTemplateRecord>(
     activationKey,
     `/api/open-day-scenarios?id=${encodeURIComponent(id)}`,
+  );
+}
+
+export function fetchOpenDayScenarioVersions(activationKey: string, templateId: string, limit = 20) {
+  const query = new URLSearchParams({
+    templateId,
+    limit: String(limit),
+  });
+
+  return requestJson<OpenDayScenarioVersionListResponse>(
+    activationKey,
+    `/api/open-day-scenario-versions?${query.toString()}`,
   );
 }
 

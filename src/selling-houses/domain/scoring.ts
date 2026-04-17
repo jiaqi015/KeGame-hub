@@ -53,7 +53,7 @@ function calculateD1(world: GameState, caseItem: Case) {
   const allOppsForCase = world.opportunities.filter(o => o.caseId === caseItem.id);
   
   // 1. 客群池大小 (Pool size): 过去 7 天内进入了解阶段的客户数
-  const poolSize = allOppsForCase.filter(o => world.day - (o.history[0]?.day || 0) <= 7).length;
+  const poolSize = allOppsForCase.filter(o => world.day - (o.createdDay || 0) <= 7).length;
   
   // 2. 接触中客户数
   const activeContacts = opps.length;

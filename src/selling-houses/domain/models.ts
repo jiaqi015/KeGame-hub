@@ -1,6 +1,75 @@
 export type Tone = 'accent' | 'danger' | 'success';
+export type LeadSourceType = 'direct' | 'broker';
+export type ActionCategoryId = 'feedback' | 'marketing' | 'pricing' | 'negotiation';
+export type ActionFamily =
+  | 'owner'
+  | 'merchandising'
+  | 'pricing'
+  | 'promotion'
+  | 'showing'
+  | 'negotiation'
+  | 'broker';
+export type BattleActor = 'owner' | 'market' | 'customer';
+export type ActionMetricKey =
+  | 'trust'
+  | 'patience'
+  | 'urgency'
+  | 'heat'
+  | 'competitiveness'
+  | 'd1'
+  | 'd2'
+  | 'd3'
+  | 'windowDays'
+  | 'askPrice'
+  | 'intent'
+  | 'confidence'
+  | 'promotionBudget'
+  | 'reputation'
+  | 'commission';
 
-export type DifficultyId = 'easy' | 'standard' | 'hard';
+export interface ActionCategoryDefinition {
+  id: ActionCategoryId;
+  name: string;
+  summary: string;
+}
+
+export interface ActionStrategyDefinition {
+  id: string;
+  title: string;
+  note: string;
+}
+
+export interface ActionBattleTemplate {
+  id: string;
+  actor: BattleActor;
+  title: string;
+  summary: string;
+  metricFocus: ActionMetricKey[];
+  buildBody: (state: GameState, caseItem: Case, action: ActionDefinition) => string;
+  getStrategies: (state: GameState, caseItem: Case, action: ActionDefinition) => ActionStrategyDefinition[];
+}
+
+export interface ActionDefinition {
+  id: string;
+  categoryId?: ActionCategoryId;
+  family?: ActionFamily;
+  name: string;
+  summary?: string;
+  costEnergy: number;
+  costPromotionBudget: number;
+  description: string;
+  type?: 'direct' | 'scenario';
+  templateId?: string;
+  executorId?: string;
+  metricFocus?: ActionMetricKey[];
+}
+
+export type DifficultyId = 'warmup' | 'easy' | 'standard' | 'advanced' | 'hard' | 'extreme';
+
+export interface DifficultyPreviewMetric {
+  label: string;
+  value: string;
+}
 
 export interface DifficultyOption {
   id: DifficultyId;
@@ -8,12 +77,17 @@ export interface DifficultyOption {
   summary: string;
   detail: string;
   scenarioCount: number;
+  featuredSeed: number;
+  preview: DifficultyPreviewMetric[];
 }
 
 export interface GameRules {
   maxDay: number;
   baseMaxEnergy: number;
   initialCash: number;
+  weeklyBudgetAllowance: number;
+  saleBudgetBonusRatio: number;
+  saleBudgetBonusFloor: number;
   initialReputation: number;
   initialCommission: number;
   initialEnergy: number;
@@ -62,6 +136,7 @@ export interface ChannelProfile {
   name: string;
   quality: number;
   controllability: number;
+  leadSource?: LeadSourceType;
 }
 
 export interface OwnerArchetype {
@@ -276,6 +351,7 @@ export interface Opportunity {
   leadSource: 'direct' | 'broker';
   visibility: 'shadow' | 'revealed';
   brokerName?: string;
+  createdDay: number;
   daysLeft: number;
   touchedToday: boolean;
   budgetMax: number;
@@ -316,6 +392,24 @@ export interface DailyReport {
   randomEvents: { actor: string; message: string; tone: string }[];
 }
 
+export type BudgetTransactionKind =
+  | 'initial-allocation'
+  | 'weekly-allocation'
+  | 'action-spend'
+  | 'action-refund'
+  | 'sale-rebate'
+  | 'legacy-sync';
+
+export interface BudgetTransaction {
+  id: string;
+  day: number;
+  kind: BudgetTransactionKind;
+  amount: number;
+  balanceAfter: number;
+  title: string;
+  detail: string;
+}
+
 export interface GameState {
   version: number;
   runContext: RunContext;
@@ -340,6 +434,7 @@ export interface GameState {
   rngCalls: number;
   cases: Case[];
   opportunities: Opportunity[];
+  budgetLedger: BudgetTransaction[];
   eventLog: any[];
   weeklyReviews: any[];
   markets: MarketCell[];

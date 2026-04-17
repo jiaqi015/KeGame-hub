@@ -14,12 +14,12 @@ export class OpenDaySnapshotService {
   async getById(id: string) {
     const normalizedId = typeof id === 'string' ? id.trim() : '';
     if (!normalizedId) {
-      throw new Error('缺少快照 ID。');
+      throw new Error('缺少历史测算记录 ID。');
     }
 
     const record = await this.repository.get(normalizedId);
     if (!record) {
-      throw new Error('未找到对应的测算快照。');
+      throw new Error('未找到对应的历史测算记录。');
     }
 
     return record;

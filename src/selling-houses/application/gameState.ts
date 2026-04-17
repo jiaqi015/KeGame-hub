@@ -19,6 +19,7 @@ import {
   type Opportunity,
   type ScenarioSnapshot,
 } from '../domain/models';
+import { createInitialBudgetLedger, normalizeBudgetLedger } from '../domain/budget';
 import { getBuiltInWorld, resolveScenarioRules } from '../domain/scenarioCatalog';
 
 function isBrowser() {
@@ -87,6 +88,7 @@ export function createInitialState(snapshot: ScenarioSnapshot, seed: number): Ga
     customers: clonedWorld.customers,
     cases: generatedCases,
     opportunities: [],
+    budgetLedger: createInitialBudgetLedger(rules.initialCash),
     eventLog: [],
     weeklyReviews: [],
     schedule: [],
@@ -148,7 +150,7 @@ function buildLegacySnapshot(parsed: any): ScenarioSnapshot {
             : 'game-player',
         ownerName: caseItem.ownerName || '匿名业主',
         ownerMood: caseItem.ownerMood || '历史存档迁移',
-        maintainerName: caseItem.maintainerName || '维护人',
+        maintainerName: caseItem.maintainerName || '资产顾问',
         askPrice: Number(caseItem.askPrice) || 0,
         bottomPrice: Number(caseItem.bottomPrice) || Math.max(0, Number(caseItem.askPrice) - 20),
         initialTrust: Number(caseItem.trust) || 55,
@@ -227,6 +229,15 @@ function normalizeCase(caseItem: any): Case {
   };
 }
 
+function normalizeOpportunity(opportunity: any) {
+  return {
+    ...opportunity,
+    createdDay: Number(opportunity?.createdDay)
+      || Number(opportunity?.history?.[0]?.day)
+      || 1,
+  };
+}
+
 function normalizeCompetitionGroups(groups: unknown): CompetitionGroup[] {
   return Array.isArray(groups) ? groups.map((entry) => ({ ...(entry as CompetitionGroup) })) : [];
 }
@@ -269,7 +280,10 @@ export function normalizeLoadedState(parsed: any): GameState | null {
     competitionGroups: normalizeCompetitionGroups(parsed?.competitionGroups || snapshot.scenario.competitionGroups),
     rngState: normalizeSeed(Number(parsed?.rngState) || Number(parsed?.runContext?.rngSeed) || Date.now()),
     rngCalls: Number.isFinite(parsed?.rngCalls) ? Number(parsed.rngCalls) : 0,
+    cash: Number(parsed?.cash) || 0,
     cases: Array.isArray(parsed?.cases) ? parsed.cases.map(normalizeCase) : [],
+    opportunities: Array.isArray(parsed?.opportunities) ? parsed.opportunities.map(normalizeOpportunity) : [],
+    budgetLedger: normalizeBudgetLedger(parsed?.budgetLedger, Number(parsed?.cash) || 0),
     currentReport: parsed?.currentReport || null,
   } as GameState;
 
@@ -367,10 +381,10 @@ function deriveSchedule(world: GameState) {
     .filter((entry) => entry.status === 'active' && entry.daysLeft <= 2)
     .forEach((entry) => {
       const isShadow = entry.visibility === 'shadow';
-      const displayName = isShadow ? `影子客 #${entry.id.split('-').pop()}` : entry.customerName;
+      const displayName = isShadow ? `预测客群 #${entry.id.split('-').pop()}` : entry.customerName;
       items.push({
         key: entry.id,
-        title: isShadow ? '同步经纪人' : entry.stageLabel,
+        title: isShadow ? '确认预测客群' : entry.stageLabel,
         badge: `${entry.daysLeft} 天后流失`,
         note: `${displayName} 正在从 ${world.cases.find((caseItem) => caseItem.id === entry.caseId)?.title || '房源'} 上流失，最好今天就碰一下。`,
         urgency: 86 - entry.daysLeft * 10 + entry.stageIndex * 4,
@@ -400,12 +414,12 @@ function derivePriorities(world: GameState) {
     .slice(0, 2)
     .forEach((entry) => {
       const isShadow = entry.visibility === 'shadow';
-      const displayName = isShadow ? `影子客 #${entry.id.split('-').pop()}` : entry.customerName;
+      const displayName = isShadow ? `预测客群 #${entry.id.split('-').pop()}` : entry.customerName;
       items.push({
         kind: 'opportunity',
-        title: isShadow ? `揭晓 ${displayName}` : `推进 ${displayName}`,
+        title: isShadow ? `确认 ${displayName}` : `推进 ${displayName}`,
         detail: isShadow
-          ? `这是一条黑盒线索，建议先与经纪人 ${entry.brokerName} 对线。`
+          ? `这是一位待确认客户，建议先和经纪人 ${entry.brokerName} 确认真实需求。`
           : `${displayName} 已进入 ${entry.stageLabel}，${entry.daysLeft} 天后可能流失。`,
         caseId: entry.caseId,
       });

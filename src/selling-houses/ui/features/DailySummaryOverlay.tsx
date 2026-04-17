@@ -114,7 +114,7 @@ export function DailySummaryOverlay({ report, onContinue }: DailySummaryOverlayP
                   ))}
                   {report.todayPlan.priorities.length === 0 && (
                     <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-6 text-center text-sm italic text-slate-400">
-                      今天没有明确待办，适合先盘点房东反馈和准客池。
+                      今天没有明确待办，适合先盘点业主反馈和准客池。
                     </div>
                   )}
                 </div>

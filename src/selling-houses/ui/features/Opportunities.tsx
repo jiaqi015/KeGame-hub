@@ -57,10 +57,10 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
               </div>
               
               <h4 className="mb-1 text-[17px] font-bold text-slate-900">
-                {isShadow ? `影子客 #${o.id.split('-').pop()}` : o.customerName}
+                {isShadow ? `预测客群 #${o.id.split('-').pop()}` : o.customerName}
               </h4>
               <p className="mb-3.5 line-clamp-1 text-xs text-slate-400">
-                {isShadow ? '该线索由同业提供，底牌暂不可见' : o.profile}
+                {isShadow ? '这位客户由合作经纪人带来，需求还需要进一步确认' : o.profile}
               </p>
               
               <div className="mb-5 space-y-2.5">

@@ -4,18 +4,23 @@
 
 - `多模型PK`：多模型对比与核心差异总结
 - `小区开放日选址`：开放日候选小区测算与排名分析
-- `我是王牌维护人`：在 28 天经营周期里练习房源推进、开放日、带看与议价决策
+- `我是王牌资产顾问`：在 28 天经营周期里练习房源推进、开放日、带看与议价决策
 
 ## 当前结构
 
 - 前端：`Vite + React + TypeScript`
 - 后端：
   - Sabrina 相关接口：`/api/activate`、`/api/models`、`/api/compare`、`/api/compare-stream`
-  - 小区开放日选址接口：`/api/parse-workbook`、`/api/open-day-catalog`、`/api/open-day-score`、`/api/open-day-analyses`、`/api/open-day-scenarios`
+  - 小区开放日选址接口：`/api/parse-workbook`、`/api/open-day-catalog`、`/api/open-day-score`、`/api/open-day-analyses`、`/api/open-day-scenarios`、`/api/open-day-scenario-versions`
 - 小区开放日选址原始静态页面已保存在 `src/open-day/legacy/`
 - 小区开放日选址 DDD 设计说明见 [docs/open-day-ddd-architecture.md](/Users/jiaqi/Documents/开放日测算/docs/open-day-ddd-architecture.md)
-- 我是王牌维护人的云端数据模型见 [docs/selling-houses-cloud-data-model.md](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-cloud-data-model.md)
-- 我是王牌维护人的玩法重构草图见 [docs/selling-houses-game-architecture.md](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-game-architecture.md)
+- 小区开放日数据结构与持久化演进方案见 [docs/open-day-persistence-evolution-plan.md](/Users/jiaqi/Documents/开放日测算/docs/open-day-persistence-evolution-plan.md)
+- 小区开放日 DBA 视角的变更治理与工作 SOP 见 [docs/open-day-dba-sop.md](/Users/jiaqi/Documents/开放日测算/docs/open-day-dba-sop.md)
+- 小区开放日阶段 1 的 Analysis Run 迁移说明见 [docs/open-day-phase1-analysis-run-migration.md](/Users/jiaqi/Documents/开放日测算/docs/open-day-phase1-analysis-run-migration.md)
+- 小区开放日阶段 2 的方案版本化迁移说明见 [docs/open-day-phase2-scenario-versioning.md](/Users/jiaqi/Documents/开放日测算/docs/open-day-phase2-scenario-versioning.md)
+- 小区开放日阶段 3 的 Dataset/Profile 迁移说明见 [docs/open-day-phase3-dataset-profile.md](/Users/jiaqi/Documents/开放日测算/docs/open-day-phase3-dataset-profile.md)
+- 我是王牌资产顾问的云端数据模型见 [docs/selling-houses-cloud-data-model.md](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-cloud-data-model.md)
+- 我是王牌资产顾问的玩法重构草图见 [docs/selling-houses-game-architecture.md](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-game-architecture.md)
 
 ## 项目记忆
 
@@ -74,9 +79,10 @@ http://localhost:3000
 - 测算快照会通过 `/api/open-day-analyses` 查询
 - 业务方案模板会通过 `/api/open-day-scenarios` 查询和保存
 - 当一次测算绑定了已保存方案时，快照会记录 `scenarioTemplateId / scenarioTemplateName`，并支持按方案筛选历史
+- 开放日测算现在会记录 `datasetId / datasetProfileId`，用于追溯当次使用的数据集和字段质量画像
 - 历史快照现在支持直接回放，能把当次测算的原始数据、参数和结果恢复回当前工作台
 - 当存在 `DATABASE_URL / POSTGRES_URL` 时，开放日模块会自动切到 `Neon` 持久化；否则回退为本地文件仓储
-- 我是王牌维护人的云端存档 schema 也已经按 `Neon Postgres` 预留，可与开放日模块共用同一库、不同表
+- 我是王牌资产顾问的云端存档 schema 也已经按 `Neon Postgres` 预留，可与开放日模块共用同一库、不同表
 - 当运行在 Vercel 上时，开放日测算缓存会优先使用 `Runtime Cache`，本地开发默认回退为内存缓存
 - 当存在 `BLOB_READ_WRITE_TOKEN` 且结构化存储走 `Neon` 时，Excel 上传会在解析后自动归档到 `Vercel Blob`；否则回退为本地临时文件仓储
 - workbook 解析链现在带有 `checksum + requestedSheet` 级别的缓存，同一份 Excel 的重复解析会优先命中缓存，再配合上传归档去重，明显缩短二次加载耗时

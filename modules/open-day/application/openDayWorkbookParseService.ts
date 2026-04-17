@@ -3,6 +3,7 @@ import { parseWorkbookBuffer, type ParsedWorkbookPayload } from '../../../lib/op
 import { createOpenDayHash } from './openDayFingerprint.js';
 import type { OpenDayWorkbookParseCache, OpenDayWorkbookParseCachePayload } from './openDayWorkbookParseCache.js';
 import { OpenDayUploadArtifactService } from './openDayUploadArtifactService.js';
+import { OpenDayDatasetService } from './openDayDatasetService.js';
 
 export interface ParseOpenDayWorkbookCommand {
   buffer: Buffer;
@@ -16,6 +17,7 @@ export class OpenDayWorkbookParseService {
   constructor(
     private readonly cache?: OpenDayWorkbookParseCache,
     private readonly uploadArtifactService?: OpenDayUploadArtifactService,
+    private readonly datasetService?: OpenDayDatasetService,
   ) {}
 
   async execute(command: ParseOpenDayWorkbookCommand): Promise<ParsedWorkbookPayload> {
@@ -70,8 +72,16 @@ export class OpenDayWorkbookParseService {
     }
 
     if (uploadResult.status === 'fulfilled') {
+      const dataset = await this.persistDataset({
+        sourceUploadId: uploadResult.value.id,
+        sourceName: command.originalFilename,
+        sheetName: payloadResult.value.activeSheet,
+        headers: payloadResult.value.headers,
+        rows: payloadResult.value.rows,
+      });
       return {
         ...payloadResult.value,
+        dataset,
         uploadArtifact: uploadResult.value,
       };
     }
@@ -82,5 +92,18 @@ export class OpenDayWorkbookParseService {
       uploadWarning:
         uploadResult.reason instanceof Error ? uploadResult.reason.message : '上传归档失败',
     };
+  }
+
+  private async persistDataset(command: Parameters<OpenDayDatasetService['persistDataset']>[0]) {
+    if (!this.datasetService) {
+      return undefined;
+    }
+
+    try {
+      return await this.datasetService.persistDataset(command);
+    } catch (error) {
+      console.error('Failed to persist open-day dataset:', error);
+      return undefined;
+    }
   }
 }

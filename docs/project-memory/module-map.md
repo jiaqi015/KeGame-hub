@@ -11,7 +11,7 @@
   - 承担前端开发服务和本地 API 承接。
 - `api/`
   - 站点 API 路由文件。
-  - 既包含 Sabrina 能力，也包含开放日和维护人相关接口。
+  - 既包含 Sabrina 能力，也包含开放日和资产顾问相关接口。
 - `src/`
   - 前端应用主体。
 - `docs/`
@@ -80,12 +80,12 @@
 - `docs/open-day-ddd-architecture.md`
   - 开放日领域设计说明。
 
-## 我是王牌维护人
+## 我是王牌资产顾问
 
 ### 前端
 
 - `src/selling-houses/SellingHousesWorkspace.tsx`
-  - 维护人主工作台。
+  - 资产顾问主工作台。
 - `src/selling-houses/application/gameState.ts`
   - 本地运行态核心定义。
 - `src/selling-houses/application/useGame.ts`
@@ -119,7 +119,7 @@
 - `src/selling-houses/infrastructure/neonGameRunRepository.ts`
   - run 级 repository。
 - `api/maintainer-runs.ts`
-  - 维护人 run 相关接口。
+  - 资产顾问 run 相关接口。
 - `api/maintainer-leaderboard.ts`
   - 排行榜接口。
 
@@ -136,6 +136,6 @@
   - `npm run dev`：本地开发
   - `npm run build`：构建
   - `npm run lint`：TypeScript 检查
-  - `npm run verify:maintainer`：维护人相关验证脚本
+  - `npm run verify:maintainer`：资产顾问相关验证脚本
 - `scripts/verify-selling-houses.ts`
-  - 维护人专项验证入口。
+  - 资产顾问专项验证入口。

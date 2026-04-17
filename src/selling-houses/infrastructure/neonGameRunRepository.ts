@@ -154,7 +154,7 @@ export class NeonGameRunRepository {
           ON CONFLICT (user_id)
           DO UPDATE SET
             display_name = CASE
-              WHEN EXCLUDED.display_name = '匿名维护人' THEN maintainer_users.display_name
+              WHEN EXCLUDED.display_name IN ('匿名维护人', '匿名资产顾问') THEN maintainer_users.display_name
               ELSE EXCLUDED.display_name
             END,
             last_seen_at = NOW()

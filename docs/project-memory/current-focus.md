@@ -4,11 +4,11 @@
 
 ## 正在发生什么
 
-从当前未提交改动看，项目重点正在向“维护人玩法云化 + 统一入口整合”推进，而不是单纯继续美化开放日页面。
+从当前未提交改动看，项目重点正在向“资产顾问玩法云化 + 统一入口整合”推进，而不是单纯继续美化开放日页面。
 
 ## 高优先级延续项
 
-### 1. 维护人玩法打通云端
+### 1. 资产顾问玩法打通云端
 
 - 收口 `Neon` schema、repository、HTTP handler 与前端云同步状态。
 - 把目前已经落到 `src/selling-houses/infrastructure/` 和 `api/maintainer-*.ts` 的能力真正串起来。
@@ -29,10 +29,10 @@
 
 - 工作区存在大量未提交改动，继续开发前要特别小心不要混入临时文件。
 - 外部自动记忆文件质量参差不齐，恢复上下文时应优先读项目内人工整理版。
-- 维护人玩法处于快速演进阶段，前端状态、数据库 schema、API 形状可能还会一起变化。
+- 资产顾问玩法处于快速演进阶段，前端状态、数据库 schema、API 形状可能还会一起变化。
 
 ## 下次接手建议
 
 1. 先看 `git status --short`，确认这轮未提交改动到底覆盖了哪些业务线。
-2. 如果目标是维护人玩法，先从 `docs/selling-houses-cloud-data-model.md` 和 `src/selling-houses/infrastructure/` 入手。
+2. 如果目标是资产顾问玩法，先从 `docs/selling-houses-cloud-data-model.md` 和 `src/selling-houses/infrastructure/` 入手。
 3. 如果目标是开放日选址，优先守住两步流和服务端接口闭环，不要把逻辑重新塞回页面里。

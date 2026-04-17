@@ -11,6 +11,8 @@ import {
 import { advanceDays, executeAction, seedInitialOpportunities } from '../domain/engine';
 import {
   getDifficultyOptions,
+  generateScenarioBundle,
+  generateScenarioSnapshot,
   getScenarioSnapshotById,
   listBuiltInScenarioSummaries,
 } from '../domain/scenarioCatalog';
@@ -84,6 +86,11 @@ function pickRandomScenarioId(catalog: ScenarioSummary[], difficultyId: Difficul
 
   const index = Math.floor(Math.random() * candidates.length);
   return candidates[index]?.id || null;
+}
+
+function buildWorldFromGeneratedDifficulty(difficultyId: DifficultyId, seed: number) {
+  const snapshot = generateScenarioSnapshot({ difficultyId, seed });
+  return buildWorldFromScenario(snapshot);
 }
 
 export function useGame(activationKey?: string) {
@@ -186,7 +193,7 @@ export function useGame(activationKey?: string) {
         if (!currentMeta?.runId) {
           const created = await createMaintainerRun(activationKey, {
             userId,
-            playerName: '匿名维护人',
+            playerName: '匿名资产顾问',
             state,
             clientUpdatedAt: new Date().toISOString(),
           });
@@ -203,7 +210,7 @@ export function useGame(activationKey?: string) {
         const saved = await saveMaintainerRun(activationKey, {
           runId: currentMeta.runId,
           userId,
-          playerName: '匿名维护人',
+          playerName: '匿名资产顾问',
           state,
           expectedSyncVersion: currentMeta.syncVersion,
           clientUpdatedAt: new Date().toISOString(),
@@ -249,26 +256,40 @@ export function useGame(activationKey?: string) {
     };
   }, [state, activationKey]);
 
-  const startRandomRun = useCallback(async (difficultyId: DifficultyId) => {
+  const startScenarioState = useCallback((world: GameState, difficultyId: DifficultyId) => {
+    setLastDifficulty(difficultyId);
+    clearMaintainerCloudMeta();
+    clearSavedGameState();
+    cloudMetaRef.current = null;
+    setState(world);
+    saveGameState(world);
+  }, []);
+
+  const startFeaturedRun = useCallback(async (difficultyId: DifficultyId) => {
     setStarting(true);
     try {
-      const scenarioId = pickRandomScenarioId(catalog.length ? catalog : listBuiltInScenarioSummaries(), difficultyId);
-      if (!scenarioId) {
-        throw new Error('当前难度下没有可用剧本。');
+      const option = getDifficultyOptions().find((entry) => entry.id === difficultyId);
+      if (!option) {
+        throw new Error(`未找到难度 ${difficultyId}`);
       }
 
-      const snapshot = await loadScenarioSnapshot(activationKey, scenarioId);
-      const world = buildWorldFromScenario(snapshot);
-      setLastDifficulty(difficultyId);
-      clearMaintainerCloudMeta();
-      clearSavedGameState();
-      cloudMetaRef.current = null;
-      setState(world);
-      saveGameState(world);
+      const world = buildWorldFromGeneratedDifficulty(difficultyId, option.featuredSeed);
+      startScenarioState(world, difficultyId);
     } finally {
       setStarting(false);
     }
-  }, [activationKey, catalog]);
+  }, [startScenarioState]);
+
+  const startRandomGeneratedRun = useCallback(async (difficultyId: DifficultyId) => {
+    setStarting(true);
+    try {
+      const seed = Date.now() % 2147483647;
+      const world = buildWorldFromGeneratedDifficulty(difficultyId, seed);
+      startScenarioState(world, difficultyId);
+    } finally {
+      setStarting(false);
+    }
+  }, [startScenarioState]);
 
   const handleSelectCase = useCallback((id: string) => {
     setState((prev) => {
@@ -309,36 +330,46 @@ export function useGame(activationKey?: string) {
     }
   }, []);
 
-  const handleAutoExecute = useCallback(() => {
-    if (!state || state.energy <= 0) return;
-    const topPriority = state.priorities.find((entry) => entry.kind === 'case');
-    if (topPriority?.caseId) {
-      const caseItem = state.cases.find((entry) => entry.id === topPriority.caseId);
-      if (caseItem) {
-        handleExecuteAction('owner-call', caseItem, null, (msg) => console.log('Auto-Exec:', msg));
-      }
-    }
-  }, [state, handleExecuteAction]);
-
   const handleClearReport = useCallback(() => {
     setState((prev) => (prev ? { ...prev, currentReport: null } : null));
   }, []);
 
   const difficultyOptions: DifficultyOption[] = useMemo(() => getDifficultyOptions(), []);
+  const featuredScenarios = useMemo(() => {
+    return difficultyOptions.map((option) => {
+      const bundle = generateScenarioBundle({
+        difficultyId: option.id,
+        seed: option.featuredSeed,
+      });
+
+      return {
+        difficultyId: option.id,
+        seed: option.featuredSeed,
+        scenario: {
+          name: bundle.scenario.name,
+          theme: bundle.scenario.theme,
+          description: bundle.scenario.description,
+          maxDay: bundle.scenario.maxDay,
+          caseCount: bundle.scenario.cases.length,
+        },
+      };
+    });
+  }, [difficultyOptions]);
 
   return {
     phase: booting ? 'loading' as const : state ? 'playing' as const : 'setup' as const,
     state,
     catalog,
     difficultyOptions,
+    featuredScenarios,
     lastDifficulty,
     starting,
-    startRandomRun,
+    startFeaturedRun,
+    startRandomGeneratedRun,
     handleSelectCase,
     handleAdvanceDays,
     handleExecuteAction,
     handleReset,
-    handleAutoExecute,
     handleClearReport,
   };
 }

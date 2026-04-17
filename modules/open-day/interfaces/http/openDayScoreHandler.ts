@@ -56,10 +56,18 @@ function normalizeBody(body: unknown): OpenDayScoreCommand {
     scenario: candidate.scenario,
     sourceName: typeof candidate.sourceName === 'string' ? candidate.sourceName : '',
     sourceUploadId: typeof candidate.sourceUploadId === 'string' ? candidate.sourceUploadId : '',
+    datasetId: typeof candidate.datasetId === 'string' ? candidate.datasetId : '',
+    activeSheet: typeof candidate.activeSheet === 'string' ? candidate.activeSheet : '',
+    headers: Array.isArray(candidate.headers)
+      ? candidate.headers.map((header) => String(header ?? ''))
+      : [],
+    qualityReport: candidate.qualityReport,
     activeScenarioTemplateId:
       typeof candidate.activeScenarioTemplateId === 'string' ? candidate.activeScenarioTemplateId : '',
     activeScenarioTemplateName:
       typeof candidate.activeScenarioTemplateName === 'string' ? candidate.activeScenarioTemplateName : '',
+    activeScenarioTemplateVersionId:
+      typeof candidate.activeScenarioTemplateVersionId === 'string' ? candidate.activeScenarioTemplateVersionId : '',
     activePresetId: typeof candidate.activePresetId === 'string' ? candidate.activePresetId : '',
     activeParameterPackageId:
       typeof candidate.activeParameterPackageId === 'string'

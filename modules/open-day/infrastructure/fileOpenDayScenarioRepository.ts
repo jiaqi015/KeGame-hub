@@ -3,6 +3,7 @@ import path from 'node:path';
 import type {
   OpenDayScenarioTemplateRecord,
   OpenDayScenarioTemplateSummary,
+  OpenDayScenarioTemplateVersionSummary,
 } from '../domain/openDay.types.js';
 import type { OpenDayScenarioRepository } from '../application/openDayScenarioRepository.js';
 import { getRuntimeTempDir } from '../../../lib/runtimeTemp.js';
@@ -14,18 +15,39 @@ interface ScenarioIndexFile {
 export class FileOpenDayScenarioRepository implements OpenDayScenarioRepository {
   private readonly baseDir: string;
   private readonly scenarioDir: string;
+  private readonly versionDir: string;
   private readonly indexFile: string;
 
   constructor(baseDir = getRuntimeTempDir('open-day-runtime')) {
     this.baseDir = baseDir;
     this.scenarioDir = path.join(baseDir, 'scenarios');
+    this.versionDir = path.join(this.scenarioDir, 'versions');
     this.indexFile = path.join(this.scenarioDir, 'index.json');
   }
 
   async save(template: OpenDayScenarioTemplateRecord): Promise<void> {
     await fs.mkdir(this.scenarioDir, { recursive: true });
+    await fs.mkdir(this.versionDir, { recursive: true });
     const detailFile = path.join(this.scenarioDir, `${template.summary.id}.json`);
     await fs.writeFile(detailFile, JSON.stringify(template, null, 2), 'utf8');
+
+    if (template.latestVersion) {
+      const versionTargetDir = path.join(this.versionDir, template.summary.id);
+      await fs.mkdir(versionTargetDir, { recursive: true });
+      await fs.writeFile(
+        path.join(versionTargetDir, `${template.latestVersion.id}.json`),
+        JSON.stringify(
+          {
+            summary: template.summary,
+            latestVersion: template.latestVersion,
+            scenario: template.scenario,
+          },
+          null,
+          2,
+        ),
+        'utf8',
+      );
+    }
 
     const current = await this.readIndex();
     const items = current.items.filter((item) => item.id !== template.summary.id);
@@ -57,6 +79,30 @@ export class FileOpenDayScenarioRepository implements OpenDayScenarioRepository 
       return JSON.parse(content) as OpenDayScenarioTemplateRecord;
     } catch {
       return null;
+    }
+  }
+
+  async listVersions(templateId: string, limit: number): Promise<OpenDayScenarioTemplateVersionSummary[]> {
+    const versionTargetDir = path.join(this.versionDir, templateId);
+
+    try {
+      const files = await fs.readdir(versionTargetDir);
+      const records = await Promise.all(
+        files
+          .filter((file) => file.endsWith('.json'))
+          .map(async (file) => {
+            const content = await fs.readFile(path.join(versionTargetDir, file), 'utf8');
+            const parsed = JSON.parse(content) as { latestVersion?: OpenDayScenarioTemplateVersionSummary };
+            return parsed.latestVersion || null;
+          }),
+      );
+
+      return records
+        .filter((item): item is OpenDayScenarioTemplateVersionSummary => Boolean(item))
+        .sort((left, right) => right.versionNo - left.versionNo)
+        .slice(0, limit);
+    } catch {
+      return [];
     }
   }
 

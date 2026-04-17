@@ -1,3 +1,4 @@
+import type { DifficultyId } from '../../domain/models.js';
 import { listBuiltInScenarioSummaries, getScenarioSnapshotById } from '../../domain/scenarioCatalog.js';
 import { NeonScenarioRepository } from '../../infrastructure/neonScenarioRepository.js';
 
@@ -13,7 +14,7 @@ export async function handleSellingHousesScenarioList(query: Record<string, unkn
 
   if (!hasDatabaseConfig()) {
     return {
-      scenarios: listBuiltInScenarioSummaries(difficulty as 'easy' | 'standard' | 'hard' | undefined).slice(0, limit),
+      scenarios: listBuiltInScenarioSummaries(difficulty as DifficultyId | undefined).slice(0, limit),
     };
   }
 

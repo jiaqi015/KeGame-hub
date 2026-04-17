@@ -21,7 +21,7 @@ function getSqlClient(): SellingHousesSqlClient {
 export const SELLING_HOUSES_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS maintainer_users (
     user_id TEXT PRIMARY KEY,
-    display_name TEXT NOT NULL DEFAULT '匿名维护人',
+    display_name TEXT NOT NULL DEFAULT '匿名资产顾问',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );

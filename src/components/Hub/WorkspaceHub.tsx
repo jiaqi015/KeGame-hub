@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { LogOut, Sparkles, CheckCircle2, ArrowRight, Layers, Building2 } from 'lucide-react';
+import { LogOut, Sparkles, CheckCircle2, ArrowRight, Layers, UserRound } from 'lucide-react';
 import { ActivationWorkspaceId } from '../../types';
 
 interface WorkspaceHubProps {
@@ -126,34 +126,41 @@ export function WorkspaceHub({ onSelect, onLogout, allowedWorkspaces }: Workspac
             >
               <div className="flex items-center gap-4">
                 <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-[#B45309] text-white shadow-[0_18px_40px_rgba(180,83,9,0.18)]">
-                  <Building2 className="h-5 w-5" />
+                  <UserRound className="h-5 w-5" />
                 </div>
                 <div className="rounded-full bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-700">
-                  我是王牌维护人
+                  我是王牌资产顾问
                 </div>
               </div>
               <h2 className="mt-6 text-[30px] font-semibold tracking-[-0.05em] text-[#111111]">
-                在模拟环境中磨炼你的推盘直觉
+                帮业主决策，成为王牌顾问
               </h2>
               <p className="mt-3 text-[15px] leading-7 text-[#6E6E73]">
-                从房源经营、线索推进到调价议价，把真实业务节奏压缩进 28 天，练出更稳的判断。
+                围绕业主目标做判断，在价格、节奏和沟通之间拿稳分寸。现在支持 6 档难度，先打代表局，再按同难度随机刷一局。
               </p>
               <div className="mt-6 space-y-3 text-sm text-[#424245]">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-amber-700" />
-                  多维指标还原盘面、关系和窗口压力
+                  6 档难度：热身、入门、标准、进阶、高压、极限
                 </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-amber-700" />
-                  体验调价、开放日、带看与议价闭环
+                  每档先给一张代表局，先感受这一档的局面味道
                 </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-amber-700" />
-                  适合熟悉业务节奏和经营取舍
+                  也能按同难度随机生成新环境，反复练手感
                 </div>
               </div>
+              <div className="mt-6 flex flex-wrap gap-2 text-[11px] font-semibold text-amber-800">
+                {['热身', '入门', '标准', '进阶', '高压', '极限'].map((label) => (
+                  <span key={label} className="rounded-full bg-amber-50 px-3 py-1">
+                    {label}
+                  </span>
+                ))}
+              </div>
               <div className="mt-auto flex items-center justify-between pt-8 text-sm font-semibold text-[#111111]">
-                <span>进入维护挑战</span>
+                <span>进入顾问模式</span>
                 <span className="inline-flex items-center gap-1 text-amber-700 transition group-hover:translate-x-1">
                   打开
                   <ArrowRight className="h-4 w-4" />

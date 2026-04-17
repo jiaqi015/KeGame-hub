@@ -1,5 +1,7 @@
 import { OpenDayAnalysisService } from '../application/openDayAnalysisService.js';
 import type { OpenDayAnalysisCache } from '../application/openDayAnalysisCache.js';
+import { OpenDayDatasetService } from '../application/openDayDatasetService.js';
+import type { OpenDayDatasetRepository } from '../application/openDayDatasetRepository.js';
 import { OpenDayScenarioService } from '../application/openDayScenarioService.js';
 import type { OpenDayScenarioRepository } from '../application/openDayScenarioRepository.js';
 import { OpenDaySnapshotService } from '../application/openDaySnapshotService.js';
@@ -11,6 +13,7 @@ import { OpenDayWorkbookParseService } from '../application/openDayWorkbookParse
 import { BlobOpenDayUploadArtifactRepository } from './blobOpenDayUploadArtifactRepository.js';
 import { FileOpenDayScenarioRepository } from './fileOpenDayScenarioRepository.js';
 import { FileOpenDaySnapshotRepository } from './fileOpenDaySnapshotRepository.js';
+import { FileOpenDayDatasetRepository } from './fileOpenDayDatasetRepository.js';
 import { FileOpenDayUploadArtifactRepository } from './fileOpenDayUploadArtifactRepository.js';
 import { InMemoryOpenDayAnalysisCache } from './inMemoryOpenDayAnalysisCache.js';
 import { InMemoryOpenDayWorkbookParseCache } from './inMemoryOpenDayWorkbookParseCache.js';
@@ -18,6 +21,7 @@ import { LayeredOpenDayAnalysisCache } from './layeredOpenDayAnalysisCache.js';
 import { LayeredOpenDayWorkbookParseCache } from './layeredOpenDayWorkbookParseCache.js';
 import { NeonOpenDayScenarioRepository } from './neonOpenDayScenarioRepository.js';
 import { NeonOpenDaySnapshotRepository } from './neonOpenDaySnapshotRepository.js';
+import { NeonOpenDayDatasetRepository } from './neonOpenDayDatasetRepository.js';
 import { RuntimeCacheOpenDayAnalysisCache } from './runtimeCacheOpenDayAnalysisCache.js';
 import { RuntimeCacheOpenDayWorkbookParseCache } from './runtimeCacheOpenDayWorkbookParseCache.js';
 
@@ -71,6 +75,7 @@ function resolveUploadBackend() {
 let analysisServiceSingleton: OpenDayAnalysisService | null = null;
 let snapshotServiceSingleton: OpenDaySnapshotService | null = null;
 let scenarioServiceSingleton: OpenDayScenarioService | null = null;
+let datasetServiceSingleton: OpenDayDatasetService | null = null;
 let uploadArtifactServiceSingleton: OpenDayUploadArtifactService | null = null;
 let workbookParseServiceSingleton: OpenDayWorkbookParseService | null = null;
 
@@ -87,6 +92,12 @@ function createSnapshotRepository(): OpenDaySnapshotRepository {
   return resolveStorageBackend() === 'neon'
     ? new NeonOpenDaySnapshotRepository()
     : new FileOpenDaySnapshotRepository();
+}
+
+function createDatasetRepository(): OpenDayDatasetRepository {
+  return resolveStorageBackend() === 'neon'
+    ? new NeonOpenDayDatasetRepository()
+    : new FileOpenDayDatasetRepository();
 }
 
 function createScenarioRepository(): OpenDayScenarioRepository {
@@ -112,7 +123,11 @@ function createWorkbookParseCache(): OpenDayWorkbookParseCache {
 
 export function getOpenDayAnalysisService() {
   if (!analysisServiceSingleton) {
-    analysisServiceSingleton = new OpenDayAnalysisService(createAnalysisCache(), createSnapshotRepository());
+    analysisServiceSingleton = new OpenDayAnalysisService(
+      createAnalysisCache(),
+      createSnapshotRepository(),
+      getOpenDayDatasetService(),
+    );
   }
 
   return analysisServiceSingleton;
@@ -134,6 +149,14 @@ export function getOpenDayScenarioService() {
   return scenarioServiceSingleton;
 }
 
+export function getOpenDayDatasetService() {
+  if (!datasetServiceSingleton) {
+    datasetServiceSingleton = new OpenDayDatasetService(createDatasetRepository());
+  }
+
+  return datasetServiceSingleton;
+}
+
 export function getOpenDayUploadArtifactService() {
   if (!uploadArtifactServiceSingleton) {
     uploadArtifactServiceSingleton = new OpenDayUploadArtifactService(createUploadArtifactRepository());
@@ -147,6 +170,7 @@ export function getOpenDayWorkbookParseService() {
     workbookParseServiceSingleton = new OpenDayWorkbookParseService(
       createWorkbookParseCache(),
       getOpenDayUploadArtifactService(),
+      getOpenDayDatasetService(),
     );
   }
 
