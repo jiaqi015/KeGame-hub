@@ -10,6 +10,8 @@
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "verify:maintainer": "tsx scripts/verify-selling-houses.ts",
+    "verify:maintainer-shadow": "tsx scripts/verify-selling-houses-shadow-sync.ts",
+    "rebuild:maintainer-shadow": "tsx scripts/rebuild-selling-houses-shadow-sync.ts",
     "verify:generated-maintainer": "tsx scripts/verify-generated-selling-houses.ts",
     "selfplay:maintainer": "tsx scripts/run-selling-houses-agent.ts",
     "selfplay:lab": "tsx scripts/run-selling-houses-lab.ts"

@@ -71,6 +71,7 @@ export type ListingRelativeOutcome = 'outrun' | 'flat' | 'lose';
 export type OwnerSatisfactionState = 'happy' | 'neutral' | 'no_regret' | 'regret' | 'unhappy';
 export type DefenseOutcome = 'held' | 'at_risk' | 'lost_to_rival' | 'withdrawn';
 export type StorylineState = 'healthy' | 'fragile' | 'sliding' | 'critical';
+export type ListingEndingBucket = 'good' | 'neutral' | 'bad';
 export type ListingEndingType =
   | 'sold_by_you_happy'
   | 'sold_by_you_neutral'
@@ -113,8 +114,8 @@ export interface GameRules {
   baseMaxEnergy: number;
   initialCash: number;
   weeklyBudgetAllowance: number;
-  saleBudgetBonusRatio: number;
-  saleBudgetBonusFloor: number;
+  promotionRebateRatio: number;
+  promotionRebateFloor: number;
   initialReputation: number;
   initialCommission: number;
   initialEnergy: number;
@@ -342,7 +343,7 @@ export interface Case {
   story: string;
   tags: string[];
   defects: string[];
-  status: 'active' | 'sold' | 'withdrawn';
+  status: 'active' | 'sold' | 'withdrawn' | 'lost_to_rival';
   stageIndex: number;
   stageLabel: string;
   riskFlags: string[];
@@ -370,6 +371,7 @@ export interface Case {
   ownerSatisfaction?: OwnerSatisfactionState;
   defenseOutcome?: DefenseOutcome;
   endingType?: ListingEndingType;
+  endingBucket?: ListingEndingBucket;
   endingSummary?: string;
   isFocused?: boolean;
   personality: 'pragmatic' | 'emotional' | 'urgent';
@@ -390,6 +392,8 @@ export interface CaseFinalResult {
   status: Case['status'];
   goalTier: GoalTier;
   endingType: ListingEndingType;
+  endingBucket: ListingEndingBucket;
+  endingBucketLabel: string;
   endingLabel: string;
   endingSummary: string;
   relativeOutcome: ListingRelativeOutcome;
@@ -424,6 +428,15 @@ export interface FinalResult {
   coachNotes: string[];
   nextRunAdvice: string[];
   caseResults: CaseFinalResult[];
+  endingStats: {
+    good: number;
+    neutral: number;
+    bad: number;
+    coreBadCount: number;
+    importantBadCount: number;
+    weightedGood: number;
+    weightedBad: number;
+  };
   stats: Array<{ label: string; value: string }>;
 }
 

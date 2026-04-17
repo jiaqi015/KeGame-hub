@@ -10,9 +10,11 @@ const report = lab.runBatch();
 const headline = [
   `剧本: ${report.scenarioId}`,
   `样本: ${report.runCount} 局`,
-  `平均成交: ${report.averageSoldCount}`,
   `平均评估分: ${report.averageEvaluationScore}`,
-  `清局率: ${report.selloutRate}%`,
+  `平均能力/守盘/满意: ${report.averageAbilityScore} / ${report.averageDefenseScore} / ${report.averageSatisfactionScore}`,
+  `平均好/坏收尾: ${report.averageEndingGood} / ${report.averageEndingBad}`,
+  `核心盘坏收尾率: ${report.coreBadRunRate}%`,
+  `被截走触发率: ${report.rivalLossRunRate}%`,
   `波动分差: ${report.scoreSpread}`,
 ].join('\n');
 

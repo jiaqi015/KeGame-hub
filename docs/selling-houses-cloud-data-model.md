@@ -11,18 +11,19 @@
 
 ## 设计主轴
 
-这套系统的核心主轴有 3 个：
+这套系统的核心主轴有 4 个：
 
 - 业主画像
 - 房源阶段
-- 房源竞争力
+- 好房分
+- 共享商圈盘面
 
 再叠加 4 个运行层：
 
 - 整局
 - 房源
-- 事项
-- 交互 / 事件
+- 商圈外部对象
+- 事项 / 事件
 
 ## 总体 ER
 
@@ -33,6 +34,10 @@ erDiagram
     MAINTAINER_GAME_RUNS ||--o| MAINTAINER_LEADERBOARD_ENTRIES : "finalizes to"
 
     MAINTAINER_GAME_RUNS ||--o{ MAINTAINER_RUN_LISTINGS : "contains"
+    MAINTAINER_GAME_RUNS ||--o{ MAINTAINER_RIVAL_STORES : "contains rival stores"
+    MAINTAINER_GAME_RUNS ||--o{ MAINTAINER_RIVAL_LISTINGS : "contains rival listings"
+    MAINTAINER_GAME_RUNS ||--o{ MAINTAINER_MARKET_DAILY_EVENTS : "spawns daily events"
+    MAINTAINER_GAME_RUNS ||--o{ MAINTAINER_RULE_EFFECTS : "enables temporary rules"
     MAINTAINER_GAME_RUNS ||--o{ MAINTAINER_MATTERS : "generates"
     MAINTAINER_GAME_RUNS ||--o{ MAINTAINER_WEEK_CYCLES : "organizes"
     MAINTAINER_GAME_RUNS ||--o{ MAINTAINER_EVENTS : "records"
@@ -47,6 +52,7 @@ erDiagram
 
     MAINTAINER_LISTING_LEADS ||--o{ MAINTAINER_LEAD_FEEDBACKS : "collects"
     MAINTAINER_MATTERS ||--o{ MAINTAINER_MATTER_INTERACTIONS : "plays"
+    MAINTAINER_RIVAL_STORES ||--o{ MAINTAINER_RIVAL_LISTINGS : "operates"
 
     MAINTAINER_WEEK_CYCLES ||--o{ MAINTAINER_FOCUS_MEETING_ENTRIES : "contains"
 
@@ -99,6 +105,27 @@ erDiagram
 - 减少首版 API 接入成本
 - 避免前端状态被数据库结构反向绑死
 - 让结构化表和快照并行演进
+
+## 商圈共享盘面主轴
+
+这条线现在需要明确一件事：
+
+- 玩家不是唯一经营者
+
+所以云端数据模型不能只建：
+
+- 我方房
+- 我方事项
+- 我方事件
+
+还必须能表达：
+
+- 同一局里还有哪些外部门店
+- 这些门店手上有哪些外部竞品盘
+- 这些外部竞品盘今天对玩家造成了什么影响
+- 今天整个商圈发生了什么主事件
+
+也就是说，这套模型以后不只是“玩家经营数据模型”，而是“共享商圈盘面数据模型”。
 
 ## 二、房源核心表
 
@@ -167,7 +194,7 @@ erDiagram
 - `cooperation_style_code`
 - `trust_baseline`
 
-## 四、房源竞争力表
+## 四、好房分拆解表
 
 ### `maintainer_listing_competitiveness`
 
@@ -241,6 +268,116 @@ erDiagram
 - `recommended_action_payload`
 - `resolution_code`
 - `resolution_summary`
+
+## 七、商圈外部门店与外部竞品
+
+### `maintainer_rival_stores`
+
+同一局里出现的外部门店。
+
+这张表不是为了完整模拟另一位玩家，而是为了明确：
+
+- 这一局有哪些外部经营主体
+- 它们主要在什么商圈发力
+- 它们的经营风格是什么
+
+建议字段：
+
+- `rival_store_id`
+- `run_id`
+- `name`
+- `district_focus`
+- `style_code`
+- `pressure_profile`
+- `created_at`
+- `updated_at`
+
+### `maintainer_rival_listings`
+
+这张表表达商圈里不归玩家经营、但会持续影响玩家局面的外部竞品盘。
+
+这些盘不需要拥有玩家房源那样完整的业主与事项状态。
+
+它们最重要的是几个影响槽位：
+
+- `price_anchor_power`
+- `lead_siphon_power`
+- `story_strength`
+- `freshness_score`
+- `days_left`
+- `status`
+
+建议字段：
+
+- `rival_listing_id`
+- `run_id`
+- `rival_store_id`
+- `market_cell_id`
+- `title`
+- `segment_code`
+- `ask_price`
+- `price_anchor_power`
+- `lead_siphon_power`
+- `story_strength`
+- `freshness_score`
+- `days_left`
+- `source_code`
+- `status`
+- `spawned_by_event_id`
+- `updated_at`
+
+这张表的目的不是给玩家操作，而是给引擎施压。
+
+## 八、每日事件与临时规则
+
+### `maintainer_market_daily_events`
+
+每日事件首先是“今天整个商圈发生了什么”，而不是只给某套房偷偷加减数值。
+
+建议字段：
+
+- `daily_event_id`
+- `run_id`
+- `day_index`
+- `layer_code`
+- `event_type_code`
+- `title`
+- `message`
+- `tone`
+- `payload`
+- `created_at`
+
+这里的 `layer_code` 建议区分：
+
+- `state`
+- `board`
+- `rule`
+
+这样“业主家人催卖”“新竞品入场”“本周推广金减半”都能落到同一套模型里。
+
+### `maintainer_rule_effects`
+
+短期规则变化不该只写进日志，应有结构化落表，便于回放与校验。
+
+建议字段：
+
+- `rule_effect_id`
+- `run_id`
+- `source_event_id`
+- `rule_key`
+- `modifier_payload`
+- `start_day`
+- `end_day`
+- `is_active`
+- `created_at`
+
+## 九、最重要的建模原则
+
+以后这条线的结构化建模统一遵守下面三句：
+
+- 玩家经营盘和外部竞品盘分开建模
+- 客户和价格锚属于共享商圈，不属于玩家私有
+- 每日事件首先作用于盘面层，再传导到单房层
 
 ### `maintainer_matter_interactions`
 

@@ -66,11 +66,11 @@ export function tickCases(world: GameState) {
         : world.rules.ownerUntouchedTrustLoss;
       const decayMultiplier = ownerArchetype?.trustDecayMultiplier || 1;
       caseItem.trust -= trustLoss * decayMultiplier;
-      if (world.day - caseItem.lastTouchedDay > world.rules.ownerPatienceDecayAfterDays) {
+      if (world.day - (caseItem.lastOwnerTouchedDay ?? caseItem.lastTouchedDay ?? 0) > world.rules.ownerPatienceDecayAfterDays) {
         caseItem.patience = clamp(caseItem.patience - world.rules.ownerPatienceDecayAmount, 0, 100);
       }
     } else {
-      caseItem.lastTouchedDay = world.day;
+      caseItem.lastOwnerTouchedDay = world.day;
     }
 
     if (!caseItem.touchedToday) {

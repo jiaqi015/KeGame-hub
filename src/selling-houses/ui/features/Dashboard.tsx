@@ -10,7 +10,6 @@ import {
   Sparkles,
   Target,
   TrendingUp,
-  Users,
   Zap,
   Wallet,
 } from 'lucide-react';
@@ -28,10 +27,10 @@ export function Dashboard({ state, onSelectCase, onSetView }: DashboardProps) {
   const { metrics, schedule, priorities, day, maxDay, currentDate } = state;
   const { scenarioSnapshot } = state.runContext;
   const routine = getRoutine(day, WEEKLY_ROUTINE);
+  const activeCases = state.cases.filter((entry) => entry.status === 'active');
   const focusCases = state.cases.filter((entry) => entry.status === 'active' && entry.isFocused).slice(0, 2);
   const leadCase = focusCases[0]
-    || [...state.cases]
-      .filter((entry) => entry.status === 'active')
+    || [...activeCases]
       .sort((a, b) => b.competitiveness - a.competitiveness)[0]
     || null;
   const topPriority = priorities[0] || null;
@@ -40,7 +39,11 @@ export function Dashboard({ state, onSelectCase, onSetView }: DashboardProps) {
     .filter((event) => event.actor === '市场' || event.actor === '宏观')
     .slice(0, 3);
   const upcomingDays = useMemo(() => buildUpcomingPreview(state), [state]);
+  const tierSummaries = useMemo(() => buildTierStructure(state), [state]);
   const daysRemaining = Math.max(maxDay - day, 0);
+  const activeCoreCount = tierSummaries.find((entry) => entry.goalTier === 'core')?.active || 0;
+  const dangerCount = activeCases.filter((entry) => entry.storylineState === 'critical' || entry.storylineState === 'sliding').length;
+  const leadCoreRisk = tierSummaries.find((entry) => entry.goalTier === 'core')?.leadCaseTitle || null;
   const todayGoal = topPriority?.title
     || (leadCase ? `围绕 ${leadCase.title} 做推进` : `按 ${routine.theme} 稳步推进`);
   const todayRisk = topRisk?.title
@@ -52,9 +55,9 @@ export function Dashboard({ state, onSelectCase, onSetView }: DashboardProps) {
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-        <MetricCard label="综合竞争力" value={metrics.averageTrust} icon={<TrendingUp size={20} />} color="text-emerald-600" />
-        <MetricCard label="漏斗健康 (D1)" value={metrics.averageD1} icon={<Users size={20} />} color="text-blue-600" />
-        <MetricCard label="业主意愿 (D3)" value={metrics.averageD3} icon={<Zap size={20} />} color="text-amber-600" />
+        <MetricCard label="平均业主信任" value={metrics.averageTrust} icon={<TrendingUp size={20} />} color="text-emerald-600" />
+        <MetricCard label="在场核心盘" value={`${activeCoreCount} 套`} icon={<Target size={20} />} color="text-rose-600" />
+        <MetricCard label="高危房源" value={`${dangerCount} 套`} icon={<ShieldAlert size={20} />} color="text-amber-600" />
         <MetricCard label="项目进度" value={`${day}/${maxDay} 天`} icon={<Calendar size={20} />} color="text-slate-600" />
       </div>
 
@@ -118,6 +121,24 @@ export function Dashboard({ state, onSelectCase, onSetView }: DashboardProps) {
                 </div>
               </div>
             )}
+
+            <div className="mt-5 rounded-[22px] border border-black/[0.05] bg-white/90 p-4">
+              <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                <ShieldAlert size={14} className="text-rose-500" />
+                当前盘型结构
+              </div>
+              <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+                {tierSummaries.map((entry) => (
+                  <div key={entry.goalTier}>
+                    <TierStructureCard entry={entry} />
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 rounded-2xl border border-rose-100 bg-rose-50/80 px-4 py-3 text-sm text-rose-900">
+                <span className="font-semibold">现在最不能掉的：</span>
+                {leadCoreRisk ? ` ${leadCoreRisk}` : ' 核心盘暂时都还稳着。'}
+              </div>
+            </div>
           </div>
         </section>
 
@@ -128,7 +149,7 @@ export function Dashboard({ state, onSelectCase, onSetView }: DashboardProps) {
               <div>
                 <h3 className="text-sm font-bold uppercase tracking-widest text-slate-800">推广金</h3>
                 <p className="mt-1 text-xs text-slate-400">
-                  开局拨付 {state.runContext.scenarioSnapshot.scenario.rules?.initialCash ?? state.rules.initialCash} 点，每周补给 {state.rules.weeklyBudgetAllowance} 点，成交返投佣金。
+                  开局拨付 {state.runContext.scenarioSnapshot.scenario.rules?.initialCash ?? state.rules.initialCash} 点，每周补给 {state.rules.weeklyBudgetAllowance} 点，成交后按佣金的 {Math.round(state.rules.promotionRebateRatio * 100)}% 返投，保底 {state.rules.promotionRebateFloor} 点。
                 </p>
               </div>
             </div>
@@ -307,6 +328,52 @@ function SnapshotStat({ label, value, helper }: { label: string; value: string; 
   );
 }
 
+function TierStructureCard({
+  entry,
+}: {
+  entry: {
+    goalTier: 'core' | 'important' | 'normal';
+    label: string;
+    rule: string;
+    total: number;
+    active: number;
+    danger: number;
+    settled: number;
+    failed: number;
+    note: string;
+  };
+}) {
+  return (
+    <div className="rounded-2xl border border-black/[0.05] bg-slate-50/80 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold text-slate-900">{entry.label}</div>
+          <div className="mt-1 text-[11px] leading-relaxed text-slate-500">{entry.rule}</div>
+        </div>
+        <div className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+          共 {entry.total} 套
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-4 gap-2">
+        <TierMiniStat label="在场" value={entry.active} />
+        <TierMiniStat label="高危" value={entry.danger} />
+        <TierMiniStat label="收口" value={entry.settled} />
+        <TierMiniStat label="失手" value={entry.failed} />
+      </div>
+      <p className="mt-3 text-xs leading-relaxed text-slate-600">{entry.note}</p>
+    </div>
+  );
+}
+
+function TierMiniStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-xl bg-white px-2.5 py-2 text-center shadow-sm">
+      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">{label}</div>
+      <div className="mt-1 text-sm font-semibold text-slate-900">{value}</div>
+    </div>
+  );
+}
+
 function DecisionCard({
   icon,
   label,
@@ -450,4 +517,81 @@ function MetricCard({ label, value, icon, color }: { label: string; value: strin
       <div className="text-[22px] font-bold tracking-tight text-slate-900">{value}</div>
     </div>
   );
+}
+
+function buildTierStructure(state: GameState) {
+  return (['core', 'important', 'normal'] as const).map((goalTier) => {
+    const cases = state.cases.filter((entry) => entry.goalTier === goalTier);
+    const activeCases = cases.filter((entry) => entry.status === 'active');
+    const settled = cases.filter((entry) => entry.status === 'sold').length;
+    const failed = cases.filter((entry) => entry.status === 'lost_to_rival' || entry.status === 'withdrawn').length;
+    const dangerCases = activeCases.filter((entry) => entry.storylineState === 'critical' || entry.storylineState === 'sliding');
+    const leadCase = [...dangerCases, ...activeCases]
+      .sort((left, right) => scoreCurrentDanger(right) - scoreCurrentDanger(left))[0];
+
+    return {
+      goalTier,
+      label: goalTierLabel(goalTier),
+      rule: goalTierRule(goalTier),
+      total: cases.length,
+      active: activeCases.length,
+      danger: dangerCases.length,
+      settled,
+      failed,
+      leadCaseTitle: leadCase ? `${leadCase.title} 最需要先盯住。` : null,
+      note: buildTierStructureNote(goalTier, activeCases.length, dangerCases.length, settled, failed, leadCase?.title),
+    };
+  });
+}
+
+function buildTierStructureNote(
+  goalTier: 'core' | 'important' | 'normal',
+  active: number,
+  danger: number,
+  settled: number,
+  failed: number,
+  leadCaseTitle?: string,
+) {
+  if (failed > 0) {
+    return `${goalTierLabel(goalTier)}已经有 ${failed} 套失手，这组不能再继续放任。`;
+  }
+  if (danger > 0) {
+    return leadCaseTitle
+      ? `这组还有 ${danger} 套在抖，先盯 ${leadCaseTitle}。`
+      : `这组还有 ${danger} 套在抖，今天优先稳住。`;
+  }
+  if (active > 0) {
+    return `${goalTierLabel(goalTier)}还有 ${active} 套在场，当前节奏基本稳得住。`;
+  }
+  if (settled > 0) {
+    return `${goalTierLabel(goalTier)}这组已经基本收口，可以把资源往别处挪。`;
+  }
+  return `${goalTierLabel(goalTier)}目前没有在场盘。`;
+}
+
+function goalTierLabel(goalTier: 'core' | 'important' | 'normal') {
+  if (goalTier === 'core') return '核心盘';
+  if (goalTier === 'important') return '重要盘';
+  return '普通盘';
+}
+
+function goalTierRule(goalTier: 'core' | 'important' | 'normal') {
+  if (goalTier === 'core') return '这组最贵，最怕被截走。';
+  if (goalTier === 'important') return '这组决定你能不能把局势撑住。';
+  return '这组能放，但不能乱放。';
+}
+
+function scoreCurrentDanger(caseItem: GameState['cases'][number]) {
+  if (caseItem.status !== 'active') {
+    return -1;
+  }
+
+  let score = 0;
+  if (caseItem.storylineState === 'critical') score += 120;
+  if (caseItem.storylineState === 'sliding') score += 80;
+  if (caseItem.windowDays <= 4) score += 40;
+  if (caseItem.trust <= 55) score += 34;
+  if (caseItem.competitionGroupIds.length > 0) score += 18;
+  if (caseItem.heat <= 45) score += 16;
+  return score;
 }

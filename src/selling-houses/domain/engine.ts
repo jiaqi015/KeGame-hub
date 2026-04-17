@@ -67,7 +67,8 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void) {
   const beforeD1 = average(state.cases.filter((entry) => entry.status === 'active').map((entry) => entry.d1));
   const beforeD3 = average(state.cases.filter((entry) => entry.status === 'active').map((entry) => entry.d3));
   const beforeCash = state.cash;
-  const beforeRep = state.reputation;
+  const beforeTrust = average(state.cases.filter((entry) => entry.status === 'active').map((entry) => entry.trust));
+  const beforeDanger = state.cases.filter((entry) => entry.status === 'active' && (entry.storylineState === 'critical' || entry.storylineState === 'sliding')).length;
 
   updateMarkets(state);
   tickSeasonality(state);
@@ -95,6 +96,8 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void) {
   updateDerivedState(state);
   const afterD1 = average(state.cases.filter((entry) => entry.status === 'active').map((entry) => entry.d1));
   const afterD3 = average(state.cases.filter((entry) => entry.status === 'active').map((entry) => entry.d3));
+  const afterTrust = average(state.cases.filter((entry) => entry.status === 'active').map((entry) => entry.trust));
+  const afterDanger = state.cases.filter((entry) => entry.status === 'active' && (entry.storylineState === 'critical' || entry.storylineState === 'sliding')).length;
 
   const dayEvents = state.eventLog.filter((entry) => entry.day === state.day);
   const majorEvents = dayEvents.filter((entry) => entry.tone === 'success' || entry.tone === 'danger' || entry.tone === 'accent');
@@ -141,8 +144,9 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void) {
     metricsDelta: [
       { label: '漏斗健康 (D1)', value: Math.round((afterD1 - beforeD1) * 10) / 10, unit: 'pts' },
       { label: '业主意愿 (D3)', value: Math.round((afterD3 - beforeD3) * 10) / 10, unit: 'pts' },
+      { label: '平均业主信任', value: Math.round((afterTrust - beforeTrust) * 10) / 10, unit: 'pts' },
+      { label: '高危房源变化', value: afterDanger - beforeDanger, unit: '套' },
       { label: '推广金变动', value: state.cash - beforeCash, unit: '点' },
-      { label: '声誉增长', value: Math.round(state.reputation - beforeRep), unit: 'pts' },
     ],
     marketNews,
     todayPlan: {

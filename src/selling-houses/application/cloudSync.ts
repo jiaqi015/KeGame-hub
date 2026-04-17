@@ -73,17 +73,11 @@ export function deriveRunStatus(state: GameState): MaintainerRunStatus {
 }
 
 export function deriveRunScore(state: GameState) {
-  if (state.finalResult?.score) {
+  if (typeof state.finalResult?.score === 'number') {
     return state.finalResult.score;
   }
 
-  return Math.round(
-    state.soldCount * 45
-      + state.commission * 1.4
-      + state.reputation
-      - state.withdrawnCount * 12
-      + state.opportunities.filter((entry) => entry.status === 'active').length * 2,
-  );
+  return 0;
 }
 
 export function deriveRankTitle(state: GameState) {
@@ -104,15 +98,13 @@ export function buildScoreBreakdown(state: GameState) {
       dimensions: state.finalResult.scoreBreakdown,
       targetScore: state.finalResult.targetScore,
       grade: state.finalResult.grade,
+      endingStats: state.finalResult.endingStats,
     };
   }
 
   return {
-    soldCount: state.soldCount,
-    commission: state.commission,
-    reputation: Math.round(state.reputation),
-    withdrawnCount: state.withdrawnCount,
-    activeOpportunityCount: state.opportunities.filter((entry) => entry.status === 'active').length,
+    dimensions: [],
+    note: '这局还没有生成新的房源结局结算。',
   };
 }
 
@@ -121,14 +113,19 @@ export function buildFinalStats(state: GameState) {
     title: state.finalResult?.title || deriveRankTitle(state),
     summary:
       state.finalResult?.summary
-      || `本局共成交 ${state.soldCount} 单，撤盘 ${state.withdrawnCount} 单，累计佣金 ${state.commission} 万。`,
+      || '这局还没有生成新的房源结局结算。',
     stats: Array.isArray(state.finalResult?.stats) ? state.finalResult.stats : [],
-    soldCount: state.soldCount,
-    withdrawnCount: state.withdrawnCount,
-    commission: state.commission,
-    reputation: Math.round(state.reputation),
     score: deriveRunScore(state),
     grade: state.finalResult?.grade,
     targetScore: state.finalResult?.targetScore,
+    endingStats: state.finalResult?.endingStats,
+    caseResults: Array.isArray(state.finalResult?.caseResults) ? state.finalResult.caseResults : [],
+    auxiliaryStats: {
+      commission: state.commission,
+      promotionBudget: state.cash,
+      reputation: state.reputation,
+      soldCount: state.soldCount,
+      withdrawnCount: state.withdrawnCount,
+    },
   };
 }

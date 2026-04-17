@@ -58,7 +58,7 @@ export const ACTIONS: ActionDefinition[] = [
     description: '适合盘面卡住时重新讲清问题到底出在哪一层。',
     templateId: 'feedback-diagnosis',
     executorId: 'deep-diagnosis',
-    metricFocus: ['trust', 'competitiveness', 'intent', 'confidence'],
+    metricFocus: ['trust', 'd3', 'competitiveness', 'intent'],
   },
   {
     id: 'story',
@@ -70,7 +70,7 @@ export const ACTIONS: ActionDefinition[] = [
     description: '适合好房分不够强，或带看反馈说明讲法还不够顺的时候。',
     templateId: 'marketing-story',
     executorId: 'story',
-    metricFocus: ['competitiveness', 'heat', 'trust', 'd2'],
+    metricFocus: ['competitiveness', 'heat', 'd2', 'trust'],
   },
   {
     id: 'xiaohongshu-boost',
@@ -82,7 +82,7 @@ export const ACTIONS: ActionDefinition[] = [
     description: '适合客群偏薄时补量，但后续需要继续筛客。',
     templateId: 'marketing-xiaohongshu',
     executorId: 'xiaohongshu-boost',
-    metricFocus: ['heat', 'd1', 'reputation'],
+    metricFocus: ['heat', 'd1', 'competitiveness'],
   },
   {
     id: 'broker-broadcast',
@@ -118,7 +118,7 @@ export const ACTIONS: ActionDefinition[] = [
     description: '高成本动作，但做对了能快速抬盘面热度和客户质量。',
     templateId: 'marketing-open-day',
     executorId: 'open-day',
-    metricFocus: ['heat', 'trust', 'd1', 'windowDays'],
+    metricFocus: ['heat', 'd1', 'trust', 'windowDays'],
   },
   {
     id: 'showing',
@@ -130,7 +130,7 @@ export const ACTIONS: ActionDefinition[] = [
     description: '既是营销承接，也是把客户推向后段经营的关键节点。',
     templateId: 'marketing-showing',
     executorId: 'showing',
-    metricFocus: ['heat', 'intent', 'confidence', 'd1'],
+    metricFocus: ['intent', 'confidence', 'heat', 'd1'],
   },
   {
     id: 'pricing-advice',
@@ -142,7 +142,7 @@ export const ACTIONS: ActionDefinition[] = [
     description: '先讲竞争、客户和窗口，再决定后面要不要往调价继续推。',
     templateId: 'pricing-advice',
     executorId: 'pricing-advice',
-    metricFocus: ['trust', 'urgency', 'competitiveness', 'd3'],
+    metricFocus: ['trust', 'd3', 'competitiveness', 'askPrice'],
   },
   {
     id: 'ask-psychological-price',
@@ -154,7 +154,7 @@ export const ACTIONS: ActionDefinition[] = [
     description: '不是立刻调价，而是先把业主心里的价格边界问出来。',
     templateId: 'pricing-anchor',
     executorId: 'ask-psychological-price',
-    metricFocus: ['trust', 'patience', 'askPrice', 'd3'],
+    metricFocus: ['trust', 'd3', 'askPrice'],
   },
   {
     id: 'adjust-listing-price',
@@ -190,7 +190,7 @@ export const ACTIONS: ActionDefinition[] = [
     description: '适合已经接近报价和议价桌的客户，做最后一轮博弈。',
     templateId: 'negotiation-invite',
     executorId: 'invite-customer-negotiation',
-    metricFocus: ['intent', 'confidence', 'commission', 'reputation'],
+    metricFocus: ['intent', 'confidence', 'commission', 'trust'],
   },
 ];
 

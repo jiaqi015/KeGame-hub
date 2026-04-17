@@ -22,6 +22,7 @@ import {
 } from '../domain/models';
 import { createInitialBudgetLedger, normalizeBudgetLedger } from '../domain/budget';
 import { getBuiltInWorld, resolveScenarioRules } from '../domain/scenarioCatalog';
+import { mergeRules } from '../domain/config/baseRules';
 
 function isBrowser() {
   return typeof window !== 'undefined' && Boolean(window.localStorage);
@@ -144,6 +145,7 @@ export function seedCase(base: Case): Case {
     ownerSatisfaction: undefined,
     defenseOutcome: undefined,
     endingType: undefined,
+    endingBucket: undefined,
     endingSummary: '',
   };
 }
@@ -255,8 +257,12 @@ function buildLegacySnapshot(parsed: any): ScenarioSnapshot {
 }
 
 function normalizeCase(caseItem: any): Case {
+  const normalizedStatus = caseItem?.status === 'withdrawn' && caseItem?.defenseOutcome === 'lost_to_rival'
+    ? 'lost_to_rival'
+    : caseItem?.status;
   return {
     ...caseItem,
+    status: normalizedStatus,
     housePrototypeId: caseItem?.housePrototypeId || caseItem?.id || 'legacy-prototype',
     ownerArchetypeId: caseItem?.ownerArchetypeId || 'fair-value',
     personality: caseItem?.personality || 'pragmatic',
@@ -269,14 +275,14 @@ function normalizeCase(caseItem: any): Case {
         ? Number(caseItem.lastTouchedDay)
         : 0,
     hasCompletedFirstVisit: Boolean(caseItem?.hasCompletedFirstVisit)
-      || (caseItem?.lastAction === 'first-visit')
-      || (Number(caseItem?.lastTouchedDay) > 0 && caseItem?.lastAction !== 'init'),
+      || (caseItem?.lastAction === 'first-visit'),
     goalTier: deriveDefaultGoalTier(caseItem),
     storylineState: caseItem?.storylineState || 'healthy',
     relativeOutcome: caseItem?.relativeOutcome,
     ownerSatisfaction: caseItem?.ownerSatisfaction,
     defenseOutcome: caseItem?.defenseOutcome,
     endingType: caseItem?.endingType,
+    endingBucket: caseItem?.endingBucket,
     endingSummary: caseItem?.endingSummary || '',
   };
 }
@@ -292,6 +298,15 @@ function normalizeOpportunity(opportunity: any) {
 
 function normalizeCompetitionGroups(groups: unknown): CompetitionGroup[] {
   return Array.isArray(groups) ? groups.map((entry) => ({ ...(entry as CompetitionGroup) })) : [];
+}
+
+function normalizeRules(snapshot: ScenarioSnapshot, rules: unknown) {
+  const fallback = resolveScenarioRules(snapshot);
+  if (!rules || typeof rules !== 'object') {
+    return fallback;
+  }
+
+  return mergeRules(rules as Parameters<typeof mergeRules>[0]);
 }
 
 export function loadSavedState(): GameState | null {
@@ -318,7 +333,7 @@ export function normalizeLoadedState(parsed: any): GameState | null {
   }
 
   const snapshot = parsed?.runContext?.scenarioSnapshot || buildLegacySnapshot(parsed);
-  const rules = parsed?.rules || resolveScenarioRules(snapshot);
+  const rules = normalizeRules(snapshot, parsed?.rules);
   const state = {
     ...parsed,
     version: 4,
@@ -378,6 +393,8 @@ export function updateDerivedState(world: GameState) {
 
     if (caseItem.status === 'sold') {
       caseItem.stageLabel = '已成交';
+    } else if (caseItem.status === 'lost_to_rival') {
+      caseItem.stageLabel = '被竞品截走';
     } else if (caseItem.status === 'withdrawn') {
       caseItem.stageLabel = '已撤盘';
     } else {
@@ -417,7 +434,7 @@ function deriveRiskFlags(world: GameState, caseItem: Case, opportunities: Opport
 
 function deriveStorylineState(caseItem: Case, opportunities: Opportunity[]) {
   if (caseItem.status === 'sold') return 'healthy' as const;
-  if (caseItem.status === 'withdrawn') return 'critical' as const;
+  if (caseItem.status === 'lost_to_rival' || caseItem.status === 'withdrawn') return 'critical' as const;
   if (caseItem.windowDays <= 2 || caseItem.trust <= 45) return 'critical' as const;
   if (caseItem.windowDays <= 4 || caseItem.trust <= 55 || !opportunities.length) return 'sliding' as const;
   if (caseItem.heat < 50 || caseItem.competitionGroupIds.length > 0) return 'fragile' as const;

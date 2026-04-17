@@ -58,9 +58,10 @@ function findShadowOpportunity(state: GameState, caseId: string) {
   return state.opportunities.find((entry) => entry.caseId === caseId && entry.status === 'active' && entry.visibility === 'shadow');
 }
 
-function touchCaseForAction(caseItem: any, actionId: string, touchOwner = false) {
+function touchCaseForAction(caseItem: any, actionId: string, currentDay: number, touchOwner = false) {
   caseItem.actionsToday += 1;
   caseItem.touchedToday = true;
+  caseItem.lastTouchedDay = currentDay;
   caseItem.lastAction = normalizeActionId(actionId);
   if (touchOwner) {
     caseItem.touchedOwnerToday = true;
@@ -69,7 +70,9 @@ function touchCaseForAction(caseItem: any, actionId: string, touchOwner = false)
 
 const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
   'first-visit': ({ state, caseItem, action, optionId, onMessage }) => {
-    touchCaseForAction(caseItem, action.id, true);
+    touchCaseForAction(caseItem, action.id, state.day, true);
+    caseItem.hasCompletedFirstVisit = true;
+    caseItem.lastOwnerTouchedDay = state.day;
     const strategy = optionId || 'plan-first';
     const trustDelta = strategy === 'rapport-first' ? 8 : strategy === 'data-first' ? 5 : 6;
     const patienceDelta = strategy === 'plan-first' ? 7 : 5;
@@ -86,7 +89,8 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
     return true;
   },
   'weekly-feedback': ({ state, caseItem, action, optionId, onMessage }) => {
-    touchCaseForAction(caseItem, action.id, true);
+    touchCaseForAction(caseItem, action.id, state.day, true);
+    caseItem.lastOwnerTouchedDay = state.day;
     const strategy = optionId || 'show-plan';
     const trustDelta = strategy === 'show-progress' ? 6 : strategy === 'show-risk' ? 3 : 5;
     const patienceDelta = strategy === 'show-plan' ? 6 : 3;
@@ -101,7 +105,8 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
     return true;
   },
   'deep-diagnosis': ({ state, caseItem, action, optionId, onMessage }) => {
-    touchCaseForAction(caseItem, action.id, true);
+    touchCaseForAction(caseItem, action.id, state.day, true);
+    caseItem.lastOwnerTouchedDay = state.day;
     const strategy = optionId || 'customer-dive';
     caseItem.trust = clamp(caseItem.trust + (strategy === 'decision-dive' ? 3 : 5), 0, 100);
     caseItem.competitiveness = clamp(caseItem.competitiveness + 4, 0, 100);
@@ -120,7 +125,7 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
     return true;
   },
   story: ({ state, caseItem, action, optionId, onMessage }) => {
-    touchCaseForAction(caseItem, action.id);
+    touchCaseForAction(caseItem, action.id, state.day);
     const strategy = optionId || 'product-angle';
     caseItem.competitiveness = clamp(caseItem.competitiveness + (strategy === 'certainty-angle' ? 7 : 8), 0, 100);
     caseItem.heat = clamp(caseItem.heat + (strategy === 'value-angle' ? 5 : 4), 0, 100);
@@ -132,7 +137,7 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
     return true;
   },
   'xiaohongshu-boost': ({ state, caseItem, action, optionId, onMessage }) => {
-    touchCaseForAction(caseItem, action.id);
+    touchCaseForAction(caseItem, action.id, state.day);
     const strategy = optionId || 'traffic-push';
     caseItem.heat = clamp(caseItem.heat + (strategy === 'traffic-push' ? 11 : strategy === 'precise-push' ? 8 : 6), 0, 100);
     state.reputation = clamp(state.reputation + (strategy === 'reputation-push' ? 2 : 1), 0, 100);
@@ -145,7 +150,7 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
     return true;
   },
   'broker-broadcast': ({ state, caseItem, action, optionId, onMessage }) => {
-    touchCaseForAction(caseItem, action.id);
+    touchCaseForAction(caseItem, action.id, state.day);
     const strategy = optionId || 'target-network';
     caseItem.heat = clamp(caseItem.heat + (strategy === 'wide-network' ? 6 : 4), 0, 100);
     caseItem.competitiveness = clamp(caseItem.competitiveness + (strategy === 'core-network' ? 4 : 3), 0, 100);
@@ -158,7 +163,7 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
     return true;
   },
   'private-referral': ({ state, caseItem, action, optionId, onMessage }) => {
-    touchCaseForAction(caseItem, action.id);
+    touchCaseForAction(caseItem, action.id, state.day);
     const strategy = optionId || 'old-client-circle';
     caseItem.trust = clamp(caseItem.trust + (strategy === 'owner-circle' ? 4 : 2), 0, 100);
     caseItem.heat = clamp(caseItem.heat + (strategy === 'vip-circle' ? 3 : 4), 0, 100);
@@ -171,7 +176,7 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
     return true;
   },
   'open-day': ({ state, caseItem, action, optionId, onMessage }) => {
-    touchCaseForAction(caseItem, action.id);
+    touchCaseForAction(caseItem, action.id, state.day);
     const strategy = optionId || 'quality-open-day';
     caseItem.openDayCooldown = 4;
     caseItem.heat = clamp(caseItem.heat + (strategy === 'heat-open-day' ? 18 : strategy === 'quality-open-day' ? 14 : 16), 0, 100);
@@ -185,7 +190,7 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
     return true;
   },
   showing: ({ state, caseItem, action, optionId, onMessage }) => {
-    touchCaseForAction(caseItem, action.id);
+    touchCaseForAction(caseItem, action.id, state.day);
     const opportunity = findBestOpportunity(state, caseItem.id, 0, 2);
     if (!opportunity) {
       refundResources(state, action, '当前没有合适的线索可以安排带看');
@@ -220,7 +225,8 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
     return true;
   },
   'pricing-advice': ({ state, caseItem, action, optionId, onMessage }) => {
-    touchCaseForAction(caseItem, action.id, true);
+    touchCaseForAction(caseItem, action.id, state.day, true);
+    caseItem.lastOwnerTouchedDay = state.day;
     const strategy = optionId || 'client-view';
     const trustDelta = strategy === 'client-view' ? 5 : strategy === 'compete-view' ? 3 : 4;
     const urgencyDelta = strategy === 'window-view' ? 3 : 1;
@@ -233,7 +239,8 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
     return true;
   },
   'ask-psychological-price': ({ state, caseItem, action, optionId, onMessage }) => {
-    touchCaseForAction(caseItem, action.id, true);
+    touchCaseForAction(caseItem, action.id, state.day, true);
+    caseItem.lastOwnerTouchedDay = state.day;
     const strategy = optionId || 'soft-anchor';
     caseItem.trust = clamp(caseItem.trust + (strategy === 'bottom-anchor' ? -1 : strategy === 'soft-anchor' ? 4 : 2), 0, 100);
     caseItem.patience = clamp(caseItem.patience + 2, 0, 100);
@@ -246,7 +253,8 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
     return true;
   },
   'adjust-listing-price': ({ state, caseItem, action, optionId, onMessage }) => {
-    touchCaseForAction(caseItem, action.id, true);
+    touchCaseForAction(caseItem, action.id, state.day, true);
+    caseItem.lastOwnerTouchedDay = state.day;
     caseItem.lastPriceActionDay = state.day;
 
     const isUrgent = caseItem.personality === 'urgent';
@@ -284,7 +292,7 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
     return true;
   },
   'sincerity-sale': ({ state, caseItem, action, optionId, onMessage }) => {
-    touchCaseForAction(caseItem, action.id);
+    touchCaseForAction(caseItem, action.id, state.day);
     const opportunity = findBestOpportunity(state, caseItem.id, 2);
     if (!opportunity) {
       refundResources(state, action, '当前还没有足够成熟的客户适合进入诚意卖');
@@ -305,7 +313,7 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
     return true;
   },
   'invite-customer-negotiation': ({ state, caseItem, action, optionId, onMessage }) => {
-    touchCaseForAction(caseItem, action.id);
+    touchCaseForAction(caseItem, action.id, state.day);
     const opportunity = findBestOpportunity(state, caseItem.id, 3);
     if (!opportunity) {
       refundResources(state, action, '当前还没有进入报价阶段的客户');
@@ -340,7 +348,6 @@ export function executeAction(state: GameState, actionId: string, caseItem: any,
     return false;
   }
 
-  caseItem.lastTouchedDay = state.day;
   updateDerivedState(state);
   saveGameState(state);
   return true;
@@ -398,17 +405,17 @@ function sellCase(state: GameState, caseItem: any, opportunity: any, soldPrice: 
   caseItem.heat = clamp(caseItem.heat + 6, 0, 100);
   state.soldCount += 1;
 
-  const commission = Math.round(soldPrice * 0.012);
+  const commission = Math.round(soldPrice * 0.01 * 0.25 * 10) / 10;
   state.commission += commission;
   const budgetReturn = Math.max(
-    state.rules.saleBudgetBonusFloor,
-    Math.round(commission * state.rules.saleBudgetBonusRatio),
+    state.rules.promotionRebateFloor,
+    Math.round(commission * state.rules.promotionRebateRatio),
   );
   recordBudgetChange(state, {
     amount: budgetReturn,
     kind: 'sale-rebate',
     title: '成交返投',
-    detail: `${caseItem.title} 成交后，按佣金返投推广金 ${budgetReturn} 点。`,
+    detail: `${caseItem.title} 成交后，按成交价 1% * 25% 计佣 ${commission} 点，并按当前推广金返投规则回补 ${budgetReturn} 点推广金。`,
   });
   state.reputation = clamp(state.reputation + 4 + reputationBonus, 0, 100);
 
@@ -419,7 +426,7 @@ function sellCase(state: GameState, caseItem: any, opportunity: any, soldPrice: 
     }
   });
 
-  logEvent(state, caseItem.title, `成功成交，成交价 ${soldPrice} 万，新增佣金 ${commission} 万，返投推广金 ${budgetReturn} 点。`, 'success');
+  logEvent(state, caseItem.title, `成功成交，成交价 ${soldPrice} 万，计佣 ${commission} 点，按返投规则回补推广金 ${budgetReturn} 点。`, 'success');
 }
 
 export function withdrawCase(world: GameState, caseItem: any, reason: string) {
@@ -458,6 +465,9 @@ export function getActionAvailability(state: GameState, caseItem: any, actionId:
 
   if (['first-visit', 'weekly-feedback', 'deep-diagnosis', 'pricing-advice', 'ask-psychological-price', 'adjust-listing-price'].includes(normalizedActionId) && caseItem.touchedOwnerToday) {
     return { enabled: false, reason: '今天已经和业主深聊过一次了，先消化反馈，明天再推进。' };
+  }
+  if (normalizedActionId === 'first-visit' && caseItem.hasCompletedFirstVisit) {
+    return { enabled: false, reason: '首次面访已经完成了，后续请改用周度反馈或深度诊断继续经营。' };
   }
   if (normalizedActionId === 'story' && caseItem.lastAction === 'story') {
     return { enabled: false, reason: '同一天连续改两次卖点收益很低，先拿反馈再继续打磨。' };

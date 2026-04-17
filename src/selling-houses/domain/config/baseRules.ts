@@ -5,8 +5,8 @@ export const BASE_RULES: GameRules = {
   baseMaxEnergy: 4,
   initialCash: 18,
   weeklyBudgetAllowance: 4,
-  saleBudgetBonusRatio: 0.3,
-  saleBudgetBonusFloor: 3,
+  promotionRebateRatio: 0.3,
+  promotionRebateFloor: 3,
   initialReputation: 56,
   initialCommission: 0,
   initialEnergy: 4,
@@ -26,10 +26,29 @@ export const BASE_RULES: GameRules = {
   scriptedEventImpactScale: 1,
 };
 
-export function mergeRules(overrides?: Partial<GameRules>): GameRules {
+type LegacyGameRuleOverrides = Partial<GameRules> & {
+  saleBudgetBonusRatio?: number;
+  saleBudgetBonusFloor?: number;
+};
+
+export function mergeRules(overrides?: LegacyGameRuleOverrides): GameRules {
+  const {
+    saleBudgetBonusRatio: _legacyPromotionRatio,
+    saleBudgetBonusFloor: _legacyPromotionFloor,
+    ...nextOverrides
+  } = overrides || {};
+  const promotionRebateRatio = overrides?.promotionRebateRatio
+    ?? overrides?.saleBudgetBonusRatio
+    ?? BASE_RULES.promotionRebateRatio;
+  const promotionRebateFloor = overrides?.promotionRebateFloor
+    ?? overrides?.saleBudgetBonusFloor
+    ?? BASE_RULES.promotionRebateFloor;
+
   return {
     ...BASE_RULES,
-    ...(overrides || {}),
+    ...nextOverrides,
+    promotionRebateRatio,
+    promotionRebateFloor,
     initialEnergy: overrides?.initialEnergy ?? overrides?.baseMaxEnergy ?? BASE_RULES.initialEnergy,
   };
 }

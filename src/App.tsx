@@ -1,9 +1,7 @@
-import React, { useReducer, useRef } from 'react';
+import React, { Suspense, lazy, useMemo, useReducer, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Sparkles } from 'lucide-react';
 
-import { OpenDayWorkspace } from './open-day/OpenDayWorkspace';
-import { SellingHousesWorkspace } from './selling-houses/SellingHousesWorkspace';
 import { appReducer, initialState } from './app/appReducer';
 import { useAppSession } from './hooks/useAppSession';
 import { 
@@ -22,6 +20,9 @@ import { WorkspaceHub } from './components/Hub/WorkspaceHub';
 import { ComparisonWorkspace } from './components/Comparison/ComparisonWorkspace';
 import { PreviewModal } from './components/Common/PreviewModal';
 
+const OpenDayWorkspace = lazy(() => import('./open-day/OpenDayWorkspace').then((module) => ({ default: module.OpenDayWorkspace })));
+const SellingHousesWorkspace = lazy(() => import('./selling-houses/SellingHousesWorkspace').then((module) => ({ default: module.SellingHousesWorkspace })));
+
 const workspaceMeta = {
   'open-day': {
     title: '小区开放日选址',
@@ -36,6 +37,7 @@ const workspaceMeta = {
 export default function App() {
   const [state, dispatch] = useReducer(appReducer, initialState);
   const { authorizedFetch, lockApplication } = useAppSession(state, dispatch);
+  const workspaceFallback = useMemo(() => <WorkspaceShellSkeleton />, []);
   
   const {
     prompt,
@@ -291,9 +293,19 @@ export default function App() {
           allowedWorkspaces={allowedWorkspaces}
         />
       ) : activeWorkspace === 'open-day' && canAccessWorkspace('open-day') ? (
-        renderWorkspaceShell('open-day', <OpenDayWorkspace activationKey={authorizedKey} />)
+        renderWorkspaceShell(
+          'open-day',
+          <Suspense fallback={workspaceFallback}>
+            <OpenDayWorkspace activationKey={authorizedKey} />
+          </Suspense>,
+        )
       ) : activeWorkspace === 'selling-houses' && canAccessWorkspace('selling-houses') ? (
-        renderWorkspaceShell('selling-houses', <SellingHousesWorkspace activationKey={authorizedKey} />)
+        renderWorkspaceShell(
+          'selling-houses',
+          <Suspense fallback={workspaceFallback}>
+            <SellingHousesWorkspace activationKey={authorizedKey} />
+          </Suspense>,
+        )
       ) : activeWorkspace === 'sabrina' && canAccessWorkspace('sabrina') ? (
         <ComparisonWorkspace
           state={state}
@@ -333,6 +345,24 @@ export default function App() {
         data={previewData}
         onClose={() => dispatch({ type: 'SET_PREVIEW', data: null })}
       />
+    </div>
+  );
+}
+
+function WorkspaceShellSkeleton() {
+  return (
+    <div className="flex h-full items-center justify-center bg-[linear-gradient(180deg,rgba(255,251,235,0.35),rgba(255,255,255,1))]">
+      <div className="w-full max-w-5xl animate-pulse px-8">
+        <div className="rounded-[36px] border border-black/5 bg-white/85 p-8 shadow-[0_24px_70px_rgba(20,20,43,0.08)]">
+          <div className="h-8 w-56 rounded bg-slate-200" />
+          <div className="mt-4 h-4 w-96 max-w-full rounded bg-slate-100" />
+          <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={index} className="h-28 rounded-2xl bg-slate-100" />
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

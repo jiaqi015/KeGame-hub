@@ -1,7 +1,7 @@
 import { createInitialState, updateDerivedState } from './gameState';
 import { advanceDays, executeAction, findBestOpportunity, getActionAvailability, seedInitialOpportunities } from '../domain/engine';
 import { getScenarioSnapshotById } from '../domain/scenarioCatalog';
-import type { Case, GameState, Opportunity, ScenarioSnapshot } from '../domain/models';
+import type { Case, FinalResult, GameState, Opportunity, ScenarioSnapshot } from '../domain/models';
 
 type Severity = 'critical' | 'major' | 'minor';
 
@@ -46,6 +46,18 @@ export interface SelfPlayReport {
   decisions: SelfPlayDecision[];
   findings: SelfPlayFinding[];
   evaluation: SelfPlayEvaluation;
+}
+
+export interface SelfPlayRunSnapshot {
+  score: number;
+  abilityScore: number;
+  defenseScore: number;
+  satisfactionScore: number;
+  endingGood: number;
+  endingNeutral: number;
+  endingBad: number;
+  coreBadCount: number;
+  lostToRivalCount: number;
 }
 
 interface CandidateDecision {
@@ -221,7 +233,7 @@ export class LocalAdversarialSelfPlayArena {
 
     if (caseItem.windowDays <= 4 || caseItem.trust < 56) {
       candidates.push({
-        actionId: caseItem.lastTouchedDay <= 0 ? 'first-visit' : 'weekly-feedback',
+        actionId: caseItem.hasCompletedFirstVisit ? 'weekly-feedback' : 'first-visit',
         optionId: null,
         rationale: '窗口和关系都在吃紧，先保盘。',
         weight: 90,
@@ -310,7 +322,7 @@ export class LocalAdversarialSelfPlayArena {
     }
 
     candidates.push({
-      actionId: caseItem.lastTouchedDay <= 0 ? 'first-visit' : 'weekly-feedback',
+      actionId: caseItem.hasCompletedFirstVisit ? 'weekly-feedback' : 'first-visit',
       optionId: null,
       rationale: '默认保底动作是继续稳住业主预期。',
       weight: 20,
@@ -400,37 +412,34 @@ export class LocalAdversarialSelfPlayArena {
   }
 
   private buildEvaluation(state: GameState): SelfPlayEvaluation {
-    const sellThroughRate = state.cases.length ? state.soldCount / state.cases.length : 0;
-    const withdrawalRate = state.cases.length ? state.withdrawnCount / state.cases.length : 0;
-    const averageTrust = state.metrics.averageTrust || 0;
-    const activeOpportunities = state.opportunities.filter((entry) => entry.status === 'active').length;
-
-    const score = Math.round(
-      sellThroughRate * 55
-      + Math.max(0, (averageTrust - 50) * 0.4)
-      + Math.max(0, state.reputation - 55) * 0.35
-      - withdrawalRate * 25
-      - Math.max(0, activeOpportunities - state.soldCount) * 1.2,
-    );
+    const finalResult = state.finalResult;
+    const endingStats = finalResult?.endingStats;
+    const score = finalResult?.score ?? 0;
 
     const strengths: string[] = [];
     const weaknesses: string[] = [];
     const balancingNotes: string[] = [];
 
-    if (sellThroughRate >= 0.5) {
-      strengths.push('自玩局里成交转化足够明显，主循环是能闭环的。');
-    } else {
-      weaknesses.push('成交闭环偏弱，说明“获客到议价”的衔接仍偏脆。');
+    if (endingStats) {
+      if (endingStats.good >= endingStats.bad + 2) {
+        strengths.push('自玩局里好收尾明显多于坏收尾，房源主线能闭环。');
+      } else {
+        weaknesses.push('坏收尾占比偏高，说明房源主线还容易被盘面或关系拖崩。');
+      }
+
+      if (endingStats.coreBadCount > 0) {
+        weaknesses.push('核心盘出现坏收尾，守盘压力需要继续调锋利。');
+      }
     }
 
-    if (averageTrust >= 70) {
-      strengths.push('关系维护有存在感，业主沟通不是纯装饰动作。');
+    if (finalResult && finalResult.dimensions.satisfaction.score >= 18) {
+      strengths.push('满意分能站住，业主感受不是纯装饰动作。');
     } else {
-      weaknesses.push('业主侧压力较大，关系动作对中后期保盘还不够稳。');
+      weaknesses.push('满意分偏弱，关系动作对中后期收尾还不够稳。');
     }
 
-    if (activeOpportunities > state.soldCount + 2) {
-      weaknesses.push('残局残留了较多活跃线索，说明收口速度比造线索速度慢。');
+    if (finalResult && finalResult.dimensions.defense.score < 20) {
+      weaknesses.push('守盘分偏低，说明竞争和窗口压力已经能造成实际后果。');
     }
 
     if (state.cash <= 4) {
@@ -439,8 +448,8 @@ export class LocalAdversarialSelfPlayArena {
       balancingNotes.push('推广金压力还不算强，后续可以继续加大高价值动作的现金权重。');
     }
 
-    if (withdrawalRate === 0) {
-      balancingNotes.push('撤盘惩罚目前不算激进，体验更顺，但 hard 剧本可能还需要更锋利。');
+    if (endingStats && endingStats.bad === 0) {
+      balancingNotes.push('坏收尾目前没有出现，hard 以上剧本可能还需要更锋利的失守压力。');
     }
 
     if (this.dedupeFindings().some((entry) => entry.severity === 'critical')) {
@@ -462,4 +471,18 @@ export class LocalAdversarialSelfPlayArena {
       balancingNotes,
     };
   }
+}
+
+export function buildSelfPlayRunSnapshot(finalResult: FinalResult | null): SelfPlayRunSnapshot {
+  return {
+    score: finalResult?.score ?? 0,
+    abilityScore: finalResult?.dimensions.ability.score ?? 0,
+    defenseScore: finalResult?.dimensions.defense.score ?? 0,
+    satisfactionScore: finalResult?.dimensions.satisfaction.score ?? 0,
+    endingGood: finalResult?.endingStats.good ?? 0,
+    endingNeutral: finalResult?.endingStats.neutral ?? 0,
+    endingBad: finalResult?.endingStats.bad ?? 0,
+    coreBadCount: finalResult?.endingStats.coreBadCount ?? 0,
+    lostToRivalCount: finalResult?.caseResults.filter((entry) => entry.defenseOutcome === 'lost_to_rival').length ?? 0,
+  };
 }

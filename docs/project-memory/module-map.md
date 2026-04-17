@@ -2,133 +2,199 @@
 
 最后整理：2026-04-17
 
-这份文件回答一个很实际的问题：代码现在分别落在哪，继续做某块功能时先去哪里看。
+这份文件只回答一个问题：要改某块功能，第一站该去哪里看。
 
-## 仓库骨架
+## 全局骨架
 
-- `server.ts`
-  - 本地开发服务入口。
-  - 承担前端开发服务和本地 API 承接。
-- `api/`
-  - 站点 API 路由文件。
-  - 既包含 Sabrina 能力，也包含开放日和资产顾问相关接口。
 - `src/`
-  - 前端应用主体。
+  - 前端应用主体和各业务线工作台。
+- `api/`
+  - 站点 HTTP 路由入口，覆盖三条业务线。
+- `modules/open-day/`
+  - 开放日领域层、应用层、基础设施层与 HTTP handler。
+- `src/selling-houses/`
+  - 资产顾问玩法的前端、领域、基础设施和接口实现。
 - `docs/`
-  - 业务架构、数据模型和项目记忆。
+  - 业务架构、数据模型、迁移文档和项目记忆。
+- `server.ts`
+  - 本地开发服务入口，承接前端开发服务和本地 API。
 
-## 前端主入口
+## 统一入口
 
 - `src/App.tsx`
-  - 整站级入口与业务线切换中枢。
+  - 整站入口，负责业务线切换。
 - `src/components/Hub/WorkspaceHub.tsx`
   - 统一入口 Hub。
 - `src/components/Auth/AuthOverlay.tsx`
-  - 激活/鉴权覆盖层。
+  - 激活与验证覆盖层。
 - `src/hooks/useAppSession.ts`
-  - 会话态与使用态协调。
+  - 会话态和使用态协调。
 
-## 多模型 PK
+## 多模型PK
 
 - `src/components/Comparison/ComparisonWorkspace.tsx`
   - 模型对比工作区。
+- `src/services/apiService.ts`
+  - 前端调用模型相关接口的主要封装。
 - `api/activate.ts`
   - 激活验证。
 - `api/models.ts`
   - 模型列表。
 - `api/compare.ts`
-  - 非流式对比。
-- `api/compare-stream.ts`
-  - 流式对比。
+  - 模型对比入口，同时承接非流式与流式对比。
 
 ## 开放日选址
 
-### 前端
+### 前端工作台
 
 - `src/open-day/OpenDayWorkspace.tsx`
   - 开放日主工作台。
 - `src/open-day/components/UploadStage.tsx`
-  - 第一步上传与预览。
+  - 第一步上传和预览。
+- `src/open-day/openDayReducer.ts`
+  - 工作台状态收口。
+- `src/open-day/openDayClient.ts`
+  - 前端访问开放日接口。
 - `src/open-day/components/FormulaBar.tsx`
-  - 公式与参数表达入口。
+  - 公式和参数表达入口。
 - `src/open-day/components/SidebarConfig.tsx`
   - 侧栏配置区。
 - `src/open-day/components/ScenarioDashboard.tsx`
-  - 结果面板与分析视图。
+  - 结果和分析视图。
 - `src/open-day/components/HistoryPanel.tsx`
   - 历史快照与回放。
-- `src/open-day/openDayReducer.ts`
-  - 开放日工作台状态收口。
-- `src/open-day/openDayClient.ts`
-  - 前端对开放日接口的调用封装。
 
-### 服务端
+### 领域与应用层
+
+- `modules/open-day/domain/`
+  - 评分、参数解析、水位线、资格与 tier 等核心规则。
+- `modules/open-day/application/`
+  - analysis、scenario、snapshot、dataset、catalog、upload artifact、parse cache 等应用服务。
+- `modules/open-day/infrastructure/`
+  - file / Neon / Runtime Cache / Blob 等基础设施实现。
+- `modules/open-day/interfaces/http/`
+  - 开放日 HTTP handler，是真正的接口收口层。
+
+### 站点 API 入口
 
 - `api/parse-workbook.ts`
-  - Excel 解析入口。
+  - workbook 解析入口。
 - `api/open-day-catalog.ts`
-  - 默认策略包和参数目录。
-- `api/open-day-score.ts`
-  - 测算打分。
+  - 参数目录与默认配置。
 - `api/open-day-analyses.ts`
-  - 历史快照查询。
+  - 历史分析查询与测算打分。
 - `api/open-day-scenarios.ts`
-  - 方案模板读取与保存。
+  - 方案模板读取、保存与版本列表。
 
-### 相关文档
+### 核心文档
 
 - `docs/open-day-ddd-architecture.md`
-  - 开放日领域设计说明。
+  - 开放日领域设计总说明。
+- `docs/open-day-persistence-evolution-plan.md`
+  - 持久化总体演进方向。
+- `docs/open-day-phase1-analysis-run-migration.md`
+  - Analysis Run 迁移。
+- `docs/open-day-phase2-scenario-versioning.md`
+  - 方案版本化迁移。
+- `docs/open-day-phase3-dataset-profile.md`
+  - dataset profile 阶段演进。
+- `docs/open-day-dba-sop.md`
+  - DBA 视角的治理与工作 SOP。
 
 ## 我是王牌资产顾问
 
-### 前端
+### 前端与应用层
 
 - `src/selling-houses/SellingHousesWorkspace.tsx`
   - 资产顾问主工作台。
-- `src/selling-houses/application/gameState.ts`
-  - 本地运行态核心定义。
 - `src/selling-houses/application/useGame.ts`
-  - 玩法主 hooks。
+  - 主运行 hook。
+- `src/selling-houses/application/gameState.ts`
+  - 本地运行态定义。
 - `src/selling-houses/application/cloudState.ts`
-  - 云端状态协同。
+  - 云同步状态。
 - `src/selling-houses/application/cloudSync.ts`
   - 云同步流程。
+- `src/selling-houses/application/localAdversarialSelfPlayArena.ts`
+  - 自对抗 arena。
+- `src/selling-houses/application/localAdversarialSelfPlayLab.ts`
+  - 本地 lab。
 
-### 领域
+### 领域层
 
 - `src/selling-houses/domain/models.ts`
   - 核心模型。
 - `src/selling-houses/domain/engine.ts`
-  - 规则推进引擎。
-- `src/selling-houses/domain/generator.ts`
-  - 局面/内容生成。
-- `src/selling-houses/domain/scoring.ts`
-  - 评分逻辑。
-- `src/selling-houses/domain/constants.ts`
-  - 玩法常量。
-- `src/selling-houses/domain/utils.ts`
-  - 领域辅助函数。
+  - 总体规则推进入口。
+- `src/selling-houses/domain/engine/`
+  - 行动、市场、事件、竞争、机会等子引擎。
+- `src/selling-houses/domain/actions/`
+  - 行动定义和模板。
+- `src/selling-houses/domain/scenario-generation/`
+  - 难度、蓝图、组装、命名、校验等生成式剧本逻辑。
+- `src/selling-houses/domain/scenarios/`
+  - 内置剧本。
+- `src/selling-houses/domain/worlds/`
+  - 世界配置。
+- `src/selling-houses/domain/config/`
+  - 基础规则和难度配置。
 
 ### 基础设施与接口
 
 - `src/selling-houses/infrastructure/cloudClient.ts`
   - 云端请求封装。
 - `src/selling-houses/infrastructure/neonGameDatabase.ts`
-  - Neon schema / database 初始化方向。
+  - Neon 数据库初始化和 schema 方向。
 - `src/selling-houses/infrastructure/neonGameRunRepository.ts`
-  - run 级 repository。
+  - run repository。
+- `src/selling-houses/infrastructure/neonScenarioRepository.ts`
+  - scenario repository。
+- `src/selling-houses/interfaces/http/maintainerRunHandlers.ts`
+  - run 相关 handler。
+- `src/selling-houses/interfaces/http/maintainerLeaderboardHandler.ts`
+  - leaderboard handler。
+- `src/selling-houses/interfaces/http/sellingHousesScenarioHandlers.ts`
+  - selling-houses scenario handlers。
 - `api/maintainer-runs.ts`
-  - 资产顾问 run 相关接口。
+  - run API 入口。
 - `api/maintainer-leaderboard.ts`
-  - 排行榜接口。
+  - leaderboard API 入口。
+- `api/selling-houses-scenarios.ts`
+  - scenario API 入口。
 
-### 相关文档
+### UI 特征区
+
+- `src/selling-houses/ui/features/ScenarioSetup.tsx`
+  - 开局与难度入口。
+- `src/selling-houses/ui/features/Dashboard.tsx`
+  - 主控制台。
+- `src/selling-houses/ui/features/Cases.tsx`
+  - 房源 / case 面板。
+- `src/selling-houses/ui/features/Market.tsx`
+  - 市场视角。
+- `src/selling-houses/ui/features/Opportunities.tsx`
+  - 准客池 / 机会视角。
+- `src/selling-houses/ui/features/Review.tsx`
+  - 复盘视角。
+- `src/selling-houses/ui/features/ResultOverlay.tsx`
+  - 结果层。
+
+### 核心文档
 
 - `docs/selling-houses-cloud-data-model.md`
   - 云端数据模型。
 - `docs/selling-houses-game-architecture.md`
-  - 玩法结构草图。
+  - 玩法架构草图。
+- `docs/selling-houses-game-positioning.md`
+  - 定位与体验表达。
+- `docs/selling-houses-generated-scenario-architecture.md`
+  - 生成式剧本架构。
+- `docs/selling-houses-listing-lifecycle-design.md`
+  - 房源生命周期设计。
+- `docs/selling-houses-scoring-system.md`
+  - 评分系统。
+- `docs/selling-houses-unified-game-architecture.md`
+  - 统一玩法架构。
 
 ## 运行与验证
 
@@ -136,6 +202,15 @@
   - `npm run dev`：本地开发
   - `npm run build`：构建
   - `npm run lint`：TypeScript 检查
-  - `npm run verify:maintainer`：资产顾问相关验证脚本
+  - `npm run verify:maintainer`：资产顾问验证
+  - `npm run verify:generated-maintainer`：生成式剧本验证
+  - `npm run selfplay:maintainer`：自对抗运行
+  - `npm run selfplay:lab`：本地 lab
 - `scripts/verify-selling-houses.ts`
   - 资产顾问专项验证入口。
+- `scripts/verify-generated-selling-houses.ts`
+  - 生成式剧本验证入口。
+- `scripts/run-selling-houses-agent.ts`
+  - 自对抗运行脚本。
+- `scripts/run-selling-houses-lab.ts`
+  - 实验入口。

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { Suspense, lazy, useMemo, useState } from 'react';
 import {
   Calendar,
   ChevronLeft,
@@ -15,16 +15,17 @@ import {
   Zap,
 } from 'lucide-react';
 import { useGame } from './application/useGame';
-import { Dashboard } from './ui/features/Dashboard';
-import { Cases } from './ui/features/Cases';
-import { Opportunities } from './ui/features/Opportunities';
-import { Market } from './ui/features/Market';
-import { Review } from './ui/features/Review';
-import { ResultOverlay } from './ui/features/ResultOverlay';
-import { DailySummaryOverlay } from './ui/features/DailySummaryOverlay';
-import { ScenarioSetup } from './ui/features/ScenarioSetup';
 import { WEEKLY_ROUTINE } from './domain/constants';
 import { getDayOfWeek, getRoutine } from './domain/utils';
+
+const Dashboard = lazy(() => import('./ui/features/Dashboard').then((module) => ({ default: module.Dashboard })));
+const Cases = lazy(() => import('./ui/features/Cases').then((module) => ({ default: module.Cases })));
+const Opportunities = lazy(() => import('./ui/features/Opportunities').then((module) => ({ default: module.Opportunities })));
+const Market = lazy(() => import('./ui/features/Market').then((module) => ({ default: module.Market })));
+const Review = lazy(() => import('./ui/features/Review').then((module) => ({ default: module.Review })));
+const ResultOverlay = lazy(() => import('./ui/features/ResultOverlay').then((module) => ({ default: module.ResultOverlay })));
+const DailySummaryOverlay = lazy(() => import('./ui/features/DailySummaryOverlay').then((module) => ({ default: module.DailySummaryOverlay })));
+const ScenarioSetup = lazy(() => import('./ui/features/ScenarioSetup').then((module) => ({ default: module.ScenarioSetup })));
 
 export function SellingHousesWorkspace({ activationKey }: { activationKey: string }) {
   const {
@@ -46,6 +47,8 @@ export function SellingHousesWorkspace({ activationKey }: { activationKey: strin
   const [activeView, setActiveView] = useState('dashboard');
   const [isNavCollapsed, setIsNavCollapsed] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const viewFallback = useMemo(() => <WorkspacePanelSkeleton />, []);
+  const overlayFallback = useMemo(() => <WorkspaceOverlaySkeleton />, []);
 
   if (phase === 'loading') {
     return (
@@ -61,14 +64,16 @@ export function SellingHousesWorkspace({ activationKey }: { activationKey: strin
   if (phase === 'setup' || !state) {
     return (
       <div className="flex h-full flex-col overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.12),transparent_36%),linear-gradient(180deg,#fff8ef,#ffffff)] text-slate-900">
-        <ScenarioSetup
-          difficultyOptions={difficultyOptions}
-          featuredScenarios={featuredScenarios}
-          lastDifficulty={lastDifficulty}
-          starting={starting}
-          onStartFeatured={startFeaturedRun}
-          onStartRandom={startRandomGeneratedRun}
-        />
+        <Suspense fallback={viewFallback}>
+          <ScenarioSetup
+            difficultyOptions={difficultyOptions}
+            featuredScenarios={featuredScenarios}
+            lastDifficulty={lastDifficulty}
+            starting={starting}
+            onStartFeatured={startFeaturedRun}
+            onStartRandom={startRandomGeneratedRun}
+          />
+        </Suspense>
       </div>
     );
   }
@@ -121,7 +126,7 @@ export function SellingHousesWorkspace({ activationKey }: { activationKey: strin
       <header className="shrink-0 border-b border-black/5 bg-white/80 px-6 py-4 backdrop-blur-xl">
         <div className="flex items-center justify-between gap-6">
           <div className="flex items-center gap-4">
-            <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-[#B45309] text-white shadow-[0_14px_28px_rgba(180,83,9,0.18)]">
+            <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-[#8B5A2B] text-white shadow-[0_14px_24px_rgba(139,90,43,0.16)]">
               <Home size={18} />
             </div>
             <div>
@@ -214,12 +219,22 @@ export function SellingHousesWorkspace({ activationKey }: { activationKey: strin
             </div>
           )}
 
-          {renderView()}
+          <Suspense fallback={viewFallback}>
+            {renderView()}
+          </Suspense>
         </main>
       </div>
 
-      {state.gameOver && <ResultOverlay state={state} onRestart={handleReset} />}
-      {state.currentReport && <DailySummaryOverlay report={state.currentReport} onContinue={handleClearReport} />}
+      {state.gameOver && (
+        <Suspense fallback={overlayFallback}>
+          <ResultOverlay state={state} onRestart={handleReset} />
+        </Suspense>
+      )}
+      {state.currentReport && (
+        <Suspense fallback={overlayFallback}>
+          <DailySummaryOverlay report={state.currentReport} onContinue={handleClearReport} />
+        </Suspense>
+      )}
     </div>
   );
 }
@@ -262,6 +277,53 @@ function StatItem({ icon, label, value, color }: { icon: React.ReactNode; label:
       <div className="flex flex-col leading-none">
         <span className="mb-0.5 text-[10px] font-bold uppercase tracking-tighter text-slate-300">{label}</span>
         <span className={`text-sm font-bold ${color}`}>{value}</span>
+      </div>
+    </div>
+  );
+}
+
+function WorkspacePanelSkeleton() {
+  return (
+    <div className="space-y-6 animate-pulse">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div key={index} className="rounded-[22px] border border-black/5 bg-white p-4 shadow-sm">
+            <div className="mb-2.5 h-4 w-24 rounded bg-slate-100" />
+            <div className="h-8 w-20 rounded bg-slate-200" />
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+        <div className="rounded-[28px] border border-black/5 bg-white p-5 shadow-sm">
+          <div className="h-6 w-40 rounded bg-slate-100" />
+          <div className="mt-4 h-52 rounded-[24px] bg-slate-50" />
+        </div>
+        <div className="space-y-5">
+          <div className="rounded-[24px] border border-black/5 bg-white p-5 shadow-sm">
+            <div className="h-6 w-32 rounded bg-slate-100" />
+            <div className="mt-4 h-40 rounded-[18px] bg-slate-50" />
+          </div>
+          <div className="rounded-[24px] border border-black/5 bg-white p-5 shadow-sm">
+            <div className="h-6 w-28 rounded bg-slate-100" />
+            <div className="mt-4 h-32 rounded-[18px] bg-slate-50" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WorkspaceOverlaySkeleton() {
+  return (
+    <div className="fixed inset-0 z-[100] bg-slate-900/30 backdrop-blur-sm">
+      <div className="mx-auto mt-20 max-w-4xl animate-pulse rounded-[36px] bg-white/90 p-10 shadow-2xl">
+        <div className="mx-auto h-8 w-56 rounded bg-slate-200" />
+        <div className="mx-auto mt-4 h-4 w-96 max-w-full rounded bg-slate-100" />
+        <div className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="h-24 rounded-2xl bg-slate-100" />
+          ))}
+        </div>
       </div>
     </div>
   );

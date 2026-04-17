@@ -1,10 +1,20 @@
-import { LocalAdversarialSelfPlayArena, type SelfPlayReport } from './localAdversarialSelfPlayArena';
+import {
+  LocalAdversarialSelfPlayArena,
+  buildSelfPlayRunSnapshot,
+  type SelfPlayReport,
+} from './localAdversarialSelfPlayArena';
 
 export interface SelfPlayLabRunSummary {
   seed: number;
-  soldCount: number;
-  withdrawnCount: number;
   evaluationScore: number;
+  abilityScore: number;
+  defenseScore: number;
+  satisfactionScore: number;
+  endingGood: number;
+  endingNeutral: number;
+  endingBad: number;
+  coreBadCount: number;
+  lostToRivalCount: number;
   verdict: string;
   remainingActiveCases: number;
   remainingActiveOpportunities: number;
@@ -20,10 +30,14 @@ export interface SelfPlayLabReport {
   scenarioId: string;
   seeds: number[];
   runCount: number;
-  averageSoldCount: number;
-  averageWithdrawnCount: number;
   averageEvaluationScore: number;
-  selloutRate: number;
+  averageAbilityScore: number;
+  averageDefenseScore: number;
+  averageSatisfactionScore: number;
+  averageEndingGood: number;
+  averageEndingBad: number;
+  coreBadRunRate: number;
+  rivalLossRunRate: number;
   scoreSpread: number;
   runs: SelfPlayLabRunSummary[];
   findings: SelfPlayLabFinding[];
@@ -58,18 +72,26 @@ export class LocalAdversarialSelfPlayLab {
 
     const runs = reports.map((report) => this.toRunSummary(report));
     const scores = runs.map((entry) => entry.evaluationScore);
-    const soldCounts = runs.map((entry) => entry.soldCount);
-    const withdrawnCounts = runs.map((entry) => entry.withdrawnCount);
-    const selloutCount = runs.filter((entry) => entry.remainingActiveCases === 0 && entry.withdrawnCount === 0).length;
+    const abilityScores = runs.map((entry) => entry.abilityScore);
+    const defenseScores = runs.map((entry) => entry.defenseScore);
+    const satisfactionScores = runs.map((entry) => entry.satisfactionScore);
+    const endingGoods = runs.map((entry) => entry.endingGood);
+    const endingBads = runs.map((entry) => entry.endingBad);
+    const coreBadRuns = runs.filter((entry) => entry.coreBadCount > 0).length;
+    const rivalLossRuns = runs.filter((entry) => entry.lostToRivalCount > 0).length;
 
     return {
       scenarioId: this.scenarioId,
       seeds: this.seeds,
       runCount: runs.length,
-      averageSoldCount: average(soldCounts),
-      averageWithdrawnCount: average(withdrawnCounts),
       averageEvaluationScore: average(scores),
-      selloutRate: round((selloutCount / runs.length) * 100),
+      averageAbilityScore: average(abilityScores),
+      averageDefenseScore: average(defenseScores),
+      averageSatisfactionScore: average(satisfactionScores),
+      averageEndingGood: average(endingGoods),
+      averageEndingBad: average(endingBads),
+      coreBadRunRate: round((coreBadRuns / runs.length) * 100),
+      rivalLossRunRate: round((rivalLossRuns / runs.length) * 100),
       scoreSpread: round(Math.max(...scores) - Math.min(...scores)),
       runs,
       findings: this.buildFindings(runs),
@@ -77,11 +99,18 @@ export class LocalAdversarialSelfPlayLab {
   }
 
   private toRunSummary(report: SelfPlayReport): SelfPlayLabRunSummary {
+    const snapshot = buildSelfPlayRunSnapshot(report.finalResult);
     return {
       seed: report.seed,
-      soldCount: report.soldCount,
-      withdrawnCount: report.withdrawnCount,
       evaluationScore: report.evaluation.score,
+      abilityScore: snapshot.abilityScore,
+      defenseScore: snapshot.defenseScore,
+      satisfactionScore: snapshot.satisfactionScore,
+      endingGood: snapshot.endingGood,
+      endingNeutral: snapshot.endingNeutral,
+      endingBad: snapshot.endingBad,
+      coreBadCount: snapshot.coreBadCount,
+      lostToRivalCount: snapshot.lostToRivalCount,
       verdict: report.evaluation.verdict,
       remainingActiveCases: report.remainingActiveCases,
       remainingActiveOpportunities: report.remainingActiveOpportunities,
@@ -91,13 +120,17 @@ export class LocalAdversarialSelfPlayLab {
   private buildFindings(runs: SelfPlayLabRunSummary[]) {
     const findings: SelfPlayLabFinding[] = [];
     const scores = runs.map((entry) => entry.evaluationScore);
-    const soldCounts = runs.map((entry) => entry.soldCount);
+    const defenseScores = runs.map((entry) => entry.defenseScore);
+    const endingBadCounts = runs.map((entry) => entry.endingBad);
+    const lostToRivalCounts = runs.map((entry) => entry.lostToRivalCount);
     const averageScore = average(scores);
-    const averageSoldCount = average(soldCounts);
-    const emptyRuns = runs.filter((entry) => entry.soldCount === 0).length;
-    const selloutRuns = runs.filter((entry) => entry.remainingActiveCases === 0 && entry.withdrawnCount === 0).length;
+    const averageDefenseScore = average(defenseScores);
+    const averageEndingBad = average(endingBadCounts);
+    const coreBadRuns = runs.filter((entry) => entry.coreBadCount > 0).length;
+    const rivalLossRuns = runs.filter((entry) => entry.lostToRivalCount > 0).length;
+    const noGoodFinishRuns = runs.filter((entry) => entry.endingGood === 0).length;
     const scoreSpread = Math.max(...scores) - Math.min(...scores);
-    const soldSpread = Math.max(...soldCounts) - Math.min(...soldCounts);
+    const defenseSpread = Math.max(...defenseScores) - Math.min(...defenseScores);
 
     if (scoreSpread >= 25) {
       findings.push({
@@ -107,19 +140,19 @@ export class LocalAdversarialSelfPlayLab {
       });
     }
 
-    if (soldSpread >= 3) {
+    if (defenseSpread >= 12) {
       findings.push({
         severity: 'major',
-        title: '成交结果不稳定',
-        detail: `批量自玩里最高与最低成交数相差 ${round(soldSpread)} 单，说明玩法表现对随机数过敏。`,
+        title: '守盘结果不稳定',
+        detail: `批量自玩里最高与最低守盘分相差 ${round(defenseSpread)}，说明同一剧本的守盘体感波动偏大。`,
       });
     }
 
-    if (emptyRuns >= Math.ceil(runs.length / 3)) {
+    if (noGoodFinishRuns >= Math.ceil(runs.length / 3)) {
       findings.push({
         severity: 'major',
-        title: '存在较多零成交局',
-        detail: `${emptyRuns}/${runs.length} 局没有任何成交，说明中后段收口机制仍然偏脆。`,
+        title: '存在较多无好收尾局',
+        detail: `${noGoodFinishRuns}/${runs.length} 局一套好收尾都没有，说明房源主线很难被经营到体面收尾。`,
       });
     }
 
@@ -131,19 +164,35 @@ export class LocalAdversarialSelfPlayLab {
       });
     }
 
-    if (selloutRuns === 0 && averageSoldCount <= 2) {
+    if (coreBadRuns >= Math.ceil(runs.length / 3)) {
       findings.push({
         severity: 'major',
-        title: '收口能力不足',
-        detail: `所有样本都没能清局，且平均成交仅 ${round(averageSoldCount)} 单，说明中后段成交闭环还需要补强。`,
+        title: '核心盘经常坏收尾',
+        detail: `${coreBadRuns}/${runs.length} 局出现核心盘坏收尾，说明核心盘保护线还不够稳。`,
       });
     }
 
-    if (selloutRuns === runs.length) {
+    if (rivalLossRuns >= Math.ceil(runs.length / 2)) {
+      findings.push({
+        severity: 'major',
+        title: '被截走频率偏高',
+        detail: `${rivalLossRuns}/${runs.length} 局出现被竞品截走，说明竞品压力已经成为常规后果，需要确认是不是过强。`,
+      });
+    }
+
+    if (averageDefenseScore < 18 || averageEndingBad >= 2) {
+      findings.push({
+        severity: 'major',
+        title: '守盘线整体偏脆',
+        detail: `平均守盘分 ${round(averageDefenseScore)}，平均坏收尾 ${round(averageEndingBad)} 套，当前剧本容易把局打成失守局。`,
+      });
+    }
+
+    if (rivalLossRuns === 0 && coreBadRuns === 0 && averageEndingBad === 0) {
       findings.push({
         severity: 'minor',
         title: '难度偏软',
-        detail: '全部样本都能无撤盘清局，后续可以继续加压。',
+        detail: '样本里几乎没有出现失守和坏收尾，后续可以继续加压。',
       });
     }
 
@@ -151,7 +200,7 @@ export class LocalAdversarialSelfPlayLab {
       findings.push({
         severity: 'minor',
         title: '波动处于可接受范围',
-        detail: '当前批量样本里没有看到特别突兀的稳定性异常。',
+        detail: '当前批量样本里，分数、收尾结构和守盘表现都还在可接受范围。',
       });
     }
 

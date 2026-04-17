@@ -92,7 +92,7 @@ export const ACTION_TEMPLATES: Record<string, ActionBattleTemplate> = {
     actor: 'market',
     title: '小红书推广',
     summary: '决定这轮公开内容是要量、要准，还是要口碑。',
-    metricFocus: ['heat', 'd1', 'reputation'],
+    metricFocus: ['heat', 'd1', 'competitiveness'],
     buildBody: (state, caseItem) => {
       const { predicted, engaged } = summarizeOpportunities(state, caseItem);
       return `${caseItem.title} 当前热度 ${Math.round(caseItem.heat)}。小红书推广会直接影响公开客群进入速度，但也可能引来更多需要筛选的人。当前预测客群 ${predicted} 组，接洽客户 ${engaged} 位。`;
@@ -100,7 +100,7 @@ export const ACTION_TEMPLATES: Record<string, ActionBattleTemplate> = {
     getStrategies: () => [
       { id: 'traffic-push', title: '冲流量', note: '更容易补量，但线索质量更参差。' },
       { id: 'precise-push', title: '做精准种草', note: '量没那么大，但匹配度更高。' },
-      { id: 'reputation-push', title: '做口碑内容', note: '更稳，但短期爆发力一般。' },
+      { id: 'reputation-push', title: '做口碑内容', note: '更稳，更适合保长期信任和盘面体感。' },
     ],
   }),
   'marketing-broker': buildTemplate({
@@ -232,7 +232,7 @@ export const ACTION_TEMPLATES: Record<string, ActionBattleTemplate> = {
     actor: 'customer',
     title: '邀请和客户谈判',
     summary: '把高阶段客户真正拉上谈判桌。',
-    metricFocus: ['intent', 'confidence', 'commission', 'reputation'],
+    metricFocus: ['intent', 'confidence', 'commission', 'trust'],
     buildBody: (state, caseItem) => {
       const { engaged } = summarizeOpportunities(state, caseItem);
       return `${caseItem.title} 现在已经到了后段推进阶段。你需要决定这次谈判更偏保价、平衡，还是优先成交。当前接洽客户 ${engaged} 位。`;

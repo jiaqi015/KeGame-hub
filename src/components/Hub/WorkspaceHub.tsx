@@ -20,7 +20,15 @@ export function WorkspaceHub({ onSelect, onLogout, allowedWorkspaces }: Workspac
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-5">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div className="max-w-3xl">
-              {/* Optional header text can go here */}
+            <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.22em] text-[#8E8E93]">
+              Sabrina Workspace
+            </div>
+            <h1 className="text-[34px] font-semibold tracking-[-0.05em] text-[#111111]">
+              选择今天要处理的业务判断
+            </h1>
+            <p className="mt-2 max-w-2xl text-[15px] leading-7 text-[#6E6E73]">
+              从模型对比、开放日测算到资产顾问训练，把不同场景里的复杂决策拆成可执行的下一步。
+            </p>
           </div>
 
           <button
@@ -47,23 +55,23 @@ export function WorkspaceHub({ onSelect, onLogout, allowedWorkspaces }: Workspac
                 </div>
               </div>
               <h2 className="mt-6 text-[30px] font-semibold tracking-[-0.05em] text-[#111111]">
-                一次看清多个模型谁更合适
+                快速判断哪个模型更适合这件事
               </h2>
               <p className="mt-3 text-[15px] leading-7 text-[#6E6E73]">
-                输入一句话，就能同时看到多个模型的回答，并自动整理关键差异，帮你少走回头路。
+                把同一个问题交给多个模型，同时查看回答和差异总结，少靠感觉猜选型。
               </p>
               <div className="mt-6 space-y-3 text-sm text-[#424245]">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-blue-600" />
-                  适合模型选型和效果对比
+                  一次输入，同时获得多模型结果
                 </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-blue-600" />
-                  自动提炼回答里的关键差异
+                  自动提炼关键差异和取舍
                 </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-blue-600" />
-                  减少反复切换和人工总结
+                  适合选模型、比方案、做快速判断
                 </div>
               </div>
               <div className="mt-auto flex items-center justify-between pt-8 text-sm font-semibold text-[#111111]">
@@ -90,23 +98,23 @@ export function WorkspaceHub({ onSelect, onLogout, allowedWorkspaces }: Workspac
                 </div>
               </div>
               <h2 className="mt-6 text-[30px] font-semibold tracking-[-0.05em] text-[#111111]">
-                更快筛出值得重点做开放日的小区
+                更快选出值得投入开放日的小区
               </h2>
               <p className="mt-3 text-[15px] leading-7 text-[#6E6E73]">
-                上传楼盘表格后，系统会帮你整理数据并完成测算，快速看出哪些项目更值得优先投入。
+                上传楼盘表格后，用统一口径完成测算排序，帮你把资源放到更可能出结果的项目上。
               </p>
               <div className="mt-6 space-y-3 text-sm text-[#424245]">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-emerald-700" />
-                  批量处理楼盘数据，不再手工筛表
+                  批量清洗楼盘数据，减少手工筛表
                 </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-emerald-700" />
-                  更快看出哪些小区值得优先跟进
+                  用参数包和公式统一判断口径
                 </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-emerald-700" />
-                  适合做开放日前的快速判断
+                  适合开放日前排优先级和做复盘
                 </div>
               </div>
               <div className="mt-auto flex items-center justify-between pt-8 text-sm font-semibold text-[#111111]">
@@ -125,10 +133,10 @@ export function WorkspaceHub({ onSelect, onLogout, allowedWorkspaces }: Workspac
               className="group flex h-full flex-col rounded-[32px] border border-black/5 bg-white p-7 text-left shadow-[0_18px_50px_rgba(20,20,43,0.06)] transition hover:-translate-y-1 hover:shadow-[0_26px_70px_rgba(20,20,43,0.1)]"
             >
               <div className="flex items-center gap-4">
-                <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-[#B45309] text-white shadow-[0_18px_40px_rgba(180,83,9,0.18)]">
+                <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-[#8B5A2B] text-white shadow-[0_18px_34px_rgba(139,90,43,0.16)]">
                   <UserRound className="h-5 w-5" />
                 </div>
-                <div className="rounded-full bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-700">
+                <div className="rounded-full bg-[#F6EFE7] px-3 py-1 text-[11px] font-semibold text-[#8B5A2B]">
                   我是王牌资产顾问
                 </div>
               </div>
@@ -136,32 +144,32 @@ export function WorkspaceHub({ onSelect, onLogout, allowedWorkspaces }: Workspac
                 帮业主决策，成为王牌顾问
               </h2>
               <p className="mt-3 text-[15px] leading-7 text-[#6E6E73]">
-                围绕业主目标做判断，在价格、节奏和沟通之间拿稳分寸。现在支持 6 档难度，先打代表局，再按同难度随机刷一局。
+                围绕业主目标做判断，在价格、节奏和沟通之间拿稳分寸，把每一次建议都做得更专业。
               </p>
               <div className="mt-6 space-y-3 text-sm text-[#424245]">
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-amber-700" />
-                  6 档难度：热身、入门、标准、进阶、高压、极限
+                  <CheckCircle2 className="h-4 w-4 text-[#8B5A2B]" />
+                  快速看清每套房现在该怎么推
                 </div>
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-amber-700" />
-                  每档先给一张代表局，先感受这一档的局面味道
+                  <CheckCircle2 className="h-4 w-4 text-[#8B5A2B]" />
+                  练习定价沟通、开放日和议价取舍
                 </div>
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-amber-700" />
-                  也能按同难度随机生成新环境，反复练手感
+                  <CheckCircle2 className="h-4 w-4 text-[#8B5A2B]" />
+                  在窗口压力和业主预期之间做稳判断
                 </div>
               </div>
-              <div className="mt-6 flex flex-wrap gap-2 text-[11px] font-semibold text-amber-800">
-                {['热身', '入门', '标准', '进阶', '高压', '极限'].map((label) => (
-                  <span key={label} className="rounded-full bg-amber-50 px-3 py-1">
+              <div className="mt-6 flex flex-wrap gap-2 text-[11px] font-semibold text-[#8B5A2B]">
+                {['定价', '带看', '开放日', '议价'].map((label) => (
+                  <span key={label} className="rounded-full bg-[#F6EFE7] px-3 py-1">
                     {label}
                   </span>
                 ))}
               </div>
               <div className="mt-auto flex items-center justify-between pt-8 text-sm font-semibold text-[#111111]">
-                <span>进入顾问模式</span>
-                <span className="inline-flex items-center gap-1 text-amber-700 transition group-hover:translate-x-1">
+                <span>进入顾问训练</span>
+                <span className="inline-flex items-center gap-1 text-[#8B5A2B] transition group-hover:translate-x-1">
                   打开
                   <ArrowRight className="h-4 w-4" />
                 </span>

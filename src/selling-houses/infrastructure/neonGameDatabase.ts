@@ -1,9 +1,19 @@
 import { neon } from '@neondatabase/serverless';
 import { getBuiltInScenarios, getBuiltInWorld } from '../domain/scenarioCatalog.js';
+import type { DifficultyId } from '../domain/models.js';
 
 type SellingHousesSqlClient = ReturnType<typeof neon>;
 
 let schemaReadyPromise: Promise<void> | null = null;
+
+function resolveDifficultyTier(difficultyId: DifficultyId): number {
+  if (difficultyId === 'warmup') return 1;
+  if (difficultyId === 'easy') return 2;
+  if (difficultyId === 'standard') return 3;
+  if (difficultyId === 'advanced') return 4;
+  if (difficultyId === 'hard') return 5;
+  return 6;
+}
 
 function getConnectionString() {
   return process.env.DATABASE_URL || process.env.POSTGRES_URL || '';
@@ -157,6 +167,14 @@ export const SELLING_HOUSES_SCHEMA_SQL = `
     conversion_power NUMERIC(8, 2) NOT NULL DEFAULT 0,
     listing_heat NUMERIC(8, 2) NOT NULL DEFAULT 0,
     showing_readiness NUMERIC(8, 2) NOT NULL DEFAULT 0,
+    goal_tier TEXT NULL,
+    storyline_state TEXT NULL,
+    relative_outcome TEXT NULL,
+    owner_satisfaction TEXT NULL,
+    defense_outcome TEXT NULL,
+    ending_type TEXT NULL,
+    ending_summary TEXT NULL,
+    sold_price NUMERIC(12, 2) NULL,
     focus_score NUMERIC(8, 2) NOT NULL DEFAULT 0,
     active_lead_count INTEGER NOT NULL DEFAULT 0,
     high_intent_lead_count INTEGER NOT NULL DEFAULT 0,
@@ -164,7 +182,7 @@ export const SELLING_HOUSES_SCHEMA_SQL = `
     last_major_event_at TIMESTAMPTZ NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT maintainer_run_listings_status_check
-      CHECK (status IN ('active', 'sold', 'withdrawn', 'paused'))
+      CHECK (status IN ('active', 'sold', 'withdrawn', 'lost_to_rival', 'paused'))
   );
 
   CREATE TABLE IF NOT EXISTS maintainer_listing_sellers (
@@ -427,7 +445,7 @@ async function seedBuiltInScenarioData(sql: SellingHousesSqlClient) {
   );
 
   for (const scenario of getBuiltInScenarios()) {
-    const tier = scenario.difficultyId === 'easy' ? 1 : scenario.difficultyId === 'standard' ? 2 : 3;
+    const tier = resolveDifficultyTier(scenario.difficultyId);
     await sql.query(
       `
         INSERT INTO selling_houses_scenarios (
@@ -470,13 +488,146 @@ async function seedBuiltInScenarioData(sql: SellingHousesSqlClient) {
   }
 }
 
+async function seedDefinitionData(sql: SellingHousesSqlClient) {
+  const world = getBuiltInWorld();
+
+  for (const ownerArchetype of world.ownerArchetypes) {
+    await sql.query(
+      `
+        INSERT INTO seller_profile_definitions (
+          seller_profile_code,
+          name,
+          description,
+          default_traits
+        )
+        VALUES ($1, $2, $3, $4::jsonb)
+        ON CONFLICT (seller_profile_code)
+        DO UPDATE SET
+          name = EXCLUDED.name,
+          description = EXCLUDED.description,
+          default_traits = EXCLUDED.default_traits
+      `,
+      [
+        ownerArchetype.id,
+        ownerArchetype.label,
+        ownerArchetype.description,
+        JSON.stringify({
+          trustDecayMultiplier: ownerArchetype.trustDecayMultiplier,
+          priceElasticity: ownerArchetype.priceElasticity,
+          urgencyGrowthBonus: ownerArchetype.urgencyGrowthBonus,
+          heatSensitivity: ownerArchetype.heatSensitivity,
+          patienceDelta: ownerArchetype.patienceDelta,
+          preferredTactic: ownerArchetype.preferredTactic,
+        }),
+      ],
+    );
+  }
+
+  const listingStages = [
+    ['active', '经营中', '尚未进入更明确的经营节点', false, 0],
+    ['acquire', '获客', '主要在补足线索和准客池', false, 10],
+    ['warmup', '加热', '主要在做内容和热度预热', false, 20],
+    ['showing', '带看', '主要在推动看房和体验', false, 30],
+    ['intent', '意向', '已有明确意向客户进入比较', false, 40],
+    ['negotiation', '议价', '已进入价格或条件谈判阶段', false, 50],
+    ['closing', '冲刺', '接近收口，需重点守盘', false, 60],
+    ['sold', '成交', '房源已完成成交', true, 90],
+    ['withdrawn', '撤盘', '房源已退出当前经营周期', true, 100],
+    ['lost_to_rival', '被竞品截走', '房源被竞品门店率先拿走，当前经营已失守', true, 95],
+  ] as const;
+
+  for (const [code, name, description, isTerminal, sortOrder] of listingStages) {
+    await sql.query(
+      `
+        INSERT INTO listing_stage_definitions (
+          listing_stage_code,
+          name,
+          description,
+          is_terminal,
+          sort_order
+        )
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (listing_stage_code)
+        DO UPDATE SET
+          name = EXCLUDED.name,
+          description = EXCLUDED.description,
+          is_terminal = EXCLUDED.is_terminal,
+          sort_order = EXCLUDED.sort_order
+      `,
+      [code, name, description, isTerminal, sortOrder],
+    );
+  }
+
+  const eventTypes = [
+    ['system', '系统事件', 'system'],
+    ['market', '市场事件', 'market'],
+    ['action', '经营动作事件', 'action'],
+    ['actor', '角色事件', 'actor'],
+    ['owner_feedback', '业主反馈事件', 'owner'],
+    ['customer_feedback', '客户反馈事件', 'customer'],
+    ['marketing_activity', '营销动作事件', 'action'],
+    ['pricing_change', '价格动作事件', 'action'],
+    ['deal_progress', '成交推进事件', 'action'],
+    ['competition_pressure', '竞品压力事件', 'market'],
+    ['weekly_review', '周复盘事件', 'system'],
+    ['budget_update', '资金更新事件', 'system'],
+    ['focus_shift', '经营焦点事件', 'system'],
+  ] as const;
+
+  for (const [code, name, category] of eventTypes) {
+    await sql.query(
+      `
+        INSERT INTO event_type_definitions (
+          event_type_code,
+          name,
+          category
+        )
+        VALUES ($1, $2, $3)
+        ON CONFLICT (event_type_code)
+        DO UPDATE SET
+          name = EXCLUDED.name,
+          category = EXCLUDED.category
+      `,
+      [code, name, category],
+    );
+  }
+
+  const matterTypes = [
+    ['case_priority', '房源优先事项', 'priority', null],
+    ['opportunity_followup', '线索跟进事项', 'priority', null],
+    ['schedule_risk', '日程风险事项', 'risk', null],
+  ] as const;
+
+  for (const [code, name, category, defaultTemplateCode] of matterTypes) {
+    await sql.query(
+      `
+        INSERT INTO matter_type_definitions (
+          type_code,
+          name,
+          category,
+          default_template_code
+        )
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (type_code)
+        DO UPDATE SET
+          name = EXCLUDED.name,
+          category = EXCLUDED.category,
+          default_template_code = EXCLUDED.default_template_code
+      `,
+      [code, name, category, defaultTemplateCode],
+    );
+  }
+}
+
 async function ensureSchema(sql: SellingHousesSqlClient) {
   const statements = SELLING_HOUSES_SCHEMA_SQL
     .split(/;\s*\n/g)
     .map((statement) => statement.trim())
     .filter(Boolean);
+  const indexStatements = statements.filter((statement) => /^CREATE INDEX\b/i.test(statement));
+  const tableStatements = statements.filter((statement) => !/^CREATE INDEX\b/i.test(statement));
 
-  for (const statement of statements) {
+  for (const statement of tableStatements) {
     await sql.query(`${statement};`);
   }
 
@@ -570,7 +721,69 @@ async function ensureSchema(sql: SellingHousesSqlClient) {
     ADD COLUMN IF NOT EXISTS finished_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
   `);
 
+  await sql.query(`
+    ALTER TABLE maintainer_run_listings
+    ADD COLUMN IF NOT EXISTS goal_tier TEXT NULL;
+  `);
+
+  const listingStatusConstraintRows = await sql.query(
+    `
+      SELECT 1
+      FROM pg_constraint
+      WHERE conname = 'maintainer_run_listings_status_check'
+      LIMIT 1
+    `,
+  ) as Array<{ '?column?': number }>;
+
+  if (!listingStatusConstraintRows.length) {
+    await sql.query(`
+      ALTER TABLE maintainer_run_listings
+      ADD CONSTRAINT maintainer_run_listings_status_check
+      CHECK (status IN ('active', 'sold', 'withdrawn', 'lost_to_rival', 'paused'));
+    `);
+  }
+
+  await sql.query(`
+    ALTER TABLE maintainer_run_listings
+    ADD COLUMN IF NOT EXISTS storyline_state TEXT NULL;
+  `);
+
+  await sql.query(`
+    ALTER TABLE maintainer_run_listings
+    ADD COLUMN IF NOT EXISTS relative_outcome TEXT NULL;
+  `);
+
+  await sql.query(`
+    ALTER TABLE maintainer_run_listings
+    ADD COLUMN IF NOT EXISTS owner_satisfaction TEXT NULL;
+  `);
+
+  await sql.query(`
+    ALTER TABLE maintainer_run_listings
+    ADD COLUMN IF NOT EXISTS defense_outcome TEXT NULL;
+  `);
+
+  await sql.query(`
+    ALTER TABLE maintainer_run_listings
+    ADD COLUMN IF NOT EXISTS ending_type TEXT NULL;
+  `);
+
+  await sql.query(`
+    ALTER TABLE maintainer_run_listings
+    ADD COLUMN IF NOT EXISTS ending_summary TEXT NULL;
+  `);
+
+  await sql.query(`
+    ALTER TABLE maintainer_run_listings
+    ADD COLUMN IF NOT EXISTS sold_price NUMERIC(12, 2) NULL;
+  `);
+
+  await seedDefinitionData(sql);
   await seedBuiltInScenarioData(sql);
+
+  for (const statement of indexStatements) {
+    await sql.query(`${statement};`);
+  }
 }
 
 export async function withSellingHousesNeon<T>(

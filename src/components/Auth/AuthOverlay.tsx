@@ -37,11 +37,18 @@ export function AuthOverlay({
                   Sabrina Access
                 </div>
                 <h1 className="text-[34px] font-semibold tracking-[-0.04em] text-[#111111]">
-                  AI Model Sabrina II
+                  业务决策训练与测算工作台
                 </h1>
                 <p className="mt-3 max-w-sm text-[15px] leading-7 text-[#6E6E73]">
-                  先完成验证，再进入多模型PK、小区开放日选址和我是王牌资产顾问三个功能。
+                  先完成验证，再进入模型对比、开放日选址和资产顾问训练，把复杂判断拆成更清楚的下一步。
                 </p>
+                <div className="mt-5 flex flex-wrap gap-2 text-[11px] font-semibold text-[#5C5C60]">
+                  {['多模型PK', '开放日选址', '王牌资产顾问'].map((label) => (
+                    <span key={label} className="rounded-full border border-black/5 bg-[#F5F5F7] px-3 py-1">
+                      {label}
+                    </span>
+                  ))}
+                </div>
               </div>
 
               <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] bg-[#111111] text-white shadow-[0_18px_40px_rgba(17,17,17,0.18)]">
