@@ -1,6 +1,6 @@
 import { GameState, Case, Opportunity } from './models';
 import { 
-  ACTIONS, OPPORTUNITY_STAGES 
+  ACTIONS, OPPORTUNITY_STAGES, BROKER_NAMES 
 } from './constants';
 import { 
   clamp, randomInt, wave, chance, average, addDays, 
@@ -24,9 +24,16 @@ export function advanceDays(state: GameState, count: number, onMessage?: (msg: s
 }
 
 function resolveOneDay(state: GameState, onMessage?: (msg: string) => void) {
+  // Capture "Before" metrics
+  const beforeD1 = average(state.cases.filter(c => c.status === 'active').map(c => c.d1));
+  const beforeD3 = average(state.cases.filter(c => c.status === 'active').map(c => c.d3));
+  const beforeCash = state.cash;
+  const beforeRep = state.reputation;
+
   updateMarkets(state);
   updateCustomers(state);
   tickOpportunities(state);
+  resolveCompetitivePressure(state);
   tickCases(state);
   spawnPassiveLeads(state);
   triggerRandomEvent(state);
@@ -34,6 +41,28 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void) {
   if (state.day % 7 === 0) {
     createWeeklyReview(state);
   }
+
+  // Generate Report
+  updateDerivedState(state); // Sync metrics before reporting
+  const afterD1 = average(state.cases.filter(c => c.status === 'active').map(c => c.d1));
+  const afterD3 = average(state.cases.filter(c => c.status === 'active').map(c => c.d3));
+
+  const dayEvents = state.eventLog.filter(e => e.day === state.day);
+  const majorEvents = dayEvents.filter(e => e.tone === 'success' || e.tone === 'danger' || e.tone === 'accent');
+  const marketNews = dayEvents.filter(e => e.actor === '市场').map(e => e.message);
+
+  state.currentReport = {
+    day: state.day,
+    title: `第 ${state.day} 天经营简报`,
+    majorEvents: majorEvents.map(e => ({ actor: e.actor, message: e.message, tone: e.tone })),
+    metricsDelta: [
+      { label: "漏斗健康 (D1)", value: Math.round((afterD1 - beforeD1) * 10) / 10, unit: "pts" },
+      { label: "业主意愿 (D3)", value: Math.round((afterD3 - beforeD3) * 10) / 10, unit: "pts" },
+      { label: "预算变动", value: state.cash - beforeCash, unit: "万" },
+      { label: "声誉增长", value: Math.round(state.reputation - beforeRep), unit: "pts" },
+    ],
+    marketNews
+  };
 
   if (state.day >= state.maxDay || !state.cases.some((entry) => entry.status === "active")) {
     finishGame(state, state.day >= state.maxDay ? "18 天经营周期结束。" : "所有房源都已经结算。", onMessage);
@@ -326,6 +355,13 @@ export function executeAction(state: GameState, actionId: string, caseItem: any,
     opportunity.confidence = clamp(opportunity.confidence + 8, 0, 100);
     opportunity.daysLeft = 4;
     opportunity.touchedToday = true;
+    
+    // Reveal info after showing
+    if (opportunity.visibility === 'shadow') {
+      opportunity.visibility = 'revealed';
+      logEvent(state, opportunity.customerName, `通过线下带看，你看透了 ${opportunity.customerName} 的真实意向。`, "success");
+    }
+
     refreshOpportunityLabel(opportunity);
 
     if (opportunity.stageIndex >= 3) {
@@ -381,6 +417,20 @@ export function executeAction(state: GameState, actionId: string, caseItem: any,
     }
 
     resolveNegotiation(state, caseItem, opportunity, optionId, onMessage);
+  }
+
+  if (actionId === "agent-sync") {
+    const opportunity = state.opportunities.find(o => o.caseId === caseItem.id && o.status === 'active' && o.visibility === 'shadow');
+    if (!opportunity) {
+       refundResources(state, action.costEnergy, action.costCash);
+       onMessage?.("当前没有待揭秘的“黑盒”线索。");
+       return false;
+    }
+
+    opportunity.visibility = 'revealed';
+    opportunity.intent = clamp(opportunity.intent + 5, 0, 100);
+    logEvent(state, "对线成功", `与 ${opportunity.brokerName} 深度沟通后，${opportunity.customerName} 的意图变得透明。`, "success");
+    onMessage?.(`已与 ${opportunity.brokerName} 完成情报交换。`);
   }
 
   updateDerivedState(state);
@@ -460,6 +510,10 @@ export function createOpportunity(world: GameState, caseItem: any, channelId: st
   const channel = world.channels.find((entry) => entry.id === channelId) ?? world.channels[0];
   const stageIndex = bonus >= 14 ? 1 : 0;
   const pricePenalty = Math.max(0, caseItem.askPrice - chosen.customer.budgetMax) / 5;
+
+  const leadSource = (channel.id === 'search' || channel.id === 'recommend') ? 'broker' : 'direct';
+  const visibility = leadSource === 'broker' ? 'shadow' : 'revealed';
+
   const opportunity: Opportunity = {
     id: `${caseItem.id}-${chosen.customer.id}-${world.day}-${Math.floor(Math.random() * 999)}`,
     caseId: caseItem.id, customerId: chosen.customer.id, customerName: chosen.customer.name, profile: chosen.customer.profile, channelId: channel.id, channelName: channel.name, fit: Math.round(chosen.score),
@@ -467,9 +521,12 @@ export function createOpportunity(world: GameState, caseItem: any, channelId: st
     confidence: clamp(48 + chosen.score * 0.25 + caseItem.trust * 0.16, 30, 92),
     stageIndex, stageLabel: OPPORTUNITY_STAGES[stageIndex], status: "active", daysLeft: stageIndex > 0 ? 4 : 5, touchedToday: true, budgetMax: chosen.customer.budgetMax, priceSensitivity: chosen.customer.priceSensitivity,
     stagnationTicks: 0, history: [],
+    leadSource,
+    visibility,
+    brokerName: leadSource === 'broker' ? BROKER_NAMES[randomInt(0, BROKER_NAMES.length - 1)] : undefined
   };
   world.opportunities.unshift(opportunity);
-  if (!silent) logEvent(world, channel.name, `${chosen.customer.name} 被 ${caseItem.title} 吸引，进入机会池。`, "accent");
+  if (!silent) logEvent(world, leadSource === 'broker' ? "经纪人推介" : channel.name, `${chosen.customer.name} 被吸引，${leadSource === 'broker' ? '这似乎是一个来自同行的线索。' : '直接进线。'}`, leadSource === 'broker' ? "accent" : "success");
   return opportunity;
 }
 
@@ -592,4 +649,24 @@ export function getActionAvailability(state: GameState, caseItem: any, actionId:
   }
 
   return { enabled: true, reason: "" };
+}
+
+function resolveCompetitivePressure(world: GameState) {
+  world.cases.forEach((caseItem) => {
+    if (caseItem.status !== "active") return;
+    const cell = getMarketCell(world, caseItem.marketCellId);
+    if (!cell) return;
+
+    // High pressure hits heat and trust
+    if (cell.competitivePressure > 72) {
+      const heatLoss = randomInt(2, 5);
+      const trustLoss = chance(0.4) ? 1 : 0;
+      caseItem.heat = clamp(caseItem.heat - heatLoss, 10, 100);
+      caseItem.trust = clamp(caseItem.trust - trustLoss, 10, 100);
+      
+      if (chance(0.3)) {
+        logEvent(world, "市场竞争", `${caseItem.title} 所在区域竞品动作频繁，盘面拉力受压。`, "danger");
+      }
+    }
+  });
 }

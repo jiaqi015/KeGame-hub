@@ -35,6 +35,7 @@ export function createInitialState(marketCells: any[], customers: any[], channel
     schedule: [],
     priorities: [],
     metrics: {},
+    currentReport: null,
   };
 
   return world;
@@ -168,11 +169,13 @@ function deriveSchedule(world: GameState) {
   world.opportunities
     .filter((entry) => entry.status === "active" && entry.daysLeft <= 2)
     .forEach((entry) => {
+      const isShadow = entry.visibility === 'shadow';
+      const displayName = isShadow ? `影子客 #${entry.id.split('-').pop()}` : entry.customerName;
       items.push({
         key: entry.id,
-        title: entry.stageLabel,
+        title: isShadow ? '同步经纪人' : entry.stageLabel,
         badge: `${entry.daysLeft} 天后流失`,
-        note: `${entry.customerName} 正在从 ${world.cases.find(c => c.id === entry.caseId)!.title} 上流失，最好今天就碰一下。`,
+        note: `${displayName} 正在从 ${world.cases.find(c => c.id === entry.caseId)!.title} 上流失，最好今天就碰一下。`,
         urgency: 86 - entry.daysLeft * 10 + entry.stageIndex * 4,
       });
     });
@@ -199,10 +202,12 @@ function derivePriorities(world: GameState) {
     .filter((entry) => entry.status === "active")
     .slice(0, 2)
     .forEach((entry) => {
+      const isShadow = entry.visibility === 'shadow';
+      const displayName = isShadow ? `影子客 #${entry.id.split('-').pop()}` : entry.customerName;
       items.push({
         kind: "opportunity",
-        title: `推进 ${entry.customerName}`,
-        detail: `${entry.customerName} 已进入 ${entry.stageLabel}，${entry.daysLeft} 天后可能流失。`,
+        title: isShadow ? `揭晓 ${displayName}` : `推进 ${displayName}`,
+        detail: isShadow ? `这是一条黑盒线索，建议先与经纪人 ${entry.brokerName} 对线。` : `${displayName} 已进入 ${entry.stageLabel}，${entry.daysLeft} 天后可能流失。`,
         caseId: entry.caseId,
       });
     });

@@ -48,7 +48,11 @@ export function Cases({ state, onSelectCase, onExecuteAction, autoDecision, onTo
             actionId,
             title: `${selectedCase.title} · 议价冲刺`,
             body: topOpportunity
-              ? `${topOpportunity.customerName} 已来到 ${topOpportunity.stageLabel}。当前意向 ${Math.round(topOpportunity.intent)}，置信 ${Math.round(topOpportunity.confidence)}。你要决定以什么策略冲成交。`
+              ? (() => {
+                  const isShadow = topOpportunity.visibility === 'shadow';
+                  const displayName = isShadow ? `影子客 #${topOpportunity.id.split('-').pop()}` : topOpportunity.customerName;
+                  return `${displayName} 已来到 ${topOpportunity.stageLabel}。${isShadow ? '意向和底牌仍处于黑盒状态。' : `当前意向 ${Math.round(topOpportunity.intent)}，置信 ${Math.round(topOpportunity.confidence)}。`} 你要决定以什么策略冲成交。`;
+                })()
               : "当前没有进入报价阶段的客户，无法发起议价冲刺。",
             options: topOpportunity ? [
               { id: "hold", title: "守价硬谈", note: "成交价更高，但失败风险也明显更大。" },
@@ -186,19 +190,31 @@ export function Cases({ state, onSelectCase, onExecuteAction, autoDecision, onTo
               <section className="flex flex-col">
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">关联机会 ({getActiveOpportunities(state, selectedCase.id).length})</h4>
                 <div className="space-y-3 overflow-y-auto">
-                  {getActiveOpportunities(state, selectedCase.id).map(o => (
-                    <div key={o.id} className="p-4 rounded-2xl border border-dashed border-slate-200">
-                      <div className="flex justify-between items-center mb-2">
-                        <strong className="text-slate-800">{o.customerName}</strong>
-                        <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-50 text-blue-600 rounded">{o.stageLabel}</span>
+                  {getActiveOpportunities(state, selectedCase.id).map(o => {
+                    const isShadow = o.visibility === 'shadow';
+                    const displayName = isShadow ? `影子客 #${o.id.split('-').pop()}` : o.customerName;
+                    return (
+                      <div key={o.id} className={`p-4 rounded-2xl border border-dashed ${isShadow ? 'border-amber-200 bg-amber-50/20' : 'border-slate-200'}`}>
+                        <div className="flex justify-between items-center mb-2">
+                          <strong className="text-slate-800">{displayName}</strong>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${isShadow ? 'bg-amber-100 text-amber-600' : 'bg-blue-50 text-blue-600'}`}>
+                            {isShadow ? '待揭秘' : o.stageLabel}
+                          </span>
+                        </div>
+                        <div className="flex gap-4 text-xs text-slate-500">
+                          {isShadow ? (
+                            <span className="text-amber-500 italic">底牌未知 (请先对线)</span>
+                          ) : (
+                            <>
+                              <span>意向 {Math.round(o.intent)}%</span>
+                              <span>置信 {Math.round(o.confidence)}%</span>
+                            </>
+                          )}
+                          <span className="ml-auto text-slate-300">{o.daysLeft} 天流失</span>
+                        </div>
                       </div>
-                      <div className="flex gap-4 text-xs text-slate-500">
-                        <span>意向 {Math.round(o.intent)}%</span>
-                        <span>置信 {Math.round(o.confidence)}%</span>
-                        <span className="ml-auto text-slate-300">{o.daysLeft} 天流失</span>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {getActiveOpportunities(state, selectedCase.id).length === 0 && (
                     <div className="flex-1 flex items-center justify-center p-12 border-2 border-dashed border-slate-100 rounded-3xl text-slate-300 text-sm italic">
                       暂无活跃机会，请补进流量。

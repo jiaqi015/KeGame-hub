@@ -46,6 +46,7 @@ export const ACTIONS = [
   { id: "open-day", name: "举办开放日", costEnergy: 2, costCash: 4, description: "集中拉热度，冷却 4 天，适合冲看房。", type: "direct" },
   { id: "showing", name: "安排带看", costEnergy: 1, costCash: 0, description: "把线索推进到看房后和报价前。", type: "direct" },
   { id: "negotiate", name: "议价冲刺", costEnergy: 1, costCash: 0, description: "对高阶段机会发起最后一推。", type: "scenario" },
+  { id: "agent-sync", name: "经纪人对线", costEnergy: 1, costCash: 0, description: "跟合作经纪人交换情报，看透黑盒线索的底牌。", type: "direct" },
 ];
 
 export const CHANNELS = [
@@ -129,6 +130,7 @@ export const COMMUNITY_TEMPLATES: Record<string, string[]> = {
   "mc-jingan": ["嘉樾公馆", "和源小区", "静安名门", "嘉里东院", "万航小区"],
 };
 
+export const BROKER_NAMES = ["链家小张", "中原老王", "太平洋阿力", "我爱我家中介", "德佑李工", "独立经纪人阿强"];
 export const OWNER_NAMES = ["周女士", "梁先生", "秦先生", "邵女士", "林老伯", "张阿姨", "王经理", "陈小姐"];
 export const MAINTAINER_NAMES = ["林序", "沈岚", "韩起", "苏景", "高翔", "陆遥", "何薇", "许靖"];
 

@@ -6,6 +6,7 @@ import { Opportunities } from './ui/features/Opportunities';
 import { Market } from './ui/features/Market';
 import { Review } from './ui/features/Review';
 import { ResultOverlay } from './ui/features/ResultOverlay';
+import { DailySummaryOverlay } from './ui/features/DailySummaryOverlay';
 import { 
   LayoutDashboard, Home, Users, 
   LineChart, History, FastForward, RefreshCw,
@@ -14,7 +15,8 @@ import {
 
 export function SellingHousesWorkspace() {
   const { 
-    state, handleSelectCase, handleAdvanceDays, handleExecuteAction, handleAutoExecute, handleReset 
+    state, handleSelectCase, handleAdvanceDays, handleExecuteAction, handleAutoExecute, handleReset,
+    handleClearReport
   } = useGame();
 
   const [activeView, setActiveView] = useState('dashboard');
@@ -136,6 +138,7 @@ export function SellingHousesWorkspace() {
       </div>
 
       {state.gameOver && <ResultOverlay state={state} onRestart={handleReset} />}
+      {state.currentReport && <DailySummaryOverlay report={state.currentReport} onContinue={handleClearReport} />}
     </div>
   );
 }

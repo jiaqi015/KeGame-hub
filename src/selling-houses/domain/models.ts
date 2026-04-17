@@ -59,6 +59,9 @@ export interface Opportunity {
   stageIndex: number;
   stageLabel: string;
   status: 'active' | 'won' | 'lost' | 'closed';
+  leadSource: 'direct' | 'broker';
+  visibility: 'shadow' | 'revealed';
+  brokerName?: string;
   daysLeft: number;
   touchedToday: boolean;
   budgetMax: number;
@@ -81,6 +84,14 @@ export interface CompetitivenessSnapshot {
     d3_delta: number;
     d3_drivers: { signal: string; contribution: number; reason: string }[];
   };
+}
+
+export interface DailyReport {
+  day: number;
+  title: string;
+  majorEvents: { actor: string; message: string; tone: string }[];
+  metricsDelta: { label: string; value: number; unit: string }[];
+  marketNews: string[];
 }
 
 export interface GameState {
@@ -109,4 +120,5 @@ export interface GameState {
   schedule: any[];
   priorities: any[];
   metrics: any;
+  currentReport: DailyReport | null;
 }

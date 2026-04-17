@@ -75,12 +75,20 @@ export function useGame() {
     }
   }, [state, handleExecuteAction]);
 
+  const handleClearReport = useCallback(() => {
+    setState(prev => {
+      if (!prev) return null;
+      return { ...prev, currentReport: null };
+    });
+  }, []);
+
   return {
     state,
     handleSelectCase,
     handleAdvanceDays,
     handleExecuteAction,
     handleReset,
-    handleAutoExecute
+    handleAutoExecute,
+    handleClearReport
   };
 }
