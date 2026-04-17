@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { useSellingHousesGame } from './useSellingHousesGame';
-import { Dashboard } from './components/Dashboard';
-import { Cases } from './components/Cases';
-import { Opportunities } from './components/Opportunities';
-import { Market } from './components/Market';
-import { Review } from './components/Review';
-import { ResultOverlay } from './components/ResultOverlay';
+import { useGame } from './application/useGame';
+import { Dashboard } from './ui/features/Dashboard';
+import { Cases } from './ui/features/Cases';
+import { Opportunities } from './ui/features/Opportunities';
+import { Market } from './ui/features/Market';
+import { Review } from './ui/features/Review';
+import { ResultOverlay } from './ui/features/ResultOverlay';
 import { 
   LayoutDashboard, Home, Users, 
   LineChart, History, FastForward, RefreshCw,
@@ -14,47 +14,55 @@ import {
 
 export function SellingHousesWorkspace() {
   const { 
-    state, message, onAdvanceDays, onAdvanceWeek, onExecuteAction, onAutoExecute, onRestart, onSelectCase 
-  } = useSellingHousesGame();
+    state, handleSelectCase, handleAdvanceDays, handleExecuteAction, handleAutoExecute, handleReset 
+  } = useGame();
 
   const [activeView, setActiveView] = useState('dashboard');
   const [autoDecision, setAutoDecision] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  if (!state) return (
+    <div className="flex h-full items-center justify-center bg-slate-50">
+      <div className="animate-pulse flex flex-col items-center gap-4">
+        <div className="h-12 w-12 bg-slate-200 rounded-2xl" />
+        <div className="h-4 w-32 bg-slate-100 rounded" />
+      </div>
+    </div>
+  );
+
+  const displayMessage = (msg: string) => {
+    setMessage(msg);
+    setTimeout(() => setMessage(null), 3000);
+  };
 
   const renderView = () => {
     switch (activeView) {
       case 'dashboard': return (
         <Dashboard 
           state={state} 
-          onSelectCase={onSelectCase} 
+          onSelectCase={handleSelectCase} 
           onSetView={setActiveView} 
-          onAutoExecute={onAutoExecute}
+          onAutoExecute={handleAutoExecute}
         />
       );
       case 'cases': return (
         <Cases 
           state={state} 
-          onSelectCase={onSelectCase} 
-          onExecuteAction={onExecuteAction} 
+          onSelectCase={handleSelectCase} 
+          onExecuteAction={(id, item, opt) => handleExecuteAction(id, item, opt, displayMessage)} 
           autoDecision={autoDecision}
           onToggleAutoDecision={() => setAutoDecision(!autoDecision)}
         />
       );
-      case 'opportunities': return <Opportunities state={state} onSelectCase={onSelectCase} onSetView={setActiveView} />;
+      case 'opportunities': return <Opportunities state={state} onSelectCase={handleSelectCase} onSetView={setActiveView} />;
       case 'market': return <Market state={state} />;
       case 'review': return <Review state={state} />;
-      default: return (
-        <Dashboard
-          state={state}
-          onSelectCase={onSelectCase}
-          onSetView={setActiveView}
-          onAutoExecute={onAutoExecute}
-        />
-      );
+      default: return <Dashboard state={state} onSelectCase={handleSelectCase} onSetView={setActiveView} onAutoExecute={handleAutoExecute} />;
     }
   };
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-[linear-gradient(180deg,rgba(255,251,235,0.65),rgba(255,255,255,0.96))] font-sans text-slate-900">
+    <div className="flex h-full flex-col overflow-hidden bg-[linear-gradient(180deg,rgba(255,251,235,0.4),rgba(255,255,255,1))] font-sans text-slate-900">
       <header className="shrink-0 border-b border-black/5 bg-white/80 px-6 py-4 backdrop-blur-xl">
         <div className="flex items-center justify-between gap-6">
           <div className="flex items-center gap-4">
@@ -62,8 +70,8 @@ export function SellingHousesWorkspace() {
               <Home size={18} />
             </div>
             <div>
-              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber-700">Business Simulator</div>
-              <h2 className="text-lg font-semibold tracking-[-0.03em] text-slate-900">推盘经营模拟</h2>
+              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber-700">Top Maintainer</div>
+              <h2 className="text-lg font-semibold tracking-[-0.03em] text-slate-900">我是王牌维护人</h2>
             </div>
           </div>
 
@@ -75,14 +83,14 @@ export function SellingHousesWorkspace() {
             <div className="h-6 w-px bg-slate-200" />
             <div className="flex items-center gap-2">
               <button 
-                onClick={() => onAdvanceDays(1)}
+                onClick={() => handleAdvanceDays(1, displayMessage)}
                 disabled={state.gameOver}
                 className="px-4 py-2 bg-slate-100 text-slate-900 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all disabled:opacity-50"
               >
                 结束今日
               </button>
               <button 
-                onClick={onAdvanceWeek}
+                onClick={() => handleAdvanceDays(7, displayMessage)}
                 disabled={state.gameOver}
                 className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm hover:scale-105 transition-all disabled:opacity-50 disabled:scale-100 shadow-lg shadow-slate-900/10"
               >
@@ -97,21 +105,21 @@ export function SellingHousesWorkspace() {
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <nav className="w-20 shrink-0 border-r border-black/5 bg-white/80 p-4 backdrop-blur-xl lg:w-64">
           <div className="flex h-full flex-col space-y-2">
-          <NavItem active={activeView === 'dashboard'} onClick={() => setActiveView('dashboard')} icon={<LayoutDashboard size={20} />} label="经营概览" />
-          <NavItem active={activeView === 'cases'} onClick={() => setActiveView('cases')} icon={<Home size={20} />} label="房源管理" />
-          <NavItem active={activeView === 'opportunities'} onClick={() => setActiveView('opportunities')} icon={<Users size={20} />} label="线索跟进" />
-          <NavItem active={activeView === 'market'} onClick={() => setActiveView('market')} icon={<LineChart size={20} />} label="市场研究" />
-          <NavItem active={activeView === 'review'} onClick={() => setActiveView('review')} icon={<History size={20} />} label="日志周报" />
-          
-          <div className="flex-1" />
-          
-          <button 
-            onClick={onRestart}
-            className="flex items-center gap-3 w-full p-3 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-all text-sm font-medium"
-          >
-            <RefreshCw size={20} />
-            <span className="hidden lg:inline">重新开始</span>
-          </button>
+            <NavItem active={activeView === 'dashboard'} onClick={() => setActiveView('dashboard')} icon={<LayoutDashboard size={20} />} label="经营概览" />
+            <NavItem active={activeView === 'cases'} onClick={() => setActiveView('cases')} icon={<Home size={20} />} label="房源管理" />
+            <NavItem active={activeView === 'opportunities'} onClick={() => setActiveView('opportunities')} icon={<Users size={20} />} label="线索跟进" />
+            <NavItem active={activeView === 'market'} onClick={() => setActiveView('market')} icon={<LineChart size={20} />} label="市场研究" />
+            <NavItem active={activeView === 'review'} onClick={() => setActiveView('review')} icon={<History size={20} />} label="日志周报" />
+            
+            <div className="flex-1" />
+            
+            <button 
+              onClick={handleReset}
+              className="flex items-center gap-3 w-full p-3 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-all text-sm font-medium"
+            >
+              <RefreshCw size={20} />
+              <span className="hidden lg:inline">重新开始</span>
+            </button>
           </div>
         </nav>
 
@@ -127,7 +135,7 @@ export function SellingHousesWorkspace() {
         </main>
       </div>
 
-      {state.gameOver && <ResultOverlay state={state} onRestart={onRestart} />}
+      {state.gameOver && <ResultOverlay state={state} onRestart={handleReset} />}
     </div>
   );
 }

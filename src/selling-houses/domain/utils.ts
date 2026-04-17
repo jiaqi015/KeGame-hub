@@ -1,3 +1,5 @@
+import { GameState } from './models';
+
 export function clamp(val: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, val));
 }
@@ -47,4 +49,8 @@ export function getOpportunityPriority(o: any): number {
 
 export function intersections(arr1: any[], arr2: any[]): number {
   return arr1.filter(x => arr2.includes(x)).length;
+}
+
+export function getCaseById(world: GameState, id: string) {
+  return world.cases.find(c => c.id === id);
 }

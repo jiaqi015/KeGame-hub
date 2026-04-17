@@ -1,11 +1,12 @@
-import { GameState, logEvent, updateDerivedState, saveGameState, seedCase } from './gameState';
+import { GameState, Case, Opportunity } from './models';
 import { 
   ACTIONS, OPPORTUNITY_STAGES 
 } from './constants';
 import { 
   clamp, randomInt, wave, chance, average, addDays, 
-  getOpportunityPriority, intersections 
+  getOpportunityPriority, intersections, getCaseById 
 } from './utils';
+import { logEvent, updateDerivedState, saveGameState } from '../application/gameState';
 
 export function advanceDays(state: GameState, count: number, onMessage?: (msg: string) => void) {
   if (state.gameOver) {
@@ -83,13 +84,17 @@ function tickOpportunities(world: GameState) {
     }
 
     opportunity.daysLeft -= 1;
+    opportunity.stagnationTicks += 1;
+    
+    // Redundant check removed to resolve duplicate variable name error
+
     const pricePenalty = Math.max(0, caseItem.askPrice - opportunity.budgetMax) / 9;
     opportunity.intent = clamp(
-      opportunity.intent + (caseItem.heat - 55) / 10 + (caseItem.competitiveness - 58) / 16 + randomInt(-4, 4) - pricePenalty,
+      opportunity.intent + (caseItem.heat - 55) / 10 + (caseItem.d1 - 50) / 16 + randomInt(-4, 4) - pricePenalty,
       8, 98
     );
     opportunity.confidence = clamp(
-      opportunity.confidence + (caseItem.trust - 55) / 14 + randomInt(-3, 3),
+      opportunity.confidence + (caseItem.d3 - 50) / 14 + randomInt(-3, 3),
       10, 98
     );
 
@@ -97,14 +102,17 @@ function tickOpportunities(world: GameState) {
       opportunity.intent = clamp(opportunity.intent - 4, 0, 100);
     }
 
-    if (opportunity.stageIndex < 3 && opportunity.intent >= 84 && chance(0.33)) {
+    // Aligned to 7-stage model logic
+    if (opportunity.stageIndex < 6 && opportunity.intent >= 82 && chance(0.35)) {
       opportunity.stageIndex += 1;
+      opportunity.stagnationTicks = 0; // Reset stagnation
+      opportunity.history.push({ day: world.day, stage: OPPORTUNITY_STAGES[opportunity.stageIndex] });
       refreshOpportunityLabel(opportunity);
-      opportunity.daysLeft = 4;
-      logEvent(world, opportunity.customerName, `${opportunity.customerName} 对 ${caseItem.title} 的兴趣自然升温到了 ${opportunity.stageLabel}。`, "success");
+      opportunity.daysLeft = 5;
+      logEvent(world, opportunity.customerName, `${opportunity.customerName} 对 ${caseItem.title} 的兴趣升温到 ${opportunity.stageLabel}。`, "success");
     }
 
-    if (opportunity.stageIndex >= 3 && opportunity.intent >= 78) {
+    if (opportunity.stageIndex >= 4 && opportunity.intent >= 75) {
       caseItem.offers = Math.max(caseItem.offers, 1);
     }
 
@@ -126,27 +134,26 @@ function tickCases(world: GameState) {
 
     if (!caseItem.touchedOwnerToday) {
       caseItem.trust -= caseItem.urgency > 70 ? 3 : 1;
+      // §2.3 Patience Drift
+      if (world.day - caseItem.lastTouchedDay > 7) {
+        caseItem.patience = clamp(caseItem.patience - 2, 0, 100);
+      }
+    } else {
+      caseItem.lastTouchedDay = world.day;
     }
+
     if (!caseItem.touchedToday) {
       caseItem.heat -= 2;
     }
     if (caseItem.askPrice > caseItem.marketPrice * 1.05) {
       caseItem.trust -= 1;
       caseItem.heat -= 2;
+      caseItem.patience = clamp(caseItem.patience - 1, 0, 100); // Bad pricing hurts patience
     }
-    if (getActiveOpportunities(world, caseItem.id).length === 0) {
-      caseItem.heat -= 2;
-    }
-
+    
     caseItem.urgency = clamp(caseItem.urgency + randomInt(-2, 3) + (caseItem.windowDays < 6 ? 2 : 0), 18, 96);
     caseItem.heat = clamp(caseItem.heat, 18, 98);
     caseItem.trust = clamp(caseItem.trust, 14, 100);
-    caseItem.competitiveness = clamp(
-      caseItem.competitiveness + (caseItem.qualityStory > 0 ? 1 : 0) + 
-      (getMarketCell(world, caseItem.marketCellId).demandHeat - getMarketCell(world, caseItem.marketCellId).supplyPressure) / 30 - 
-      Math.max(0, caseItem.askPrice - caseItem.marketPrice) / 22,
-      24, 98
-    );
 
     if (caseItem.windowDays <= 0) {
       if (caseItem.trust >= 76 && world.reputation >= 60) {
@@ -263,6 +270,7 @@ export function executeAction(state: GameState, actionId: string, caseItem: any,
   if (actionId === "owner-call") {
     caseItem.touchedOwnerToday = true;
     caseItem.trust = clamp(caseItem.trust + (caseItem.trust < 65 ? 7 : 4), 0, 100);
+    caseItem.patience = clamp(caseItem.patience + 8, 0, 100);
     caseItem.windowDays = Math.min(caseItem.windowDays + 1, 14);
     caseItem.urgency = clamp(caseItem.urgency - 4, 0, 100);
     adjustCaseOpportunities(state, caseItem.id, 4, 3);
@@ -452,12 +460,13 @@ export function createOpportunity(world: GameState, caseItem: any, channelId: st
   const channel = world.channels.find((entry) => entry.id === channelId) ?? world.channels[0];
   const stageIndex = bonus >= 14 ? 1 : 0;
   const pricePenalty = Math.max(0, caseItem.askPrice - chosen.customer.budgetMax) / 5;
-  const opportunity = {
+  const opportunity: Opportunity = {
     id: `${caseItem.id}-${chosen.customer.id}-${world.day}-${Math.floor(Math.random() * 999)}`,
     caseId: caseItem.id, customerId: chosen.customer.id, customerName: chosen.customer.name, profile: chosen.customer.profile, channelId: channel.id, channelName: channel.name, fit: Math.round(chosen.score),
     intent: clamp(46 + bonus + chosen.score * 0.24 + caseItem.heat * 0.14 + chosen.customer.activity * 0.12 + channel.quality * 10 - pricePenalty, 35, 89),
     confidence: clamp(48 + chosen.score * 0.25 + caseItem.trust * 0.16, 30, 92),
     stageIndex, stageLabel: OPPORTUNITY_STAGES[stageIndex], status: "active", daysLeft: stageIndex > 0 ? 4 : 5, touchedToday: true, budgetMax: chosen.customer.budgetMax, priceSensitivity: chosen.customer.priceSensitivity,
+    stagnationTicks: 0, history: [],
   };
   world.opportunities.unshift(opportunity);
   if (!silent) logEvent(world, channel.name, `${chosen.customer.name} 被 ${caseItem.title} 吸引，进入机会池。`, "accent");
@@ -478,10 +487,6 @@ export function getActiveOpportunities(world: GameState, caseId: string) {
   return world.opportunities.filter((entry) => entry.caseId === caseId && entry.status === "active");
 }
 
-export function getCaseById(world: GameState, id: string) {
-  return world.cases.find(c => c.id === id);
-}
-
 export function getMarketCell(world: GameState, id: string) {
   return world.markets.find(m => m.id === id);
 }
@@ -498,6 +503,8 @@ export function refreshOpportunityLabel(opportunity: any) {
   if (opportunity.status === "closed") { opportunity.stageLabel = "已收口"; return; }
   opportunity.stageLabel = OPPORTUNITY_STAGES[clamp(opportunity.stageIndex, 0, OPPORTUNITY_STAGES.length - 1)];
 }
+
+
 
 export function withdrawCase(world: GameState, caseItem: any, reason: string) {
   caseItem.status = "withdrawn";

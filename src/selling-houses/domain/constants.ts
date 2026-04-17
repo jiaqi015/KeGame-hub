@@ -1,7 +1,42 @@
 export const STORAGE_KEY = "selling-world-save-v3";
 
-export const CASE_STAGES = ["获客启动", "经营加热", "带看推进", "意向报价", "成交冲刺"];
-export const OPPORTUNITY_STAGES = ["线索初识", "预约带看", "带看后追踪", "意向报价", "议价中"];
+export const CASE_STAGES = ["获客启动", "经营加热", "带看推进", "意向报价", "议价中", "成交冲刺", "成交"];
+export const OPPORTUNITY_STAGES = ["了解", "咨询", "看房", "再看", "出价", "谈判", "成交"];
+
+export const COMPETITIVENESS_WEIGHTS = { d1: 0.5, d2: 0.25, d3: 0.25 };
+
+export const D1_SIGNAL_WEIGHTS = {
+  poolSize: 0.15,
+  activeContacts: 0.20,
+  lateStageThickness: 0.30,
+  advanceSpeed: 0.20,
+  stagnationRisk: 0.15
+};
+
+export const D2_AXIS_WEIGHTS = {
+  layout: 0.20,
+  light: 0.10,
+  floor: 0.10,
+  decor: 0.15,
+  amenity: 0.15,
+  neighborhood: 0.20,
+  structure: 0.10
+};
+
+export const D3_SIGNAL_WEIGHTS = {
+  priceFlex: 0.25,
+  patience: 0.25,
+  urgency: 0.20,
+  recentCooperation: 0.20,
+  consistency: 0.10
+};
+
+export const PORTAL_URGENCY_WEIGHTS = {
+  deltaWeight: 0.40,
+  levelWeight: 0.20,
+  criticalEventWeight: 0.25,
+  timeWindowWeight: 0.15
+};
 
 export const ACTIONS = [
   { id: "owner-call", name: "业主沟通", costEnergy: 1, costCash: 0, description: "先稳关系，再换窗口。适合信任偏低或窗口紧的盘。", type: "direct" },
@@ -22,9 +57,7 @@ export const CHANNELS = [
 
 export const MARKET_CELLS = [
   { id: "mc-qiantan", name: "浦东前滩 | 80-90㎡ 刚改", demandHeat: 76, supplyPressure: 62, competitivePressure: 58, sentiment: 68 },
-  { id: "mc-xuhui", name: "徐汇滨江 | 120-130㎡ 改善", demandHeat: 64, supplyPressure: 48, competitivePressure: 72, sentiment: 63 },
   { id: "mc-jingan", name: "静安寺北 | 60-75㎡ 资产型", demandHeat: 81, supplyPressure: 54, competitivePressure: 51, sentiment: 71 },
-  { id: "mc-minhang", name: "闵行古美 | 140-160㎡ 家庭改善", demandHeat: 53, supplyPressure: 70, competitivePressure: 66, sentiment: 57 },
 ];
 
 export const INITIAL_CASES = [
@@ -37,6 +70,8 @@ export const INITIAL_CASES = [
     area: 89,
     askPrice: 828,
     marketPrice: 802,
+    bottomPrice: 785,
+    patience: 65,
     trust: 61,
     heat: 58,
     competitiveness: 64,
@@ -49,28 +84,7 @@ export const INITIAL_CASES = [
     story: "高确定性学区刚改叙事",
     tags: ["学区", "地铁近", "采光好"],
     defects: ["报价偏硬", "次卧偏小"],
-  },
-  {
-    id: "case-102",
-    title: "云栖苑 126㎡ 三房",
-    community: "云栖苑",
-    district: "徐汇滨江",
-    layout: "3室2厅2卫",
-    area: 126,
-    askPrice: 1260,
-    marketPrice: 1198,
-    trust: 76,
-    heat: 63,
-    competitiveness: 57,
-    urgency: 48,
-    windowDays: 18,
-    ownerName: "秦先生",
-    ownerMood: "愿意等高净值客户，但不想被频繁打扰",
-    maintainerName: "韩起",
-    marketCellId: "mc-xuhui",
-    story: "改善家庭稳定交付感",
-    tags: ["江景", "改善", "车位"],
-    defects: ["竞品新", "总价高"],
+    axisScores: { layout: 70, light: 85, floor: 60, decor: 50, amenity: 65, neighborhood: 80, structure: 75 }
   },
   {
     id: "case-103",
@@ -81,6 +95,8 @@ export const INITIAL_CASES = [
     area: 71,
     askPrice: 628,
     marketPrice: 645,
+    bottomPrice: 590,
+    patience: 40,
     trust: 54,
     heat: 67,
     competitiveness: 73,
@@ -93,40 +109,43 @@ export const INITIAL_CASES = [
     story: "青年资产保值叙事",
     tags: ["总价友好", "地段强", "出租回报"],
     defects: ["朝向一般"],
-  },
-  {
-    id: "case-104",
-    title: "澜庭府 152㎡ 四房",
-    community: "澜庭府",
-    district: "闵行古美",
-    layout: "4室2厅2卫",
-    area: 152,
-    askPrice: 1135,
-    marketPrice: 1108,
-    trust: 71,
-    heat: 44,
-    competitiveness: 52,
-    urgency: 39,
-    windowDays: 25,
-    ownerName: "邵女士",
-    ownerMood: "愿意试水，但希望经营更克制",
-    maintainerName: "苏景",
-    marketCellId: "mc-minhang",
-    story: "改善置换生活半径升级",
-    tags: ["四开间", "社区新", "学校稳"],
-    defects: ["到店转化弱", "周边供应多"],
+    axisScores: { layout: 65, light: 50, floor: 90, decor: 85, amenity: 75, neighborhood: 95, structure: 60 }
   },
 ];
 
 export const CUSTOMER_POOL = [
   { id: "cus-01", name: "林家改善客", profile: "孩子今年入学，决策速度快", budgetMin: 780, budgetMax: 860, targetDistrict: "浦东前滩", layouts: ["2室2厅1卫", "3室2厅2卫"], activity: 82, urgency: 78, priceSensitivity: 68, preferences: ["地铁近", "学区", "采光好"] },
   { id: "cus-02", name: "陈先生新婚客", profile: "两个月内想落定婚房", budgetMin: 590, budgetMax: 660, targetDistrict: "静安寺北", layouts: ["1室1厅1卫", "2室2厅1卫"], activity: 79, urgency: 86, priceSensitivity: 72, preferences: ["地段强", "出租回报"] },
-  { id: "cus-03", name: "赵女士置换客", profile: "看重交付确定性和车位", budgetMin: 1180, budgetMax: 1300, targetDistrict: "徐汇滨江", layouts: ["3室2厅2卫", "4室2厅2卫"], activity: 63, urgency: 58, priceSensitivity: 49, preferences: ["江景", "车位", "改善"] },
   { id: "cus-04", name: "孙先生学区客", profile: "对学区敏感，愿意多看几套", budgetMin: 760, budgetMax: 820, targetDistrict: "浦东前滩", layouts: ["2室2厅1卫"], activity: 56, urgency: 69, priceSensitivity: 74, preferences: ["学区", "采光好"] },
   { id: "cus-05", name: "方女士投资客", profile: "追求出租回报和总价控制", budgetMin: 610, budgetMax: 690, targetDistrict: "静安寺北", layouts: ["1室1厅1卫"], activity: 61, urgency: 52, priceSensitivity: 65, preferences: ["出租回报", "地段强"] },
-  { id: "cus-06", name: "季先生改善客", profile: "预算谨慎，对教育配套敏感", budgetMin: 1080, budgetMax: 1160, targetDistrict: "闵行古美", layouts: ["4室2厅2卫"], activity: 45, urgency: 47, priceSensitivity: 70, preferences: ["四开间", "学校稳", "社区新"] },
-  { id: "cus-07", name: "吴女士返沪家庭", profile: "愿意为稀缺景观付溢价", budgetMin: 1210, budgetMax: 1360, targetDistrict: "徐汇滨江", layouts: ["3室2厅2卫"], activity: 84, urgency: 82, priceSensitivity: 38, preferences: ["江景", "改善", "车位"] },
-  { id: "cus-08", name: "蒋先生换房客", profile: "看重家庭生活动线", budgetMin: 1080, budgetMax: 1200, targetDistrict: "闵行古美", layouts: ["4室2厅2卫"], activity: 71, urgency: 61, priceSensitivity: 61, preferences: ["学校稳", "四开间"] },
   { id: "cus-09", name: "高女士首置客", profile: "需要更容易成交的两房盘", budgetMin: 780, budgetMax: 835, targetDistrict: "浦东前滩", layouts: ["2室2厅1卫"], activity: 76, urgency: 67, priceSensitivity: 78, preferences: ["地铁近", "采光好"] },
   { id: "cus-10", name: "许先生资产客", profile: "重视地段和转手效率", budgetMin: 600, budgetMax: 650, targetDistrict: "静安寺北", layouts: ["1室1厅1卫"], activity: 66, urgency: 73, priceSensitivity: 55, preferences: ["地段强", "总价友好"] },
 ];
+
+// --- Randomization Templates ---
+
+export const COMMUNITY_TEMPLATES: Record<string, string[]> = {
+  "mc-qiantan": ["瑞和里", "前滩华府", "星湖苑", "江悦府", "森兰名邸"],
+  "mc-jingan": ["嘉樾公馆", "和源小区", "静安名门", "嘉里东院", "万航小区"],
+};
+
+export const OWNER_NAMES = ["周女士", "梁先生", "秦先生", "邵女士", "林老伯", "张阿姨", "王经理", "陈小姐"];
+export const MAINTAINER_NAMES = ["林序", "沈岚", "韩起", "苏景", "高翔", "陆遥", "何薇", "许靖"];
+
+export const LAYOUT_TEMPLATES = [
+  { layout: "1室1厅1卫", areaRange: [45, 75], pricePerSqm: 8.5 },
+  { layout: "2室2厅1卫", areaRange: [85, 95], pricePerSqm: 9.2 },
+  { layout: "3室2厅2卫", areaRange: [115, 135], pricePerSqm: 10.5 },
+  { layout: "4室2厅2卫", areaRange: [145, 175], pricePerSqm: 11.2 },
+];
+
+export const STORY_TEMPLATES = [
+  "高确定性学区刚改叙事",
+  "青年资产保值叙事",
+  "改善家庭稳定交付感",
+  "稀缺景观资产溢价叙事",
+  "置换链条快速去化说辞",
+];
+
+export const DEFECT_POOL = ["报价偏硬", "次卧偏小", "竞品新", "总价高", "朝向一般", "邻近马路", "得房率低"];
+export const TAG_POOL = ["学区", "地铁近", "采光好", "总价友好", "地段强", "出租回报", "江景", "改善", "车位"];

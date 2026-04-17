@@ -40,7 +40,7 @@ export function AuthOverlay({
                   AI Model Sabrina II
                 </h1>
                 <p className="mt-3 max-w-sm text-[15px] leading-7 text-[#6E6E73]">
-                  先完成验证，再进入多模型PK和小区开放日选址两个功能。
+                  先完成验证，再进入多模型PK、小区开放日选址和我是王牌维护人三个功能。
                 </p>
               </div>
 

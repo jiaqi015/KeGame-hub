@@ -1,37 +1,14 @@
 import { 
-  STORAGE_KEY, INITIAL_CASES, CASE_STAGES 
-} from './constants';
-import { clamp, getOpportunityPriority, average } from './utils';
-
-export interface GameState {
-  version: number;
-  day: number;
-  maxDay: number;
-  currentDate: string;
-  maxEnergy: number;
-  energy: number;
-  cash: number;
-  reputation: number;
-  commission: number;
-  soldCount: number;
-  withdrawnCount: number;
-  selectedCaseId: string | null;
-  gameOver: boolean;
-  finalResult: any;
-  lastMessage: string;
-  cases: any[];
-  opportunities: any[];
-  eventLog: any[];
-  weeklyReviews: any[];
-  markets: any[];
-  customers: any[];
-  channels: any[];
-  schedule: any[];
-  priorities: any[];
-  metrics: any;
-}
+  STORAGE_KEY, CASE_STAGES 
+} from '../domain/constants';
+import { clamp, getOpportunityPriority, average } from '../domain/utils';
+import { updateCompetitiveness, calculateUrgency } from '../domain/scoring';
+import { generateInitialCases } from '../domain/generator';
+import { GameState, Case, Opportunity, CompetitivenessSnapshot } from '../domain/models';
 
 export function createInitialState(marketCells: any[], customers: any[], channels: any[]): GameState {
+  const generatedCases = generateInitialCases(8).map(seedCase);
+  
   const world: GameState = {
     version: 3,
     day: 1,
@@ -44,14 +21,14 @@ export function createInitialState(marketCells: any[], customers: any[], channel
     commission: 0,
     soldCount: 0,
     withdrawnCount: 0,
-    selectedCaseId: INITIAL_CASES[0].id,
+    selectedCaseId: generatedCases[0].id,
     gameOver: false,
     finalResult: null,
-    lastMessage: "一局已开始。你有 18 天和每天 4 点精力，目标至少做成 2 单。",
+    lastMessage: "一局已开始。你有 18 天和每天 4 点精力，目标是统筹 8 套房源实现多单成交。",
     channels: JSON.parse(JSON.stringify(channels)),
     markets: JSON.parse(JSON.stringify(marketCells)),
     customers: JSON.parse(JSON.stringify(customers)),
-    cases: INITIAL_CASES.map(seedCase),
+    cases: generatedCases,
     opportunities: [],
     eventLog: [],
     weeklyReviews: [],
@@ -63,7 +40,7 @@ export function createInitialState(marketCells: any[], customers: any[], channel
   return world;
 }
 
-export function seedCase(base: any) {
+export function seedCase(base: any): Case {
   return {
     ...base,
     status: "active",
@@ -83,6 +60,10 @@ export function seedCase(base: any) {
     offers: 0,
     soldPrice: null,
     priceGapPct: 0,
+    d1: 50,
+    d2: 50,
+    d3: 50,
+    competitivenessSnapshots: [],
   };
 }
 
@@ -139,6 +120,10 @@ export function updateDerivedState(world: GameState) {
     }
 
     caseItem.priceGapPct = Math.round(((caseItem.askPrice - caseItem.marketPrice) / caseItem.marketPrice) * 1000) / 10;
+    
+    // §3.2 Update New Competitiveness Model
+    updateCompetitiveness(world, caseItem);
+
     caseItem.riskFlags = deriveRiskFlags(world, caseItem, opportunities);
   });
 
@@ -153,7 +138,7 @@ export function updateDerivedState(world: GameState) {
   world.opportunities.sort((left, right) => getOpportunityPriority(right) - getOpportunityPriority(left));
 }
 
-function deriveRiskFlags(world: GameState, caseItem: any, opportunities: any[]) {
+function deriveRiskFlags(world: GameState, caseItem: Case, opportunities: Opportunity[]) {
   const flags = [];
   if (caseItem.status !== "active") return flags;
   if (caseItem.trust < 58) flags.push("关系脆弱");
@@ -178,15 +163,6 @@ function deriveSchedule(world: GameState) {
         urgency: 100 - caseItem.windowDays * 10,
       });
     }
-    if (caseItem.openDayCooldown === 1) {
-      items.push({
-        key: `${caseItem.id}-cooldown`,
-        title: "开放日冷却结束",
-        badge: "明天",
-        note: `${caseItem.title} 的开放日动作会在明天重新可用。`,
-        urgency: 52,
-      });
-    }
   });
 
   world.opportunities
@@ -196,20 +172,11 @@ function deriveSchedule(world: GameState) {
         key: entry.id,
         title: entry.stageLabel,
         badge: `${entry.daysLeft} 天后流失`,
-        note: `${entry.customerName} 正在从 ${world.cases.find(c => c.id === entry.caseId).title} 上流失，最好今天就碰一下。`,
+        note: `${entry.customerName} 正在从 ${world.cases.find(c => c.id === entry.caseId)!.title} 上流失，最好今天就碰一下。`,
         urgency: 86 - entry.daysLeft * 10 + entry.stageIndex * 4,
       });
     });
 
-  if (world.day % 7 === 6) {
-    items.push({
-      key: `week-${world.day}`,
-      title: "周结算即将到来",
-      badge: "明日周结",
-      note: "检查你的机会池、关系分和成交推进，不要把风险拖进下周。",
-      urgency: 60,
-    });
-  }
   return items.sort((left, right) => right.urgency - left.urgency).slice(0, 10);
 }
 
@@ -217,13 +184,13 @@ function derivePriorities(world: GameState) {
   const items: any[] = [];
   world.cases
     .filter((entry) => entry.status === "active")
-    .sort((left, right) => getCaseRiskScore(right) - getCaseRiskScore(left))
+    .sort((left, right) => calculateUrgency(right) - calculateUrgency(left))
     .slice(0, 2)
     .forEach((caseItem) => {
       items.push({
         kind: "case",
         title: `先稳住 ${caseItem.title}`,
-        detail: `${caseItem.ownerName} 当前信任 ${Math.round(caseItem.trust)}，窗口还剩 ${caseItem.windowDays} 天。`,
+        detail: `${caseItem.ownerName} 当前信任 ${Math.round(caseItem.trust)}，D3 意愿分 ${Math.round(caseItem.d3)}。`,
         caseId: caseItem.id,
       });
     });
@@ -240,14 +207,6 @@ function derivePriorities(world: GameState) {
       });
     });
 
-  if (world.energy <= 1) {
-    items.push({
-      kind: "resource",
-      title: "精力只剩最后一点",
-      detail: "如果你今天已经没有把握，就收盘进入明天，不要把动作浪费在低价值盘上。",
-      caseId: null,
-    });
-  }
   return items.slice(0, 5);
 }
 
@@ -258,10 +217,8 @@ function deriveMetrics(world: GameState) {
     activeCaseCount: activeCases.length,
     activeOpportunityCount: activeOpportunities.length,
     averageTrust: Math.round(average(activeCases.map((entry) => entry.trust))),
+    averageD1: Math.round(average(activeCases.map((entry) => entry.d1))),
+    averageD3: Math.round(average(activeCases.map((entry) => entry.d3))),
     topConversion: activeOpportunities.length ? `${Math.round(activeOpportunities[0].intent)}%` : "暂无",
   };
-}
-
-function getCaseRiskScore(c: any) {
-  return (100 - c.trust) * 1.2 + (15 - c.windowDays) * 4 + (c.askPrice / c.marketPrice - 1) * 200;
 }

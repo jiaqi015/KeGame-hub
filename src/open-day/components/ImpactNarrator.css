@@ -1,0 +1,76 @@
+.open-day-impact-narrator {
+  margin: 0 0 16px 0;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(79, 70, 229, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: fadeInDown 0.4s ease-out;
+}
+
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.narrator-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--od-text-label);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.8;
+}
+
+.narrator-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.narrator-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.narrator-item p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--od-text-main);
+}
+
+.narrator-item strong {
+  color: var(--od-primary);
+}
+
+.narrator-footer {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--od-text-muted);
+  font-style: italic;
+}
+
+/* Light mode accent */
+.open-day-impact-narrator::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 16px;
+  bottom: 16px;
+  width: 3px;
+  background: var(--od-primary);
+  border-radius: 0 4px 4px 0;
+  opacity: 0.6;
+}

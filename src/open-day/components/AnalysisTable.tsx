@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Activity, BarChart3, RotateCw, Search, X, ShieldAlert, Expand, Shrink, FileDown, AlertCircle, LayoutDashboard } from 'lucide-react';
 import { ScenarioDashboard } from './ScenarioDashboard';
+import { ImpactNarrator } from './ImpactNarrator';
 import type { OpenDayAnalysisResponse, OpenDayAnalysisRow } from '../../../modules/open-day/domain/openDay.types.ts';
 import type { DatasetQualityReport } from '../openDayConstants';
 import { formatNumber, formatPercent } from '../formatters';
@@ -206,6 +208,13 @@ export function AnalysisTable({
         </div>
       </div>
 
+      {analysis && baselineAnalysis && (
+        <ImpactNarrator 
+          analysis={analysis} 
+          baseline={baselineAnalysis} 
+        />
+      )}
+
       <ScenarioDashboard 
         results={analysis?.results || []} 
         isVisible={showDashboard} 
@@ -254,13 +263,22 @@ export function AnalysisTable({
               viewMode === 'property' ? (
                 /* Property Mode */
                 filteredRows.length > 0 ? (
-                  filteredRows.map((row) => (
-                    <tr
-                      key={`${row.rank}-${row.name}`}
-                      className={activeRow?.name === row.name ? 'is-selected' : ''}
-                      ref={activeRow?.name === row.name ? selectedRowRef : null}
-                      onClick={() => onRowClick(row)}
-                    >
+                  <AnimatePresence mode="popLayout" initial={false}>
+                    {filteredRows.map((row) => (
+                      <motion.tr
+                        layout
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        key={`${row.name}`}
+                        className={activeRow?.name === row.name ? 'is-selected' : ''}
+                        ref={activeRow?.name === row.name ? selectedRowRef : null}
+                        onClick={() => onRowClick(row)}
+                        transition={{
+                          layout: { duration: 0.4, type: "spring", stiffness: 200, damping: 25 },
+                          opacity: { duration: 0.2 }
+                        }}
+                      >
                       <td>
                         <div className="flex items-center gap-2">
                           <span
@@ -366,21 +384,22 @@ export function AnalysisTable({
                       </td>
                       <td className="is-numeric">{formatNumber(row.transactions, 0)}</td>
                       <td className="is-numeric">{formatPercent(row.convRate, 2)}</td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={12} className="open-day-table__empty">
-                      <div className="open-day-table-empty-state">
-                        <Search size={48} className="opacity-20" />
-                        <p>未找到匹配 “{searchTerm}” 的结果</p>
-                      </div>
-                    </td>
-                  </tr>
-                )
+                      </motion.tr>
+                  ))}
+                </AnimatePresence>
               ) : (
-                /* Area Mode (Pivot) */
-                areaAggregation.map((area) => (
+                    <tr>
+                      <td colSpan={11} className="open-day-table__empty">
+                        <div className="open-day-table-empty-state">
+                          <Search size={48} className="opacity-20" />
+                          <p>未找到匹配 “{searchTerm}” 的结果</p>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                ) : (
+                  /* Area Mode (Pivot) */
+                  areaAggregation.map((area) => (
                   <tr key={area.name} onClick={() => {
                     onSearchChange(area.name);
                     setViewMode('property');

@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { GameState } from '../core/gameState';
-import { ACTIONS } from '../core/constants';
-import { costText, caseSortValue } from '../core/utils';
-import { getActiveOpportunities, getActionAvailability, findBestOpportunity } from '../core/gameEngine';
-import { Home, MapPin, Gauge, Info, AlertCircle } from 'lucide-react';
+import { GameState, Case } from '../../domain/models';
+import { ACTIONS } from '../../domain/constants';
+import { costText, getCaseById, caseSortValue } from '../../domain/utils';
+import { getActiveOpportunities, getActionAvailability, findBestOpportunity } from '../../domain/engine';
+import { MoreVertical, Home as HomeIcon, MapPin, Gauge, Info, AlertCircle, Trophy, Users, Heart, History } from 'lucide-react';
 
 interface CasesProps {
   state: GameState;
@@ -97,7 +97,7 @@ export function Cases({ state, onSelectCase, onExecuteAction, autoDecision, onTo
               <div>
                 <h2 className="text-3xl font-semibold text-slate-900 tracking-tight">{selectedCase.title}</h2>
                 <div className="flex items-center gap-4 mt-2 text-slate-500">
-                  <div className="flex items-center gap-1"><Home size={14} /> <span>{selectedCase.community}</span></div>
+                  <div className="flex items-center gap-1"><HomeIcon size={14} /> <span>{selectedCase.community}</span></div>
                   <div className="flex items-center gap-1"><MapPin size={14} /> <span>{selectedCase.district}</span></div>
                   <div className="text-slate-300">/</div>
                   <div>{selectedCase.layout} · {selectedCase.area}㎡</div>
@@ -109,11 +109,39 @@ export function Cases({ state, onSelectCase, onExecuteAction, autoDecision, onTo
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-6 mb-10">
-              <DetailStat label="业主信任" val={selectedCase.trust} icon={<Gauge size={16} />} />
-              <DetailStat label="盘面热度" val={selectedCase.heat} icon={<Info size={16} />} />
-              <DetailStat label="核心竞争力" val={selectedCase.competitiveness} icon={<AlertCircle size={16} />} />
+            {/* Stats */}
+            <div className="grid grid-cols-4 gap-6 mb-10">
+              <DetailStat label="竞争力总分" val={selectedCase.competitiveness} icon={<Trophy size={16} />} color="bg-emerald-600" />
+              <DetailStat label="D1 准客管理" val={selectedCase.d1} icon={<Users size={16} />} />
+              <DetailStat label="D2 居住素质" val={selectedCase.d2} icon={<HomeIcon size={16} />} />
+              <DetailStat label="D3 业主意愿" val={selectedCase.d3} icon={<Heart size={16} />} />
             </div>
+
+            {/* Attribution Panel */}
+            {selectedCase.competitivenessSnapshots?.length > 0 && (
+              <div className="mb-10 p-5 rounded-2xl bg-slate-50 border border-black/[0.03]">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                    <History size={14} /> 经营归因
+                  </h4>
+                  <span className={`text-xs font-bold ${selectedCase.competitivenessSnapshots[0].delta >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                    {selectedCase.competitivenessSnapshots[0].delta >= 0 ? '+' : ''}{Math.round(selectedCase.competitivenessSnapshots[0].delta * 10) / 10}pts
+                  </span>
+                </div>
+                <div className="space-y-3">
+                  {(selectedCase.competitivenessSnapshots[0].breakdown.d1_drivers || []).map((d: any, i: number) => (
+                    <AttributionItem key={`d1-${i}`} driver={d} category="漏斗" />
+                  ))}
+                  {(selectedCase.competitivenessSnapshots[0].breakdown.d3_drivers || []).map((d: any, i: number) => (
+                    <AttributionItem key={`d3-${i}`} driver={d} category="意愿" />
+                  ))}
+                  {(!selectedCase.competitivenessSnapshots[0].breakdown.d1_drivers?.length && 
+                    !selectedCase.competitivenessSnapshots[0].breakdown.d3_drivers?.length) && (
+                    <p className="text-xs text-slate-400 italic">本日数值平稳漂移，无重大转折。</p>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-10 min-h-0 flex-1">
               <section>
@@ -220,7 +248,7 @@ export function Cases({ state, onSelectCase, onExecuteAction, autoDecision, onTo
   );
 }
 
-function DetailStat({ label, val, icon }: { label: string; val: number; icon: React.ReactNode }) {
+function DetailStat({ label, val, icon, color = "bg-slate-900" }: { label: string; val: number; icon: React.ReactNode; color?: string }) {
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
@@ -228,11 +256,27 @@ function DetailStat({ label, val, icon }: { label: string; val: number; icon: Re
       </div>
       <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
         <div 
-          className="h-full bg-slate-900 transition-all duration-500 ease-out" 
+          className={`h-full ${color} transition-all duration-500 ease-out`} 
           style={{ width: `${val}%` }} 
         />
       </div>
       <div className="text-right text-[10px] font-bold text-slate-400">{Math.round(val)}</div>
+    </div>
+  );
+}
+
+function AttributionItem({ driver, category }: { driver: any; category: string; key?: string }) {
+  return (
+    <div className="flex items-start justify-between group">
+      <div className="flex items-center gap-3">
+        <span className="px-1.5 py-0.5 rounded-md bg-white text-[8px] font-bold text-slate-400 border border-black/5 uppercase">
+          {category}
+        </span>
+        <span className="text-xs text-slate-600 font-medium">{driver.reason}</span>
+      </div>
+      <span className={`text-[10px] font-bold ${driver.contribution >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+        {driver.contribution >= 0 ? '+' : ''}{driver.contribution}
+      </span>
     </div>
   );
 }

@@ -124,7 +124,7 @@ export function WorkspaceHub({ onSelect, onLogout }: WorkspaceHubProps) {
                 <Building2 className="h-5 w-5" />
               </div>
               <div className="rounded-full bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-700">
-                推盘经营模拟
+                我是王牌维护人
               </div>
             </div>
             <h2 className="mt-6 text-[30px] font-semibold tracking-[-0.05em] text-[#111111]">
@@ -148,7 +148,7 @@ export function WorkspaceHub({ onSelect, onLogout }: WorkspaceHubProps) {
               </div>
             </div>
             <div className="mt-auto flex items-center justify-between pt-8 text-sm font-semibold text-[#111111]">
-              <span>进入推盘经营</span>
+              <span>进入维护挑战</span>
               <span className="inline-flex items-center gap-1 text-amber-700 transition group-hover:translate-x-1">
                 打开
                 <ArrowRight className="h-4 w-4" />
