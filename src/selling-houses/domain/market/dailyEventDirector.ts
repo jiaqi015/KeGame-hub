@@ -1,8 +1,8 @@
-import { logEvent } from '../../application/gameState';
-import type { DailyEventTemplate, DailyMarketEvent, GameState, InboundOpportunity, WeightedDailyEventRef } from '../models';
-import { chance, clamp, pickWeighted, randomInt } from '../utils';
-import { applyInboundOpportunity } from './inboundOpportunityEngine';
-import { createRivalListing } from '../rivals/rivalListingEngine';
+import { logEvent } from '../runtimeState.js';
+import type { DailyEventTemplate, DailyMarketEvent, GameState, InboundOpportunity, WeightedDailyEventRef } from '../models.js';
+import { chance, clamp, pickWeighted, randomInt } from '../utils.js';
+import { applyInboundOpportunity } from './inboundOpportunityEngine.js';
+import { createRivalListing } from '../rivals/rivalListingEngine.js';
 
 function defaultDailyEventPool(templates: DailyEventTemplate[]): WeightedDailyEventRef[] {
   return templates.map((entry) => ({

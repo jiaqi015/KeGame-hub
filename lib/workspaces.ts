@@ -6,6 +6,7 @@ export const WORKSPACE_DEFINITIONS = [
   {
     id: 'sabrina',
     label: '多模型PK',
+    slug: 'pk',
     legacyCode: '1',
     aliases: ['sabrina', 'compare', 'comparison', 'pk'],
     pathMatchers: [
@@ -18,6 +19,7 @@ export const WORKSPACE_DEFINITIONS = [
   {
     id: 'open-day',
     label: '小区开放日选址',
+    slug: 'openday',
     legacyCode: '2',
     aliases: ['open-day', 'open_day', 'openday'],
     pathMatchers: [
@@ -30,6 +32,7 @@ export const WORKSPACE_DEFINITIONS = [
   {
     id: 'selling-houses',
     label: '我是王牌资产顾问',
+    slug: 'seller',
     legacyCode: '3',
     aliases: ['selling-houses', 'selling_houses', 'sellinghouses', 'maintainer'],
     pathMatchers: [
@@ -43,6 +46,7 @@ export const WORKSPACE_DEFINITIONS = [
   {
     id: 'market-management',
     label: '经营好商圈',
+    slug: 'market',
     legacyCode: '4',
     aliases: ['market-management', 'market_management', 'marketmanagement'],
     pathMatchers: [] satisfies WorkspacePathMatcher[],
@@ -50,6 +54,7 @@ export const WORKSPACE_DEFINITIONS = [
   {
     id: 'rational-owner',
     label: '做最理性的业主',
+    slug: 'owner',
     legacyCode: '5',
     aliases: ['rational-owner', 'rational_owner', 'rationalowner'],
     pathMatchers: [] satisfies WorkspacePathMatcher[],
@@ -84,6 +89,14 @@ const WORKSPACE_LABEL_MAP = Object.fromEntries(
   WORKSPACE_DEFINITIONS.map((workspace) => [workspace.id, workspace.label] as const),
 ) as Record<WorkspaceId, string>;
 
+const WORKSPACE_SLUG_MAP = Object.fromEntries(
+  WORKSPACE_DEFINITIONS.map((workspace) => [workspace.id, workspace.slug] as const),
+) as Record<WorkspaceId, string>;
+
+const WORKSPACE_BY_SLUG_MAP = Object.fromEntries(
+  WORKSPACE_DEFINITIONS.map((workspace) => [workspace.slug, workspace.id] as const),
+) as Record<string, WorkspaceId>;
+
 export function normalizeWorkspaceToken(rawToken: string): WorkspaceId | null {
   const token = rawToken.trim().toLowerCase();
   return WORKSPACE_ALIAS_MAP[token] || null;
@@ -108,6 +121,15 @@ export function decodeLegacyWorkspaceCodes(rawValue: string): WorkspaceId[] {
 
 export function getWorkspaceLabel(workspace: WorkspaceId): string {
   return WORKSPACE_LABEL_MAP[workspace];
+}
+
+export function getWorkspaceSlug(workspace: WorkspaceId): string {
+  return WORKSPACE_SLUG_MAP[workspace];
+}
+
+export function resolveWorkspaceBySlug(rawSlug: string): WorkspaceId | null {
+  const slug = rawSlug.trim().toLowerCase();
+  return WORKSPACE_BY_SLUG_MAP[slug] || null;
 }
 
 export function inferWorkspaceFromPath(pathname: string): WorkspaceId | null {

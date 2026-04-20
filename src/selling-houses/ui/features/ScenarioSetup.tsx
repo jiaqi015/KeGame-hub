@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Compass, Dice5, Flame, Gauge, ShieldCheck, Sprout, TriangleAlert } from 'lucide-react';
-import type { DifficultyId, DifficultyOption } from '../../domain/models';
+import type { DifficultyId, DifficultyOption, ScenarioSummary } from '../../domain/models';
+import type { FeaturedScenarioPreview } from '../../application/scenarioOpening';
 
 const ICONS = {
   warmup: ShieldCheck,
@@ -38,18 +39,6 @@ const TONES = {
   },
 } as const;
 
-type FeaturedScenarioPreview = {
-  difficultyId: DifficultyId;
-  seed: number;
-  scenario: {
-    name: string;
-    theme: string;
-    description: string;
-    maxDay: number;
-    caseCount: number;
-  };
-};
-
 export function ScenarioSetup({
   difficultyOptions,
   featuredScenarios,
@@ -70,6 +59,12 @@ export function ScenarioSetup({
     || difficultyOptions.find((entry) => entry.id === lastDifficulty)
     || difficultyOptions[0];
   const selectedFeatured = featuredScenarios.find((entry) => entry.difficultyId === selectedOption?.id);
+  const selectedGoal = selectedFeatured
+    ? goalCopy(selectedFeatured.scenario.presentation.goalContext, selectedFeatured.scenario.presentation.targetScore)
+    : null;
+  const selectedPreview = selectedOption?.preview || [];
+  const primaryPreview = selectedPreview.slice(0, 4);
+  const secondaryPreview = selectedPreview.slice(4, 8);
 
   if (!selectedOption) {
     return (
@@ -83,22 +78,22 @@ export function ScenarioSetup({
   const selectedTone = TONES[selectedOption.id];
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-7xl flex-col overflow-y-auto px-5 py-5 xl:overflow-hidden">
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
+    <div className="mx-auto flex h-full min-h-0 w-full max-w-[1280px] flex-col overflow-hidden px-4 py-4 text-slate-900 lg:px-5">
+      <div className="mb-3 flex shrink-0 flex-wrap items-end justify-between gap-3">
         <div>
-          <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-amber-700">
-            <Dice5 size={13} />
-            标准局 + 随机局
+          <div className="seller-chip seller-chip-accent mb-1.5 inline-flex items-center gap-2">
+            <Dice5 size={12} />
+            标准局 / 随机局
           </div>
-          <h1 className="text-3xl font-black tracking-[-0.05em] text-slate-900 md:text-4xl">选一档难度，直接开局</h1>
+          <h1 className="seller-title text-[28px] md:text-[34px]">选难度</h1>
         </div>
-        <p className="max-w-xl text-sm leading-6 text-slate-500">
-          6 个难度全部摊开看。左边选档位，右边看这一档的大体盘面，再决定打固定标准局还是随机生成一局。
+        <p className="seller-body max-w-[38rem] text-[12px] leading-5">
+          先定这局强度，再决定走标准局还是随机局。
         </p>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_390px]">
-        <div className="grid content-start gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:min-h-0">
+      <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid min-h-0 content-start gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
         {difficultyOptions.map((option) => {
           const Icon = ICONS[option.id];
           const tone = TONES[option.id];
@@ -110,38 +105,37 @@ export function ScenarioSetup({
               key={option.id}
               type="button"
               onClick={() => setSelectedDifficultyId(option.id)}
-              className={`group rounded-[24px] border p-4 text-left transition-all ${
+              disabled={starting}
+              className={`group seller-panel min-h-[132px] p-3 text-left transition-all ${
                 selected
-                  ? 'border-slate-900 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.12)]'
-                  : 'border-black/5 bg-white/85 hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_14px_40px_rgba(15,23,42,0.07)]'
-              } ${starting ? 'opacity-70' : ''}`}
+                  ? 'border-[color:var(--seller-ink)] bg-[var(--seller-paper)] shadow-[var(--seller-shadow-md)]'
+                  : 'hover:-translate-y-0.5 hover:bg-white hover:shadow-[var(--seller-shadow-sm)]'
+              } ${starting ? 'cursor-wait opacity-70' : ''}`}
             >
-              <div className="mb-3 flex items-start justify-between gap-3">
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${tone.badge}`}>
-                  <Icon size={18} />
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[12px] ${tone.badge}`}>
+                  <Icon size={15} />
                 </div>
-                {lastPlayed && (
-                  <div className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold text-amber-700">
-                    上次
-                  </div>
-                )}
+                <div className="flex items-center gap-2">
+                  {lastPlayed && (
+                    <div className="seller-chip seller-chip-accent px-2 py-0.5">
+                      上次
+                    </div>
+                  )}
+                  <div className={`h-2 w-2 shrink-0 rounded-full ${selected ? 'bg-[var(--seller-ink)]' : 'bg-[rgba(52,60,76,0.16)]'}`} />
+                </div>
               </div>
 
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-xl font-black tracking-[-0.04em] text-slate-900">{option.label}</div>
-                  <div className="mt-1 text-xs font-semibold leading-5 text-slate-500">{option.summary}</div>
-                </div>
-                <div className={`mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full ${selected ? 'bg-slate-900' : 'bg-slate-200'}`} />
+              <div>
+                <div className="seller-title text-[18px]">{option.label}</div>
+                <div className="seller-body mt-0.5 line-clamp-2 text-[12px] font-semibold leading-5">{option.summary}</div>
               </div>
 
-              <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-600">{option.detail}</p>
-
-              <div className="mt-3 grid grid-cols-2 gap-2">
+              <div className="mt-2 grid grid-cols-2 gap-1.5">
                 {option.preview.slice(0, 2).map((item) => (
-                  <div key={`${option.id}-${item.label}`} className="rounded-2xl bg-slate-50 px-3 py-2">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">{item.label}</div>
-                    <div className="mt-0.5 line-clamp-1 text-[11px] font-semibold text-slate-700">{item.value}</div>
+                  <div key={`${option.id}-${item.label}`} className="seller-tablet px-2.5 py-1.5">
+                    <div className="seller-label text-[9px]">{item.label}</div>
+                    <div className="mt-0.5 line-clamp-1 text-[11px] font-semibold text-[var(--seller-ink)]">{compactPreviewValue(item.value)}</div>
                   </div>
                 ))}
               </div>
@@ -150,63 +144,116 @@ export function ScenarioSetup({
         })}
         </div>
 
-        <aside className={`rounded-[28px] border p-5 shadow-[0_22px_70px_rgba(15,23,42,0.08)] ${selectedTone.panel}`}>
-          <div className="mb-4 flex items-start justify-between gap-3">
-            <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${selectedTone.badge}`}>
-              <SelectedIcon size={22} />
+        <aside className={`seller-panel-muted grid min-h-0 xl:grid-rows-[1fr_auto] ${selectedTone.panel}`}>
+          <div className="min-h-0 overflow-y-auto p-4">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div className={`flex h-10 w-10 items-center justify-center rounded-[15px] ${selectedTone.badge}`}>
+                <SelectedIcon size={19} />
+              </div>
+              <div className="seller-chip">
+                标准局 + 随机局
+              </div>
             </div>
-            <div className="rounded-full bg-white/80 px-3 py-1 text-[11px] font-bold text-slate-600">
-              1 个标准局 + 随机局
+
+            <div className="seller-label">当前选择</div>
+            <h2 className="seller-title mt-1 text-[28px]">{selectedOption.label}</h2>
+            <p className="mt-1.5 text-[13px] font-semibold leading-5 text-[var(--seller-ink)]">{selectedOption.summary}</p>
+            <p className="seller-body mt-2 text-[12px] leading-5">{selectedOption.detail}</p>
+
+            <div className="seller-tablet mt-3 p-3">
+              <div className="seller-label mb-1 text-[9px]">标准局</div>
+              <div className="text-[15px] font-semibold tracking-tight text-[var(--seller-ink)]">{selectedFeatured?.scenario.name || '标准局生成中'}</div>
+              <div className="seller-body mt-1 line-clamp-2 text-[12px] leading-5">{selectedFeatured?.scenario.presentation.theme}</div>
+              {selectedFeatured && (
+                <div className="mt-2.5 flex flex-wrap gap-1.5 text-[10px] font-semibold text-slate-600">
+                  <span className="seller-chip">{selectedFeatured.scenario.presentation.caseCount} 套房源</span>
+                  <span className="seller-chip">{selectedFeatured.scenario.presentation.maxDay} 天</span>
+                  <span className="seller-chip seller-chip-accent">目标 {selectedFeatured.scenario.presentation.targetScore} 分</span>
+                  <span className="seller-chip">seed {selectedFeatured.seed}</span>
+                </div>
+              )}
             </div>
-          </div>
 
-          <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">当前选择</div>
-          <h2 className="mt-1 text-3xl font-black tracking-[-0.05em] text-slate-900">{selectedOption.label}</h2>
-          <p className="mt-2 text-sm font-semibold leading-6 text-slate-700">{selectedOption.summary}</p>
-          <p className="mt-2 text-sm leading-6 text-slate-600">{selectedOption.detail}</p>
+            {selectedGoal && (
+              <div className="seller-tablet mt-2.5 p-3">
+                <div className="seller-label mb-1 text-[9px]">目标</div>
+                <div className="text-[13px] font-semibold text-[var(--seller-ink)]">{selectedGoal.title}</div>
+                <p className="seller-body mt-1 text-[12px] leading-5">{selectedGoal.detail}</p>
+              </div>
+            )}
 
-          <div className="mt-4 rounded-2xl border border-white/70 bg-white/80 p-4">
-            <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">标准局</div>
-            <div className="text-base font-bold tracking-tight text-slate-900">{selectedFeatured?.scenario.name || '标准局生成中'}</div>
-            <div className="mt-1 text-xs leading-5 text-slate-500">{selectedFeatured?.scenario.theme}</div>
-            {selectedFeatured && (
-              <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold text-slate-600">
-                <span className="rounded-full bg-slate-100 px-2.5 py-1">{selectedFeatured.scenario.caseCount} 套房源</span>
-                <span className="rounded-full bg-slate-100 px-2.5 py-1">{selectedFeatured.scenario.maxDay} 天节奏</span>
-                <span className="rounded-full bg-slate-100 px-2.5 py-1">seed {selectedFeatured.seed}</span>
+            <div className="mt-2.5 grid grid-cols-2 gap-1.5">
+              {primaryPreview.map((item) => (
+                <div key={`${selectedOption.id}-${item.label}`} className="seller-tablet px-2.5 py-2">
+                  <div className="seller-label text-[9px]">{item.label}</div>
+                  <div className="mt-0.5 text-[11px] font-semibold leading-5 text-[var(--seller-ink)]">{compactPreviewValue(item.value)}</div>
+                </div>
+              ))}
+            </div>
+
+            {secondaryPreview.length > 0 && (
+              <div className="mt-2.5 space-y-1.5">
+                {secondaryPreview.map((item) => (
+                  <div key={`${selectedOption.id}-${item.label}`} className="seller-tablet flex items-center justify-between gap-3 px-2.5 py-1.5">
+                    <div className="seller-label text-[9px]">{item.label}</div>
+                    <div className="line-clamp-1 text-right text-[11px] font-semibold text-[var(--seller-ink)]">{item.value}</div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            {selectedOption.preview.map((item) => (
-              <div key={`${selectedOption.id}-${item.label}`} className="rounded-2xl bg-white/80 px-3 py-2.5">
-                <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">{item.label}</div>
-                <div className="mt-1 text-xs font-semibold leading-5 text-slate-700">{item.value}</div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-1">
-            <button
-              type="button"
-              disabled={starting}
-              onClick={() => onStartFeatured(selectedOption.id)}
-              className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition-all hover:bg-slate-800 disabled:cursor-wait disabled:opacity-60"
-            >
-              {starting ? '正在进入...' : '进入标准局'}
-            </button>
-            <button
-              type="button"
-              disabled={starting}
-              onClick={() => onStartRandom(selectedOption.id)}
-              className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm font-bold text-slate-900 transition-all hover:border-black/15 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"
-            >
-              {starting ? '正在生成...' : '按此难度随机开一局'}
-            </button>
+          <div className="border-t border-[var(--seller-border)] bg-white/72 p-3 backdrop-blur-md">
+            <div className="grid gap-2">
+              <button
+                type="button"
+                disabled={starting}
+                onClick={() => onStartFeatured(selectedOption.id)}
+                className="seller-button-primary rounded-[16px] px-4 py-3 text-[13px] disabled:cursor-wait disabled:opacity-60"
+              >
+                {starting ? '正在进入...' : `进入${selectedOption.label}`}
+              </button>
+              <button
+                type="button"
+                disabled={starting}
+                onClick={() => onStartRandom(selectedOption.id)}
+                className="seller-button-secondary rounded-[16px] px-4 py-3 text-[13px] disabled:cursor-wait disabled:opacity-60"
+              >
+                {starting ? '正在生成...' : '随机开一局'}
+              </button>
+            </div>
           </div>
         </aside>
       </div>
     </div>
   );
+}
+
+function compactPreviewValue(value: string) {
+  return value
+    .replace('，', ' · ')
+    .replace('适合先把手感找回来', '手感友好')
+    .replace('开始吃排序', '要排序')
+    .replace('比较够用', '够用')
+    .replace('持续吃紧', '吃紧')
+    .replace('几乎满负荷', '满负荷');
+}
+
+function goalCopy(goalContext: ScenarioSummary['presentation']['goalContext'], targetScore: number) {
+  if (goalContext === 'defense') {
+    return {
+      title: `保住商圈聚焦房，目标 ${targetScore} 分`,
+      detail: '重点看最重要的房有没有留在你手里，别让好房子被隔壁门店抢走。',
+    };
+  }
+  if (goalContext === 'satisfaction') {
+    return {
+      title: `把结果做漂亮，目标 ${targetScore} 分`,
+      detail: '重点看业主最后是满意、无感，还是后悔和不满。',
+    };
+  }
+  return {
+    title: `把这组房卖得更好，目标 ${targetScore} 分`,
+    detail: '重点看每套房和同类房比，是卖得更顺、差不多，还是明显更难卖。',
+  };
 }

@@ -1,18 +1,20 @@
-import { WEEKLY_ROUTINE } from './constants';
-import { recordBudgetChange } from './budget';
-import type { GameState } from './models';
-import { addDays, average, clamp, getDayOfWeek, getRoutine } from './utils';
-import { evaluateFinalResult } from './resultEvaluation';
-import { logEvent, saveGameState, updateDerivedState } from '../application/gameState';
-import { executeAction, getActionAvailability } from './engine/actionResolvers';
-import { tickCompetition } from './engine/competitionEngine';
-import { fireScheduledEvents, triggerRandomEvent } from './engine/eventEngine';
-import { createWeeklyReview, tickCases, tickSeasonality, updateCustomers, updateMarkets } from './engine/marketEngine';
-import { applyCompanyPressure, tickCompanyPressure } from './company/companyPressureEngine';
-import { applyDailyMarketEvent, rollDailyMarketEvent } from './market/dailyEventDirector';
-import { settleMarketSignals } from './market/signalEngine';
-import { applyRivalPressure, tickRivalListings } from './rivals/rivalListingEngine';
-import { tickRivalStores } from './rivals/rivalStoreEngine';
+import { WEEKLY_ROUTINE } from './constants.js';
+import { recordBudgetChange } from './budget.js';
+import type { GameState, Tone } from './models.js';
+import { addDays, average, clamp, getDayOfWeek, getRoutine } from './utils.js';
+import { evaluateFinalResult } from './resultEvaluation.js';
+import { logEvent, updateDerivedState } from './runtimeState.js';
+import { getPromotionBudget } from './runtimeStats.js';
+import { executeAction, getActionAvailability } from './engine/actionResolvers.js';
+import { tickCompetition } from './engine/competitionEngine.js';
+import { fireScheduledEvents, triggerRandomEvent } from './engine/eventEngine.js';
+import { createWeeklyReview, tickCases, tickSeasonality, updateCustomers, updateMarkets } from './engine/marketEngine.js';
+import { applyCompanyPressure, tickCompanyPressure } from './company/companyPressureEngine.js';
+import { applyDailyMarketEvent, rollDailyMarketEvent } from './market/dailyEventDirector.js';
+import { settleMarketSignals } from './market/signalEngine.js';
+import { applyRivalPressure, tickRivalListings } from './rivals/rivalListingEngine.js';
+import { tickRivalStores } from './rivals/rivalStoreEngine.js';
+import { applyCustomerFeedbackToCases, applyRivalPullOnCustomers, progressCustomerDemand, touchCustomersForCase } from './engine/customerEngine.js';
 import {
   adjustCaseOpportunities,
   closeOpportunity,
@@ -27,7 +29,7 @@ import {
   seedInitialOpportunities,
   spawnPassiveLeads,
   tickOpportunities,
-} from './engine/opportunityEngine';
+} from './engine/opportunityEngine.js';
 
 export {
   adjustCaseOpportunities,
@@ -49,7 +51,10 @@ export {
   applyCompanyPressure,
   applyDailyMarketEvent,
   applyRivalPressure,
+  applyCustomerFeedbackToCases,
+  applyRivalPullOnCustomers,
   rollDailyMarketEvent,
+  progressCustomerDemand,
   settleMarketSignals,
   tickCompanyPressure,
   tickOpportunities,
@@ -57,6 +62,7 @@ export {
   tickRivalStores,
   tickSeasonality,
   triggerRandomEvent,
+  touchCustomersForCase,
   updateCustomers,
   updateMarkets,
 };
@@ -73,13 +79,12 @@ export function advanceDays(state: GameState, count: number, onMessage?: (msg: s
   }
 
   updateDerivedState(state);
-  saveGameState(state);
 }
 
 function resolveOneDay(state: GameState, onMessage?: (msg: string) => void) {
   const beforeD1 = average(state.cases.filter((entry) => entry.status === 'active').map((entry) => entry.d1));
   const beforeD3 = average(state.cases.filter((entry) => entry.status === 'active').map((entry) => entry.d3));
-  const beforeCash = state.cash;
+  const beforeCash = getPromotionBudget(state);
   const beforeTrust = average(state.cases.filter((entry) => entry.status === 'active').map((entry) => entry.trust));
   const beforeDanger = state.cases.filter((entry) => entry.status === 'active' && (entry.storylineState === 'critical' || entry.storylineState === 'sliding')).length;
 
@@ -93,7 +98,10 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void) {
   tickCompanyPressure(state);
   applyCompanyPressure(state);
   updateCustomers(state);
+  progressCustomerDemand(state);
+  applyRivalPullOnCustomers(state);
   tickOpportunities(state);
+  applyCustomerFeedbackToCases(state);
   tickCompetition(state);
   fireScheduledEvents(state);
   tickCases(state);
@@ -167,7 +175,7 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void) {
       { label: '业主意愿 (D3)', value: Math.round((afterD3 - beforeD3) * 10) / 10, unit: 'pts' },
       { label: '平均业主信任', value: Math.round((afterTrust - beforeTrust) * 10) / 10, unit: 'pts' },
       { label: '高危房源变化', value: afterDanger - beforeDanger, unit: '套' },
-      { label: '推广金变动', value: state.cash - beforeCash, unit: '点' },
+      { label: '推广金变动', value: getPromotionBudget(state) - beforeCash, unit: '点' },
     ],
     marketNews,
     todayPlan: {
@@ -190,5 +198,4 @@ function finishGame(state: GameState, reason: string, onMessage?: (msg: string) 
   state.gameOver = true;
   state.finalResult = evaluateFinalResult(state, reason);
   onMessage?.(state.finalResult.summary);
-  saveGameState(state);
 }

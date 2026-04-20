@@ -1,5 +1,5 @@
-import type { GameState } from '../models';
-import { clamp, randomInt } from '../utils';
+import type { GameState } from '../models.js';
+import { clamp, randomInt } from '../utils.js';
 
 export function tickRivalStores(state: GameState) {
   state.marketShadow.rivalStores.forEach((store) => {

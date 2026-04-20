@@ -1,6 +1,6 @@
 # 接手清单
 
-最后整理：2026-04-17
+最后整理：2026-04-19
 
 这份清单只讲“重新接手时先做什么”，不重复解释长期规则和项目背景。
 
@@ -8,8 +8,8 @@
 
 1. 读 [MEMORY.md](/Users/jiaqi/Documents/开放日测算/MEMORY.md)
 2. 看 `git status --short`
-3. 读 [当前焦点](current-focus.md)
-4. 读 [模块地图](module-map.md)
+3. 读 [模块地图](module-map.md)
+4. 如果本轮是卖房架构，先读 [卖房总设计](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-total-design.md)、[卖房总纲](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-master.md) 和 [业务事实总表](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-business-facts.md)
 5. 根据任务类型再补看对应业务文档
 
 ## 第一步要确认什么
@@ -52,13 +52,23 @@
 
 建议阅读顺序：
 
-1. `docs/selling-houses-cloud-data-model.md`
-2. `docs/selling-houses-game-architecture.md`
-3. `docs/selling-houses-unified-game-architecture.md`
-4. `src/selling-houses/infrastructure/`
-5. `src/selling-houses/interfaces/http/`
-6. `src/selling-houses/domain/`
-7. `src/selling-houses/ui/features/`
+1. `docs/selling-houses-master.md`
+2. `docs/selling-houses-total-design.md`
+3. `docs/selling-houses-business-facts.md`
+4. `docs/selling-houses-business-language-guide.md`
+5. `docs/platform-account-player-run-score-architecture.md`
+6. `docs/selling-houses-domain-architecture-v1.md`
+7. `docs/selling-houses-customer-opportunity-architecture.md`
+8. `docs/selling-houses-deal-fact-and-closing-model.md`
+9. `docs/selling-houses-competition-and-cosale-architecture.md`
+10. `docs/selling-houses-matter-template-architecture.md`
+11. `docs/selling-houses-projection-architecture.md`
+12. `docs/selling-houses-interface-detail-design.md`
+13. `docs/selling-houses-organization-acn-model.md`
+14. `docs/selling-houses-daily-tick-design.md`
+15. `docs/selling-houses-architecture-diagrams.md`
+16. `src/selling-houses/domain/`
+17. `src/selling-houses/ui/features/`
 
 ### 如果要继续做统一入口
 
@@ -72,7 +82,7 @@
 重点确认：
 
 - 激活逻辑是否清楚
-- Hub 是否仍然表达三条业务线
+- Hub 是否仍然表达当前 workspace registry
 - 入口文案和代码现状是否一致
 
 ## 开工前的快速检查

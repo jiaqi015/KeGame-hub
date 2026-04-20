@@ -1,6 +1,8 @@
+import './_bootstrap.js';
 import {authorizeRequest} from '../lib/activation.js';
 import {compareModels, streamCompareModel} from '../lib/compare.js';
 import {AVAILABLE_MODELS} from '../lib/models.js';
+import { isStreamRequested, parseJsonBody } from './_request.js';
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'GET' && req.method !== 'POST') {
@@ -8,7 +10,7 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({error: 'Method Not Allowed'});
   }
 
-  const authorization = authorizeRequest(req);
+  const authorization = authorizeRequest(req, 'sabrina');
 
   if (!authorization.ok) {
     return res.status(authorization.status).json({error: authorization.error});
@@ -18,9 +20,9 @@ export default async function handler(req: any, res: any) {
     return res.status(200).json({models: AVAILABLE_MODELS});
   }
 
-  const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+  const body = parseJsonBody(req.body);
   const prompt = typeof body?.prompt === 'string' ? body.prompt.trim() : '';
-  const streamRequested = req.query?.stream === '1' || body?.stream === true;
+  const streamRequested = isStreamRequested(req.query, body);
 
   if (streamRequested) {
     const modelId = typeof body?.modelId === 'string' ? body.modelId.trim() : '';

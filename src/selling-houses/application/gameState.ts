@@ -1,35 +1,48 @@
 import {
   STORAGE_KEY,
-  CASE_STAGES,
-} from '../domain/constants';
+} from '../domain/constants.js';
+import { buildScopedStorageKey } from './storageScope.js';
 import {
-  average,
   clamp,
   normalizeSeed,
   randomInt,
   type RandomSource,
-  getOpportunityPriority,
-} from '../domain/utils';
-import { updateCompetitiveness, calculateUrgency } from '../domain/scoring';
-import { instantiateScenarioCases } from '../domain/generator';
+} from '../domain/utils.js';
+import { instantiateScenarioCases } from '../domain/generator.js';
 import {
   type Case,
-  type GoalTier,
   type CompetitionGroup,
+  type CustomerProfile,
   type GameState,
-  type Opportunity,
+  type GameRuleOverrides,
   type ScenarioSnapshot,
   type ShadowMarketState,
   type RivalStore,
   type RivalListing,
   type CompanyPressureState,
-} from '../domain/models';
-import { createInitialBudgetLedger, normalizeBudgetLedger } from '../domain/budget';
-import { getBuiltInWorld, resolveScenarioRules } from '../domain/scenarioCatalog';
-import { mergeRules } from '../domain/config/baseRules';
+} from '../domain/models.js';
+import { createInitialBudgetLedger, normalizeBudgetLedger } from '../domain/budget.js';
+import { getBuiltInWorld, resolveScenarioRules } from '../domain/scenarioCatalog.js';
+import { mergeRules } from '../domain/config/baseRules.js';
+import {
+  targetScoreForDifficulty,
+  scoreThresholdsForTarget,
+} from '../domain/scenarioMetadata.js';
+import {
+  buildAuxiliaryStats,
+  buildRuntimeAuxiliaryStats,
+  syncAuxiliaryMirrors,
+  syncAuxiliaryStats,
+} from '../domain/runtimeStats.js';
+import { deriveDefaultGoalTier, seedCase, updateDerivedState as updateDomainDerivedState } from '../domain/runtimeState.js';
+import { initializeCustomerStates } from '../domain/engine/customerEngine.js';
 
 function isBrowser() {
   return typeof window !== 'undefined' && Boolean(window.localStorage);
+}
+
+function getScopedGameStateStorageKey(accountEmail?: string) {
+  return buildScopedStorageKey(STORAGE_KEY, accountEmail);
 }
 
 function buildInitialDate(snapshot: ScenarioSnapshot) {
@@ -47,14 +60,107 @@ function cloneWorld(snapshot: ScenarioSnapshot) {
   };
 }
 
-function buildRunContext(snapshot: ScenarioSnapshot, seed: number) {
+const TARGET_CUSTOMER_CASE_RATIO = 10;
+
+function cloneCustomer(entry: CustomerProfile): CustomerProfile {
+  return {
+    ...entry,
+    layouts: [...entry.layouts],
+    preferences: [...entry.preferences],
+  };
+}
+
+function dedupeStrings(values: string[]) {
+  return Array.from(new Set(values.filter(Boolean)));
+}
+
+function buildExpandedCustomerPool(
+  customerTemplates: CustomerProfile[],
+  cases: Pick<Case, 'id' | 'district' | 'layout' | 'askPrice' | 'tags'>[],
+  source: RandomSource,
+) {
+  const customers = customerTemplates.map(cloneCustomer);
+  const targetCount = Math.max(customers.length, cases.length * TARGET_CUSTOMER_CASE_RATIO);
+  if (customers.length >= targetCount || customers.length === 0 || cases.length === 0) {
+    return customers;
+  }
+
+  const templateUsage = new Map<string, number>();
+  customerTemplates.forEach((entry) => {
+    templateUsage.set(entry.id, 1);
+  });
+
+  while (customers.length < targetCount) {
+    const caseItem = cases[randomInt(0, cases.length - 1, source)];
+    const exactMatches = customerTemplates.filter((entry) =>
+      entry.targetDistrict === caseItem.district && entry.layouts.includes(caseItem.layout),
+    );
+    const districtMatches = customerTemplates.filter((entry) => entry.targetDistrict === caseItem.district);
+    const templatePool = exactMatches.length > 0
+      ? exactMatches
+      : districtMatches.length > 0
+        ? districtMatches
+        : customerTemplates;
+    const template = templatePool[randomInt(0, templatePool.length - 1, source)];
+    const nextUsage = (templateUsage.get(template.id) || 1) + 1;
+    templateUsage.set(template.id, nextUsage);
+
+    const spreadBase = Math.max(36, template.budgetMax - template.budgetMin);
+    const spread = Math.max(36, spreadBase + randomInt(-18, 22, source));
+    const center = Math.round(caseItem.askPrice + randomInt(-55, 65, source));
+    const budgetMin = Math.max(0, center - Math.round(spread / 2));
+    const budgetMax = Math.max(budgetMin + 24, center + Math.round(spread / 2));
+
+    customers.push({
+      ...cloneCustomer(template),
+      id: `${template.id}-pool-${nextUsage}`,
+      name: `${template.name}#${nextUsage}`,
+      budgetMin,
+      budgetMax,
+      targetDistrict: caseItem.district,
+      layouts: dedupeStrings([caseItem.layout, ...template.layouts]).slice(0, 3),
+      activity: clamp(template.activity + randomInt(-8, 9, source), 28, 96),
+      urgency: clamp(template.urgency + randomInt(-10, 11, source), 24, 96),
+      priceSensitivity: clamp(template.priceSensitivity + randomInt(-8, 8, source), 20, 95),
+      preferences: dedupeStrings([...template.preferences, ...caseItem.tags]).slice(0, 5),
+    });
+  }
+
+  return customers;
+}
+
+type RunSeedInput = number | {
+  runSeed: number;
+  scenarioSeed?: number;
+};
+
+function resolveRunSeeds(seedInput: RunSeedInput) {
+  if (typeof seedInput === 'number') {
+    const runSeed = normalizeSeed(seedInput);
+    return {
+      runSeed,
+      scenarioSeed: runSeed,
+    };
+  }
+
+  const runSeed = normalizeSeed(seedInput.runSeed);
+  return {
+    runSeed,
+    scenarioSeed: normalizeSeed(seedInput.scenarioSeed ?? runSeed),
+  };
+}
+
+function buildRunContext(snapshot: ScenarioSnapshot, seedInput: RunSeedInput) {
+  const { runSeed, scenarioSeed } = resolveRunSeeds(seedInput);
   return {
     scenarioId: snapshot.scenario.id,
     scenarioName: snapshot.scenario.name,
     difficultyId: snapshot.scenario.difficultyId,
     worldId: snapshot.world.id,
     worldVersion: snapshot.world.version,
-    rngSeed: seed,
+    runSeed,
+    scenarioSeed,
+    rngSeed: runSeed,
     createdAt: new Date().toISOString(),
     scenarioSnapshot: snapshot,
   };
@@ -90,6 +196,7 @@ function normalizeRivalListing(entry: any, index: number): RivalListing {
     title: String(entry?.title || `竞品房源 ${index + 1}`),
     district: String(entry?.district || ''),
     marketCellId: String(entry?.marketCellId || ''),
+    linkedCaseId: typeof entry?.linkedCaseId === 'string' ? entry.linkedCaseId : undefined,
     segment: String(entry?.segment || '竞品'),
     askPrice: Number(entry?.askPrice) || 0,
     heat: clamp(Number(entry?.heat ?? 55), 0, 100),
@@ -180,38 +287,32 @@ function normalizeShadowMarket(input: any, snapshot: ScenarioSnapshot): ShadowMa
   };
 }
 
-function deriveDefaultGoalTier(caseItem: any): GoalTier {
-  if (caseItem?.goalTier === 'core' || caseItem?.goalTier === 'important' || caseItem?.goalTier === 'normal') {
-    return caseItem.goalTier;
-  }
-
-  if (Number(caseItem?.windowDays) <= 7 || Number(caseItem?.urgency) >= 76) {
-    return 'core';
-  }
-  if (Number(caseItem?.trust) <= 58 || Number(caseItem?.windowDays) <= 10 || Number(caseItem?.patience) <= 45) {
-    return 'important';
-  }
-  return 'normal';
-}
-
-export function createInitialState(snapshot: ScenarioSnapshot, seed: number): GameState {
+export function createInitialState(snapshot: ScenarioSnapshot, seedInput: RunSeedInput): GameState {
   const rules = resolveScenarioRules(snapshot);
-  const normalizedSeed = normalizeSeed(seed);
-  const rng: RandomSource = { rngState: normalizedSeed, rngCalls: 0 };
+  const { runSeed } = resolveRunSeeds(seedInput);
+  const rng: RandomSource = { rngState: runSeed, rngCalls: 0 };
   const generatedCases = instantiateScenarioCases(snapshot, rng).map(seedCase);
   const clonedWorld = cloneWorld(snapshot);
+  const customers = buildExpandedCustomerPool(clonedWorld.customers, generatedCases, rng);
 
-  return {
-    version: 5,
-    runContext: buildRunContext(snapshot, normalizedSeed),
+  const state: GameState = {
+    version: 6,
+    runContext: buildRunContext(snapshot, seedInput),
     day: 1,
     maxDay: rules.maxDay,
     currentDate: buildInitialDate(snapshot),
     maxEnergy: rules.baseMaxEnergy,
     energy: rules.initialEnergy,
     cash: rules.initialCash,
-    reputation: rules.initialReputation,
-    commission: rules.initialCommission,
+    auxiliaryStats: buildRuntimeAuxiliaryStats({
+      cash: rules.initialCash,
+      commission: rules.initialCommission,
+      wordOfMouth: rules.initialWordOfMouth,
+      soldCount: 0,
+      withdrawnCount: 0,
+    }),
+    reputation: 0,
+    commission: 0,
     soldCount: 0,
     withdrawnCount: 0,
     selectedCaseId: generatedCases[0]?.id || null,
@@ -225,68 +326,32 @@ export function createInitialState(snapshot: ScenarioSnapshot, seed: number): Ga
     rngCalls: rng.rngCalls,
     channels: clonedWorld.channels,
     markets: clonedWorld.markets,
-    customers: clonedWorld.customers,
+    customers,
+    customerStates: [],
     cases: generatedCases,
     opportunities: [],
     budgetLedger: createInitialBudgetLedger(rules.initialCash),
     eventLog: [],
+    eventStore: [],
     weeklyReviews: [],
     schedule: [],
     priorities: [],
-    metrics: {},
+    matters: [],
+    metrics: {
+      activeCaseCount: generatedCases.filter((entry) => entry.status === 'active').length,
+      activeOpportunityCount: 0,
+      averageTrust: 0,
+      averageD1: 0,
+      averageD3: 0,
+      topConversion: '',
+    },
     currentReport: null,
     marketShadow: createInitialShadowMarket(snapshot),
   };
-}
 
-export function seedCase(base: Case): Case {
-  return {
-    ...base,
-    status: 'active',
-    stageIndex: 0,
-    stageLabel: CASE_STAGES[0],
-    riskFlags: [],
-    actionsToday: 0,
-    touchedToday: false,
-    touchedOwnerToday: false,
-    lastTouchedDay: 0,
-    lastOwnerTouchedDay: 0,
-    hasCompletedFirstVisit: false,
-    lastAction: '',
-    lastPriceActionDay: -99,
-    openDayCooldown: 0,
-    qualityStory: 0,
-    negotiationBonus: 0,
-    viewings: 0,
-    offers: 0,
-    soldPrice: null,
-    priceGapPct: 0,
-    competitivenessSnapshots: [],
-    competitionGroupIds: base.competitionGroupIds || [],
-    lastAskPrice: base.askPrice,
-    lastRivalThreatDay: undefined,
-    goalTier: deriveDefaultGoalTier(base),
-    storylineState: 'healthy',
-    relativeOutcome: undefined,
-    ownerSatisfaction: undefined,
-    defenseOutcome: undefined,
-    endingType: undefined,
-    endingBucket: undefined,
-    endingSummary: '',
-  };
-}
-
-export function logEvent(world: GameState, actor: string, message: string, tone: 'accent' | 'danger' | 'success' = 'accent') {
-  world.eventLog.unshift({
-    actor,
-    message,
-    tone,
-    day: world.day,
-    date: world.currentDate,
-  });
-  if (world.eventLog.length > 120) {
-    world.eventLog.pop();
-  }
+  initializeCustomerStates(state);
+  syncAuxiliaryStats(state);
+  return state;
 }
 
 function buildLegacySnapshot(parsed: any): ScenarioSnapshot {
@@ -366,12 +431,8 @@ function buildLegacySnapshot(parsed: any): ScenarioSnapshot {
         { templateId: 'competitor-cut', weight: 3 },
       ],
       goalContext: 'ability',
-      targetScore: 68,
-      scoreThresholds: {
-        pass: 56,
-        strong: 82,
-        ace: 92,
-      },
+      targetScore: targetScoreForDifficulty('standard'),
+      scoreThresholds: scoreThresholdsForTarget(targetScoreForDifficulty('standard')),
       boardPressureProfile: {
         abilityPressure: 58,
         defensePressure: 54,
@@ -435,16 +496,28 @@ function normalizeRules(snapshot: ScenarioSnapshot, rules: unknown) {
     return fallback;
   }
 
-  return mergeRules(rules as Parameters<typeof mergeRules>[0]);
+  return mergeRules(rules as GameRuleOverrides);
 }
 
-export function loadSavedState(): GameState | null {
+function resolveParsedAuxiliaryStats(parsed: any) {
+  return buildRuntimeAuxiliaryStats({
+    cash: Number(parsed?.cash) || 0,
+    auxiliaryStats: parsed?.auxiliaryStats,
+    commission: Number(parsed?.commission) || 0,
+    wordOfMouth: Number(parsed?.wordOfMouth) || 0,
+    reputation: Number(parsed?.reputation) || 0,
+    soldCount: Number(parsed?.soldCount) || 0,
+    withdrawnCount: Number(parsed?.withdrawnCount) || 0,
+  });
+}
+
+export function loadSavedState(accountEmail?: string): GameState | null {
   if (!isBrowser()) {
     return null;
   }
 
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(getScopedGameStateStorageKey(accountEmail));
     if (!raw) return null;
     return normalizeLoadedState(JSON.parse(raw));
   } catch {
@@ -452,21 +525,76 @@ export function loadSavedState(): GameState | null {
   }
 }
 
+export function migrateSavedStateScope(targetScopeKey: string, legacyScopeKey?: string): GameState | null {
+  if (!isBrowser()) {
+    return null;
+  }
+
+  const existing = loadSavedState(targetScopeKey);
+  if (existing) {
+    return existing;
+  }
+
+  if (!legacyScopeKey || legacyScopeKey === targetScopeKey) {
+    return null;
+  }
+
+  const legacyState = loadSavedState(legacyScopeKey);
+  if (!legacyState) {
+    return null;
+  }
+
+  saveGameState(legacyState, targetScopeKey);
+  return legacyState;
+}
+
 export function normalizeLoadedState(parsed: any): GameState | null {
   if (!parsed || typeof parsed !== 'object') {
     return null;
   }
 
-  if (parsed.version !== 5 && parsed.version !== 4 && parsed.version !== 3) {
+  if (parsed.version !== 6 && parsed.version !== 5 && parsed.version !== 4 && parsed.version !== 3) {
     return null;
   }
 
   const snapshot = parsed?.runContext?.scenarioSnapshot || buildLegacySnapshot(parsed);
   const rules = normalizeRules(snapshot, parsed?.rules);
+  const parsedRunContext = parsed?.runContext && typeof parsed.runContext === 'object'
+    ? parsed.runContext
+    : null;
+  const runSeed = normalizeSeed(
+    Number(parsedRunContext?.runSeed ?? parsedRunContext?.rngSeed ?? parsed?.rngState ?? Date.now()),
+  );
+  const scenarioSeed = normalizeSeed(
+    Number(parsedRunContext?.scenarioSeed ?? parsedRunContext?.runSeed ?? parsedRunContext?.rngSeed ?? runSeed),
+  );
+  const normalizedCases = Array.isArray(parsed?.cases) ? parsed.cases.map(normalizeCase) : [];
+  const restoredCustomers = Array.isArray(parsed?.customers)
+    ? parsed.customers.map((entry: any) => cloneCustomer(entry as CustomerProfile))
+    : snapshot.world.customers.map(cloneCustomer);
+  const customerPoolSeed: RandomSource = {
+    rngState: normalizeSeed(runSeed ^ 0x9e3779b9),
+    rngCalls: 0,
+  };
   const state = {
     ...parsed,
-    version: 5,
-    runContext: parsed?.runContext || buildRunContext(snapshot, Number(parsed?.rngState) || Date.now()),
+    version: 6,
+    runContext: {
+      ...buildRunContext(snapshot, { runSeed, scenarioSeed }),
+      ...(parsedRunContext || {}),
+      scenarioId: String(parsedRunContext?.scenarioId || snapshot.scenario.id),
+      scenarioName: String(parsedRunContext?.scenarioName || snapshot.scenario.name),
+      difficultyId: parsedRunContext?.difficultyId || snapshot.scenario.difficultyId,
+      worldId: String(parsedRunContext?.worldId || snapshot.world.id),
+      worldVersion: Number(parsedRunContext?.worldVersion || snapshot.world.version),
+      runSeed,
+      scenarioSeed,
+      rngSeed: runSeed,
+      createdAt: typeof parsedRunContext?.createdAt === 'string'
+        ? parsedRunContext.createdAt
+        : new Date().toISOString(),
+      scenarioSnapshot: parsedRunContext?.scenarioSnapshot || snapshot,
+    },
     rules,
     maxDay: Number(parsed?.maxDay) || rules.maxDay,
     maxEnergy: Number(parsed?.maxEnergy) || rules.baseMaxEnergy,
@@ -474,185 +602,88 @@ export function normalizeLoadedState(parsed: any): GameState | null {
       ? parsed.scheduledEvents
       : snapshot.scenario.scriptedEvents.map((entry) => ({ ...entry })),
     competitionGroups: normalizeCompetitionGroups(parsed?.competitionGroups || snapshot.scenario.competitionGroups),
-    rngState: normalizeSeed(Number(parsed?.rngState) || Number(parsed?.runContext?.rngSeed) || Date.now()),
+    rngState: normalizeSeed(Number(parsed?.rngState) || Number(parsedRunContext?.rngSeed) || runSeed),
     rngCalls: Number.isFinite(parsed?.rngCalls) ? Number(parsed.rngCalls) : 0,
     cash: Number(parsed?.cash) || 0,
-    cases: Array.isArray(parsed?.cases) ? parsed.cases.map(normalizeCase) : [],
+    auxiliaryStats: resolveParsedAuxiliaryStats(parsed),
+    reputation: 0,
+    commission: 0,
+    soldCount: 0,
+    withdrawnCount: 0,
+    cases: normalizedCases,
     opportunities: Array.isArray(parsed?.opportunities) ? parsed.opportunities.map(normalizeOpportunity) : [],
+    eventStore: Array.isArray(parsed?.eventStore) ? parsed.eventStore.map((entry: any, index: number) => ({
+      id: String(entry?.id || `event-legacy-${index + 1}`),
+      day: Number(entry?.day) || 1,
+      date: typeof entry?.date === 'string' ? entry.date : buildInitialDate(snapshot),
+      kind: typeof entry?.kind === 'string' ? entry.kind : 'journal',
+      actor: String(entry?.actor || '系统'),
+      title: String(entry?.title || entry?.actor || '历史事件'),
+      detail: String(entry?.detail || entry?.message || ''),
+      tone: entry?.tone === 'success' || entry?.tone === 'danger' ? entry.tone : 'accent',
+      caseId: typeof entry?.caseId === 'string' ? entry.caseId : undefined,
+      opportunityId: typeof entry?.opportunityId === 'string' ? entry.opportunityId : undefined,
+      customerId: typeof entry?.customerId === 'string' ? entry.customerId : undefined,
+      payload: entry?.payload && typeof entry.payload === 'object' ? entry.payload : {},
+    })) : [],
+    customers: buildExpandedCustomerPool(restoredCustomers, normalizedCases, customerPoolSeed),
+    customerStates: Array.isArray(parsed?.customerStates)
+      ? parsed.customerStates.map((entry: any) => ({
+          ...entry,
+          activeCaseIds: Array.isArray(entry?.activeCaseIds) ? entry.activeCaseIds.map(String) : [],
+          caseStates: entry?.caseStates && typeof entry.caseStates === 'object' ? entry.caseStates : {},
+        }))
+      : [],
     budgetLedger: normalizeBudgetLedger(parsed?.budgetLedger, Number(parsed?.cash) || 0),
     currentReport: parsed?.currentReport || null,
     marketShadow: normalizeShadowMarket(parsed?.marketShadow, snapshot),
   } as GameState;
 
+  if (!state.customerStates.length) {
+    initializeCustomerStates(state);
+  }
+  syncAuxiliaryMirrors(state);
+
   return state;
 }
 
-export function saveGameState(world: GameState) {
+export function saveGameState(world: GameState, accountEmail?: string) {
   if (!isBrowser()) {
     return;
   }
 
   try {
+    const legacyAuxiliaryStats = buildAuxiliaryStats(world);
     const snapshot = {
       ...world,
+      commission: legacyAuxiliaryStats.commission,
+      wordOfMouth: legacyAuxiliaryStats.wordOfMouth,
+      reputation: legacyAuxiliaryStats.wordOfMouth,
+      soldCount: legacyAuxiliaryStats.soldCount,
+      withdrawnCount: legacyAuxiliaryStats.withdrawnCount,
       eventLog: world.eventLog.slice(0, 120),
+      eventStore: world.eventStore,
       weeklyReviews: world.weeklyReviews.slice(0, 12),
     };
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+    window.localStorage.setItem(getScopedGameStateStorageKey(accountEmail), JSON.stringify(snapshot));
   } catch (error) {
     console.error('Save failed', error);
   }
 }
 
-export function clearSavedGameState() {
+export function clearSavedGameState(accountEmail?: string) {
   if (!isBrowser()) {
     return;
   }
 
   try {
-    window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.removeItem(getScopedGameStateStorageKey(accountEmail));
   } catch {
     // ignore local cleanup failure
   }
 }
 
 export function updateDerivedState(world: GameState) {
-  world.cases.forEach((caseItem) => {
-    const opportunities = world.opportunities.filter((entry) => entry.caseId === caseItem.id && entry.status === 'active');
-    const highestStage = opportunities.length ? Math.max(...opportunities.map((entry) => entry.stageIndex)) : 0;
-
-    if (caseItem.status === 'sold') {
-      caseItem.stageLabel = '已成交';
-    } else if (caseItem.status === 'lost_to_rival') {
-      caseItem.stageLabel = '被竞品截走';
-    } else if (caseItem.status === 'withdrawn') {
-      caseItem.stageLabel = '已撤盘';
-    } else {
-      caseItem.stageIndex = Math.max(caseItem.stageIndex, highestStage);
-      caseItem.stageLabel = CASE_STAGES[clamp(caseItem.stageIndex, 0, CASE_STAGES.length - 1)];
-    }
-
-    caseItem.priceGapPct = Math.round(((caseItem.askPrice - caseItem.marketPrice) / Math.max(caseItem.marketPrice, 1)) * 1000) / 10;
-    updateCompetitiveness(world, caseItem);
-    caseItem.riskFlags = deriveRiskFlags(world, caseItem, opportunities);
-    caseItem.storylineState = deriveStorylineState(caseItem, opportunities);
-  });
-
-  world.schedule = deriveSchedule(world);
-  world.priorities = derivePriorities(world);
-  world.metrics = deriveMetrics(world);
-
-  if (!world.cases.some((entry) => entry.id === world.selectedCaseId)) {
-    world.selectedCaseId = world.cases.find((entry) => entry.status === 'active')?.id || world.cases[0]?.id || null;
-  }
-
-  world.opportunities.sort((left, right) => getOpportunityPriority(right) - getOpportunityPriority(left));
-}
-
-function deriveRiskFlags(world: GameState, caseItem: Case, opportunities: Opportunity[]) {
-  const flags: string[] = [];
-  if (caseItem.status !== 'active') return flags;
-  if (caseItem.trust < 58) flags.push('关系脆弱');
-  if (caseItem.windowDays <= 4) flags.push('窗口逼近');
-  if (caseItem.askPrice > caseItem.marketPrice * 1.05) flags.push('价格锚偏高');
-  if (caseItem.heat < 48) flags.push('盘面发冷');
-  if (!opportunities.length) flags.push('线索断档');
-  if (caseItem.competitionGroupIds.length > 0) flags.push('竞品联动');
-  if (!flags.length) flags.push('节奏稳定');
-  return flags;
-}
-
-function deriveStorylineState(caseItem: Case, opportunities: Opportunity[]) {
-  if (caseItem.status === 'sold') return 'healthy' as const;
-  if (caseItem.status === 'lost_to_rival' || caseItem.status === 'withdrawn') return 'critical' as const;
-  if (caseItem.windowDays <= 2 || caseItem.trust <= 45) return 'critical' as const;
-  if (caseItem.windowDays <= 4 || caseItem.trust <= 55 || !opportunities.length) return 'sliding' as const;
-  if (caseItem.heat < 50 || caseItem.competitionGroupIds.length > 0) return 'fragile' as const;
-  return 'healthy' as const;
-}
-
-function deriveSchedule(world: GameState) {
-  const items: any[] = [];
-  world.cases.forEach((caseItem) => {
-    if (caseItem.status !== 'active') return;
-    if (caseItem.windowDays <= 4) {
-      items.push({
-        key: `${caseItem.id}-window`,
-        title: '业主窗口逼近',
-        badge: `${caseItem.windowDays} 天内`,
-        note: `${caseItem.title} 处在业主窗口收缩阶段，${caseItem.ownerName} 的预期正在变紧。`,
-        urgency: 100 - caseItem.windowDays * 10,
-      });
-    }
-  });
-
-  world.opportunities
-    .filter((entry) => entry.status === 'active' && entry.daysLeft <= 2)
-    .forEach((entry) => {
-      const isShadow = entry.visibility === 'shadow';
-      const displayName = isShadow ? `待确认客户 #${entry.id.split('-').pop()}` : entry.customerName;
-      items.push({
-        key: entry.id,
-        title: isShadow ? '确认客户需求' : entry.stageLabel,
-        badge: `${entry.daysLeft} 天后流失`,
-        note: `${displayName} 正在从 ${world.cases.find((caseItem) => caseItem.id === entry.caseId)?.title || '房源'} 上流失，剩余窗口已经不多。`,
-        urgency: 86 - entry.daysLeft * 10 + entry.stageIndex * 4,
-      });
-    });
-
-  return items.sort((left, right) => right.urgency - left.urgency).slice(0, 10);
-}
-
-function derivePriorities(world: GameState) {
-  const items: any[] = [];
-  world.cases
-    .filter((entry) => entry.status === 'active')
-    .sort((left, right) => calculateUrgency(right) - calculateUrgency(left))
-    .slice(0, 2)
-    .forEach((caseItem) => {
-      const urgencyLabel = caseItem.storylineState === 'critical'
-        ? '这套房已经快滑出可控区了。'
-        : caseItem.storylineState === 'sliding'
-          ? '这套房正在往难看收尾滑。'
-          : caseItem.storylineState === 'fragile'
-            ? '这套房还能守，但已经不能再放。'
-            : '这套房目前还在你能控住的区间里。';
-      items.push({
-        kind: 'case',
-        title: `${caseItem.title} 风险抬升`,
-        detail: `${urgencyLabel} ${caseItem.ownerName} 当前信任 ${Math.round(caseItem.trust)}，D3 意愿分 ${Math.round(caseItem.d3)}。`,
-        caseId: caseItem.id,
-      });
-    });
-
-  world.opportunities
-    .filter((entry) => entry.status === 'active')
-    .slice(0, 2)
-    .forEach((entry) => {
-      const isShadow = entry.visibility === 'shadow';
-      const displayName = isShadow ? `待确认客户 #${entry.id.split('-').pop()}` : entry.customerName;
-      items.push({
-        kind: 'opportunity',
-        title: isShadow ? `${displayName} 待确认` : `${displayName} 进入 ${entry.stageLabel}`,
-        detail: isShadow
-          ? `这是一位待确认客户，当前信息来自经纪人 ${entry.brokerName}。`
-          : `${displayName} 已进入 ${entry.stageLabel}，${entry.daysLeft} 天后可能流失。`,
-        caseId: entry.caseId,
-      });
-    });
-
-  return items.slice(0, 5);
-}
-
-function deriveMetrics(world: GameState) {
-  const activeCases = world.cases.filter((entry) => entry.status === 'active');
-  const activeOpportunities = world.opportunities.filter((entry) => entry.status === 'active');
-  return {
-    activeCaseCount: activeCases.length,
-    activeOpportunityCount: activeOpportunities.length,
-    averageTrust: Math.round(average(activeCases.map((entry) => entry.trust))),
-    averageD1: Math.round(average(activeCases.map((entry) => entry.d1))),
-    averageD3: Math.round(average(activeCases.map((entry) => entry.d3))),
-    topConversion: activeOpportunities.length ? `${Math.round(activeOpportunities[0].intent)}%` : '暂无',
-  };
+  updateDomainDerivedState(world);
+  syncAuxiliaryMirrors(world);
 }

@@ -1,6 +1,7 @@
 import type {
   Case,
   CaseFinalResult,
+  DomainEventEntry,
   DefenseOutcome,
   FinalResult,
   GameState,
@@ -10,8 +11,73 @@ import type {
   ListingEndingType,
   ListingRelativeOutcome,
   OwnerSatisfactionState,
+  ScoreAttribution,
+  ScoreAttributionItem,
   ScoreDimensionResult,
-} from './models';
+} from './models.js';
+import { getPromotionBudget } from './runtimeStats.js';
+
+const ABILITY_ACTION_IDS = new Set([
+  'story',
+  'xiaohongshu-boost',
+  'broker-broadcast',
+  'private-referral',
+  'open-day',
+  'showing',
+  'sincerity-sale',
+  'invite-customer-negotiation',
+  'deep-diagnosis',
+]);
+
+const OWNER_RELATION_ACTION_IDS = new Set([
+  'first-visit',
+  'weekly-feedback',
+  'deep-diagnosis',
+  'pricing-advice',
+  'ask-psychological-price',
+  'adjust-listing-price',
+]);
+
+type AttributionSummary = {
+  actionCounts: Record<string, number>;
+  kindCounts: Record<DomainEventEntry['kind'], number>;
+  opportunityAdvancedCount: number;
+  opportunityClosedCount: number;
+  caseSoldCount: number;
+  caseWithdrawnCount: number;
+  caseLostToRivalCount: number;
+  windowExtendedCount: number;
+  marketEventCount: number;
+  journalCount: number;
+};
+
+const ACTION_LABELS: Record<string, string> = {
+  'first-visit': '首次面访',
+  'weekly-feedback': '周度反馈',
+  'deep-diagnosis': '深度诊断',
+  story: '精修卖点',
+  'xiaohongshu-boost': '小红书推广',
+  'broker-broadcast': '经纪人投放',
+  'private-referral': '私域转介绍',
+  'open-day': '开放日',
+  showing: '安排带看',
+  'pricing-advice': '定价建议',
+  'ask-psychological-price': '询问心理价',
+  'adjust-listing-price': '商讨挂牌价调整',
+  'sincerity-sale': '建议参与诚意卖',
+  'invite-customer-negotiation': '邀请和客户谈判',
+};
+
+const EVENT_LABELS: Partial<Record<DomainEventEntry['kind'], string>> = {
+  opportunity_advanced: '客户阶段升格',
+  opportunity_closed: '客户机会结束',
+  case_sold: '房源成交',
+  case_withdrawn: '房源撤盘',
+  case_lost_to_rival: '被竞品截走',
+  window_extended: '业主续窗',
+  market_event: '市场事件',
+  budget_changed: '推广金变化',
+};
 
 function clampScore(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -151,9 +217,9 @@ function endingBucket(endingType: ListingEndingType): ListingEndingBucket {
 }
 
 function endingBucketLabel(bucket: ListingEndingBucket) {
-  if (bucket === 'good') return '好收尾';
-  if (bucket === 'neutral') return '一般收尾';
-  return '坏收尾';
+  if (bucket === 'good') return '结果不错';
+  if (bucket === 'neutral') return '结果一般';
+  return '结果较差';
 }
 
 function endingLabel(endingType: ListingEndingType) {
@@ -178,9 +244,9 @@ function endingLabel(endingType: ListingEndingType) {
 }
 
 function relativeLabel(outcome: ListingRelativeOutcome) {
-  if (outcome === 'outrun') return '跑赢盘面';
-  if (outcome === 'flat') return '大致打平';
-  return '跑输盘面';
+  if (outcome === 'outrun') return '比同类房表现更好';
+  if (outcome === 'flat') return '和同类房差不多';
+  return '比同类房表现更差';
 }
 
 function satisfactionLabel(state: OwnerSatisfactionState) {
@@ -192,7 +258,7 @@ function satisfactionLabel(state: OwnerSatisfactionState) {
 }
 
 function defenseLabel(outcome: DefenseOutcome) {
-  if (outcome === 'held') return '守住了';
+  if (outcome === 'held') return '留在自己手里';
   if (outcome === 'at_risk') return '局末高危';
   if (outcome === 'lost_to_rival') return '被竞品截走';
   return '自己撤了';
@@ -201,19 +267,19 @@ function defenseLabel(outcome: DefenseOutcome) {
 function buildEndingSummary(caseItem: Case, endingType: ListingEndingType) {
   switch (endingType) {
     case 'sold_by_you_happy':
-      return `${caseItem.title} 最终由你顺利收口，业主对结果和过程都买账。`;
+      return `${caseItem.title} 最终由你顺利卖掉，业主对结果和过程都认可。`;
     case 'sold_by_you_neutral':
-      return `${caseItem.title} 最终收口了，业主接受结果，但情绪不算特别高。`;
+      return `${caseItem.title} 最终卖掉了，业主接受结果，但情绪不算特别高。`;
     case 'sold_by_you_regret':
       return `${caseItem.title} 虽然成交了，但业主对过程和体验并不满意。`;
     case 'sold_by_other':
       return `${caseItem.title} 最终没守住，机会被别人拿走了。`;
     case 'not_sold_no_regret':
-      return `${caseItem.title} 这局没卖掉，但至少没有把业主做后悔。`;
+      return `${caseItem.title} 这局没卖掉，但至少没有让业主后悔。`;
     case 'not_sold_regret':
-      return `${caseItem.title} 没有收口，业主也开始怀疑这轮经营值不值得。`;
+      return `${caseItem.title} 没卖掉，业主也开始怀疑这轮跟进值不值得。`;
     case 'switch_to_rent_no_regret':
-      return `${caseItem.title} 没按卖的主线走到底，但最后止损方式还算体面。`;
+      return `${caseItem.title} 没按卖房走到底，但最后换成转租也还算体面。`;
     case 'withdrawn_unhappy':
       return `${caseItem.title} 最终撤盘，而且收尾并不体面。`;
   }
@@ -252,7 +318,170 @@ function buildCaseFinalResult(caseItem: Case): CaseFinalResult {
   };
 }
 
-function buildAbilityDimension(caseResults: CaseFinalResult[]): ScoreDimensionResult {
+function readString(payload: Record<string, unknown>, key: string) {
+  return typeof payload[key] === 'string' ? payload[key] : null;
+}
+
+function countActions(attribution: AttributionSummary, actionIds: Set<string>) {
+  return Object.entries(attribution.actionCounts).reduce((sum, [actionId, count]) => {
+    return sum + (actionIds.has(actionId) ? count : 0);
+  }, 0);
+}
+
+function topActionItems(
+  attribution: AttributionSummary,
+  actionIds: Set<string>,
+  tone: ScoreAttributionItem['tone'] = 'positive',
+) {
+  return Object.entries(attribution.actionCounts)
+    .filter(([actionId]) => actionIds.has(actionId))
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .slice(0, 3)
+    .map(([actionId, count]) => ({
+      key: `action-${actionId}`,
+      label: ACTION_LABELS[actionId] || actionId,
+      count,
+      tone,
+    }));
+}
+
+function compactEventItems(
+  items: Array<ScoreAttributionItem | null>,
+) {
+  return items.filter((entry): entry is ScoreAttributionItem => Boolean(entry && entry.count > 0));
+}
+
+function eventItem(
+  key: DomainEventEntry['kind'],
+  count: number,
+  tone: ScoreAttributionItem['tone'],
+  label = EVENT_LABELS[key] || key,
+): ScoreAttributionItem | null {
+  if (count <= 0) return null;
+  return {
+    key: `event-${key}`,
+    label,
+    count,
+    tone,
+  };
+}
+
+function buildAttributionSummary(events: DomainEventEntry[]): AttributionSummary {
+  const summary: AttributionSummary = {
+    actionCounts: {},
+    kindCounts: {
+      journal: 0,
+      action_executed: 0,
+      budget_changed: 0,
+      opportunity_advanced: 0,
+      opportunity_closed: 0,
+      case_sold: 0,
+      case_withdrawn: 0,
+      case_lost_to_rival: 0,
+      window_extended: 0,
+      market_event: 0,
+    },
+    opportunityAdvancedCount: 0,
+    opportunityClosedCount: 0,
+    caseSoldCount: 0,
+    caseWithdrawnCount: 0,
+    caseLostToRivalCount: 0,
+    windowExtendedCount: 0,
+    marketEventCount: 0,
+    journalCount: 0,
+  };
+
+  events.forEach((event) => {
+    summary.kindCounts[event.kind] = (summary.kindCounts[event.kind] || 0) + 1;
+    if (event.kind === 'action_executed') {
+      const actionId = readString(event.payload, 'actionId');
+      if (actionId) {
+        summary.actionCounts[actionId] = (summary.actionCounts[actionId] || 0) + 1;
+      }
+      return;
+    }
+    if (event.kind === 'opportunity_advanced') {
+      summary.opportunityAdvancedCount += 1;
+      return;
+    }
+    if (event.kind === 'opportunity_closed') {
+      summary.opportunityClosedCount += 1;
+      return;
+    }
+    if (event.kind === 'case_sold') {
+      summary.caseSoldCount += 1;
+      return;
+    }
+    if (event.kind === 'case_withdrawn') {
+      summary.caseWithdrawnCount += 1;
+      return;
+    }
+    if (event.kind === 'case_lost_to_rival') {
+      summary.caseLostToRivalCount += 1;
+      return;
+    }
+    if (event.kind === 'window_extended') {
+      summary.windowExtendedCount += 1;
+      return;
+    }
+    if (event.kind === 'market_event') {
+      summary.marketEventCount += 1;
+      return;
+    }
+    if (event.kind === 'journal') {
+      summary.journalCount += 1;
+    }
+  });
+
+  return summary;
+}
+
+function buildAbilityAttribution(attribution: AttributionSummary): ScoreAttribution {
+  const abilityActionCount = countActions(attribution, ABILITY_ACTION_IDS);
+  return {
+    headline: abilityActionCount > 0 || attribution.opportunityAdvancedCount > 0 || attribution.caseSoldCount > 0
+      ? `${abilityActionCount} 次关键推进动作，${attribution.opportunityAdvancedCount} 次客户阶段升格，${attribution.caseSoldCount} 套成交。`
+      : '这局缺少可归因的推进动作，能力分主要来自最终房源状态。',
+    actions: topActionItems(attribution, ABILITY_ACTION_IDS),
+    events: compactEventItems([
+      eventItem('opportunity_advanced', attribution.opportunityAdvancedCount, 'positive'),
+      eventItem('case_sold', attribution.caseSoldCount, 'positive'),
+      eventItem('market_event', attribution.marketEventCount, 'neutral'),
+    ]),
+  };
+}
+
+function buildDefenseAttribution(attribution: AttributionSummary): ScoreAttribution {
+  const defenseActionCount = countActions(attribution, OWNER_RELATION_ACTION_IDS);
+  return {
+    headline: attribution.caseLostToRivalCount > 0 || attribution.caseWithdrawnCount > 0
+      ? `${defenseActionCount} 次守盘动作后，仍有 ${attribution.caseLostToRivalCount} 次被竞品截走、${attribution.caseWithdrawnCount} 次撤盘。`
+      : `${defenseActionCount} 次守盘动作，${attribution.windowExtendedCount} 次续窗，关键房源留在自己手里。`,
+    actions: topActionItems(attribution, OWNER_RELATION_ACTION_IDS),
+    events: compactEventItems([
+      eventItem('window_extended', attribution.windowExtendedCount, 'positive'),
+      eventItem('case_lost_to_rival', attribution.caseLostToRivalCount, 'warning'),
+      eventItem('case_withdrawn', attribution.caseWithdrawnCount, 'warning'),
+    ]),
+  };
+}
+
+function buildSatisfactionAttribution(attribution: AttributionSummary): ScoreAttribution {
+  const ownerActionCount = countActions(attribution, OWNER_RELATION_ACTION_IDS);
+  return {
+    headline: ownerActionCount > 0
+      ? `${ownerActionCount} 次业主沟通动作沉淀到满意分。`
+      : '这局缺少可归因的业主沟通动作，满意分主要来自最终信任与收尾状态。',
+    actions: topActionItems(attribution, OWNER_RELATION_ACTION_IDS),
+    events: compactEventItems([
+      eventItem('case_sold', attribution.caseSoldCount, 'positive', '成交收尾'),
+      eventItem('case_withdrawn', attribution.caseWithdrawnCount, 'warning', '撤盘收尾'),
+      eventItem('case_lost_to_rival', attribution.caseLostToRivalCount, 'warning', '失守收尾'),
+    ]),
+  };
+}
+
+function buildAbilityDimension(caseResults: CaseFinalResult[], attribution: AttributionSummary): ScoreDimensionResult {
   const totalWeight = caseResults.reduce((sum, entry) => sum + normalizeGoalTier(entry.goalTier), 0) || 1;
   const weightedScore = caseResults.reduce((sum, entry) => {
     const base = entry.relativeOutcome === 'outrun' ? 1 : entry.relativeOutcome === 'flat' ? 0.65 : 0.2;
@@ -266,17 +495,21 @@ function buildAbilityDimension(caseResults: CaseFinalResult[]): ScoreDimensionRe
   const score = clampScore(Math.round((weightedScore / totalWeight) * 40), 0, 40);
   const outrunCount = caseResults.filter((entry) => entry.relativeOutcome === 'outrun').length;
   const loseCount = caseResults.filter((entry) => entry.relativeOutcome === 'lose').length;
+  const abilityActionCount = countActions(attribution, ABILITY_ACTION_IDS);
   return {
     label: '能力分',
     score,
     maxScore: 40,
-    summary: loseCount === 0
-      ? `这局大多数房都没被盘面压着打，尤其有 ${outrunCount} 套真正做出了跑赢感。`
-      : `这局有 ${outrunCount} 套房跑出了盘面，也有 ${loseCount} 套房明显被环境拖住。`,
+    summary: abilityActionCount > 0 || attribution.opportunityAdvancedCount > 0 || attribution.caseSoldCount > 0
+      ? `本局做了 ${abilityActionCount} 次关键推进动作，带来 ${attribution.opportunityAdvancedCount} 次客户阶段升格，最终成交 ${attribution.caseSoldCount} 套。`
+      : loseCount === 0
+        ? `这局大多数房都没被市场压住，尤其有 ${outrunCount} 套房明显比同类房表现更好。`
+        : `这局有 ${outrunCount} 套房表现比同类房更好，也有 ${loseCount} 套房被市场拖住了。`,
+    attribution: buildAbilityAttribution(attribution),
   };
 }
 
-function buildDefenseDimension(caseResults: CaseFinalResult[]): ScoreDimensionResult {
+function buildDefenseDimension(caseResults: CaseFinalResult[], attribution: AttributionSummary): ScoreDimensionResult {
   const totalWeight = caseResults.reduce((sum, entry) => sum + normalizeGoalTier(entry.goalTier), 0) || 1;
   const weightedScore = caseResults.reduce((sum, entry) => {
     const value = entry.defenseOutcome === 'held'
@@ -289,19 +522,25 @@ function buildDefenseDimension(caseResults: CaseFinalResult[]): ScoreDimensionRe
   const score = clampScore(Math.round((weightedScore / totalWeight) * 35), 0, 35);
   const lostCore = caseResults.some((entry) => entry.goalTier === 'core' && entry.defenseOutcome === 'lost_to_rival');
   const lostCount = caseResults.filter((entry) => entry.defenseOutcome === 'lost_to_rival').length;
+  const defenseActionCount = countActions(attribution, OWNER_RELATION_ACTION_IDS);
   return {
-    label: '守盘分',
+    label: '保住房源分',
     score,
     maxScore: 35,
     summary: lostCore
-      ? '这局最伤的是核心盘没守住，整体守盘感被直接拉低了。'
-      : lostCount > 0
-        ? `有 ${lostCount} 套房最终失守，说明资源排序还不够狠。`
-        : '关键房基本守住了，这局的盘面防守是成立的。',
+      ? '这局最伤的是最重要的房没留在自己手里，这一项被直接拉低了。'
+      : attribution.caseLostToRivalCount > 0 || attribution.caseWithdrawnCount > 0
+        ? `本局做了 ${defenseActionCount} 次关键守盘动作，但仍出现 ${attribution.caseLostToRivalCount} 次被竞品截走、${attribution.caseWithdrawnCount} 次撤盘。`
+        : attribution.windowExtendedCount > 0
+          ? `本局做了 ${defenseActionCount} 次关键守盘动作，并换来了 ${attribution.windowExtendedCount} 次续窗缓冲。`
+          : lostCount > 0
+            ? `有 ${lostCount} 套房最后被别人抢走，说明资源分配还不够果断。`
+            : '商圈聚焦房基本都留在自己手里，这一项是过关的。',
+    attribution: buildDefenseAttribution(attribution),
   };
 }
 
-function buildSatisfactionDimension(caseResults: CaseFinalResult[]): ScoreDimensionResult {
+function buildSatisfactionDimension(caseResults: CaseFinalResult[], attribution: AttributionSummary): ScoreDimensionResult {
   const totalWeight = caseResults.reduce((sum, entry) => sum + normalizeGoalTier(entry.goalTier), 0) || 1;
   const weightedScore = caseResults.reduce((sum, entry) => {
     const value = entry.ownerSatisfaction === 'happy'
@@ -318,13 +557,17 @@ function buildSatisfactionDimension(caseResults: CaseFinalResult[]): ScoreDimens
   const score = clampScore(Math.round((weightedScore / totalWeight) * 25), 0, 25);
   const unhappyCount = caseResults.filter((entry) => entry.ownerSatisfaction === 'unhappy').length;
   const happyCount = caseResults.filter((entry) => entry.ownerSatisfaction === 'happy').length;
+  const ownerActionCount = countActions(attribution, OWNER_RELATION_ACTION_IDS);
   return {
     label: '满意分',
     score,
     maxScore: 25,
-    summary: unhappyCount > 0
-      ? `有 ${unhappyCount} 套房最后明显做出了不满，满意面没守住。`
+    summary: ownerActionCount > 0
+      ? unhappyCount > 0
+        ? `本局做了 ${ownerActionCount} 次业主沟通动作，但仍有 ${unhappyCount} 套房最后明显做出了不满。`
+        : `本局做了 ${ownerActionCount} 次业主沟通动作，最终有 ${happyCount} 套房收成了真正的满意。`
       : `这局至少有 ${happyCount} 套房收成了真正的满意，其余大多没有做后悔。`,
+    attribution: buildSatisfactionAttribution(attribution),
   };
 }
 
@@ -349,31 +592,31 @@ function buildEndingStats(caseResults: CaseFinalResult[]): FinalResult['endingSt
 
 function buildEndingStructureSummary(endingStats: FinalResult['endingStats']) {
   if (endingStats.coreBadCount > 0) {
-    return `结局结构：${endingStats.good} 套好收尾、${endingStats.neutral} 套一般收尾、${endingStats.bad} 套坏收尾，最伤的是核心盘出现坏收尾。`;
+    return `结果分布：${endingStats.good} 套结果不错、${endingStats.neutral} 套结果一般、${endingStats.bad} 套结果较差，最伤的是核心房出了差结果。`;
   }
   if (endingStats.bad > 0) {
-    return `结局结构：${endingStats.good} 套好收尾、${endingStats.neutral} 套一般收尾、${endingStats.bad} 套坏收尾，问题主要出在失守和难看收尾。`;
+    return `结果分布：${endingStats.good} 套结果不错、${endingStats.neutral} 套结果一般、${endingStats.bad} 套结果较差，问题主要出在被别人抢走和结尾做差了。`;
   }
-  return `结局结构：${endingStats.good} 套好收尾、${endingStats.neutral} 套一般收尾，没有明显坏收尾。`;
+  return `结果分布：${endingStats.good} 套结果不错、${endingStats.neutral} 套结果一般，没有明显差结果。`;
 }
 
 function deriveGrade(score: number, thresholds: { pass: number; strong: number; ace: number }) {
   if (score >= thresholds.ace) {
-    return { grade: '王牌', title: '这局你真正控住了局势' };
+    return { grade: '王牌', title: '这局你真的把房子卖顺了' };
   }
   if (score >= thresholds.strong) {
-    return { grade: '漂亮', title: '这局明显是你压住了节奏' };
+    return { grade: '漂亮', title: '这局基本是你在带着节奏走' };
   }
   if (score >= thresholds.pass) {
-    return { grade: '过线', title: '至少把关键局面撑住了' };
+    return { grade: '过线', title: '至少把最关键的部分撑住了' };
   }
-  return { grade: '失守', title: '这局还是被盘面带着走了' };
+  return { grade: '没保住', title: '这局还是没能把情况扳回来' };
 }
 
 function deriveGoalSummary(goalContext: GoalContextId) {
-  if (goalContext === 'defense') return '这局主看守盘，你最怕的不是少卖，而是关键房失守。';
+  if (goalContext === 'defense') return '这局主要看你能不能把商圈聚焦房留在自己手里，你最怕的不是少卖，而是被别人抢走。';
   if (goalContext === 'satisfaction') return '这局主看满意，重点是别把业主关系和体验做崩。';
-  return '这局主看能力，重点是把这些房子做得跑赢它们各自所处盘面。';
+  return '这局主看能力，重点是把这些房子做得比同类房更好卖。';
 }
 
 function buildHighlights(
@@ -384,19 +627,19 @@ function buildHighlights(
   const highlights: string[] = [];
   const happySolds = caseResults.filter((entry) => entry.endingType === 'sold_by_you_happy');
   if (happySolds.length > 0) {
-    highlights.push(`这局至少有 ${happySolds.length} 套房收成了“卖掉了，很满意”，说明你不是只会硬收口。`);
+    highlights.push(`这局至少有 ${happySolds.length} 套房做到了“卖掉了，很满意”，说明你不是只会硬推成交。`);
   }
   if (endingStats.good > 0 && endingStats.bad === 0) {
-    highlights.push(`整局有 ${endingStats.good} 套房落在好收尾，没有房源变成坏收尾，房源主线是收住的。`);
+    highlights.push(`整局有 ${endingStats.good} 套房结果不错，没有房源落到差结果，整体算是稳住了。`);
   }
   if (dimensions.defense.score >= 28) {
-    highlights.push('守盘线打得比较稳，关键房没有轻易被别人摘走。');
+    highlights.push('商圈聚焦房基本都保住了，没有轻易被别人抢走。');
   }
   if (dimensions.ability.score >= 30) {
-    highlights.push('这局不只是成交，而是多套房都打出了跑赢盘面的感觉。');
+    highlights.push('这局不只是有成交，而是多套房都卖得比同类房更顺。');
   }
   if (!highlights.length) {
-    highlights.push('至少你把整局完整收完了，已经开始像在打真正的局，而不是乱点动作。');
+    highlights.push('至少你把整局完整跑完了，已经不是乱点动作的状态。');
   }
   return highlights;
 }
@@ -408,19 +651,19 @@ function buildImprovements(
 ) {
   const improvements: string[] = [];
   if (endingStats.coreBadCount > 0) {
-    improvements.push('核心盘出现坏收尾，下一局要先分清哪套房绝对不能放。');
+    improvements.push('最重要的房出现了差结果，下一局要先分清哪套房绝对不能放。');
   }
   if (caseResults.some((entry) => entry.defenseOutcome === 'lost_to_rival')) {
-    improvements.push('有房最终失守，下一局要更早把核心盘和能放的盘分开。');
+    improvements.push('有房最后被别人抢走，下一局要更早把商圈聚焦房和可以后放的房分开。');
   }
   if (dimensions.satisfaction.score <= 12) {
-    improvements.push('满意面偏弱，说明你有些盘虽然在推进，但做得不够体面。');
+    improvements.push('满意分偏弱，说明你有些房虽然在往前推，但过程做得不够体面。');
   }
   if (dimensions.ability.score <= 20) {
-    improvements.push('能力面偏低，说明这局不少房都没有真正跑赢自己所处盘面。');
+    improvements.push('能力分偏低，说明这局不少房都没有真正卖过同类房。');
   }
   if (!improvements.length) {
-    improvements.push('下一局可以更极端一点拉开资源主次，练真正的舍与保。');
+    improvements.push('下一局可以把资源分配拉得更开，别平均用力。');
   }
   return improvements;
 }
@@ -441,9 +684,9 @@ function buildPromotionNotes(world: GameState) {
   } else {
     notes.push('这局几乎没怎么动推广金，更多是在靠基本经营动作推进。');
   }
-  if (world.cash <= 2) {
+  if (getPromotionBudget(world) <= 2) {
     notes.push('局末推广金几乎打空了，说明你在资源排序上还能更克制。');
-  } else if (world.cash >= 8) {
+  } else if (getPromotionBudget(world) >= 8) {
     notes.push('推广金结余比较健康，资源纪律感是在线的。');
   }
   return notes;
@@ -466,13 +709,13 @@ function buildNextRunAdvice(caseResults: CaseFinalResult[], dimensions: FinalRes
   const advice: string[] = [];
   const coreLossCount = caseResults.filter((entry) => entry.goalTier === 'core' && entry.defenseOutcome !== 'held').length;
   if (coreLossCount > 0) {
-    advice.push(`本局有 ${coreLossCount} 套核心盘没有守住，开局三天的资源分配直接影响了后段容错。`);
+    advice.push(`本局有 ${coreLossCount} 套最重要的房没留在自己手里，开局三天怎么分配资源，直接影响后面还能不能救。`);
   }
   if (dimensions.satisfaction.score <= dimensions.ability.score && dimensions.satisfaction.score <= dimensions.defense.score) {
     advice.push('满意分是三轴里最低的一项，说明成交推进和业主体感没有一起被守住。');
   }
   if (dimensions.ability.score < 24) {
-    advice.push('能力分偏低，说明有效推进主要集中在少数房源，更多房源停留在中前段。');
+    advice.push('能力分偏低，说明有效推进主要集中在少数房源，更多房源停在中间阶段。');
   }
   if (!advice.length) {
     advice.push('三项分数比较接近，这局没有明显单一短板，主要差异来自具体房源收尾。');
@@ -480,12 +723,85 @@ function buildNextRunAdvice(caseResults: CaseFinalResult[], dimensions: FinalRes
   return advice;
 }
 
+function buildCustomerReview(world: GameState): FinalResult['customerReview'] {
+  const engagedCustomers = world.customerStates.filter((entry) => entry.status === 'engaged' || entry.status === 'negotiating');
+  const comparingCustomers = world.customerStates.filter((entry) => entry.status === 'comparing');
+  const atRiskCustomers = world.customerStates.filter((entry) => entry.churnRisk >= 60);
+  const rivalPulled = world.customerStates.filter((entry) => entry.lastActionNote?.includes('竞品')).length;
+
+  const strongestCaseTitle = pickCustomerLeadCaseTitle(world, (entry) =>
+    Object.values(entry.caseStates).some((caseState) => caseState.selected),
+  );
+  const mostComparedCaseTitle = pickCustomerLeadCaseTitle(world, (entry) => entry.status === 'comparing');
+  const mostAtRiskCaseTitle = pickCustomerLeadCaseTitle(world, (entry) => entry.churnRisk >= 60);
+
+  const notes: string[] = [];
+  if (strongestCaseTitle) {
+    notes.push(`${strongestCaseTitle} 是局末客户最愿意继续往前走的一套房。`);
+  }
+  if (mostComparedCaseTitle) {
+    notes.push(`${mostComparedCaseTitle} 最常被客户拿去和别的盘比较，这套房最要统一价格和讲法。`);
+  }
+  if (mostAtRiskCaseTitle) {
+    notes.push(`${mostAtRiskCaseTitle} 挂着最多快流失客户，最后几步最容易掉。`);
+  }
+  if (rivalPulled > 0) {
+    notes.push(`这局有 ${rivalPulled} 位客户一度被竞品抢走注意力。`);
+  }
+  if (!notes.length) {
+    notes.push('这局客户推进不算厚，后面可以更早把首选客户往后几步推。');
+  }
+
+  const summary = comparingCustomers.length > 0
+    ? `局末还有 ${comparingCustomers.length} 位客户在比盘，先稳住首选房，再谈最后一口价。`
+    : atRiskCustomers.length > 0
+      ? `局末有 ${atRiskCustomers.length} 位客户快流失，说明最后阶段的承接还不够稳。`
+      : engagedCustomers.length > 0
+        ? `局末还有 ${engagedCustomers.length} 位客户在推进，说明客户线没有断。`
+        : '局末客户面偏薄，下一局要更早把客户线做厚。';
+
+  return {
+    engaged: engagedCustomers.length,
+    comparing: comparingCustomers.length,
+    atRisk: atRiskCustomers.length,
+    rivalPulled,
+    strongestCaseTitle,
+    mostComparedCaseTitle,
+    mostAtRiskCaseTitle,
+    summary,
+    notes,
+  };
+}
+
+function pickCustomerLeadCaseTitle(
+  world: GameState,
+  predicate: (entry: GameState['customerStates'][number]) => boolean,
+) {
+  const counts = new Map<string, number>();
+
+  world.customerStates
+    .filter(predicate)
+    .forEach((entry) => {
+      const selectedCaseId = Object.values(entry.caseStates).find((caseState) => caseState.selected)?.caseId
+        || entry.activeCaseIds[0];
+      if (!selectedCaseId) return;
+      counts.set(selectedCaseId, (counts.get(selectedCaseId) || 0) + 1);
+    });
+
+  const leadCaseId = [...counts.entries()]
+    .sort((left, right) => right[1] - left[1])[0]?.[0];
+
+  return world.cases.find((entry) => entry.id === leadCaseId)?.title || null;
+}
+
 export function evaluateFinalResult(world: GameState, reason: string): FinalResult {
+  const attribution = buildAttributionSummary(Array.isArray(world.eventStore) ? world.eventStore : []);
   const caseResults = world.cases.map((caseItem) => buildCaseFinalResult(caseItem));
   const endingStats = buildEndingStats(caseResults);
-  const ability = buildAbilityDimension(caseResults);
-  const defense = buildDefenseDimension(caseResults);
-  const satisfaction = buildSatisfactionDimension(caseResults);
+  const ability = buildAbilityDimension(caseResults, attribution);
+  const defense = buildDefenseDimension(caseResults, attribution);
+  const satisfaction = buildSatisfactionDimension(caseResults, attribution);
+  const customerReview = buildCustomerReview(world);
   const score = ability.score + defense.score + satisfaction.score;
   const targetScore = world.runContext.scenarioSnapshot.scenario.targetScore || 72;
   const thresholds = world.runContext.scenarioSnapshot.scenario.scoreThresholds || {
@@ -497,9 +813,9 @@ export function evaluateFinalResult(world: GameState, reason: string): FinalResu
   const gradeInfo = deriveGrade(score, thresholds);
 
   const scoreBreakdown = [
-    { label: ability.label, value: ability.score, maxValue: ability.maxScore, summary: ability.summary },
-    { label: defense.label, value: defense.score, maxValue: defense.maxScore, summary: defense.summary },
-    { label: satisfaction.label, value: satisfaction.score, maxValue: satisfaction.maxScore, summary: satisfaction.summary },
+    { label: ability.label, value: ability.score, maxValue: ability.maxScore, summary: ability.summary, attribution: ability.attribution },
+    { label: defense.label, value: defense.score, maxValue: defense.maxScore, summary: defense.summary, attribution: defense.attribution },
+    { label: satisfaction.label, value: satisfaction.score, maxValue: satisfaction.maxScore, summary: satisfaction.summary, attribution: satisfaction.attribution },
   ];
 
   return {
@@ -521,6 +837,7 @@ export function evaluateFinalResult(world: GameState, reason: string): FinalResu
     promotionNotes: buildPromotionNotes(world),
     coachNotes: buildCoachNotes(caseResults),
     nextRunAdvice: buildNextRunAdvice(caseResults, { ability, defense, satisfaction }),
+    customerReview,
     caseResults,
     endingStats,
     stats: [
@@ -529,10 +846,10 @@ export function evaluateFinalResult(world: GameState, reason: string): FinalResu
       { label: '最终总分', value: `${score}` },
       { label: '房源结局', value: `${endingStats.good} 好 / ${endingStats.neutral} 一般 / ${endingStats.bad} 坏` },
       { label: '能力分', value: `${ability.score} / ${ability.maxScore}` },
-      { label: '守盘分', value: `${defense.score} / ${defense.maxScore}` },
+      { label: '保住房源分', value: `${defense.score} / ${defense.maxScore}` },
       { label: '满意分', value: `${satisfaction.score} / ${satisfaction.maxScore}` },
       { label: '结局权重', value: `${endingStats.weightedGood} 好 / ${endingStats.weightedBad} 坏` },
-      { label: '剩余推广金', value: `${world.cash} 点` },
+      { label: '剩余推广金', value: `${getPromotionBudget(world)} 点` },
     ],
   };
 }

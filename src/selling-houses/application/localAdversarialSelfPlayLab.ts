@@ -2,9 +2,9 @@ import {
   LocalAdversarialSelfPlayArena,
   buildSelfPlayRunSnapshot,
   type SelfPlayReport,
-} from './localAdversarialSelfPlayArena';
-import { getScenarioSnapshotById } from '../domain/scenarioCatalog';
-import type { DifficultyId } from '../domain/models';
+} from './localAdversarialSelfPlayArena.js';
+import { getScenarioSnapshotById } from '../domain/scenarioCatalog.js';
+import type { DifficultyId } from '../domain/models.js';
 
 export interface SelfPlayLabRunSummary {
   seed: number;

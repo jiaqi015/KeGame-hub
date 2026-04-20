@@ -1,4 +1,4 @@
-import type { WorldSpec } from '../models';
+import type { WorldSpec } from '../models.js';
 
 export const BUILT_IN_WORLD: WorldSpec = {
   id: 'shanghai-resale-2026',
@@ -267,7 +267,7 @@ export const BUILT_IN_WORLD: WorldSpec = {
       id: 'rival-activity-rise',
       type: 'rival_activity',
       title: '竞品动作变密',
-      message: '附近门店这两天动作变密，同类盘的价格锚可能被重新压低。',
+      message: '附近门店这两天动作变密，同类房的参考价可能又被往下压了。',
     },
   ],
   dailyEventTemplates: [

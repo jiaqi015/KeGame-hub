@@ -1,6 +1,17 @@
-import React from 'react';
-import { GameState, Opportunity } from '../../domain/models';
-import { Users, Info, ArrowRight, EyeOff, ShieldCheck, UserCheck } from 'lucide-react';
+import React, { useMemo } from 'react';
+import type { GameState } from '../../domain/models';
+import {
+  AlertTriangle,
+  ArrowRight,
+  EyeOff,
+  Gauge,
+  HandCoins,
+  MessagesSquare,
+  Sparkles,
+  Users,
+} from 'lucide-react';
+import { buildOpportunityListProjection } from '../../application/projections/operatingProjection.js';
+import { buildOpportunityViewModels, type OpportunityViewModel } from './caseOpportunityViewModel';
 
 interface OpportunitiesProps {
   state: GameState;
@@ -8,146 +19,676 @@ interface OpportunitiesProps {
   onSetView: (view: string) => void;
 }
 
+type PotentialPoolGroup = {
+  caseId: string;
+  title: string;
+  district: string;
+  signalCount: number;
+  channels: string[];
+  budgetLine: string;
+  summary: string;
+  avgIntent: number;
+  avgConfidence: number;
+  soonestDaysLeft: number;
+};
+
 export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesProps) {
-  const activeOpportunities = state.opportunities.filter(o => o.status === 'active');
-  const marketSignals = state.marketShadow?.marketSignals || [];
+  const projection = useMemo(() => buildOpportunityListProjection(state), [state]);
+  const metModels = useMemo(() => buildOpportunityViewModels(state, projection.met), [projection.met, state]);
+  const potentialModels = useMemo(() => buildOpportunityViewModels(state, projection.potential), [projection.potential, state]);
+  const closingModels = useMemo(() => buildOpportunityViewModels(state, projection.closing), [projection.closing, state]);
+  const atRiskModels = useMemo(() => buildOpportunityViewModels(state, projection.atRisk), [projection.atRisk, state]);
+  const potentialPools = useMemo(() => groupPotentialPools(potentialModels), [potentialModels]);
+
+  const viewedModels = metModels.filter((model) => model.hasViewed);
+  const contactedModels = metModels.filter((model) => !model.hasViewed);
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <h3 className="text-[22px] font-bold text-slate-900">准客池</h3>
-        <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-600 text-xs font-bold">
-          {activeOpportunities.length} 个活跃机会
-        </span>
-      </div>
-
-      {marketSignals.length > 0 && (
-        <section className="rounded-[24px] border border-amber-100 bg-gradient-to-br from-amber-50 via-white to-white p-5 shadow-sm">
-          <div className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-amber-700">
-            <EyeOff size={15} />
-            潜在机会
+    <div className="space-y-4">
+      <section className="seller-panel p-4 lg:p-5">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="max-w-3xl">
+            <div className="seller-label">客户</div>
+            <h2 className="seller-title mt-2 text-[24px]">已接上、快成交、快流失</h2>
+            <p className="seller-body mt-2 text-[13px]">
+              已经接上和见过面的客户进入机会列表；没接上的只作为潜在人群信号。
+            </p>
           </div>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            {marketSignals.slice(0, 3).map((signal) => (
-              <div key={signal.id} className="rounded-2xl border border-white bg-white/80 p-4 shadow-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <h4 className="text-sm font-bold text-slate-800">{signal.title}</h4>
-                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
-                    {signal.confidence}%
-                  </span>
-                </div>
-                <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">{signal.message}</p>
-                <div className="mt-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                  {signal.district} · 信号剩余 {signal.expiresInDays} 天
-                </div>
+
+          <div className="grid min-w-[280px] grid-cols-2 gap-2 md:grid-cols-4">
+            {projection.bucketSummaries.map((bucket) => (
+              <div key={bucket.id}>
+                <BucketStat
+                  label={bucket.label}
+                  value={bucket.count}
+                  summary={bucket.summary}
+                  tone={bucket.id === 'closing' ? 'emerald' : bucket.id === 'at-risk' ? 'rose' : bucket.id === 'potential' ? 'amber' : 'slate'}
+                />
               </div>
             ))}
           </div>
-        </section>
-      )}
+        </div>
+      </section>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {activeOpportunities.map(o => {
-          const caseItem = state.cases.find(c => c.id === o.caseId);
-          const isShadow = o.visibility === 'shadow';
-
-          return (
-            <div 
-              key={o.id} 
-              className={`group cursor-pointer rounded-[22px] border bg-white p-4 shadow-sm transition-all hover:shadow-lg ${
-                isShadow ? 'border-amber-100 bg-amber-50/10' : 'border-black/5 hover:border-blue-500/20'
-              }`}
-              onClick={() => {
-                onSelectCase(o.caseId);
-                onSetView('cases');
-              }}
-            >
-              <div className="mb-3.5 flex items-start justify-between">
-                <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${
-                  isShadow ? 'bg-amber-100 text-amber-600' : 'bg-blue-50 text-blue-600'
-                }`}>
-                  {isShadow ? <EyeOff size={20} /> : <Users size={20} />}
-                </div>
-                <div className="flex flex-col items-end gap-1">
-                  <span className={`text-[10px] font-bold px-2 py-1 rounded-lg uppercase tracking-wider ${
-                    isShadow ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-500'
-                  }`}>
-                    {isShadow ? '待确认' : o.stageLabel}
-                  </span>
-                  {o.leadSource === 'broker' && (
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
-                      经纪人: {o.brokerName}
-                    </span>
-                  )}
-                </div>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.18fr_0.82fr]">
+        <section className="seller-panel p-4 lg:p-5">
+          <div className="seller-label mb-4 flex items-center gap-2 text-[11px]">
+            <Users size={15} />
+            已接上的客户机会
+          </div>
+          <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+            <StageOverviewCard
+              title="已见过面"
+              count={viewedModels.length}
+              detail="看过房的客户要盯复看、报价和家人决策，别让热度掉下去。"
+              tone="emerald"
+            />
+            <StageOverviewCard
+              title="只接上话"
+              count={contactedModels.length}
+              detail="已经知道是谁，但还没形成现场判断，重点是尽快推进到带看。"
+              tone="slate"
+            />
+          </div>
+          <div className="seller-note mb-4 p-3.5">
+            <div className="grid grid-cols-1 gap-3 text-[11px] text-slate-600 md:grid-cols-4">
+              <div>
+                <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">已接上</div>
+                <div className="mt-1 text-[15px] font-semibold text-slate-900">{projection.realCustomerSummary.contactedCount}</div>
               </div>
-              
-              <h4 className="mb-1 text-[17px] font-bold text-slate-900">
-                {isShadow ? `待确认客户 #${o.id.split('-').pop()}` : o.customerName}
-              </h4>
-              <p className="mb-3.5 line-clamp-1 text-xs text-slate-400">
-                {isShadow ? '别人带来的客户，需求还没摸清' : o.profile}
-              </p>
-              
-              <div className="mb-5 space-y-2.5">
-                <ProgressItem 
-                  label="购房意向" 
-                  val={o.intent} 
-                  color={isShadow ? "bg-amber-300" : "bg-blue-500"} 
-                  isShadow={isShadow}
-                />
-                <ProgressItem 
-                  label="配置信心" 
-                  val={o.confidence} 
-                  color={isShadow ? "bg-amber-300" : "bg-indigo-500"} 
-                  isShadow={isShadow}
-                />
+              <div>
+                <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">进入比较</div>
+                <div className="mt-1 text-[15px] font-semibold text-slate-900">{projection.realCustomerSummary.comparingCount}</div>
               </div>
-
-              <div className="flex items-center justify-between border-t border-black/5 pt-3.5">
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-bold text-slate-300 uppercase italic">意向房源</span>
-                  <span className="text-xs font-bold text-slate-600">{caseItem?.title || '未知房源'}</span>
-                </div>
-                <div className={`h-8 w-8 rounded-full flex items-center justify-center transition-colors ${
-                  isShadow ? 'bg-amber-100 text-amber-400 group-hover:bg-amber-500 group-hover:text-white' : 'bg-slate-50 text-slate-400 group-hover:bg-blue-500 group-hover:text-white'
-                }`}>
-                  <ArrowRight size={14} />
-                </div>
+              <div>
+                <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">进入谈价</div>
+                <div className="mt-1 text-[15px] font-semibold text-slate-900">{projection.realCustomerSummary.negotiatingCount}</div>
+              </div>
+              <div>
+                <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">有看房记录</div>
+                <div className="mt-1 text-[15px] font-semibold text-slate-900">{projection.realCustomerSummary.viewedCount}</div>
               </div>
             </div>
-          );
-        })}
-        {activeOpportunities.length === 0 && (
-          <div className="col-span-full flex flex-col items-center justify-center rounded-[24px] border-2 border-dashed border-slate-200 bg-slate-50 py-16 text-slate-400">
-            <Info size={40} className="mb-4 opacity-20" />
-            <p className="italic">准客池暂时见底，当前没有活跃机会。</p>
+          </div>
+          <div className="space-y-3">
+            {metModels.length > 0 ? metModels.map((model) => (
+              <React.Fragment key={model.opportunity.id}>
+                <CustomerOpportunityCard
+                  model={model}
+                  onOpenCase={() => openCase(model.opportunity.caseId, onSelectCase, onSetView)}
+                />
+              </React.Fragment>
+            )) : (
+              <EmptyState
+                title="还没有稳定接上的客户"
+                detail="现在更多是在养线索。先把有量的房源接出第一批带看，再来这里看推进。"
+              />
+            )}
+          </div>
+        </section>
+
+        <section className="space-y-5">
+          <section className="seller-panel p-4 lg:p-5">
+            <div className="seller-label mb-3 flex items-center gap-2 text-[11px]">
+              <HandCoins size={15} />
+              快成交机会
+            </div>
+            <div className="space-y-2.5">
+              {closingModels.length > 0 ? closingModels.map((model) => (
+                <React.Fragment key={model.opportunity.id}>
+                  <CompactOpportunityCard
+                    model={model}
+                    accent="emerald"
+                    titleSuffix="已经进入报价或谈判"
+                    onOpenCase={() => openCase(model.opportunity.caseId, onSelectCase, onSetView)}
+                  />
+                </React.Fragment>
+              )) : (
+                <EmptyState
+                  title="还没有进入快成交阶段的客户"
+                  detail="现在还在经营中段，先把看过房的客户继续往后推。"
+                  compact
+                />
+              )}
+            </div>
+          </section>
+
+          <section className="seller-panel p-4 lg:p-5">
+            <div className="seller-label mb-3 flex items-center gap-2 text-[11px]">
+              <AlertTriangle size={15} />
+              快流失客户
+            </div>
+            <div className="space-y-2.5">
+              {atRiskModels.length > 0 ? atRiskModels.map((model) => (
+                <React.Fragment key={model.opportunity.id}>
+                  <CompactOpportunityCard
+                    model={model}
+                    accent="rose"
+                    titleSuffix={model.urgencyLabel}
+                    onOpenCase={() => openCase(model.opportunity.caseId, onSelectCase, onSetView)}
+                  />
+                </React.Fragment>
+              )) : (
+                <EmptyState
+                  title="短期流失压力不重"
+                  detail="目前没有大面积掉线，可以把精力更多放在推进见面和复看。"
+                  compact
+                />
+              )}
+            </div>
+          </section>
+        </section>
+      </div>
+
+      <section className="seller-panel p-4 lg:p-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div className="seller-label flex items-center gap-2 text-[11px]">
+              <EyeOff size={15} />
+              潜在人群
+            </div>
+            <p className="seller-body mt-2 max-w-[72ch] text-[12px]">
+              这里看哪套房还在吸人。它只说明哪里还有量、哪类人更容易进来，不当作已经在跟的客户。
+            </p>
+          </div>
+          <span className="seller-chip seller-chip-accent">
+            只看规模和信号
+          </span>
+        </div>
+        <div className="seller-note mt-4 px-4 py-3">
+          <div className="grid grid-cols-1 gap-3 text-[11px] text-slate-600 md:grid-cols-3">
+            <div>
+              <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-amber-700">有信号的房源</div>
+              <div className="mt-1 text-[15px] font-semibold text-slate-900">{projection.potentialSummary.caseCount}</div>
+            </div>
+            <div>
+              <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-amber-700">主要来源渠道</div>
+              <div className="mt-1 text-[15px] font-semibold text-slate-900">{projection.potentialSummary.channelCount}</div>
+            </div>
+            <div>
+              <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-amber-700">最早散开窗口</div>
+              <div className="mt-1 text-[15px] font-semibold text-slate-900">
+                {projection.potentialSummary.soonestDaysLeft === null ? '暂无' : `${Math.max(0, projection.potentialSummary.soonestDaysLeft)} 天`}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {projection.signalCards.length > 0 && (
+          <div className="seller-panel-muted mt-4 p-4">
+            <div className="seller-label mb-3 flex items-center gap-2 text-[10px]">
+              <Sparkles size={14} />
+              商圈信号
+            </div>
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+              {projection.signalCards.map((signal) => (
+                <div key={signal.id} className="rounded-2xl border border-white bg-white/90 p-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-[14px] font-semibold text-slate-900">{signal.title}</h3>
+                      <p className="mt-1 text-[11px] leading-5 text-slate-500">{signal.detail}</p>
+                    </div>
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                      {describeSignalStrength(signal.confidence)}
+                    </span>
+                  </div>
+                  <div className="mt-3 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
+                    {signal.district} · 还可观察 {signal.expiresInDays} 天
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
+
+        <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-2">
+          {potentialPools.length > 0 ? potentialPools.map((pool) => (
+            <React.Fragment key={pool.caseId}>
+              <PotentialPoolCard
+                pool={pool}
+                onOpenCase={() => openCase(pool.caseId, onSelectCase, onSetView)}
+              />
+            </React.Fragment>
+          )) : (
+            <div className="col-span-full">
+              <EmptyState
+                title="潜在人群还没浮出来"
+                detail="当前更像是在守已经接上的客户，新的模糊客群信号还不够明显。"
+              />
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function openCase(caseId: string, onSelectCase: (id: string) => void, onSetView: (view: string) => void) {
+  onSelectCase(caseId);
+  onSetView('cases');
+}
+
+function groupPotentialPools(models: OpportunityViewModel[]): PotentialPoolGroup[] {
+  const groups = new Map<string, OpportunityViewModel[]>();
+
+  models.forEach((model) => {
+    const items = groups.get(model.opportunity.caseId) || [];
+    items.push(model);
+    groups.set(model.opportunity.caseId, items);
+  });
+
+  return [...groups.entries()]
+    .map(([caseId, items]) => {
+      const lead = items[0];
+      const budgets = items
+        .map((item) => item.opportunity.budgetMax)
+        .filter((value) => Number.isFinite(value))
+        .sort((left, right) => left - right);
+      const channels = [...new Set(items.map((item) => item.opportunity.channelName).filter(Boolean))];
+      const avgIntent = average(items.map((item) => item.opportunity.intent));
+      const avgConfidence = average(items.map((item) => item.opportunity.confidence));
+      const soonestDaysLeft = Math.min(...items.map((item) => item.opportunity.daysLeft));
+
+      return {
+        caseId,
+        title: lead.caseItem?.title || '未知房源',
+        district: lead.caseItem?.district || '所在片区',
+        signalCount: items.length,
+        channels: channels.slice(0, 3),
+        budgetLine: describeBudgetRange(budgets),
+        summary: buildPotentialPoolSummary(items, channels),
+        avgIntent: Math.round(avgIntent),
+        avgConfidence: Math.round(avgConfidence),
+        soonestDaysLeft,
+      };
+    })
+    .sort((left, right) => scorePotentialPool(right) - scorePotentialPool(left));
+}
+
+function average(values: number[]) {
+  if (values.length === 0) return 0;
+  return values.reduce((total, value) => total + value, 0) / values.length;
+}
+
+function scorePotentialPool(pool: PotentialPoolGroup) {
+  return pool.signalCount * 24 + pool.avgIntent * 1.2 + pool.avgConfidence - pool.soonestDaysLeft * 3;
+}
+
+function describeBudgetRange(budgets: number[]) {
+  if (budgets.length === 0) return '预算还没摸清';
+  if (budgets[0] === budgets[budgets.length - 1]) {
+    return `预算上限多在 ${budgets[0]} 万`;
+  }
+  return `预算上限多在 ${budgets[0]}-${budgets[budgets.length - 1]} 万`;
+}
+
+function buildPotentialPoolSummary(models: OpportunityViewModel[], channels: string[]) {
+  const lead = models[0];
+  const channelLine = channels.length > 0 ? `主要来自 ${channels.join('、')}` : '来源还在分散';
+  const needLine = lead.profileDetail || '需求还没核实';
+  return `${channelLine}。${needLine} 下一步先把可联系人接出来，再判断是否值得重点投入。`;
+}
+
+function BucketStat({
+  label,
+  value,
+  summary,
+  tone,
+}: {
+  label: string;
+  value: number;
+  summary: string;
+  tone: 'slate' | 'amber' | 'emerald' | 'rose';
+}) {
+  const toneClass = tone === 'emerald'
+    ? 'bg-emerald-50 text-emerald-700'
+    : tone === 'amber'
+      ? 'bg-amber-50 text-amber-700'
+      : tone === 'rose'
+        ? 'bg-rose-50 text-rose-700'
+        : 'bg-slate-50 text-slate-700';
+
+  return (
+    <div className={`rounded-2xl px-4 py-3 ${toneClass}`}>
+      <div className="text-[10px] font-bold uppercase tracking-[0.16em] opacity-70">{label}</div>
+      <div className="mt-1 text-[20px] font-bold">{value}</div>
+      <div className="mt-1 text-[11px] leading-5 opacity-70">{summary}</div>
+    </div>
+  );
+}
+
+function StageOverviewCard({
+  title,
+  count,
+  detail,
+  tone,
+}: {
+  title: string;
+  count: number;
+  detail: string;
+  tone: 'slate' | 'emerald';
+}) {
+  const toneClass = tone === 'emerald'
+    ? 'border-emerald-200 bg-emerald-50/60'
+    : 'border-slate-200 bg-slate-50/80';
+
+  return (
+    <div className={`rounded-[20px] border px-4 py-4 ${toneClass}`}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">{title}</div>
+        <div className="text-[22px] font-bold text-slate-900">{count}</div>
+      </div>
+      <p className="mt-2 text-[12px] leading-6 text-slate-600">{detail}</p>
+    </div>
+  );
+}
+
+function CustomerOpportunityCard({
+  model,
+  onOpenCase,
+}: {
+  model: OpportunityViewModel;
+  onOpenCase: () => void;
+}) {
+  const comparing = model.customerState?.status === 'comparing';
+  const atRisk = (model.customerState?.churnRisk || 0) >= 60 || model.opportunity.daysLeft <= 2;
+
+  return (
+    <button
+      type="button"
+      onClick={onOpenCase}
+      className="w-full rounded-[22px] border border-black/[0.05] bg-slate-50/70 px-4 py-4 text-left transition hover:border-black/[0.08] hover:bg-white"
+    >
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <strong className="text-[15px] font-semibold text-slate-900">{model.opportunity.customerName}</strong>
+              <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                {model.opportunityStatusLabel}
+              </span>
+              {comparing && (
+                <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-amber-700">
+                  比较中
+                </span>
+              )}
+              {atRisk && (
+                <span className="rounded-full bg-rose-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-rose-700">
+                  快流失
+                </span>
+              )}
+            </div>
+            <p className="mt-1 text-[12px] leading-6 text-slate-500">{model.caseItem?.title || '未知房源'} · {model.opportunity.channelName}</p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 text-right lg:min-w-[240px]">
+            <MetricPill label="意向" value={`${Math.round(model.opportunity.intent)}`} tone="slate" />
+            <MetricPill label="把握" value={`${Math.round(model.opportunity.confidence)}`} tone="slate" />
+            <MetricPill label="剩余" value={`${model.opportunity.daysLeft}天`} tone={atRisk ? 'rose' : 'amber'} />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+          <StatusPanel
+            icon={<Sparkles size={14} />}
+            label="客户情况"
+            title={model.profileLine}
+            detail={model.relationshipFact}
+            tone="slate"
+          />
+          <StatusPanel
+            icon={<Users size={14} />}
+            label="客户状态"
+            title={model.customerStatusLabel}
+            detail={model.customerStatusDetail}
+            tone={atRisk ? 'rose' : comparing ? 'amber' : 'slate'}
+          />
+          <StatusPanel
+            icon={model.hasViewed ? <MessagesSquare size={14} /> : <ArrowRight size={14} />}
+            label="这套房现在走到哪"
+            title={model.opportunityStatusLabel}
+            detail={model.opportunityStatusDetail}
+            tone={model.hasViewed ? 'emerald' : 'slate'}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+          <InlineFlag label="当前要盯" value={model.urgencyLabel} tone={atRisk ? 'rose' : 'amber'} />
+          <InlineFlag label="下一步" value={model.nextStep} tone="slate" />
+          {model.competitorSummary && (
+            <InlineFlag label="还在比" value={model.competitorSummary} tone="amber" />
+          )}
+          {model.runtime?.selected && (
+            <InlineFlag label="房源站位" value="这套房更靠前" tone="emerald" />
+          )}
+          {!model.runtime?.selected && (
+            <InlineFlag label="阶段轨迹" value={model.stageTrail} tone="slate" />
+          )}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function CompactOpportunityCard({
+  model,
+  accent,
+  titleSuffix,
+  onOpenCase,
+}: {
+  model: OpportunityViewModel;
+  accent: 'emerald' | 'rose';
+  titleSuffix: string;
+  onOpenCase: () => void;
+}) {
+  const cardClass = accent === 'emerald'
+    ? 'border-emerald-200 bg-emerald-50/70'
+    : 'border-rose-200 bg-rose-50/70';
+
+  return (
+    <button
+      type="button"
+      onClick={onOpenCase}
+      className={`w-full rounded-2xl border px-4 py-3 text-left transition hover:bg-white ${cardClass}`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[13px] font-semibold text-slate-800">{model.opportunity.customerName}</div>
+          <p className="mt-1 text-[11px] leading-5 text-slate-500">
+            {model.caseItem?.title || '未知房源'} · {titleSuffix}
+          </p>
+          <p className="mt-1 text-[11px] leading-5 text-slate-500">{model.nextStep}</p>
+        </div>
+        <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-slate-500">
+          {model.opportunity.stageLabel}
+        </span>
+      </div>
+    </button>
+  );
+}
+
+function PotentialPoolCard({
+  pool,
+  onOpenCase,
+}: {
+  pool: PotentialPoolGroup;
+  onOpenCase: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onOpenCase}
+      className="group rounded-[22px] border border-amber-100 bg-amber-50/40 p-4 text-left shadow-sm transition hover:border-amber-200 hover:bg-white"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-amber-700">
+            <EyeOff size={14} />
+            潜在人群池
+          </div>
+          <h3 className="mt-2 text-[16px] font-semibold text-slate-900">{pool.title}</h3>
+          <p className="mt-1 text-[11px] leading-5 text-slate-500">{pool.district} · {pool.signalCount} 组还没接上的人</p>
+        </div>
+        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-amber-600 transition group-hover:bg-amber-500 group-hover:text-white">
+          <ArrowRight size={15} />
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        <PotentialMetric label="机会强度" value={pool.avgIntent} />
+        <PotentialMetric label="匹配把握" value={pool.avgConfidence} />
+        <PotentialMetric label="最早散开" value={Math.max(pool.soonestDaysLeft, 0)} suffix="天" />
+      </div>
+
+      <div className="mt-4 space-y-3">
+        <StatusPanel
+          icon={<Sparkles size={14} />}
+          label="主要是哪些人"
+          title={pool.budgetLine}
+          detail={pool.summary}
+          tone="amber"
+          compact
+        />
+        <div className="flex flex-wrap gap-2 text-[10px] font-semibold text-slate-500">
+          {pool.channels.map((channel) => (
+            <span key={channel} className="rounded-full bg-white px-2.5 py-1">
+              {channel}
+            </span>
+          ))}
+          {pool.channels.length === 0 && (
+            <span className="rounded-full bg-white px-2.5 py-1">
+              来源待补
+            </span>
+          )}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function StatusPanel({
+  icon,
+  label,
+  title,
+  detail,
+  tone,
+  compact = false,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  title: string;
+  detail: string;
+  tone: 'slate' | 'amber' | 'emerald' | 'rose';
+  compact?: boolean;
+}) {
+  const toneClass = tone === 'emerald'
+    ? 'border-emerald-100 bg-emerald-50/60'
+    : tone === 'amber'
+      ? 'border-amber-100 bg-amber-50/60'
+      : tone === 'rose'
+        ? 'border-rose-100 bg-rose-50/60'
+        : 'border-black/[0.05] bg-white';
+
+  return (
+    <div className={`rounded-[18px] border px-3.5 ${compact ? 'py-3' : 'py-3.5'} ${toneClass}`}>
+      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
+        {icon}
+        {label}
+      </div>
+      <div className="mt-2 text-[13px] font-semibold leading-5 text-slate-900">{title}</div>
+      <p className="mt-2 text-[11px] leading-5 text-slate-500">{detail}</p>
+    </div>
+  );
+}
+
+function describeSignalStrength(confidence: number) {
+  if (confidence >= 80) return '信号强';
+  if (confidence >= 60) return '信号中';
+  return '信号弱';
+}
+
+function InlineFlag({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: 'slate' | 'amber' | 'emerald' | 'rose';
+}) {
+  const toneClass = tone === 'emerald'
+    ? 'bg-emerald-50 text-emerald-700'
+    : tone === 'amber'
+      ? 'bg-amber-50 text-amber-700'
+      : tone === 'rose'
+        ? 'bg-rose-50 text-rose-700'
+        : 'bg-slate-100 text-slate-600';
+
+  return (
+    <div className={`rounded-[14px] px-3 py-2 text-[10px] font-semibold ${toneClass}`}>
+      <div className="uppercase tracking-[0.12em] opacity-70">{label}</div>
+      <div className="mt-1 text-[11px] leading-5 normal-case">{value}</div>
+    </div>
+  );
+}
+
+function MetricPill({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: 'slate' | 'amber' | 'rose';
+}) {
+  const toneClass = tone === 'amber'
+    ? 'bg-amber-50 text-amber-700'
+    : tone === 'rose'
+      ? 'bg-rose-50 text-rose-700'
+      : 'bg-white text-slate-700';
+
+  return (
+    <div className={`rounded-xl px-2.5 py-2 ${toneClass}`}>
+      <div className="text-[9px] font-bold uppercase tracking-[0.14em] opacity-70">{label}</div>
+      <div className="mt-1 text-[13px] font-semibold">{value}</div>
+    </div>
+  );
+}
+
+function PotentialMetric({
+  label,
+  value,
+  suffix,
+}: {
+  label: string;
+  value: number;
+  suffix?: string;
+}) {
+  return (
+    <div className="rounded-xl bg-white px-3 py-2.5">
+      <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">{label}</div>
+      <div className="mt-1 text-[14px] font-semibold text-slate-900">
+        {value}
+        {suffix ? <span className="ml-1 text-[11px] font-medium text-slate-400">{suffix}</span> : null}
       </div>
     </div>
   );
 }
 
-function ProgressItem({ label, val, color, isShadow }: { label: string; val: number; color: string, isShadow?: boolean }) {
+function EmptyState({
+  title,
+  detail,
+  compact = false,
+}: {
+  title: string;
+  detail: string;
+  compact?: boolean;
+}) {
   return (
-    <div className="space-y-1">
-      <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase">
-        <span>{label}</span>
-        {isShadow ? (
-          <span className="text-amber-500">?? ~ ??%</span>
-        ) : (
-          <span>{Math.round(val)}%</span>
-        )}
-      </div>
-      <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden relative">
-        <div className={`h-full ${color} transition-all duration-500 ${isShadow ? 'blur-[3px] opacity-40' : ''}`} style={{ width: `${val}%` }} />
-        {isShadow && (
-          <div className="absolute inset-0 flex items-center justify-center">
-             <div className="h-px w-full border-t border-dashed border-amber-400/30" />
-          </div>
-        )}
-      </div>
+    <div className={`rounded-[22px] border border-dashed border-slate-200 bg-slate-50 text-center text-slate-400 ${compact ? 'px-4 py-6' : 'px-4 py-10'}`}>
+      <Gauge size={compact ? 20 : 28} className="mx-auto mb-3 opacity-25" />
+      <div className="text-[13px] font-semibold text-slate-500">{title}</div>
+      <p className="mx-auto mt-2 max-w-[42ch] text-[12px] leading-6 text-slate-400">{detail}</p>
     </div>
   );
 }

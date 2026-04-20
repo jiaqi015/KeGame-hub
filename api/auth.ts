@@ -1,13 +1,10 @@
+import './_bootstrap.js';
 import { clearSessionCookie, completeEmailLogin, isSessionAuthorizationFailure, setAuthCookie, startEmailLogin, authorizeSession } from '../lib/auth.js';
 import { validateActivationKey } from '../lib/activation.js';
+import { getQueryValue, parseJsonBody } from './_request.js';
 
 function getMode(req: any): string {
-  const value = req?.query?.mode;
-  if (Array.isArray(value)) {
-    return typeof value[0] === 'string' ? value[0] : '';
-  }
-
-  return typeof value === 'string' ? value : '';
+  return getQueryValue(req?.query, 'mode');
 }
 
 export default async function handler(req: any, res: any) {
@@ -19,7 +16,7 @@ export default async function handler(req: any, res: any) {
       return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
-    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    const body = parseJsonBody(req.body);
     const key = typeof body?.key === 'string' ? body.key.trim() : '';
     const validation = validateActivationKey(key);
 
@@ -41,7 +38,7 @@ export default async function handler(req: any, res: any) {
     }
 
     try {
-      const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+      const body = parseJsonBody(req.body);
       const email = typeof body?.email === 'string' ? body.email : '';
       const result = await startEmailLogin(email);
 
@@ -67,7 +64,7 @@ export default async function handler(req: any, res: any) {
     }
 
     try {
-      const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+      const body = parseJsonBody(req.body);
       const result = completeEmailLogin({
         email: typeof body?.email === 'string' ? body.email : '',
         code: typeof body?.code === 'string' ? body.code : '',
@@ -101,6 +98,7 @@ export default async function handler(req: any, res: any) {
     return res.status(200).json({
       ok: true,
       user: {
+        accountId: authorization.accountId,
         email: authorization.email,
         nickname: authorization.nickname,
         displayName: authorization.displayName,

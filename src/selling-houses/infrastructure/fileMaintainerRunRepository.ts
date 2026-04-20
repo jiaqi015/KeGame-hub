@@ -2,6 +2,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import type {
   MaintainerCreateRunCommand,
+  MaintainerLeaderboardCategoryEntry,
+  MaintainerLeaderboardDetail,
   MaintainerLeaderboardEntry,
   MaintainerRunRecord,
   MaintainerSaveRunCommand,
@@ -14,6 +16,7 @@ import {
   deriveRunStatus,
   normalizePlayerName,
 } from '../application/cloudSync.js';
+import { buildRuntimeAuxiliaryStats } from '../domain/runtimeStats.js';
 import type { MaintainerRunRepository } from '../application/maintainerRunRepository.js';
 import { MaintainerSyncConflictError } from '../application/maintainerSyncConflictError.js';
 import {
@@ -61,12 +64,49 @@ function clampLimit(limit: number | undefined, fallback: number, max: number) {
   return Math.max(1, Math.min(Math.trunc(limit as number), max));
 }
 
+function buildLeaderboardCategoryEntries(
+  items: MaintainerLeaderboardEntry[],
+  resolveValue: (entry: MaintainerLeaderboardEntry) => number,
+  combine: (current: number, next: number) => number,
+  limit: number,
+): MaintainerLeaderboardCategoryEntry[] {
+  const aggregated = new Map<string, MaintainerLeaderboardCategoryEntry>();
+
+  for (const item of items) {
+    const existing = aggregated.get(item.userId);
+    const nextValue = resolveValue(item);
+
+    if (!existing) {
+      aggregated.set(item.userId, {
+        userId: item.userId,
+        playerName: item.playerName,
+        value: nextValue,
+      });
+      continue;
+    }
+
+    existing.value = combine(existing.value, nextValue);
+    if (!existing.playerName && item.playerName) {
+      existing.playerName = item.playerName;
+    }
+  }
+
+  return [...aggregated.values()]
+    .sort((left, right) => {
+      if (right.value !== left.value) {
+        return right.value - left.value;
+      }
+      return left.playerName.localeCompare(right.playerName, 'zh-CN');
+    })
+    .slice(0, clampLimit(limit, 20, 50));
+}
+
 function resolveClientUpdatedAt(value: string | null | undefined) {
   return typeof value === 'string' && value.trim() ? value : null;
 }
 
 function buildAuxiliaryStats(state: MaintainerRunRecord['saveData']) {
-  return buildFinalStats(state).auxiliaryStats;
+  return buildRuntimeAuxiliaryStats(state);
 }
 
 function buildRunRecord(
@@ -96,13 +136,9 @@ function buildRunRecord(
     rngSeed: runContext?.rngSeed ?? null,
     schemaVersion: state.version,
     day: state.day,
-    cash: state.cash,
+    cash: auxiliaryStats.promotionBudget,
     energy: state.energy,
     auxiliaryStats,
-    commission: auxiliaryStats.commission,
-    reputation: auxiliaryStats.reputation,
-    soldCount: auxiliaryStats.soldCount,
-    withdrawnCount: auxiliaryStats.withdrawnCount,
     score,
     syncVersion: previous ? previous.syncVersion + 1 : 1,
     saveData: state,
@@ -226,6 +262,18 @@ export class FileMaintainerRunRepository implements MaintainerRunRepository {
         return right.createdAt.localeCompare(left.createdAt);
       })
       .slice(0, clampLimit(limit, 20, 50));
+  }
+
+  async getLeaderboardDetail(seasonId = 'season-1', limit = 20): Promise<MaintainerLeaderboardDetail> {
+    const leaderboard = await this.readLeaderboard();
+    const seasonEntries = leaderboard.items.filter((item) => item.seasonId === seasonId);
+
+    return {
+      seasonId,
+      totalScore: buildLeaderboardCategoryEntries(seasonEntries, (item) => item.score, (current, next) => current + next, limit),
+      bestScore: buildLeaderboardCategoryEntries(seasonEntries, (item) => item.score, (current, next) => Math.max(current, next), limit),
+      playCount: buildLeaderboardCategoryEntries(seasonEntries, () => 1, (current, next) => current + next, limit),
+    };
   }
 
   async verifyShadowSync(runId: string, userId: string): Promise<ShadowSyncVerificationSummary> {

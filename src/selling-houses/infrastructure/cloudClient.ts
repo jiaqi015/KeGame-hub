@@ -1,5 +1,6 @@
 import type {
   MaintainerCreateRunCommand,
+  MaintainerLeaderboardDetail,
   MaintainerLeaderboardEntry,
   MaintainerRunRecord,
   MaintainerSaveRunCommand,
@@ -41,13 +42,29 @@ export function createMaintainerRun(activationKey: string, command: MaintainerCr
   });
 }
 
-export function fetchMaintainerRun(activationKey: string, runId: string, userId: string) {
+export function fetchMaintainerRun(activationKey: string, runId: string, userId?: string) {
   const query = new URLSearchParams({
     id: runId,
-    userId,
   });
+  if (userId?.trim()) {
+    query.set('userId', userId.trim());
+  }
 
   return requestJson<MaintainerRunRecord>(activationKey, `/api/maintainer-runs?${query.toString()}`);
+}
+
+export function fetchMaintainerRuns(activationKey: string, userId?: string, limit = 8) {
+  const query = new URLSearchParams({
+    limit: String(limit),
+  });
+  if (userId?.trim()) {
+    query.set('userId', userId.trim());
+  }
+
+  return requestJson<{ runs: MaintainerRunRecord[] }>(
+    activationKey,
+    `/api/maintainer-runs?${query.toString()}`,
+  );
 }
 
 export function saveMaintainerRun(activationKey: string, command: MaintainerSaveRunCommand) {
@@ -68,6 +85,19 @@ export function fetchMaintainerLeaderboard(activationKey: string, seasonId = 'se
   });
 
   return requestJson<{ seasonId: string; entries: MaintainerLeaderboardEntry[] }>(
+    activationKey,
+    `/api/maintainer-runs?${query.toString()}`,
+  );
+}
+
+export function fetchMaintainerLeaderboardDetail(activationKey: string, seasonId = 'season-1', limit = 20) {
+  const query = new URLSearchParams({
+    seasonId,
+    limit: String(limit),
+    view: 'leaderboard-detail',
+  });
+
+  return requestJson<MaintainerLeaderboardDetail>(
     activationKey,
     `/api/maintainer-runs?${query.toString()}`,
   );

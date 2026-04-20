@@ -1,7 +1,9 @@
-import { createInitialState, updateDerivedState } from './gameState';
-import { advanceDays, executeAction, findBestOpportunity, getActionAvailability, seedInitialOpportunities } from '../domain/engine';
-import { getScenarioSnapshotById } from '../domain/scenarioCatalog';
-import type { Case, FinalResult, GameState, Opportunity, ScenarioSnapshot } from '../domain/models';
+import { createInitialState } from './gameState.js';
+import { updateDerivedState } from '../domain/runtimeState.js';
+import { advanceDays, executeAction, findBestOpportunity, getActionAvailability, seedInitialOpportunities } from '../domain/engine.js';
+import { getScenarioSnapshotById } from '../domain/scenarioCatalog.js';
+import type { Case, FinalResult, GameState, Opportunity, ScenarioSnapshot } from '../domain/models.js';
+import { getPromotionBudget } from '../domain/runtimeStats.js';
 
 type Severity = 'critical' | 'major' | 'minor';
 
@@ -40,7 +42,7 @@ export interface SelfPlayReport {
   soldCount: number;
   withdrawnCount: number;
   commission: number;
-  reputation: number;
+  wordOfMouth: number;
   remainingActiveCases: number;
   remainingActiveOpportunities: number;
   shadowStats: SelfPlayShadowStats;
@@ -127,10 +129,10 @@ export class LocalAdversarialSelfPlayArena {
       scenarioName: this.snapshot.scenario.name,
       seed: this.seed,
       finalResult: state.finalResult,
-      soldCount: state.soldCount,
-      withdrawnCount: state.withdrawnCount,
-      commission: state.commission,
-      reputation: state.reputation,
+      soldCount: state.auxiliaryStats.soldCount,
+      withdrawnCount: state.auxiliaryStats.withdrawnCount,
+      commission: state.auxiliaryStats.commission,
+      wordOfMouth: state.auxiliaryStats.wordOfMouth,
       remainingActiveCases: state.cases.filter((entry) => entry.status === 'active').length,
       remainingActiveOpportunities: state.opportunities.filter((entry) => entry.status === 'active').length,
       shadowStats: buildShadowStats(state),
@@ -172,7 +174,7 @@ export class LocalAdversarialSelfPlayArena {
         rationale: decision.rationale,
         energyBefore,
         energyAfter: state.energy,
-        cashAfter: state.cash,
+        cashAfter: getPromotionBudget(state),
       });
 
       this.collectInvariantFindings(state);
@@ -280,7 +282,7 @@ export class LocalAdversarialSelfPlayArena {
       });
     }
 
-    if (caseItem.heat < 52 && caseItem.openDayCooldown === 0 && state.cash >= 5 && state.energy >= 2) {
+    if (caseItem.heat < 52 && caseItem.openDayCooldown === 0 && getPromotionBudget(state) >= 5 && state.energy >= 2) {
       candidates.push({
         actionId: 'open-day',
         optionId: null,
@@ -298,7 +300,7 @@ export class LocalAdversarialSelfPlayArena {
       });
     }
 
-    if (state.cash >= 2 && caseItem.heat < 58) {
+    if (getPromotionBudget(state) >= 2 && caseItem.heat < 58) {
       candidates.push({
         actionId: 'xiaohongshu-boost',
         optionId: null,
@@ -307,7 +309,7 @@ export class LocalAdversarialSelfPlayArena {
       });
     }
 
-    if (state.cash >= 3 && !state.opportunities.some((entry) => entry.caseId === caseItem.id && entry.status === 'active' && entry.visibility === 'shadow')) {
+    if (getPromotionBudget(state) >= 3 && !state.opportunities.some((entry) => entry.caseId === caseItem.id && entry.status === 'active' && entry.visibility === 'shadow')) {
       candidates.push({
         actionId: 'broker-broadcast',
         optionId: null,
@@ -316,7 +318,7 @@ export class LocalAdversarialSelfPlayArena {
       });
     }
 
-    if (state.cash >= 2 && caseItem.trust >= 62 && caseItem.qualityStory >= 1) {
+    if (getPromotionBudget(state) >= 2 && caseItem.trust >= 62 && caseItem.qualityStory >= 1) {
       candidates.push({
         actionId: 'private-referral',
         optionId: null,
@@ -455,7 +457,7 @@ export class LocalAdversarialSelfPlayArena {
       weaknesses.push('守盘分偏低，说明竞争和窗口压力已经能造成实际后果。');
     }
 
-    if (state.cash <= 4) {
+    if (getPromotionBudget(state) <= 4) {
       balancingNotes.push('推广金资源偏紧，投放和开放日已经能形成真实取舍。');
     } else {
       balancingNotes.push('推广金压力还不算强，后续可以继续加大高价值动作的现金权重。');

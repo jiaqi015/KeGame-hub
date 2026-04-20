@@ -19,6 +19,7 @@ const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 14;
 const VERIFICATION_CODE_TTL_MS = 1000 * 60 * 10;
 
 export interface AuthUserRecord {
+  accountId: string;
   email: string;
   nickname: string;
   displayName: string;
@@ -48,6 +49,7 @@ type ConfiguredUserInput = Omit<Partial<AuthUserRecord>, 'allowedWorkspaces'> & 
 
 export interface SessionAuthorizationSuccess {
   ok: true;
+  accountId: string;
   email: string;
   nickname: string;
   displayName: string;
@@ -87,6 +89,7 @@ export interface LoginCompleteResult {
 }
 
 interface SessionPayload {
+  accountId?: string;
   email: string;
   nickname: string;
   displayName: string;
@@ -102,6 +105,12 @@ export function deriveNicknameFromEmail(email: string): string {
   const normalized = normalizeEmail(email);
   const [prefix] = normalized.split('@');
   return prefix?.trim() || normalized || 'user';
+}
+
+export function deriveAccountIdFromEmail(email: string): string {
+  const normalized = normalizeEmail(email);
+  const digest = createHash('sha256').update(normalized).digest('hex').slice(0, 20);
+  return `acct_${digest}`;
 }
 
 function hashValue(value: string): string {
@@ -147,6 +156,9 @@ function getAuthStore(): AuthStore {
     }
 
     existing.allowedWorkspaces = Array.from(new Set([...existing.allowedWorkspaces, ...user.allowedWorkspaces]));
+    if (!existing.accountId) {
+      existing.accountId = deriveAccountIdFromEmail(existing.email);
+    }
     if (!existing.nickname) {
       existing.nickname = user.nickname;
     }
@@ -227,6 +239,9 @@ function buildConfiguredUser(
     ? item.nickname.trim()
     : deriveNicknameFromEmail(email);
   return {
+    accountId: typeof item.accountId === 'string' && item.accountId.trim()
+      ? item.accountId.trim()
+      : deriveAccountIdFromEmail(email),
     email,
     nickname,
     displayName: typeof item.displayName === 'string' && item.displayName.trim()
@@ -339,6 +354,7 @@ function signSessionPayload(payload: string): string {
 
 function createSessionToken(user: AuthUserRecord): string {
   const payload: SessionPayload = {
+    accountId: user.accountId || deriveAccountIdFromEmail(user.email),
     email: user.email,
     nickname: user.nickname,
     displayName: user.displayName,
@@ -382,6 +398,9 @@ function parseSessionToken(token: string): SessionPayload | null {
     }
 
     return {
+      accountId: typeof payload.accountId === 'string' && payload.accountId.trim()
+        ? payload.accountId.trim()
+        : deriveAccountIdFromEmail(payload.email),
       email: normalizeEmail(payload.email),
       nickname: payload.nickname.trim() || deriveNicknameFromEmail(payload.email),
       displayName: payload.displayName,
@@ -420,6 +439,7 @@ function issueSession(store: AuthStore, email: string): LoginCompleteResult {
   const normalizedEmail = normalizeEmail(email);
   const user = store.users[normalizedEmail];
 
+  user.accountId = user.accountId || deriveAccountIdFromEmail(user.email);
   user.lastLoginAt = new Date().toISOString();
   saveAuthStore(store);
   const sessionToken = createSessionToken(user);
@@ -448,6 +468,7 @@ export async function startEmailLogin(emailInput: string): Promise<LoginStartRes
   if (bypassEmails.has(email)) {
     if (!existingUser) {
       store.users[email] = {
+        accountId: deriveAccountIdFromEmail(email),
         email,
         nickname: deriveNicknameFromEmail(email),
         displayName: deriveNicknameFromEmail(email),
@@ -530,6 +551,7 @@ export function completeEmailLogin(input: {
     }
 
     store.users[email] = {
+      accountId: deriveAccountIdFromEmail(email),
       email,
       nickname: deriveNicknameFromEmail(email),
       displayName: deriveNicknameFromEmail(email),
@@ -551,6 +573,7 @@ export function authorizeSession(req: any): SessionAuthorizationResult {
     if (payload && payload.exp > Date.now()) {
       return {
         ok: true,
+        accountId: payload.accountId,
         email: payload.email,
         nickname: payload.nickname,
         displayName: payload.displayName,
@@ -564,6 +587,7 @@ export function authorizeSession(req: any): SessionAuthorizationResult {
     if (configuredUser && payload?.exp && payload.exp > Date.now()) {
       return {
         ok: true,
+        accountId: configuredUser.accountId || deriveAccountIdFromEmail(configuredUser.email),
         email: configuredUser.email,
         nickname: configuredUser.nickname,
         displayName: configuredUser.displayName,
@@ -582,6 +606,7 @@ export function authorizeSession(req: any): SessionAuthorizationResult {
         if (user) {
           return {
             ok: true,
+            accountId: user.accountId || deriveAccountIdFromEmail(user.email),
             email: user.email,
             nickname: user.nickname,
             displayName: user.displayName,
@@ -599,6 +624,7 @@ export function authorizeSession(req: any): SessionAuthorizationResult {
     if (validation.ok) {
       return {
         ok: true,
+        accountId: 'activation-key-user',
         email: 'activation-key-user',
         nickname: 'activation',
         displayName: 'Activation Key User',

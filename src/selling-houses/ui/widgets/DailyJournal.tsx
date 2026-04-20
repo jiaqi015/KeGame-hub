@@ -1,81 +1,315 @@
-import React from 'react';
-import { GameState } from '../../domain/models';
-import { History, Calendar, Star, AlertCircle, TrendingUp, User } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import type { DomainEventEntry, EventLogEntry, GameState, Tone } from '../../domain/models';
+import { CalendarDays, History, Newspaper, ShieldAlert, Sparkles, Target } from 'lucide-react';
+
+type JournalScope = 'today' | 'timeline' | 'selected-case';
 
 interface DailyJournalProps {
   state: GameState;
+  selectedCaseId?: string | null;
+  onSelectCase?: (caseId: string) => void;
 }
 
-export function DailyJournal({ state }: DailyJournalProps) {
-  const { eventLog, day } = state;
+type JournalItem = {
+  id: string;
+  day: number;
+  title: string;
+  detail: string;
+  actor: string;
+  tone: Tone;
+  kind: string;
+  caseId?: string;
+  date?: string;
+};
 
-  // Group events by day
-  const days = Array.from({ length: day }, (_, i) => day - i);
-  
+const JOURNAL_SCOPES: Array<{ id: JournalScope; label: string }> = [
+  { id: 'today', label: '今日' },
+  { id: 'timeline', label: '全局流水' },
+  { id: 'selected-case', label: '当前房源' },
+];
+
+export function DailyJournal({ state, selectedCaseId, onSelectCase }: DailyJournalProps) {
+  const [scope, setScope] = useState<JournalScope>('today');
+  const selectedCase = selectedCaseId ? state.cases.find((entry) => entry.id === selectedCaseId) || null : null;
+  const sourceItems = useMemo(() => buildJournalItems(state), [state]);
+  const scopedItems = useMemo(
+    () => filterJournalItems(sourceItems, scope, state.day, selectedCaseId),
+    [scope, sourceItems, state.day, selectedCaseId],
+  );
+  const groupedByDay = useMemo(() => groupJournalByDay(scopedItems), [scopedItems]);
+
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex items-center justify-between">
-        <h3 className="flex items-center gap-2 text-lg font-bold text-slate-900">
-          <Calendar className="text-amber-500" size={20} />
-          经营日历 (Day {day})
-        </h3>
-        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-          经营全轨迹回溯
-        </span>
+    <div className="space-y-4">
+      <div className="seller-panel-muted flex flex-col gap-3 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="seller-label flex items-center gap-2">
+              <History size={14} />
+              经营记录
+            </div>
+            <h3 className="seller-title mt-1 text-lg">为什么今天会变成这样</h3>
+            <p className="seller-body mt-1 text-[12px]">
+              这里按时间还原事实。先看发生了什么，再回头做经营判断。
+            </p>
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {JOURNAL_SCOPES.map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                onClick={() => setScope(entry.id)}
+                className={`shrink-0 rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] ${
+                  scope === entry.id
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                }`}
+              >
+                {entry.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <JournalMetricCard
+            icon={<CalendarDays size={15} className="text-slate-500" />}
+            label="当前范围"
+            value={scope === 'today' ? '今天的变化' : scope === 'selected-case' ? (selectedCase?.title || '当前房源') : '全局时间线'}
+            detail={scope === 'today'
+              ? '只看今天已经落账的变化。'
+              : scope === 'selected-case'
+                ? '只看当前房源被命中的变化。'
+                : '从近到远回看整局经营变化。'}
+          />
+          <JournalMetricCard
+            icon={<Newspaper size={15} className="text-amber-600" />}
+            label="本日记录"
+            value={`${sourceItems.filter((item) => item.day === state.day).length} 条`}
+            detail="今天系统已经留下的事实记录。"
+          />
+          <JournalMetricCard
+            icon={<Target size={15} className="text-emerald-600" />}
+            label="当前房源"
+            value={selectedCase?.title || '暂未指定'}
+            detail={selectedCase ? '可切到“当前房源”只看这套盘的变化。' : '先在房源页点进一套房，再回来追这套盘的时间线。'}
+          />
+        </div>
       </div>
 
-      <div className="relative space-y-6 before:pointer-events-none before:absolute before:inset-0 before:left-[15px] before:w-0.5 before:bg-slate-100">
-        {days.map(d => {
-          const dayEvents = eventLog.filter(e => e.day === d);
-          if (dayEvents.length === 0 && d !== day) return null;
-
-          return (
-            <div key={d} className="relative pl-10">
-              <div className="absolute left-0 top-0 z-10 flex h-8 w-8 items-center justify-center rounded-full border-4 border-slate-50 bg-white shadow-sm">
-                <span className="text-xs font-bold text-slate-500">{d}</span>
-              </div>
-              
-              <div className="space-y-2.5">
-                <div className="flex items-center gap-3">
-                  <h4 className="text-sm font-bold text-slate-800">Day {d} · {d === day ? '今日经营' : '历史轨迹'}</h4>
-                  <div className="h-px flex-1 bg-slate-50" />
+      {groupedByDay.length > 0 ? (
+        <div className="space-y-4">
+          {groupedByDay.map((group) => (
+            <section key={group.day} className="seller-panel p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 min-w-9 items-center justify-center rounded-full bg-slate-900 text-[12px] font-bold text-white">
+                  {group.day}
                 </div>
-                
-                <div className="grid grid-cols-1 gap-2">
-                  {dayEvents.map((e, i) => (
-                    <div 
-                      key={i} 
-                      className={`flex items-start gap-3 rounded-xl border p-3 transition-all ${
-                        e.tone === 'success' ? 'bg-emerald-50/50 border-emerald-500/10' :
-                        e.tone === 'danger' ? 'bg-rose-50/50 border-rose-500/10' :
-                        e.tone === 'accent' ? 'bg-amber-50/50 border-amber-500/10' :
-                        'bg-slate-50 border-transparent'
-                      }`}
-                    >
-                      <div className="mt-0.5">
-                        {e.tone === 'success' && <Star size={14} className="text-emerald-500" />}
-                        {e.tone === 'danger' && <AlertCircle size={14} className="text-rose-500" />}
-                        {e.tone === 'accent' && <TrendingUp size={14} className="text-amber-500" />}
-                        {!e.tone && <User size={14} className="text-slate-400" />}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex justify-between items-center mb-0.5">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase">{e.actor}</span>
-                          <span className="text-[8px] text-slate-300">{e.date?.split('T')[1]?.slice(0, 5)}</span>
+                <div className="min-w-0">
+                  <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                    Day {group.day}
+                  </div>
+                  <div className="text-sm font-semibold text-slate-900">
+                    {group.day === state.day ? '今天的经营变化' : `第 ${group.day} 天留下的记录`}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {group.items.map((item) => (
+                  <article
+                    key={item.id}
+                    className={`rounded-[18px] border px-4 py-4 ${
+                      item.tone === 'danger'
+                        ? 'border-rose-200 bg-rose-50/70'
+                        : item.tone === 'success'
+                          ? 'border-emerald-200 bg-emerald-50/70'
+                          : 'border-black/[0.05] bg-slate-50/70'
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                            {describeKind(item.kind)}
+                          </span>
+                          <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                            {item.actor}
+                          </span>
+                          {item.caseId && onSelectCase && (
+                            <button
+                              type="button"
+                              onClick={() => onSelectCase(item.caseId!)}
+                              className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white hover:bg-slate-700"
+                            >
+                              打开房源
+                            </button>
+                          )}
                         </div>
-                        <p className="text-xs text-slate-700 leading-relaxed">{e.message}</p>
+                        <div className="mt-2 text-[14px] font-semibold text-slate-900">{item.title}</div>
+                        <p className="mt-1 text-[12px] leading-6 text-slate-600">{item.detail}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <ToneDot tone={item.tone} />
+                        <span className="text-[10px] font-medium text-slate-400">{item.date?.split('T')[1]?.slice(0, 5) || `Day ${item.day}`}</span>
                       </div>
                     </div>
-                  ))}
-                  {dayEvents.length === 0 && d === day && (
-                    <p className="text-xs text-slate-400 italic py-2">本日经营尚未开始，请下达首个指令。</p>
-                  )}
-                </div>
+                  </article>
+                ))}
               </div>
-            </div>
-          );
-        })}
+            </section>
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50 px-5 py-12 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-sm">
+            <ShieldAlert size={20} className="text-slate-400" />
+          </div>
+          <div className="mt-3 text-sm font-semibold text-slate-700">这一段暂时还没有记录</div>
+          <p className="mt-1 text-[12px] leading-6 text-slate-500">
+            先推进一天、做一个动作或切一套房回来，这里才会开始形成可回看的时间线。
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function buildJournalItems(state: GameState): JournalItem[] {
+  const eventItems = state.eventStore.map((entry) => ({
+    id: `event-${entry.id}`,
+    day: entry.day,
+    title: entry.title,
+    detail: entry.detail,
+    actor: entry.actor,
+    tone: entry.tone,
+    kind: entry.kind,
+    caseId: entry.caseId,
+    date: entry.date,
+  }));
+
+  const fallbackLogItems = state.eventLog
+    .filter((entry) => !hasJournalDuplicate(entry, state.eventStore))
+    .map((entry, index) => ({
+      id: `log-${entry.day}-${index}`,
+      day: entry.day,
+      title: trimJournalTitle(entry),
+      detail: entry.message,
+      actor: entry.actor,
+      tone: entry.tone,
+      kind: 'journal',
+      date: entry.date,
+    }));
+
+  return [...eventItems, ...fallbackLogItems].sort((left, right) => {
+    if (right.day !== left.day) {
+      return right.day - left.day;
+    }
+    return (right.date || '').localeCompare(left.date || '');
+  });
+}
+
+function filterJournalItems(
+  items: JournalItem[],
+  scope: JournalScope,
+  today: number,
+  selectedCaseId?: string | null,
+) {
+  if (scope === 'today') {
+    return items.filter((item) => item.day === today);
+  }
+
+  if (scope === 'selected-case') {
+    return selectedCaseId ? items.filter((item) => item.caseId === selectedCaseId) : [];
+  }
+
+  return items;
+}
+
+function groupJournalByDay(items: JournalItem[]) {
+  const map = new Map<number, JournalItem[]>();
+
+  items.forEach((item) => {
+    const bucket = map.get(item.day) || [];
+    bucket.push(item);
+    map.set(item.day, bucket);
+  });
+
+  return [...map.entries()]
+    .sort((left, right) => right[0] - left[0])
+    .map(([day, groupItems]) => ({
+      day,
+      items: groupItems,
+    }));
+}
+
+function hasJournalDuplicate(entry: EventLogEntry, eventStore: DomainEventEntry[]) {
+  return eventStore.some((event) =>
+    event.day === entry.day
+    && event.actor === entry.actor
+    && event.detail === entry.message,
+  );
+}
+
+function trimJournalTitle(entry: EventLogEntry) {
+  const message = entry.message.trim();
+  if (message.length <= 24) {
+    return message;
+  }
+  return `${message.slice(0, 24)}...`;
+}
+
+function describeKind(kind: string) {
+  switch (kind) {
+    case 'case_sold':
+      return '成交';
+    case 'case_withdrawn':
+      return '撤盘';
+    case 'case_lost_to_rival':
+      return '丢盘';
+    case 'opportunity_advanced':
+      return '推进';
+    case 'opportunity_closed':
+      return '成交';
+    case 'market_event':
+      return '市场';
+    case 'action_executed':
+      return '动作';
+    case 'budget_changed':
+      return '资源';
+    default:
+      return '记录';
+  }
+}
+
+function ToneDot({ tone }: { tone: Tone }) {
+  const className = tone === 'danger'
+    ? 'bg-rose-500'
+    : tone === 'success'
+      ? 'bg-emerald-500'
+      : 'bg-amber-500';
+
+  return <span className={`inline-flex h-2.5 w-2.5 rounded-full ${className}`} />;
+}
+
+function JournalMetricCard({
+  icon,
+  label,
+  value,
+  detail,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-[18px] border border-black/[0.05] bg-white px-4 py-4 shadow-sm">
+      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
+        {icon}
+        {label}
       </div>
+      <div className="mt-2 text-[15px] font-semibold text-slate-900">{value}</div>
+      <p className="mt-1 text-[12px] leading-6 text-slate-500">{detail}</p>
     </div>
   );
 }

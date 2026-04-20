@@ -1,6 +1,6 @@
-import type { DifficultyProfile, DifficultyScoreBreakdown, GeneratedRoleAssignment, ScenarioBlueprint, ScenarioValidationResult } from './types';
-import type { ScenarioDefinition, WorldSpec } from '../models';
-import { average, clamp } from '../utils';
+import type { DifficultyProfile, DifficultyScoreBreakdown, GeneratedRoleAssignment, ScenarioBlueprint, ScenarioValidationResult } from './types.js';
+import type { ScenarioDefinition, WorldSpec } from '../models.js';
+import { average, clamp } from '../utils.js';
 
 function round(value: number) {
   return Math.round(value * 10) / 10;
@@ -113,8 +113,8 @@ export function validateGeneratedScenario(
   }
 
   const breakdown = computeDifficultyBreakdown(scenario);
-  if (breakdown.totalScore < profile.difficultyScoreTarget.min || breakdown.totalScore > profile.difficultyScoreTarget.max) {
-    findings.push(`难度分漂移到 ${breakdown.totalScore}，超出画像区间 ${profile.difficultyScoreTarget.min}-${profile.difficultyScoreTarget.max}`);
+  if (breakdown.totalScore < profile.generationDifficultyBand.min || breakdown.totalScore > profile.generationDifficultyBand.max) {
+    findings.push(`难度分漂移到 ${breakdown.totalScore}，超出画像区间 ${profile.generationDifficultyBand.min}-${profile.generationDifficultyBand.max}`);
   }
 
   return {

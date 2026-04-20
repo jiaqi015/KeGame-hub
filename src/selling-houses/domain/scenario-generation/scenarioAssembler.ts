@@ -1,6 +1,7 @@
-import { MAINTAINER_NAMES, OWNER_NAMES } from '../constants';
+import { MAINTAINER_NAMES, OWNER_NAMES } from '../constants.js';
 import type {
   CompetitionGroup,
+  DifficultyId,
   HousePrototype,
   OwnerArchetype,
   RivalListing,
@@ -10,7 +11,7 @@ import type {
   ScriptedEvent,
   WeightedDailyEventRef,
   WorldSpec,
-} from '../models';
+} from '../models.js';
 import {
   clamp,
   nextRandom,
@@ -19,10 +20,10 @@ import {
   pickWeighted,
   randomInt,
   type RandomSource,
-} from '../utils';
-import { getDifficultyProfile } from './difficultyProfiles';
-import { buildScenarioPresentation } from './scenarioNamer';
-import { getScenarioBlueprintsForDifficulty } from './scenarioBlueprints';
+} from '../utils.js';
+import { getDifficultyProfile } from './difficultyProfiles.js';
+import { buildScenarioPresentation } from './scenarioNamer.js';
+import { getScenarioBlueprintsForDifficulty } from './scenarioBlueprints.js';
 import type {
   CaseRole,
   DifficultyProfile,
@@ -30,7 +31,7 @@ import type {
   GeneratedRoleAssignment,
   ScenarioBlueprint,
   ScenarioGenerationRequest,
-} from './types';
+} from './types.js';
 
 interface CandidateOption<T> {
   value: T;
@@ -343,7 +344,7 @@ function buildGoalContext(profile: DifficultyProfile, blueprint: ScenarioBluepri
     95,
     Math.round(
       44
-      + profile.difficultyScoreTarget.min * 0.55
+      + profile.generationDifficultyBand.min * 0.55
       + (blueprint.eventArcId === 'double_market_balance' || blueprint.eventArcId === 'cross_pressure' ? 8 : 0),
     ),
   );
@@ -351,7 +352,7 @@ function buildGoalContext(profile: DifficultyProfile, blueprint: ScenarioBluepri
     95,
     Math.round(
       42
-      + profile.difficultyScoreTarget.min * 0.48
+      + profile.generationDifficultyBand.min * 0.48
       + (blueprint.competitionTopology === 'paired_pressure' || blueprint.competitionTopology === 'chain_clusters' ? 12 : 6),
     ),
   );
@@ -359,7 +360,7 @@ function buildGoalContext(profile: DifficultyProfile, blueprint: ScenarioBluepri
     95,
     Math.round(
       40
-      + profile.difficultyScoreTarget.min * 0.42
+      + profile.generationDifficultyBand.min * 0.42
       + (blueprint.eventArcId === 'relationship_recovery' ? 6 : 0)
       + (blueprint.eventArcId === 'window_squeeze' || blueprint.eventArcId === 'competition_collapse' ? 10 : 0),
     ),
@@ -371,7 +372,7 @@ function buildGoalContext(profile: DifficultyProfile, blueprint: ScenarioBluepri
       ? 'satisfaction'
       : 'ability';
 
-  const targetScore = Math.round((profile.difficultyScoreTarget.min + profile.difficultyScoreTarget.max) / 2) + 24;
+  const targetScore = profile.playerTargetScore;
   const pass = Math.max(42, targetScore - 12);
   const strong = Math.min(94, targetScore + 12);
   const ace = Math.min(98, strong + 8);
@@ -640,7 +641,7 @@ function buildScriptedEvents(
         day: eventDay(maxDay, 12, source),
         actor: '竞品',
         title: '同组盘跳价',
-        message: '竞品突然调整口径，把买家心理价位重新往下拽了一截。',
+        message: '竞品突然改了说法，把买家心里的参考价又往下拽了一截。',
         tone: 'danger',
         targetMarketCellId: spoiler.marketCellId,
         competitionPressureDelta: 10,
@@ -679,8 +680,8 @@ function buildScriptedEvents(
         id: 'event-generated-3',
         day: eventDay(maxDay, 13, source),
         actor: '竞品',
-        title: '价格锚下移',
-        message: '板块里的竞品重新改口，让解释成本一下子变高了。',
+        title: '参考价下移',
+        message: '板块里的竞品重新改口，让你解释价格这件事一下子变难了。',
         tone: 'danger',
         targetMarketCellId: spoiler.marketCellId,
         competitionPressureDelta: 11,
@@ -716,8 +717,8 @@ function buildScriptedEvents(
         id: 'event-generated-3',
         day: eventDay(maxDay, 12, source),
         actor: '竞品',
-        title: '锚点再压低',
-        message: '同组竞品重新拉低了价格锚，让强推更容易伤到整组盘。',
+        title: '参考价再压低',
+        message: '同组竞品重新拉低了参考价，让强推更容易伤到整组房。',
         tone: 'danger',
         targetMarketCellId: anchor.marketCellId,
         competitionPressureDelta: 12,

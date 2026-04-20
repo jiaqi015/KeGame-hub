@@ -8,16 +8,23 @@ import {
   logoutCurrentSession,
 } from '../services/apiService';
 import { AIModel } from '../types';
+import {
+  normalizeWorkspacePathname,
+  resolveAllowedWorkspaceFromPathname,
+} from '../workspaces/workspaceRegistry';
 
 export function useAppSession(state: AppState, dispatch: React.Dispatch<AppAction>) {
-  const { authorizedKey, authStatus, allowedWorkspaces, currentUserEmail } = state;
+  const { authorizedKey, authStatus, allowedWorkspaces, currentUserEmail, activeWorkspace } = state;
 
   const lockApplication = useCallback((message: string, nextInput = '') => {
+    if (activeWorkspace !== 'hub') {
+      window.sessionStorage.setItem('kegame-target-path', window.location.pathname || '/');
+    }
     window.localStorage.removeItem(ACTIVATION_STORAGE_KEY);
     window.localStorage.removeItem(AUTH_EMAIL_STORAGE_KEY);
     void logoutCurrentSession().catch(() => {});
     dispatch({ type: 'LOCK_APPLICATION', message, nextInput });
-  }, [dispatch]);
+  }, [activeWorkspace, dispatch]);
 
   const authorizedFetch = useCallback(async (input: string, init: RequestInit = {}) => {
     const response = await fetch(input, {
@@ -42,14 +49,23 @@ export function useAppSession(state: AppState, dispatch: React.Dispatch<AppActio
       try {
         const user = await fetchAuthenticatedUser();
         if (!disposed) {
+          const currentPath = normalizeWorkspacePathname(window.location.pathname || '/');
+          const cachedPath = window.sessionStorage.getItem('kegame-target-path') || '';
+          const candidatePath = currentPath !== '/' ? currentPath : cachedPath;
+          const matchedWorkspace = resolveAllowedWorkspaceFromPathname(candidatePath, user.allowedWorkspaces);
+
           dispatch({
             type: 'COMPLETE_ACTIVATION',
             key: window.localStorage.getItem(ACTIVATION_STORAGE_KEY)?.trim() || 'session-authenticated',
             allowedWorkspaces: user.allowedWorkspaces,
+            accountId: user.accountId,
             email: user.email,
             nickname: user.nickname,
           });
           dispatch({ type: 'SET_LOGIN_EMAIL', value: user.email });
+          if (matchedWorkspace) {
+            dispatch({ type: 'SET_WORKSPACE', workspace: matchedWorkspace });
+          }
         }
       } catch (error) {
         if (!disposed) {

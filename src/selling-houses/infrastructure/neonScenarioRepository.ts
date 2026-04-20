@@ -1,4 +1,5 @@
-import type { ScenarioDefinition, ScenarioSummary, WorldSpec } from '../domain/models.js';
+import type { ScenarioDefinition, WorldSpec } from '../domain/models.js';
+import { buildScenarioSummary } from '../domain/scenarioMetadata.js';
 import { withSellingHousesNeon } from './neonGameDatabase.js';
 
 function toJsonValue<T>(value: unknown, fallback: T): T {
@@ -22,18 +23,6 @@ interface ScenarioWithWorldRow {
   world_json: unknown;
 }
 
-function toSummary(scenario: ScenarioDefinition): ScenarioSummary {
-  return {
-    id: scenario.id,
-    difficultyId: scenario.difficultyId,
-    name: scenario.name,
-    theme: scenario.theme,
-    description: scenario.description,
-    caseCount: scenario.cases.length,
-    maxDay: scenario.maxDay,
-  };
-}
-
 export class NeonScenarioRepository {
   async listPublished(difficultyId?: string, limit = 20) {
     return withSellingHousesNeon(async (sql) => {
@@ -52,7 +41,7 @@ export class NeonScenarioRepository {
       return rows
         .map((row) => toJsonValue<ScenarioDefinition | null>(row.scenario_json, null))
         .filter((entry): entry is ScenarioDefinition => Boolean(entry))
-        .map(toSummary);
+        .map(buildScenarioSummary);
     });
   }
 

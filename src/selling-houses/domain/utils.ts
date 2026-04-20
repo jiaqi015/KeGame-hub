@@ -1,4 +1,4 @@
-import { GameState } from './models';
+import { GameState } from './models.js';
 
 export function clamp(val: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, val));
@@ -18,9 +18,9 @@ export function normalizeSeed(seed: number) {
   return normalized || 1;
 }
 
-export function nextRandom(source?: RandomSource): number {
+export function nextRandom(source: RandomSource): number {
   if (!source) {
-    return Math.random();
+    throw new Error('RandomSource is required for deterministic selling-houses simulation');
   }
 
   source.rngState = (source.rngState + 0x6d2b79f5) >>> 0;
@@ -31,23 +31,23 @@ export function nextRandom(source?: RandomSource): number {
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 }
 
-export function randomInt(min: number, max: number, source?: RandomSource): number {
+export function randomInt(min: number, max: number, source: RandomSource): number {
   return Math.floor(nextRandom(source) * (max - min + 1)) + min;
 }
 
-export function randomFloat(min: number, max: number, source?: RandomSource): number {
+export function randomFloat(min: number, max: number, source: RandomSource): number {
   return min + nextRandom(source) * (max - min);
 }
 
-export function chance(p: number, source?: RandomSource): boolean {
+export function chance(p: number, source: RandomSource): boolean {
   return nextRandom(source) < p;
 }
 
-export function pickRandom<T>(arr: T[], source?: RandomSource): T {
+export function pickRandom<T>(arr: T[], source: RandomSource): T {
   return arr[randomInt(0, arr.length - 1, source)];
 }
 
-export function pickWeighted<T extends { weight: number }>(items: T[], source?: RandomSource): T {
+export function pickWeighted<T extends { weight: number }>(items: T[], source: RandomSource): T {
   const totalWeight = items.reduce((sum, item) => sum + Math.max(0, item.weight), 0);
   if (totalWeight <= 0) {
     return items[0];

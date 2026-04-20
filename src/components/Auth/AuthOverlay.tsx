@@ -53,26 +53,18 @@ export function AuthOverlay({
           <div className="rounded-[32px] border border-black/5 bg-white/80 p-8 md:p-10">
             <div className="mb-8 flex items-start justify-between gap-6">
               <div>
-                <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-black/5 bg-[#F5F5F7] px-3 py-1 text-[11px] font-semibold tracking-[0.22em] text-[#6E6E73] uppercase">
-                  <KeGameHubMark size={16} />
-                  KeGame
-                </div>
                 <div className="flex items-center gap-3">
                   <KeGameHubMark size={36} />
                   <h1 className="text-[34px] font-semibold tracking-[-0.04em] text-[#111111]">
-                    KeGame Hub
+                    KeGame
                   </h1>
                 </div>
                 <p className="mt-3 max-w-sm text-[15px] leading-7 text-[#6E6E73]">
-                  使用 `@ke.com` 邮箱免密登录。首次登录时再补一次激活 key，完成注册和权限授权。
+                  第一次登录：必须使用 `@ke.com` 邮箱，先获取验证码，再输入分配给你的激活 key 完成开通。以后登录：只需要验证码登录。
                 </p>
-                <div className="mt-5 flex flex-wrap gap-2 text-[11px] font-semibold text-[#5C5C60]">
-                  {['多模型PK', '开放日选址', '王牌资产顾问', '经营好商圈', '理性业主'].map((label) => (
-                    <span key={label} className="rounded-full border border-black/5 bg-[#F5F5F7] px-3 py-1">
-                      {label}
-                    </span>
-                  ))}
-                </div>
+                <p className="mt-4 text-[12px] leading-6 text-[#8E8E93]">
+                  已开通多模型 PK、开放日选址、王牌资产顾问等功能。
+                </p>
               </div>
 
               <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] bg-[#111111] text-white shadow-[0_18px_40px_rgba(17,17,17,0.18)]">
@@ -171,11 +163,8 @@ export function AuthOverlay({
               </div>
             )}
 
-            <div className="mt-6 flex items-center justify-between gap-4 text-xs text-[#8E8E93]">
-              <span>{authStatus === 'checking' ? '正在恢复已登录状态' : '登录后会记住当前设备'}</span>
-              <span className="rounded-full bg-[#F5F5F7] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#6E6E73]">
-                KeGame
-              </span>
+            <div className="mt-6 text-xs text-[#8E8E93]">
+              {authStatus === 'checking' ? '正在恢复已登录状态' : '登录后会记住当前设备'}
             </div>
           </div>
         </div>

@@ -22,6 +22,7 @@ export interface AppState {
   authError: string;
   authMode: AuthMode;
   authHint: string;
+  currentUserAccountId: string;
   currentUserEmail: string;
   currentUserNickname: string;
   
@@ -48,7 +49,7 @@ export type AppAction =
   | { type: 'SET_LOGIN_EMAIL'; value: string }
   | { type: 'SET_VERIFICATION_CODE'; value: string }
   | { type: 'SET_ACTIVATION_INPUT'; value: string }
-  | { type: 'COMPLETE_ACTIVATION'; key: string; allowedWorkspaces: ActivationWorkspaceId[]; email?: string; nickname?: string }
+  | { type: 'COMPLETE_ACTIVATION'; key: string; allowedWorkspaces: ActivationWorkspaceId[]; accountId?: string; email?: string; nickname?: string }
   | { type: 'LOCK_APPLICATION'; message: string; nextInput: string }
   | { type: 'SET_WORKSPACE'; workspace: WorkspaceId }
   | { type: 'SET_CATALOG'; models: AIModel[]; selected: string[] }
@@ -74,6 +75,7 @@ export const initialState: AppState = {
   authError: '',
   authMode: 'email',
   authHint: '',
+  currentUserAccountId: '',
   currentUserEmail: '',
   currentUserNickname: '',
   activeWorkspace: 'hub',
@@ -114,11 +116,11 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         ...state,
         authorizedKey: action.key,
         allowedWorkspaces: action.allowedWorkspaces,
+        currentUserAccountId: action.accountId ?? state.currentUserAccountId,
         currentUserEmail: action.email ?? state.currentUserEmail,
         currentUserNickname: action.nickname ?? state.currentUserNickname,
         authError: '',
         authHint: '',
-        activeWorkspace: 'hub',
         authStatus: 'authenticated',
       };
       
@@ -214,6 +216,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         authorizedKey: state.authorizedKey,
         authStatus: state.authStatus,
         allowedWorkspaces: state.allowedWorkspaces,
+        currentUserAccountId: state.currentUserAccountId,
         currentUserEmail: state.currentUserEmail,
         currentUserNickname: state.currentUserNickname,
       };

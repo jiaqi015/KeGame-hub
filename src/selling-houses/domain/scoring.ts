@@ -1,10 +1,9 @@
-import { Case, Opportunity, GameState, CompetitivenessSnapshot } from './models';
-import { 
-  COMPETITIVENESS_WEIGHTS, D1_SIGNAL_WEIGHTS, D2_AXIS_WEIGHTS, D3_SIGNAL_WEIGHTS, PORTAL_URGENCY_WEIGHTS, OPPORTUNITY_STAGES
-} from './constants';
-import { clamp } from './utils';
+import { Case, Opportunity, GameState, CompetitivenessSnapshot } from './models.js';
+import { BALANCE } from './config/balance.js';
+import { clamp } from './utils.js';
 
 export function updateCompetitiveness(world: GameState, caseItem: Case) {
+  const scoringBalance = BALANCE.scoring;
   const prevTotal = caseItem.competitiveness;
   const prevD1 = caseItem.d1;
   const prevD2 = caseItem.d2;
@@ -19,9 +18,9 @@ export function updateCompetitiveness(world: GameState, caseItem: Case) {
   caseItem.d3 = d3Result.score;
 
   caseItem.competitiveness = clamp(
-    caseItem.d1 * COMPETITIVENESS_WEIGHTS.d1 +
-    caseItem.d2 * COMPETITIVENESS_WEIGHTS.d2 +
-    caseItem.d3 * COMPETITIVENESS_WEIGHTS.d3,
+    caseItem.d1 * scoringBalance.competitivenessWeights.d1 +
+    caseItem.d2 * scoringBalance.competitivenessWeights.d2 +
+    caseItem.d3 * scoringBalance.competitivenessWeights.d3,
     0, 100
   );
 
@@ -49,6 +48,8 @@ export function updateCompetitiveness(world: GameState, caseItem: Case) {
 }
 
 function calculateD1(world: GameState, caseItem: Case) {
+  const scoringBalance = BALANCE.scoring;
+  const d1Normalization = scoringBalance.d1Normalization;
   const opps = world.opportunities.filter(o => o.caseId === caseItem.id && o.status === 'active');
   const allOppsForCase = world.opportunities.filter(o => o.caseId === caseItem.id);
   
@@ -67,21 +68,21 @@ function calculateD1(world: GameState, caseItem: Case) {
     if (o.stageIndex === 2) return sum + 1.5; // 看房
     return sum;
   }, 0);
-  const baselineFunnel = 5; // Static baseline for normalization
+  const baselineFunnel = d1Normalization.lateStageBaseline;
 
   // 4. 漏斗推进速度: 过去 7 天内 stage 升格次数
   const advanceCount = opps.reduce((sum, o) => sum + o.history.filter(h => world.day - h.day <= 7).length, 0);
-  const baselineSpeed = 3;
+  const baselineSpeed = d1Normalization.advanceSpeedBaseline;
 
   // 5. 停滞风险
   const stagnationCount = opps.filter(o => o.stagnationTicks > 3).length;
 
   const d1_raw = 
-    D1_SIGNAL_WEIGHTS.poolSize * Math.log2(poolSize + 1) * 20 +
-    D1_SIGNAL_WEIGHTS.activeContacts * Math.log2(activeContacts + 1) * 20 +
-    D1_SIGNAL_WEIGHTS.lateStageThickness * (funnelWeight / baselineFunnel) * 40 +
-    D1_SIGNAL_WEIGHTS.advanceSpeed * (advanceCount / baselineSpeed) * 30 -
-    D1_SIGNAL_WEIGHTS.stagnationRisk * stagnationCount * 10;
+    scoringBalance.d1SignalWeights.poolSize * Math.log2(poolSize + 1) * d1Normalization.poolSizeLogScale +
+    scoringBalance.d1SignalWeights.activeContacts * Math.log2(activeContacts + 1) * d1Normalization.activeContactsLogScale +
+    scoringBalance.d1SignalWeights.lateStageThickness * (funnelWeight / baselineFunnel) * d1Normalization.lateStageScale +
+    scoringBalance.d1SignalWeights.advanceSpeed * (advanceCount / baselineSpeed) * d1Normalization.advanceSpeedScale -
+    scoringBalance.d1SignalWeights.stagnationRisk * stagnationCount * d1Normalization.stagnationPenaltyPerOpportunity;
 
   const score = clamp(d1_raw, 0, 100);
 
@@ -93,8 +94,9 @@ function calculateD1(world: GameState, caseItem: Case) {
 }
 
 function calculateD2(caseItem: Case) {
+  const scoringBalance = BALANCE.scoring;
   let score = 0;
-  Object.entries(D2_AXIS_WEIGHTS).forEach(([axis, weight]) => {
+  Object.entries(scoringBalance.d2AxisWeights).forEach(([axis, weight]) => {
     const axisScore = caseItem.axisScores[axis] || 50;
     score += axisScore * weight;
   });
@@ -103,9 +105,11 @@ function calculateD2(caseItem: Case) {
 }
 
 function calculateD3(caseItem: Case) {
+  const scoringBalance = BALANCE.scoring;
+  const d3Normalization = scoringBalance.d3Normalization;
   // 1. 价格灵活度: (askPrice - bottomPrice) / askPrice
   const priceFlex = (caseItem.askPrice - caseItem.bottomPrice) / caseItem.askPrice;
-  const flexScore = clamp(priceFlex * 10 * 100, 0, 100); // Normalize 10% flex to 100 score
+  const flexScore = clamp(priceFlex * d3Normalization.priceFlexFullScale * 100, 0, 100);
 
   // 2. 耐心水位
   const patienceScore = caseItem.patience;
@@ -117,11 +121,11 @@ function calculateD3(caseItem: Case) {
   const cooperationScore = caseItem.trust;
 
   const d3_raw = 
-    D3_SIGNAL_WEIGHTS.priceFlex * flexScore +
-    D3_SIGNAL_WEIGHTS.patience * patienceScore +
-    D3_SIGNAL_WEIGHTS.urgency * urgencyScore +
-    D3_SIGNAL_WEIGHTS.recentCooperation * cooperationScore +
-    D3_SIGNAL_WEIGHTS.consistency * 80; // Placeholder for consistency
+    scoringBalance.d3SignalWeights.priceFlex * flexScore +
+    scoringBalance.d3SignalWeights.patience * patienceScore +
+    scoringBalance.d3SignalWeights.urgency * urgencyScore +
+    scoringBalance.d3SignalWeights.recentCooperation * cooperationScore +
+    scoringBalance.d3SignalWeights.consistency * d3Normalization.consistencyBaseline;
 
   const score = clamp(d3_raw, 0, 100);
   
@@ -133,6 +137,8 @@ function calculateD3(caseItem: Case) {
 }
 
 export function calculateUrgency(caseItem: Case) {
+  const scoringBalance = BALANCE.scoring;
+  const urgencyNormalization = scoringBalance.portalUrgencyNormalization;
   const latestSnapshot = caseItem.competitivenessSnapshots[0];
   const delta = Math.abs(latestSnapshot?.delta || 0);
   const level = 1 - caseItem.competitiveness / 100;
@@ -141,10 +147,10 @@ export function calculateUrgency(caseItem: Case) {
   const windowPressure = clamp((15 - caseItem.windowDays) / 15, 0, 1);
 
   const urgency = 
-    PORTAL_URGENCY_WEIGHTS.deltaWeight * delta * 5 + // Scale delta
-    PORTAL_URGENCY_WEIGHTS.levelWeight * level * 100 +
-    PORTAL_URGENCY_WEIGHTS.criticalEventWeight * hasCriticalEvent * 100 +
-    PORTAL_URGENCY_WEIGHTS.timeWindowWeight * windowPressure * 100;
+    scoringBalance.portalUrgencyWeights.deltaWeight * delta * urgencyNormalization.deltaScale +
+    scoringBalance.portalUrgencyWeights.levelWeight * level * urgencyNormalization.levelScale +
+    scoringBalance.portalUrgencyWeights.criticalEventWeight * hasCriticalEvent * urgencyNormalization.criticalEventScale +
+    scoringBalance.portalUrgencyWeights.timeWindowWeight * windowPressure * urgencyNormalization.timeWindowScale;
 
   return urgency;
 }

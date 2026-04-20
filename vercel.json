@@ -26,6 +26,10 @@
     {
       "source": "/api/open-day-scenario-versions",
       "destination": "/api/open-day-scenarios?view=versions"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
     }
   ],
   "functions": {

@@ -1,6 +1,6 @@
-import { MAINTAINER_NAMES, OWNER_NAMES } from './constants';
-import type { Case, OwnerArchetype, ScenarioCase, ScenarioSnapshot } from './models';
-import { pickRandom, randomFloat, randomInt, type RandomSource } from './utils';
+import { MAINTAINER_NAMES, OWNER_NAMES } from './constants.js';
+import type { Case, OwnerArchetype, ScenarioCase, ScenarioSnapshot } from './models.js';
+import { pickRandom, randomFloat, randomInt, type RandomSource } from './utils.js';
 
 function resolvePersonality(archetype: OwnerArchetype): Case['personality'] {
   if (archetype.id === 'anxious') {

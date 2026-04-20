@@ -34,11 +34,22 @@ import {
   handleMaintainerRunSave,
   isMaintainerSyncConflictError,
 } from "./src/selling-houses/interfaces/http/maintainerRunHandlers.js";
-import { handleMaintainerLeaderboardList } from "./src/selling-houses/interfaces/http/maintainerLeaderboardHandler.js";
+import {
+  handleMaintainerLeaderboardDetail,
+  handleMaintainerLeaderboardList,
+} from "./src/selling-houses/interfaces/http/maintainerLeaderboardHandler.js";
 import {
   handleSellingHousesScenarioGet,
   handleSellingHousesScenarioList,
 } from "./src/selling-houses/interfaces/http/sellingHousesScenarioHandlers.js";
+import {
+  hasQueryValue,
+  isMaintainerLeaderboardDetailQuery,
+  isMaintainerLeaderboardQuery,
+  isOpenDayScenarioVersionQuery,
+  isOpenDaySnapshotDetailQuery,
+  isStreamRequested,
+} from "./api/_request.js";
 
 dotenv.config({ path: ".env.local", override: false });
 dotenv.config({ path: ".env", override: false });
@@ -71,10 +82,25 @@ function getFirstFieldValue(value: string | string[] | undefined) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function buildMaintainerRunIdentity(
+  authorization: {
+    accountId?: string;
+    displayName?: string;
+    nickname?: string;
+    source?: "session" | "activation-key";
+  },
+) {
+  return {
+    accountId: authorization.accountId,
+    displayName: authorization.displayName || authorization.nickname,
+    source: authorization.source,
+  } as const;
+}
+
 async function startServer() {
   const app = express();
   const preferredPort = Number(process.env.PORT || 3000);
-  const hmrPort = Number(process.env.VITE_HMR_PORT || 24700);
+  const server = http.createServer(app);
 
   app.use(express.json());
 
@@ -172,6 +198,7 @@ async function startServer() {
     return res.json({
       ok: true,
       user: {
+        accountId: authorization.accountId,
         email: authorization.email,
         nickname: authorization.nickname,
         displayName: authorization.displayName,
@@ -194,6 +221,7 @@ async function startServer() {
     return res.json({
       ok: true,
       user: {
+        accountId: authorization.accountId,
         email: authorization.email,
         nickname: authorization.nickname,
         displayName: authorization.displayName,
@@ -243,10 +271,7 @@ async function startServer() {
 
   app.get("/api/open-day-analyses", async (req, res) => {
     try {
-      if (
-        (typeof req.query?.id === "string" && req.query.id)
-        || (typeof req.query?.runId === "string" && req.query.runId)
-      ) {
+      if (isOpenDaySnapshotDetailQuery(req.query)) {
         const payload = await handleOpenDaySnapshotGet(req.query);
         return res.json(payload);
       }
@@ -260,12 +285,12 @@ async function startServer() {
 
   app.get("/api/open-day-scenarios", async (req, res) => {
     try {
-      if (req.query?.view === "versions" || (typeof req.query?.templateId === "string" && req.query.templateId)) {
+      if (isOpenDayScenarioVersionQuery(req.query)) {
         const payload = await handleOpenDayScenarioVersionList(req.query);
         return res.json(payload);
       }
 
-      if (typeof req.query?.id === "string" && req.query.id) {
+      if (hasQueryValue(req.query, "id")) {
         const payload = await handleOpenDayScenarioGet(req.query);
         return res.json(payload);
       }
@@ -324,17 +349,28 @@ async function startServer() {
 
   app.get("/api/maintainer-runs", async (req, res) => {
     try {
-      if (req.query?.view === "leaderboard") {
+      const authorization = authorizeRequest(req, "selling-houses");
+      if (!authorization.ok) {
+        return res.status(authorization.status).json({ error: authorization.error });
+      }
+      const identity = buildMaintainerRunIdentity(authorization);
+
+      if (isMaintainerLeaderboardDetailQuery(req.query)) {
+        const payload = await handleMaintainerLeaderboardDetail(req.query);
+        return res.json(payload);
+      }
+
+      if (isMaintainerLeaderboardQuery(req.query)) {
         const payload = await handleMaintainerLeaderboardList(req.query);
         return res.json(payload);
       }
 
-      if (typeof req.query?.id === "string" && req.query.id) {
-        const payload = await handleMaintainerRunGet(req.query);
+      if (hasQueryValue(req.query, "id")) {
+        const payload = await handleMaintainerRunGet(req.query, identity);
         return res.json(payload);
       }
 
-      const payload = await handleMaintainerRunList(req.query);
+      const payload = await handleMaintainerRunList(req.query, identity);
       return res.json(payload);
     } catch (error) {
       return res.status(400).json({ error: error instanceof Error ? error.message : "云端存档查询失败" });
@@ -343,7 +379,12 @@ async function startServer() {
 
   app.post("/api/maintainer-runs", async (req, res) => {
     try {
-      const payload = await handleMaintainerRunCreate(req.body);
+      const authorization = authorizeRequest(req, "selling-houses");
+      if (!authorization.ok) {
+        return res.status(authorization.status).json({ error: authorization.error });
+      }
+
+      const payload = await handleMaintainerRunCreate(req.body, buildMaintainerRunIdentity(authorization));
       return res.json(payload);
     } catch (error) {
       return res.status(400).json({ error: error instanceof Error ? error.message : "云端存档创建失败" });
@@ -352,7 +393,12 @@ async function startServer() {
 
   app.put("/api/maintainer-runs", async (req, res) => {
     try {
-      const payload = await handleMaintainerRunSave(req.body);
+      const authorization = authorizeRequest(req, "selling-houses");
+      if (!authorization.ok) {
+        return res.status(authorization.status).json({ error: authorization.error });
+      }
+
+      const payload = await handleMaintainerRunSave(req.body, buildMaintainerRunIdentity(authorization));
       return res.json(payload);
     } catch (error) {
       if (isMaintainerSyncConflictError(error)) {
@@ -365,7 +411,7 @@ async function startServer() {
 
   app.get("/api/selling-houses-scenarios", async (req, res) => {
     try {
-      if (typeof req.query?.id === "string" && req.query.id) {
+      if (hasQueryValue(req.query, "id")) {
         const payload = await handleSellingHousesScenarioGet(req.query || {});
         return res.json(payload);
       }
@@ -383,7 +429,7 @@ async function startServer() {
 
   app.post("/api/compare", async (req, res) => {
     const prompt = typeof req.body?.prompt === "string" ? req.body.prompt.trim() : "";
-    const streamRequested = req.query?.stream === "1" || req.body?.stream === true;
+    const streamRequested = isStreamRequested(req.query, req.body);
 
     if (streamRequested) {
       const modelId = typeof req.body?.modelId === "string" ? req.body.modelId.trim() : "";
@@ -457,7 +503,7 @@ async function startServer() {
       server: {
         middlewareMode: true,
         hmr: {
-          port: hmrPort,
+          server,
         },
       },
       appType: "spa",
@@ -471,7 +517,6 @@ async function startServer() {
     });
   }
 
-  const server = http.createServer(app);
   let currentPort = preferredPort;
   const maxPortAttempts = 10;
 

@@ -1,46 +1,23 @@
-export { ACTIONS, ACTION_CATEGORIES } from './actions/definitions';
+import { BALANCE } from './config/balance.js';
+
+export { ACTIONS, ACTION_CATEGORIES } from './actions/definitions.js';
 
 export const STORAGE_KEY = "selling-world-save-v3";
 export const CLOUD_USER_STORAGE_KEY = "selling-world-user-v1";
 export const CLOUD_META_STORAGE_KEY = "selling-world-cloud-meta-v1";
 
-export const CASE_STAGES = ["获客启动", "经营加热", "带看推进", "意向报价", "议价中", "成交冲刺", "成交"];
+export const CASE_STAGES = ["开始找客户", "客户慢慢变多", "安排看房", "客户准备出价", "谈价格", "快成交了", "成交"];
 export const OPPORTUNITY_STAGES = ["了解", "咨询", "看房", "再看", "出价", "谈判", "成交"];
 
-export const COMPETITIVENESS_WEIGHTS = { d1: 0.5, d2: 0.25, d3: 0.25 };
+export const COMPETITIVENESS_WEIGHTS = BALANCE.scoring.competitivenessWeights;
 
-export const D1_SIGNAL_WEIGHTS = {
-  poolSize: 0.15,
-  activeContacts: 0.20,
-  lateStageThickness: 0.30,
-  advanceSpeed: 0.20,
-  stagnationRisk: 0.15
-};
+export const D1_SIGNAL_WEIGHTS = BALANCE.scoring.d1SignalWeights;
 
-export const D2_AXIS_WEIGHTS = {
-  layout: 0.20,
-  light: 0.10,
-  floor: 0.10,
-  decor: 0.15,
-  amenity: 0.15,
-  neighborhood: 0.20,
-  structure: 0.10
-};
+export const D2_AXIS_WEIGHTS = BALANCE.scoring.d2AxisWeights;
 
-export const D3_SIGNAL_WEIGHTS = {
-  priceFlex: 0.25,
-  patience: 0.25,
-  urgency: 0.20,
-  recentCooperation: 0.20,
-  consistency: 0.10
-};
+export const D3_SIGNAL_WEIGHTS = BALANCE.scoring.d3SignalWeights;
 
-export const PORTAL_URGENCY_WEIGHTS = {
-  deltaWeight: 0.40,
-  levelWeight: 0.20,
-  criticalEventWeight: 0.25,
-  timeWindowWeight: 0.15
-};
+export const PORTAL_URGENCY_WEIGHTS = BALANCE.scoring.portalUrgencyWeights;
 
 export const CHANNELS = [
   { id: "xiaohongshu", name: "小红书推广", quality: 0.56, controllability: 0.48, leadSource: "direct" },
@@ -139,7 +116,7 @@ export const STORY_TEMPLATES = [
   "青年资产保值叙事",
   "改善家庭稳定交付感",
   "稀缺景观资产溢价叙事",
-  "置换链条快速去化说辞",
+  "置换家庭急卖说法",
 ];
 
 export const DEFECT_POOL = ["报价偏硬", "次卧偏小", "竞品新", "总价高", "朝向一般", "邻近马路", "得房率低"];
@@ -156,9 +133,9 @@ export const WEEKLY_ROUTINE = [
 ];
 
 export const PERSONALITIES = {
-  pragmatic: { label: "务实型", desc: "非常在乎价格反馈。如果报价超过市场价，信任度极难维持。成交心态稳健。" },
-  emotional: { label: "情绪型", desc: "非常看重热度和面子。带看多他就高兴，如果没带看，信任度会崩盘式下跌。" },
-  urgent: { label: "迫切型", desc: "由于急于换房或变现，他的紧迫感提升极快，对大幅降价的忍受度较高。" },
+  pragmatic: { label: "务实型", desc: "很看重价格和真实反馈。要价如果明显高了，会更快失去耐心。" },
+  emotional: { label: "情绪型", desc: "很看重热度和面子。带看多就高兴，长时间没人看就容易不满。" },
+  urgent: { label: "着急型", desc: "急着换房或变现，更在意速度，对降价的接受度也更高。" },
 };
 
 export const MARKET_EVENT_PROBABILITY = 0.15;

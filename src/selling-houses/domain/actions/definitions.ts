@@ -1,4 +1,4 @@
-import type { ActionCategoryDefinition, ActionDefinition } from '../models';
+import type { ActionCategoryDefinition, ActionDefinition } from '../models.js';
 
 export const ACTION_CATEGORIES: ActionCategoryDefinition[] = [
   {
@@ -19,7 +19,7 @@ export const ACTION_CATEGORIES: ActionCategoryDefinition[] = [
   {
     id: 'negotiation',
     name: '斡旋谈判',
-    summary: '把后段客户和业主一起推进到更明确的成交桌，争取收口。',
+    summary: '把快成交客户和业主一起推进到更明确的谈价阶段，争取尽快成交。',
   },
 ];
 
@@ -55,7 +55,7 @@ export const ACTIONS: ActionDefinition[] = [
     summary: '把竞品、客户和带看反馈整合成一次更深入的诊断。',
     costEnergy: 1,
     costPromotionBudget: 0,
-    description: '适合盘面卡住时重新讲清问题到底出在哪一层。',
+    description: '适合情况卡住时重新讲清问题到底出在哪一层。',
     templateId: 'feedback-diagnosis',
     executorId: 'deep-diagnosis',
     metricFocus: ['trust', 'd3', 'competitiveness', 'intent'],
@@ -115,7 +115,7 @@ export const ACTIONS: ActionDefinition[] = [
     summary: '集中拉热度，争取一波更高质量的看房。',
     costEnergy: 2,
     costPromotionBudget: 5,
-    description: '高成本动作，但做对了能快速抬盘面热度和客户质量。',
+    description: '高成本动作，但做对了能快速拉高关注度和客户质量。',
     templateId: 'marketing-open-day',
     executorId: 'open-day',
     metricFocus: ['heat', 'd1', 'trust', 'windowDays'],
@@ -127,7 +127,7 @@ export const ACTIONS: ActionDefinition[] = [
     summary: '把已接洽客户推进到实地看房和更深一层反馈。',
     costEnergy: 1,
     costPromotionBudget: 0,
-    description: '既是营销承接，也是把客户推向后段经营的关键节点。',
+    description: '既是营销承接，也是把客户推向快成交阶段的关键节点。',
     templateId: 'marketing-showing',
     executorId: 'showing',
     metricFocus: ['intent', 'confidence', 'heat', 'd1'],
@@ -175,22 +175,22 @@ export const ACTIONS: ActionDefinition[] = [
     summary: '把成熟客户推进到更明确的诚意阶段，提前换取确定性。',
     costEnergy: 1,
     costPromotionBudget: 0,
-    description: '适合已经有一定意向基础、想把后段推进拉直的时候。',
+    description: '适合已经有一定意向基础、想把快成交阶段推进顺的时候。',
     templateId: 'negotiation-sincerity',
     executorId: 'sincerity-sale',
-    metricFocus: ['intent', 'confidence', 'askPrice', 'commission'],
+    metricFocus: ['intent', 'confidence', 'askPrice', 'trust'],
   },
   {
     id: 'invite-customer-negotiation',
     categoryId: 'negotiation',
     name: '邀请和客户谈判',
-    summary: '把高阶段客户真正拉上谈判桌，争取成交收口。',
+    summary: '把快成交客户真正拉上谈判桌，争取把单子做成。',
     costEnergy: 1,
     costPromotionBudget: 0,
     description: '适合已经接近报价和议价桌的客户，做最后一轮博弈。',
     templateId: 'negotiation-invite',
     executorId: 'invite-customer-negotiation',
-    metricFocus: ['intent', 'confidence', 'commission', 'trust'],
+    metricFocus: ['intent', 'confidence', 'askPrice', 'trust'],
   },
 ];
 

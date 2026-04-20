@@ -1,16 +1,36 @@
-import { logEvent } from '../../application/gameState';
-import type { GameState } from '../models';
-import { clamp, randomInt, wave, average } from '../utils';
-import { withdrawCase } from './actionResolvers';
-import { getMarketCell } from './opportunityEngine';
+import { logEvent, recordDomainEvent } from '../runtimeState.js';
+import { BALANCE } from '../config/balance.js';
+import type { GameState } from '../models.js';
+import { clamp, randomInt, wave, average } from '../utils.js';
+import { withdrawCase } from './actionResolvers.js';
+import { getMarketCell } from './opportunityEngine.js';
 
 export function updateMarkets(world: GameState) {
+  const marketPulseBalance = BALANCE.market.marketPulse;
   world.markets.forEach((cell, index) => {
     const pulse = wave(world.day, index + 4);
-    cell.demandHeat = clamp(cell.demandHeat + pulse * 3 + randomInt(-2, 2, world), 35, 92);
-    cell.supplyPressure = clamp(cell.supplyPressure - pulse * 2 + randomInt(-2, 2, world), 30, 88);
-    cell.competitivePressure = clamp(cell.competitivePressure + randomInt(-2, 3, world), 36, 92);
-    cell.sentiment = clamp(cell.sentiment + (cell.demandHeat - cell.supplyPressure) * 0.06 + randomInt(-2, 2, world), 38, 90);
+    cell.demandHeat = clamp(
+      cell.demandHeat + pulse * marketPulseBalance.demandPulseScale + randomInt(marketPulseBalance.demandRandomMin, marketPulseBalance.demandRandomMax, world),
+      35,
+      92,
+    );
+    cell.supplyPressure = clamp(
+      cell.supplyPressure - pulse * marketPulseBalance.supplyPulseScale + randomInt(marketPulseBalance.supplyRandomMin, marketPulseBalance.supplyRandomMax, world),
+      30,
+      88,
+    );
+    cell.competitivePressure = clamp(
+      cell.competitivePressure + randomInt(marketPulseBalance.pressureRandomMin, marketPulseBalance.pressureRandomMax, world),
+      36,
+      92,
+    );
+    cell.sentiment = clamp(
+      cell.sentiment
+        + (cell.demandHeat - cell.supplyPressure) * marketPulseBalance.sentimentSpreadWeight
+        + randomInt(marketPulseBalance.sentimentRandomMin, marketPulseBalance.sentimentRandomMax, world),
+      38,
+      90,
+    );
   });
 
   world.cases.forEach((caseItem) => {
@@ -20,8 +40,12 @@ export function updateMarkets(world: GameState) {
       return;
     }
     caseItem.marketPrice = Math.max(
-      Math.round(caseItem.marketPrice + (cell.demandHeat - cell.supplyPressure) / 18 + randomInt(-3, 3, world)),
-      Math.round(caseItem.askPrice * 0.84),
+      Math.round(
+        caseItem.marketPrice
+          + (cell.demandHeat - cell.supplyPressure) / marketPulseBalance.marketPriceSpreadDivisor
+          + randomInt(marketPulseBalance.marketPriceRandomMin, marketPulseBalance.marketPriceRandomMax, world),
+      ),
+      Math.round(caseItem.askPrice * marketPulseBalance.marketPriceFloorRate),
     );
   });
 }
@@ -41,13 +65,25 @@ export function tickSeasonality(world: GameState) {
 }
 
 export function updateCustomers(world: GameState) {
+  const customerPulseBalance = BALANCE.market.customerPulse;
   world.customers.forEach((customer, index) => {
-    customer.activity = clamp(customer.activity + wave(world.day, index + 11) * 4 + randomInt(-3, 3, world), 28, 96);
-    customer.urgency = clamp(customer.urgency + randomInt(-2, 3, world), 24, 95);
+    customer.activity = clamp(
+      customer.activity
+        + wave(world.day, index + 11) * customerPulseBalance.activityWaveScale
+        + randomInt(customerPulseBalance.activityRandomMin, customerPulseBalance.activityRandomMax, world),
+      28,
+      96,
+    );
+    customer.urgency = clamp(
+      customer.urgency + randomInt(customerPulseBalance.urgencyRandomMin, customerPulseBalance.urgencyRandomMax, world),
+      24,
+      95,
+    );
   });
 }
 
 export function tickCases(world: GameState) {
+  const caseTickBalance = BALANCE.market.caseTick;
   world.cases.forEach((caseItem) => {
     if (caseItem.status !== 'active') return;
 
@@ -74,37 +110,65 @@ export function tickCases(world: GameState) {
     }
 
     if (!caseItem.touchedToday) {
-      caseItem.heat -= isEmotional ? 4 + (ownerArchetype?.heatSensitivity || 0) : 2;
+      caseItem.heat -= isEmotional
+        ? caseTickBalance.untouchedHeatLossEmotionalBase + (ownerArchetype?.heatSensitivity || 0)
+        : caseTickBalance.untouchedHeatLossDefault;
     }
 
     if (isPragmatic) {
-      if (priceGapPct < 3) {
-        caseItem.trust += 2;
-      } else if (priceGapPct > 5) {
-        caseItem.trust -= 2;
+      if (priceGapPct < caseTickBalance.pragmaticPriceGapLowPct) {
+        caseItem.trust += caseTickBalance.pragmaticTightPriceTrustGain;
+      } else if (priceGapPct > caseTickBalance.pragmaticPriceGapHighPct) {
+        caseItem.trust -= caseTickBalance.pragmaticWidePriceTrustLoss;
       }
     }
 
-    if (caseItem.askPrice > caseItem.marketPrice * 1.05) {
-      caseItem.trust -= isPragmatic ? 3 : 1 + Math.max(0, (ownerArchetype?.priceElasticity || 1) - 1);
-      caseItem.heat -= 2;
-      caseItem.patience = clamp(caseItem.patience - 1, 0, 100);
+    if (caseItem.askPrice > caseItem.marketPrice * caseTickBalance.overpricedAskRate) {
+      caseItem.trust -= isPragmatic
+        ? caseTickBalance.overpricedPragmaticTrustLoss
+        : caseTickBalance.overpricedElasticityBasePenalty + Math.max(0, (ownerArchetype?.priceElasticity || 1) - 1);
+      caseItem.heat -= caseTickBalance.overpricedHeatLoss;
+      caseItem.patience = clamp(caseItem.patience - caseTickBalance.overpricedPatienceLoss, 0, 100);
     }
 
-    if (isEmotional && caseItem.heat < 40) {
-      caseItem.trust -= 3;
+    if (isEmotional && caseItem.heat < caseTickBalance.emotionalLowHeatThreshold) {
+      caseItem.trust -= caseTickBalance.emotionalLowHeatTrustLoss;
     }
 
-    const urgencyGrowth = isUrgent ? 5 : randomInt(2, 3, world);
-    caseItem.urgency = clamp(caseItem.urgency + urgencyGrowth + (caseItem.windowDays < 6 ? 2 : 0), 18, 96);
+    const urgencyGrowth = isUrgent
+      ? caseTickBalance.urgentGrowthFixed
+      : randomInt(caseTickBalance.defaultUrgencyGrowthMin, caseTickBalance.defaultUrgencyGrowthMax, world);
+    caseItem.urgency = clamp(
+      caseItem.urgency
+        + urgencyGrowth
+        + (caseItem.windowDays < caseTickBalance.shortWindowThreshold ? caseTickBalance.shortWindowUrgencyBonus : 0),
+      18,
+      96,
+    );
 
     caseItem.heat = clamp(caseItem.heat, 10, 100);
     caseItem.trust = clamp(caseItem.trust, 10, 100);
 
     if (caseItem.windowDays <= 0) {
-      if (caseItem.trust >= 76 && world.reputation >= 60) {
-        caseItem.windowDays = 4;
-        caseItem.trust = clamp(caseItem.trust - 6, 0, 100);
+      if (
+        caseItem.trust >= caseTickBalance.renewalTrustThreshold
+        && caseItem.ownerSatisfaction !== 'unhappy'
+        && caseItem.d3 >= caseTickBalance.renewalD3Threshold
+      ) {
+        caseItem.windowDays = caseTickBalance.renewalWindowDays;
+        caseItem.trust = clamp(caseItem.trust - caseTickBalance.renewalTrustLoss, 0, 100);
+        recordDomainEvent(world, {
+          kind: 'window_extended',
+          actor: caseItem.ownerName,
+          title: '业主续窗',
+          detail: `${caseItem.title} 的业主被安抚后又给了 ${caseTickBalance.renewalWindowDays} 天窗口。`,
+          tone: 'accent',
+          caseId: caseItem.id,
+          payload: {
+            windowDays: caseItem.windowDays,
+            trust: caseItem.trust,
+          },
+        });
         logEvent(world, caseItem.ownerName, `${caseItem.title} 的业主被安抚后又给了 4 天窗口。`, 'accent');
       } else {
         withdrawCase(world, caseItem, '窗口耗尽，业主选择撤盘。');
@@ -131,7 +195,7 @@ export function createWeeklyReview(world: GameState) {
     ? '平均业主信任偏低，关系压力更明显。'
     : activeOpportunities < 4
       ? '活跃机会数量偏少，准客池厚度不足。'
-      : '高阶段机会数量较多，后段转化压力更明显。';
+      : '快成交客户数量较多，最后几步怎么推进会更关键。';
 
   world.weeklyReviews.unshift({
     id: `week-${world.day}`,

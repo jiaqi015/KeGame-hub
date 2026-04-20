@@ -5,7 +5,7 @@ export type MaintainerRunStatus = 'active' | 'finished' | 'abandoned';
 export interface MaintainerAuxiliaryStats {
   commission: number;
   promotionBudget: number;
-  reputation: number;
+  wordOfMouth: number;
   soldCount: number;
   withdrawnCount: number;
 }
@@ -35,13 +35,10 @@ export interface MaintainerRunRecord {
   rngSeed?: number | null;
   schemaVersion: number;
   day: number;
+  /** Compatibility mirror for persisted promotion budget columns. Prefer auxiliaryStats.promotionBudget in new code. */
   cash: number;
   energy: number;
   auxiliaryStats: MaintainerAuxiliaryStats;
-  commission: number;
-  reputation: number;
-  soldCount: number;
-  withdrawnCount: number;
   score: number | null;
   syncVersion: number;
   saveData: GameState;
@@ -84,6 +81,21 @@ export interface MaintainerLeaderboardEntry {
   createdAt: string;
 }
 
+export type MaintainerLeaderboardCategory = 'total-score' | 'best-score' | 'play-count';
+
+export interface MaintainerLeaderboardCategoryEntry {
+  userId: string;
+  playerName: string;
+  value: number;
+}
+
+export interface MaintainerLeaderboardDetail {
+  seasonId: string;
+  totalScore: MaintainerLeaderboardCategoryEntry[];
+  bestScore: MaintainerLeaderboardCategoryEntry[];
+  playCount: MaintainerLeaderboardCategoryEntry[];
+}
+
 export function normalizePlayerName(value: string | undefined) {
   const trimmed = typeof value === 'string' ? value.trim() : '';
   return trimmed || '匿名资产顾问';
@@ -107,10 +119,10 @@ export function deriveRankTitle(state: GameState) {
   }
 
   const score = deriveRunScore(state);
-  if (score >= 90) return '这局你真正控住了局势';
-  if (score >= 75) return '这局明显是你压住了节奏';
-  if (score >= 60) return '至少把关键局面撑住了';
-  return '这局还是被盘面带着走了';
+  if (score >= 90) return '这局你真的把房子卖顺了';
+  if (score >= 75) return '这局基本是你在带着节奏走';
+  if (score >= 60) return '至少把最关键的部分撑住了';
+  return '这局还是没能把情况扳回来';
 }
 
 export function buildScoreBreakdown(state: GameState) {
@@ -130,6 +142,7 @@ export function buildScoreBreakdown(state: GameState) {
 }
 
 export function buildFinalStats(state: GameState) {
+  const auxiliaryStats = state.auxiliaryStats;
   return {
     title: state.finalResult?.title || deriveRankTitle(state),
     summary:
@@ -142,11 +155,11 @@ export function buildFinalStats(state: GameState) {
     endingStats: state.finalResult?.endingStats,
     caseResults: Array.isArray(state.finalResult?.caseResults) ? state.finalResult.caseResults : [],
     auxiliaryStats: {
-      commission: state.commission,
-      promotionBudget: state.cash,
-      reputation: state.reputation,
-      soldCount: state.soldCount,
-      withdrawnCount: state.withdrawnCount,
+      commission: auxiliaryStats.commission,
+      promotionBudget: auxiliaryStats.promotionBudget,
+      wordOfMouth: auxiliaryStats.wordOfMouth,
+      soldCount: auxiliaryStats.soldCount,
+      withdrawnCount: auxiliaryStats.withdrawnCount,
     },
   } satisfies MaintainerFinalStats;
 }

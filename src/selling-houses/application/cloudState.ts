@@ -1,4 +1,5 @@
-import { CLOUD_META_STORAGE_KEY, CLOUD_USER_STORAGE_KEY } from '../domain/constants';
+import { CLOUD_META_STORAGE_KEY, CLOUD_USER_STORAGE_KEY } from '../domain/constants.js';
+import { buildScopedStorageKey } from './storageScope.js';
 
 export interface MaintainerCloudMeta {
   runId: string;
@@ -10,28 +11,66 @@ function isBrowser() {
   return typeof window !== 'undefined' && Boolean(window.localStorage);
 }
 
-export function getOrCreateMaintainerUserId() {
+function getScopedCloudUserStorageKey(accountEmail?: string) {
+  return buildScopedStorageKey(CLOUD_USER_STORAGE_KEY, accountEmail);
+}
+
+function getScopedCloudMetaStorageKey(accountEmail?: string) {
+  return buildScopedStorageKey(CLOUD_META_STORAGE_KEY, accountEmail);
+}
+
+function loadRawMaintainerUserId(scopeKey?: string) {
+  if (!isBrowser()) {
+    return null;
+  }
+
+  const storageKey = getScopedCloudUserStorageKey(scopeKey);
+  return window.localStorage.getItem(storageKey)?.trim() || null;
+}
+
+export function getOrCreateMaintainerUserId(accountEmail?: string) {
   if (!isBrowser()) {
     return 'server-maintainer-user';
   }
 
-  const cached = window.localStorage.getItem(CLOUD_USER_STORAGE_KEY)?.trim();
+  const storageKey = getScopedCloudUserStorageKey(accountEmail);
+  const cached = window.localStorage.getItem(storageKey)?.trim();
   if (cached) {
     return cached;
   }
 
   const next = globalThis.crypto?.randomUUID?.() || `maintainer-${Date.now()}`;
-  window.localStorage.setItem(CLOUD_USER_STORAGE_KEY, next);
+  window.localStorage.setItem(storageKey, next);
   return next;
 }
 
-export function loadMaintainerCloudMeta(): MaintainerCloudMeta | null {
+export function migrateMaintainerUserIdScope(targetScopeKey: string, legacyScopeKey?: string) {
+  if (!isBrowser()) {
+    return null;
+  }
+
+  const targetStorageKey = getScopedCloudUserStorageKey(targetScopeKey);
+  const existing = window.localStorage.getItem(targetStorageKey)?.trim();
+  if (existing) {
+    return existing;
+  }
+
+  const legacyValue = loadRawMaintainerUserId(legacyScopeKey);
+  if (!legacyValue) {
+    return null;
+  }
+
+  window.localStorage.setItem(targetStorageKey, legacyValue);
+  return legacyValue;
+}
+
+export function loadMaintainerCloudMeta(accountEmail?: string): MaintainerCloudMeta | null {
   if (!isBrowser()) {
     return null;
   }
 
   try {
-    const raw = window.localStorage.getItem(CLOUD_META_STORAGE_KEY);
+    const raw = window.localStorage.getItem(getScopedCloudMetaStorageKey(accountEmail));
     if (!raw) {
       return null;
     }
@@ -51,18 +90,38 @@ export function loadMaintainerCloudMeta(): MaintainerCloudMeta | null {
   }
 }
 
-export function saveMaintainerCloudMeta(meta: MaintainerCloudMeta) {
+export function saveMaintainerCloudMeta(meta: MaintainerCloudMeta, accountEmail?: string) {
   if (!isBrowser()) {
     return;
   }
 
-  window.localStorage.setItem(CLOUD_META_STORAGE_KEY, JSON.stringify(meta));
+  window.localStorage.setItem(getScopedCloudMetaStorageKey(accountEmail), JSON.stringify(meta));
 }
 
-export function clearMaintainerCloudMeta() {
+export function clearMaintainerCloudMeta(accountEmail?: string) {
   if (!isBrowser()) {
     return;
   }
 
-  window.localStorage.removeItem(CLOUD_META_STORAGE_KEY);
+  window.localStorage.removeItem(getScopedCloudMetaStorageKey(accountEmail));
+}
+
+export function migrateMaintainerCloudMetaScope(targetScopeKey: string, legacyScopeKey?: string) {
+  if (!isBrowser()) {
+    return null;
+  }
+
+  const targetStorageKey = getScopedCloudMetaStorageKey(targetScopeKey);
+  const existing = loadMaintainerCloudMeta(targetScopeKey);
+  if (existing) {
+    return existing;
+  }
+
+  const legacyMeta = loadMaintainerCloudMeta(legacyScopeKey);
+  if (!legacyMeta) {
+    return null;
+  }
+
+  window.localStorage.setItem(targetStorageKey, JSON.stringify(legacyMeta));
+  return legacyMeta;
 }

@@ -1,7 +1,7 @@
-import { logEvent } from '../../application/gameState';
-import { MARKET_EVENT_LABELS, MARKET_EVENT_PROBABILITY } from '../constants';
-import type { GameState } from '../models';
-import { chance, clamp, pickWeighted, randomInt } from '../utils';
+import { logEvent, recordDomainEvent } from '../runtimeState.js';
+import { MARKET_EVENT_LABELS, MARKET_EVENT_PROBABILITY } from '../constants.js';
+import type { GameState } from '../models.js';
+import { chance, clamp, pickWeighted, randomInt } from '../utils.js';
 
 export function triggerRandomEvent(world: GameState) {
   if (!chance(world.rules.randomEventProbability || MARKET_EVENT_PROBABILITY, world)) {
@@ -29,6 +29,16 @@ export function triggerRandomEvent(world: GameState) {
         opportunity.confidence = clamp(opportunity.confidence - 10, 10, 100);
       }
     });
+    recordDomainEvent(world, {
+      kind: 'market_event',
+      actor: '宏观',
+      title: MARKET_EVENT_LABELS.policyShift,
+      detail: '利率上行预期强化，所有活跃客户的成交置信度同步回落。',
+      tone: 'danger',
+      payload: {
+        templateId: selected.templateId,
+      },
+    });
     logEvent(world, '宏观', `【${MARKET_EVENT_LABELS.policyShift}】利率上行预期强化，所有活跃客户的成交置信度同步回落。`, 'danger');
     return;
   }
@@ -40,8 +50,19 @@ export function triggerRandomEvent(world: GameState) {
       .forEach((caseItem) => {
         caseItem.heat = clamp(caseItem.heat + 18, 0, 100);
         caseItem.trust = clamp(caseItem.trust + 2, 0, 100);
-      });
+    });
     luckyMarket.sentiment = clamp(luckyMarket.sentiment + 12, 0, 100);
+    recordDomainEvent(world, {
+      kind: 'market_event',
+      actor: '市场',
+      title: MARKET_EVENT_LABELS.schoolDistrictBoom,
+      detail: `${luckyMarket.name} 传出学区升级消息，区域房源热度被快速点燃。`,
+      tone: 'success',
+      payload: {
+        templateId: selected.templateId,
+        marketCellId: luckyMarket.id,
+      },
+    });
     logEvent(world, '市场', `【${MARKET_EVENT_LABELS.schoolDistrictBoom}】${luckyMarket.name} 传出学区升级消息，区域房源热度被快速点燃。`, 'success');
     return;
   }
@@ -54,6 +75,16 @@ export function triggerRandomEvent(world: GameState) {
     .forEach((caseItem) => {
       caseItem.heat = clamp(caseItem.heat - 4, 10, 100);
     });
+  recordDomainEvent(world, {
+    kind: 'market_event',
+    actor: '市场',
+    title: MARKET_EVENT_LABELS.competitorActivity,
+    detail: '周边竞品突然降价，区域竞争压力显著抬升。',
+    tone: 'danger',
+    payload: {
+      templateId: selected.templateId,
+    },
+  });
   logEvent(world, '市场', `【${MARKET_EVENT_LABELS.competitorActivity}】周边竞品突然降价，区域竞争压力显著抬升。`, 'danger');
 }
 
@@ -95,6 +126,23 @@ export function fireScheduledEvents(world: GameState) {
         });
     }
 
+    recordDomainEvent(world, {
+      kind: 'market_event',
+      actor: event.actor,
+      title: event.title,
+      detail: event.message,
+      tone: event.tone,
+      caseId: event.targetCaseId,
+      payload: {
+        targetMarketCellId: event.targetMarketCellId,
+        trustDelta: event.trustDelta,
+        heatDelta: event.heatDelta,
+        urgencyDelta: event.urgencyDelta,
+        askPriceDelta: event.askPriceDelta,
+        windowDaysDelta: event.windowDaysDelta,
+        confidenceDelta: event.confidenceDelta,
+      },
+    });
     logEvent(world, event.actor, `【${event.title}】${event.message}`, event.tone);
   });
 }

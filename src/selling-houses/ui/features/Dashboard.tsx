@@ -1,568 +1,504 @@
-import React, { useMemo } from 'react';
-import { GameState } from '../../domain/models';
-import { formatDate } from '../../domain/utils';
+import React, { useEffect, useMemo, useState } from 'react';
+import type { GameState } from '../../domain/models';
+import { formatDate, getRoutine } from '../../domain/utils';
+import {
+  buildOperatingProjection,
+  type CalendarDayProjection,
+  type DashboardProjection,
+  type ProjectionBrief,
+  type ProjectionTone,
+} from '../../application/projections/operatingProjection.js';
 import {
   Calendar,
   Clock3,
   Flag,
+  Newspaper,
   ShieldAlert,
-  Siren,
   Sparkles,
   Target,
-  TrendingUp,
+  Users,
   Zap,
 } from 'lucide-react';
 import { WEEKLY_ROUTINE } from '../../domain/constants';
-import { getDayOfWeek, getRoutine } from '../../domain/utils';
+import { deriveImpactedCases, deriveIntelFeed, type IntelItem, type IntelLayerTab, layerLabel, toneLabel } from './marketIntel';
+import { deriveCustomerPressureSummary } from '../../domain/engine/customerEngine';
 
 interface DashboardProps {
   state: GameState;
   onSelectCase: (id: string) => void;
   onSetView: (view: string) => void;
+  onOpenMarket: (layer?: IntelLayerTab) => void;
 }
 
-export function Dashboard({ state, onSelectCase, onSetView }: DashboardProps) {
-  const { metrics, schedule, priorities, day, maxDay, currentDate } = state;
+type OperatingBriefTone = 'risk' | 'chance' | 'neutral';
+type CalendarRelation = 'past' | 'today' | 'future';
+
+type CalendarRailEntry = {
+  day: number;
+  relation: CalendarRelation;
+  label: string;
+  title: string;
+  detail: string;
+  meta: string;
+  tone: ProjectionTone;
+  energy?: number;
+};
+
+type JournalItem = {
+  id: string;
+  day: number;
+  title: string;
+  detail: string;
+  actor: string;
+  tone: 'accent' | 'danger' | 'success';
+  caseId?: string;
+  date?: string;
+};
+
+type AgendaTool = {
+  label: string;
+  target: 'case' | 'customers' | 'market' | 'review';
+  marketLayer?: IntelLayerTab;
+};
+
+export function Dashboard({ state, onSelectCase, onSetView, onOpenMarket }: DashboardProps) {
+  const { day, maxDay } = state;
   const routine = getRoutine(day, WEEKLY_ROUTINE);
+  const [selectedDay, setSelectedDay] = useState(day);
+
+  useEffect(() => {
+    setSelectedDay(day);
+  }, [day]);
+
+  const operatingProjection = useMemo(() => buildOperatingProjection(state), [state]);
+  const dashboardProjection = operatingProjection.dashboard;
+  const operatingBrief = useMemo(() => buildOperatingBrief(dashboardProjection), [dashboardProjection]);
+  const allJournalItems = useMemo(() => buildJournalItems(state), [state]);
+  const calendarRail = useMemo(
+    () => buildCalendarRail(state, dashboardProjection, allJournalItems),
+    [allJournalItems, dashboardProjection, state],
+  );
+  const selectedDayEvents = useMemo(
+    () => allJournalItems.filter((item) => item.day === selectedDay).slice(0, 4),
+    [allJournalItems, selectedDay],
+  );
   const activeCases = state.cases.filter((entry) => entry.status === 'active');
-  const activeRivalListings = state.marketShadow?.rivalListings?.filter((entry) => entry.status === 'active') || [];
-  const marketSignals = state.marketShadow?.marketSignals || [];
-  const companyPressure = state.marketShadow?.companyPressure;
-  const dailyMarketEvent = state.marketShadow?.dailyMarketEvent;
-  const focusCases = state.cases.filter((entry) => entry.status === 'active' && entry.isFocused).slice(0, 2);
+  const focusCases = activeCases.filter((entry) => entry.isFocused).slice(0, 2);
   const leadCase = focusCases[0]
-    || [...activeCases]
-      .sort((a, b) => b.competitiveness - a.competitiveness)[0]
+    || [...activeCases].sort((left, right) => scoreCurrentDanger(right) - scoreCurrentDanger(left))[0]
     || null;
-  const topPriority = priorities[0] || null;
-  const topRisk = schedule[0] || null;
-  const highlightedMarketEvents = state.eventLog
-    .filter((event) => event.actor === '市场' || event.actor === '宏观')
-    .slice(0, 3);
-  const upcomingDays = useMemo(() => buildUpcomingPreview(state), [state]);
-  const recentTimeline = useMemo(() => buildRecentTimeline(state), [state]);
-  const tierSummaries = useMemo(() => buildTierStructure(state), [state]);
+  const firstPriority = dashboardProjection.todayPriority[0] || null;
+  const leadCaseId = firstPriority?.caseId || leadCase?.id || null;
+  const leadCaseProjection = leadCaseId
+    ? operatingProjection.cases.find((entry) => entry.caseId === leadCaseId) || null
+    : null;
+  const intelFeed = useMemo(() => deriveIntelFeed(state), [state]);
+  const homepageIntel = useMemo(() => deriveHomepageIntel(state, intelFeed), [state, intelFeed]);
+  const customerPressure = useMemo(() => deriveCustomerPressureSummary(state), [state]);
   const daysRemaining = Math.max(maxDay - day, 0);
-  const activeCoreCount = tierSummaries.find((entry) => entry.goalTier === 'core')?.active || 0;
+  const activeCoreCount = activeCases.filter((entry) => entry.goalTier === 'core').length;
   const dangerCount = activeCases.filter((entry) => entry.storylineState === 'critical' || entry.storylineState === 'sliding').length;
-  const leadCoreRisk = tierSummaries.find((entry) => entry.goalTier === 'core')?.leadCaseTitle || null;
-  const todayFocus = leadCase
-    ? `${leadCase.title} · ${Math.round(leadCase.competitiveness)} 分`
-    : '暂无聚焦盘';
+  const todayFocus = leadCase?.title || '暂无商圈聚焦房';
+  const topRisk = dashboardProjection.riskReminders[0] || null;
   const todayRisk = topRisk?.title
     || leadCase?.riskFlags?.[0]
     || (state.energy <= 1 ? '今日资源很紧，只能做关键动作' : '暂无显著风险');
-  const todayResourceState = `${state.energy}/${state.maxEnergy} 精力 · 剩余 ${daysRemaining} 天`;
-  const todayBriefs = buildTodayBriefs(state);
-  const visiblePriorities = priorities.slice(0, 4);
-  const overflowPriorityCount = Math.max(priorities.length - visiblePriorities.length, 0);
-  const visibleSchedule = schedule.slice(0, 4);
-  const overflowRiskCount = Math.max(schedule.length - visibleSchedule.length, 0);
+  const visiblePriorities = dashboardProjection.todayPriority.slice(0, 4);
+  const selectedCalendarEntry = calendarRail.find((entry) => entry.day === selectedDay) || null;
+  const selectedDateLabel = formatDate(shiftDate(state.currentDate, selectedDay - day));
+  const todayNews = [homepageIntel.lead, ...homepageIntel.briefs].filter((entry): entry is IntelItem => Boolean(entry)).slice(0, 3);
+
+  const openCase = (caseId?: string) => {
+    if (!caseId) {
+      onSetView('cases');
+      return;
+    }
+    onSelectCase(caseId);
+    onSetView('cases');
+  };
+
+  const handleTool = (tool: AgendaTool, caseId?: string) => {
+    if (tool.target === 'case') {
+      openCase(caseId);
+      return;
+    }
+    if (tool.target === 'customers') {
+      if (caseId) onSelectCase(caseId);
+      onSetView('customers');
+      return;
+    }
+    if (tool.target === 'market') {
+      onOpenMarket(tool.marketLayer || 'macro');
+      return;
+    }
+    onSetView('review');
+  };
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <MetricCard label="平均业主信任" value={metrics.averageTrust} icon={<TrendingUp size={20} />} color="text-emerald-600" />
-        <MetricCard label="在场核心盘" value={`${activeCoreCount} 套`} icon={<Target size={20} />} color="text-rose-600" />
-        <MetricCard label="高危房源" value={`${dangerCount} 套`} icon={<ShieldAlert size={20} />} color="text-amber-600" />
-        <MetricCard label="模拟周期" value={`${day}/${maxDay} 天`} icon={<Calendar size={20} />} color="text-slate-600" />
-      </div>
-
-      <section className="rounded-[28px] border border-black/5 bg-white p-5 shadow-sm">
-        <div className="mb-4 flex items-end justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-bold uppercase tracking-widest text-slate-800">今日事实</h3>
-            <p className="mt-1 text-xs text-slate-400">只展示今天发生的变化、影响范围和当前可见机会。</p>
+    <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <section className="seller-panel overflow-hidden">
+        <div className="flex flex-col gap-2.5 border-b border-[#eadfce] px-3 py-3 lg:px-3.5">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+            <div className="seller-label flex items-center gap-2">
+              <Calendar size={13} />
+              日历
+            </div>
+            <div className="flex flex-wrap gap-1.5 text-[11px] font-semibold text-[#6f5a43]">
+              <span className="seller-chip">Day {day}/{maxDay}</span>
+              <span className="seller-chip">剩 {daysRemaining} 天</span>
+              <span className="seller-chip">{routine.label} · {routine.theme}</span>
+            </div>
           </div>
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold text-slate-500">
-            Day {day}
-          </span>
+
+          <div className="flex gap-1.5 overflow-x-auto pb-1">
+            {calendarRail.map((entry) => (
+              <div key={entry.day}>
+                <CalendarRailCell
+                  entry={entry}
+                  active={selectedDay === entry.day}
+                  onClick={() => setSelectedDay(entry.day)}
+                />
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
-          {todayBriefs.map((brief) => (
-            <div key={`${brief.label}-${brief.title}`}>
-              <TodayBriefCard brief={brief} />
-            </div>
-          ))}
-        </div>
+
+        {selectedDay !== day && selectedCalendarEntry && (
+          <SelectedDayPanel
+            entry={selectedCalendarEntry}
+            dateLabel={selectedDateLabel}
+            events={selectedDayEvents}
+            onBackToday={() => setSelectedDay(day)}
+            onOpenCase={openCase}
+          />
+        )}
       </section>
 
-      <section className="grid grid-cols-1 gap-3 xl:grid-cols-3">
-        <ShadowPulseCard
-          label={dailyMarketEvent ? `第 ${dailyMarketEvent.day} 天` : '商圈动静'}
-          title={dailyMarketEvent?.title || '今天没大事'}
-          detail={dailyMarketEvent?.message || '没有明显外部冲击，按当前经营节奏推进。'}
-          tone={dailyMarketEvent?.tone || 'accent'}
-        />
-        <ShadowPulseCard
-          label="别人也在卖"
-          title={activeRivalListings.length > 0 ? `${activeRivalListings.length} 套竞品在抢客` : '暂未看到强竞品'}
-          detail={activeRivalListings[0] ? `${activeRivalListings[0].title} 正在分走同板块客户。` : '当前没有看到强势竞品在分流。'}
-          tone={activeRivalListings.length >= 2 ? 'danger' : 'accent'}
-        />
-        <ShadowPulseCard
-          label="客户池"
-          title={(companyPressure?.sharedLeadPressure || 0) >= 58 ? '共享客户偏紧' : '客户池还算平稳'}
-          detail={marketSignals[0]?.message || '市场侧暂未出现明确新需求信号。'}
-          tone={(companyPressure?.sharedLeadPressure || 0) >= 58 ? 'danger' : 'accent'}
-        />
-      </section>
+      <div className="grid grid-cols-1 gap-3 2xl:grid-cols-[minmax(0,1.32fr)_332px]">
+        <div className="space-y-3">
+          <section className="seller-panel px-3.5 py-3">
+            <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_232px]">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="seller-chip bg-[var(--seller-ink)] text-white">
+                    今日
+                  </span>
+                  <span className="seller-chip seller-chip-accent">
+                    {firstPriority?.label || '先处理'}
+                  </span>
+                </div>
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[0.85fr_1.15fr]">
-        <div className="space-y-5">
-          <section className="rounded-[28px] border border-black/5 bg-white p-5 shadow-sm">
-            <div className="mb-4 flex items-center gap-3">
-              <Clock3 size={18} className="text-slate-700" />
-              <div>
-                <h3 className="text-sm font-bold uppercase tracking-widest text-slate-800">经营节奏</h3>
-                <p className="mt-1 text-xs text-slate-400">一张卡里看接下来三天，也顺手回看最近几天，时间信息不再分两处。</p>
-              </div>
-            </div>
-            <div className="mb-4 rounded-[18px] border border-black/[0.04] bg-slate-50 px-4 py-3">
-              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">节奏提醒</div>
-              <div className="mt-1 text-sm font-semibold text-slate-800">
-                今天是 {routine.label} · {routine.theme}
-              </div>
-              <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                {leadCoreRisk ? `这周最要提前防的是 ${leadCoreRisk}。` : '这周没有明显提前爆炸的核心盘，先按节奏推进。'}
-              </p>
-            </div>
-            <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">接下来三天</div>
-            <div className="mt-2.5 space-y-2.5">
-              {upcomingDays.map((entry) => (
-                <div key={entry.day}>
-                  <FuturePreviewCard entry={entry} />
+                <h1 className="seller-title mt-2.5 max-w-4xl text-[20px] leading-[1.18] md:text-[23px]">
+                  {operatingBrief.today.title}
+                </h1>
+                <p className="seller-body mt-1.5 max-w-[72ch] text-[12px] leading-5 line-clamp-2">
+                  {operatingBrief.today.detail}
+                </p>
+
+                <div className="mt-3 grid grid-cols-2 gap-1.5 md:grid-cols-4">
+                  <DeskMetric label="今天先盯" value={todayFocus} />
+                  <DeskMetric label="主要风险" value={todayRisk} tone="risk" />
+                  <DeskMetric label="今日精力" value={dashboardProjection.resourceSnapshot.energy} />
+                  <DeskMetric label="活跃机会" value={`${dashboardProjection.resourceSnapshot.activeOpportunities} 条`} />
                 </div>
-              ))}
-            </div>
-            <div className="mt-5 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">最近进展</div>
-            <div className="mt-2.5 space-y-2.5">
-              {recentTimeline.map((entry) => (
-                <div key={entry.day}>
-                  <RecentTimelineCard entry={entry} />
+              </div>
+
+              <div className="border-t border-[#eadfce] pt-3 xl:border-l xl:border-t-0 xl:pl-3 xl:pt-0">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="seller-label">证据</div>
+                  <button
+                    type="button"
+                    onClick={() => openCase(leadCaseId || undefined)}
+                    className="seller-button-secondary rounded-full px-2.5 py-1 text-[10px]"
+                  >
+                    打开房源
+                  </button>
                 </div>
-              ))}
+                <div className="mt-2 space-y-1.5">
+                  {(leadCaseProjection?.factChain.slice(0, 3) || []).map((fact) => (
+                    <div key={fact.id} className="seller-tablet px-2.5 py-2">
+                      <div className="text-[12px] font-semibold text-[#2b2118]">{fact.title}</div>
+                      <p className="seller-body mt-0.5 text-[11px] leading-5">{fact.fact}</p>
+                    </div>
+                  ))}
+                  {!leadCaseProjection && (
+                    <p className="seller-empty px-2.5 py-2.5 text-[11px] leading-5">
+                      这会儿还没有特别突出的单房证据。
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
           </section>
 
-          {highlightedMarketEvents.length > 0 && (
-            <section className="rounded-[24px] border border-amber-200/60 bg-gradient-to-br from-amber-50 via-white to-rose-50 p-5 shadow-sm">
-              <h3 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-amber-700">
-                <ShieldAlert className="text-rose-500" size={16} />
-                市场异动
-              </h3>
-              <div className="space-y-2.5">
-                {highlightedMarketEvents.map((event, index) => (
-                  <div
-                    key={`${event.day}-${index}`}
-                    className={`rounded-xl border px-3.5 py-3 ${
-                      event.tone === 'danger'
-                        ? 'border-rose-200 bg-rose-50/80'
-                        : 'border-emerald-200 bg-emerald-50/80'
-                    }`}
-                  >
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{event.actor}</div>
-                    <p className="mt-1 text-xs font-medium leading-relaxed text-slate-700">{event.message}</p>
-                  </div>
-                ))}
+          <section className="seller-panel px-3.5 py-3">
+            <div className="mb-2.5 flex items-center justify-between gap-3">
+              <div className="seller-label flex items-center gap-2">
+                <Clock3 size={13} />
+                今日安排
               </div>
-            </section>
-          )}
+              <div className="text-[11px] text-[#8a7762]">
+                {visiblePriorities.length} 项
+              </div>
+            </div>
+
+            <div className="divide-y divide-[#efe3d4]">
+              {visiblePriorities.length > 0 ? visiblePriorities.map((item, index) => (
+                <div key={item.id}>
+                  <AgendaRow
+                    item={item}
+                    index={index}
+                    onOpenCase={openCase}
+                    onUseTool={handleTool}
+                  />
+                </div>
+              )) : (
+                <div className="seller-empty px-4 py-6 text-center text-[12px]">
+                  今天还没有明确安排，先回房源页看在场房。
+                </div>
+              )}
+            </div>
+          </section>
         </div>
 
-        <section className="rounded-[28px] border border-black/5 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <Flag size={18} className="text-amber-500" />
-              <div>
-                <h3 className="text-sm font-bold uppercase tracking-widest text-slate-800">今日盘面</h3>
-                <p className="mt-1 text-xs text-slate-400">这里只看今天最关键的事实：焦点、风险和资源状态。</p>
+        <aside className="space-y-3">
+          <section className="seller-panel-muted px-3.5 py-3">
+            <div className="mb-2.5 flex items-center justify-between gap-3">
+              <div className="seller-label flex items-center gap-2">
+                <Newspaper size={13} />
+                市场变化
               </div>
+              <button
+                type="button"
+                onClick={() => onOpenMarket(homepageIntel.lead?.layer || 'macro')}
+                className="seller-button-secondary rounded-full px-2.5 py-1 text-[11px]"
+              >
+                去市场
+              </button>
             </div>
 
-            <div className="grid min-w-[220px] grid-cols-2 gap-2">
-              <SnapshotStat label="今日资源" value={`${state.energy}/${state.maxEnergy}`} helper="精力" />
-              <SnapshotStat label="剩余时限" value={`${daysRemaining}`} helper="天" />
-              <SnapshotStat label="聚焦房源" value={`${focusCases.length}`} helper="套" />
-              <SnapshotStat label="待处理风险" value={`${Math.min(schedule.length, 9)}${schedule.length > 9 ? '+' : ''}`} helper="条" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <DecisionCard icon={<Target size={15} />} label="当前焦点" value={todayFocus} tone="emerald" />
-            <DecisionCard icon={<Siren size={15} />} label="风险变化" value={todayRisk} tone="rose" />
-            <DecisionCard icon={<Sparkles size={15} />} label="资源状态" value={todayResourceState} tone="slate" />
-          </div>
-
-          {focusCases.length > 0 && (
-            <div className="mt-4">
-              <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">今日聚焦盘</div>
-              <div className="flex flex-wrap gap-2">
-                {focusCases.map((caseItem) => (
-                  <button
-                    key={caseItem.id}
-                    type="button"
-                    onClick={() => {
-                      onSelectCase(caseItem.id);
-                      onSetView('cases');
-                    }}
-                    className="rounded-full border border-black/[0.05] bg-slate-50 px-3 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:bg-white hover:text-slate-900"
-                  >
-                    {caseItem.title}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="mt-5 rounded-[22px] border border-black/[0.05] bg-slate-50/70 p-4">
-            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
-              <ShieldAlert size={14} className="text-rose-500" />
-              当前盘型结构
-            </div>
-            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-              {tierSummaries.map((entry) => (
-                <div key={entry.goalTier}>
-                  <TierStructureCard entry={entry} />
+            <div className="space-y-2">
+              {todayNews.length > 0 ? todayNews.map((item) => (
+                <div key={item.id}>
+                  <NewsBrief
+                    item={item}
+                    onOpen={() => onOpenMarket(item.layer)}
+                  />
                 </div>
+              )) : (
+                <div className="seller-empty px-3 py-5 text-[12px] leading-5">
+                  今天没有新的市场变化。
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="seller-panel px-3.5 py-3">
+            <div className="seller-label mb-2.5 flex items-center gap-2">
+              <ShieldAlert size={13} />
+              风险
+            </div>
+            <div className="grid grid-cols-1 gap-2">
+              <EvidenceTile icon={<Target size={15} />} label="商圈聚焦房" value={`${activeCoreCount} 套`} detail={todayFocus} />
+              <EvidenceTile
+                icon={<ShieldAlert size={15} />}
+                label="走弱房源"
+                value={`${dangerCount} 套`}
+                detail={dangerCount > 0 ? todayRisk : '暂时没有明显掉队的房源'}
+                tone={dangerCount > 0 ? 'risk' : 'neutral'}
+              />
+              <EvidenceTile
+                icon={<Users size={15} />}
+                label="快流失客户"
+                value={`${customerPressure.atRisk} 位`}
+                detail={customerPressure.atRiskCaseTitle || '短期流失压力不重'}
+                tone={customerPressure.atRisk > 0 ? 'risk' : 'neutral'}
+                onClick={customerPressure.atRiskCaseId ? () => openCase(customerPressure.atRiskCaseId) : undefined}
+              />
+              <EvidenceTile
+                icon={<Sparkles size={15} />}
+                label="当前最强房"
+                value={customerPressure.strongestCaseTitle || '暂无'}
+                detail="客户和反馈暂时都在前面。"
+                tone="chance"
+                onClick={customerPressure.strongestCaseId ? () => openCase(customerPressure.strongestCaseId) : undefined}
+              />
+            </div>
+
+            <div className="seller-panel-soft mt-2.5 p-2.5">
+              <div className="seller-label">受影响房源</div>
+              <div className="mt-2 space-y-1.5">
+                {homepageIntel.impactedCases.length > 0 ? homepageIntel.impactedCases.map((item) => (
+                  <button
+                    key={item.caseId}
+                    type="button"
+                    onClick={() => openCase(item.caseId)}
+                    className="seller-tablet w-full px-2.5 py-2.5 text-left transition hover:bg-white"
+                  >
+                    <div className="text-[12px] font-semibold text-[#2b2118]">{item.title}</div>
+                    <p className="seller-body mt-0.5 text-[11px] leading-5">{item.reason}</p>
+                  </button>
+                )) : (
+                  <p className="seller-empty px-2.5 py-4 text-[11px] leading-5">
+                    今天还没有房源被外部变化直接命中。
+                  </p>
+                )}
+              </div>
+            </div>
+          </section>
+
+          <section className="seller-panel-muted px-3.5 py-3">
+            <div className="seller-label mb-2 flex items-center gap-2">
+              <Flag size={13} />
+              昨日
+            </div>
+            <div className="space-y-1.5">
+              {dashboardProjection.yesterdayIntel.length > 0 ? dashboardProjection.yesterdayIntel.slice(0, 3).map((event) => (
+                <button
+                  key={event.id}
+                  type="button"
+                  onClick={() => openCase(event.caseId)}
+                  className="seller-tablet w-full px-2.5 py-2.5 text-left transition hover:bg-white"
+                >
+                  <div className="text-[11px] font-semibold text-[#2b2118]">{event.title}</div>
+                  <p className="seller-body mt-0.5 line-clamp-2 text-[11px] leading-5">{event.detail}</p>
+                </button>
+              )) : (
+                <div className="seller-empty px-3 py-4 text-[11px] leading-5">
+                  昨天没有留下关键记录。
+                </div>
+              )}
+            </div>
+          </section>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+function CalendarRailCell({
+  entry,
+  active,
+  onClick,
+}: {
+  entry: CalendarRailEntry;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`min-w-[104px] rounded-[12px] border px-2.5 py-2 text-left transition ${
+        active
+          ? 'border-[#2b2118] bg-[#2b2118] text-[#fff6df] shadow-[0_10px_20px_rgba(43,33,24,0.16)]'
+          : entry.relation === 'future'
+            ? 'border-[#e9dece] bg-white/70 text-[#5b4a39] hover:bg-white'
+            : 'border-[#e4d4c0] bg-[#f5ead8] text-[#5b4a39] hover:bg-[#fff7e7]'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="text-[10px] font-bold uppercase tracking-[0.14em] opacity-70">Day {entry.day}</div>
+        <span className={`h-1.5 w-1.5 rounded-full ${active ? 'bg-[#f6c35b]' : calendarToneDot(entry.tone)}`} />
+      </div>
+      <div className="mt-0.5 text-[12px] font-semibold tracking-[-0.02em]">{entry.label}</div>
+      <div className={`mt-0.5 line-clamp-1 text-[10px] font-medium ${active ? 'text-[#f7ddb0]' : 'text-[#8a7762]'}`}>
+        {entry.title}
+      </div>
+      <div className={`mt-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${active ? 'bg-white/10 text-[#fff6df]' : 'bg-white text-[#7b6349]'}`}>
+        {entry.meta}
+      </div>
+    </button>
+  );
+}
+
+function SelectedDayPanel({
+  entry,
+  dateLabel,
+  events,
+  onBackToday,
+  onOpenCase,
+}: {
+  entry: CalendarRailEntry;
+  dateLabel: string;
+  events: JournalItem[];
+  onBackToday: () => void;
+  onOpenCase: (caseId?: string) => void;
+}) {
+  if (entry.relation === 'future') {
+    const prepTools = buildFuturePrepTools(entry);
+    return (
+      <div className="border-t border-[#eadfce] bg-white px-3.5 py-3">
+        <div className="grid grid-cols-1 gap-2.5 lg:grid-cols-[1fr_248px]">
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#9a6a31]">未来</div>
+            <h3 className="mt-1 text-[15px] font-semibold tracking-[-0.03em] text-[#2b2118]">
+              Day {entry.day} · {entry.title}
+            </h3>
+            <p className="mt-1 text-[11px] leading-5 text-[#6b5948]">
+              {dateLabel}。{entry.detail}
+            </p>
+          </div>
+          <div className="rounded-[12px] border border-[#eadfce] bg-[#fffaf1] p-2.5">
+            <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#9a6a31]">提前看</div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {prepTools.map((tool) => (
+                <span key={tool} className="rounded-full border border-[#eadfce] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#5f4b37]">
+                  {tool}
+                </span>
               ))}
             </div>
-            <div className="mt-3 rounded-2xl border border-rose-100 bg-rose-50/80 px-4 py-3 text-sm text-rose-900">
-              <span className="font-semibold">现在最不能掉的：</span>
-              {leadCoreRisk ? ` ${leadCoreRisk}` : ' 核心盘暂时都还稳着。'}
-            </div>
+            <button
+              type="button"
+              onClick={onBackToday}
+              className="mt-2.5 w-full rounded-[11px] bg-[#2b2118] px-3 py-2 text-[11px] font-bold text-[#fff6df]"
+            >
+              回到今天
+            </button>
           </div>
-        </section>
+        </div>
       </div>
-
-      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[1.16fr_0.84fr]">
-        <section className="rounded-[26px] border border-black/5 bg-gradient-to-br from-white via-white to-amber-50/40 p-5 shadow-sm">
-          <div className="mb-5">
-            <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-slate-500">
-              <Zap className="text-amber-500" size={16} />
-              盘面变化
-            </h3>
-            <p className="mt-1 text-xs text-slate-400">系统只把变化较大的事项摆出来，不替你决定先做哪一个。</p>
-          </div>
-          <div className="space-y-2.5">
-            {visiblePriorities.map((p, i) => (
-              <div
-                key={i}
-                className="group cursor-pointer rounded-2xl border border-black/[0.05] bg-white/90 p-4 transition-all hover:border-black/10 hover:shadow-sm"
-                onClick={() => {
-                  if (p.caseId) {
-                    onSelectCase(p.caseId);
-                    onSetView('cases');
-                  }
-                }}
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-3">
-                    <strong className="text-sm font-bold tracking-tight text-slate-800">{p.title}</strong>
-                    <span className="shrink-0 text-[8px] font-bold uppercase tracking-widest text-slate-300">{p.kind}</span>
-                  </div>
-                  <p className="mt-1.5 line-clamp-2 text-[12px] leading-relaxed text-slate-500">{p.detail}</p>
-                </div>
-              </div>
-            ))}
-            {overflowPriorityCount > 0 && (
-              <div className="rounded-xl border border-dashed border-amber-200 bg-amber-50/70 px-4 py-3 text-xs text-amber-800">
-                还有 {overflowPriorityCount} 条变化没有在首页展开，避免首页继续堆满。
-              </div>
-            )}
-            {priorities.length === 0 && (
-              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-8 text-center text-xs italic text-slate-400">
-                当前没有明显新增变化，可以继续按既定节奏推进。
-              </div>
-            )}
-          </div>
-        </section>
-
-        <section className="rounded-[24px] border border-black/5 bg-white p-5 shadow-sm">
-          <div className="mb-4">
-            <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-slate-500">
-              <ShieldAlert className="text-rose-500" size={16} />
-              预警监控
-            </h3>
-            <p className="mt-1 text-xs text-slate-400">这块只保留风险提醒，集中展示正在抬头的问题。</p>
-          </div>
-          <div className="mb-4 rounded-[18px] border border-rose-100 bg-rose-50/70 px-4 py-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-rose-500">风险概览</div>
-                <div className="mt-1 text-sm font-semibold text-slate-800">
-                  当前 {schedule.length} 条待处理风险
-                </div>
-                <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                  {topRisk ? `最需要先盯的是：${topRisk.title}` : '当前没有明显风险，可以按经营节奏推进。'}
-                </p>
-              </div>
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-rose-500 shadow-sm">
-                <ShieldAlert size={16} />
-              </div>
-            </div>
-          </div>
-          <div className="space-y-2">
-            {visibleSchedule.map((s) => (
-              <div key={s.key} className="flex items-center justify-between rounded-xl border border-dashed border-slate-200 bg-slate-50/40 px-3.5 py-2.5">
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[12px] font-semibold text-slate-700">{s.title}</div>
-                  <small className="text-[10px] font-medium text-slate-400">{s.badge}</small>
-                </div>
-                <div className="ml-3 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-rose-50">
-                  <div className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
-                </div>
-              </div>
-            ))}
-            {overflowRiskCount > 0 && (
-              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-3.5 py-3 text-[11px] text-slate-500">
-                还有 {overflowRiskCount} 条风险未在首页展开，进入详情页再看全量。
-              </div>
-            )}
-            {schedule.length === 0 && (
-              <p className="py-4 text-center text-[11px] font-medium italic text-slate-400">商圈表现稳定，暂无显著风险。</p>
-            )}
-          </div>
-        </section>
-      </div>
-
-    </div>
-  );
-}
-
-function buildUpcomingPreview(state: GameState) {
-  return Array.from({ length: 3 }, (_, index) => {
-    const offset = index + 1;
-    const absoluteDay = state.day + offset;
-    const date = shiftDate(state.currentDate, offset);
-    const routine = getRoutine(absoluteDay, WEEKLY_ROUTINE);
-    const fixedAgenda = deriveFixedAgenda(absoluteDay, state);
-    const primaryAgenda = fixedAgenda.find((item) => item.label === '固定事项') || fixedAgenda[0];
-
-    return {
-      day: absoluteDay,
-      offset,
-      date,
-      routine,
-      agenda: primaryAgenda,
-    };
-  });
-}
-
-function buildRecentTimeline(state: GameState) {
-  return Array.from({ length: 3 }, (_, index) => {
-    const offset = -index;
-    const absoluteDay = state.day + offset;
-    const date = shiftDate(state.currentDate, offset);
-    const events = state.eventLog
-      .filter((event) => event.day === absoluteDay)
-      .slice(-2)
-      .reverse();
-
-    return {
-      day: absoluteDay,
-      offset,
-      date,
-      label: offset === 0 ? '今天' : offset === -1 ? '昨天' : '前天',
-      summary: deriveRecentTimelineSummary(events, offset),
-      events,
-    };
-  }).filter((entry) => entry.day > 0);
-}
-
-function deriveRecentTimelineSummary(
-  events: Array<{ tone?: string }>,
-  offset: number,
-) {
-  if (events.length === 0) {
-    return offset === 0 ? '本日经营还没开始，还没有新增记录。' : '这一天没有留下关键记录。';
+    );
   }
 
-  if (events.some((event) => event.tone === 'danger')) {
-    return '这一天出现了风险波动，记录里能看到承接动作。';
-  }
-
-  if (events.some((event) => event.tone === 'success')) {
-    return '这一天出现了正向反馈，结果已经被记录下来。';
-  }
-
-  if (events.some((event) => event.tone === 'accent')) {
-    return '这一天有节奏变化，推进节点比较明显。';
-  }
-
-  return '这一天完成了常规推进，节奏比较平稳。';
-}
-
-function SnapshotStat({ label, value, helper }: { label: string; value: string; helper: string }) {
   return (
-    <div className="rounded-2xl bg-white px-4 py-3 text-right shadow-sm">
-      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">{label}</div>
-      <div className="mt-1 text-xl font-bold text-slate-900">{value}</div>
-      <div className="text-[10px] text-slate-400">{helper}</div>
-    </div>
-  );
-}
-
-function TierStructureCard({
-  entry,
-}: {
-  entry: {
-    goalTier: 'core' | 'important' | 'normal';
-    label: string;
-    rule: string;
-    total: number;
-    active: number;
-    danger: number;
-    settled: number;
-    failed: number;
-    note: string;
-  };
-}) {
-  return (
-    <div className="rounded-2xl border border-black/[0.05] bg-slate-50/80 p-4">
-      <div className="flex items-start justify-between gap-3">
+    <div className="border-t border-[#eadfce] bg-white px-3.5 py-3">
+      <div className="flex flex-col gap-2.5 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <div className="text-sm font-semibold text-slate-900">{entry.label}</div>
-          <div className="mt-1 text-[11px] leading-relaxed text-slate-500">{entry.rule}</div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#9a6a31]">过去</div>
+          <h3 className="mt-1 text-[15px] font-semibold tracking-[-0.03em] text-[#2b2118]">
+            Day {entry.day} · {dateLabel}
+          </h3>
+          <p className="mt-1 text-[11px] leading-5 text-[#6b5948]">
+            这天留下的记录。
+          </p>
         </div>
-        <div className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
-          共 {entry.total} 套
-        </div>
+        <button
+          type="button"
+          onClick={onBackToday}
+          className="rounded-[11px] bg-[#2b2118] px-3 py-2 text-[11px] font-bold text-[#fff6df]"
+        >
+          回到今天
+        </button>
       </div>
-      <div className="mt-3 grid grid-cols-4 gap-2">
-        <TierMiniStat label="在场" value={entry.active} />
-        <TierMiniStat label="高危" value={entry.danger} />
-        <TierMiniStat label="收口" value={entry.settled} />
-        <TierMiniStat label="失手" value={entry.failed} />
-      </div>
-      <p className="mt-3 text-xs leading-relaxed text-slate-600">{entry.note}</p>
-    </div>
-  );
-}
-
-function TierMiniStat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-xl bg-white px-2.5 py-2 text-center shadow-sm">
-      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">{label}</div>
-      <div className="mt-1 text-sm font-semibold text-slate-900">{value}</div>
-    </div>
-  );
-}
-
-function DecisionCard({
-  icon,
-  label,
-  value,
-  tone,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  tone: 'emerald' | 'rose' | 'slate';
-}) {
-  const toneClass = tone === 'emerald'
-    ? 'border-emerald-100 bg-emerald-50/90 text-emerald-700'
-    : tone === 'rose'
-      ? 'border-rose-100 bg-rose-50/90 text-rose-700'
-      : 'border-slate-200 bg-white/90 text-slate-700';
-
-  return (
-    <div className={`rounded-xl border px-3.5 py-3 ${toneClass}`}>
-      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] opacity-80">
-        {icon}
-        {label}
-      </div>
-      <div className="mt-1.5 text-[13px] font-semibold leading-relaxed text-slate-800">{value}</div>
-    </div>
-  );
-}
-
-function FuturePreviewCard({
-  entry,
-}: {
-  entry: {
-    day: number;
-    offset: number;
-    date: string;
-    routine: { label: string; theme: string; energy: number };
-    agenda?: { title: string; detail: string; tone: 'neutral' | 'accent' | 'danger' };
-  };
-}) {
-  const toneClass = entry.agenda?.tone === 'danger'
-    ? 'border-rose-200 bg-rose-50/80'
-    : entry.agenda?.tone === 'accent'
-      ? 'border-amber-200 bg-amber-50/70'
-      : 'border-black/[0.05] bg-slate-50';
-
-  return (
-    <div className={`rounded-xl border px-3.5 py-3 ${toneClass}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
-            {entry.routine.label} · +{entry.offset}天
-          </div>
-          <div className="mt-1 text-[13px] font-semibold text-slate-800">{formatDate(entry.date)}</div>
-          <div className="mt-1 text-xs text-slate-600">{entry.routine.theme}</div>
-        </div>
-        <div className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
-          {entry.routine.energy} 精力
-        </div>
-      </div>
-      <div className="mt-2.5 text-[12px] font-semibold text-slate-800">
-        {entry.agenda?.title || '按默认节奏推进'}
-      </div>
-      <p className="mt-1 text-xs leading-relaxed text-slate-500">
-        {entry.agenda?.detail || '暂无额外固定事项，按当日盘面灵活调度。'}
-      </p>
-    </div>
-  );
-}
-
-function RecentTimelineCard({
-  entry,
-}: {
-  entry: {
-    day: number;
-    date: string;
-    label: string;
-    summary: string;
-    events: Array<{ actor: string; message: string; tone?: string }>;
-  };
-}) {
-  return (
-    <div className="rounded-xl border border-black/[0.05] bg-slate-50 px-3.5 py-3">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
-            {entry.label} · Day {entry.day}
-          </div>
-          <div className="mt-1 text-[13px] font-semibold text-slate-800">{formatDate(entry.date)}</div>
-        </div>
-        <div className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
-          {entry.events.length} 条记录
-        </div>
-      </div>
-      <p className="mt-2 text-xs leading-relaxed text-slate-600">{entry.summary}</p>
-      <div className="mt-2.5 space-y-2">
-        {entry.events.length > 0 ? entry.events.map((event, index) => (
-          <div
-            key={`${event.actor}-${index}`}
-            className={`rounded-lg border px-3 py-2 ${
-              event.tone === 'danger'
-                ? 'border-rose-200 bg-rose-50/80'
-                : event.tone === 'success'
-                  ? 'border-emerald-200 bg-emerald-50/80'
-                  : event.tone === 'accent'
-                    ? 'border-amber-200 bg-amber-50/70'
-                    : 'border-black/[0.05] bg-white'
-            }`}
+      <div className="mt-2.5 grid grid-cols-1 gap-1.5 lg:grid-cols-2">
+        {events.length > 0 ? events.map((event) => (
+          <button
+            key={event.id}
+            type="button"
+            onClick={() => onOpenCase(event.caseId)}
+            className="rounded-[12px] border border-[#eadfce] bg-[#fffdf8] px-2.5 py-2 text-left transition hover:bg-[#fff7e7]"
           >
-            <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">{event.actor}</div>
-            <p className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-slate-700">{event.message}</p>
-          </div>
+            <div className="flex items-center gap-2">
+              <span className={`h-1.5 w-1.5 rounded-full ${journalToneDot(event.tone)}`} />
+              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8a7762]">{event.actor}</span>
+            </div>
+            <div className="mt-1 text-[12px] font-semibold text-[#2b2118]">{event.title}</div>
+            <p className="mt-0.5 line-clamp-2 text-[11px] leading-5 text-[#766551]">{event.detail}</p>
+          </button>
         )) : (
-          <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-2 text-[12px] text-slate-400">
-            暂无关键经营记录。
+          <div className="rounded-[12px] border border-dashed border-[#d9cbb8] bg-[#fffdf8] px-3 py-4 text-[11px] text-[#8a7762]">
+            这天没有留下关键记录。
           </div>
         )}
       </div>
@@ -570,278 +506,358 @@ function RecentTimelineCard({
   );
 }
 
-function deriveFixedAgenda(day: number, state: GameState) {
-  const routine = getRoutine(day, WEEKLY_ROUTINE);
-  const dow = getDayOfWeek(day);
-  const items: Array<{ label: string; title: string; detail: string; tone: 'neutral' | 'accent' | 'danger' }> = [
-    {
-      label: '节奏',
-      title: routine.theme,
-      detail: `这一天系统默认给你 ${routine.energy} 点精力，适合按周节奏排布工作。`,
-      tone: 'neutral',
-    },
-  ];
-
-  if (dow === 4) {
-    const names = state.cases
-      .filter((c) => c.status === 'active')
-      .sort((a, b) => b.competitiveness - a.competitiveness)
-      .slice(0, 2)
-      .map((c) => c.title);
-    items.push({
-      label: '固定事项',
-      title: '房源聚焦会',
-      detail: names.length > 0 ? `本周资源位会围绕 ${names.join('、')} 展开。` : '这周仍需要准备可提报的盘源材料。',
-      tone: 'accent',
-    });
-  }
-
-  if (dow === 5) {
-    items.push({
-      label: '固定事项',
-      title: '每周业主反馈',
-      detail: '整理带看、准客池和竞品反馈，用一页话术把业主拉回同一口径。',
-      tone: 'accent',
-    });
-  }
-
-  if (dow === 6 || dow === 7) {
-    items.push({
-      label: '固定事项',
-      title: dow === 6 ? '周末带看高峰' : '开放日后追客',
-      detail: dow === 6 ? '周末通常会集中承接本周积累的准客。' : '如果周末做过动作，今天通常会看到后续反馈。',
-      tone: 'accent',
-    });
-  }
-
-  if (routine.energy <= 1) {
-    items.push({
-      label: '提醒',
-      title: '低资源日',
-      detail: '精力紧，只适合做最关键的一两件事，不适合同时铺太多动作。',
-      tone: 'danger',
-    });
-  }
-
-  return items;
-}
-
-function shiftDate(currentDate: string, offset: number) {
-  const date = new Date(currentDate);
-  date.setDate(date.getDate() + offset);
-  return date.toISOString().split('T')[0];
-}
-
-function MetricCard({ label, value, icon, color }: { label: string; value: string | number; icon: React.ReactNode; color: string }) {
-  return (
-    <div className="group rounded-[22px] border border-black/5 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
-      <div className="mb-2.5 flex items-center gap-3">
-        <div className={`rounded-xl bg-slate-50 p-2 ${color} transition-transform group-hover:scale-110`}>
-          {icon}
-        </div>
-        <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400">{label}</span>
-      </div>
-      <div className="text-[22px] font-bold tracking-tight text-slate-900">{value}</div>
-    </div>
-  );
-}
-
-function buildTodayBriefs(state: GameState) {
-  const activeCases = state.cases.filter((entry) => entry.status === 'active');
-  const activeRivals = state.marketShadow?.rivalListings?.filter((entry) => entry.status === 'active') || [];
-  const signal = state.marketShadow?.marketSignals?.[0];
-  const dailyEvent = state.marketShadow?.dailyMarketEvent;
-  const urgentCase = [...activeCases]
-    .sort((left, right) => scoreCurrentDanger(right) - scoreCurrentDanger(left))[0];
-  const lateCase = activeCases.find((caseItem) => {
-    return state.opportunities.some((entry) => (
-      entry.caseId === caseItem.id
-      && entry.status === 'active'
-      && entry.visibility !== 'shadow'
-      && entry.stageIndex >= 3
-    ));
-  });
-
-  const firstBrief = dailyEvent
-    ? {
-        label: '商圈变化',
-        title: dailyEvent.title,
-        detail: dailyEvent.message,
-        tone: dailyEvent.tone,
-      }
-    : {
-        label: '商圈变化',
-        title: '今天没有大冲击',
-        detail: '商圈暂时平稳，重点看手里房源有没有断档。',
-        tone: 'accent',
-      };
-
-  const secondBrief = urgentCase
-    ? {
-        label: '受影响房源',
-        title: urgentCase.title,
-        detail: buildPlainCaseReason(state, urgentCase),
-        tone: urgentCase.storylineState === 'critical' || urgentCase.windowDays <= 3 ? 'danger' : 'accent',
-      }
-    : {
-        label: '受影响房源',
-        title: '暂无明显危险房',
-        detail: '没有房源进入明显失守区，先按计划做推进。',
-        tone: 'success',
-      };
-
-  const thirdBrief = lateCase
-    ? {
-        label: '客户与机会',
-        title: `${lateCase.title} 已有后段客户`,
-        detail: '已有客户进入后段阶段，接下来的结果会更快显现。',
-        tone: 'success',
-      }
-    : activeRivals[0]
-      ? {
-          label: '客户与机会',
-          title: '竞品正在分流客户',
-          detail: `${activeRivals[0].title} 正在抢同类客户。`,
-          tone: 'danger',
-        }
-      : signal
-        ? {
-            label: '客户与机会',
-            title: signal.title,
-            detail: signal.message,
-            tone: 'accent',
-          }
-        : {
-            label: '客户与机会',
-            title: '当前没有新增机会',
-            detail: '今天的机会面比较安静，盘面主要看现有房源和现有客户。',
-            tone: 'accent',
-          };
-
-  return [firstBrief, secondBrief, thirdBrief];
-}
-
-function buildPlainCaseReason(state: GameState, caseItem: GameState['cases'][number]) {
-  const opportunities = state.opportunities.filter((entry) => entry.caseId === caseItem.id && entry.status === 'active');
-  if (caseItem.status === 'lost_to_rival') return '已经被别家截走，这局只能复盘原因。';
-  if (caseItem.status === 'withdrawn') return '业主已经撤盘，重点复盘前面哪里断了。';
-  if (caseItem.windowDays <= 3) return `只剩 ${caseItem.windowDays} 天窗口，今天不能再拖。`;
-  if (caseItem.trust < 55) return '业主已经动摇，先把推进节奏讲清楚。';
-  if (opportunities.length === 0) return '客户池偏空，继续谈价也很难收口。';
-  if (caseItem.heat < 45) return '看房热度偏冷，需要先把盘面拉起来。';
-  return '这套还在场，但需要用一次明确动作推进。';
-}
-
-function TodayBriefCard({
-  brief,
-}: {
-  brief: {
-    label: string;
-    title: string;
-    detail: string;
-    tone: string;
-  };
-}) {
-  const toneClass = brief.tone === 'danger'
-    ? 'border-rose-100 bg-rose-50/70'
-    : brief.tone === 'success'
-      ? 'border-emerald-100 bg-emerald-50/70'
-      : 'border-amber-100 bg-amber-50/70';
-  return (
-    <div className={`rounded-[22px] border p-4 ${toneClass}`}>
-      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">{brief.label}</div>
-      <div className="mt-1 text-base font-bold text-slate-900">{brief.title}</div>
-      <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-slate-600">{brief.detail}</p>
-    </div>
-  );
-}
-
-function ShadowPulseCard({
+function DeskMetric({
   label,
-  title,
-  detail,
-  tone,
+  value,
+  tone = 'neutral',
 }: {
   label: string;
-  title: string;
-  detail: string;
-  tone: string;
+  value: string;
+  tone?: 'neutral' | 'risk' | 'chance';
 }) {
-  const toneClass = tone === 'danger'
-    ? 'border-rose-100 bg-rose-50/70 text-rose-700'
-    : tone === 'success'
-      ? 'border-emerald-100 bg-emerald-50/70 text-emerald-700'
-      : 'border-amber-100 bg-amber-50/70 text-amber-700';
-
   return (
-    <div className={`rounded-[22px] border p-4 shadow-sm ${toneClass}`}>
-      <div className="text-[10px] font-bold uppercase tracking-[0.16em] opacity-70">{label}</div>
-      <div className="mt-1 text-base font-bold text-slate-900">{title}</div>
-      <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-slate-600">{detail}</p>
+    <div className={`rounded-[12px] border px-2.5 py-2 ${
+      tone === 'risk'
+        ? 'border-[#e6b8a8] bg-[#fff4ef]'
+        : tone === 'chance'
+          ? 'border-[#c9d8bc] bg-[#f4f8ed]'
+          : 'border-[#eadfce] bg-white'
+    }`}>
+      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#9a8a76]">{label}</div>
+      <div className="mt-0.5 line-clamp-2 text-[11px] font-semibold leading-5 text-[#2b2118]">{value}</div>
     </div>
   );
 }
 
-function buildTierStructure(state: GameState) {
-  return (['core', 'important', 'normal'] as const).map((goalTier) => {
-    const cases = state.cases.filter((entry) => entry.goalTier === goalTier);
-    const activeCases = cases.filter((entry) => entry.status === 'active');
-    const settled = cases.filter((entry) => entry.status === 'sold').length;
-    const failed = cases.filter((entry) => entry.status === 'lost_to_rival' || entry.status === 'withdrawn').length;
-    const dangerCases = activeCases.filter((entry) => entry.storylineState === 'critical' || entry.storylineState === 'sliding');
-    const leadCase = [...dangerCases, ...activeCases]
-      .sort((left, right) => scoreCurrentDanger(right) - scoreCurrentDanger(left))[0];
+function AgendaRow({
+  item,
+  index,
+  onOpenCase,
+  onUseTool,
+}: {
+  item: ProjectionBrief;
+  index: number;
+  onOpenCase: (caseId?: string) => void;
+  onUseTool: (tool: AgendaTool, caseId?: string) => void;
+}) {
+  const tools = buildAgendaTools(item);
+  return (
+    <article className="grid grid-cols-1 gap-2.5 px-0 py-2.5 md:grid-cols-[74px_minmax(0,1fr)]">
+      <div className="pt-0.5">
+        <div className="inline-flex rounded-full bg-[#f3eadb] px-2 py-0.5 text-[10px] font-semibold text-[#7b5b35]">
+          {agendaSlot(index)}
+        </div>
+        <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#9a8a76]">
+          {index === 0 ? '今日必办' : `第 ${index + 1} 件`}
+        </div>
+      </div>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${projectionToneBadge(item.tone)}`}>
+            {item.label}
+          </span>
+          {item.caseId && (
+            <button
+              type="button"
+              onClick={() => onOpenCase(item.caseId)}
+              className="rounded-full border border-[#eadfce] bg-white px-2 py-0.5 text-[10px] font-bold text-[#5f4b37] transition hover:bg-[#fff7e7]"
+            >
+              打开房源
+            </button>
+          )}
+        </div>
+        <h4 className="mt-1 text-[13px] font-semibold tracking-[-0.02em] text-[#2b2118]">{item.title}</h4>
+        <p className="mt-0.5 max-w-[80ch] text-[11px] leading-5 text-[#766551]">{item.detail}</p>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {tools.map((tool) => (
+            <button
+              key={tool.label}
+              type="button"
+              onClick={() => onUseTool(tool, item.caseId)}
+              className="rounded-full border border-[#d9cbb8] bg-white px-2.5 py-1 text-[10px] font-semibold text-[#5f4b37] transition hover:bg-[#2b2118] hover:text-[#fff6df]"
+            >
+              {tool.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </article>
+  );
+}
 
-    return {
-      goalTier,
-      label: goalTierLabel(goalTier),
-      rule: goalTierRule(goalTier),
-      total: cases.length,
-      active: activeCases.length,
-      danger: dangerCases.length,
-      settled,
-      failed,
-      leadCaseTitle: leadCase ? `${leadCase.title}` : null,
-      note: buildTierStructureNote(goalTier, activeCases.length, dangerCases.length, settled, failed, leadCase?.title),
-    };
+function NewsBrief({ item, onOpen }: { item: IntelItem; onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="w-full rounded-[12px] border border-[#eadfce] bg-white px-2.5 py-2.5 text-left transition hover:bg-[#fff7e7]"
+    >
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${intelToneBadge(item.tone)}`}>
+          {toneLabel(item.tone)}
+        </span>
+        <span className="rounded-full bg-[#f3eadb] px-2 py-0.5 text-[10px] font-bold text-[#7b5b35]">
+          {layerLabel(item.layer)}
+        </span>
+        <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#9a8a76]">{item.badge}</span>
+      </div>
+      <div className="mt-1 text-[12px] font-semibold leading-5 text-[#2b2118]">{item.title}</div>
+      <p className="mt-0.5 text-[11px] leading-5 text-[#766551]">{item.summary}</p>
+    </button>
+  );
+}
+
+function EvidenceTile({
+  icon,
+  label,
+  value,
+  detail,
+  tone = 'neutral',
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  detail: string;
+  tone?: 'neutral' | 'risk' | 'chance';
+  onClick?: () => void;
+}) {
+  const className = `rounded-[12px] border px-2.5 py-2 text-left ${
+    tone === 'risk'
+      ? 'border-[#e6b8a8] bg-[#fff4ef]'
+      : tone === 'chance'
+        ? 'border-[#c9d8bc] bg-[#f4f8ed]'
+        : 'border-[#eadfce] bg-[#fffdf8]'
+  } ${onClick ? 'transition hover:bg-[#fff7e7]' : ''}`;
+
+  const content = (
+    <>
+      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[#8a7762]">
+        {icon}
+        {label}
+      </div>
+      <div className="mt-0.5 text-[12px] font-semibold text-[#2b2118]">{value}</div>
+      <p className="mt-0.5 line-clamp-2 text-[11px] leading-5 text-[#766551]">{detail}</p>
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={className}>
+        {content}
+      </button>
+    );
+  }
+
+  return <div className={className}>{content}</div>;
+}
+
+function buildOperatingBrief(dashboard: DashboardProjection) {
+  const firstPriority = dashboard.todayPriority[0] || null;
+  const yesterday = dashboard.yesterdayIntel[0] || null;
+  const resourceTone: OperatingBriefTone = dashboard.resourceSnapshot.energy.startsWith('0/')
+    || dashboard.resourceSnapshot.energy.startsWith('1/')
+    ? 'risk'
+    : dashboard.resourceSnapshot.activeOpportunities >= dashboard.resourceSnapshot.activeCases
+      ? 'chance'
+      : 'neutral';
+
+  return {
+    today: {
+      title: firstPriority?.title || dashboard.todayHeadline,
+      detail: firstPriority?.detail || '先按今天的优先级处理，不要把资源摊到所有房源上。',
+      tone: (firstPriority?.tone || 'neutral') as OperatingBriefTone,
+      caseId: firstPriority?.caseId,
+    },
+    yesterday: {
+      title: yesterday?.title || '昨天没有明显转折',
+      detail: yesterday?.detail || '没有新增关键记录，今天按当前情况推进。',
+      tone: (yesterday?.tone || 'neutral') as OperatingBriefTone,
+      caseId: yesterday?.caseId,
+    },
+    resources: {
+      title: `${dashboard.resourceSnapshot.energy} 精力 · ${dashboard.resourceSnapshot.promotionBudget} 推广金`,
+      detail: `在场 ${dashboard.resourceSnapshot.activeCases} 套，活跃机会 ${dashboard.resourceSnapshot.activeOpportunities} 条。`,
+      tone: resourceTone,
+    },
+  };
+}
+
+function buildCalendarRail(
+  state: GameState,
+  dashboard: DashboardProjection,
+  journalItems: JournalItem[],
+): CalendarRailEntry[] {
+  const entries: CalendarRailEntry[] = [];
+  const startPastDay = Math.max(1, state.day - 3);
+
+  for (let currentDay = startPastDay; currentDay < state.day; currentDay += 1) {
+    const events = journalItems.filter((item) => item.day === currentDay);
+    entries.push({
+      day: currentDay,
+      relation: 'past',
+      label: currentDay === state.day - 1 ? '昨天' : `Day ${currentDay}`,
+      title: events[0]?.title || '没有关键记录',
+      detail: events[0]?.detail || '这天没有留下会影响今天判断的变化。',
+      meta: events.length > 0 ? `${events.length} 流水` : '无新增',
+      tone: deriveEventsProjectionTone(events),
+    });
+  }
+
+  dashboard.weekCalendar
+    .filter((entry) => entry.day >= state.day && entry.day <= state.maxDay)
+    .slice(0, 7)
+    .forEach((entry) => {
+      const isToday = entry.day === state.day;
+      entries.push({
+        day: entry.day,
+        relation: isToday ? 'today' : 'future',
+        label: isToday ? '今天' : entry.day === state.day + 1 ? '明天' : entry.label,
+        title: isToday ? '今日安排' : entry.title,
+        detail: entry.detail,
+        meta: isToday
+          ? `${dashboard.todayPriority.length} 安排 · ${dashboard.marketBrief.todayCount} 新闻`
+          : `${entry.energy} 精力 · ${futureSignal(entry)}`,
+        tone: isToday
+          ? (dashboard.riskReminders.length > 0 ? 'risk' : dashboard.marketBrief.chanceCount > 0 ? 'chance' : 'neutral')
+          : entry.tone,
+        energy: entry.energy,
+      });
+    });
+
+  return entries;
+}
+
+function buildJournalItems(state: GameState): JournalItem[] {
+  const eventStoreItems = state.eventStore.map((entry) => ({
+    id: `event-${entry.id}`,
+    day: entry.day,
+    title: entry.title,
+    detail: entry.detail,
+    actor: entry.actor,
+    tone: entry.tone,
+    caseId: entry.caseId,
+    date: entry.date,
+  }));
+
+  const fallbackItems = state.eventLog
+    .filter((entry) => !state.eventStore.some((event) => event.day === entry.day && event.actor === entry.actor && event.detail === entry.message))
+    .map((entry, index) => ({
+      id: `log-${entry.day}-${index}`,
+      day: entry.day,
+      title: trimJournalTitle(entry.message),
+      detail: entry.message,
+      actor: entry.actor,
+      tone: entry.tone,
+      date: entry.date,
+    }));
+
+  return [...eventStoreItems, ...fallbackItems].sort((left, right) => {
+    if (right.day !== left.day) return right.day - left.day;
+    return (right.date || '').localeCompare(left.date || '');
   });
 }
 
-function buildTierStructureNote(
-  goalTier: 'core' | 'important' | 'normal',
-  active: number,
-  danger: number,
-  settled: number,
-  failed: number,
-  leadCaseTitle?: string,
-) {
-  if (failed > 0) {
-    return `${goalTierLabel(goalTier)}已经有 ${failed} 套失手，这组不能再继续放任。`;
-  }
-  if (danger > 0) {
-    return leadCaseTitle
-      ? `这组还有 ${danger} 套在抖，当前风险最高的是 ${leadCaseTitle}。`
-      : `这组还有 ${danger} 套在抖，当前处在波动阶段。`;
-  }
-  if (active > 0) {
-    return `${goalTierLabel(goalTier)}还有 ${active} 套在场，当前节奏基本稳得住。`;
-  }
-  if (settled > 0) {
-    return `${goalTierLabel(goalTier)}这组已经基本收口，可以把资源往别处挪。`;
-  }
-  return `${goalTierLabel(goalTier)}目前没有在场盘。`;
+function deriveEventsProjectionTone(events: JournalItem[]): ProjectionTone {
+  if (events.some((event) => event.tone === 'danger')) return 'risk';
+  if (events.some((event) => event.tone === 'success')) return 'chance';
+  return 'neutral';
 }
 
-function goalTierLabel(goalTier: 'core' | 'important' | 'normal') {
-  if (goalTier === 'core') return '核心盘';
-  if (goalTier === 'important') return '重要盘';
-  return '普通盘';
+function futureSignal(entry: CalendarDayProjection) {
+  if (entry.title.includes('业主')) return '业主日';
+  if (entry.title.includes('获客')) return '获客日';
+  if (entry.title.includes('带看')) return '带看';
+  if (entry.energy <= 1) return '轻排';
+  return '普通日';
 }
 
-function goalTierRule(goalTier: 'core' | 'important' | 'normal') {
-  if (goalTier === 'core') return '这组最贵，最怕被截走。';
-  if (goalTier === 'important') return '这组决定你能不能把局势撑住。';
-  return '这组能放，但不能乱放。';
+function buildFuturePrepTools(entry: CalendarRailEntry) {
+  if (entry.title.includes('业主') || entry.detail.includes('业主')) {
+    return ['筛要反馈的房', '查客户记录', '整理竞品证据'];
+  }
+  if (entry.title.includes('获客') || entry.detail.includes('客户')) {
+    return ['筛缺客户房源', '看推广金', '看商圈热度'];
+  }
+  if (entry.title.includes('带看') || entry.detail.includes('周末')) {
+    return ['排带看顺序', '看快成交客户', '检查房源卖点'];
+  }
+  return ['看在场房源', '检查精力', '回到今日安排'];
+}
+
+function buildAgendaTools(item: ProjectionBrief): AgendaTool[] {
+  const text = `${item.label} ${item.title} ${item.detail}`;
+  if (/业主|反馈|信任|耐心/.test(text)) {
+    return [
+      { label: '写反馈要点', target: 'case' },
+      { label: '看客户证据', target: 'customers' },
+      { label: '查竞品对比', target: 'market', marketLayer: 'competition' },
+    ];
+  }
+  if (/竞品|竞争|截|窗口/.test(text)) {
+    return [
+      { label: '拉竞品对比', target: 'market', marketLayer: 'competition' },
+      { label: '改卖点口径', target: 'case' },
+      { label: '看受影响房源', target: 'market', marketLayer: 'listing' },
+    ];
+  }
+  if (/成交|报价|谈判|斡旋/.test(text)) {
+    return [
+      { label: '整理谈判口径', target: 'case' },
+      { label: '看快成交客户', target: 'customers' },
+      { label: '查价格依据', target: 'case' },
+    ];
+  }
+  if (/客户|准客|流失|带看/.test(text)) {
+    return [
+      { label: '整理回访话术', target: 'customers' },
+      { label: '打开客户线', target: 'customers' },
+      { label: '安排带看', target: 'case' },
+    ];
+  }
+  if (/市场|商圈|情报/.test(text)) {
+    return [
+      { label: '看商圈新闻', target: 'market', marketLayer: 'district' },
+      { label: '看受影响房源', target: 'market', marketLayer: 'listing' },
+      { label: '回到房源处理', target: 'case' },
+    ];
+  }
+  return [
+    { label: '打开房源', target: 'case' },
+    { label: '看客户线', target: 'customers' },
+    { label: '回看今天记录', target: 'review' },
+  ];
+}
+
+function agendaSlot(index: number) {
+  if (index === 0) return '上午';
+  if (index === 1) return '午后';
+  if (index === 2) return '傍晚';
+  return '机动';
+}
+
+function projectionToneBadge(tone: ProjectionTone) {
+  if (tone === 'risk') return 'bg-[#fff0ea] text-[#9b3f25]';
+  if (tone === 'chance') return 'bg-[#eef7e7] text-[#4a6c2a]';
+  return 'bg-[#f3eadb] text-[#7b5b35]';
+}
+
+function intelToneBadge(tone: IntelItem['tone']) {
+  if (tone === 'risk') return 'bg-[#fff0ea] text-[#9b3f25]';
+  if (tone === 'chance') return 'bg-[#eef7e7] text-[#4a6c2a]';
+  return 'bg-[#f3eadb] text-[#7b5b35]';
+}
+
+function calendarToneDot(tone: ProjectionTone) {
+  if (tone === 'risk') return 'bg-[#b95635]';
+  if (tone === 'chance') return 'bg-[#66843b]';
+  return 'bg-[#b8a48c]';
+}
+
+function journalToneDot(tone: JournalItem['tone']) {
+  if (tone === 'danger') return 'bg-[#b95635]';
+  if (tone === 'success') return 'bg-[#66843b]';
+  return 'bg-[#c9943b]';
 }
 
 function scoreCurrentDanger(caseItem: GameState['cases'][number]) {
@@ -857,4 +873,24 @@ function scoreCurrentDanger(caseItem: GameState['cases'][number]) {
   if (caseItem.competitionGroupIds.length > 0) score += 18;
   if (caseItem.heat <= 45) score += 16;
   return score;
+}
+
+function deriveHomepageIntel(state: GameState, intelFeed: IntelItem[]) {
+  return {
+    lead: intelFeed[0] || null,
+    briefs: intelFeed.slice(1, 3),
+    impactedCases: deriveImpactedCases(state, intelFeed).slice(0, 3),
+  };
+}
+
+function shiftDate(currentDate: string, offset: number) {
+  const date = new Date(currentDate);
+  date.setDate(date.getDate() + offset);
+  return date.toISOString().split('T')[0];
+}
+
+function trimJournalTitle(message: string) {
+  const normalized = message.trim();
+  if (normalized.length <= 24) return normalized;
+  return `${normalized.slice(0, 24)}...`;
 }

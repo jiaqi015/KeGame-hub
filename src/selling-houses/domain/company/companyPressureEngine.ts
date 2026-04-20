@@ -1,7 +1,7 @@
-import { logEvent } from '../../application/gameState';
-import type { GameState, InboundOpportunity } from '../models';
-import { chance, clamp, randomInt } from '../utils';
-import { applyInboundOpportunity } from '../market/inboundOpportunityEngine';
+import { logEvent } from '../runtimeState.js';
+import type { GameState, InboundOpportunity } from '../models.js';
+import { chance, clamp, randomInt } from '../utils.js';
+import { applyInboundOpportunity } from '../market/inboundOpportunityEngine.js';
 
 export function tickCompanyPressure(state: GameState) {
   const pressure = state.marketShadow.companyPressure;

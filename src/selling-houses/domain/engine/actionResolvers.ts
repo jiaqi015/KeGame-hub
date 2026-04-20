@@ -1,15 +1,18 @@
-import { ACTIONS } from '../constants';
-import { logEvent, saveGameState, updateDerivedState } from '../../application/gameState';
-import { recordBudgetChange } from '../budget';
-import { clamp, randomInt } from '../utils';
-import type { ActionDefinition, GameState } from '../models';
+import { ACTIONS } from '../constants.js';
+import { BALANCE } from '../config/balance.js';
+import { updateDerivedState, logEvent, recordDomainEvent } from '../runtimeState.js';
+import { recordBudgetChange } from '../budget.js';
+import { applyAuxiliaryStats, getPromotionBudget } from '../runtimeStats.js';
+import { clamp, randomInt } from '../utils.js';
+import type { ActionDefinition, Case, GameState, Opportunity } from '../models.js';
 import {
   adjustCaseOpportunities,
   closeOpportunity,
   createOpportunity,
   findBestOpportunity,
   refreshOpportunityLabel,
-} from './opportunityEngine';
+} from './opportunityEngine.js';
+import { touchCustomersForCase } from './customerEngine.js';
 
 function spendResources(state: GameState, action: ActionDefinition) {
   state.energy = clamp(state.energy - action.costEnergy, 0, state.maxEnergy);
@@ -38,7 +41,7 @@ function refundResources(state: GameState, action: ActionDefinition, reason: str
 type ActionExecutionContext = {
   state: GameState;
   action: ActionDefinition;
-  caseItem: any;
+  caseItem: Case;
   optionId: string | null;
   onMessage?: (msg: string) => void;
 };
@@ -58,7 +61,7 @@ function findShadowOpportunity(state: GameState, caseId: string) {
   return state.opportunities.find((entry) => entry.caseId === caseId && entry.status === 'active' && entry.visibility === 'shadow');
 }
 
-function touchCaseForAction(caseItem: any, actionId: string, currentDay: number, touchOwner = false) {
+function touchCaseForAction(caseItem: Case, actionId: string, currentDay: number, touchOwner = false) {
   caseItem.actionsToday += 1;
   caseItem.touchedToday = true;
   caseItem.lastTouchedDay = currentDay;
@@ -84,6 +87,12 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
     caseItem.windowDays = Math.min(caseItem.windowDays + 1, 14);
     caseItem.heat = clamp(caseItem.heat + heatDelta, 0, 100);
     adjustCaseOpportunities(state, caseItem.id, 4, 3);
+    touchCustomersForCase(state, caseItem.id, {
+      interestDelta: 5,
+      confidenceDelta: 7,
+      advisorTrustDelta: 6,
+      note: '首次面访建立信任',
+    });
     logEvent(state, caseItem.ownerName, `${caseItem.title} 完成首次面访，业主对经营路径有了更清晰的理解。`, 'success');
     onMessage?.(`${caseItem.title} 已完成首次面访。`);
     return true;
@@ -100,6 +109,12 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
     caseItem.urgency = clamp(caseItem.urgency + urgencyDelta, 0, 100);
     caseItem.windowDays = Math.min(caseItem.windowDays + 1, 14);
     adjustCaseOpportunities(state, caseItem.id, 3, 3);
+    touchCustomersForCase(state, caseItem.id, {
+      interestDelta: 4,
+      confidenceDelta: 5,
+      advisorTrustDelta: 4,
+      note: '周度反馈稳定客户预期',
+    });
     logEvent(state, caseItem.ownerName, `${caseItem.title} 完成一轮周度反馈，业主对当前节奏更有感知。`, 'success');
     onMessage?.(`${caseItem.title} 已完成周度反馈。`);
     return true;
@@ -112,6 +127,13 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
     caseItem.competitiveness = clamp(caseItem.competitiveness + 4, 0, 100);
     caseItem.heat = clamp(caseItem.heat + 2, 0, 100);
     adjustCaseOpportunities(state, caseItem.id, 5, 5);
+    touchCustomersForCase(state, caseItem.id, {
+      interestDelta: 3,
+      confidenceDelta: 8,
+      advisorTrustDelta: 5,
+      revealShadow: true,
+      note: '深度诊断摸清客户需求',
+    });
     const shadowOpportunity = findShadowOpportunity(state, caseItem.id);
     if (shadowOpportunity) {
       shadowOpportunity.visibility = 'revealed';
@@ -120,7 +142,7 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
       refreshOpportunityLabel(shadowOpportunity);
       logEvent(state, '诊断反馈', `${caseItem.title} 的诊断过程中，你顺带摸清了一位待确认客户的真实需求。`, 'success');
     }
-    logEvent(state, caseItem.ownerName, `${caseItem.title} 完成一轮深度诊断，业主开始更理解盘面的真实问题。`, 'accent');
+    logEvent(state, caseItem.ownerName, `${caseItem.title} 完成一轮深度诊断，业主开始更理解这套房现在到底卡在哪。`, 'accent');
     onMessage?.(`${caseItem.title} 已完成深度诊断。`);
     return true;
   },
@@ -132,6 +154,11 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
     caseItem.trust = clamp(caseItem.trust + 2, 0, 100);
     caseItem.qualityStory += 1;
     adjustCaseOpportunities(state, caseItem.id, strategy === 'value-angle' ? 7 : 6, 4);
+    touchCustomersForCase(state, caseItem.id, {
+      interestDelta: strategy === 'value-angle' ? 8 : 6,
+      confidenceDelta: 3,
+      note: '卖点重构让客户更容易理解这套房',
+    });
     logEvent(state, caseItem.maintainerName, `${caseItem.title} 完成一轮卖点重构，接下来的营销表达更顺了。`, 'accent');
     onMessage?.(`${caseItem.title} 的卖点已经重新整理。`);
     return true;
@@ -140,11 +167,18 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
     touchCaseForAction(caseItem, action.id, state.day);
     const strategy = optionId || 'traffic-push';
     caseItem.heat = clamp(caseItem.heat + (strategy === 'traffic-push' ? 11 : strategy === 'precise-push' ? 8 : 6), 0, 100);
-    state.reputation = clamp(state.reputation + (strategy === 'reputation-push' ? 2 : 1), 0, 100);
+    applyAuxiliaryStats(state, {
+      wordOfMouth: clamp(state.auxiliaryStats.wordOfMouth + (strategy === 'reputation-push' ? 2 : 1), 0, 100),
+    });
     createOpportunity(state, caseItem, 'xiaohongshu', strategy === 'precise-push' ? 12 : 10);
     if ((caseItem.qualityStory > 0 || caseItem.heat > 72) && randomInt(0, 99, state) < (strategy === 'traffic-push' ? 45 : 32)) {
       createOpportunity(state, caseItem, 'xiaohongshu', 6);
     }
+    touchCustomersForCase(state, caseItem.id, {
+      interestDelta: strategy === 'traffic-push' ? 7 : 5,
+      confidenceDelta: strategy === 'precise-push' ? 5 : 2,
+      note: '公开推广抬升客户关注',
+    });
     logEvent(state, '小红书推广', `${caseItem.title} 发起一轮小红书推广，公开客群开始抬头。`, 'accent');
     onMessage?.(`${caseItem.title} 已完成一轮小红书推广。`);
     return true;
@@ -158,6 +192,12 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
     if (randomInt(0, 99, state) < (strategy === 'wide-network' ? 65 : 50)) {
       createOpportunity(state, caseItem, 'broker-network', 8);
     }
+    touchCustomersForCase(state, caseItem.id, {
+      interestDelta: 4,
+      confidenceDelta: strategy === 'core-network' ? 6 : 3,
+      advisorTrustDelta: 2,
+      note: '经纪人网络扩大接触面',
+    });
     logEvent(state, '经纪人投放', `${caseItem.title} 被分发到合作经纪人网络，换来更多待确认需求的客群。`, 'accent');
     onMessage?.(`${caseItem.title} 已完成一轮经纪人投放。`);
     return true;
@@ -171,6 +211,12 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
     if (caseItem.trust >= 68 || caseItem.qualityStory >= 1) {
       createOpportunity(state, caseItem, 'private-referral', 14);
     }
+    touchCustomersForCase(state, caseItem.id, {
+      interestDelta: 5,
+      confidenceDelta: 7,
+      advisorTrustDelta: 5,
+      note: '私域转介绍提升客户信任',
+    });
     logEvent(state, '私域转介绍', `${caseItem.title} 通过私域关系链被再次推荐，客群质量更整齐。`, 'success');
     onMessage?.(`${caseItem.title} 已完成一轮私域转介绍。`);
     return true;
@@ -185,7 +231,13 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
     adjustCaseOpportunities(state, caseItem.id, strategy === 'quality-open-day' ? 10 : 8, strategy === 'conversion-open-day' ? 8 : 6);
     createOpportunity(state, caseItem, 'open-day', strategy === 'quality-open-day' ? 18 : 15);
     createOpportunity(state, caseItem, 'open-day', strategy === 'heat-open-day' ? 12 : 14);
-    logEvent(state, '开放日', `${caseItem.title} 完成一次开放日，盘面热度被集中点燃。`, 'success');
+    touchCustomersForCase(state, caseItem.id, {
+      interestDelta: strategy === 'heat-open-day' ? 10 : 8,
+      confidenceDelta: strategy === 'conversion-open-day' ? 7 : 5,
+      stageAdvance: 1,
+      note: '开放日推动客户从关注走向看房',
+    });
+    logEvent(state, '开放日', `${caseItem.title} 完成一次开放日，关注度被集中拉了起来。`, 'success');
     onMessage?.(`${caseItem.title} 的开放日结束，接下来适合追带看。`);
     return true;
   },
@@ -206,6 +258,13 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
     opportunity.confidence = clamp(opportunity.confidence + (strategy === 'experience-showing' ? 10 : 7), 0, 100);
     opportunity.daysLeft = 4;
     opportunity.touchedToday = true;
+    touchCustomersForCase(state, caseItem.id, {
+      interestDelta: strategy === 'closing-showing' ? 9 : 7,
+      confidenceDelta: strategy === 'experience-showing' ? 8 : 5,
+      stageAdvance: 1,
+      revealShadow: true,
+      note: '带看让客户更真实进入决策',
+    });
 
     if (opportunity.visibility === 'shadow') {
       opportunity.visibility = 'revealed';
@@ -234,6 +293,11 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
     caseItem.urgency = clamp(caseItem.urgency + urgencyDelta, 0, 100);
     caseItem.competitiveness = clamp(caseItem.competitiveness + 2, 0, 100);
     adjustCaseOpportunities(state, caseItem.id, strategy === 'client-view' ? 5 : 3, 4);
+    touchCustomersForCase(state, caseItem.id, {
+      confidenceDelta: strategy === 'client-view' ? 6 : 4,
+      advisorTrustDelta: 4,
+      note: '定价建议影响客户价格判断',
+    });
     logEvent(state, caseItem.ownerName, `${caseItem.title} 完成一轮定价建议沟通，业主开始理解当前价格站位。`, 'accent');
     onMessage?.(`${caseItem.title} 已完成一轮定价建议。`);
     return true;
@@ -248,6 +312,11 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
       Math.round(caseItem.marketPrice * (strategy === 'soft-anchor' ? 0.95 : strategy === 'data-anchor' ? 0.93 : 0.91)),
       caseItem.bottomPrice,
     );
+    touchCustomersForCase(state, caseItem.id, {
+      confidenceDelta: 4,
+      advisorTrustDelta: 2,
+      note: '心理价试探让客户预期更稳定',
+    });
     logEvent(state, caseItem.ownerName, `${caseItem.title} 完成一轮心理价试探，你对业主真实价格预期更有把握。`, 'success');
     onMessage?.(`${caseItem.title} 已摸到一部分业主心理价。`);
     return true;
@@ -266,6 +335,11 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
       caseItem.competitiveness = clamp(caseItem.competitiveness + 6, 0, 100);
       caseItem.heat = clamp(caseItem.heat + 3, 0, 100);
       adjustCaseOpportunities(state, caseItem.id, 5, 4);
+      touchCustomersForCase(state, caseItem.id, {
+        interestDelta: 4,
+        confidenceDelta: 4,
+        note: '守价换讲法，稳住在场客户',
+      });
       logEvent(state, caseItem.ownerName, `${caseItem.title} 暂不降价，而是先统一新的卖点说辞。`, 'accent');
       onMessage?.(`${caseItem.title} 选择了守价换讲法。`);
       return true;
@@ -277,6 +351,11 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
       caseItem.competitiveness = clamp(caseItem.competitiveness + 9, 0, 100);
       caseItem.heat = clamp(caseItem.heat + 6, 0, 100);
       adjustCaseOpportunities(state, caseItem.id, 8, 6);
+      touchCustomersForCase(state, caseItem.id, {
+        interestDelta: 8,
+        confidenceDelta: 7,
+        note: '小幅调价提高客户可接受度',
+      });
       logEvent(state, caseItem.ownerName, `${caseItem.title} 小幅调整挂牌价，换来了更高的成交确定性。`, 'success');
       onMessage?.(`${caseItem.title} 已完成小幅调价。`);
       return true;
@@ -287,8 +366,14 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
     caseItem.competitiveness = clamp(caseItem.competitiveness + 14, 0, 100);
     caseItem.heat = clamp(caseItem.heat + 10, 0, 100);
     adjustCaseOpportunities(state, caseItem.id, 12, 8);
-    logEvent(state, caseItem.ownerName, `${caseItem.title} 明显调整挂牌价，盘面热度快速抬升。`, 'success');
-    onMessage?.(`${caseItem.title} 已切到快速去化模式。`);
+    touchCustomersForCase(state, caseItem.id, {
+      interestDelta: 10,
+      confidenceDelta: 9,
+      stageAdvance: 1,
+      note: '明显调价把客户推进到更深决策',
+    });
+    logEvent(state, caseItem.ownerName, `${caseItem.title} 明显调整挂牌价，关注度快速抬升。`, 'success');
+    onMessage?.(`${caseItem.title} 已切到快卖模式。`);
     return true;
   },
   'sincerity-sale': ({ state, caseItem, action, optionId, onMessage }) => {
@@ -307,6 +392,12 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
     opportunity.confidence = clamp(opportunity.confidence + (strategy === 'strict-sincerity' ? 6 : 10), 0, 100);
     opportunity.daysLeft = 3;
     opportunity.touchedToday = true;
+    touchCustomersForCase(state, caseItem.id, {
+      interestDelta: strategy === 'fast-sincerity' ? 8 : 5,
+      confidenceDelta: strategy === 'strict-sincerity' ? 5 : 8,
+      stageAdvance: 1,
+      note: '诚意卖把客户推向报价与谈判',
+    });
     refreshOpportunityLabel(opportunity);
     logEvent(state, caseItem.ownerName, `${caseItem.title} 进入诚意卖讨论，交易桌上的确定性开始抬升。`, 'success');
     onMessage?.(`${caseItem.title} 已推进到诚意卖讨论。`);
@@ -326,7 +417,13 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
   },
 };
 
-export function executeAction(state: GameState, actionId: string, caseItem: any, optionId: string | null = null, onMessage?: (msg: string) => void) {
+export function executeAction(
+  state: GameState,
+  actionId: string,
+  caseItem: Case | null | undefined,
+  optionId: string | null = null,
+  onMessage?: (msg: string) => void,
+) {
   const action = resolveActionDefinition(actionId);
   if (!action || !caseItem || caseItem.status !== 'active') return false;
 
@@ -348,65 +445,94 @@ export function executeAction(state: GameState, actionId: string, caseItem: any,
     return false;
   }
 
+  recordDomainEvent(state, {
+    kind: 'action_executed',
+    actor: '经营动作',
+    title: action.name,
+    detail: `${caseItem.title} 执行了 ${action.name}${optionId ? `（${optionId}）` : ''}。`,
+    tone: 'accent',
+    caseId: caseItem.id,
+    payload: {
+      actionId: action.id,
+      executorId: action.executorId || action.id,
+      optionId: optionId || undefined,
+      family: action.family || '',
+      categoryId: action.categoryId || '',
+      costEnergy: action.costEnergy,
+      costPromotionBudget: action.costPromotionBudget,
+    },
+  });
   updateDerivedState(state);
-  saveGameState(state);
   return true;
 }
 
-function resolveNegotiation(state: GameState, caseItem: any, opportunity: any, optionId: string | null, onMessage?: (msg: string) => void) {
-  const strategyCfg = {
-    hold: { priceFactor: 1, shift: -6, loss: 14, bonusReputation: 0 },
-    balanced: { priceFactor: 0.99, shift: 4, loss: 8, bonusReputation: 1 },
-    close: { priceFactor: 0.985, shift: 9, loss: 5, bonusReputation: 2 },
-  } as Record<string, any>;
+function resolveNegotiation(
+  state: GameState,
+  caseItem: Case,
+  opportunity: Opportunity,
+  optionId: string | null,
+  onMessage?: (msg: string) => void,
+) {
+  const negotiationBalance = BALANCE.actions.negotiation;
+  const strategyCfg = negotiationBalance.strategies;
 
   const strategy = strategyCfg[optionId || 'balanced'];
   const isUrgent = caseItem.personality === 'urgent';
   const isPragmatic = caseItem.personality === 'pragmatic';
   const isEmotional = caseItem.personality === 'emotional';
 
-  const score = opportunity.intent * 0.46
-    + opportunity.confidence * 0.24
-    + caseItem.trust * (isUrgent ? 0.25 : 0.18)
-    + caseItem.competitiveness * 0.16
-    - Math.max(0, caseItem.askPrice - caseItem.marketPrice) * 0.6
+  const score = opportunity.intent * negotiationBalance.intentWeight
+    + opportunity.confidence * negotiationBalance.confidenceWeight
+    + caseItem.trust * (isUrgent ? negotiationBalance.urgentTrustWeight : negotiationBalance.defaultTrustWeight)
+    + caseItem.competitiveness * negotiationBalance.competitivenessWeight
+    - Math.max(0, caseItem.askPrice - caseItem.marketPrice) * negotiationBalance.askPricePenaltyWeight
     + strategy.shift;
 
   if (randomInt(0, 100, state) < score) {
     const soldPrice = Math.round(caseItem.askPrice * strategy.priceFactor);
-    sellCase(state, caseItem, opportunity, soldPrice, strategy.bonusReputation);
+    sellCase(state, caseItem, opportunity, soldPrice, strategy.wordOfMouthBonus);
     onMessage?.(`${caseItem.title} 成交了，新的推广金也回到你手上。`);
     return;
   }
 
   opportunity.intent = clamp(opportunity.intent - strategy.loss, 0, 100);
-  opportunity.confidence = clamp(opportunity.confidence - 8, 0, 100);
-  opportunity.daysLeft = 2;
+  opportunity.confidence = clamp(opportunity.confidence - negotiationBalance.confidenceLossOnFailure, 0, 100);
+  opportunity.daysLeft = negotiationBalance.failureDaysLeft;
   opportunity.touchedToday = true;
   const trustHit = strategyCfg[optionId || 'balanced'].priceFactor === 1
-    ? (isUrgent ? 1 : isPragmatic ? 4 : 3)
+    ? (isUrgent ? negotiationBalance.trustHit.hold.urgent : isPragmatic ? negotiationBalance.trustHit.hold.pragmatic : negotiationBalance.trustHit.hold.default)
     : optionId === 'close'
-      ? (isUrgent ? 0 : isEmotional ? 1 : 2)
-      : (isUrgent ? 1 : isPragmatic ? 3 : 2);
+      ? (isUrgent ? negotiationBalance.trustHit.close.urgent : isEmotional ? negotiationBalance.trustHit.close.emotional : negotiationBalance.trustHit.close.default)
+      : (isUrgent ? negotiationBalance.trustHit.balanced.urgent : isPragmatic ? negotiationBalance.trustHit.balanced.pragmatic : negotiationBalance.trustHit.balanced.default);
   caseItem.trust = clamp(caseItem.trust - trustHit, 0, 100);
 
-  if (opportunity.intent < 35) {
+  if (opportunity.intent < negotiationBalance.lostIntentThreshold) {
     closeOpportunity(state, opportunity, 'lost', `${opportunity.customerName} 在议价桌上转身离场。`, 'danger');
   } else {
     logEvent(state, opportunity.customerName, `${caseItem.title} 的议价暂时没有谈拢，桌面仍然留着机会。`, 'danger');
   }
 }
 
-function sellCase(state: GameState, caseItem: any, opportunity: any, soldPrice: number, reputationBonus: number) {
+function sellCase(
+  state: GameState,
+  caseItem: Case,
+  opportunity: Opportunity,
+  soldPrice: number,
+  wordOfMouthBonus: number,
+) {
+  const saleBalance = BALANCE.actions.sale;
   caseItem.status = 'sold';
   caseItem.soldPrice = soldPrice;
   caseItem.stageLabel = '已成交';
-  caseItem.trust = clamp(caseItem.trust + 8, 0, 100);
-  caseItem.heat = clamp(caseItem.heat + 6, 0, 100);
-  state.soldCount += 1;
+  caseItem.trust = clamp(caseItem.trust + saleBalance.soldTrustBonus, 0, 100);
+  caseItem.heat = clamp(caseItem.heat + saleBalance.soldHeatBonus, 0, 100);
 
-  const commission = Math.round(soldPrice * 0.01 * 0.25 * 10) / 10;
-  state.commission += commission;
+  const commission = Math.round(
+    soldPrice
+      * saleBalance.commissionRate
+      * saleBalance.advisorShareRate
+      * saleBalance.precisionFactor,
+  ) / saleBalance.precisionFactor;
   const budgetReturn = Math.max(
     state.rules.promotionRebateFloor,
     Math.round(commission * state.rules.promotionRebateRatio),
@@ -417,7 +543,11 @@ function sellCase(state: GameState, caseItem: any, opportunity: any, soldPrice: 
     title: '成交返投',
     detail: `${caseItem.title} 成交后，按成交价 1% * 25% 计佣 ${commission} 点，并按当前推广金返投规则回补 ${budgetReturn} 点推广金。`,
   });
-  state.reputation = clamp(state.reputation + 4 + reputationBonus, 0, 100);
+  applyAuxiliaryStats(state, {
+    soldCount: state.auxiliaryStats.soldCount + 1,
+    commission: state.auxiliaryStats.commission + commission,
+    wordOfMouth: clamp(state.auxiliaryStats.wordOfMouth + saleBalance.wordOfMouthBaseBonus + wordOfMouthBonus, 0, 100),
+  });
 
   state.opportunities.forEach((entry) => {
     if (entry.caseId === caseItem.id && entry.status === 'active') {
@@ -426,24 +556,92 @@ function sellCase(state: GameState, caseItem: any, opportunity: any, soldPrice: 
     }
   });
 
+  state.customerStates.forEach((customerState) => {
+    const runtime = customerState.caseStates[caseItem.id];
+    if (!runtime) return;
+    if (customerState.customerId === opportunity.customerId) {
+      customerState.status = 'converted';
+      runtime.selected = true;
+      runtime.offered = true;
+      runtime.stageIndex = saleBalance.convertedStageIndex;
+      runtime.interest = 100;
+      runtime.confidence = 100;
+      customerState.lastActionNote = '成交完成';
+    } else {
+      customerState.status = customerState.status === 'lost' ? 'lost' : 'idle';
+      runtime.selected = false;
+      runtime.interest = clamp(runtime.interest - saleBalance.losingOtherCustomersInterestPenalty, 0, 100);
+      runtime.confidence = clamp(runtime.confidence - saleBalance.losingOtherCustomersConfidencePenalty, 0, 100);
+    }
+    customerState.activeCaseIds = customerState.activeCaseIds.filter((id) => id !== caseItem.id);
+  });
+
+  recordDomainEvent(state, {
+    kind: 'case_sold',
+    actor: caseItem.title,
+    title: '房源成交',
+    detail: `${caseItem.title} 以 ${soldPrice} 万成交，成交返投 ${budgetReturn} 点。`,
+    tone: 'success',
+    caseId: caseItem.id,
+    opportunityId: opportunity.id,
+    customerId: opportunity.customerId,
+    payload: {
+      soldPrice,
+      commission,
+      budgetReturn,
+      endingType: caseItem.endingType,
+      endingBucket: caseItem.endingBucket,
+    },
+  });
+
   logEvent(state, caseItem.title, `成功成交，成交价 ${soldPrice} 万，计佣 ${commission} 点，按返投规则回补推广金 ${budgetReturn} 点。`, 'success');
 }
 
-export function withdrawCase(world: GameState, caseItem: any, reason: string) {
+export function withdrawCase(world: GameState, caseItem: Case, reason: string) {
   caseItem.status = 'withdrawn';
   caseItem.stageLabel = '已撤盘';
-  world.withdrawnCount += 1;
-  world.reputation = clamp(world.reputation - 3, 0, 100);
+  applyAuxiliaryStats(world, {
+    withdrawnCount: world.auxiliaryStats.withdrawnCount + 1,
+    wordOfMouth: clamp(world.auxiliaryStats.wordOfMouth - 3, 0, 100),
+  });
   world.opportunities.forEach((entry) => {
     if (entry.caseId === caseItem.id && entry.status === 'active') {
       entry.status = 'closed';
       refreshOpportunityLabel(entry);
     }
   });
+  world.customerStates.forEach((customerState) => {
+    const runtime = customerState.caseStates[caseItem.id];
+    if (!runtime) return;
+    runtime.selected = false;
+    runtime.interest = clamp(runtime.interest - 28, 0, 100);
+    runtime.confidence = clamp(runtime.confidence - 20, 0, 100);
+    customerState.activeCaseIds = customerState.activeCaseIds.filter((id) => id !== caseItem.id);
+    if (customerState.status !== 'converted') {
+      customerState.status = customerState.activeCaseIds.length > 0 ? 'browsing' : 'lost';
+    }
+    customerState.lastActionNote = '房源撤盘';
+  });
+  recordDomainEvent(world, {
+    kind: 'case_withdrawn',
+    actor: caseItem.ownerName,
+    title: '房源撤盘',
+    detail: `${caseItem.title} ${reason}`,
+    tone: 'danger',
+    caseId: caseItem.id,
+    payload: {
+      endingType: caseItem.endingType,
+      endingBucket: caseItem.endingBucket,
+    },
+  });
   logEvent(world, caseItem.ownerName, `${caseItem.title} ${reason}`, 'danger');
 }
 
-export function getActionAvailability(state: GameState, caseItem: any, actionId: string) {
+export function getActionAvailability(
+  state: GameState,
+  caseItem: Case | null | undefined,
+  actionId: string,
+) {
   if (state.gameOver) {
     return { enabled: false, reason: '本局已经结束。' };
   }
@@ -459,7 +657,7 @@ export function getActionAvailability(state: GameState, caseItem: any, actionId:
   if (state.energy < action.costEnergy) {
     return { enabled: false, reason: '精力不够了，先结束今天吧。' };
   }
-  if (state.cash < action.costPromotionBudget) {
+  if (getPromotionBudget(state) < action.costPromotionBudget) {
     return { enabled: false, reason: '推广金不足，先成交回款或者少做高成本动作。' };
   }
 

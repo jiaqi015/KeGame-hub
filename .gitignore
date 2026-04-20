@@ -2,12 +2,14 @@ node_modules/
 build/
 dist/
 coverage/
+output/
 .DS_Store
 *.log
 .playwright-cli/
 .env*
 !.env.example
 .vercel
+.claude/worktrees/
 tmp/
 skills/
 .env*.local

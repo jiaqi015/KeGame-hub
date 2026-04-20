@@ -24,7 +24,7 @@ export type ActionMetricKey =
   | 'intent'
   | 'confidence'
   | 'promotionBudget'
-  | 'reputation'
+  | 'wordOfMouth'
   | 'commission';
 
 export interface ActionCategoryDefinition {
@@ -103,6 +103,15 @@ export interface ScoreThresholds {
   ace: number;
 }
 
+export interface ScenarioPresentationSummary {
+  theme: string;
+  description: string;
+  caseCount: number;
+  maxDay: number;
+  goalContext: GoalContextId;
+  targetScore: number;
+}
+
 export interface BoardPressureProfile {
   abilityPressure: number;
   defensePressure: number;
@@ -116,7 +125,7 @@ export interface GameRules {
   weeklyBudgetAllowance: number;
   promotionRebateRatio: number;
   promotionRebateFloor: number;
-  initialReputation: number;
+  initialWordOfMouth: number;
   initialCommission: number;
   initialEnergy: number;
   passiveLeadBaseMultiplier: number;
@@ -144,6 +153,13 @@ export interface GameRules {
   marketSignalMaxVisible: number;
 }
 
+export type GameRuleOverrides = Partial<GameRules> & {
+  /** Legacy alias kept for older authored scenarios and saves. */
+  initialReputation?: number;
+  saleBudgetBonusRatio?: number;
+  saleBudgetBonusFloor?: number;
+};
+
 export interface MarketCell {
   id: string;
   name: string;
@@ -166,6 +182,44 @@ export interface CustomerProfile {
   urgency: number;
   priceSensitivity: number;
   preferences: string[];
+}
+
+export type CustomerRuntimeStatus =
+  | 'idle'
+  | 'browsing'
+  | 'comparing'
+  | 'engaged'
+  | 'negotiating'
+  | 'lost'
+  | 'converted';
+
+export type CustomerDecisionStyle = 'decisive' | 'balanced' | 'hesitant';
+
+export interface CustomerCaseRuntime {
+  caseId: string;
+  fit: number;
+  interest: number;
+  confidence: number;
+  stageIndex: number;
+  interactions: number;
+  lastActiveDay: number;
+  viewed: boolean;
+  offered: boolean;
+  selected: boolean;
+  competingCaseIds?: string[];
+}
+
+export interface CustomerRuntimeState {
+  customerId: string;
+  status: CustomerRuntimeStatus;
+  decisionStyle: CustomerDecisionStyle;
+  advisorTrust: number;
+  fatigue: number;
+  churnRisk: number;
+  activeCaseIds: string[];
+  caseStates: Record<string, CustomerCaseRuntime>;
+  lastTouchDay: number;
+  lastActionNote?: string;
 }
 
 export interface ChannelProfile {
@@ -309,6 +363,7 @@ export interface RivalListing {
   title: string;
   district: string;
   marketCellId: string;
+  linkedCaseId?: string;
   segment: string;
   askPrice: number;
   heat: number;
@@ -449,7 +504,7 @@ export interface ScenarioDefinition {
   targetScore?: number;
   scoreThresholds?: ScoreThresholds;
   boardPressureProfile?: BoardPressureProfile;
-  rules?: Partial<GameRules>;
+  rules?: GameRuleOverrides;
   published: boolean;
 }
 
@@ -457,11 +512,23 @@ export interface ScenarioSummary {
   id: string;
   difficultyId: DifficultyId;
   name: string;
-  theme: string;
-  description: string;
-  caseCount: number;
-  maxDay: number;
+  opening: ScenarioOpeningRef;
+  presentation: ScenarioPresentationSummary;
 }
+
+export interface ScenarioCatalogOpeningRef {
+  kind: 'scenario';
+  scenarioId: string;
+}
+
+export interface GeneratedScenarioOpeningRef {
+  kind: 'generated';
+  difficultyId: DifficultyId;
+  seed: number;
+  preset: 'standard' | 'random';
+}
+
+export type ScenarioOpeningRef = ScenarioCatalogOpeningRef | GeneratedScenarioOpeningRef;
 
 export interface ScenarioSnapshot {
   world: WorldSpec;
@@ -475,6 +542,8 @@ export interface RunContext {
   difficultyId: DifficultyId;
   worldId: string;
   worldVersion: number;
+  runSeed: number;
+  scenarioSeed?: number;
   rngSeed: number;
   createdAt: string;
   scenarioSnapshot: ScenarioSnapshot;
@@ -513,6 +582,7 @@ export interface Case {
   stageIndex: number;
   stageLabel: string;
   riskFlags: string[];
+  actionsApplied?: string[];
   actionsToday: number;
   touchedToday: boolean;
   touchedOwnerToday: boolean;
@@ -549,6 +619,28 @@ export interface ScoreDimensionResult {
   score: number;
   maxScore: number;
   summary: string;
+  attribution?: ScoreAttribution;
+}
+
+export interface ScoreAttributionItem {
+  key: string;
+  label: string;
+  count: number;
+  tone: 'positive' | 'warning' | 'neutral';
+}
+
+export interface ScoreAttribution {
+  headline: string;
+  actions: ScoreAttributionItem[];
+  events: ScoreAttributionItem[];
+}
+
+export interface ScoreBreakdownEntry {
+  label: string;
+  value: number;
+  maxValue?: number;
+  summary?: string;
+  attribution?: ScoreAttribution;
 }
 
 export interface CaseFinalResult {
@@ -575,6 +667,18 @@ export interface CaseFinalResult {
   remainingWindowDays: number;
 }
 
+export interface FinalCustomerReview {
+  engaged: number;
+  comparing: number;
+  atRisk: number;
+  rivalPulled: number;
+  strongestCaseTitle: string | null;
+  mostComparedCaseTitle: string | null;
+  mostAtRiskCaseTitle: string | null;
+  summary: string;
+  notes: string[];
+}
+
 export interface FinalResult {
   title: string;
   summary: string;
@@ -588,12 +692,13 @@ export interface FinalResult {
     defense: ScoreDimensionResult;
     satisfaction: ScoreDimensionResult;
   };
-  scoreBreakdown: Array<{ label: string; value: number; maxValue?: number; summary?: string }>;
+  scoreBreakdown: ScoreBreakdownEntry[];
   highlights: string[];
   improvements: string[];
   promotionNotes: string[];
   coachNotes: string[];
   nextRunAdvice: string[];
+  customerReview: FinalCustomerReview;
   caseResults: CaseFinalResult[];
   endingStats: {
     good: number;
@@ -683,6 +788,106 @@ export interface BudgetTransaction {
   detail: string;
 }
 
+export interface AuxiliaryStats {
+  commission: number;
+  wordOfMouth: number;
+  soldCount: number;
+  withdrawnCount: number;
+}
+
+export interface RuntimeAuxiliaryStats extends AuxiliaryStats {
+  promotionBudget: number;
+}
+
+export interface EventLogEntry {
+  actor: string;
+  message: string;
+  tone: Tone;
+  day: number;
+  date: string;
+}
+
+export type DomainEventKind =
+  | 'journal'
+  | 'action_executed'
+  | 'budget_changed'
+  | 'opportunity_advanced'
+  | 'opportunity_closed'
+  | 'case_sold'
+  | 'case_withdrawn'
+  | 'case_lost_to_rival'
+  | 'window_extended'
+  | 'market_event';
+
+export interface DomainEventEntry {
+  id: string;
+  day: number;
+  date: string;
+  kind: DomainEventKind;
+  actor: string;
+  title: string;
+  detail: string;
+  tone: Tone;
+  caseId?: string;
+  opportunityId?: string;
+  customerId?: string;
+  payload: Record<string, unknown>;
+}
+
+export interface WeeklyReview {
+  id: string;
+  title: string;
+  note: string;
+  suggestion: string;
+}
+
+export interface ScheduleEntry {
+  key: string;
+  caseId: string;
+  title: string;
+  badge: string;
+  note: string;
+  urgency: number;
+}
+
+export interface PriorityEntry {
+  key: string;
+  kind: 'case' | 'opportunity';
+  title: string;
+  detail: string;
+  caseId: string;
+}
+
+export type MatterSource = 'schedule' | 'priority';
+export type MatterStage = 'pending' | 'in_progress' | 'completed' | 'abandoned';
+export type MatterTemplate = 'dialog' | 'form' | 'schedule' | 'realtime';
+export type MatterPresentation = 'inline-card' | 'detail-page' | 'full-screen';
+
+export interface MatterEntry {
+  id: string;
+  source: MatterSource;
+  sourceKey: string;
+  caseId?: string;
+  title: string;
+  detail: string;
+  badge?: string;
+  stage: MatterStage;
+  template: MatterTemplate;
+  presentation: MatterPresentation;
+  kind?: 'case' | 'opportunity';
+  urgency?: number;
+  openedAtDay: number;
+}
+
+export interface DerivedMetrics {
+  activeCaseCount: number;
+  activeOpportunityCount: number;
+  averageTrust: number;
+  averageD1: number;
+  averageD3: number;
+  topConversion: string;
+}
+
 export interface GameState {
   version: number;
   runContext: RunContext;
@@ -691,11 +896,17 @@ export interface GameState {
   currentDate: string;
   maxEnergy: number;
   energy: number;
+  /** Legacy compatibility mirror for persisted promotion budget columns. Runtime code should use auxiliaryStats.promotionBudget. */
   cash: number;
-  reputation: number;
-  commission: number;
-  soldCount: number;
-  withdrawnCount: number;
+  auxiliaryStats: RuntimeAuxiliaryStats;
+  /** Legacy compatibility mirror for older saves/storage. Runtime code should use auxiliaryStats.wordOfMouth. */
+  reputation?: number;
+  /** Legacy compatibility mirror for older saves/storage. Runtime code should use auxiliaryStats.commission. */
+  commission?: number;
+  /** Legacy compatibility mirror for older saves/storage. Runtime code should use auxiliaryStats.soldCount. */
+  soldCount?: number;
+  /** Legacy compatibility mirror for older saves/storage. Runtime code should use auxiliaryStats.withdrawnCount. */
+  withdrawnCount?: number;
   selectedCaseId: string | null;
   gameOver: boolean;
   finalResult: FinalResult | null;
@@ -708,14 +919,17 @@ export interface GameState {
   cases: Case[];
   opportunities: Opportunity[];
   budgetLedger: BudgetTransaction[];
-  eventLog: any[];
-  weeklyReviews: any[];
+  eventLog: EventLogEntry[];
+  eventStore: DomainEventEntry[];
+  weeklyReviews: WeeklyReview[];
   markets: MarketCell[];
   customers: CustomerProfile[];
+  customerStates: CustomerRuntimeState[];
   channels: ChannelProfile[];
-  schedule: any[];
-  priorities: any[];
-  metrics: any;
+  schedule: ScheduleEntry[];
+  priorities: PriorityEntry[];
+  matters: MatterEntry[];
+  metrics: DerivedMetrics;
   currentReport: DailyReport | null;
   marketShadow: ShadowMarketState;
 }

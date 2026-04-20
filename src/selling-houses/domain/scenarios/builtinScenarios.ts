@@ -1,84 +1,7 @@
-import type { DifficultyId, ScenarioDefinition, ScenarioSnapshot, ScenarioSummary } from '../models';
-import { mergeRules } from '../config/baseRules';
-import { BUILT_IN_WORLD, getBuiltInWorld } from '../worlds/builtinWorld';
-
-function inferGoalContext(scenario: ScenarioDefinition) {
-  if (scenario.goalContext) {
-    return scenario.goalContext;
-  }
-  const urgentCount = scenario.cases.filter((entry) => entry.windowDays <= 8 || entry.initialUrgency >= 76).length;
-  const fragileCount = scenario.cases.filter((entry) => entry.initialTrust <= 58 || entry.initialPatience <= 45).length;
-  if (fragileCount >= Math.ceil(scenario.cases.length / 2)) {
-    return 'satisfaction' as const;
-  }
-  if (urgentCount >= Math.ceil(scenario.cases.length / 2)) {
-    return 'defense' as const;
-  }
-  return 'ability' as const;
-}
-
-function inferTargetScore(difficultyId: DifficultyId) {
-  if (difficultyId === 'warmup') return 58;
-  if (difficultyId === 'easy') return 64;
-  if (difficultyId === 'standard') return 72;
-  if (difficultyId === 'advanced') return 78;
-  if (difficultyId === 'hard') return 84;
-  return 88;
-}
-
-function inferScoreThresholds(targetScore: number) {
-  return {
-    pass: Math.max(42, targetScore - 12),
-    strong: Math.min(94, targetScore + 12),
-    ace: Math.min(98, targetScore + 20),
-  };
-}
-
-function inferBoardPressureProfile(scenario: ScenarioDefinition) {
-  const abilityPressure = Math.min(92, 44 + scenario.cases.length * 4);
-  const defensePressure = Math.min(92, 40 + scenario.competitionGroups.length * 10);
-  const satisfactionPressure = Math.min(
-    92,
-    38 + scenario.cases.filter((entry) => entry.initialTrust <= 60 || entry.initialPatience <= 48).length * 8,
-  );
-  return {
-    abilityPressure,
-    defensePressure,
-    satisfactionPressure,
-  };
-}
-
-function enrichScenarioDefinition(scenario: ScenarioDefinition): ScenarioDefinition {
-  const goalContext = inferGoalContext(scenario);
-  const targetScore = scenario.targetScore || inferTargetScore(scenario.difficultyId);
-  return {
-    ...scenario,
-    goalContext,
-    targetScore,
-    scoreThresholds: scenario.scoreThresholds || inferScoreThresholds(targetScore),
-    boardPressureProfile: scenario.boardPressureProfile || inferBoardPressureProfile(scenario),
-    cases: scenario.cases.map((entry) => ({
-      ...entry,
-      goalTier: entry.goalTier
-        || (entry.windowDays <= 8 || entry.initialUrgency >= 76 ? 'core'
-          : entry.initialTrust <= 58 || entry.initialPatience <= 45 ? 'important'
-            : 'normal'),
-    })),
-  };
-}
-
-function buildScenarioSummary(scenario: ScenarioDefinition): ScenarioSummary {
-  const enriched = enrichScenarioDefinition(scenario);
-  return {
-    id: enriched.id,
-    difficultyId: enriched.difficultyId,
-    name: enriched.name,
-    theme: enriched.theme,
-    description: enriched.description,
-    caseCount: enriched.cases.length,
-    maxDay: enriched.maxDay,
-  };
-}
+import type { DifficultyId, ScenarioDefinition, ScenarioSnapshot } from '../models.js';
+import { mergeRules } from '../config/baseRules.js';
+import { buildScenarioSummary, enrichScenarioDefinition } from '../scenarioMetadata.js';
+import { BUILT_IN_WORLD, getBuiltInWorld } from '../worlds/builtinWorld.js';
 
 const BUILT_IN_SCENARIOS: ScenarioDefinition[] = [
   {
@@ -87,7 +10,7 @@ const BUILT_IN_SCENARIOS: ScenarioDefinition[] = [
     worldVersion: BUILT_IN_WORLD.version,
     difficultyId: 'warmup',
     name: '顺手开场局',
-    theme: '先把保盘、带看和节奏切换跑顺',
+    theme: '先把业主、带看和客户推进跑顺',
     description: '3 套盘，窗口宽，市场顺风，适合先找回基本手感。',
     startMonth: 5,
     startDay: 9,
@@ -99,7 +22,7 @@ const BUILT_IN_SCENARIOS: ScenarioDefinition[] = [
       { templateId: 'competitor-cut', weight: 1 },
     ],
     cases: [
-      { id: 'case-ruiheli-warm', housePrototypeId: 'proto-ruiheli-89', ownerArchetypeId: 'fair-value', ownerName: '周女士', ownerMood: '想稳稳推进，不想乱节奏', maintainerName: '林序', askPrice: 824, bottomPrice: 786, initialTrust: 70, initialPatience: 76, initialHeat: 62, initialUrgency: 58, windowDays: 14 },
+      { id: 'case-ruiheli-warm', housePrototypeId: 'proto-ruiheli-89', ownerArchetypeId: 'fair-value', ownerName: '周女士', ownerMood: '想稳稳推进，不想频繁改方案', maintainerName: '林序', askPrice: 824, bottomPrice: 786, initialTrust: 70, initialPatience: 76, initialHeat: 62, initialUrgency: 58, windowDays: 14 },
       { id: 'case-jiayue-warm', housePrototypeId: 'proto-jiayue-71', ownerArchetypeId: 'trial-balloon', ownerName: '梁先生', ownerMood: '先看看市场，别太激进', maintainerName: '韩起', askPrice: 630, bottomPrice: 594, initialTrust: 63, initialPatience: 58, initialHeat: 66, initialUrgency: 62, windowDays: 11 },
       { id: 'case-wanhang-warm', housePrototypeId: 'proto-wanhang-63', ownerArchetypeId: 'fair-value', ownerName: '张阿姨', ownerMood: '只要过程稳，愿意配合', maintainerName: '苏景', askPrice: 606, bottomPrice: 564, initialTrust: 72, initialPatience: 74, initialHeat: 58, initialUrgency: 50, windowDays: 15 },
     ],
@@ -107,7 +30,7 @@ const BUILT_IN_SCENARIOS: ScenarioDefinition[] = [
       { id: 'group-warm-jingan', name: '静安入门对打', members: ['case-jiayue-warm', 'case-wanhang-warm'], priceElasticity: 0.84, customerSpillover: 0.34 },
     ],
     scriptedEvents: [
-      { id: 'event-warm-1', day: 4, actor: '业主反馈', title: '关系回暖', message: '周女士觉得你的推进节奏靠谱，愿意继续按方案走。', tone: 'success', targetCaseId: 'case-ruiheli-warm', trustDelta: 4, urgencyDelta: -2 },
+      { id: 'event-warm-1', day: 4, actor: '业主反馈', title: '关系回暖', message: '周女士觉得你的推进安排靠谱，愿意继续按方案走。', tone: 'success', targetCaseId: 'case-ruiheli-warm', trustDelta: 4, urgencyDelta: -2 },
       { id: 'event-warm-2', day: 8, actor: '市场', title: '周边热度抬升', message: '静安一房的咨询量开始稳步抬头。', tone: 'success', targetMarketCellId: 'mc-jingan', demandHeatDelta: 5, sentimentDelta: 4 },
     ],
     published: true,
@@ -119,7 +42,7 @@ const BUILT_IN_SCENARIOS: ScenarioDefinition[] = [
     difficultyId: 'easy',
     name: '前滩热身局',
     theme: '先学会稳关系，再感受季节热度',
-    description: '4 套盘，窗口宽，脚本事件更友好，适合第一局开场。',
+    description: '4 套盘，窗口宽，突发消息更友好，适合第一局开场。',
     startMonth: 9,
     startDay: 6,
     maxDay: 24,
@@ -152,7 +75,7 @@ const BUILT_IN_SCENARIOS: ScenarioDefinition[] = [
     difficultyId: 'easy',
     name: '周末冲带看',
     theme: '学会用开放日把热度打出来',
-    description: '4 套盘，重点感受开放日和带看推进的节奏。',
+    description: '4 套盘，重点感受开放日和带看如何把客户往前推。',
     startMonth: 10,
     startDay: 10,
     maxDay: 24,
@@ -174,7 +97,7 @@ const BUILT_IN_SCENARIOS: ScenarioDefinition[] = [
     ],
     scriptedEvents: [
       { id: 'event-easy-3', day: 5, actor: '活动预热', title: '圈层邀约成功', message: '周末活动前，一批改善客开始主动问盘。', tone: 'success', targetMarketCellId: 'mc-qiantan', demandHeatDelta: 6, sentimentDelta: 4 },
-      { id: 'event-easy-4', day: 9, actor: '业主家庭', title: '换房节奏确认', message: '邵女士家里敲定换房时间，愿意多给你一点操作窗口。', tone: 'success', targetCaseId: 'case-jiangyue-2', trustDelta: 4, windowDaysDelta: 2 },
+      { id: 'event-easy-4', day: 9, actor: '业主家庭', title: '换房时间确认', message: '邵女士家里敲定换房时间，愿意多给你一点操作窗口。', tone: 'success', targetCaseId: 'case-jiangyue-2', trustDelta: 4, windowDaysDelta: 2 },
     ],
     published: true,
   },
@@ -197,7 +120,7 @@ const BUILT_IN_SCENARIOS: ScenarioDefinition[] = [
     ],
     cases: [
       { id: 'case-xinghu-3', housePrototypeId: 'proto-xinghuyuan-92', ownerArchetypeId: 'anxious', ownerName: '高先生', ownerMood: '想趁市场热卖掉', maintainerName: '沈岚', askPrice: 848, bottomPrice: 812, initialTrust: 62, initialPatience: 60, initialHeat: 63, initialUrgency: 71, windowDays: 10 },
-      { id: 'case-wanhang-3', housePrototypeId: 'proto-wanhang-63', ownerArchetypeId: 'fair-value', ownerName: '顾阿姨', ownerMood: '重视节奏稳定', maintainerName: '韩起', askPrice: 606, bottomPrice: 565, initialTrust: 66, initialPatience: 68, initialHeat: 55, initialUrgency: 49, windowDays: 12 },
+      { id: 'case-wanhang-3', housePrototypeId: 'proto-wanhang-63', ownerArchetypeId: 'fair-value', ownerName: '顾阿姨', ownerMood: '重视过程稳定', maintainerName: '韩起', askPrice: 606, bottomPrice: 565, initialTrust: 66, initialPatience: 68, initialHeat: 55, initialUrgency: 49, windowDays: 12 },
       { id: 'case-jiayue-3', housePrototypeId: 'proto-jiayue-71', ownerArchetypeId: 'game-player', ownerName: '葛先生', ownerMood: '很在意竞品数据', maintainerName: '许靖', askPrice: 640, bottomPrice: 595, initialTrust: 60, initialPatience: 52, initialHeat: 65, initialUrgency: 59, windowDays: 10 },
       { id: 'case-jiali-3', housePrototypeId: 'proto-jiali-east-118', ownerArchetypeId: 'trial-balloon', ownerName: '薛女士', ownerMood: '先挂着看看市场', maintainerName: '林序', askPrice: 1135, bottomPrice: 1060, initialTrust: 59, initialPatience: 44, initialHeat: 61, initialUrgency: 63, windowDays: 8 },
     ],
@@ -215,8 +138,8 @@ const BUILT_IN_SCENARIOS: ScenarioDefinition[] = [
     worldVersion: BUILT_IN_WORLD.version,
     difficultyId: 'standard',
     name: '换房窗口链',
-    theme: '开始处理一套盘动作影响另一套盘',
-    description: '5 套盘，两个竞争组，开始显著感受联动伤害。',
+    theme: '开始处理一套房对另一套房的影响',
+    description: '5 套盘，两个竞争组，同类房源会明显互相影响。',
     startMonth: 9,
     startDay: 20,
     maxDay: 21,
@@ -250,7 +173,7 @@ const BUILT_IN_SCENARIOS: ScenarioDefinition[] = [
     worldVersion: BUILT_IN_WORLD.version,
     difficultyId: 'standard',
     name: '双区交火局',
-    theme: '市场热度和脚本风险同时存在',
+    theme: '市场热度和突发风险同时存在',
     description: '5 套盘，前半程机会多，后半程更考验选择。',
     startMonth: 11,
     startDay: 3,
@@ -296,7 +219,7 @@ const BUILT_IN_SCENARIOS: ScenarioDefinition[] = [
       { templateId: 'competitor-cut', weight: 5 },
     ],
     cases: [
-      { id: 'case-xinghu-grid', housePrototypeId: 'proto-xinghuyuan-92', ownerArchetypeId: 'game-player', ownerName: '马先生', ownerMood: '盯得很细，容易被别人带节奏', maintainerName: '陆遥', askPrice: 855, bottomPrice: 812, initialTrust: 58, initialPatience: 55, initialHeat: 57, initialUrgency: 67, windowDays: 9 },
+      { id: 'case-xinghu-grid', housePrototypeId: 'proto-xinghuyuan-92', ownerArchetypeId: 'game-player', ownerName: '马先生', ownerMood: '盯得很细，容易被别人影响判断', maintainerName: '陆遥', askPrice: 855, bottomPrice: 812, initialTrust: 58, initialPatience: 55, initialHeat: 57, initialUrgency: 67, windowDays: 9 },
       { id: 'case-ruiheli-grid', housePrototypeId: 'proto-ruiheli-89', ownerArchetypeId: 'anxious', ownerName: '周女士', ownerMood: '换房期限逼近', maintainerName: '林序', askPrice: 826, bottomPrice: 786, initialTrust: 60, initialPatience: 58, initialHeat: 59, initialUrgency: 73, windowDays: 9 },
       { id: 'case-jiayue-grid', housePrototypeId: 'proto-jiayue-71', ownerArchetypeId: 'trial-balloon', ownerName: '梁先生', ownerMood: '试水失败就想撤', maintainerName: '韩起', askPrice: 632, bottomPrice: 592, initialTrust: 53, initialPatience: 39, initialHeat: 68, initialUrgency: 82, windowDays: 7 },
       { id: 'case-wanhang-grid', housePrototypeId: 'proto-wanhang-63', ownerArchetypeId: 'fair-value', ownerName: '赵阿姨', ownerMood: '只接受有依据的动作', maintainerName: '苏景', askPrice: 607, bottomPrice: 566, initialTrust: 65, initialPatience: 66, initialHeat: 53, initialUrgency: 52, windowDays: 11 },
@@ -332,7 +255,7 @@ const BUILT_IN_SCENARIOS: ScenarioDefinition[] = [
     ],
     cases: [
       { id: 'case-ruiheli-adv', housePrototypeId: 'proto-ruiheli-89', ownerArchetypeId: 'anxious', ownerName: '周女士', ownerMood: '窗口开始收紧，不想再慢慢等', maintainerName: '林序', askPrice: 826, bottomPrice: 786, initialTrust: 58, initialPatience: 52, initialHeat: 57, initialUrgency: 75, windowDays: 8 },
-      { id: 'case-xinghu-adv', housePrototypeId: 'proto-xinghuyuan-92', ownerArchetypeId: 'game-player', ownerName: '季先生', ownerMood: '很容易被竞品节奏带偏', maintainerName: '沈岚', askPrice: 856, bottomPrice: 811, initialTrust: 56, initialPatience: 49, initialHeat: 58, initialUrgency: 71, windowDays: 8 },
+      { id: 'case-xinghu-adv', housePrototypeId: 'proto-xinghuyuan-92', ownerArchetypeId: 'game-player', ownerName: '季先生', ownerMood: '很容易被竞品动作带偏', maintainerName: '沈岚', askPrice: 856, bottomPrice: 811, initialTrust: 56, initialPatience: 49, initialHeat: 58, initialUrgency: 71, windowDays: 8 },
       { id: 'case-jiangyue-adv', housePrototypeId: 'proto-jiangyuefu-128', ownerArchetypeId: 'trial-balloon', ownerName: '顾女士', ownerMood: '试水心态浓，随时准备后撤', maintainerName: '陆遥', askPrice: 1294, bottomPrice: 1206, initialTrust: 55, initialPatience: 42, initialHeat: 61, initialUrgency: 78, windowDays: 7 },
       { id: 'case-jiayue-adv', housePrototypeId: 'proto-jiayue-71', ownerArchetypeId: 'trial-balloon', ownerName: '梁先生', ownerMood: '一旦冷下来就想撤盘', maintainerName: '韩起', askPrice: 632, bottomPrice: 592, initialTrust: 53, initialPatience: 38, initialHeat: 67, initialUrgency: 83, windowDays: 6 },
       { id: 'case-jiali-adv', housePrototypeId: 'proto-jiali-east-118', ownerArchetypeId: 'game-player', ownerName: '陈小姐', ownerMood: '天天盯着同组盘的风吹草动', maintainerName: '苏景', askPrice: 1132, bottomPrice: 1050, initialTrust: 57, initialPatience: 46, initialHeat: 59, initialUrgency: 66, windowDays: 8 },
@@ -380,7 +303,7 @@ const BUILT_IN_SCENARIOS: ScenarioDefinition[] = [
     scriptedEvents: [
       { id: 'event-hard-1', day: 3, actor: '业主亲友', title: '催卖升级', message: '何女士被家里强压，希望你马上拿出明确方案。', tone: 'danger', targetCaseId: 'case-jiangyue-hard', trustDelta: -6, urgencyDelta: 8, windowDaysDelta: -1 },
       { id: 'event-hard-2', day: 7, actor: '宏观', title: '融资成本上行', message: '买家观望情绪加重，整体信心被打下来。', tone: 'danger', confidenceDelta: -8 },
-      { id: 'event-hard-3', day: 11, actor: '竞品', title: '区域跳价', message: '前滩竞品大幅跳价，价格锚被重新钉住。', tone: 'danger', targetMarketCellId: 'mc-qiantan', competitionPressureDelta: 12, sentimentDelta: -6 },
+      { id: 'event-hard-3', day: 11, actor: '竞品', title: '区域跳价', message: '前滩竞品大幅跳价，买家心里的参考价又被改了。', tone: 'danger', targetMarketCellId: 'mc-qiantan', competitionPressureDelta: 12, sentimentDelta: -6 },
     ],
     published: true,
   },
@@ -391,7 +314,7 @@ const BUILT_IN_SCENARIOS: ScenarioDefinition[] = [
     difficultyId: 'hard',
     name: '窗口赛跑局',
     theme: '窗口很紧，要更早分清主次',
-    description: '6 套盘，关键节点来得更密，更考验节奏安排。',
+    description: '6 套盘，关键节点来得更密，更考验先后顺序。',
     startMonth: 2,
     startDay: 18,
     maxDay: 17,
@@ -459,9 +382,9 @@ const BUILT_IN_SCENARIOS: ScenarioDefinition[] = [
       { id: 'group-ext-jingan', name: '静安极限互卷', members: ['case-jiayue-ext', 'case-jiali-ext', 'case-wanhang-ext'], priceElasticity: 1.12, customerSpillover: 0.64 },
     ],
     scriptedEvents: [
-      { id: 'event-ext-1', day: 3, actor: '业主家庭', title: '关系拉警报', message: '梁先生家里要求你立刻给出收口动作，不然准备直接撤。', tone: 'danger', targetCaseId: 'case-jiayue-ext', trustDelta: -7, urgencyDelta: 6, windowDaysDelta: -1 },
+      { id: 'event-ext-1', day: 3, actor: '业主家庭', title: '关系拉警报', message: '梁先生家里要求你立刻给出明确成交方案，不然准备直接撤。', tone: 'danger', targetCaseId: 'case-jiayue-ext', trustDelta: -7, urgencyDelta: 6, windowDaysDelta: -1 },
       { id: 'event-ext-2', day: 6, actor: '宏观', title: '信心再下滑', message: '整批买家进一步观望，线索质量和出手速度同时走弱。', tone: 'danger', confidenceDelta: -10, sentimentDelta: -5 },
-      { id: 'event-ext-3', day: 10, actor: '竞品', title: '板块锚点下沉', message: '两组竞品都出现更激进动作，你的每个选择都会被放大。', tone: 'danger', targetMarketCellId: 'mc-qiantan', competitionPressureDelta: 14, sentimentDelta: -6 },
+      { id: 'event-ext-3', day: 10, actor: '竞品', title: '板块参考价下沉', message: '两组竞品都出现更激进动作，整个板块的价格参考被一起往下拽了。', tone: 'danger', targetMarketCellId: 'mc-qiantan', competitionPressureDelta: 14, sentimentDelta: -6 },
     ],
     published: true,
   },

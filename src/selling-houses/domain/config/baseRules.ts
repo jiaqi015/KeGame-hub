@@ -1,4 +1,4 @@
-import type { GameRules } from '../models';
+import type { GameRuleOverrides, GameRules } from '../models.js';
 
 export const BASE_RULES: GameRules = {
   maxDay: 21,
@@ -7,7 +7,7 @@ export const BASE_RULES: GameRules = {
   weeklyBudgetAllowance: 4,
   promotionRebateRatio: 0.3,
   promotionRebateFloor: 3,
-  initialReputation: 56,
+  initialWordOfMouth: 56,
   initialCommission: 0,
   initialEnergy: 4,
   passiveLeadBaseMultiplier: 1,
@@ -35,12 +35,7 @@ export const BASE_RULES: GameRules = {
   marketSignalMaxVisible: 5,
 };
 
-type LegacyGameRuleOverrides = Partial<GameRules> & {
-  saleBudgetBonusRatio?: number;
-  saleBudgetBonusFloor?: number;
-};
-
-export function mergeRules(overrides?: LegacyGameRuleOverrides): GameRules {
+export function mergeRules(overrides?: GameRuleOverrides): GameRules {
   const {
     saleBudgetBonusRatio: _legacyPromotionRatio,
     saleBudgetBonusFloor: _legacyPromotionFloor,
@@ -58,6 +53,7 @@ export function mergeRules(overrides?: LegacyGameRuleOverrides): GameRules {
     ...nextOverrides,
     promotionRebateRatio,
     promotionRebateFloor,
+    initialWordOfMouth: overrides?.initialWordOfMouth ?? overrides?.initialReputation ?? BASE_RULES.initialWordOfMouth,
     initialEnergy: overrides?.initialEnergy ?? overrides?.baseMaxEnergy ?? BASE_RULES.initialEnergy,
   };
 }

@@ -34,7 +34,7 @@ export function WorkspaceHub({ onSelect, onLogout, allowedWorkspaces, currentUse
             <div className="flex items-center gap-3">
               <KeGameHubMark size={34} />
               <div>
-                <h1 className="text-[32px] font-semibold tracking-[-0.05em] text-[#111111]">KeGame Hub</h1>
+                <h1 className="text-[32px] font-semibold tracking-[-0.05em] text-[#111111]">KeGame</h1>
               </div>
             </div>
             <div className="mt-5">

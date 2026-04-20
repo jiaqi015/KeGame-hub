@@ -24,6 +24,7 @@ export interface ActivationPayload {
 }
 
 export interface AuthenticatedUserPayload {
+  accountId?: string;
   email: string;
   nickname: string;
   displayName: string;

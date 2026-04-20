@@ -1,6 +1,6 @@
-import type { GameState, InboundOpportunity } from '../models';
-import { chance, randomInt } from '../utils';
-import { applyInboundOpportunity } from './inboundOpportunityEngine';
+import type { GameState, InboundOpportunity } from '../models.js';
+import { chance, randomInt } from '../utils.js';
+import { applyInboundOpportunity } from './inboundOpportunityEngine.js';
 
 export function settleMarketSignals(state: GameState) {
   state.marketShadow.marketSignals.forEach((signal) => {

@@ -1,12 +1,12 @@
-import type { DifficultyId } from '../models';
-import type { ScenarioBlueprint } from './types';
+import type { DifficultyId } from '../models.js';
+import type { ScenarioBlueprint } from './types.js';
 
 const SCENARIO_BLUEPRINTS: ScenarioBlueprint[] = [
   {
     id: 'warmup-clean-handoff',
     difficultyId: 'warmup',
     label: '平稳热身',
-    summary: '用一组更顺手的盘先把节奏跑顺。',
+    summary: '用一组更顺手的房源先把基本操作跑顺。',
     weight: 3,
     focusMarketCellIds: ['mc-qiantan', 'mc-jingan'],
     competitionTopology: 'district_clusters',
@@ -43,8 +43,8 @@ const SCENARIO_BLUEPRINTS: ScenarioBlueprint[] = [
       },
     ],
     naming: {
-      titlePool: ['热身起步局', '平稳开场局', '节奏找手感'],
-      themeFragments: ['先把基本节奏跑顺', '重在熟悉保盘和推进', '不急着把难点同时压上来'],
+      titlePool: ['热身起步局', '平稳开场局', '操作找手感'],
+      themeFragments: ['先把基本操作跑顺', '重在熟悉保盘和推进', '不急着把难点同时压上来'],
       descriptionFragments: ['适合先找操作手感', '整体窗口更宽', '是一张更友好的标准局'],
     },
   },
@@ -104,16 +104,16 @@ const SCENARIO_BLUEPRINTS: ScenarioBlueprint[] = [
       },
     ],
     naming: {
-      titlePool: ['回温起步局', '稳盘热身局', '节奏回稳局'],
+      titlePool: ['回温起步局', '稳盘热身局', '关系回稳局'],
       themeFragments: ['先把关系稳住', '把热度慢慢做出来', '别急着乱动价'],
-      descriptionFragments: ['更适合熟悉经营节奏', '顺风反馈更正向', '适合第一次感受双区切换'],
+      descriptionFragments: ['更适合熟悉经营动作', '顺风反馈更正向', '适合第一次感受双区取舍'],
     },
   },
   {
     id: 'easy-open-day-burst',
     difficultyId: 'easy',
     label: '周末拉热',
-    summary: '用开放日和带看节奏把局面带起来。',
+    summary: '用开放日和带看把客户热度做起来。',
     weight: 2,
     focusMarketCellIds: ['mc-qiantan'],
     competitionTopology: 'district_clusters',
@@ -166,7 +166,7 @@ const SCENARIO_BLUEPRINTS: ScenarioBlueprint[] = [
     ],
     naming: {
       titlePool: ['周末拉热局', '开放日冲带看', '邀约升温局'],
-      themeFragments: ['用开放日把热度推起来', '让带看接上节奏', '先把来访做厚'],
+      themeFragments: ['用开放日把热度推起来', '让带看接上客户跟进', '先把来访做厚'],
       descriptionFragments: ['更强调活动和邀约手感', '适合练热度经营', '前半程机会更友好'],
     },
   },
@@ -237,7 +237,7 @@ const SCENARIO_BLUEPRINTS: ScenarioBlueprint[] = [
     naming: {
       titlePool: ['双区拉扯局', '两端平衡局', '资源分配局'],
       themeFragments: ['两边都有盘值得投', '先后顺序比单点动作更重要', '别让一头起火拖垮另一头'],
-      descriptionFragments: ['更考验资源排序', '开始出现明显联动伤害', '需要兼顾关系和价格解释'],
+      descriptionFragments: ['更考验资源排序', '同类房源会明显互相影响', '需要兼顾关系和价格解释'],
     },
   },
   {
@@ -305,8 +305,8 @@ const SCENARIO_BLUEPRINTS: ScenarioBlueprint[] = [
       },
     ],
     naming: {
-      titlePool: ['交叉承压局', '前后手博弈局', '节奏对冲局'],
-      themeFragments: ['机会和风险会轮着来', '你得在推进和止损之间切换', '别被一波消息把节奏带歪'],
+      titlePool: ['交叉承压局', '前后手博弈局', '取舍对冲局'],
+      themeFragments: ['机会和风险会轮着来', '你得在推进和止损之间切换', '别被一波消息带偏判断'],
       descriptionFragments: ['中后程更考验取舍', '适合练承压决策', '每次误判都会放大成本'],
     },
   },
@@ -460,7 +460,7 @@ const SCENARIO_BLUEPRINTS: ScenarioBlueprint[] = [
     naming: {
       titlePool: ['窗口赛跑局', '主次分明局', '先救谁局'],
       themeFragments: ['窗口很紧，要更早排主次', '不是每套盘都值得同样投入', '先手比补救更重要'],
-      descriptionFragments: ['关键节点来得更密', '更考验节奏安排', '适合练高压优先级'],
+      descriptionFragments: ['关键节点来得更密', '更考验先后顺序', '适合练高压优先级'],
     },
   },
   {
@@ -541,7 +541,7 @@ const SCENARIO_BLUEPRINTS: ScenarioBlueprint[] = [
       },
     ],
     naming: {
-      titlePool: ['极限残局局', '识别优先级局', '低容错收口局'],
+      titlePool: ['极限残局局', '识别优先级局', '低容错结算局'],
       themeFragments: ['重点不是全盘通吃，而是识别谁该保', '高噪声里先判断再动作', '你需要接受一部分盘只能止损'],
       descriptionFragments: ['是更极端的标准局', '非常适合感受残局压力', '局面会更快逼你做决定'],
     },
@@ -625,7 +625,7 @@ const SCENARIO_BLUEPRINTS: ScenarioBlueprint[] = [
     ],
     naming: {
       titlePool: ['链条坍塌局', '竞品踩踏局', '错位连锁局'],
-      themeFragments: ['一套盘动作会带偏整组盘', '你需要主动控制外溢伤害', '别让竞品替你决定策略'],
+      themeFragments: ['一套盘动作会带偏整组盘', '你需要主动控制连带影响', '别让竞品替你决定策略'],
       descriptionFragments: ['竞争耦合更强', '每次错误会更快传导', '适合练真正的资源排序'],
     },
   },

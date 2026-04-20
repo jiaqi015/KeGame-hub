@@ -1,5 +1,7 @@
+import './_bootstrap.js';
 import fs from 'node:fs/promises';
 import formidable from 'formidable';
+import { authorizeRequest } from '../lib/activation.js';
 import { ensureRuntimeTempDir } from '../lib/runtimeTemp.js';
 import { handleOpenDayWorkbookParse } from '../modules/open-day/interfaces/http/openDayWorkbookParseHandler.js';
 
@@ -41,6 +43,11 @@ export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).send('Method Not Allowed');
+  }
+
+  const authorization = authorizeRequest(req, 'open-day');
+  if (!authorization.ok) {
+    return res.status(authorization.status).json({ error: authorization.error });
   }
 
   try {

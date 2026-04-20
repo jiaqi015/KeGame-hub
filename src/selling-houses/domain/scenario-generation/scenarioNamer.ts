@@ -1,5 +1,5 @@
-import type { ScenarioBlueprint } from './types';
-import { pickRandom, type RandomSource } from '../utils';
+import type { ScenarioBlueprint } from './types.js';
+import { pickRandom, type RandomSource } from '../utils.js';
 
 export function buildScenarioPresentation(
   blueprint: ScenarioBlueprint,

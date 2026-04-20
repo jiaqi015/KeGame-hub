@@ -1,6 +1,6 @@
 import React from 'react';
 import { DailyReport } from '../../domain/models';
-import { TrendingUp, AlertCircle, Star, Calendar, ArrowRight, Zap, Target, SunMedium, BriefcaseBusiness, Sparkles } from 'lucide-react';
+import { TrendingUp, AlertCircle, Star, Calendar, ArrowRight, Zap, Target, SunMedium, BriefcaseBusiness } from 'lucide-react';
 
 interface DailySummaryOverlayProps {
   report: DailyReport;
@@ -8,127 +8,124 @@ interface DailySummaryOverlayProps {
 }
 
 export function DailySummaryOverlay({ report, onContinue }: DailySummaryOverlayProps) {
+  const overnightEvents = [
+    ...report.majorEvents.map((entry) => ({ ...entry, kind: 'major' as const })),
+    ...report.randomEvents.map((entry) => ({ ...entry, kind: 'random' as const })),
+  ];
+
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/40 backdrop-blur-md p-6">
-      <div className="bg-white rounded-[40px] shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden animate-in fade-in zoom-in duration-300">
-        <div className="bg-slate-900 px-10 py-10 text-center relative">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-500 text-white shadow-xl shadow-amber-500/20">
-              <Calendar size={32} />
-            </div>
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/40 p-6 backdrop-blur-md">
+      <div className="seller-panel max-h-[86vh] w-full max-w-5xl overflow-hidden rounded-[22px] shadow-[var(--seller-shadow-lg)] animate-in fade-in zoom-in duration-300">
+        <div className="bg-[var(--seller-ink)] px-7 py-5 text-center text-white">
+          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-[14px] bg-[var(--seller-accent)] text-white">
+            <Calendar size={20} />
           </div>
-          
-          <h2 className="text-2xl font-bold text-white mt-4">{report.title}</h2>
-          <p className="text-slate-400 mt-2 text-sm uppercase tracking-widest font-bold">Overnight Insights</p>
+          <h2 className="seller-title mt-3 text-[18px] text-white sm:text-[20px]">{report.title}</h2>
         </div>
 
-        <div className="max-h-[calc(90vh-180px)] overflow-y-auto p-10">
-          <div className="grid grid-cols-1 gap-8 xl:grid-cols-[1.15fr_0.85fr]">
-            <section className="space-y-8">
-              <div>
-                <h4 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
+        <div className="max-h-[calc(86vh-96px)] overflow-y-auto p-6 sm:p-7">
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+            <section className="seller-panel min-w-0 overflow-hidden">
+              <div className="border-b border-black/[0.05] px-5 py-4">
+                <h4 className="seller-label flex items-center gap-2 text-xs">
                   <Zap size={14} className="text-amber-500" />
-                  昨天发生了什么
+                  昨夜变化
                 </h4>
-                <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+              </div>
+
+              <div className="space-y-5 p-5">
+                <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
                   {report.metricsDelta.map((m, i) => (
-                    <div key={i} className="space-y-1 rounded-2xl border border-black/[0.03] bg-slate-50 p-4">
-                      <div className="mb-1 text-[10px] font-bold uppercase tracking-wider leading-none text-slate-400">{m.label}</div>
-                      <div className={`text-lg font-bold ${m.value > 0 ? 'text-emerald-600' : m.value < 0 ? 'text-rose-600' : 'text-slate-400'}`}>
+                    <div key={i} className="rounded-[18px] bg-slate-50 px-4 py-3">
+                      <div className="text-[10px] font-bold tracking-[0.02em] text-slate-400">{m.label}</div>
+                      <div className={`mt-2 text-[17px] font-bold ${m.value > 0 ? 'text-emerald-600' : m.value < 0 ? 'text-rose-600' : 'text-slate-500'}`}>
                         {m.value > 0 ? '+' : ''}{m.value}{m.unit}
                       </div>
                     </div>
                   ))}
                 </div>
-                <div className="mt-5 space-y-3">
-                  {report.majorEvents.map((e, i) => (
-                    <EventCard key={i} actor={e.actor} message={e.message} tone={e.tone} />
-                  ))}
-                  {report.majorEvents.length === 0 && (
-                    <div className="rounded-2xl border border-dashed border-slate-200 py-10 text-center text-sm italic text-slate-400">
-                      昨天没有重大突发，经营整体比较平稳。
-                    </div>
-                  )}
-                </div>
-              </div>
 
-              <div>
-                <h4 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
-                  <Sparkles size={14} className="text-blue-500" />
-                  随机事件与外部风向
-                </h4>
-                <div className="space-y-3">
-                  {report.randomEvents.map((event, i) => (
-                    <EventCard key={`random-${i}`} actor={event.actor} message={event.message} tone={event.tone} compact />
-                  ))}
-                  {report.randomEvents.length === 0 && (
-                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 py-8 text-center text-sm italic text-slate-400">
-                      昨天没有新的随机事件，市场风向相对稳定。
+                <div className="overflow-hidden rounded-[20px] border border-black/[0.05] bg-slate-50/70">
+                  {overnightEvents.length > 0 ? (
+                    overnightEvents.map((entry, index) => (
+                      <EventRow
+                        key={`${entry.kind}-${index}`}
+                        actor={entry.actor}
+                        message={entry.message}
+                        tone={entry.tone}
+                        isLast={index === overnightEvents.length - 1}
+                      />
+                    ))
+                  ) : (
+                    <div className="px-5 py-10 text-center text-sm text-slate-400">
+                      昨天没有新的变化，经营整体比较平稳。
                     </div>
                   )}
                 </div>
               </div>
             </section>
 
-            <aside className="space-y-6">
-              <div className="rounded-[28px] border border-black/[0.04] bg-gradient-to-br from-amber-50 via-white to-emerald-50 p-6 shadow-sm">
-                <h4 className="mb-5 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
+            <aside className="seller-panel-muted">
+              <div className="space-y-5 p-5">
+                <h4 className="seller-label flex items-center gap-2 text-xs">
                   <SunMedium size={14} className="text-amber-500" />
-                  今天是什么日子
+                  今天安排
                 </h4>
+
                 <div className="grid grid-cols-2 gap-3">
-                  <TodayMetric label="日程" value={report.todayPlan.label} />
-                  <TodayMetric label="资源" value={`${report.todayPlan.energy} 精力`} />
+                  <InfoBlock label="日程" value={report.todayPlan.label} />
+                  <InfoBlock label="资源" value={`${report.todayPlan.energy} 精力`} />
                 </div>
-                <div className="mt-4 rounded-2xl bg-white p-4 shadow-sm">
-                  <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">今日主题</div>
+
+                <div className="seller-tablet px-4 py-4">
+                  <div className="seller-label">今日主题</div>
                   <div className="mt-2 text-base font-semibold text-slate-900">{report.todayPlan.theme}</div>
                 </div>
-                {report.todayPlan.focusCases.length > 0 && (
-                  <div className="mt-4 rounded-2xl bg-white p-4 shadow-sm">
-                    <div className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+
+                {report.todayPlan.focusCases.length > 0 ? (
+                  <div className="seller-tablet px-4 py-4">
+                    <div className="seller-label mb-3 flex items-center gap-2">
                       <Target size={12} className="text-amber-500" />
-                      今日聚焦盘
+                      今日商圈聚焦房
                     </div>
                     <div className="space-y-2">
                       {report.todayPlan.focusCases.map((name, i) => (
-                        <div key={i} className="rounded-xl bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">
+                        <div key={i} className="text-sm font-medium text-slate-700">
                           {name}
                         </div>
                       ))}
                     </div>
                   </div>
-                )}
-              </div>
+                ) : null}
 
-              <div className="rounded-[28px] border border-black/[0.04] bg-slate-50 p-6">
-                <h4 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
+                <div className="border-t border-black/[0.06] pt-5">
+                  <h4 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
                   <BriefcaseBusiness size={14} className="text-slate-600" />
-                  今天你该先干什么
-                </h4>
-                <div className="space-y-3">
-                  {report.todayPlan.priorities.map((item, i) => (
-                    <div key={i} className="rounded-2xl border border-black/[0.04] bg-white px-4 py-3 text-sm font-medium leading-relaxed text-slate-700 shadow-sm">
-                      {item}
-                    </div>
-                  ))}
-                  {report.todayPlan.priorities.length === 0 && (
-                    <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-6 text-center text-sm italic text-slate-400">
-                      今天没有明确待办，适合先盘点业主反馈和准客池。
-                    </div>
-                  )}
+                    今日先办
+                  </h4>
+                  <div className="overflow-hidden rounded-[18px] border border-black/[0.05] bg-white">
+                    {report.todayPlan.priorities.length > 0 ? (
+                      report.todayPlan.priorities.map((item, i) => (
+                        <PriorityRow key={i} index={i + 1} text={item} isLast={i === report.todayPlan.priorities.length - 1} />
+                      ))
+                    ) : (
+                      <div className="px-4 py-6 text-center text-sm text-slate-400">
+                        今天没有明确待办，适合先盘点业主反馈和准客池。
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </aside>
           </div>
 
-          <div className="pt-8">
-            <button 
+          <div className="pt-5">
+            <button
               onClick={onContinue}
-              className="w-full flex items-center justify-center gap-3 py-5 bg-slate-900 text-white rounded-[24px] font-bold text-lg hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-slate-900/20"
+              className="seller-button-primary ml-auto flex items-center justify-center gap-2 px-6 py-3.5 text-sm"
             >
               继续经营
-              <ArrowRight size={20} />
+              <ArrowRight size={18} />
             </button>
           </div>
         </div>
@@ -137,42 +134,55 @@ export function DailySummaryOverlay({ report, onContinue }: DailySummaryOverlayP
   );
 }
 
-function EventCard({
+function EventRow({
   actor,
   message,
   tone,
-  compact = false,
+  isLast,
 }: {
   key?: React.Key;
   actor: string;
   message: string;
   tone: string;
-  compact?: boolean;
+  isLast: boolean;
 }) {
+  const toneClass = tone === 'success'
+    ? 'text-emerald-500'
+    : tone === 'danger'
+      ? 'text-rose-500'
+      : 'text-amber-500';
+
   return (
-    <div className={`flex items-start gap-4 rounded-2xl border p-4 ${
-      tone === 'success' ? 'border-emerald-500/10 bg-emerald-50/50' :
-      tone === 'danger' ? 'border-rose-500/10 bg-rose-50/50' :
-      'border-transparent bg-slate-50'
-    }`}>
-      <div className="mt-0.5">
-        {tone === 'success' && <Star size={compact ? 14 : 16} className="text-emerald-500" />}
-        {tone === 'danger' && <AlertCircle size={compact ? 14 : 16} className="text-rose-500" />}
-        {tone === 'accent' && <TrendingUp size={compact ? 14 : 16} className="text-amber-500" />}
+    <div className={`flex items-start gap-3 px-4 py-3.5 ${isLast ? '' : 'border-b border-black/[0.05]'}`}>
+      <div className={`mt-0.5 ${toneClass}`}>
+        {tone === 'success' && <Star size={15} />}
+        {tone === 'danger' && <AlertCircle size={15} />}
+        {tone === 'accent' && <TrendingUp size={15} />}
       </div>
-      <div>
-        <div className="mb-0.5 text-[10px] font-bold uppercase text-slate-400">{actor}</div>
-        <p className={`${compact ? 'text-sm' : 'text-[15px]'} font-medium leading-relaxed text-slate-700`}>{message}</p>
+      <div className="min-w-0">
+        <div className="mb-1 text-[10px] font-bold tracking-[0.02em] text-slate-400">{actor}</div>
+        <p className="text-[14px] font-medium leading-6 text-slate-700">{message}</p>
       </div>
     </div>
   );
 }
 
-function TodayMetric({ label, value }: { label: string; value: string }) {
+function InfoBlock({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-white p-4 text-center shadow-sm">
-      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">{label}</div>
-      <div className="mt-2 text-lg font-bold text-slate-900">{value}</div>
+    <div className="seller-tablet px-4 py-4">
+      <div className="seller-label">{label}</div>
+      <div className="mt-2 text-[18px] font-bold text-slate-900">{value}</div>
+    </div>
+  );
+}
+
+function PriorityRow({ index, text, isLast }: { key?: React.Key; index: number; text: string; isLast: boolean }) {
+  return (
+    <div className={`flex items-start gap-3 px-4 py-3.5 ${isLast ? '' : 'border-b border-black/[0.05]'}`}>
+      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-500">
+        {index}
+      </div>
+      <div className="pt-0.5 text-sm font-medium leading-6 text-slate-700">{text}</div>
     </div>
   );
 }

@@ -1,7 +1,31 @@
-import { logEvent } from '../../application/gameState';
-import type { GameState, RivalListing, RivalListingArchetype, RivalStore } from '../models';
-import { chance, clamp, randomInt } from '../utils';
-import { getMarketCell } from '../engine/opportunityEngine';
+import { logEvent } from '../runtimeState.js';
+import type { Case, GameState, RivalListing, RivalListingArchetype, RivalStore } from '../models.js';
+import { loseCaseToRival } from '../caseLifecycle.js';
+import { chance, clamp, randomInt } from '../utils.js';
+import { getMarketCell } from '../engine/opportunityEngine.js';
+
+type CreateRivalListingOptions = {
+  linkedCaseId?: string;
+  silent?: boolean;
+};
+
+function markCaseLostToVisibleRival(state: GameState, listing: RivalListing) {
+  const linkedCase = listing.linkedCaseId
+    ? state.cases.find((entry) => entry.id === listing.linkedCaseId)
+    : state.cases.find((entry) => entry.status === 'active' && entry.marketCellId === listing.marketCellId);
+
+  if (!linkedCase || linkedCase.status !== 'active') {
+    return false;
+  }
+
+  const lossEvent = loseCaseToRival(state, linkedCase, `被 ${listing.title} 抢先成交，这套房已经被别人拿走了。`);
+  if (!lossEvent) {
+    return false;
+  }
+
+  logEvent(state, lossEvent.actor, lossEvent.message, 'danger');
+  return true;
+}
 
 function chooseMarketCellId(state: GameState) {
   const activeCases = state.cases.filter((entry) => entry.status === 'active');
@@ -30,7 +54,12 @@ function chooseListingArchetype(state: GameState) {
   return archetypes[randomInt(0, archetypes.length - 1, state)];
 }
 
-export function createRivalListing(state: GameState, source: RivalListing['source'] = 'daily_event', marketCellId?: string) {
+export function createRivalListing(
+  state: GameState,
+  source: RivalListing['source'] = 'daily_event',
+  marketCellId?: string,
+  options: CreateRivalListingOptions = {},
+) {
   const archetype = chooseListingArchetype(state);
   const store = chooseStore(state, archetype || undefined);
   const targetMarketCellId = marketCellId || chooseMarketCellId(state);
@@ -52,6 +81,7 @@ export function createRivalListing(state: GameState, source: RivalListing['sourc
     title: `${district} ${titlePrefix}`,
     district,
     marketCellId: targetMarketCellId,
+    linkedCaseId: options.linkedCaseId ?? anchorCase?.id,
     segment: archetype?.segment || '竞品',
     askPrice,
     heat: clamp((archetype?.baseHeat || 56) + randomInt(-6, 8, state), 20, 96),
@@ -65,8 +95,38 @@ export function createRivalListing(state: GameState, source: RivalListing['sourc
   };
 
   state.marketShadow.rivalListings.unshift(listing);
-  logEvent(state, '竞品房源', `${listing.title} 入场，${store?.name || '外部门店'}开始分流同板块客户。`, 'danger');
+  if (!options.silent) {
+    logEvent(state, '竞品房源', `${listing.title} 入场，${store?.name || '外部门店'}开始分流同板块客户。`, 'danger');
+  }
   return listing;
+}
+
+export function sellVisibleRivalForCase(state: GameState, caseItem: Case, detail: string) {
+  const existingListing = state.marketShadow.rivalListings
+    .filter((entry) => entry.status === 'active')
+    .find((entry) => entry.linkedCaseId === caseItem.id)
+    || state.marketShadow.rivalListings
+      .filter((entry) => entry.status === 'active' && entry.marketCellId === caseItem.marketCellId)
+      .sort((left, right) => (right.heat + right.leadSiphonPower) - (left.heat + left.leadSiphonPower))[0]
+    || createRivalListing(state, 'daily_event', caseItem.marketCellId, {
+      linkedCaseId: caseItem.id,
+      silent: true,
+    });
+
+  existingListing.linkedCaseId = caseItem.id;
+  existingListing.status = 'sold';
+  existingListing.daysLeft = 0;
+  existingListing.freshness = 0;
+  existingListing.heat = clamp(existingListing.heat + 10, 0, 100);
+
+  const lossEvent = loseCaseToRival(state, caseItem, detail || `被 ${existingListing.title} 抢先成交，这套房已经被别人拿走了。`);
+  if (!lossEvent) {
+    return false;
+  }
+
+  logEvent(state, lossEvent.actor, lossEvent.message, 'danger');
+  logEvent(state, '竞品房源', `${existingListing.title} 抢先成交，你手里对应那套房也被顺势抢走了。`, 'danger');
+  return true;
 }
 
 export function tickRivalListings(state: GameState) {
@@ -78,10 +138,11 @@ export function tickRivalListings(state: GameState) {
 
     if (listing.daysLeft <= 0 || listing.freshness <= 8) {
       listing.status = chance(0.55, state) ? 'sold' : 'withdrawn';
+      const closedPlayerCase = listing.status === 'sold' ? markCaseLostToVisibleRival(state, listing) : false;
       logEvent(
         state,
         '竞品房源',
-        `${listing.title}${listing.status === 'sold' ? '被别家收口' : '从市场上撤出'}，同板块压力重新洗牌。`,
+        `${listing.title}${listing.status === 'sold' ? '被别家卖掉了' : '从市场上撤出'}，同板块压力重新洗牌。${closedPlayerCase ? ' 你手里对应那套房也被顺势抢走了。' : ''}`,
         listing.status === 'sold' ? 'danger' : 'accent',
       );
     }

@@ -1,9 +1,9 @@
-import { getBuiltInWorld } from '../worlds/builtinWorld';
-import { buildScenarioSnapshot } from '../scenarios/builtinScenarios';
-import { normalizeSeed } from '../utils';
-import { assembleGeneratedScenario } from './scenarioAssembler';
-import { validateGeneratedScenario } from './scenarioValidators';
-import type { GeneratedScenarioBundle, ScenarioGenerationRequest } from './types';
+import { getBuiltInWorld } from '../worlds/builtinWorld.js';
+import { buildScenarioSnapshot } from '../scenarios/builtinScenarios.js';
+import { normalizeSeed } from '../utils.js';
+import { assembleGeneratedScenario } from './scenarioAssembler.js';
+import { validateGeneratedScenario } from './scenarioValidators.js';
+import type { GeneratedScenarioBundle, ScenarioGenerationRequest } from './types.js';
 
 const MAX_GENERATION_ATTEMPTS = 6;
 

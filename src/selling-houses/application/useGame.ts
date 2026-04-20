@@ -1,105 +1,73 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { DifficultyId, GameState, ScenarioSnapshot, ScenarioSummary, DifficultyOption, Case } from '../domain/models';
+import type {
+  Case,
+  DifficultyId,
+  DifficultyOption,
+  GameState,
+  ScenarioOpeningRef,
+  ScenarioSummary,
+} from '../domain/models.js';
 import {
   clearSavedGameState,
-  createInitialState,
   loadSavedState,
+  migrateSavedStateScope,
   normalizeLoadedState,
   saveGameState,
-  updateDerivedState,
-} from './gameState';
-import { advanceDays, executeAction, seedInitialOpportunities } from '../domain/engine';
+} from './gameState.js';
 import {
   getDifficultyOptions,
-  generateScenarioBundle,
-  generateScenarioSnapshot,
-  getScenarioSnapshotById,
-  listBuiltInScenarioSummaries,
-} from '../domain/scenarioCatalog';
+} from '../domain/scenarioCatalog.js';
 import {
   clearMaintainerCloudMeta,
   getOrCreateMaintainerUserId,
   loadMaintainerCloudMeta,
+  migrateMaintainerCloudMetaScope,
+  migrateMaintainerUserIdScope,
   saveMaintainerCloudMeta,
-} from './cloudState';
+} from './cloudState.js';
 import {
   createMaintainerRun,
+  fetchMaintainerLeaderboardDetail,
+  fetchMaintainerRuns,
   fetchMaintainerRun,
-  fetchSellingHousesScenario,
-  fetchSellingHousesScenarioCatalog,
   saveMaintainerRun,
-} from '../infrastructure/cloudClient';
+} from '../infrastructure/cloudClient.js';
+import type { MaintainerLeaderboardDetail } from './cloudSync.js';
+import { loadPreferredMaintainerCloudRun } from './cloudResume.js';
+import { buildSellingHousesPlayerContext, type SellingHousesPlayerContextInput } from './playerContext.js';
+import type { FeaturedScenarioPreview } from './scenarioOpening.js';
+import {
+  createRandomGeneratedOpeningRef,
+  createGeneratedScenarioSeed,
+  createStateFromScenarioOpening,
+  loadScenarioOpeningCatalog,
+  resolveScenarioOpening,
+} from './scenarioOpening.js';
+import {
+  advanceGameDays,
+  executeGameAction,
+} from './gameTransitions.js';
 
-function buildWorldFromScenario(snapshot: ScenarioSnapshot) {
-  const seed = Date.now() % 2147483647;
-  const world = createInitialState(snapshot, seed);
-  seedInitialOpportunities(world);
-  updateDerivedState(world);
-  return world;
-}
-
-async function loadScenarioCatalog(activationKey?: string) {
-  if (!activationKey) {
-    return listBuiltInScenarioSummaries();
-  }
-
-  try {
-    const payload = await fetchSellingHousesScenarioCatalog(activationKey);
-    if (Array.isArray(payload?.scenarios) && payload.scenarios.length > 0) {
-      return payload.scenarios;
-    }
-  } catch (error) {
-    console.warn('Failed to load scenario catalog from cloud:', error);
-  }
-
-  return listBuiltInScenarioSummaries();
-}
-
-async function loadScenarioSnapshot(activationKey: string | undefined, scenarioId: string) {
-  if (activationKey) {
-    try {
-      const payload = await fetchSellingHousesScenario(activationKey, scenarioId);
-      if (payload?.scenario?.id && payload?.world?.id) {
-        return {
-          source: 'cloud' as const,
-          scenario: payload.scenario,
-          world: payload.world,
-        };
-      }
-    } catch (error) {
-      console.warn('Failed to load scenario detail from cloud:', error);
-    }
-  }
-
-  const snapshot = getScenarioSnapshotById(scenarioId);
-  if (!snapshot) {
-    throw new Error(`未找到剧本 ${scenarioId}`);
-  }
-  return snapshot;
-}
-
-function pickRandomScenarioId(catalog: ScenarioSummary[], difficultyId: DifficultyId) {
-  const candidates = catalog.filter((entry) => entry.difficultyId === difficultyId);
-  if (!candidates.length) {
-    return null;
-  }
-
-  const index = Math.floor(Math.random() * candidates.length);
-  return candidates[index]?.id || null;
-}
-
-function buildWorldFromGeneratedDifficulty(difficultyId: DifficultyId, seed: number) {
-  const snapshot = generateScenarioSnapshot({ difficultyId, seed });
-  return buildWorldFromScenario(snapshot);
-}
-
-export function useGame(activationKey?: string) {
+export function useGame(input?: { activationKey?: string } & SellingHousesPlayerContextInput) {
+  const activationKey = input?.activationKey;
+  const playerContext = useMemo(
+    () => buildSellingHousesPlayerContext({
+      accountId: input?.accountId,
+      email: input?.email,
+      nickname: input?.nickname,
+    }),
+    [input?.accountId, input?.email, input?.nickname],
+  );
+  const difficultyOptions: DifficultyOption[] = useMemo(() => getDifficultyOptions(), []);
   const [state, setState] = useState<GameState | null>(null);
   const [catalog, setCatalog] = useState<ScenarioSummary[]>([]);
+  const [featuredScenarios, setFeaturedScenarios] = useState<FeaturedScenarioPreview[]>([]);
+  const [leaderboardDetail, setLeaderboardDetail] = useState<MaintainerLeaderboardDetail | null>(null);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [booting, setBooting] = useState(true);
   const [starting, setStarting] = useState(false);
   const [lastDifficulty, setLastDifficulty] = useState<DifficultyId>('standard');
-  const cloudMetaRef = useRef(loadMaintainerCloudMeta());
+  const cloudMetaRef = useRef(loadMaintainerCloudMeta(playerContext.accountScopeKey));
   const userIdRef = useRef('');
   const hydratedRef = useRef(false);
   const skipCloudSaveRef = useRef(false);
@@ -109,34 +77,52 @@ export function useGame(activationKey?: string) {
     let disposed = false;
 
     const bootstrap = async () => {
-      const userId = getOrCreateMaintainerUserId();
-      userIdRef.current = userId;
-      const localCatalog = await loadScenarioCatalog(activationKey);
-      if (!disposed) {
-        setCatalog(localCatalog);
+      if (
+        playerContext.emailScopeKey
+        && playerContext.emailScopeKey !== playerContext.accountScopeKey
+      ) {
+        migrateSavedStateScope(playerContext.accountScopeKey, playerContext.emailScopeKey);
+        migrateMaintainerCloudMetaScope(playerContext.accountScopeKey, playerContext.emailScopeKey);
+        migrateMaintainerUserIdScope(playerContext.accountScopeKey, playerContext.emailScopeKey);
       }
 
-      const localState = loadSavedState();
+      const userId = getOrCreateMaintainerUserId(playerContext.accountScopeKey);
+      userIdRef.current = userId;
+      const localCatalog = await loadScenarioOpeningCatalog(activationKey, difficultyOptions);
+      if (!disposed) {
+        setCatalog(localCatalog.scenarios);
+        setFeaturedScenarios(localCatalog.featuredScenarios);
+      }
+
+      const localState = loadSavedState(playerContext.accountScopeKey);
       let nextState = localState;
-      const localMeta = loadMaintainerCloudMeta();
+      const localMeta = loadMaintainerCloudMeta(playerContext.accountScopeKey);
       cloudMetaRef.current = localMeta;
 
-      if (activationKey && localMeta?.runId) {
+      if (activationKey) {
         try {
-          const cloudRun = await fetchMaintainerRun(activationKey, localMeta.runId, userId);
-          const normalized = normalizeLoadedState(cloudRun.saveData);
+          const preferredCloudRun = await loadPreferredMaintainerCloudRun({
+            userId,
+            localMeta,
+            fetchRun: async (runId) => fetchMaintainerRun(activationKey, runId, userId),
+            listRuns: async (resumeUserId) => {
+              const payload = await fetchMaintainerRuns(activationKey, resumeUserId, 8);
+              return payload.runs;
+            },
+          });
 
-          if (normalized && (!localState || cloudRun.syncVersion >= localMeta.syncVersion)) {
-            nextState = normalized;
-            saveGameState(normalized);
+          if (preferredCloudRun) {
+            const { run: cloudRun, meta: nextMeta } = preferredCloudRun;
+            const normalized = normalizeLoadedState(cloudRun.saveData);
+
+            if (normalized && (!localState || cloudRun.syncVersion >= (localMeta?.syncVersion || 0))) {
+              nextState = normalized;
+              saveGameState(normalized, playerContext.accountScopeKey);
+            }
+
+            cloudMetaRef.current = nextMeta;
+            saveMaintainerCloudMeta(nextMeta, playerContext.accountScopeKey);
           }
-
-          cloudMetaRef.current = {
-            runId: cloudRun.runId,
-            syncVersion: cloudRun.syncVersion,
-            updatedAt: cloudRun.updatedAt,
-          };
-          saveMaintainerCloudMeta(cloudMetaRef.current);
         } catch (error) {
           console.warn('Failed to hydrate maintainer cloud save:', error);
         }
@@ -161,15 +147,15 @@ export function useGame(activationKey?: string) {
     return () => {
       disposed = true;
     };
-  }, [activationKey]);
+  }, [activationKey, difficultyOptions, playerContext.accountScopeKey]);
 
   useEffect(() => {
     if (!state) {
       return;
     }
 
-    saveGameState(state);
-  }, [state]);
+    saveGameState(state, playerContext.accountScopeKey);
+  }, [state, playerContext.accountScopeKey]);
 
   useEffect(() => {
     if (!state || !activationKey || !hydratedRef.current) {
@@ -186,14 +172,14 @@ export function useGame(activationKey?: string) {
     }
 
     saveTimerRef.current = window.setTimeout(async () => {
-      const userId = userIdRef.current || getOrCreateMaintainerUserId();
+      const userId = userIdRef.current || getOrCreateMaintainerUserId(playerContext.accountScopeKey);
       const currentMeta = cloudMetaRef.current;
 
       try {
         if (!currentMeta?.runId) {
           const created = await createMaintainerRun(activationKey, {
             userId,
-            playerName: '匿名资产顾问',
+            playerName: playerContext.displayName,
             state,
             clientUpdatedAt: new Date().toISOString(),
           });
@@ -203,14 +189,14 @@ export function useGame(activationKey?: string) {
             syncVersion: created.syncVersion,
             updatedAt: created.updatedAt,
           };
-          saveMaintainerCloudMeta(cloudMetaRef.current);
+          saveMaintainerCloudMeta(cloudMetaRef.current, playerContext.accountScopeKey);
           return;
         }
 
         const saved = await saveMaintainerRun(activationKey, {
           runId: currentMeta.runId,
           userId,
-          playerName: '匿名资产顾问',
+          playerName: playerContext.displayName,
           state,
           expectedSyncVersion: currentMeta.syncVersion,
           clientUpdatedAt: new Date().toISOString(),
@@ -221,7 +207,7 @@ export function useGame(activationKey?: string) {
           syncVersion: saved.syncVersion,
           updatedAt: saved.updatedAt,
         };
-        saveMaintainerCloudMeta(cloudMetaRef.current);
+        saveMaintainerCloudMeta(cloudMetaRef.current, playerContext.accountScopeKey);
       } catch (error) {
         const latest = error instanceof Error && 'latest' in error
           ? (error as Error & { latest?: { saveData?: unknown; runId?: string; syncVersion?: number; updatedAt?: string } }).latest
@@ -232,7 +218,7 @@ export function useGame(activationKey?: string) {
           if (normalized) {
             skipCloudSaveRef.current = true;
             setState(normalized);
-            saveGameState(normalized);
+            saveGameState(normalized, playerContext.accountScopeKey);
           }
         }
 
@@ -242,7 +228,7 @@ export function useGame(activationKey?: string) {
             syncVersion: Number(latest.syncVersion),
             updatedAt: latest.updatedAt || new Date().toISOString(),
           };
-          saveMaintainerCloudMeta(cloudMetaRef.current);
+          saveMaintainerCloudMeta(cloudMetaRef.current, playerContext.accountScopeKey);
         }
 
         console.warn('Failed to sync maintainer cloud save:', error);
@@ -254,42 +240,54 @@ export function useGame(activationKey?: string) {
         window.clearTimeout(saveTimerRef.current);
       }
     };
-  }, [state, activationKey]);
+  }, [state, activationKey, playerContext.accountScopeKey, playerContext.displayName]);
+
+  const loadLeaderboardDetail = useCallback(async () => {
+    if (!activationKey) {
+      return null;
+    }
+
+    setLeaderboardLoading(true);
+    try {
+      const detail = await fetchMaintainerLeaderboardDetail(activationKey);
+      setLeaderboardDetail(detail);
+      return detail;
+    } finally {
+      setLeaderboardLoading(false);
+    }
+  }, [activationKey]);
 
   const startScenarioState = useCallback((world: GameState, difficultyId: DifficultyId) => {
     setLastDifficulty(difficultyId);
-    clearMaintainerCloudMeta();
-    clearSavedGameState();
+    clearMaintainerCloudMeta(playerContext.accountScopeKey);
+    clearSavedGameState(playerContext.accountScopeKey);
     cloudMetaRef.current = null;
     setState(world);
-    saveGameState(world);
-  }, []);
+    saveGameState(world, playerContext.accountScopeKey);
+  }, [playerContext.accountScopeKey]);
+
+  const startScenarioRun = useCallback(async (openingRef: ScenarioOpeningRef, fallbackDifficultyId: DifficultyId) => {
+    setStarting(true);
+    try {
+      const opening = await resolveScenarioOpening({ activationKey, openingRef });
+      const world = createStateFromScenarioOpening(opening);
+      startScenarioState(world, opening.summary.difficultyId || fallbackDifficultyId);
+    } finally {
+      setStarting(false);
+    }
+  }, [activationKey, startScenarioState]);
 
   const startFeaturedRun = useCallback(async (difficultyId: DifficultyId) => {
-    setStarting(true);
-    try {
-      const option = getDifficultyOptions().find((entry) => entry.id === difficultyId);
-      if (!option) {
-        throw new Error(`未找到难度 ${difficultyId}`);
-      }
-
-      const world = buildWorldFromGeneratedDifficulty(difficultyId, option.featuredSeed);
-      startScenarioState(world, difficultyId);
-    } finally {
-      setStarting(false);
+    const featured = featuredScenarios.find((entry) => entry.difficultyId === difficultyId);
+    if (!featured) {
+      throw new Error(`未找到难度 ${difficultyId}`);
     }
-  }, [startScenarioState]);
+    await startScenarioRun(featured.scenario.opening, difficultyId);
+  }, [featuredScenarios, startScenarioRun]);
 
   const startRandomGeneratedRun = useCallback(async (difficultyId: DifficultyId) => {
-    setStarting(true);
-    try {
-      const seed = Date.now() % 2147483647;
-      const world = buildWorldFromGeneratedDifficulty(difficultyId, seed);
-      startScenarioState(world, difficultyId);
-    } finally {
-      setStarting(false);
-    }
-  }, [startScenarioState]);
+    await startScenarioRun(createRandomGeneratedOpeningRef(difficultyId, createGeneratedScenarioSeed(Date.now())), difficultyId);
+  }, [startScenarioRun]);
 
   const handleSelectCase = useCallback((id: string) => {
     setState((prev) => {
@@ -301,9 +299,7 @@ export function useGame(activationKey?: string) {
   const handleAdvanceDays = useCallback((count: number, onMessage?: (msg: string) => void) => {
     setState((prev) => {
       if (!prev) return null;
-      const next = { ...prev };
-      advanceDays(next, count, onMessage);
-      return { ...next };
+      return advanceGameDays(prev, count, onMessage);
     });
   }, []);
 
@@ -311,50 +307,23 @@ export function useGame(activationKey?: string) {
     let success = false;
     setState((prev) => {
       if (!prev) return null;
-      const next = { ...prev };
-      const currentCase = next.cases.find((entry) => entry.id === caseItem.id);
-      if (currentCase) {
-        success = executeAction(next, actionId, currentCase, optionId, onMessage);
-      }
-      return { ...next };
+      const result = executeGameAction(prev, actionId, caseItem.id, optionId, onMessage);
+      success = result.success;
+      return result.success ? result.nextState : prev;
     });
     return success;
   }, []);
 
   const handleReset = useCallback(() => {
-    if (window.confirm('确定要结束当前这一局并回到难度选择吗？')) {
-      clearMaintainerCloudMeta();
-      clearSavedGameState();
-      cloudMetaRef.current = null;
-      setState(null);
-    }
-  }, []);
+    clearMaintainerCloudMeta(playerContext.accountScopeKey);
+    clearSavedGameState(playerContext.accountScopeKey);
+    cloudMetaRef.current = null;
+    setState(null);
+  }, [playerContext.accountScopeKey]);
 
   const handleClearReport = useCallback(() => {
     setState((prev) => (prev ? { ...prev, currentReport: null } : null));
   }, []);
-
-  const difficultyOptions: DifficultyOption[] = useMemo(() => getDifficultyOptions(), []);
-  const featuredScenarios = useMemo(() => {
-    return difficultyOptions.map((option) => {
-      const bundle = generateScenarioBundle({
-        difficultyId: option.id,
-        seed: option.featuredSeed,
-      });
-
-      return {
-        difficultyId: option.id,
-        seed: option.featuredSeed,
-        scenario: {
-          name: bundle.scenario.name,
-          theme: bundle.scenario.theme,
-          description: bundle.scenario.description,
-          maxDay: bundle.scenario.maxDay,
-          caseCount: bundle.scenario.cases.length,
-        },
-      };
-    });
-  }, [difficultyOptions]);
 
   return {
     phase: booting ? 'loading' as const : state ? 'playing' as const : 'setup' as const,
@@ -364,6 +333,9 @@ export function useGame(activationKey?: string) {
     featuredScenarios,
     lastDifficulty,
     starting,
+    leaderboardDetail,
+    leaderboardLoading,
+    loadLeaderboardDetail,
     startFeaturedRun,
     startRandomGeneratedRun,
     handleSelectCase,

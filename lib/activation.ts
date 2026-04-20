@@ -17,7 +17,17 @@ export const ACTIVATION_WORKSPACES = WORKSPACE_IDS;
 export type ActivationWorkspaceId = WorkspaceId;
 
 type ActivationValidationResult =
-  | {ok: true; status: 200; error: ''; key: string; allowedWorkspaces: ActivationWorkspaceId[]}
+  | {
+      ok: true;
+      status: 200;
+      error: '';
+      key: string;
+      allowedWorkspaces: ActivationWorkspaceId[];
+      accountId?: string;
+      nickname?: string;
+      displayName?: string;
+      source?: 'session' | 'activation-key';
+    }
   | {ok: false; status: number; error: string};
 
 function parseActivationKeys(rawValue: string): string[] {
@@ -240,6 +250,10 @@ export function authorizeRequest(req: any, requiredWorkspace?: ActivationWorkspa
       error: '',
       key: sessionAuthorization.activationKey || 'session-authenticated',
       allowedWorkspaces: sessionAuthorization.allowedWorkspaces,
+      accountId: sessionAuthorization.accountId,
+      nickname: sessionAuthorization.nickname,
+      displayName: sessionAuthorization.displayName,
+      source: sessionAuthorization.source,
     };
   }
 

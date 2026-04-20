@@ -4,8 +4,8 @@ import type {
   ActionStrategyDefinition,
   Case,
   GameState,
-} from '../models';
-import { getActiveOpportunities } from '../engine';
+} from '../models.js';
+import { getActiveOpportunities } from '../engine.js';
 
 function buildTemplate(
   template: Omit<ActionBattleTemplate, 'buildBody' | 'getStrategies'> & {
@@ -64,7 +64,7 @@ export const ACTION_TEMPLATES: Record<string, ActionBattleTemplate> = {
     metricFocus: ['trust', 'd3', 'competitiveness', 'intent'],
     buildBody: (state, caseItem) => {
       const { predicted, engaged } = summarizeOpportunities(state, caseItem);
-      return `${caseItem.title} 当前价格 ${caseItem.askPrice} 万，市场心理价 ${caseItem.marketPrice} 万。盘面已经出现卡点，这次诊断需要讲清楚：问题到底来自价格、讲法，还是客户匹配。当前 ${predicted} 位待确认客户、${engaged} 位接洽客户。`;
+      return `${caseItem.title} 当前价格 ${caseItem.askPrice} 万，市场常见成交价 ${caseItem.marketPrice} 万。现在已经卡住了，这次诊断需要讲清楚：问题到底来自价格、讲法，还是客户匹配。当前 ${predicted} 位待确认客户、${engaged} 位接洽客户。`;
     },
     getStrategies: () => [
       { id: 'market-dive', title: '从竞品切入', note: '更像专业顾问视角，适合务实型业主。' },
@@ -82,7 +82,7 @@ export const ACTION_TEMPLATES: Record<string, ActionBattleTemplate> = {
       return `${caseItem.title} 当前标签：${(caseItem.tags || []).slice(0, 3).join(' / ') || '暂无明显标签'}。你要决定下一轮营销更强调产品力、价格效率，还是业主确定性感。`;
     },
     getStrategies: () => [
-      { id: 'product-angle', title: '强调产品力', note: '更容易提升好房分，但需要房子本身足够能打。' },
+      { id: 'product-angle', title: '强调房子本身的优势', note: '更容易提升好房分，但需要房子本身足够能打。' },
       { id: 'value-angle', title: '强调性价比', note: '更适合价格偏硬或客户犹豫时。' },
       { id: 'certainty-angle', title: '强调交易确定性', note: '适合窗口偏紧、想加快推进速度时。' },
     ],
@@ -100,7 +100,7 @@ export const ACTION_TEMPLATES: Record<string, ActionBattleTemplate> = {
     getStrategies: () => [
       { id: 'traffic-push', title: '冲流量', note: '更容易补量，但线索质量更参差。' },
       { id: 'precise-push', title: '做精准种草', note: '量没那么大，但匹配度更高。' },
-      { id: 'reputation-push', title: '做口碑内容', note: '更稳，更适合保长期信任和盘面体感。' },
+      { id: 'reputation-push', title: '做口碑内容', note: '更稳，更适合保长期信任和整体感受。' },
     ],
   }),
   'marketing-broker': buildTemplate({
@@ -145,7 +145,7 @@ export const ACTION_TEMPLATES: Record<string, ActionBattleTemplate> = {
       return `${caseItem.title} 当前热度 ${Math.round(caseItem.heat)}，窗口剩余 ${caseItem.windowDays} 天。开放日成本较高，但如果组织得好，能快速带来一波看房和转化机会。当前已有 ${engaged} 位接洽客户。`;
     },
     getStrategies: () => [
-      { id: 'heat-open-day', title: '先冲场面和热度', note: '更容易把盘面点燃，但客群质量不一定最优。' },
+      { id: 'heat-open-day', title: '先冲场面和热度', note: '更容易把关注度拉起来，但客群质量不一定最优。' },
       { id: 'quality-open-day', title: '优先高质量到访', note: '量小一些，但更容易接近真实买家。' },
       { id: 'conversion-open-day', title: '围绕转化来组织', note: '更适合已经有意向客户时集中推进。' },
     ],
@@ -173,7 +173,7 @@ export const ACTION_TEMPLATES: Record<string, ActionBattleTemplate> = {
     summary: '先帮业主看清价格站位和为什么现在该谈。',
     metricFocus: ['trust', 'd3', 'competitiveness', 'askPrice'],
     buildBody: (_state, caseItem) => {
-      return `${caseItem.ownerName} 当前对价格的接受度，决定了后面是继续保价、微调，还是直接走去化路线。当前挂牌价 ${caseItem.askPrice} 万，市场心理价 ${caseItem.marketPrice} 万。`;
+      return `${caseItem.ownerName} 当前对价格的接受度，决定了后面是继续保价、小调，还是直接走快卖路线。当前挂牌价 ${caseItem.askPrice} 万，市场常见成交价 ${caseItem.marketPrice} 万。`;
     },
     getStrategies: () => [
       { id: 'compete-view', title: '先讲竞品压力', note: '更理性，但容易让业主觉得你在压价。' },
@@ -203,12 +203,12 @@ export const ACTION_TEMPLATES: Record<string, ActionBattleTemplate> = {
     summary: '真正进入价格调整讨论，在关系、价格和速度之间做选择。',
     metricFocus: ['askPrice', 'trust', 'heat', 'competitiveness'],
     buildBody: (_state, caseItem) => {
-      return `${caseItem.title} 当前挂牌价 ${caseItem.askPrice} 万，市场心理价 ${caseItem.marketPrice} 万。你要决定是守价、小调，还是直接换窗口。`;
+      return `${caseItem.title} 当前挂牌价 ${caseItem.askPrice} 万，市场常见成交价 ${caseItem.marketPrice} 万。你要决定是守价、小调，还是直接换成快卖打法。`;
     },
     getStrategies: () => [
       { id: 'hold-story', title: '守价换讲法', note: '先不动价格，靠表达和包装争取窗口。' },
       { id: 'small-cut', title: '小幅调整', note: '在关系和速度之间找平衡。' },
-      { id: 'deep-cut', title: '快速去化', note: '牺牲部分价格，换更高确定性。' },
+      { id: 'deep-cut', title: '尽快卖掉', note: '牺牲部分价格，换更高确定性。' },
     ],
   }),
   'negotiation-sincerity': buildTemplate({
@@ -216,15 +216,15 @@ export const ACTION_TEMPLATES: Record<string, ActionBattleTemplate> = {
     actor: 'customer',
     title: '建议参与诚意卖',
     summary: '决定是否把交易推进到更明确的诚意阶段。',
-    metricFocus: ['intent', 'confidence', 'askPrice', 'commission'],
+    metricFocus: ['intent', 'confidence', 'askPrice', 'trust'],
     buildBody: (state, caseItem) => {
       const { engaged } = summarizeOpportunities(state, caseItem);
-      return `${caseItem.title} 当前已有 ${engaged} 位接洽客户。参与诚意卖会提高后段推进效率，但也会让价格预期更快被摊开。`;
+      return `${caseItem.title} 当前已有 ${engaged} 位接洽客户。参与诚意卖会提高快成交阶段的推进效率，但也会让价格预期更快摊开。`;
     },
     getStrategies: () => [
       { id: 'strict-sincerity', title: '高门槛诚意卖', note: '更能保价，但可能把部分客户挡在外面。' },
       { id: 'balanced-sincerity', title: '平衡型诚意卖', note: '兼顾成交率和价格空间。' },
-      { id: 'fast-sincerity', title: '快收口模式', note: '优先换确定性，适合窗口短时。' },
+      { id: 'fast-sincerity', title: '尽快成交模式', note: '优先换确定性，适合窗口短时。' },
     ],
   }),
   'negotiation-invite': buildTemplate({
@@ -232,10 +232,10 @@ export const ACTION_TEMPLATES: Record<string, ActionBattleTemplate> = {
     actor: 'customer',
     title: '邀请和客户谈判',
     summary: '把高阶段客户真正拉上谈判桌。',
-    metricFocus: ['intent', 'confidence', 'commission', 'trust'],
+    metricFocus: ['intent', 'confidence', 'askPrice', 'trust'],
     buildBody: (state, caseItem) => {
       const { engaged } = summarizeOpportunities(state, caseItem);
-      return `${caseItem.title} 现在已经到了后段推进阶段。你需要决定这次谈判更偏保价、平衡，还是优先成交。当前接洽客户 ${engaged} 位。`;
+      return `${caseItem.title} 现在已经到了快成交阶段。你需要决定这次谈判更偏保价、平衡，还是优先成交。当前接洽客户 ${engaged} 位。`;
     },
     getStrategies: () => [
       { id: 'hold', title: '守价硬谈', note: '价格最好，但谈崩风险也最大。' },

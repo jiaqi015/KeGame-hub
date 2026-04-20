@@ -3,8 +3,17 @@ import assert from 'node:assert/strict';
 import { createInitialState, updateDerivedState } from '../src/selling-houses/application/gameState';
 import { LocalAdversarialSelfPlayArena } from '../src/selling-houses/application/localAdversarialSelfPlayArena';
 import { LocalAdversarialSelfPlayLab } from '../src/selling-houses/application/localAdversarialSelfPlayLab';
+import {
+  buildSelfPlayGoldenReport,
+  diffSelfPlayGoldenReports,
+} from '../src/selling-houses/application/selfPlayGolden';
+import {
+  buildGeneratedScenarioSummary,
+  resolveScenarioOpening,
+} from '../src/selling-houses/application/scenarioOpening';
 import { advanceDays, executeAction, seedInitialOpportunities } from '../src/selling-houses/domain/engine';
-import { getScenarioSnapshotById } from '../src/selling-houses/domain/scenarioCatalog';
+import { sellVisibleRivalForCase } from '../src/selling-houses/domain/rivals/rivalListingEngine';
+import { getScenarioSnapshotById, listBuiltInScenarioSummaries } from '../src/selling-houses/domain/scenarioCatalog';
 
 function buildWorld() {
   const snapshot = getScenarioSnapshotById('standard-window-chain');
@@ -15,6 +24,36 @@ function buildWorld() {
   seedInitialOpportunities(world);
   updateDerivedState(world);
   return world;
+}
+
+{
+  const builtinSummary = listBuiltInScenarioSummaries('standard')[0];
+
+  assert.ok(builtinSummary, 'Expected builtin standard scenario summary');
+  assert.equal(builtinSummary.opening.kind, 'scenario', 'Expected builtin scenario summary to carry scenario opening ref');
+  if (builtinSummary.opening.kind === 'scenario') {
+    assert.equal(builtinSummary.opening.scenarioId, builtinSummary.id, 'Expected builtin opening ref to point to its scenario id');
+  }
+}
+
+{
+  const generatedSummary = buildGeneratedScenarioSummary('standard', 24680, 'standard');
+
+  assert.equal(generatedSummary.opening.kind, 'generated', 'Expected generated summary to carry generated opening ref');
+}
+
+{
+  const opening = await resolveScenarioOpening({
+    openingRef: {
+      kind: 'generated',
+      difficultyId: 'standard',
+      seed: 24680,
+      preset: 'standard',
+    },
+  });
+
+  assert.equal(opening.summary.opening.kind, 'generated', 'Expected generated opening to resolve through opening ref');
+  assert.equal(opening.summary.difficultyId, 'standard', 'Expected generated opening difficulty to stay intact');
 }
 
 {
@@ -166,6 +205,26 @@ function buildWorld() {
 }
 
 {
+  const world = buildWorld();
+  const targetCase = world.cases[0];
+  const previousSoldRivals = world.marketShadow.rivalListings.filter((entry) => entry.status === 'sold').length;
+
+  assert.ok(
+    sellVisibleRivalForCase(world, targetCase, '验证竞品成交闭环。'),
+    'Expected rival sale lifecycle command to close the player case',
+  );
+  assert.equal(targetCase.status, 'lost_to_rival', 'Expected player case to be marked lost to rival');
+  assert.ok(
+    world.marketShadow.rivalListings.some((entry) => entry.status === 'sold' && entry.linkedCaseId === targetCase.id),
+    'Expected a visible rival listing to be sold for the lost player case',
+  );
+  assert.ok(
+    world.marketShadow.rivalListings.filter((entry) => entry.status === 'sold').length > previousSoldRivals,
+    'Expected visible rival sale count to increase',
+  );
+}
+
+{
   const arena = new LocalAdversarialSelfPlayArena({
     scenarioId: 'standard-window-chain',
     seed: 123456,
@@ -175,6 +234,22 @@ function buildWorld() {
   assert.ok(report.finalResult, 'Expected self-play arena to finish a game');
   assert.ok(report.decisions.length > 0, 'Expected self-play arena to produce decisions');
   assert.ok(report.evaluation.verdict.length > 0, 'Expected self-play arena to produce evaluation');
+}
+
+{
+  const firstArena = new LocalAdversarialSelfPlayArena({
+    scenarioId: 'standard-window-chain',
+    seed: 123456,
+  });
+  const secondArena = new LocalAdversarialSelfPlayArena({
+    scenarioId: 'standard-window-chain',
+    seed: 123456,
+  });
+  const firstReport = buildSelfPlayGoldenReport(firstArena.playOneGame());
+  const secondReport = buildSelfPlayGoldenReport(secondArena.playOneGame());
+  const diff = diffSelfPlayGoldenReports(firstReport, secondReport);
+
+  assert.deepEqual(diff.differences, [], `Expected self-play to be deterministic for same seed, got ${diff.differences.join('; ')}`);
 }
 
 {

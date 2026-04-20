@@ -1,4 +1,6 @@
-import type { BudgetTransaction, BudgetTransactionKind, GameState } from './models';
+import type { BudgetTransaction, BudgetTransactionKind, GameState } from './models.js';
+import { recordDomainEvent } from './runtimeState.js';
+import { getPromotionBudget } from './runtimeStats.js';
 
 function buildTransactionId(kind: BudgetTransactionKind, day: number, index: number) {
   return `budget-${kind}-${day}-${index}`;
@@ -64,13 +66,18 @@ export function recordBudgetChange(
     detail: string;
   },
 ) {
-  state.cash = Math.max(0, state.cash + input.amount);
+  const nextPromotionBudget = Math.max(0, getPromotionBudget(state) + input.amount);
+  state.auxiliaryStats = {
+    ...state.auxiliaryStats,
+    promotionBudget: nextPromotionBudget,
+  };
+  state.cash = nextPromotionBudget;
   const entry: BudgetTransaction = {
     id: buildTransactionId(input.kind, state.day, state.budgetLedger.length + 1),
     day: state.day,
     kind: input.kind,
     amount: input.amount,
-    balanceAfter: state.cash,
+    balanceAfter: nextPromotionBudget,
     title: input.title,
     detail: input.detail,
   };
@@ -78,5 +85,17 @@ export function recordBudgetChange(
   if (state.budgetLedger.length > 40) {
     state.budgetLedger.pop();
   }
+  recordDomainEvent(state, {
+    kind: 'budget_changed',
+    actor: '资金流水',
+    title: input.title,
+    detail: input.detail,
+    tone: input.amount >= 0 ? 'success' : 'accent',
+    payload: {
+      amount: input.amount,
+      balanceAfter: nextPromotionBudget,
+      budgetKind: input.kind,
+    },
+  });
   return entry;
 }

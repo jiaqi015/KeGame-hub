@@ -1,14 +1,14 @@
 import type {
   BoardPressureProfile,
   DifficultyId,
-  GameRules,
+  GameRuleOverrides,
   GoalContextId,
   GoalTier,
   ScoreThresholds,
   ScenarioDefinition,
   ScenarioSnapshot,
   WorldSpec,
-} from '../models';
+} from '../models.js';
 
 export interface NumberRange {
   min: number;
@@ -49,6 +49,7 @@ export interface ScenarioGenerationRequest {
 export interface DifficultyProfile {
   id: DifficultyId;
   label: string;
+  playerTargetScore: number;
   caseCount: number;
   maxDayRange: NumberRange;
   startDayRange: NumberRange;
@@ -61,8 +62,8 @@ export interface DifficultyProfile {
   scriptedEventCountRange: NumberRange;
   competitionGroupCountRange: NumberRange;
   randomEventWeights: Record<string, number>;
-  ruleAdjustments: Partial<GameRules>;
-  difficultyScoreTarget: NumberRange;
+  ruleAdjustments: GameRuleOverrides;
+  generationDifficultyBand: NumberRange;
 }
 
 export interface CaseRoleSlot {
@@ -89,7 +90,7 @@ export interface ScenarioBlueprint {
   competitionTopology: CompetitionTopology;
   eventArcId: EventArcId;
   focusMarketCellIds?: string[];
-  ruleAdjustments?: Partial<GameRules>;
+  ruleAdjustments?: GameRuleOverrides;
   randomEventWeightBias?: Record<string, number>;
   naming: {
     titlePool: string[];

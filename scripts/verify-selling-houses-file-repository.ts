@@ -5,6 +5,7 @@ import path from 'node:path';
 import { getRuntimeTempDir } from '../lib/runtimeTemp.js';
 import { createInitialState } from '../src/selling-houses/application/gameState.js';
 import { MaintainerSyncConflictError } from '../src/selling-houses/application/maintainerSyncConflictError.js';
+import { applyAuxiliaryStats } from '../src/selling-houses/domain/runtimeStats.js';
 import { getScenarioSnapshotById } from '../src/selling-houses/domain/scenarioCatalog.js';
 import { FileMaintainerRunRepository } from '../src/selling-houses/infrastructure/fileMaintainerRunRepository.js';
 
@@ -36,7 +37,9 @@ assert.equal(fetched?.runId, created.runId, 'Expected getRun to return matching 
 
 const updatedState = structuredClone(created.saveData);
 updatedState.day = 3;
-updatedState.cash += 1200;
+applyAuxiliaryStats(updatedState, {
+  promotionBudget: updatedState.auxiliaryStats.promotionBudget + 1200,
+});
 updatedState.energy = Math.max(0, updatedState.energy - 2);
 updatedState.gameOver = true;
 updatedState.finalResult = {
@@ -72,6 +75,17 @@ updatedState.finalResult = {
   promotionNotes: [],
   coachNotes: [],
   nextRunAdvice: ['继续验证无库模式下的行为一致性。'],
+  customerReview: {
+    engaged: 1,
+    comparing: 0,
+    atRisk: 0,
+    rivalPulled: 0,
+    strongestCaseTitle: null,
+    mostComparedCaseTitle: null,
+    mostAtRiskCaseTitle: null,
+    summary: '验证客户复盘结构可写入。',
+    notes: ['验证用客户复盘。'],
+  },
   caseResults: [],
 };
 

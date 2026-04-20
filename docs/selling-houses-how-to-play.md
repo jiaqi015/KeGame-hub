@@ -16,7 +16,7 @@
 - 某个组件怎么拆
 
 如果你要看设计定位，请读 [docs/selling-houses-game-positioning.md](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-game-positioning.md)。
-如果你要看架构草图，请读 [docs/selling-houses-game-architecture.md](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-game-architecture.md)。
+如果你要看整体架构，请读 [docs/selling-houses-total-design.md](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-total-design.md) 和 [docs/selling-houses-domain-architecture-v1.md](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-domain-architecture-v1.md)。
 
 ## 一句话先讲明白
 
@@ -48,7 +48,7 @@
 
 ## 开局怎么开始
 
-进入这条线后，第一步不是直接经营，而是先选难度，再决定打代表局还是随机局。
+进入这条线后，第一步不是直接经营，而是先选难度，再决定打标准局还是随机局。
 
 你会看到 6 档难度：
 
@@ -61,7 +61,7 @@
 
 每档难度都提供两种开局方式：
 
-- `进入代表局`
+- `进入标准局`
   先打一局这档最典型的局面，适合熟悉这档的节奏
 - `开启随机局`
   用这一档的难度规则随机生成一局新环境，适合刷手感和复盘判断
@@ -69,14 +69,14 @@
 开始页会给你看：
 
 - 这档难度的气质
-- 代表局名称和主题
+- 标准局名称和主题
 - 这局大概几套房、多少天节奏
 - 这档最典型的压力
 
 如果你第一次玩，建议这样选：
 
-- 想先熟手感：`热身` 或 `入门` 的代表局
-- 想体验完整拉扯：`标准` 代表局
+- 想先熟手感：`热身` 或 `入门` 的标准局
+- 想体验完整拉扯：`标准` 这一档的标准局
 - 已经知道规则，想吃判断：`进阶` 往上
 
 ## 一局大概是什么节奏
@@ -427,9 +427,9 @@
 
 这游戏最终会给你结算，不只看单一分数，而是看三类结果：
 
-- 经营结果
-- 守盘结果
-- 业主感受
+- 能力分
+- 守盘分
+- 满意分
 
 最终你会看到：
 
@@ -488,7 +488,7 @@
 
 如果你是第一次进这条线，推荐这样玩：
 
-1. 先打 `入门` 或 `标准` 的代表局
+1. 先打 `入门` 或 `标准` 的标准局
 2. 每天先看 `经营概览`
 3. 再去 `房源管理`
 4. 今天只盯 1 到 2 套最关键的盘

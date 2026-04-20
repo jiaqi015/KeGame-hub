@@ -1,5 +1,8 @@
 import type {
   MaintainerCreateRunCommand,
+  MaintainerFinalStats,
+  MaintainerLeaderboardCategoryEntry,
+  MaintainerLeaderboardDetail,
   MaintainerLeaderboardEntry,
   MaintainerRunRecord,
   MaintainerSaveRunCommand,
@@ -12,6 +15,7 @@ import {
   deriveRunStatus,
   normalizePlayerName,
 } from '../application/cloudSync.js';
+import { buildRuntimeAuxiliaryStats } from '../domain/runtimeStats.js';
 import { MaintainerSyncConflictError } from '../application/maintainerSyncConflictError.js';
 import { buildShadowWriteSummary } from '../application/shadowSyncSummary.js';
 import { ACTIONS } from '../domain/actions/definitions.js';
@@ -60,6 +64,12 @@ interface LeaderboardRow {
   created_at: string;
 }
 
+interface LeaderboardDetailRow {
+  user_id: string;
+  player_name: string;
+  metric_value: number | string;
+}
+
 function toNumber(value: unknown) {
   if (typeof value === 'number') {
     return value;
@@ -85,23 +95,46 @@ function toJsonValue<T>(value: unknown, fallback: T): T {
   return (value as T) ?? fallback;
 }
 
+function objectRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null ? value as Record<string, unknown> : null;
+}
+
+function resolveSavedAuxiliaryStats(
+  saveData: MaintainerRunRecord['saveData'],
+  row: Pick<GameRunRow, 'cash' | 'reputation' | 'sold_count' | 'withdrawn_count'>,
+) {
+  const saveRecord = objectRecord(saveData);
+  const runtimeAuxiliaryStats = objectRecord(saveRecord?.auxiliaryStats);
+  const finalResult = objectRecord(saveRecord?.finalResult);
+  const finalAuxiliaryStats = objectRecord(finalResult?.auxiliaryStats);
+  const auxiliaryStats = runtimeAuxiliaryStats || finalAuxiliaryStats;
+  // The database column is still named "reputation"; map it into the auxiliary word-of-mouth concept.
+  const legacyReputationValue = auxiliaryStats && 'reputation' in auxiliaryStats
+    ? auxiliaryStats.reputation
+    : undefined;
+
+  return {
+    commission: auxiliaryStats && 'commission' in auxiliaryStats
+      ? toNumber(auxiliaryStats.commission)
+      : toNumber(saveRecord?.commission),
+    promotionBudget: auxiliaryStats && 'promotionBudget' in auxiliaryStats
+      ? toNumber(auxiliaryStats.promotionBudget)
+      : toNumber(saveRecord?.cash ?? row.cash),
+    wordOfMouth: auxiliaryStats && ('wordOfMouth' in auxiliaryStats || 'reputation' in auxiliaryStats)
+      ? toNumber(auxiliaryStats.wordOfMouth ?? legacyReputationValue)
+      : toNumber(saveRecord?.wordOfMouth ?? saveRecord?.reputation ?? row.reputation),
+    soldCount: auxiliaryStats && 'soldCount' in auxiliaryStats
+      ? toNumber(auxiliaryStats.soldCount)
+      : toNumber(saveRecord?.soldCount ?? row.sold_count),
+    withdrawnCount: auxiliaryStats && 'withdrawnCount' in auxiliaryStats
+      ? toNumber(auxiliaryStats.withdrawnCount)
+      : toNumber(saveRecord?.withdrawnCount ?? row.withdrawn_count),
+  };
+}
+
 function mapRunRow(row: GameRunRow): MaintainerRunRecord {
   const saveData = toJsonValue(row.save_data, null) as MaintainerRunRecord['saveData'];
-  const finalStats = typeof saveData === 'object' && saveData ? (saveData as { finalResult?: unknown }).finalResult : null;
-  const auxiliaryStats = typeof finalStats === 'object' && finalStats
-    ? ((finalStats as { auxiliaryStats?: Record<string, unknown> }).auxiliaryStats || null)
-    : null;
-  const commission = toNumber(auxiliaryStats?.commission);
-  const reputation = toNumber(auxiliaryStats?.reputation);
-  const soldCount = toNumber(auxiliaryStats?.soldCount);
-  const withdrawnCount = toNumber(auxiliaryStats?.withdrawnCount);
-  const resolvedAuxiliaryStats = {
-    commission,
-    promotionBudget: toNumber(auxiliaryStats?.promotionBudget) || toNumber(row.cash),
-    reputation: auxiliaryStats && 'reputation' in auxiliaryStats ? reputation : toNumber(row.reputation),
-    soldCount: auxiliaryStats && 'soldCount' in auxiliaryStats ? soldCount : row.sold_count,
-    withdrawnCount: auxiliaryStats && 'withdrawnCount' in auxiliaryStats ? withdrawnCount : row.withdrawn_count,
-  };
+  const resolvedAuxiliaryStats = resolveSavedAuxiliaryStats(saveData, row);
   return {
     runId: row.run_id,
     userId: row.user_id,
@@ -118,10 +151,6 @@ function mapRunRow(row: GameRunRow): MaintainerRunRecord {
     cash: toNumber(row.cash),
     energy: row.energy,
     auxiliaryStats: resolvedAuxiliaryStats,
-    commission: resolvedAuxiliaryStats.commission,
-    reputation: resolvedAuxiliaryStats.reputation,
-    soldCount: resolvedAuxiliaryStats.soldCount,
-    withdrawnCount: resolvedAuxiliaryStats.withdrawnCount,
     score: row.score,
     syncVersion: toNumber(row.sync_version),
     saveData,
@@ -134,7 +163,42 @@ function mapRunRow(row: GameRunRow): MaintainerRunRecord {
   };
 }
 
+function resolvePersistedAuxiliaryStats(state: MaintainerRunRecord['saveData']) {
+  return buildRuntimeAuxiliaryStats(state);
+}
+
+function normalizeMaintainerFinalStats(value: unknown, fallback: MaintainerFinalStats): MaintainerFinalStats {
+  const parsed = toJsonValue(value, fallback) as MaintainerFinalStats & {
+    auxiliaryStats?: MaintainerFinalStats['auxiliaryStats'] & { reputation?: number };
+  };
+  return {
+    ...parsed,
+    auxiliaryStats: {
+      commission: toNumber(parsed.auxiliaryStats?.commission),
+      promotionBudget: toNumber(parsed.auxiliaryStats?.promotionBudget),
+      wordOfMouth: toNumber(parsed.auxiliaryStats?.wordOfMouth ?? parsed.auxiliaryStats?.reputation),
+      soldCount: toNumber(parsed.auxiliaryStats?.soldCount),
+      withdrawnCount: toNumber(parsed.auxiliaryStats?.withdrawnCount),
+    },
+  };
+}
+
 function mapLeaderboardRow(row: LeaderboardRow): MaintainerLeaderboardEntry {
+  const fallbackFinalStats: MaintainerFinalStats = {
+    title: row.rank_title || '这局还没有生成新的房源结局结算。',
+    summary: '这局还没有生成新的房源结局结算。',
+    stats: [],
+    score: toNumber(row.score),
+    caseResults: [],
+    auxiliaryStats: {
+      commission: 0,
+      promotionBudget: 0,
+      wordOfMouth: 0,
+      soldCount: 0,
+      withdrawnCount: 0,
+    },
+  };
+
   return {
     runId: row.run_id,
     userId: row.user_id,
@@ -142,23 +206,18 @@ function mapLeaderboardRow(row: LeaderboardRow): MaintainerLeaderboardEntry {
     seasonId: row.season_id,
     score: toNumber(row.score),
     rankTitle: row.rank_title,
-    finalStats: toJsonValue(row.final_stats, {
-      title: row.rank_title || '这局还没有生成新的房源结局结算。',
-      summary: '这局还没有生成新的房源结局结算。',
-      stats: [],
-      score: toNumber(row.score),
-      caseResults: [],
-      auxiliaryStats: {
-        commission: 0,
-        promotionBudget: 0,
-        reputation: 0,
-        soldCount: 0,
-        withdrawnCount: 0,
-      },
-    }),
+    finalStats: normalizeMaintainerFinalStats(row.final_stats, fallbackFinalStats),
     scoreBreakdown: toJsonValue(row.score_breakdown, {}),
     finishedAt: row.finished_at,
     createdAt: row.created_at,
+  };
+}
+
+function mapLeaderboardCategoryRow(row: LeaderboardDetailRow): MaintainerLeaderboardCategoryEntry {
+  return {
+    userId: row.user_id,
+    playerName: row.player_name,
+    value: toNumber(row.metric_value),
   };
 }
 
@@ -298,6 +357,18 @@ function resolveMatterTypeCode(entry: { kind?: unknown }, fallback: 'schedule_ri
   return fallback;
 }
 
+function resolveMatterInteractionTemplateCode(entry: { template?: unknown; source?: unknown }) {
+  if (entry.template === 'dialog' || entry.template === 'form' || entry.template === 'schedule' || entry.template === 'realtime') {
+    return entry.template;
+  }
+
+  if (entry.source === 'schedule') {
+    return 'schedule';
+  }
+
+  return 'form';
+}
+
 function buildMatterId(runId: string, source: string, key: string, index: number) {
   const normalizedKey = (key || `${index + 1}`).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80) || `${index + 1}`;
   return `${runId}:matter:${source}:${index + 1}:${normalizedKey}`;
@@ -318,6 +389,29 @@ function buildFocusMeetingEntryId(cycleId: string, runListingId: string, index: 
 
 function buildMatterInteractionId(matterId: string, turnIndex: number) {
   return `${matterId}:turn:${turnIndex}`;
+}
+
+interface ShadowMatterEntry {
+  source: string;
+  sourceIndex: number;
+  fallbackTypeCode: 'case_priority' | 'schedule_risk';
+  kind?: string;
+  template?: string;
+  key?: string;
+  caseId?: string;
+  title?: string;
+  detail?: string;
+  note?: string;
+  badge?: string;
+  urgency?: number;
+  priority?: number;
+  stakeholderCode?: string;
+  matterStatus?: string;
+  deadlineDay?: number | null;
+  resolutionCode?: string | null;
+  resolutionSummary?: string | null;
+  resolvedAt?: string | null;
+  contextPatch?: Record<string, unknown>;
 }
 
 function buildLeadFeedbackId(leadId: string) {
@@ -440,7 +534,7 @@ function resolveMatterRecommendedActionCodes(
     { match: ['开放日', '热度'], codes: ['open-day', 'xiaohongshu-boost'] },
     { match: ['经纪人', '预测客群'], codes: ['broker-broadcast', 'showing'] },
     { match: ['带看', '推进', '客户'], codes: ['showing', 'invite-customer-negotiation'] },
-    { match: ['诚意', '谈判', '收口'], codes: ['sincerity-sale', 'invite-customer-negotiation'] },
+    { match: ['诚意', '谈判', '成交'], codes: ['sincerity-sale', 'invite-customer-negotiation'] },
   ];
 
   for (const group of fallbackGroups) {
@@ -493,7 +587,7 @@ function buildResolvedCaseMatterSummary(
   }
 
   if (caseItem.status === 'sold') {
-    return `${caseItem.title} 已完成成交收口，当前应转入复盘与佣金确认。`;
+    return `${caseItem.title} 已经成交，当前应转入复盘与佣金确认。`;
   }
 
   if (caseItem.status === 'withdrawn') {
@@ -510,9 +604,9 @@ function buildResolvedCaseMatterSummary(
 function buildResolvedCaseMatterTitle(
   caseItem: MaintainerRunRecord['saveData']['cases'][number],
 ) {
-  if (caseItem.status === 'sold') return `${caseItem.title} 已成交收口`;
-  if (caseItem.status === 'withdrawn') return `${caseItem.title} 已撤盘收口`;
-  if (caseItem.status === 'lost_to_rival') return `${caseItem.title} 已失守收口`;
+  if (caseItem.status === 'sold') return `${caseItem.title} 已成交`;
+  if (caseItem.status === 'withdrawn') return `${caseItem.title} 已撤盘`;
+  if (caseItem.status === 'lost_to_rival') return `${caseItem.title} 已被别人抢走`;
   return `${caseItem.title} 已结束`;
 }
 
@@ -538,7 +632,7 @@ function resolveClosedMatterStatus(
   return {
     status: 'expired' as const,
     resolutionCode: 'lost_to_rival',
-    resolutionSummary: '竞品先行收口，当前事项已失效。',
+    resolutionSummary: '竞品先一步成交，当前事项已失效。',
   };
 }
 
@@ -1129,6 +1223,7 @@ export class NeonGameRunRepository {
       try {
         const priorities = Array.isArray(state?.priorities) ? state.priorities : [];
         const schedule = Array.isArray(state?.schedule) ? state.schedule : [];
+        const runtimeMatters = Array.isArray(state?.matters) ? state.matters : [];
         const closedCaseEntries = cases
           .filter((caseItem) => caseItem.status === 'sold' || caseItem.status === 'withdrawn' || caseItem.status === 'lost_to_rival')
           .map((caseItem, index) => {
@@ -1158,9 +1253,35 @@ export class NeonGameRunRepository {
             };
           });
 
-        const matterEntries = [
-          ...priorities.map((entry, index) => ({ ...entry, source: 'priority', sourceIndex: index, fallbackTypeCode: 'case_priority' as const })),
-          ...schedule.map((entry, index) => ({ ...entry, source: 'schedule', sourceIndex: index, fallbackTypeCode: 'schedule_risk' as const })),
+        const baseMatterEntries: ShadowMatterEntry[] = runtimeMatters.length > 0
+          ? runtimeMatters.map((entry, index) => ({
+            source: entry.source,
+            sourceIndex: index,
+            fallbackTypeCode: entry.source === 'schedule' ? 'schedule_risk' as const : 'case_priority' as const,
+            kind: entry.kind,
+            template: entry.template,
+            key: entry.sourceKey,
+            caseId: entry.caseId,
+            title: entry.title,
+            detail: entry.detail,
+            badge: entry.badge,
+            urgency: entry.urgency,
+            stakeholderCode: entry.caseId ? 'case' : 'system',
+            matterStatus: entry.stage === 'completed'
+              ? 'resolved'
+              : entry.stage === 'abandoned'
+                ? 'cancelled'
+                : entry.stage === 'in_progress'
+                  ? 'active'
+                  : 'open',
+          }))
+          : [
+            ...priorities.map((entry, index) => ({ ...entry, source: 'priority', sourceIndex: index, fallbackTypeCode: 'case_priority' as const })),
+            ...schedule.map((entry, index) => ({ ...entry, source: 'schedule', sourceIndex: index, fallbackTypeCode: 'schedule_risk' as const })),
+          ];
+
+        const matterEntries: ShadowMatterEntry[] = [
+          ...baseMatterEntries,
           ...closedCaseEntries,
         ].slice(0, 20);
 
@@ -1168,7 +1289,7 @@ export class NeonGameRunRepository {
         const placeholders = matterEntries.map((entry, index) => {
           const caseId = typeof entry.caseId === 'string' ? entry.caseId : null;
           const runListingId = caseId ? buildRunListingId(runId, caseId) : guessEventRunListingId(runId, state, undefined, `${entry.title || ''} ${entry.note || ''} ${entry.detail || ''}`);
-          const offset = index * 16;
+          const offset = index * 19;
           values.push(
             buildMatterId(runId, entry.source, String(entry.key || entry.caseId || entry.title || ''), index),
             runId,
@@ -1196,8 +1317,9 @@ export class NeonGameRunRepository {
             entry.resolutionCode || null,
             entry.resolutionSummary || null,
             entry.resolvedAt || null,
+            resolveMatterInteractionTemplateCode(entry),
           );
-          return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}, $${offset + 12}, $${offset + 13}, $${offset + 14}::jsonb, $${offset + 15}::jsonb, $${offset + 16}, $${offset + 17}, $${offset + 18}::timestamptz)`;
+          return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}, $${offset + 12}, $${offset + 13}, $${offset + 14}::jsonb, $${offset + 15}::jsonb, $${offset + 16}, $${offset + 17}, $${offset + 18}::timestamptz, $${offset + 19})`;
         }).join(',\n');
 
         if (placeholders) {
@@ -1397,8 +1519,8 @@ export class NeonGameRunRepository {
               }),
               'approved',
               caseItem.windowDays <= 4
-                ? '窗口紧，优先确保这套盘不失守。'
-                : '本周聚焦盘，继续压资源最划算。',
+                ? '窗口紧，优先确保这套房别被别人抢走。'
+                : '这是本周商圈聚焦房，继续压资源最划算。',
             );
             return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}::jsonb, $${offset + 5}, $${offset + 6}, '{}'::jsonb)`;
           }).join(',\n');
@@ -1762,6 +1884,7 @@ export class NeonGameRunRepository {
     const status = deriveRunStatus(command.state);
     const score = status === 'finished' ? deriveRunScore(command.state) : null;
     const runContext = command.state.runContext;
+    const auxiliaryStats = resolvePersistedAuxiliaryStats(command.state);
 
     await this.touchUser(command.userId, playerName);
 
@@ -1868,11 +1991,11 @@ export class NeonGameRunRepository {
           runContext?.rngSeed || null,
           command.state.version,
           command.state.day,
-          command.state.cash,
+          auxiliaryStats.promotionBudget,
           command.state.energy,
-          command.state.reputation,
-          command.state.soldCount,
-          command.state.withdrawnCount,
+          auxiliaryStats.wordOfMouth,
+          auxiliaryStats.soldCount,
+          auxiliaryStats.withdrawnCount,
           score,
           JSON.stringify(runContext?.scenarioSnapshot || null),
           JSON.stringify(command.state),
@@ -1991,6 +2114,7 @@ export class NeonGameRunRepository {
     const status = deriveRunStatus(command.state);
     const score = status === 'finished' ? deriveRunScore(command.state) : null;
     const runContext = command.state.runContext;
+    const auxiliaryStats = resolvePersistedAuxiliaryStats(command.state);
 
     await this.touchUser(command.userId, playerName);
 
@@ -2071,11 +2195,11 @@ export class NeonGameRunRepository {
           runContext?.rngSeed || null,
           command.state.version,
           command.state.day,
-          command.state.cash,
+          auxiliaryStats.promotionBudget,
           command.state.energy,
-          command.state.reputation,
-          command.state.soldCount,
-          command.state.withdrawnCount,
+          auxiliaryStats.wordOfMouth,
+          auxiliaryStats.soldCount,
+          auxiliaryStats.withdrawnCount,
           score,
           JSON.stringify(runContext?.scenarioSnapshot || null),
           JSON.stringify(command.state),
@@ -2131,6 +2255,64 @@ export class NeonGameRunRepository {
       )) as LeaderboardRow[];
 
       return rows.map(mapLeaderboardRow);
+    });
+  }
+
+  async getLeaderboardDetail(seasonId = 'season-1', limit = 20): Promise<MaintainerLeaderboardDetail> {
+    const safeLimit = Math.max(1, Math.min(limit, 50));
+
+    return withSellingHousesNeon(async (sql) => {
+      const [totalScoreRows, bestScoreRows, playCountRows] = await Promise.all([
+        sql.query(
+          `
+            SELECT
+              user_id,
+              MAX(player_name) AS player_name,
+              SUM(score) AS metric_value
+            FROM maintainer_leaderboard_entries
+            WHERE season_id = $1
+            GROUP BY user_id
+            ORDER BY metric_value DESC, MAX(player_name) ASC
+            LIMIT $2
+          `,
+          [seasonId, safeLimit],
+        ) as unknown as Promise<LeaderboardDetailRow[]>,
+        sql.query(
+          `
+            SELECT
+              user_id,
+              MAX(player_name) AS player_name,
+              MAX(score) AS metric_value
+            FROM maintainer_leaderboard_entries
+            WHERE season_id = $1
+            GROUP BY user_id
+            ORDER BY metric_value DESC, MAX(player_name) ASC
+            LIMIT $2
+          `,
+          [seasonId, safeLimit],
+        ) as unknown as Promise<LeaderboardDetailRow[]>,
+        sql.query(
+          `
+            SELECT
+              user_id,
+              MAX(player_name) AS player_name,
+              COUNT(*) AS metric_value
+            FROM maintainer_leaderboard_entries
+            WHERE season_id = $1
+            GROUP BY user_id
+            ORDER BY metric_value DESC, MAX(player_name) ASC
+            LIMIT $2
+          `,
+          [seasonId, safeLimit],
+        ) as unknown as Promise<LeaderboardDetailRow[]>,
+      ]);
+
+      return {
+        seasonId,
+        totalScore: totalScoreRows.map(mapLeaderboardCategoryRow),
+        bestScore: bestScoreRows.map(mapLeaderboardCategoryRow),
+        playCount: playCountRows.map(mapLeaderboardCategoryRow),
+      };
     });
   }
 

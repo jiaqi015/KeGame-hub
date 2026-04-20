@@ -31,7 +31,7 @@
 | 产品形态 | 统一入口产品，而不是单功能工具 |
 | 最成熟模块 | `开放日选址` |
 | 增长最快模块 | `我是王牌资产顾问` |
-| 当前主战场 | 统一入口收口、开放日领域化、资产顾问云化 |
+| 当前主战场 | 统一入口收口、开放日领域化、资产顾问架构与信息架构落地 |
 | 文档权威入口 | [MEMORY.md](MEMORY.md) 与 `docs/project-memory/` |
 
 ## Product Surfaces
@@ -88,15 +88,15 @@ http://localhost:3000
 如果你是重新接手这个仓库，推荐按下面顺序恢复上下文：
 
 1. 读 [MEMORY.md](/Users/jiaqi/Documents/开放日测算/MEMORY.md)
-2. 读 [当前状态](docs/project-memory/current-state.md)
-3. 读 [当前焦点](docs/project-memory/current-focus.md)
-4. 读 [模块地图](docs/project-memory/module-map.md)
-5. 看 `git status --short`，确认当前未提交改动主要落在哪条业务线
+2. 读 [接手清单](docs/project-memory/handoff-checklist.md)
+3. 读 [模块地图](docs/project-memory/module-map.md)
+4. 看 `git status --short`，确认当前未提交改动主要落在哪条业务线
+5. 如果本轮是资产顾问，先读 [卖房总设计](docs/selling-houses-total-design.md)、[卖房总纲](docs/selling-houses-master.md) 和 [业务事实总表](docs/selling-houses-business-facts.md)
 
 如果你只想 30 秒内判断这轮工作重点，优先读：
 
 1. [MEMORY.md](/Users/jiaqi/Documents/开放日测算/MEMORY.md)
-2. [docs/project-memory/current-focus.md](/Users/jiaqi/Documents/开放日测算/docs/project-memory/current-focus.md)
+2. [docs/project-memory/handoff-checklist.md](/Users/jiaqi/Documents/开放日测算/docs/project-memory/handoff-checklist.md)
 3. [docs/project-memory/module-map.md](/Users/jiaqi/Documents/开放日测算/docs/project-memory/module-map.md)
 
 继续开发前先确认：
@@ -167,9 +167,8 @@ http://localhost:3000
 ### Project Memory
 
 - [项目记忆入口](MEMORY.md)
-- [当前状态](docs/project-memory/current-state.md)
+- [文档总索引](docs/README.md)
 - [稳定决策](docs/project-memory/durable-decisions.md)
-- [当前焦点](docs/project-memory/current-focus.md)
 - [模块地图](docs/project-memory/module-map.md)
 - [接手清单](docs/project-memory/handoff-checklist.md)
 
@@ -185,14 +184,19 @@ http://localhost:3000
 ### Selling Houses
 
 - [玩法说明](docs/selling-houses-how-to-play.md)
-- [云端数据模型](docs/selling-houses-cloud-data-model.md)
-- [玩法架构草图](docs/selling-houses-game-architecture.md)
-- [统一玩法架构](docs/selling-houses-unified-game-architecture.md)
+- [卖房总设计](docs/selling-houses-total-design.md)
+- [卖房总纲](docs/selling-houses-master.md)
+- [业务事实总表](docs/selling-houses-business-facts.md)
+- [领域架构](docs/selling-houses-domain-architecture-v1.md)
+- [信息架构](docs/selling-houses-information-architecture.md)
+- [界面详细设计](docs/selling-houses-interface-detail-design.md)
+- [事项模板架构](docs/selling-houses-matter-template-architecture.md)
+- [成交事实与成交引擎](docs/selling-houses-deal-fact-and-closing-model.md)
+- [账号、玩家、局、得分与榜单](docs/platform-account-player-run-score-architecture.md)
 - [生成式剧本架构](docs/selling-houses-generated-scenario-architecture.md)
 - [游戏定位](docs/selling-houses-game-positioning.md)
 - [房源生命周期设计](docs/selling-houses-listing-lifecycle-design.md)
 - [评分系统](docs/selling-houses-scoring-system.md)
-- [完整框架计划](docs/selling-houses-complete-framework-plan.md)
 
 ## Repository Guide
 
@@ -222,8 +226,12 @@ npm run preview
 npm run lint
 npm run verify:maintainer
 npm run verify:maintainer-shadow
+npm run verify:maintainer-file-shadow
 npm run rebuild:maintainer-shadow
+npm run rebuild:maintainer-file-shadow
 npm run verify:generated-maintainer
+npm run verify:generated-maintainer-fullrun
+npm run selfplay:golden
 npm run selfplay:maintainer
 npm run selfplay:lab
 ```
@@ -236,8 +244,12 @@ npm run selfplay:lab
 - `lint`：TypeScript 检查
 - `verify:maintainer`：资产顾问主链路验证
 - `verify:maintainer-shadow`：资产顾问 shadow sync 验证
+- `verify:maintainer-file-shadow`：资产顾问 file fallback shadow summary 验证
 - `rebuild:maintainer-shadow`：shadow sync 重建
+- `rebuild:maintainer-file-shadow`：file fallback shadow summary 重建
 - `verify:generated-maintainer`：生成式剧本验证
+- `verify:generated-maintainer-fullrun`：生成式剧本完整运行验证
+- `selfplay:golden`：资产顾问 golden 自玩验证
 - `selfplay:maintainer`：资产顾问自对抗运行
 - `selfplay:lab`：资产顾问实验入口
 

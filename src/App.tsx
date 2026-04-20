@@ -1,4 +1,4 @@
-import React, { Suspense, useMemo, useReducer, useRef } from 'react';
+import React, { Suspense, useEffect, useMemo, useReducer, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles } from 'lucide-react';
 
@@ -24,12 +24,27 @@ import { UserIdentityBadge } from './components/Auth/UserIdentityBadge';
 import { WorkspaceHub } from './components/Hub/WorkspaceHub';
 import { ComparisonWorkspace } from './components/Comparison/ComparisonWorkspace';
 import { PreviewModal } from './components/Common/PreviewModal';
-import { WORKSPACE_REGISTRY_BY_ID } from './workspaces/workspaceRegistry';
+import { LoadingScene } from './components/Common/LoadingScene';
+import {
+  resolvePathnameForWorkspace,
+  resolveWorkspaceFromPathname,
+  WORKSPACE_REGISTRY_BY_ID,
+} from './workspaces/workspaceRegistry';
+
+const WORKSPACE_PATH_STORAGE_KEY = 'kegame-target-path';
 
 export default function App() {
-  const [state, dispatch] = useReducer(appReducer, initialState);
+  const [state, dispatch] = useReducer(
+    appReducer,
+    initialState,
+    (seed) => ({
+      ...seed,
+      activeWorkspace: resolveWorkspaceFromPathname(window.location.pathname),
+    }),
+  );
   const { authorizedFetch, lockApplication } = useAppSession(state, dispatch);
   const workspaceFallback = useMemo(() => <WorkspaceShellSkeleton />, []);
+  const pendingWorkspaceRef = useRef<'hub' | ActivationWorkspaceId>(resolveWorkspaceFromPathname(window.location.pathname));
   
   const {
     prompt,
@@ -56,6 +71,38 @@ export default function App() {
   const activeControllersRef = useRef<AbortController[]>([]);
   const summaryControllerRef = useRef<AbortController | null>(null);
 
+  useEffect(() => {
+    const initialWorkspace = resolveWorkspaceFromPathname(window.location.pathname);
+    pendingWorkspaceRef.current = initialWorkspace;
+    if (initialWorkspace !== 'hub') {
+      window.sessionStorage.setItem(WORKSPACE_PATH_STORAGE_KEY, resolvePathnameForWorkspace(initialWorkspace));
+    }
+
+    const handlePopState = () => {
+      const nextWorkspace = resolveWorkspaceFromPathname(window.location.pathname);
+      pendingWorkspaceRef.current = nextWorkspace;
+      dispatch({ type: 'SET_WORKSPACE', workspace: nextWorkspace });
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
+  useEffect(() => {
+    const expectedPath = resolvePathnameForWorkspace(activeWorkspace);
+    const currentPath = window.location.pathname.endsWith('/')
+      ? window.location.pathname.slice(0, -1) || '/'
+      : window.location.pathname || '/';
+    if (currentPath !== expectedPath) {
+      window.history.replaceState({}, '', expectedPath);
+    }
+    if (activeWorkspace !== 'hub') {
+      window.sessionStorage.setItem(WORKSPACE_PATH_STORAGE_KEY, expectedPath);
+    }
+  }, [activeWorkspace]);
+
   const abortActiveComparisons = () => {
     activeControllersRef.current.forEach((controller) => controller.abort());
     activeControllersRef.current = [];
@@ -78,13 +125,18 @@ export default function App() {
 
         if (result.mode === 'trusted-bypass') {
           const user = await completeEmailLogin({ email: result.email });
+          const targetWorkspace = pendingWorkspaceRef.current;
           dispatch({
             type: 'COMPLETE_ACTIVATION',
             key: 'session-authenticated',
             allowedWorkspaces: user.allowedWorkspaces,
+            accountId: user.accountId,
             email: user.email,
             nickname: user.nickname,
           });
+          if (targetWorkspace !== 'hub' && user.allowedWorkspaces.includes(targetWorkspace)) {
+            dispatch({ type: 'SET_WORKSPACE', workspace: targetWorkspace });
+          }
           return;
         }
 
@@ -114,9 +166,14 @@ export default function App() {
         type: 'COMPLETE_ACTIVATION',
         key: authorizedSessionKey,
         allowedWorkspaces: user.allowedWorkspaces,
+        accountId: user.accountId,
         email: user.email,
         nickname: user.nickname,
       });
+      const targetWorkspace = pendingWorkspaceRef.current;
+      if (targetWorkspace !== 'hub' && user.allowedWorkspaces.includes(targetWorkspace)) {
+        dispatch({ type: 'SET_WORKSPACE', workspace: targetWorkspace });
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : '激活失败。';
       if (message.includes('激活密钥')) {
@@ -270,6 +327,8 @@ export default function App() {
     abortDifferenceSummary();
     dispatch({ type: 'SET_PREVIEW', data: null });
     dispatch({ type: 'SET_WORKSPACE', workspace: 'hub' });
+    pendingWorkspaceRef.current = 'hub';
+    window.history.pushState({}, '', '/');
   };
 
   const canAccessWorkspace = (workspace: ActivationWorkspaceId) =>
@@ -280,6 +339,9 @@ export default function App() {
       return;
     }
 
+    const nextPath = resolvePathnameForWorkspace(workspace);
+    pendingWorkspaceRef.current = workspace;
+    window.history.pushState({}, '', nextPath);
     dispatch({ type: 'SET_WORKSPACE', workspace });
   };
 
@@ -367,9 +429,12 @@ export default function App() {
         renderWorkspaceShell(
           activeWorkspace,
           <Suspense fallback={workspaceFallback}>
-            {WORKSPACE_REGISTRY_BY_ID[activeWorkspace].render({
-              activationKey: authorizedKey,
-              onReturnToHub: handleReturnToHub,
+              {WORKSPACE_REGISTRY_BY_ID[activeWorkspace].render({
+                activationKey: authorizedKey,
+                currentUserAccountId: state.currentUserAccountId,
+                currentUserNickname: currentUserNickname,
+                currentUserEmail: currentUserEmail,
+                onReturnToHub: handleReturnToHub,
               onLogout: () => lockApplication('', ''),
             })}
           </Suspense>,
@@ -387,7 +452,7 @@ export default function App() {
       <footer className="shrink-0 py-3 text-center text-[#86868B] text-[11px] border-t border-black/5 bg-white">
         <div className="flex items-center justify-center gap-2">
           <Sparkles className="w-3.5 h-3.5" />
-          <span>AI Model Sabrina II • 多模型PK + 开放日选址 + 资产顾问 + 商圈经营 + 理性业主</span>
+          <span>KeGame • 多模型PK + 开放日选址 + 资产顾问 + 商圈经营 + 理性业主</span>
           <span className="text-black/10">|</span>
           <span>© 2026</span>
         </div>
@@ -403,18 +468,9 @@ export default function App() {
 
 function WorkspaceShellSkeleton() {
   return (
-    <div className="flex h-full items-center justify-center bg-[linear-gradient(180deg,rgba(255,251,235,0.35),rgba(255,255,255,1))]">
-      <div className="w-full max-w-5xl animate-pulse px-8">
-        <div className="rounded-[36px] border border-black/5 bg-white/85 p-8 shadow-[0_24px_70px_rgba(20,20,43,0.08)]">
-          <div className="h-8 w-56 rounded bg-slate-200" />
-          <div className="mt-4 h-4 w-96 max-w-full rounded bg-slate-100" />
-          <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, index) => (
-              <div key={index} className="h-28 rounded-2xl bg-slate-100" />
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
+    <LoadingScene
+      title="正在进入工作台"
+      subtitle="加载模块、准备界面、同步当前状态…"
+    />
   );
 }

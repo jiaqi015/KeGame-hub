@@ -1,8 +1,408 @@
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap");
 @import "tailwindcss";
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Noto Serif SC", "Songti SC", "STSong", serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+:root {
+  --seller-bg: oklch(0.968 0.008 84);
+  --seller-bg-strong: oklch(0.952 0.012 84);
+  --seller-paper: oklch(0.988 0.004 84);
+  --seller-paper-soft: oklch(0.976 0.006 84);
+  --seller-border: oklch(0.88 0.01 84);
+  --seller-border-strong: oklch(0.79 0.02 76);
+  --seller-ink: oklch(0.24 0.026 257);
+  --seller-muted: oklch(0.48 0.014 257);
+  --seller-subtle: oklch(0.64 0.012 257);
+  --seller-accent: oklch(0.56 0.06 68);
+  --seller-accent-soft: oklch(0.94 0.02 70);
+  --seller-risk: oklch(0.6 0.1 36);
+  --seller-risk-soft: oklch(0.95 0.018 36);
+  --seller-chance: oklch(0.6 0.06 145);
+  --seller-chance-soft: oklch(0.962 0.018 145);
+  --seller-info: oklch(0.48 0.04 243);
+  --seller-shadow-sm: 0 10px 20px rgba(28, 33, 44, 0.04);
+  --seller-shadow-md: 0 18px 38px rgba(28, 33, 44, 0.06);
+  --seller-shadow-lg: 0 28px 64px rgba(28, 33, 44, 0.1);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: #fafafa;
+  color: #1d1d1f;
+  font-family: var(--font-sans);
+  font-feature-settings: "kern" 1;
+  letter-spacing: -0.01em;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--seller-accent-soft) 82%, white 18%);
+  color: var(--seller-ink);
+}
+
+.selling-houses-shell {
+  background:
+    radial-gradient(circle at top left, rgba(102, 118, 145, 0.1), transparent 26%),
+    radial-gradient(circle at bottom right, rgba(171, 146, 101, 0.08), transparent 24%),
+    linear-gradient(180deg, #f5f2ec 0%, #ece8df 100%);
+  color: var(--seller-ink);
+  font-family: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+}
+
+.seller-panel {
+  border: 1px solid var(--seller-border);
+  background: color-mix(in srgb, var(--seller-paper) 94%, white 6%);
+  border-radius: 18px;
+  box-shadow: var(--seller-shadow-sm);
+}
+
+.seller-panel-muted {
+  border: 1px solid var(--seller-border);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--seller-paper-soft) 92%, white 8%), color-mix(in srgb, var(--seller-bg) 82%, white 18%));
+  border-radius: 18px;
+  box-shadow: var(--seller-shadow-sm);
+}
+
+.seller-panel-soft {
+  border: 1px solid color-mix(in srgb, var(--seller-border) 86%, white 14%);
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 16px;
+}
+
+.seller-panel-strong {
+  border: 1px solid color-mix(in srgb, var(--seller-ink) 10%, var(--seller-border) 90%);
+  background: var(--seller-ink);
+  border-radius: 18px;
+  color: #f7f5ef;
+  box-shadow: var(--seller-shadow-md);
+}
+
+.seller-band {
+  border: 1px solid var(--seller-border);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(247, 244, 238, 0.92));
+  border-radius: 16px;
+}
+
+.seller-tablet {
+  border: 1px solid color-mix(in srgb, var(--seller-ink) 6%, var(--seller-border) 94%);
+  background: rgba(255, 255, 255, 0.72);
+  border-radius: 14px;
+}
+
+.seller-note {
+  border: 1px solid var(--seller-border);
+  background: color-mix(in srgb, var(--seller-bg) 80%, white 20%);
+  border-radius: 16px;
+  color: var(--seller-muted);
+}
+
+.seller-empty {
+  border: 1px dashed color-mix(in srgb, var(--seller-border-strong) 72%, white 28%);
+  background: color-mix(in srgb, var(--seller-bg) 76%, white 24%);
+  border-radius: 16px;
+  color: var(--seller-muted);
+}
+
+.seller-tone-risk {
+  border: 1px solid color-mix(in srgb, var(--seller-risk) 18%, var(--seller-border) 82%);
+  background: var(--seller-risk-soft);
+}
+
+.seller-tone-chance {
+  border: 1px solid color-mix(in srgb, var(--seller-chance) 18%, var(--seller-border) 82%);
+  background: var(--seller-chance-soft);
+}
+
+.seller-tone-neutral {
+  border: 1px solid var(--seller-border);
+  background: color-mix(in srgb, var(--seller-paper-soft) 84%, white 16%);
+}
+
+.seller-label {
+  color: var(--seller-subtle);
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.seller-title {
+  color: var(--seller-ink);
+  font-family: var(--font-serif);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+}
+
+.seller-body {
+  color: var(--seller-muted);
+  line-height: 1.65;
+}
+
+.seller-number {
+  font-variant-numeric: tabular-nums;
+}
+
+.seller-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  border: 1px solid var(--seller-border);
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 999px;
+  color: var(--seller-muted);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  padding: 0.42rem 0.7rem;
+  text-transform: uppercase;
+}
+
+.seller-chip-accent {
+  border-color: color-mix(in srgb, var(--seller-accent) 26%, var(--seller-border) 74%);
+  background: var(--seller-accent-soft);
+  color: color-mix(in srgb, var(--seller-accent) 82%, var(--seller-ink) 18%);
+}
+
+.seller-chip-risk {
+  border-color: color-mix(in srgb, var(--seller-risk) 20%, var(--seller-border) 80%);
+  background: var(--seller-risk-soft);
+  color: color-mix(in srgb, var(--seller-risk) 78%, var(--seller-ink) 22%);
+}
+
+.seller-chip-chance {
+  border-color: color-mix(in srgb, var(--seller-chance) 20%, var(--seller-border) 80%);
+  background: var(--seller-chance-soft);
+  color: color-mix(in srgb, var(--seller-chance) 72%, var(--seller-ink) 28%);
+}
+
+.seller-tabbar {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding: 0.25rem;
+  border: 1px solid var(--seller-border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.seller-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.95rem;
+  border-radius: 999px;
+  color: var(--seller-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  text-transform: uppercase;
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.seller-tab:hover {
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--seller-ink);
+}
+
+.seller-tab-active {
+  background: var(--seller-ink);
+  color: #f8f5ef;
+}
+
+.seller-button-primary {
+  border: 1px solid color-mix(in srgb, var(--seller-ink) 8%, var(--seller-border) 92%);
+  background: var(--seller-ink);
+  border-radius: 14px;
+  color: #f8f5ef;
+  font-size: 0.77rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease, transform 150ms ease;
+}
+
+.seller-button-primary:hover {
+  background: color-mix(in srgb, var(--seller-ink) 88%, black 12%);
+}
+
+.seller-button-secondary {
+  border: 1px solid var(--seller-border);
+  background: rgba(255, 255, 255, 0.84);
+  border-radius: 14px;
+  color: var(--seller-ink);
+  font-size: 0.77rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease, transform 150ms ease;
+}
+
+.seller-button-secondary:hover {
+  border-color: var(--seller-border-strong);
+  background: #fffdf8;
+}
+
+.seller-button-ghost {
+  border-radius: 14px;
+  color: var(--seller-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.seller-button-ghost:hover {
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--seller-ink);
+}
+
+.seller-separator {
+  background: linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--seller-border) 76%, white 24%) 10%, color-mix(in srgb, var(--seller-border) 76%, white 24%) 90%, transparent 100%);
+}
+
+.selling-houses-shell .shadow-sm,
+.selling-houses-shell [class*="shadow-[0_10px"],
+.selling-houses-shell [class*="shadow-[0_12px"],
+.selling-houses-shell [class*="shadow-[0_14px"],
+.selling-houses-shell [class*="shadow-[0_18px"] {
+  box-shadow: var(--seller-shadow-sm);
+}
+
+.selling-houses-shell .shadow-2xl,
+.selling-houses-shell [class*="shadow-[0_24px"],
+.selling-houses-shell [class*="shadow-[0_28px"] {
+  box-shadow: var(--seller-shadow-lg);
+}
+
+.selling-houses-shell .bg-white {
+  background-color: rgba(255, 255, 255, 0.82);
+}
+
+.selling-houses-shell .bg-slate-50 {
+  background-color: color-mix(in srgb, var(--seller-bg) 82%, white 18%);
+}
+
+.selling-houses-shell .bg-slate-100 {
+  background-color: color-mix(in srgb, var(--seller-border) 54%, white 46%);
+}
+
+.selling-houses-shell .bg-amber-50,
+.selling-houses-shell .bg-amber-100 {
+  background-color: var(--seller-accent-soft);
+}
+
+.selling-houses-shell .bg-emerald-50,
+.selling-houses-shell .bg-emerald-100,
+.selling-houses-shell .bg-lime-50,
+.selling-houses-shell .bg-lime-100 {
+  background-color: var(--seller-chance-soft);
+}
+
+.selling-houses-shell .bg-rose-50,
+.selling-houses-shell .bg-rose-100,
+.selling-houses-shell .bg-fuchsia-50,
+.selling-houses-shell .bg-fuchsia-100 {
+  background-color: var(--seller-risk-soft);
+}
+
+.selling-houses-shell .text-slate-950,
+.selling-houses-shell .text-slate-900 {
+  color: var(--seller-ink);
+}
+
+.selling-houses-shell .text-slate-700,
+.selling-houses-shell .text-slate-600 {
+  color: var(--seller-muted);
+}
+
+.selling-houses-shell .text-slate-500,
+.selling-houses-shell .text-slate-400 {
+  color: var(--seller-subtle);
+}
+
+.selling-houses-shell .text-amber-700,
+.selling-houses-shell .text-amber-600 {
+  color: var(--seller-accent);
+}
+
+.selling-houses-shell .text-emerald-700,
+.selling-houses-shell .text-emerald-600,
+.selling-houses-shell .text-lime-700 {
+  color: var(--seller-chance);
+}
+
+.selling-houses-shell .text-rose-700,
+.selling-houses-shell .text-rose-600,
+.selling-houses-shell .text-fuchsia-700 {
+  color: var(--seller-risk);
+}
+
+.selling-houses-shell [class*="border-black"],
+.selling-houses-shell [class*="border-slate"],
+.selling-houses-shell [class*="border-[#eadfce"],
+.selling-houses-shell [class*="border-[#e7dccd"],
+.selling-houses-shell [class*="border-[#d9cbb8"],
+.selling-houses-shell [class*="border-[#F1DFC9"] {
+  border-color: var(--seller-border);
+}
+
+.selling-houses-shell [class*="border-amber"] {
+  border-color: color-mix(in srgb, var(--seller-accent) 22%, var(--seller-border) 78%);
+}
+
+.selling-houses-shell [class*="border-emerald"],
+.selling-houses-shell [class*="border-lime"] {
+  border-color: color-mix(in srgb, var(--seller-chance) 20%, var(--seller-border) 80%);
+}
+
+.selling-houses-shell [class*="border-rose"],
+.selling-houses-shell [class*="border-fuchsia"] {
+  border-color: color-mix(in srgb, var(--seller-risk) 20%, var(--seller-border) 80%);
+}
+
+.selling-houses-shell [class*="rounded-[30px]"],
+.selling-houses-shell [class*="rounded-[32px]"],
+.selling-houses-shell [class*="rounded-[36px]"],
+.selling-houses-shell [class*="rounded-[40px]"] {
+  border-radius: 22px;
+}
+
+.selling-houses-shell [class*="rounded-[24px]"],
+.selling-houses-shell [class*="rounded-[26px]"],
+.selling-houses-shell [class*="rounded-[28px]"] {
+  border-radius: 18px;
+}
+
+.selling-houses-shell [class*="rounded-[20px]"],
+.selling-houses-shell [class*="rounded-[22px]"] {
+  border-radius: 16px;
+}
+
+.selling-houses-shell [class*="tracking-[0.18em]"],
+.selling-houses-shell [class*="tracking-[0.2em]"],
+.selling-houses-shell [class*="tracking-widest"] {
+  letter-spacing: 0.12em;
+}
+
+.selling-houses-shell [class*="bg-gradient-to-br"],
+.selling-houses-shell [class*="bg-gradient-to-b"] {
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.76), color-mix(in srgb, var(--seller-bg) 82%, white 18%));
 }
 
 @layer utilities {
@@ -12,6 +412,18 @@
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+}
+
+@keyframes loading-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(80%);
+  }
+  100% {
+    transform: translateX(220%);
   }
 }
 
@@ -25,10 +437,10 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #E5E5E7;
+  background: color-mix(in srgb, var(--seller-border-strong) 68%, white 32%);
   border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #D2D2D7;
+  background: color-mix(in srgb, var(--seller-ink) 24%, var(--seller-border-strong) 76%);
 }

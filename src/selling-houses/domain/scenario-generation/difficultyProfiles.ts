@@ -1,10 +1,12 @@
-import type { DifficultyId } from '../models';
-import type { DifficultyProfile } from './types';
+import type { DifficultyId } from '../models.js';
+import { PLAYER_TARGET_SCORE_BY_DIFFICULTY } from '../config/difficultyTargets.js';
+import type { DifficultyProfile } from './types.js';
 
 const DIFFICULTY_PROFILES: Record<DifficultyId, DifficultyProfile> = {
   warmup: {
     id: 'warmup',
     label: '热身局',
+    playerTargetScore: PLAYER_TARGET_SCORE_BY_DIFFICULTY.warmup,
     caseCount: 3,
     maxDayRange: { min: 25, max: 26 },
     startDayRange: { min: 5, max: 18 },
@@ -34,11 +36,12 @@ const DIFFICULTY_PROFILES: Record<DifficultyId, DifficultyProfile> = {
       companyReferralChanceBase: 0.14,
       rivalLossProbabilityScale: 0.08,
     },
-    difficultyScoreTarget: { min: 3, max: 8 },
+    generationDifficultyBand: { min: 3, max: 8 },
   },
   easy: {
     id: 'easy',
     label: '入门局',
+    playerTargetScore: PLAYER_TARGET_SCORE_BY_DIFFICULTY.easy,
     caseCount: 4,
     maxDayRange: { min: 23, max: 24 },
     startDayRange: { min: 5, max: 18 },
@@ -68,11 +71,12 @@ const DIFFICULTY_PROFILES: Record<DifficultyId, DifficultyProfile> = {
       companyReferralChanceBase: 0.12,
       rivalLossProbabilityScale: 0.1,
     },
-    difficultyScoreTarget: { min: 10, max: 26 },
+    generationDifficultyBand: { min: 10, max: 26 },
   },
   standard: {
     id: 'standard',
     label: '标准局',
+    playerTargetScore: PLAYER_TARGET_SCORE_BY_DIFFICULTY.standard,
     caseCount: 5,
     maxDayRange: { min: 20, max: 21 },
     startDayRange: { min: 3, max: 16 },
@@ -102,11 +106,12 @@ const DIFFICULTY_PROFILES: Record<DifficultyId, DifficultyProfile> = {
       companyReferralChanceBase: 0.09,
       rivalLossProbabilityScale: 0.22,
     },
-    difficultyScoreTarget: { min: 18, max: 34 },
+    generationDifficultyBand: { min: 18, max: 34 },
   },
   advanced: {
     id: 'advanced',
     label: '进阶局',
+    playerTargetScore: PLAYER_TARGET_SCORE_BY_DIFFICULTY.advanced,
     caseCount: 5,
     maxDayRange: { min: 19, max: 20 },
     startDayRange: { min: 2, max: 18 },
@@ -137,11 +142,12 @@ const DIFFICULTY_PROFILES: Record<DifficultyId, DifficultyProfile> = {
       companyReferralChanceBase: 0.08,
       rivalLossProbabilityScale: 0.48,
     },
-    difficultyScoreTarget: { min: 28, max: 42 },
+    generationDifficultyBand: { min: 28, max: 42 },
   },
   hard: {
     id: 'hard',
     label: '高压局',
+    playerTargetScore: PLAYER_TARGET_SCORE_BY_DIFFICULTY.hard,
     caseCount: 6,
     maxDayRange: { min: 17, max: 18 },
     startDayRange: { min: 2, max: 18 },
@@ -174,11 +180,12 @@ const DIFFICULTY_PROFILES: Record<DifficultyId, DifficultyProfile> = {
       companyReferralChanceBase: 0.06,
       rivalLossProbabilityScale: 0.72,
     },
-    difficultyScoreTarget: { min: 38, max: 58 },
+    generationDifficultyBand: { min: 38, max: 58 },
   },
   extreme: {
     id: 'extreme',
     label: '极限局',
+    playerTargetScore: PLAYER_TARGET_SCORE_BY_DIFFICULTY.extreme,
     caseCount: 6,
     maxDayRange: { min: 16, max: 17 },
     startDayRange: { min: 2, max: 20 },
@@ -213,7 +220,7 @@ const DIFFICULTY_PROFILES: Record<DifficultyId, DifficultyProfile> = {
       companyReferralChanceBase: 0.05,
       rivalLossProbabilityScale: 0.9,
     },
-    difficultyScoreTarget: { min: 46, max: 68 },
+    generationDifficultyBand: { min: 46, max: 68 },
   },
 };
 
