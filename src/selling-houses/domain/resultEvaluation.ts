@@ -743,7 +743,7 @@ function buildCustomerReview(world: GameState): FinalResult['customerReview'] {
     notes.push(`${mostComparedCaseTitle} 最常被客户拿去和别的盘比较，这套房最要统一价格和讲法。`);
   }
   if (mostAtRiskCaseTitle) {
-    notes.push(`${mostAtRiskCaseTitle} 挂着最多快流失客户，最后几步最容易掉。`);
+    notes.push(`${mostAtRiskCaseTitle} 挂着最多容易掉线的客户，最后几步最容易掉。`);
   }
   if (rivalPulled > 0) {
     notes.push(`这局有 ${rivalPulled} 位客户一度被竞品抢走注意力。`);
@@ -755,7 +755,7 @@ function buildCustomerReview(world: GameState): FinalResult['customerReview'] {
   const summary = comparingCustomers.length > 0
     ? `局末还有 ${comparingCustomers.length} 位客户在比盘，先稳住首选房，再谈最后一口价。`
     : atRiskCustomers.length > 0
-      ? `局末有 ${atRiskCustomers.length} 位客户快流失，说明最后阶段的承接还不够稳。`
+      ? `局末有 ${atRiskCustomers.length} 位客户在掉线边缘，说明最后阶段的承接还不够稳。`
       : engagedCustomers.length > 0
         ? `局末还有 ${engagedCustomers.length} 位客户在推进，说明客户线没有断。`
         : '局末客户面偏薄，下一局要更早把客户线做厚。';

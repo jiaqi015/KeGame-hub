@@ -1,32 +1,34 @@
-@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600&family=Noto+Sans+SC:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=JetBrains+Mono:wght@500;600&family=Noto+Sans+SC:wght@400;500;600;700&display=swap");
 @import "tailwindcss";
 
 @theme {
   --font-sans: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-display: "Fraunces", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", serif;
 }
 
 :root {
-  --seller-bg: oklch(0.948 0.006 230);
-  --seller-bg-strong: oklch(0.918 0.009 230);
-  --seller-paper: oklch(0.985 0.003 230);
-  --seller-paper-soft: oklch(0.968 0.006 230);
-  --seller-border: oklch(0.858 0.01 230);
-  --seller-border-strong: oklch(0.704 0.018 230);
-  --seller-ink: oklch(0.205 0.028 235);
-  --seller-muted: oklch(0.458 0.018 232);
-  --seller-subtle: oklch(0.628 0.012 230);
-  --seller-accent: oklch(0.72 0.17 151);
-  --seller-accent-soft: oklch(0.952 0.035 151);
-  --seller-risk: oklch(0.61 0.13 25);
-  --seller-risk-soft: oklch(0.955 0.024 25);
-  --seller-chance: oklch(0.68 0.105 176);
-  --seller-chance-soft: oklch(0.954 0.026 176);
-  --seller-info: oklch(0.52 0.035 232);
-  --seller-shadow-sm: 0 8px 18px rgba(12, 20, 30, 0.035);
-  --seller-shadow-md: 0 16px 34px rgba(12, 20, 30, 0.055);
-  --seller-shadow-lg: 0 24px 52px rgba(12, 20, 30, 0.09);
+  --seller-bg: #0b1118;
+  --seller-bg-strong: #091018;
+  --seller-paper: #111923;
+  --seller-paper-soft: #0f1720;
+  --seller-panel-alt: #151f2b;
+  --seller-border: rgba(255, 255, 255, 0.08);
+  --seller-border-strong: rgba(255, 255, 255, 0.16);
+  --seller-ink: #e8e6de;
+  --seller-muted: rgba(232, 230, 222, 0.72);
+  --seller-subtle: rgba(232, 230, 222, 0.46);
+  --seller-accent: #4ae38a;
+  --seller-accent-soft: rgba(74, 227, 138, 0.14);
+  --seller-risk: #f06b6b;
+  --seller-risk-soft: rgba(240, 107, 107, 0.1);
+  --seller-chance: #66d1e0;
+  --seller-chance-soft: rgba(102, 209, 224, 0.12);
+  --seller-info: rgba(232, 230, 222, 0.62);
+  --seller-shadow-sm: 0 16px 34px rgba(0, 0, 0, 0.22);
+  --seller-shadow-md: 0 22px 48px rgba(0, 0, 0, 0.28);
+  --seller-shadow-lg: 0 32px 72px rgba(0, 0, 0, 0.36);
 }
 
 html,
@@ -36,8 +38,8 @@ body,
 }
 
 body {
-  background: #f3f5f7;
-  color: #1b2230;
+  background: var(--seller-bg);
+  color: var(--seller-ink);
   font-family: var(--font-sans);
   font-feature-settings: "kern" 1;
   letter-spacing: -0.01em;
@@ -51,69 +53,72 @@ select {
 }
 
 ::selection {
-  background: color-mix(in srgb, var(--seller-accent-soft) 82%, white 18%);
+  background: color-mix(in srgb, var(--seller-accent) 30%, transparent);
   color: var(--seller-ink);
 }
 
 .selling-houses-shell {
   background:
-    radial-gradient(circle at top right, color-mix(in srgb, var(--seller-accent) 10%, transparent), transparent 26%),
-    radial-gradient(circle at bottom left, rgba(18, 31, 46, 0.05), transparent 24%),
-    linear-gradient(180deg, #f3f5f6 0%, #e9edf0 100%);
+    radial-gradient(circle at top right, rgba(74, 227, 138, 0.1), transparent 24%),
+    radial-gradient(circle at bottom left, rgba(102, 209, 224, 0.06), transparent 22%),
+    linear-gradient(180deg, #0b1118 0%, #091018 100%);
   color: var(--seller-ink);
   font-family: var(--font-sans);
 }
 
 .seller-panel {
   border: 1px solid var(--seller-border);
-  background: color-mix(in srgb, var(--seller-paper) 96%, white 4%);
+  background: linear-gradient(180deg, rgba(17, 25, 35, 0.98), rgba(15, 23, 32, 0.98));
   border-radius: 15px;
   box-shadow: var(--seller-shadow-sm);
 }
 
 .seller-panel-muted {
   border: 1px solid var(--seller-border);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--seller-paper-soft) 90%, white 10%), color-mix(in srgb, var(--seller-bg) 88%, white 12%));
+  background: linear-gradient(180deg, rgba(17, 25, 35, 0.94), rgba(11, 17, 24, 0.98));
   border-radius: 15px;
   box-shadow: var(--seller-shadow-sm);
 }
 
 .seller-panel-soft {
-  border: 1px solid color-mix(in srgb, var(--seller-border) 86%, white 14%);
-  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid color-mix(in srgb, var(--seller-border) 92%, transparent);
+  background: rgba(21, 31, 43, 0.74);
   border-radius: 12px;
 }
 
 .seller-panel-strong {
-  border: 1px solid color-mix(in srgb, var(--seller-ink) 10%, var(--seller-border) 90%);
-  background: var(--seller-ink);
+  border: 1px solid color-mix(in srgb, var(--seller-accent) 20%, var(--seller-border) 80%);
+  background:
+    radial-gradient(circle at top right, rgba(74, 227, 138, 0.14), transparent 34%),
+    linear-gradient(180deg, rgba(17, 25, 35, 0.98), rgba(9, 16, 24, 0.98));
   border-radius: 15px;
-  color: #f5f8fb;
+  color: var(--seller-ink);
   box-shadow: var(--seller-shadow-md);
 }
 
 .seller-band {
   border: 1px solid var(--seller-border);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(247, 249, 250, 0.95));
+  background: linear-gradient(180deg, rgba(17, 25, 35, 0.96), rgba(15, 23, 32, 0.96));
   border-radius: 12px;
 }
 
 .seller-workbench {
-  border: 1px solid color-mix(in srgb, var(--seller-ink) 9%, var(--seller-border) 91%);
+  border: 1px solid color-mix(in srgb, var(--seller-accent) 4%, var(--seller-border) 96%);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(247, 250, 249, 0.9)),
+    radial-gradient(circle at top right, rgba(74, 227, 138, 0.06), transparent 38%),
+    linear-gradient(180deg, rgba(17, 25, 35, 0.98), rgba(15, 23, 32, 0.98)),
     var(--seller-paper);
   border-radius: 16px;
   box-shadow: var(--seller-shadow-sm);
 }
 
 .seller-workbench-dark {
-  border: 1px solid color-mix(in srgb, white 8%, var(--seller-ink) 92%);
+  border: 1px solid color-mix(in srgb, var(--seller-accent) 20%, var(--seller-border) 80%);
   background:
-    radial-gradient(circle at top right, color-mix(in srgb, var(--seller-accent) 13%, transparent), transparent 36%),
-    linear-gradient(180deg, color-mix(in srgb, var(--seller-ink) 96%, white 4%), color-mix(in srgb, var(--seller-ink) 86%, black 14%));
+    radial-gradient(circle at top right, rgba(74, 227, 138, 0.12), transparent 36%),
+    linear-gradient(180deg, rgba(17, 25, 35, 0.98), rgba(9, 16, 24, 0.98));
   border-radius: 16px;
-  color: oklch(0.958 0.006 160);
+  color: var(--seller-ink);
   box-shadow: var(--seller-shadow-md);
 }
 
@@ -122,21 +127,21 @@ select {
 }
 
 .seller-tablet {
-  border: 1px solid color-mix(in srgb, var(--seller-ink) 6%, var(--seller-border) 94%);
-  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid color-mix(in srgb, var(--seller-accent) 5%, var(--seller-border) 95%);
+  background: rgba(21, 31, 43, 0.72);
   border-radius: 12px;
 }
 
 .seller-note {
   border: 1px solid var(--seller-border);
-  background: color-mix(in srgb, var(--seller-bg) 86%, white 14%);
+  background: rgba(15, 23, 32, 0.9);
   border-radius: 16px;
   color: var(--seller-muted);
 }
 
 .seller-empty {
-  border: 1px dashed color-mix(in srgb, var(--seller-border-strong) 72%, white 28%);
-  background: color-mix(in srgb, var(--seller-bg) 82%, white 18%);
+  border: 1px dashed color-mix(in srgb, var(--seller-border-strong) 88%, transparent);
+  background: rgba(15, 23, 32, 0.72);
   border-radius: 12px;
   color: var(--seller-muted);
 }
@@ -168,8 +173,8 @@ select {
 .seller-title {
   color: var(--seller-ink);
   font-family: var(--font-sans);
-  font-weight: 700;
-  letter-spacing: -0.025em;
+  font-weight: 600;
+  letter-spacing: -0.02em;
   line-height: 1.15;
 }
 
@@ -187,9 +192,9 @@ select {
   align-items: center;
   gap: 0.375rem;
   border: 1px solid var(--seller-border);
-  background: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.04);
   border-radius: 999px;
-  color: var(--seller-muted);
+  color: var(--seller-ink);
   font-size: 0.63rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -201,19 +206,19 @@ select {
 .seller-chip-accent {
   border-color: color-mix(in srgb, var(--seller-accent) 26%, var(--seller-border) 74%);
   background: var(--seller-accent-soft);
-  color: color-mix(in srgb, var(--seller-accent) 82%, var(--seller-ink) 18%);
+  color: var(--seller-accent);
 }
 
 .seller-chip-risk {
   border-color: color-mix(in srgb, var(--seller-risk) 20%, var(--seller-border) 80%);
   background: var(--seller-risk-soft);
-  color: color-mix(in srgb, var(--seller-risk) 78%, var(--seller-ink) 22%);
+  color: var(--seller-risk);
 }
 
 .seller-chip-chance {
   border-color: color-mix(in srgb, var(--seller-chance) 20%, var(--seller-border) 80%);
   background: var(--seller-chance-soft);
-  color: color-mix(in srgb, var(--seller-chance) 72%, var(--seller-ink) 28%);
+  color: var(--seller-chance);
 }
 
 .seller-tabbar {
@@ -223,7 +228,7 @@ select {
   padding: 0.25rem;
   border: 1px solid var(--seller-border);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.66);
+  background: rgba(21, 31, 43, 0.82);
 }
 
 .seller-tab {
@@ -243,20 +248,20 @@ select {
 }
 
 .seller-tab:hover {
-  background: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.08);
   color: var(--seller-ink);
 }
 
 .seller-tab-active {
   background: var(--seller-ink);
-  color: #f8f5ef;
+  color: var(--seller-bg);
 }
 
 .seller-button-primary {
-  border: 1px solid color-mix(in srgb, var(--seller-ink) 8%, var(--seller-border) 92%);
-  background: var(--seller-ink);
+  border: 1px solid color-mix(in srgb, var(--seller-accent) 50%, var(--seller-border) 50%);
+  background: var(--seller-accent);
   border-radius: 12px;
-  color: #f5f8fb;
+  color: var(--seller-bg);
   font-size: 0.74rem;
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -264,12 +269,12 @@ select {
 }
 
 .seller-button-primary:hover {
-  background: color-mix(in srgb, var(--seller-ink) 88%, black 12%);
+  background: color-mix(in srgb, var(--seller-accent) 88%, white 12%);
 }
 
 .seller-button-secondary {
   border: 1px solid var(--seller-border);
-  background: rgba(255, 255, 255, 0.84);
+  background: rgba(255, 255, 255, 0.04);
   border-radius: 12px;
   color: var(--seller-ink);
   font-size: 0.74rem;
@@ -280,7 +285,7 @@ select {
 
 .seller-button-secondary:hover {
   border-color: var(--seller-border-strong);
-  background: rgba(255, 255, 255, 0.96);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .seller-button-ghost {
@@ -292,7 +297,7 @@ select {
 }
 
 .seller-button-ghost:hover {
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.06);
   color: var(--seller-ink);
 }
 
@@ -315,15 +320,15 @@ select {
 }
 
 .selling-houses-shell .bg-white {
-  background-color: rgba(255, 255, 255, 0.88);
+  background-color: rgba(17, 25, 35, 0.96);
 }
 
 .selling-houses-shell .bg-slate-50 {
-  background-color: color-mix(in srgb, var(--seller-bg) 88%, white 12%);
+  background-color: rgba(15, 23, 32, 0.92);
 }
 
 .selling-houses-shell .bg-slate-100 {
-  background-color: color-mix(in srgb, var(--seller-border) 54%, white 46%);
+  background-color: rgba(21, 31, 43, 0.94);
 }
 
 .selling-houses-shell .bg-sky-50,
@@ -441,7 +446,7 @@ select {
 
 .selling-houses-shell [class*="bg-gradient-to-br"],
 .selling-houses-shell [class*="bg-gradient-to-b"] {
-  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.82), color-mix(in srgb, var(--seller-bg) 88%, white 12%));
+  background-image: linear-gradient(180deg, rgba(17, 25, 35, 0.96), rgba(15, 23, 32, 0.96));
 }
 
 .selling-houses-shell [class*="bg-[#2b2118"] {
@@ -562,14 +567,14 @@ select {
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: rgba(255, 255, 255, 0.02);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--seller-border-strong) 68%, white 32%);
+  background: rgba(255, 255, 255, 0.12);
   border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--seller-ink) 24%, var(--seller-border-strong) 76%);
+  background: rgba(255, 255, 255, 0.18);
 }

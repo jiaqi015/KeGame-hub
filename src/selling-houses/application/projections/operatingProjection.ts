@@ -436,9 +436,9 @@ function buildCaseFactChain(
     title: '客户承接',
     fact: `已接上 ${metCount} 位、潜在人群 ${potentialCount} 组，比较中 ${customerLinks.filter((entry) => entry.status === 'comparing').length} 位。`,
     nextStep: closingCount > 0
-      ? '先盯快成交客户，把报价和谈判推进到确定动作。'
+      ? '先盯已经走到报价和谈判的客户，把最后几步推进到确定动作。'
       : atRiskCount > 0
-        ? '先回访快流失客户，别让已接上的机会掉线。'
+        ? '先回访快要掉线的客户，别让已接上的机会断掉。'
         : metCount === 0
           ? '先补第一批真人客户，再谈阶段推进。'
           : '把已接上的客户推进到看房或复看，别停在浅沟通。',

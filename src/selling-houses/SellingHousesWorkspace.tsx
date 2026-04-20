@@ -235,8 +235,8 @@ export function SellingHousesWorkspace({
   const activeResourceMeta = activeResourcePanel ? runShellProjection.panelMeta[activeResourcePanel] : null;
 
   return (
-    <div className="selling-houses-shell flex h-full flex-col overflow-hidden font-sans text-slate-900">
-      <header className="shrink-0 border-b border-[var(--seller-border)] bg-[rgba(245,247,249,0.9)] px-4 py-2.5 backdrop-blur-xl">
+    <div className="selling-houses-shell flex h-full flex-col overflow-hidden font-sans text-[var(--seller-ink)]">
+      <header className="shrink-0 border-b border-[var(--seller-border)] bg-[rgba(11,17,24,0.92)] px-4 py-2.5 backdrop-blur-xl">
         <div className="flex flex-col gap-2.5">
           <div className="seller-band flex flex-wrap items-center justify-between gap-3 px-3 py-2.5">
             <div className="flex min-w-0 flex-1">
@@ -254,7 +254,7 @@ export function SellingHousesWorkspace({
                 <div className="seller-separator h-8 w-px shrink-0" />
 
                 <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[var(--seller-ink)] text-[rgba(245,248,251,0.96)] shadow-[var(--seller-shadow-sm)]">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[rgba(255,255,255,0.06)] text-[var(--seller-ink)] shadow-[var(--seller-shadow-sm)]">
                     <Home size={16} />
                   </div>
                   <div className="min-w-0">
@@ -301,8 +301,8 @@ export function SellingHousesWorkspace({
           </div>
 
           <div className="seller-panel-muted flex flex-wrap items-center justify-between gap-2 p-1.5">
-            <nav className="flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-[15px] bg-[rgba(255,255,255,0.62)] p-1">
-              <NavItem active={activeView === 'overview'} onClick={() => openView('overview')} icon={<LayoutDashboard size={16} />} label="经营概览" />
+            <nav className="flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-[15px] bg-[rgba(255,255,255,0.03)] p-1">
+              <NavItem active={activeView === 'overview'} onClick={() => openView('overview')} icon={<LayoutDashboard size={16} />} label="概览" />
               <NavItem active={activeView === 'cases'} onClick={() => openView('cases')} icon={<Home size={16} />} label="房源" />
               <NavItem active={activeView === 'customers'} onClick={() => openView('customers')} icon={<Users size={16} />} label="客户" />
               <NavItem active={activeView === 'market'} onClick={() => openMarketView('macro')} icon={<LineChart size={16} />} label="市场" />
@@ -394,7 +394,7 @@ export function SellingHousesWorkspace({
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <main className="relative flex-1 overflow-y-auto p-5">
           {message && (
-            <div className="fixed bottom-10 left-1/2 z-[60] flex -translate-x-1/2 items-center gap-3 rounded-2xl bg-slate-900 px-6 py-3 text-white shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <div className="fixed bottom-10 left-1/2 z-[60] flex -translate-x-1/2 items-center gap-3 rounded-2xl border border-[var(--seller-border)] bg-[var(--seller-paper)] px-6 py-3 text-[var(--seller-ink)] shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300">
               <MessageSquare size={18} className="text-emerald-400" />
               <span className="text-sm font-medium">{message}</span>
             </div>
@@ -418,126 +418,10 @@ export function SellingHousesWorkspace({
             </button>
           </div>
 
-          <CompactMatterStrip
-            matter={runShellProjection.sidebar.matter}
-            journal={runShellProjection.sidebar.journal}
-            onOpenMatter={(caseId) => {
-              if (caseId) {
-                handleSelectCase(caseId);
-                setActiveView('cases');
-                return;
-              }
-              setActiveView('overview');
-            }}
-            onOpenJournal={() => setJournalOpen(true)}
-          />
-
           <Suspense fallback={viewFallback}>
             {renderView()}
           </Suspense>
         </main>
-
-        <aside className="hidden w-[332px] shrink-0 border-l border-[var(--seller-border)] bg-[linear-gradient(180deg,rgba(242,245,248,0.92),rgba(249,251,252,0.98))] xl:flex xl:flex-col">
-          <div className="border-b border-[var(--seller-border)] px-5 py-4">
-            <div className="seller-label flex items-center gap-2">
-              <Target size={14} />
-              今日工作面
-            </div>
-            <h3 className="seller-title mt-1 text-[1rem] text-[var(--seller-ink)]">先处理哪件事</h3>
-            <p className="seller-body mt-1 text-[12px]">
-              先看今天的主事项，再看风险、外部变化和最近留下的记录。
-            </p>
-          </div>
-
-          <div className="flex-1 overflow-y-auto px-4 py-4">
-            <SidebarFocusCard
-              title={runShellProjection.sidebar.focus.title}
-              detail={runShellProjection.sidebar.focus.detail}
-              eyebrow={runShellProjection.sidebar.focus.eyebrow}
-              badges={runShellProjection.sidebar.focus.badges}
-              onOpen={runShellProjection.sidebar.focus.caseId
-                ? () => {
-                  handleSelectCase(runShellProjection.sidebar.focus.caseId!);
-                  setActiveDetailPanel('selected-case');
-                }
-                : undefined}
-            />
-
-            <MatterWorkPanel
-              matter={runShellProjection.sidebar.matter}
-              onOpen={(caseId) => {
-                if (!caseId) {
-                  setActiveView('overview');
-                  return;
-                }
-                handleSelectCase(caseId);
-                setActiveView('cases');
-              }}
-              onOpenMarket={() => setActiveView('market')}
-            />
-
-            <SidebarSection
-              icon={<Clock3 size={14} />}
-              title="待处理"
-              items={runShellProjection.sidebar.actionCues}
-              emptyText="今天没有新的明确待办，先把正在推进的房源跟住。"
-              onOpen={(caseId) => {
-                if (!caseId) return;
-                handleSelectCase(caseId);
-                setActiveView('cases');
-              }}
-            />
-
-            <SidebarSection
-              icon={<ShieldAlert size={14} />}
-              title="风险提醒"
-              items={runShellProjection.sidebar.riskCues}
-              emptyText="当前没有新的高优先级风险，先按现在的顺序推进。"
-              onOpen={(caseId) => {
-                if (!caseId) return;
-                handleSelectCase(caseId);
-                setActiveView('cases');
-              }}
-            />
-
-            <SidebarSection
-              icon={<Newspaper size={14} />}
-              title="市场变化"
-              items={runShellProjection.sidebar.marketCues}
-              emptyText="今天市场层面还没有新的明确变化。"
-              onOpen={(caseId) => {
-                if (caseId) {
-                  handleSelectCase(caseId);
-                  setActiveView('cases');
-                  return;
-                }
-                setActiveView('market');
-              }}
-            />
-
-            <button
-              type="button"
-              onClick={() => setJournalOpen(true)}
-              className="seller-panel mt-4 w-full px-4 py-4 text-left transition hover:border-[var(--seller-border-strong)] hover:bg-white"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="seller-label">经营记录</div>
-                  <div className="mt-1 text-[15px] font-semibold text-[var(--seller-ink)]">{runShellProjection.sidebar.journal.lastTitle}</div>
-                </div>
-                <div className="seller-chip bg-[var(--seller-ink)] text-white">
-                  {runShellProjection.sidebar.journal.todayCount} 条
-                </div>
-              </div>
-              <p className="seller-body mt-2 text-[12px]">{runShellProjection.sidebar.journal.brief}</p>
-              <div className="mt-3 grid grid-cols-3 gap-2">
-                <JournalMiniStat label="昨日变化" value={`${runShellProjection.sidebar.journal.yesterdayCount}`} />
-                <JournalMiniStat label="丢盘风险" value={`${runShellProjection.sidebar.journal.riskCount}`} tone="risk" />
-                <JournalMiniStat label="成交线索" value={`${runShellProjection.sidebar.journal.chanceCount}`} tone="chance" />
-              </div>
-            </button>
-          </div>
-        </aside>
       </div>
 
       {state.gameOver && (
@@ -566,7 +450,7 @@ export function SellingHousesWorkspace({
           onClick={() => setJournalOpen(false)}
         >
           <div
-            className="seller-panel-muted flex h-[82vh] w-full max-w-6xl flex-col overflow-hidden rounded-t-[24px] shadow-[var(--seller-shadow-lg)]"
+          className="seller-panel-muted flex h-[82vh] w-full max-w-6xl flex-col overflow-hidden rounded-t-[24px] shadow-[var(--seller-shadow-lg)]"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4 border-b border-[var(--seller-border)] px-6 py-5">
@@ -609,7 +493,7 @@ export function SellingHousesWorkspace({
           onClick={() => setActiveDetailPanel(null)}
         >
           <div
-            className="seller-panel-muted h-full w-full max-w-[640px] overflow-y-auto rounded-none border-l p-7 shadow-[var(--seller-shadow-lg)]"
+            className="seller-panel-muted h-full w-full max-w-[640px] overflow-y-auto rounded-none border-l border-[var(--seller-border)] p-7 shadow-[var(--seller-shadow-lg)]"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-6 flex items-start justify-between gap-4">
@@ -652,7 +536,7 @@ export function SellingHousesWorkspace({
       {activeResourcePanel && activeResourceMeta && (
         <div className="fixed inset-0 z-[90] flex justify-end bg-slate-900/30 backdrop-blur-sm" onClick={() => setActiveResourcePanel(null)}>
           <div
-            className="h-full w-full max-w-[560px] overflow-y-auto border-l border-black/5 bg-[linear-gradient(180deg,#f9fbfc_0%,#ffffff_28%)] p-7 shadow-2xl"
+            className="h-full w-full max-w-[560px] overflow-y-auto border-l border-[var(--seller-border)] bg-[linear-gradient(180deg,rgba(17,25,35,0.98)_0%,rgba(9,16,24,0.98)_28%)] p-7 shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-6 flex items-start justify-between gap-4">
@@ -912,298 +796,6 @@ export function SellingHousesWorkspace({
   );
 }
 
-function CompactMatterStrip({
-  matter,
-  journal,
-  onOpenMatter,
-  onOpenJournal,
-}: {
-  matter: ReturnType<typeof buildWorkspaceShellProjection>['sidebar']['matter'];
-  journal: ReturnType<typeof buildWorkspaceShellProjection>['sidebar']['journal'];
-  onOpenMatter: (caseId?: string) => void;
-  onOpenJournal: () => void;
-}) {
-  const lead = matter.actionItems[0];
-
-  return (
-    <section className="mb-3 rounded-[18px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.84)] px-3.5 py-3 shadow-sm xl:hidden">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--seller-accent)]">
-            <Target size={13} />
-            今日工作面
-          </div>
-          <h3 className="mt-1 truncate text-[14px] font-semibold tracking-tight text-[var(--seller-ink)]">{matter.headline}</h3>
-          <p className="mt-1 line-clamp-2 text-[11px] leading-5 text-[var(--seller-muted)]">{matter.summary}</p>
-        </div>
-        <div className="flex shrink-0 flex-wrap gap-1.5">
-          <button
-            type="button"
-            onClick={() => onOpenMatter(lead?.caseId)}
-            className="rounded-full bg-[var(--seller-ink)] px-3 py-2 text-[11px] font-bold text-white"
-          >
-            打开主事项
-          </button>
-          <button
-            type="button"
-            onClick={onOpenJournal}
-            className="rounded-full border border-[var(--seller-border)] bg-white px-3 py-2 text-[11px] font-bold text-[var(--seller-muted)]"
-          >
-            流水 {journal.todayCount}
-          </button>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function MatterWorkPanel({
-  matter,
-  onOpen,
-  onOpenMarket,
-}: {
-  matter: ReturnType<typeof buildWorkspaceShellProjection>['sidebar']['matter'];
-  onOpen: (caseId?: string) => void;
-  onOpenMarket: () => void;
-}) {
-  return (
-    <section className="mt-4 rounded-[22px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.82)] p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--seller-accent)]">
-            <Target size={14} />
-            今日事项
-          </div>
-          <h4 className="mt-1 text-[14px] font-semibold tracking-tight text-[var(--seller-ink)]">{matter.headline}</h4>
-        </div>
-      </div>
-      <p className="mt-2 text-[12px] leading-6 text-[var(--seller-muted)]">{matter.summary}</p>
-
-      <div className="mt-3 grid grid-cols-3 gap-2">
-        {matter.stats.map((entry) => (
-          <React.Fragment key={entry.label}>
-            <MatterStat entry={entry} />
-          </React.Fragment>
-        ))}
-      </div>
-
-      <div className="mt-4">
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--seller-accent)]">主事项</div>
-          <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">{matter.actionItems.length} 项</span>
-        </div>
-        <div className="space-y-2">
-          {matter.actionItems.slice(0, 3).map((item) => (
-            <React.Fragment key={item.id}>
-              <MatterCueButton item={item} onOpen={() => onOpen(item.caseId)} />
-            </React.Fragment>
-          ))}
-          {matter.actionItems.length === 0 && (
-            <div className="rounded-[14px] border border-dashed border-[var(--seller-border)] bg-white px-3 py-4 text-[12px] leading-5 text-[var(--seller-subtle)]">
-              今日没有明确待办，先守住当前主线。
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-4">
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--seller-accent)]">昨日变化 / 竞品压力</div>
-          <button
-            type="button"
-            onClick={onOpenMarket}
-            className="rounded-full border border-[var(--seller-border)] bg-white px-2.5 py-1 text-[10px] font-bold text-[var(--seller-muted)] transition hover:bg-[var(--seller-accent-soft)]"
-          >
-            去市场
-          </button>
-        </div>
-        <div className="space-y-2">
-          {matter.intelligenceItems.slice(0, 2).map((item) => (
-            <React.Fragment key={item.id}>
-              <MatterCueButton item={item} onOpen={() => item.caseId ? onOpen(item.caseId) : onOpenMarket()} />
-            </React.Fragment>
-          ))}
-          {matter.intelligenceItems.length === 0 && (
-            <div className="rounded-[14px] border border-dashed border-[#d9cbb8] bg-white px-3 py-4 text-[12px] leading-5 text-[#8a7762]">
-              暂时没有会改变顺序的昨日情报。
-            </div>
-          )}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function MatterStat({
-  entry,
-}: {
-  entry: ReturnType<typeof buildWorkspaceShellProjection>['sidebar']['matter']['stats'][number];
-}) {
-  return (
-    <div className={`rounded-[14px] border px-2.5 py-2 ${
-      entry.tone === 'risk'
-        ? 'border-[#e6b8a8] bg-[#fff4ef]'
-        : entry.tone === 'chance'
-          ? 'border-[#c9d8bc] bg-[#f4f8ed]'
-          : 'border-[#eadfce] bg-white'
-    }`}>
-      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8a7762]">{entry.label}</div>
-      <div className="mt-0.5 text-[16px] font-semibold text-[#241a12]">{entry.value}</div>
-      <p className="mt-0.5 line-clamp-2 text-[10px] leading-4 text-[#766551]">{entry.detail}</p>
-    </div>
-  );
-}
-
-function MatterCueButton({
-  item,
-  onOpen,
-}: {
-  item: WorkspaceShellSidebarCueProjection;
-  onOpen: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className={`w-full rounded-[14px] border px-3 py-2.5 text-left transition ${
-        item.tone === 'risk'
-          ? 'border-[#e6b8a8] bg-[#fff4ef] hover:bg-[#ffeee6]'
-          : item.tone === 'chance'
-            ? 'border-[color:var(--seller-chance)]/22 bg-[var(--seller-chance-soft)] hover:bg-white'
-            : 'border-[var(--seller-border)] bg-white hover:bg-[var(--seller-accent-soft)]'
-      }`}
-    >
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--seller-accent)]">
-          {item.label}
-        </span>
-        {item.caseId && <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">房源</span>}
-      </div>
-      <div className="mt-1 text-[12px] font-semibold leading-5 text-[var(--seller-ink)]">{item.title}</div>
-      <p className="mt-0.5 line-clamp-2 text-[11px] leading-5 text-[var(--seller-muted)]">{item.detail}</p>
-    </button>
-  );
-}
-
-function JournalMiniStat({
-  label,
-  value,
-  tone = 'neutral',
-}: {
-  label: string;
-  value: string;
-  tone?: 'neutral' | 'risk' | 'chance';
-}) {
-  return (
-    <div className={`rounded-[13px] border px-2 py-2 ${
-      tone === 'risk'
-        ? 'border-rose-200 bg-rose-50/70'
-        : tone === 'chance'
-          ? 'border-emerald-200 bg-emerald-50/70'
-          : 'border-black/[0.05] bg-slate-50'
-    }`}>
-      <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">{label}</div>
-      <div className="mt-0.5 text-[13px] font-semibold text-slate-900">{value}</div>
-    </div>
-  );
-}
-
-function SidebarFocusCard({
-  eyebrow,
-  title,
-  detail,
-  badges,
-  onOpen,
-}: {
-  eyebrow: string;
-  title: string;
-  detail: string;
-  badges: string[];
-  onOpen?: () => void;
-}) {
-  const content = (
-    <div className="rounded-[22px] border border-black/[0.05] bg-slate-950 px-4 py-4 text-white shadow-sm">
-      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-300">{eyebrow}</div>
-      <div className="mt-2 text-[17px] font-semibold tracking-tight">{title}</div>
-      <p className="mt-2 text-[12px] leading-6 text-slate-300">{detail}</p>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {badges.map((badge) => (
-          <span
-            key={badge}
-            className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-200"
-          >
-            {badge}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-
-  if (!onOpen) {
-    return content;
-  }
-
-  return (
-    <button type="button" onClick={onOpen} className="w-full text-left">
-      {content}
-    </button>
-  );
-}
-
-function SidebarSection({
-  icon,
-  title,
-  items,
-  emptyText,
-  onOpen,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  items: Array<{
-    id: string;
-    label: string;
-    title: string;
-    detail: string;
-    tone: 'neutral' | 'chance' | 'risk';
-    caseId?: string;
-  }>;
-  emptyText: string;
-  onOpen: (caseId?: string) => void;
-}) {
-  return (
-    <section className="mt-4 rounded-[22px] border border-black/[0.05] bg-white p-4 shadow-sm">
-      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
-        {icon}
-        {title}
-      </div>
-      <div className="mt-3 space-y-2.5">
-        {items.length > 0 ? items.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => onOpen(item.caseId)}
-            className={`w-full rounded-[18px] border px-3 py-3 text-left transition ${
-              item.tone === 'risk'
-                ? 'border-rose-200 bg-rose-50/70 hover:bg-rose-50'
-                : item.tone === 'chance'
-                  ? 'border-emerald-200 bg-emerald-50/70 hover:bg-emerald-50'
-                  : 'border-black/[0.05] bg-slate-50/70 hover:bg-slate-50'
-            }`}
-          >
-            <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">{item.label}</div>
-            <div className="mt-1 text-[13px] font-semibold text-slate-900">{item.title}</div>
-            <p className="mt-1 text-[12px] leading-6 text-slate-500">{item.detail}</p>
-          </button>
-        )) : (
-          <div className="rounded-[18px] border border-dashed border-slate-200 bg-slate-50 px-3 py-5 text-[12px] leading-6 text-slate-400">
-            {emptyText}
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
-
 function SelectedCaseDetailSheet({
   detail,
   onOpenFull,
@@ -1249,7 +841,7 @@ function SelectedCaseDetailSheet({
           chips={[
             `已接 ${projection.customerPoolSummary.metCount}`,
             `潜力 ${projection.customerPoolSummary.potentialCount}`,
-            `快成交 ${projection.customerPoolSummary.closingCount}`,
+            `后段 ${projection.customerPoolSummary.closingCount}`,
           ]}
         />
         <DetailMetricCard
@@ -1284,7 +876,7 @@ function SelectedCaseDetailSheet({
             onClick={onOpenFull}
             className="rounded-full bg-slate-900 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white hover:bg-slate-700"
           >
-            打开房源页
+            去房源页
           </button>
         </div>
         <div className="mt-3 space-y-2.5">

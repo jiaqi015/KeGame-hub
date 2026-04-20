@@ -49,7 +49,7 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-3xl">
             <div className="seller-label">客户</div>
-            <h2 className="seller-title mt-2 text-[20px]">已接上、快成交、快流失</h2>
+            <h2 className="seller-title mt-2 text-[20px]">客户线在往哪里走</h2>
             <p className="seller-body mt-2 text-[13px]">
               已经接上和见过面的客户进入机会列表；没接上的只作为潜在人群信号。
             </p>
@@ -131,7 +131,7 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
           <section className="seller-panel p-4 lg:p-5">
             <div className="seller-label mb-3 flex items-center gap-2 text-[11px]">
               <HandCoins size={15} />
-              快成交机会
+              报价与谈判
             </div>
             <div className="space-y-2.5">
               {closingModels.length > 0 ? closingModels.map((model) => (
@@ -145,7 +145,7 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
                 </React.Fragment>
               )) : (
                 <EmptyState
-                  title="还没有进入快成交阶段的客户"
+                  title="还没有客户走到报价或谈判"
                   detail="现在还在经营中段，先把看过房的客户继续往后推。"
                   compact
                 />
@@ -156,7 +156,7 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
           <section className="seller-panel p-4 lg:p-5">
             <div className="seller-label mb-3 flex items-center gap-2 text-[11px]">
               <AlertTriangle size={15} />
-              快流失客户
+              掉线风险
             </div>
             <div className="space-y-2.5">
               {atRiskModels.length > 0 ? atRiskModels.map((model) => (
@@ -170,7 +170,7 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
                 </React.Fragment>
               )) : (
                 <EmptyState
-                  title="短期流失压力不重"
+                  title="短期掉线压力不重"
                   detail="目前没有大面积掉线，可以把精力更多放在推进见面和复看。"
                   compact
                 />
@@ -414,7 +414,7 @@ function CustomerOpportunityCard({
               )}
               {atRisk && (
                 <span className="rounded-full bg-rose-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-rose-700">
-                  快流失
+                  掉线风险
                 </span>
               )}
             </div>

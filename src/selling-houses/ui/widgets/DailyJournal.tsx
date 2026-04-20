@@ -141,7 +141,7 @@ export function DailyJournal({ state, selectedCaseId, onSelectCase }: DailyJourn
                               onClick={() => onSelectCase(item.caseId!)}
                               className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white hover:bg-slate-700"
                             >
-                              打开房源
+                              去房源页
                             </button>
                           )}
                         </div>

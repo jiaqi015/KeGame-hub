@@ -195,7 +195,7 @@ export function createWeeklyReview(world: GameState) {
     ? '平均业主信任偏低，关系压力更明显。'
     : activeOpportunities < 4
       ? '活跃机会数量偏少，准客池厚度不足。'
-      : '快成交客户数量较多，最后几步怎么推进会更关键。';
+      : '已经走到后段的客户较多，最后几步怎么推进会更关键。';
 
   world.weeklyReviews.unshift({
     id: `week-${world.day}`,

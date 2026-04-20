@@ -229,7 +229,7 @@ export function ResultOverlay({ state, onRestart }: ResultOverlayProps) {
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <TierPill label="推进中" value={customerReview.engaged} tone="emerald" />
                 <TierPill label="比较中" value={customerReview.comparing} tone="amber" />
-                <TierPill label="快流失" value={customerReview.atRisk} tone="rose" />
+                <TierPill label="掉线风险" value={customerReview.atRisk} tone="rose" />
                 <TierPill label="被带偏" value={customerReview.rivalPulled} tone="slate" />
               </div>
               <div className="mt-4 rounded-2xl border border-sky-100 bg-white px-4 py-3 text-sm leading-relaxed text-slate-700">

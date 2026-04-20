@@ -149,7 +149,7 @@ export function Review({ state }: ReviewProps) {
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <ReviewMetric label="推进中" value={`${projection.customer.engaged}`} tone="emerald" />
           <ReviewMetric label="比较中" value={`${projection.customer.comparing}`} tone="amber" />
-          <ReviewMetric label="快流失" value={`${projection.customer.atRisk}`} tone="rose" />
+          <ReviewMetric label="掉线风险" value={`${projection.customer.atRisk}`} tone="rose" />
           <ReviewMetric label="被带偏" value={`${projection.customer.rivalPulled}`} tone="slate" />
         </div>
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -166,7 +166,7 @@ export function Review({ state }: ReviewProps) {
           <ReviewCallout
             icon={<ShieldAlert size={16} />}
             title="最容易掉客"
-            body={projection.customer.mostAtRiskCaseTitle ? `${projection.customer.mostAtRiskCaseTitle} 挂着最多快流失客户。` : '目前没有特别集中的快流失房源。'}
+            body={projection.customer.mostAtRiskCaseTitle ? `${projection.customer.mostAtRiskCaseTitle} 挂着最多容易掉线的客户。` : '目前没有特别集中的掉线风险房源。'}
           />
         </div>
         <div className="mt-4 rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-600">

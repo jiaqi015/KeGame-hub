@@ -124,7 +124,7 @@ function buildCustomerProjection(state: GameState): ReviewCustomerProjection {
   const summary = comparing > 0
     ? `现在还有 ${comparing} 位客户在比盘，说明你的价格和讲法还没完全压住同类盘。`
     : atRisk > 0
-      ? `现在有 ${atRisk} 位客户快流失，说明最后几步的承接还需要更稳。`
+      ? `现在有 ${atRisk} 位客户在掉线边缘，说明最后几步的承接还需要更稳。`
       : engaged > 0
         ? `现在还有 ${engaged} 位客户在往前走，客户线没有断。`
         : '现在客户推进偏薄，后面要更早把线索做厚。';

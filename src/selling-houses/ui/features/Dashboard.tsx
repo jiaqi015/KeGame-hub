@@ -133,13 +133,65 @@ export function Dashboard({ state, onSelectCase, onSetView, onOpenMarket }: Dash
   };
 
   return (
-    <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <section className="seller-workbench overflow-hidden">
-        <div className="grid gap-3 border-b border-[var(--seller-border)] px-3.5 py-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
+    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <section className="seller-workbench-dark overflow-hidden px-5 py-5">
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_420px] xl:items-end">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="seller-chip seller-chip-accent">先手比补救更重要</span>
+              <span className="seller-chip">DAY {day} / {maxDay}</span>
+              <span className="seller-chip">{routine.label} · {routine.theme}</span>
+              <span className="seller-chip">{daysRemaining} 天缓冲</span>
+            </div>
+            <h1 className="mt-4 max-w-[11ch] font-[var(--font-display)] text-[28px] leading-[1.04] tracking-[-0.03em] text-[var(--seller-ink)] md:text-[34px]">
+              把今天的几件事，
+              <span className="text-[var(--seller-accent)]">按轻重排好。</span>
+            </h1>
+            <p className="mt-3 max-w-[72ch] text-[12px] leading-6 text-[var(--seller-muted)]">
+              {operatingBrief.today.detail} 先把最紧的一套推进，再去处理外部变化和昨天留下的尾巴，别把 4 点精力摊平。
+            </p>
+          </div>
+
+          <div className="seller-panel-soft overflow-hidden">
+            <div className="grid grid-cols-4 divide-x divide-[color:var(--seller-border)]">
+              <DeskScore label="推广金" value={dashboardProjection.resourceSnapshot.promotionBudget} note="可动预算" />
+              <DeskScore label="今日精力" value={dashboardProjection.resourceSnapshot.energy} note="还能做几步" accent />
+              <DeskScore label="在场房源" value={`${dashboardProjection.resourceSnapshot.activeCases}`} note="当前盘子" />
+              <DeskScore label="外部变化" value={`${todayNews.length}`} note="今天情报" />
+            </div>
+            <div className="flex items-center justify-between gap-3 border-t border-[var(--seller-border)] px-3.5 py-3">
+              <div className="min-w-0">
+                <div className="seller-label">今天判断</div>
+                <div className="mt-1 text-[13px] font-semibold text-[var(--seller-ink)]">{operatingBrief.today.title}</div>
+                <p className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">{operatingBrief.resources.title}</p>
+              </div>
+              <div className="flex shrink-0 gap-2">
+                <button
+                  type="button"
+                  onClick={() => onSetView('cases')}
+                  className="seller-button-secondary rounded-full px-3 py-2 text-[11px]"
+                >
+                  看房源
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenMarket(todayNews[0]?.layer || 'macro')}
+                  className="seller-button-primary rounded-full px-3 py-2 text-[11px]"
+                >
+                  看市场
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="seller-panel overflow-hidden">
+        <div className="grid gap-3 border-b border-[var(--seller-border)] px-4 py-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
           <div className="min-w-0">
             <div className="seller-label flex items-center gap-2">
               <Calendar size={13} />
-              日历
+              本周节奏
             </div>
             <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1">
               {calendarRail.map((entry) => (
@@ -154,8 +206,8 @@ export function Dashboard({ state, onSelectCase, onSetView, onOpenMarket }: Dash
             </div>
           </div>
 
-          <div className="flex shrink-0 flex-wrap gap-1.5 xl:max-w-[300px] xl:justify-end">
-            <span className="seller-chip bg-[var(--seller-ink)] text-white">Day {day}/{maxDay}</span>
+          <div className="flex shrink-0 flex-wrap gap-1.5 xl:max-w-[360px] xl:justify-end">
+            <span className="seller-chip bg-[var(--seller-panel-alt)] text-[var(--seller-ink)]">Day {day}/{maxDay}</span>
             <span className="seller-chip">剩 {daysRemaining} 天</span>
             <span className="seller-chip">{routine.label} · {routine.theme}</span>
             <span className="seller-chip seller-chip-accent">{dashboardProjection.resourceSnapshot.energy} 精力</span>
@@ -173,51 +225,55 @@ export function Dashboard({ state, onSelectCase, onSetView, onOpenMarket }: Dash
         )}
       </section>
 
-      <div className="grid grid-cols-1 gap-3 2xl:grid-cols-[minmax(0,1.4fr)_340px_320px]">
-        <section className="seller-workbench overflow-hidden">
-          <div className="border-b border-[var(--seller-border)] px-4 py-3">
-            <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
-              <div className="min-w-0">
-                <div className="seller-label flex items-center gap-2">
-                  <Clock3 size={13} />
-                  今天先处理
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.62fr)_360px]">
+        <div className="space-y-4">
+          <BriefingPanel brief={operatingBrief} todayCount={visiblePriorities.length} />
+
+          <section className="seller-panel overflow-hidden">
+            <div className="border-b border-[var(--seller-border)] px-4 py-3">
+              <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                  <div className="seller-label flex items-center gap-2">
+                    <Clock3 size={13} />
+                    今天先做的事
+                  </div>
+                  <h2 className="seller-title mt-1.5 max-w-[72ch] text-[16px] leading-5 md:text-[17px]">
+                    {operatingBrief.today.title}
+                  </h2>
+                  <p className="seller-body mt-1 max-w-[78ch] text-[11px] leading-5 line-clamp-2">
+                    {operatingBrief.today.detail}
+                  </p>
                 </div>
-                <h1 className="seller-title mt-1.5 max-w-[72ch] text-[16px] leading-5 md:text-[17px]">
-                  {operatingBrief.today.title}
-                </h1>
-                <p className="seller-body mt-1 max-w-[78ch] text-[11px] leading-5 line-clamp-2">
-                  {operatingBrief.today.detail}
-                </p>
-              </div>
-              <div className="flex shrink-0 flex-wrap gap-1.5">
-                <span className="seller-chip">{visiblePriorities.length} 件事</span>
-                <span className="seller-chip">{dashboardProjection.resourceSnapshot.activeCases} 套在场</span>
-                <span className="seller-chip">{dashboardProjection.resourceSnapshot.activeOpportunities} 条客户机会</span>
+                <div className="flex shrink-0 flex-wrap gap-1.5">
+                  <span className="seller-chip">{visiblePriorities.length} 件事</span>
+                  <span className="seller-chip">{dashboardProjection.resourceSnapshot.activeCases} 套在场</span>
+                  <span className="seller-chip">{dashboardProjection.resourceSnapshot.activeOpportunities} 条客户线</span>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="divide-y divide-[color:var(--seller-border)] px-4">
-            {visiblePriorities.length > 0 ? visiblePriorities.map((item, index) => (
-              <div key={item.id}>
-                <AgendaRow
-                  item={item}
-                  index={index}
-                  onOpenCase={openCase}
-                  onUseTool={handleTool}
-                />
-              </div>
-            )) : (
-              <div className="py-4">
-                <div className="seller-empty px-4 py-5 text-center text-[12px]">
-                  今天还没有明确事项，先从在场房源里挑一套处理。
+            <div className="divide-y divide-[color:var(--seller-border)] px-4">
+              {visiblePriorities.length > 0 ? visiblePriorities.map((item, index) => (
+                <div key={item.id}>
+                  <AgendaRow
+                    item={item}
+                    index={index}
+                    onOpenCase={openCase}
+                    onUseTool={handleTool}
+                  />
                 </div>
-              </div>
-            )}
-          </div>
-        </section>
+              )) : (
+                <div className="py-4">
+                  <div className="seller-empty px-4 py-5 text-center text-[12px]">
+                    今天还没有明确事项，先从在场房源里挑一套处理。
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
 
-        <div className="space-y-3">
+        <div className="space-y-4">
           <FocusCasePanel
             leadCase={leadCase}
             leadCaseProjection={leadCaseProjection}
@@ -234,9 +290,7 @@ export function Dashboard({ state, onSelectCase, onSetView, onOpenMarket }: Dash
             customerPressure={customerPressure}
             onOpenCase={openCase}
           />
-        </div>
 
-        <div className="space-y-3">
           <MarketStreamPanel
             todayNews={todayNews}
             impactedCases={homepageIntel.impactedCases}
@@ -250,6 +304,72 @@ export function Dashboard({ state, onSelectCase, onSetView, onOpenMarket }: Dash
           />
         </div>
       </div>
+    </div>
+  );
+}
+
+function BriefingPanel({
+  brief,
+  todayCount,
+}: {
+  brief: ReturnType<typeof buildOperatingBrief>;
+  todayCount: number;
+}) {
+  return (
+    <section className="seller-panel-soft px-4 py-4">
+      <div className="grid gap-3 lg:grid-cols-3">
+        <BriefNote title="今天主线" body={brief.today.title} detail={`${todayCount} 件事里，先盯最影响顺序的一件。`} tone={brief.today.tone} />
+        <BriefNote title="昨天留下" body={brief.yesterday.title} detail={brief.yesterday.detail} tone={brief.yesterday.tone} />
+        <BriefNote title="手上资源" body={brief.resources.title} detail={brief.resources.detail} tone={brief.resources.tone} />
+      </div>
+    </section>
+  );
+}
+
+function BriefNote({
+  title,
+  body,
+  detail,
+  tone = 'neutral',
+}: {
+  title: string;
+  body: string;
+  detail: string;
+  tone?: OperatingBriefTone;
+}) {
+  return (
+    <div className={`rounded-[14px] border px-3 py-3 ${
+      tone === 'risk'
+        ? 'border-[color:var(--seller-risk)]/28 bg-[var(--seller-risk-soft)]'
+        : tone === 'chance'
+          ? 'border-[color:var(--seller-chance)]/28 bg-[var(--seller-chance-soft)]'
+          : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)]'
+    }`}>
+      <div className="seller-label">{title}</div>
+      <div className="mt-1 text-[13px] font-semibold leading-5 text-[var(--seller-ink)]">{body}</div>
+      <p className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">{detail}</p>
+    </div>
+  );
+}
+
+function DeskScore({
+  label,
+  value,
+  note,
+  accent = false,
+}: {
+  label: string;
+  value: string;
+  note: string;
+  accent?: boolean;
+}) {
+  return (
+    <div className="px-3 py-3">
+      <div className="seller-label">{label}</div>
+      <div className={`mt-2 seller-number text-[22px] font-semibold tracking-[-0.03em] ${accent ? 'text-[var(--seller-accent)]' : 'text-[var(--seller-ink)]'}`}>
+        {value}
+      </div>
+      <div className="mt-1 text-[10px] font-medium text-[var(--seller-subtle)]">{note}</div>
     </div>
   );
 }
@@ -268,26 +388,31 @@ function FocusCasePanel({
   onOpenCase: () => void;
 }) {
   return (
-    <section className="seller-workbench overflow-hidden">
-      <div className="flex items-center justify-between gap-3 border-b border-[var(--seller-border)] px-3.5 py-3">
-        <div className="seller-label flex items-center gap-2">
-          <Target size={13} />
-          重点房源
+    <section className="seller-panel overflow-hidden">
+      <div className="border-b border-[var(--seller-border)] px-4 py-3">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <div className="seller-label flex items-center gap-2">
+              <Target size={13} />
+              重点房源
+            </div>
+            <h2 className="seller-title mt-1.5 text-[15px] text-[var(--seller-ink)]">现在最该盯哪套</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenCase}
+            className="seller-button-secondary rounded-full px-2.5 py-1 text-[10px]"
+          >
+            打开
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={onOpenCase}
-          className="seller-button-secondary rounded-full px-2.5 py-1 text-[10px]"
-        >
-          打开
-        </button>
       </div>
 
       <div className="px-3.5 py-3">
         <button
           type="button"
           onClick={onOpenCase}
-          className="w-full rounded-[13px] border border-[var(--seller-border)] bg-white px-3 py-2.5 text-left transition hover:border-[var(--seller-border-strong)]"
+          className="w-full rounded-[13px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-2.5 text-left transition hover:border-[var(--seller-border-strong)]"
         >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -355,7 +480,7 @@ function LeadMetric({
         ? 'border-[color:var(--seller-risk)]/25 bg-[var(--seller-risk-soft)]'
         : tone === 'chance'
           ? 'border-[color:var(--seller-chance)]/25 bg-[var(--seller-chance-soft)]'
-          : 'border-[var(--seller-border)] bg-white'
+          : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)]'
     }`}>
       <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--seller-subtle)]">{label}</div>
       <div className="seller-number mt-0.5 text-[15px] font-semibold text-[var(--seller-ink)]">{value}</div>
@@ -380,7 +505,7 @@ function DeskStatePanel({
   onOpenCase: (caseId?: string) => void;
 }) {
   return (
-    <section className="seller-workbench px-3.5 py-3">
+    <section className="seller-panel px-3.5 py-3">
       <div className="seller-label mb-2.5 flex items-center gap-2">
         <ShieldAlert size={13} />
         在手情况
@@ -400,7 +525,7 @@ function DeskStatePanel({
           tone={customerPressure.engaged + customerPressure.comparing > 0 ? 'chance' : 'neutral'}
         />
         <DeskSignalRow
-          label="快流失客户"
+          label="掉线风险"
           value={`${customerPressure.atRisk} 位`}
           detail={customerPressure.atRiskCaseId ? '先看对应房源，确认客户卡在哪里。' : '短期流失压力不重'}
           tone={customerPressure.atRisk > 0 ? 'risk' : 'neutral'}
@@ -430,7 +555,7 @@ function MarketStreamPanel({
   onOpenCase: (caseId?: string) => void;
 }) {
   return (
-    <section className="seller-workbench px-3.5 py-3">
+    <section className="seller-panel px-3.5 py-3">
       <div className="mb-2.5 flex items-center justify-between gap-3">
         <div className="seller-label flex items-center gap-2">
           <Newspaper size={13} />
@@ -474,7 +599,7 @@ function MarketStreamPanel({
               key={item.caseId}
               type="button"
               onClick={() => onOpenCase(item.caseId)}
-              className="w-full py-2 text-left transition hover:px-2 hover:bg-white"
+              className="w-full py-2 text-left transition hover:px-2 hover:bg-[rgba(255,255,255,0.03)]"
             >
               <div className="text-[12px] font-semibold text-[var(--seller-ink)]">{item.title}</div>
               <p className="seller-body mt-0.5 line-clamp-2 text-[11px] leading-5">{item.reason}</p>
@@ -498,7 +623,7 @@ function YesterdayPanel({
   onOpenCase: (caseId?: string) => void;
 }) {
   return (
-    <section className="seller-workbench px-3.5 py-3">
+    <section className="seller-panel px-3.5 py-3">
       <div className="mb-2.5 flex items-center justify-between gap-3">
         <div className="seller-label flex items-center gap-2">
           <Flag size={13} />
@@ -512,7 +637,7 @@ function YesterdayPanel({
             key={event.id}
             type="button"
             onClick={() => onOpenCase(event.caseId)}
-            className="w-full py-2.5 text-left transition hover:px-2 hover:bg-white"
+            className="w-full py-2.5 text-left transition hover:px-2 hover:bg-[rgba(255,255,255,0.03)]"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -547,10 +672,10 @@ function CalendarRailCell({
       onClick={onClick}
       className={`min-w-[104px] rounded-[12px] border px-2.5 py-2 text-left transition ${
         active
-          ? 'border-[var(--seller-ink)] bg-[var(--seller-ink)] text-white shadow-[0_10px_20px_rgba(25,34,48,0.16)]'
+          ? 'border-[color:var(--seller-accent)] bg-[var(--seller-panel-alt)] text-[var(--seller-ink)] shadow-[0_10px_24px_rgba(0,0,0,0.24)]'
           : entry.relation === 'future'
-            ? 'border-[var(--seller-border)] bg-white/70 text-[var(--seller-muted)] hover:bg-white'
-            : 'border-[var(--seller-border)] bg-[var(--seller-accent-soft)] text-[var(--seller-muted)] hover:bg-white'
+            ? 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] text-[var(--seller-muted)] hover:bg-[rgba(255,255,255,0.06)]'
+            : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] text-[var(--seller-muted)] hover:bg-[rgba(255,255,255,0.06)]'
       }`}
     >
       <div className="flex items-start justify-between gap-2">
@@ -561,7 +686,7 @@ function CalendarRailCell({
       <div className={`mt-0.5 line-clamp-1 text-[10px] font-medium ${active ? 'text-white/72' : 'text-[var(--seller-subtle)]'}`}>
         {entry.title}
       </div>
-      <div className={`mt-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${active ? 'bg-white/10 text-white' : 'bg-white text-[var(--seller-muted)]'}`}>
+      <div className={`mt-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${active ? 'bg-[var(--seller-accent-soft)] text-[var(--seller-accent)]' : 'bg-[rgba(255,255,255,0.04)] text-[var(--seller-muted)]'}`}>
         {entry.meta}
       </div>
     </button>
@@ -584,7 +709,7 @@ function SelectedDayPanel({
   if (entry.relation === 'future') {
     const prepTools = buildFuturePrepTools(entry);
     return (
-      <div className="border-t border-[var(--seller-border)] bg-white px-3.5 py-3">
+      <div className="border-t border-[var(--seller-border)] bg-[rgba(255,255,255,0.02)] px-3.5 py-3">
         <div className="grid grid-cols-1 gap-2.5 lg:grid-cols-[1fr_248px]">
           <div>
             <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--seller-accent)]">未来</div>
@@ -595,11 +720,11 @@ function SelectedDayPanel({
               {dateLabel}。{entry.detail}
             </p>
           </div>
-          <div className="rounded-[12px] border border-[var(--seller-border)] bg-[var(--seller-accent-soft)] p-2.5">
+          <div className="rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] p-2.5">
             <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-accent)]">提前准备</div>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {prepTools.map((tool) => (
-                <span key={tool} className="rounded-full border border-[var(--seller-border)] bg-white px-2.5 py-1 text-[11px] font-semibold text-[var(--seller-muted)]">
+                <span key={tool} className="rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] px-2.5 py-1 text-[11px] font-semibold text-[var(--seller-muted)]">
                   {tool}
                 </span>
               ))}
@@ -607,7 +732,7 @@ function SelectedDayPanel({
             <button
               type="button"
               onClick={onBackToday}
-              className="mt-2.5 w-full rounded-[11px] bg-[var(--seller-ink)] px-3 py-2 text-[11px] font-bold text-white"
+              className="mt-2.5 w-full rounded-[11px] bg-[var(--seller-accent)] px-3 py-2 text-[11px] font-bold text-[var(--seller-bg)]"
             >
               回到今天
             </button>
@@ -618,7 +743,7 @@ function SelectedDayPanel({
   }
 
   return (
-    <div className="border-t border-[var(--seller-border)] bg-white px-3.5 py-3">
+    <div className="border-t border-[var(--seller-border)] bg-[rgba(255,255,255,0.02)] px-3.5 py-3">
       <div className="flex flex-col gap-2.5 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--seller-accent)]">过去</div>
@@ -632,7 +757,7 @@ function SelectedDayPanel({
         <button
           type="button"
           onClick={onBackToday}
-          className="rounded-[11px] bg-[var(--seller-ink)] px-3 py-2 text-[11px] font-bold text-white"
+          className="rounded-[11px] bg-[var(--seller-accent)] px-3 py-2 text-[11px] font-bold text-[var(--seller-bg)]"
         >
           回到今天
         </button>
@@ -643,7 +768,7 @@ function SelectedDayPanel({
             key={event.id}
             type="button"
             onClick={() => onOpenCase(event.caseId)}
-            className="rounded-[12px] border border-[var(--seller-border)] bg-white px-2.5 py-2 text-left transition hover:bg-[var(--seller-accent-soft)]"
+            className="rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-2.5 py-2 text-left transition hover:bg-[rgba(255,255,255,0.06)]"
           >
             <div className="flex items-center gap-2">
               <span className={`h-1.5 w-1.5 rounded-full ${journalToneDot(event.tone)}`} />
@@ -695,19 +820,19 @@ function AgendaRow({
               onClick={() => onOpenCase(item.caseId)}
               className="rounded-full border border-[var(--seller-border)] bg-white px-2 py-0.5 text-[10px] font-bold text-[var(--seller-muted)] transition hover:bg-[var(--seller-accent-soft)]"
             >
-              打开房源
+              去房源页
             </button>
           )}
         </div>
         <h4 className="mt-1 text-[13px] font-semibold tracking-[-0.02em] text-[var(--seller-ink)]">{item.title}</h4>
         <p className="mt-0.5 max-w-[80ch] text-[11px] leading-5 text-[var(--seller-muted)]">{item.detail}</p>
         <div className="mt-2 flex flex-wrap gap-1.5">
-          {tools.map((tool) => (
+      {tools.map((tool) => (
             <button
               key={tool.label}
               type="button"
               onClick={() => onUseTool(tool, item.caseId)}
-              className="rounded-full border border-[var(--seller-border)] bg-white px-2.5 py-1 text-[10px] font-semibold text-[var(--seller-muted)] transition hover:bg-[var(--seller-ink)] hover:text-white"
+              className="rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-2.5 py-1 text-[10px] font-semibold text-[var(--seller-muted)] transition hover:border-[color:var(--seller-accent)] hover:bg-[var(--seller-accent-soft)] hover:text-[var(--seller-accent)]"
             >
               {tool.label}
             </button>
@@ -910,7 +1035,7 @@ function buildFuturePrepTools(entry: CalendarRailEntry) {
     return ['筛缺客户房源', '看推广金', '看商圈热度'];
   }
   if (entry.title.includes('带看') || entry.detail.includes('周末')) {
-    return ['排带看顺序', '看快成交客户', '检查房源卖点'];
+    return ['排带看顺序', '看后段客户', '检查房源卖点'];
   }
   return ['看在场房源', '检查精力', '回到今日安排'];
 }
@@ -934,7 +1059,7 @@ function buildAgendaTools(item: ProjectionBrief): AgendaTool[] {
   if (/成交|报价|谈判|斡旋/.test(text)) {
     return [
       { label: '整理谈判口径', target: 'case' },
-      { label: '看快成交客户', target: 'customers' },
+      { label: '看后段客户', target: 'customers' },
       { label: '看调价依据', target: 'case' },
     ];
   }
@@ -953,7 +1078,7 @@ function buildAgendaTools(item: ProjectionBrief): AgendaTool[] {
     ];
   }
   return [
-    { label: '打开房源', target: 'case' },
+    { label: '去房源页', target: 'case' },
     { label: '看客户线', target: 'customers' },
     { label: '回看今天记录', target: 'review' },
   ];
