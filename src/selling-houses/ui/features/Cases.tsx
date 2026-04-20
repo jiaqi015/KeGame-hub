@@ -6,7 +6,7 @@ import { getActionTemplate } from '../../domain/actions/templates';
 import { costText, caseSortValue } from '../../domain/utils';
 import { getActiveOpportunities, getActionAvailability } from '../../domain/engine';
 import { PERSONALITIES } from '../../domain/constants';
-import { Home as HomeIcon, MapPin, Trophy, Users, Heart, History, Star } from 'lucide-react';
+import { Star } from 'lucide-react';
 import { deriveCaseFollowUpPriority } from './followUpPriority';
 import { buildOpportunityViewModels, type OpportunityViewModel } from './caseOpportunityViewModel';
 
@@ -46,7 +46,7 @@ const CASE_QUICK_FILTERS: Array<{ id: CaseQuickFilter; label: string }> = [
   { id: 'focused', label: '本周聚焦' },
   { id: 'urgent', label: '窗口短' },
   { id: 'price', label: '价格偏硬' },
-  { id: 'late-stage', label: '快成交客户' },
+  { id: 'late-stage', label: '后段机会' },
 ];
 
 export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
@@ -254,176 +254,228 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
         </div>
       </aside>
 
-      <main className="seller-panel flex min-w-0 flex-col p-3 lg:p-3.5">
+      <main className="flex min-w-0 flex-col">
         {selectedCase ? (
-          <div className="flex min-h-0 flex-1 flex-col gap-3">
-            <section className="seller-panel-muted px-3.5 py-3">
-              <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_232px]">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="seller-title text-[18px] leading-6">{selectedCase.title}</h2>
-                    <span className="seller-chip bg-[var(--seller-ink)] text-white">{selectedCase.stageLabel}</span>
-                    {selectedCase.isFocused && (
-                      <span className="seller-chip seller-chip-accent flex items-center gap-1">
-                        <Star size={11} fill="currentColor" />
-                        本周聚焦
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
-                    <span className="flex items-center gap-1"><HomeIcon size={12} />{selectedCase.community}</span>
-                    <span className="flex items-center gap-1"><MapPin size={12} />{selectedCase.district}</span>
-                    <span>{selectedCase.layout} · {selectedCase.area}㎡</span>
-                    {selectedCase.personality && (
-                      <span>业主类型 · {PERSONALITIES[selectedCase.personality as keyof typeof PERSONALITIES]?.label}</span>
-                    )}
-                  </div>
-                  <div className="mt-2.5 text-[14px] font-semibold leading-5 text-slate-900">
-                    {caseProjection?.headline || deriveManagerTake(selectedCase, activeOpportunities)}
-                  </div>
-                  <p className="seller-body mt-1 line-clamp-2 max-w-[78ch] text-[11px] leading-5">
-                    {caseProjection?.actionReasons[0]?.detail || '先把今天最该做的一步落下去，再看有没有新的客户变化。'}
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-1.5 xl:grid-cols-1">
-                  <PriceLine label="挂牌价" value={`${selectedCase.askPrice} 万`} strong />
-                  <PriceLine label="市场常见成交价" value={`${selectedCase.marketPrice} 万`} />
-                  <PriceLine label="业主底线" value={`${selectedCase.bottomPrice} 万`} />
-                </div>
-              </div>
-            </section>
-
-            <section className="grid min-h-0 flex-1 grid-cols-1 gap-3 2xl:grid-cols-[0.92fr_1.05fr_0.92fr]">
-              <DeskSection title="房产信息" count="4 项">
-                <div className="grid grid-cols-2 gap-2">
-                  <MiniStat label="好房分" value={`${Math.round(selectedCase.competitiveness)}分`} tone={deriveHouseScoreTone(selectedCase.competitiveness)} />
-                  <MiniStat label="窗口" value={deriveWindowLabel(selectedCase, activeOpportunities)} tone="rose" />
-                  <MiniStat label="业主" value={deriveTrustLabel(selectedCase.trust)} tone={deriveTrustTone(selectedCase.trust)} />
-                  <MiniStat label="客户" value={deriveHeatLabel(selectedCase.heat)} tone={deriveHeatTone(selectedCase.heat)} />
-                </div>
-
-                <div className="seller-tablet mt-2.5 px-3 py-2.5">
-                  <div className="seller-label">价格判断</div>
-                  <div className={`mt-1 text-[12px] font-semibold leading-5 ${selectedCase.askPrice <= selectedCase.marketPrice ? 'text-emerald-700' : 'text-[color:var(--seller-risk)]'}`}>
-                    {caseProjection?.priceSummary.title || derivePricePosition(selectedCase)}
-                  </div>
-                  <p className="seller-body mt-1 line-clamp-3 text-[11px] leading-5">
-                    {caseProjection?.priceSummary.detail || '价格会直接影响客户看完以后愿不愿意继续往后走。'}
-                  </p>
-                </div>
-
-                <div className="mt-2.5 grid grid-cols-1 gap-2">
-                  <DetailStat label="客户储备" val={selectedCase.d1} icon={<Users size={14} />} color="bg-sky-500" />
-                  <DetailStat label="房子条件" val={selectedCase.d2} icon={<HomeIcon size={14} />} color="bg-slate-900" />
-                  <DetailStat label="业主配合" val={selectedCase.d3} icon={<Heart size={14} />} color="bg-rose-500" />
-                </div>
-              </DeskSection>
-
-              <DeskSection title="事项" count={`${caseAgenda.length || 1} 条`}>
-                {followUpPriority && (
-                  <div className="seller-tablet mb-2.5 px-3 py-2.5">
-                    <div className="seller-label">今天先处理</div>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                      <span className="seller-chip bg-[var(--seller-ink)] text-white">{followUpPriority.label}</span>
-                      <span className="seller-chip">{followUpPriority.metric}</span>
-                    </div>
-                    <p className="seller-body mt-1.5 line-clamp-2 text-[11px] leading-5">
-                      {caseProjection?.nextStepLine || followUpPriority.reason}
-                    </p>
-                  </div>
-                )}
-
-                <div className="divide-y divide-slate-200/70">
-                  {caseAgenda.map((entry, index) => (
-                    <div key={`${entry.title}-${index}`}>
-                      <MatterLine matter={entry} />
-                    </div>
-                  ))}
-                  {caseAgenda.length === 0 && (
-                    <div className="seller-empty px-3 py-4 text-[12px]">这套房今天没有特别紧的事项。</div>
-                  )}
-                </div>
-
-                {caseProjection && (
-                  <div className="mt-2.5 border-t border-slate-200/70 pt-2.5">
-                    <div className="mb-1.5 flex items-center justify-between">
-                      <div className="seller-label flex items-center gap-1.5">
-                        <History size={12} />
-                        最近变化
-                      </div>
-                      {latestScoreSnapshot && (
-                        <span className={`text-[10px] font-bold ${latestScoreSnapshot.delta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                          {latestScoreSnapshot.delta >= 0 ? '+' : ''}
-                          {Math.round(latestScoreSnapshot.delta * 10) / 10}pts
+          <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.28fr)_320px]">
+            <div className="flex min-h-0 flex-col gap-3">
+              <section className="seller-workbench overflow-hidden">
+                <div className="grid gap-3 border-b border-[var(--seller-border)] px-3.5 py-3 xl:grid-cols-[minmax(0,1fr)_248px]">
+                  <div className="min-w-0">
+                    <div className="seller-label">房源详情</div>
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <h2 className="seller-title text-[17px] leading-5">{selectedCase.title}</h2>
+                      <span className="seller-chip bg-[var(--seller-ink)] text-white">{selectedCase.stageLabel}</span>
+                      {selectedCase.isFocused && (
+                        <span className="seller-chip seller-chip-accent flex items-center gap-1">
+                          <Star size={11} fill="currentColor" />
+                          本周聚焦
                         </span>
                       )}
+                      {caseProjection?.mainProblemLabel && (
+                        <span className="seller-chip">{caseProjection.mainProblemLabel}</span>
+                      )}
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[var(--seller-muted)]">
+                      <span>{selectedCase.community}</span>
+                      <span className="text-slate-300">/</span>
+                      <span>{selectedCase.district}</span>
+                      <span className="text-slate-300">/</span>
+                      <span>{selectedCase.layout} · {selectedCase.area}㎡</span>
+                      {selectedCase.personality && (
+                        <>
+                          <span className="text-slate-300">/</span>
+                          <span>{PERSONALITIES[selectedCase.personality as keyof typeof PERSONALITIES]?.label}业主</span>
+                        </>
+                      )}
+                    </div>
+                    <div className="mt-3 text-[14px] font-semibold leading-5 text-[var(--seller-ink)]">
+                      {caseProjection?.headline || deriveManagerTake(selectedCase, activeOpportunities)}
+                    </div>
+                    <p className="seller-body mt-1 max-w-[72ch] text-[11px] leading-5">
+                      {caseProjection?.nextStepLine || caseProjection?.actionReasons[0]?.detail || '先把今天最该做的一步落下去，再看有没有新的客户变化。'}
+                    </p>
+                    {caseProjection?.currentRiskTags && caseProjection.currentRiskTags.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {caseProjection.currentRiskTags.slice(0, 3).map((tag) => (
+                          <span key={tag} className="seller-chip seller-chip-risk">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-1.5 xl:grid-cols-1">
+                    <PriceLine label="挂牌价" value={`${selectedCase.askPrice} 万`} strong />
+                    <PriceLine label="市场成交位" value={`${selectedCase.marketPrice} 万`} />
+                    <PriceLine label="业主底线" value={`${selectedCase.bottomPrice} 万`} />
+                  </div>
+                </div>
+
+                <div className="grid gap-3 px-3.5 py-3 lg:grid-cols-3">
+                  <DiagnosisCard
+                    label="客户承接"
+                    value={caseProjection?.customerPoolSummary.title || deriveHeatLabel(selectedCase.heat)}
+                    detail={caseProjection?.customerPoolSummary.detail || '先看客户有没有接上，再看能不能推进到复看和报价。'}
+                    tone={deriveHeatTone(selectedCase.heat)}
+                    metrics={[
+                      { label: '已接上', value: `${caseProjection?.customerPoolSummary.metCount ?? customerStatesForSelectedCase.length} 位` },
+                      { label: '比较中', value: `${caseProjection?.customerPoolSummary.comparingCount ?? comparingCustomers.length} 位` },
+                    ]}
+                  />
+                  <DiagnosisCard
+                    label="价格站位"
+                    value={caseProjection?.priceSummary.title || derivePricePosition(selectedCase)}
+                    detail={caseProjection?.priceSummary.detail || '价格会直接影响客户看完以后愿不愿意继续往后走。'}
+                    tone={selectedCase.askPrice <= selectedCase.marketPrice ? 'emerald' : 'rose'}
+                    metrics={[
+                      { label: '价差', value: `${selectedCase.askPrice - selectedCase.marketPrice >= 0 ? '+' : ''}${selectedCase.askPrice - selectedCase.marketPrice} 万` },
+                      { label: '窗口', value: describeWindowDays(selectedCase.windowDays) },
+                    ]}
+                  />
+                  <DiagnosisCard
+                    label="竞争与窗口"
+                    value={caseProjection?.competitionSummary.title || deriveWindowLabel(selectedCase, activeOpportunities)}
+                    detail={caseProjection?.competitionSummary.detail || '先确认这套房是不是已经被竞品拿去比较。'}
+                    tone={caseProjection && caseProjection.competitionSummary.pressure >= 68 ? 'rose' : 'amber'}
+                    metrics={[
+                      { label: '竞品', value: `${caseProjection?.competitionSummary.rivalCount ?? 0} 套` },
+                      { label: '压力', value: `${caseProjection?.competitionSummary.pressure ?? 0}` },
+                    ]}
+                  />
+                </div>
+              </section>
+
+              <section className="grid gap-3 lg:grid-cols-[minmax(0,1.02fr)_minmax(0,1.1fr)]">
+                <DeskSection title="业主与房子" count="当前状态">
+                  <div className="grid gap-2 lg:grid-cols-2">
+                    <SummaryPanel
+                      title={caseProjection?.ownerSummary.title || '业主还在等明确反馈'}
+                      detail={caseProjection?.ownerSummary.detail || deriveSellerGuidance(selectedCase)}
+                      points={[
+                        `信任 ${caseProjection?.ownerSummary.trust ?? Math.round(selectedCase.trust)}`,
+                        `耐心 ${caseProjection?.ownerSummary.patience ?? Math.round(selectedCase.patience)}`,
+                        `紧迫 ${caseProjection?.ownerSummary.urgency ?? Math.round(selectedCase.urgency)}`,
+                      ]}
+                    />
+                    <SummaryPanel
+                      title={deriveStrongPoint(selectedCase)}
+                      detail={deriveWeakPoint(selectedCase)}
+                      points={[
+                        `客户储备 ${Math.round(selectedCase.d1)}`,
+                        `房子条件 ${Math.round(selectedCase.d2)}`,
+                        `业主配合 ${Math.round(selectedCase.d3)}`,
+                      ]}
+                    />
+                  </div>
+                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <ProgressRail label="客户储备" value={selectedCase.d1} color="bg-sky-500" />
+                    <ProgressRail label="房子条件" value={selectedCase.d2} color="bg-slate-900" />
+                    <ProgressRail label="业主配合" value={selectedCase.d3} color="bg-rose-500" />
+                  </div>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    <InfoStrip label="沟通方式" value={deriveCommunicationMode(selectedCase)} />
+                    <InfoStrip label="今天先补哪一步" value={deriveNextFix(selectedCase, activeOpportunities)} />
+                  </div>
+                </DeskSection>
+
+                <DeskSection title="客户情况" count={`${engagedOpportunities.length} 位在跟`}>
+                  <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                    <PoolMetric label="已接上" value={caseProjection?.customerPoolSummary.metCount ?? customerStatesForSelectedCase.length} tone="slate" />
+                    <PoolMetric label="潜在人群" value={caseProjection?.customerPoolSummary.potentialCount ?? predictedOpportunities.length} tone="amber" />
+                    <PoolMetric label="比较中" value={caseProjection?.customerPoolSummary.comparingCount ?? comparingCustomers.length} tone="amber" />
+                    <PoolMetric
+                      label="后段 / 风险"
+                      value={(caseProjection?.customerPoolSummary.closingCount ?? negotiatingCustomers.length) + (caseProjection?.customerPoolSummary.atRiskCount ?? atRiskCustomers.length)}
+                      tone="rose"
+                    />
+                  </div>
+
+                  <div className="mt-2.5 divide-y divide-slate-200/70">
+                    {engagedOpportunities.slice(0, 4).map((model) => (
+                      <div key={model.opportunity.id}>
+                        <OpportunityLine model={model} />
+                      </div>
+                    ))}
+                    {engagedOpportunities.length === 0 && (
+                      <div className="seller-empty px-3 py-4 text-[12px]">目前还没有真正接上的客户，先把第一批真人客户接出来。</div>
+                    )}
+                  </div>
+
+                  <div className="mt-2.5 border-t border-slate-200/70 pt-2.5">
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <div className="seller-label">潜在人群</div>
+                      <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">{predictedOpportunities.length} 组</span>
                     </div>
                     <div className="space-y-1.5">
-                      {caseProjection.recentChanges.slice(0, 2).map((change) => (
-                        <div key={change.id}>
-                          <RecentChangeLine change={change} />
+                      {potentialSignalRows.slice(0, 2).map((row) => (
+                        <div key={row.id}>
+                          <PotentialSignalLine row={row} />
                         </div>
                       ))}
-                      {caseProjection.recentChanges.length === 0 && (
-                        <div className="seller-empty px-3 py-3 text-[11px]">目前还没有新变化。</div>
+                      {potentialSignalRows.length === 0 && (
+                        <div className="seller-empty px-3 py-3 text-[11px]">暂时还没有新的潜在人群信号。</div>
                       )}
                     </div>
                   </div>
-                )}
-              </DeskSection>
+                </DeskSection>
+              </section>
 
-              <DeskSection title="机会" count={`${engagedOpportunities.length} 位`}>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <PoolMetric label="已接上" value={caseProjection?.customerPoolSummary.metCount ?? customerStatesForSelectedCase.length} tone="slate" />
-                  <PoolMetric label="潜在人群" value={caseProjection?.customerPoolSummary.potentialCount ?? predictedOpportunities.length} tone="amber" />
-                  <PoolMetric label="比较中" value={caseProjection?.customerPoolSummary.comparingCount ?? comparingCustomers.length} tone="amber" />
-                  <PoolMetric
-                    label="快成交 / 快流失"
-                    value={(caseProjection?.customerPoolSummary.closingCount ?? negotiatingCustomers.length) + (caseProjection?.customerPoolSummary.atRiskCount ?? atRiskCustomers.length)}
-                    tone="rose"
-                  />
-                </div>
-
-                <div className="mt-2.5 divide-y divide-slate-200/70">
-                  {engagedOpportunities.slice(0, 4).map((model) => (
-                    <div key={model.opportunity.id}>
-                      <OpportunityLine model={model} />
-                    </div>
-                  ))}
-                  {engagedOpportunities.length === 0 && (
-                    <div className="seller-empty px-3 py-4 text-[12px]">目前还没有接上的客户。</div>
-                  )}
-                </div>
-
-                <div className="mt-2.5 border-t border-slate-200/70 pt-2.5">
-                  <div className="seller-label">潜在人群信号</div>
-                  <div className="mt-1.5 space-y-1.5">
-                    {potentialSignalRows.slice(0, 2).map((row) => (
-                      <div key={row.id}>
-                        <PotentialSignalLine row={row} />
+              <section className="grid gap-3 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+                <DeskSection title="最近变化" count={`${caseProjection?.recentChanges.length || 0} 条`}>
+                  <div className="space-y-1.5">
+                    {caseProjection?.recentChanges.slice(0, 3).map((change) => (
+                      <div key={change.id}>
+                        <RecentChangeLine change={change} />
                       </div>
                     ))}
-                    {potentialSignalRows.length === 0 && (
-                      <div className="seller-empty px-3 py-3 text-[11px]">还没有明显潜在人群。</div>
-                    )}
+                    {!caseProjection || caseProjection.recentChanges.length === 0 ? (
+                      <div className="seller-empty px-3 py-3 text-[11px]">最近没有明显波动，重点是保持推进节奏。</div>
+                    ) : null}
                   </div>
-                </div>
-              </DeskSection>
-            </section>
+                </DeskSection>
 
-            <section className="seller-panel-muted px-3.5 py-3">
-              <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="seller-label">今天能做的事</div>
-                  <span className="seller-chip">{availableActionCount}/{ACTIONS.length} 可做</span>
+                <DeskSection title="判断依据" count={`${caseProjection?.factChain.length || 0} 条`}>
+                  <div className="space-y-1.5">
+                    {caseProjection?.factChain.slice(0, 4).map((fact) => (
+                      <div key={fact.id}>
+                        <FactLine fact={fact} />
+                      </div>
+                    ))}
+                    {!caseProjection || caseProjection.factChain.length === 0 ? (
+                      <div className="seller-empty px-3 py-3 text-[11px]">目前还没有足够的事实链。</div>
+                    ) : null}
+                  </div>
+                </DeskSection>
+              </section>
+            </div>
+
+            <aside className="flex min-h-0 flex-col gap-3">
+              <section className="seller-panel-muted px-3.5 py-3">
+                <div className="seller-label">当前主矛盾</div>
+                <div className="mt-2 text-[15px] font-semibold leading-5 text-[var(--seller-ink)]">
+                  {followUpPriority?.label || caseProjection?.mainProblemLabel || '继续推进'}
                 </div>
-                <div className="flex gap-1.5 overflow-x-auto pb-1 lg:pb-0">
+                <p className="seller-body mt-1 text-[11px] leading-5">
+                  {caseProjection?.nextStepLine || followUpPriority?.reason || '先把今天能落地的一步做下去。'}
+                </p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {followUpPriority?.metric ? <span className="seller-chip">{followUpPriority.metric}</span> : null}
+                  {latestScoreSnapshot ? (
+                    <span className={latestScoreSnapshot.delta >= 0 ? 'seller-chip seller-chip-chance' : 'seller-chip seller-chip-risk'}>
+                      {latestScoreSnapshot.delta >= 0 ? '+' : ''}{Math.round(latestScoreSnapshot.delta * 10) / 10} 分
+                    </span>
+                  ) : null}
+                </div>
+              </section>
+
+              <DeskSection title="今天能做的事" count={`${availableActionCount}/${ACTIONS.length} 可做`}>
+                <div className="flex gap-1.5 overflow-x-auto pb-1">
                   {actionCardsByCategory.map(({ category, availableCards }) => (
                     <button
                       key={category.id}
                       onClick={() => setActiveActionTab(category.id as ActionCategoryTab)}
-                      className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] transition-colors ${
+                      className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-bold tracking-[0.08em] transition-colors ${
                         activeActionCategory?.category.id === category.id
                           ? 'bg-slate-900 text-white'
                           : 'bg-white text-slate-500 hover:bg-slate-100'
@@ -433,21 +485,52 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                     </button>
                   ))}
                 </div>
-              </div>
 
-              {activeActionCategory && (
-                <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2 2xl:grid-cols-3">
-                  {activeActionCategory.availableCards.map(card => (
+                {activeActionCategory && (
+                  <>
+                    <p className="seller-body mt-2 text-[11px] leading-5">
+                      {activeActionCategory.category.summary}
+                    </p>
+                    <div className="mt-2 space-y-2">
+                      {activeActionCategory.availableCards.slice(0, 4).map((card) => (
+                        <div key={card.action.id}>
+                          <CompactActionButton card={card} onExecute={handleAction} />
+                        </div>
+                      ))}
+                      {activeActionCategory.availableCards.length === 0 && (
+                        <div className="seller-empty px-3 py-4 text-[12px]">这一类动作现在还做不了，先看下面卡住的原因。</div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </DeskSection>
+
+              <DeskSection title="暂时做不了" count={`${activeActionCategory?.blockedCards.length || 0} 项`}>
+                <div className="space-y-1.5">
+                  {activeActionCategory?.blockedCards.slice(0, 3).map((card) => (
                     <div key={card.action.id}>
-                      <CompactActionButton card={card} onExecute={handleAction} />
+                      <BlockedActionLine card={card} />
                     </div>
                   ))}
-                  {activeActionCategory.availableCards.length === 0 && (
-                    <div className="seller-empty px-3 py-4 text-[12px]">这一类动作当前没有可直接执行的项。</div>
+                  {!activeActionCategory || activeActionCategory.blockedCards.length === 0 ? (
+                    <div className="seller-empty px-3 py-3 text-[11px]">这一类动作目前没有明显阻塞。</div>
+                  ) : null}
+                </div>
+              </DeskSection>
+
+              <DeskSection title="今天的推进顺序" count={`${caseAgenda.length || 0} 步`}>
+                <div className="space-y-1.5">
+                  {caseAgenda.map((entry, index) => (
+                    <div key={`${entry.title}-${index}`}>
+                      <MatterLine matter={entry} compact />
+                    </div>
+                  ))}
+                  {caseAgenda.length === 0 && (
+                    <div className="seller-empty px-3 py-3 text-[11px]">这套房今天没有特别紧的事项。</div>
                   )}
                 </div>
-              )}
-            </section>
+              </DeskSection>
+            </aside>
           </div>
         ) : (
           <div className="flex flex-1 items-center justify-center text-slate-400 italic">选择一个房源开始经营</div>
@@ -498,23 +581,6 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
   );
 }
 
-function DetailStat({ label, val, icon, color = "bg-slate-900" }: { label: string; val: number; icon: React.ReactNode; color?: string }) {
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-[0.14em]">
-        {icon} <span>{label}</span>
-      </div>
-      <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-        <div 
-          className={`h-full ${color} transition-all duration-500 ease-out`} 
-          style={{ width: `${val}%` }} 
-        />
-      </div>
-      <div className="text-right text-[10px] font-semibold text-slate-500">{Math.round(val)}</div>
-    </div>
-  );
-}
-
 function CompactMetric({ label, val }: { label: string; val: number }) {
   return (
     <div className="min-w-0 flex-1">
@@ -524,6 +590,44 @@ function CompactMetric({ label, val }: { label: string; val: number }) {
       </div>
       <div className="h-1 w-full overflow-hidden rounded-full bg-black/5">
         <div className="h-full bg-emerald-500" style={{ width: `${val}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function DiagnosisCard({
+  label,
+  value,
+  detail,
+  tone,
+  metrics,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  tone: 'slate' | 'amber' | 'emerald' | 'rose';
+  metrics: Array<{ label: string; value: string }>;
+}) {
+  const toneClass =
+    tone === 'emerald'
+      ? 'border-emerald-200 bg-emerald-50/72'
+      : tone === 'amber'
+        ? 'border-amber-200 bg-amber-50/72'
+        : tone === 'rose'
+          ? 'border-rose-200 bg-rose-50/72'
+          : 'border-slate-200 bg-white/85';
+
+  return (
+    <div className={`rounded-[14px] border px-3 py-3 ${toneClass}`}>
+      <div className="seller-label">{label}</div>
+      <div className="mt-2 text-[13px] font-semibold leading-5 text-[var(--seller-ink)]">{value}</div>
+      <p className="seller-body mt-1 line-clamp-3 text-[11px] leading-5">{detail}</p>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {metrics.map((metric) => (
+          <span key={`${label}-${metric.label}`} className="seller-chip">
+            {metric.label} · {metric.value}
+          </span>
+        ))}
       </div>
     </div>
   );
@@ -541,6 +645,53 @@ function PoolMetric({ label, value, tone }: { label: string; value: number; tone
     <div className={`rounded-xl px-4 py-3 ${toneClass}`}>
       <div className="text-[9px] font-bold uppercase tracking-[0.14em] opacity-70">{label}</div>
       <div className="mt-1.5 text-[20px] font-semibold">{value}</div>
+    </div>
+  );
+}
+
+function SummaryPanel({
+  title,
+  detail,
+  points,
+}: {
+  title: string;
+  detail: string;
+  points: string[];
+}) {
+  return (
+    <div className="seller-tablet px-3 py-2.5">
+      <div className="text-[12px] font-semibold leading-5 text-[var(--seller-ink)]">{title}</div>
+      <p className="seller-body mt-1 text-[11px] leading-5">{detail}</p>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {points.map((point) => (
+          <span key={`${title}-${point}`} className="seller-chip">
+            {point}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProgressRail({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div className="rounded-[12px] border border-slate-200 bg-white px-3 py-2.5">
+      <div className="mb-1 flex items-center justify-between">
+        <div className="seller-label text-[9px]">{label}</div>
+        <div className="text-[10px] font-semibold text-slate-500">{Math.round(value)}</div>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-black/5">
+        <div className={`h-full ${color}`} style={{ width: `${value}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function InfoStrip({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[12px] border border-slate-200 bg-white px-3 py-2.5">
+      <div className="seller-label text-[9px]">{label}</div>
+      <div className="mt-1 text-[11px] font-semibold leading-5 text-[var(--seller-ink)]">{value}</div>
     </div>
   );
 }
@@ -602,8 +753,10 @@ function MiniStat({
 
 function MatterLine({
   matter,
+  compact = false,
 }: {
   matter: { title: string; detail: string; badge: string; tone: 'rose' | 'amber' | 'emerald' };
+  compact?: boolean;
 }) {
   const toneClass = matter.tone === 'rose'
     ? 'bg-rose-50 text-rose-700'
@@ -612,13 +765,40 @@ function MatterLine({
       : 'bg-emerald-50 text-emerald-700';
 
   return (
-    <div className="py-2.5">
+    <div className={compact ? 'rounded-[12px] border border-slate-200 bg-white px-3 py-2.5' : 'py-2.5'}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[12px] font-semibold text-slate-900">{matter.title}</div>
           <p className="seller-body mt-0.5 line-clamp-2 text-[11px] leading-5">{matter.detail}</p>
         </div>
         <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${toneClass}`}>{matter.badge}</span>
+      </div>
+    </div>
+  );
+}
+
+function FactLine({
+  fact,
+}: {
+  fact: { title: string; fact: string; nextStep: string; tone: 'risk' | 'chance' | 'neutral' };
+}) {
+  const toneClass = fact.tone === 'risk'
+    ? 'seller-chip-risk'
+    : fact.tone === 'chance'
+      ? 'seller-chip-chance'
+      : 'seller-chip';
+
+  return (
+    <div className="rounded-[12px] border border-slate-200 bg-white px-3 py-2.5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[12px] font-semibold text-slate-900">{fact.title}</div>
+          <p className="seller-body mt-0.5 text-[11px] leading-5">{fact.fact}</p>
+          <p className="mt-1 text-[11px] font-semibold leading-5 text-[var(--seller-ink)]">下一步：{fact.nextStep}</p>
+        </div>
+        <span className={toneClass}>
+          {fact.tone === 'risk' ? '风险' : fact.tone === 'chance' ? '机会' : '平稳'}
+        </span>
       </div>
     </div>
   );
@@ -724,6 +904,24 @@ function CompactActionButton({
   );
 }
 
+function BlockedActionLine({
+  card,
+}: {
+  card: ActionWorkspaceCard;
+}) {
+  return (
+    <div className="rounded-[12px] border border-slate-200 bg-white px-3 py-2.5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[12px] font-semibold text-slate-900">{card.action.name}</div>
+          <p className="seller-body mt-0.5 text-[11px] leading-5">{card.availability.reason || '当前还不满足执行条件。'}</p>
+        </div>
+        <span className="seller-chip seller-chip-risk">暂缓</span>
+      </div>
+    </div>
+  );
+}
+
 function deriveActorLabel(actor: 'owner' | 'market' | 'customer') {
   if (actor === 'owner') return '这次主要在和业主博弈';
   if (actor === 'customer') return '这次主要在和客户博弈';
@@ -816,8 +1014,8 @@ function derivePricePosition(caseItem: Case) {
 }
 
 function deriveWindowLabel(caseItem: Case, opportunities: any[]) {
-  if (caseItem.windowDays <= 5) return '窗口很短';
-  if (opportunities.some(o => o.daysLeft <= 2 && o.visibility !== 'shadow')) return '客户快流失了';
+  if (caseItem.windowDays <= 5) return '窗口偏紧';
+  if (opportunities.some(o => o.daysLeft <= 2 && o.visibility !== 'shadow')) return '已有客户在掉线边缘';
   if (opportunities.some(o => o.visibility === 'shadow')) return '还有客户没核实';
   return '窗口还稳';
 }
@@ -870,12 +1068,18 @@ function deriveShortCaseState(caseItem: Case, opportunities: any[]) {
   if (caseItem.status === 'sold') return '已成交';
   if (caseItem.status === 'lost_to_rival') return '被截走';
   if (caseItem.status === 'withdrawn') return '已撤盘';
-  if (caseItem.windowDays <= 3 || caseItem.trust < 50) return '快丢了';
-  if (opportunities.some(o => o.visibility !== 'shadow' && o.stageIndex >= 3)) return '快成交';
+  if (caseItem.windowDays <= 3 || caseItem.trust < 50) return '有丢盘风险';
+  if (opportunities.some(o => o.visibility !== 'shadow' && o.stageIndex >= 3)) return '有后段机会';
   if (opportunities.length === 0) return '缺客户';
   if (caseItem.askPrice > caseItem.marketPrice * 1.05) return '价格硬';
   if (caseItem.heat < 45) return '偏冷';
   return '在跟进';
+}
+
+function describeWindowDays(days: number) {
+  if (days <= 3) return `${days} 天内`;
+  if (days <= 7) return `${days} 天窗口`;
+  return `${days} 天可操作`;
 }
 
 function buildCaseAgenda(caseItem: Case, projection: NonNullable<ReturnType<typeof buildCaseDetailProjection>>, activeOpportunityCount: number) {

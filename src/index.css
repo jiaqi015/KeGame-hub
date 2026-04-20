@@ -1,32 +1,32 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600&family=Noto+Sans+SC:wght@400;500;600;700&display=swap");
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "IBM Plex Sans", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
-  --font-serif: "IBM Plex Sans", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-sans: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
 :root {
-  --seller-bg: oklch(0.975 0.004 248);
-  --seller-bg-strong: oklch(0.958 0.006 245);
-  --seller-paper: oklch(0.992 0.002 248);
-  --seller-paper-soft: oklch(0.982 0.004 245);
-  --seller-border: oklch(0.892 0.007 246);
-  --seller-border-strong: oklch(0.756 0.015 246);
-  --seller-ink: oklch(0.241 0.028 258);
-  --seller-muted: oklch(0.438 0.014 252);
-  --seller-subtle: oklch(0.626 0.01 248);
-  --seller-accent: oklch(0.54 0.043 228);
-  --seller-accent-soft: oklch(0.953 0.012 228);
-  --seller-risk: oklch(0.565 0.071 29);
-  --seller-risk-soft: oklch(0.966 0.013 28);
-  --seller-chance: oklch(0.553 0.05 176);
-  --seller-chance-soft: oklch(0.967 0.012 176);
-  --seller-info: oklch(0.5 0.03 241);
-  --seller-shadow-sm: 0 8px 20px rgba(18, 28, 45, 0.035);
-  --seller-shadow-md: 0 16px 34px rgba(18, 28, 45, 0.05);
-  --seller-shadow-lg: 0 24px 52px rgba(18, 28, 45, 0.08);
+  --seller-bg: oklch(0.948 0.006 230);
+  --seller-bg-strong: oklch(0.918 0.009 230);
+  --seller-paper: oklch(0.985 0.003 230);
+  --seller-paper-soft: oklch(0.968 0.006 230);
+  --seller-border: oklch(0.858 0.01 230);
+  --seller-border-strong: oklch(0.704 0.018 230);
+  --seller-ink: oklch(0.205 0.028 235);
+  --seller-muted: oklch(0.458 0.018 232);
+  --seller-subtle: oklch(0.628 0.012 230);
+  --seller-accent: oklch(0.72 0.17 151);
+  --seller-accent-soft: oklch(0.952 0.035 151);
+  --seller-risk: oklch(0.61 0.13 25);
+  --seller-risk-soft: oklch(0.955 0.024 25);
+  --seller-chance: oklch(0.68 0.105 176);
+  --seller-chance-soft: oklch(0.954 0.026 176);
+  --seller-info: oklch(0.52 0.035 232);
+  --seller-shadow-sm: 0 8px 18px rgba(12, 20, 30, 0.035);
+  --seller-shadow-md: 0 16px 34px rgba(12, 20, 30, 0.055);
+  --seller-shadow-lg: 0 24px 52px rgba(12, 20, 30, 0.09);
 }
 
 html,
@@ -57,9 +57,9 @@ select {
 
 .selling-houses-shell {
   background:
-    radial-gradient(circle at top right, rgba(94, 121, 171, 0.09), transparent 24%),
-    radial-gradient(circle at bottom left, rgba(82, 132, 120, 0.07), transparent 22%),
-    linear-gradient(180deg, #f4f6f8 0%, #edf1f5 100%);
+    radial-gradient(circle at top right, color-mix(in srgb, var(--seller-accent) 10%, transparent), transparent 26%),
+    radial-gradient(circle at bottom left, rgba(18, 31, 46, 0.05), transparent 24%),
+    linear-gradient(180deg, #f3f5f6 0%, #e9edf0 100%);
   color: var(--seller-ink);
   font-family: var(--font-sans);
 }
@@ -67,14 +67,14 @@ select {
 .seller-panel {
   border: 1px solid var(--seller-border);
   background: color-mix(in srgb, var(--seller-paper) 96%, white 4%);
-  border-radius: 14px;
+  border-radius: 15px;
   box-shadow: var(--seller-shadow-sm);
 }
 
 .seller-panel-muted {
   border: 1px solid var(--seller-border);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--seller-paper-soft) 90%, white 10%), color-mix(in srgb, var(--seller-bg) 86%, white 14%));
-  border-radius: 14px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--seller-paper-soft) 90%, white 10%), color-mix(in srgb, var(--seller-bg) 88%, white 12%));
+  border-radius: 15px;
   box-shadow: var(--seller-shadow-sm);
 }
 
@@ -87,15 +87,38 @@ select {
 .seller-panel-strong {
   border: 1px solid color-mix(in srgb, var(--seller-ink) 10%, var(--seller-border) 90%);
   background: var(--seller-ink);
-  border-radius: 14px;
+  border-radius: 15px;
   color: #f5f8fb;
   box-shadow: var(--seller-shadow-md);
 }
 
 .seller-band {
   border: 1px solid var(--seller-border);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(246, 248, 250, 0.94));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(247, 249, 250, 0.95));
   border-radius: 12px;
+}
+
+.seller-workbench {
+  border: 1px solid color-mix(in srgb, var(--seller-ink) 9%, var(--seller-border) 91%);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(247, 250, 249, 0.9)),
+    var(--seller-paper);
+  border-radius: 16px;
+  box-shadow: var(--seller-shadow-sm);
+}
+
+.seller-workbench-dark {
+  border: 1px solid color-mix(in srgb, white 8%, var(--seller-ink) 92%);
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--seller-accent) 13%, transparent), transparent 36%),
+    linear-gradient(180deg, color-mix(in srgb, var(--seller-ink) 96%, white 4%), color-mix(in srgb, var(--seller-ink) 86%, black 14%));
+  border-radius: 16px;
+  color: oklch(0.958 0.006 160);
+  box-shadow: var(--seller-shadow-md);
+}
+
+.seller-workbench-line {
+  border-color: color-mix(in srgb, var(--seller-border) 76%, white 24%);
 }
 
 .seller-tablet {
