@@ -49,7 +49,7 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-3xl">
             <div className="seller-label">客户</div>
-            <h2 className="seller-title mt-2 text-[24px]">已接上、快成交、快流失</h2>
+            <h2 className="seller-title mt-2 text-[20px]">已接上、快成交、快流失</h2>
             <p className="seller-body mt-2 text-[13px]">
               已经接上和见过面的客户进入机会列表；没接上的只作为潜在人群信号。
             </p>
@@ -198,15 +198,15 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
         <div className="seller-note mt-4 px-4 py-3">
           <div className="grid grid-cols-1 gap-3 text-[11px] text-slate-600 md:grid-cols-3">
             <div>
-              <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-amber-700">有信号的房源</div>
+              <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-sky-700">有信号的房源</div>
               <div className="mt-1 text-[15px] font-semibold text-slate-900">{projection.potentialSummary.caseCount}</div>
             </div>
             <div>
-              <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-amber-700">主要来源渠道</div>
+              <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-sky-700">主要来源渠道</div>
               <div className="mt-1 text-[15px] font-semibold text-slate-900">{projection.potentialSummary.channelCount}</div>
             </div>
             <div>
-              <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-amber-700">最早散开窗口</div>
+              <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-sky-700">最早散开窗口</div>
               <div className="mt-1 text-[15px] font-semibold text-slate-900">
                 {projection.potentialSummary.soonestDaysLeft === null ? '暂无' : `${Math.max(0, projection.potentialSummary.soonestDaysLeft)} 天`}
               </div>

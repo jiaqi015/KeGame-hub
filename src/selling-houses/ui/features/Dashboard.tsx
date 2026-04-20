@@ -137,13 +137,13 @@ export function Dashboard({ state, onSelectCase, onSetView, onOpenMarket }: Dash
   return (
     <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <section className="seller-panel overflow-hidden">
-        <div className="flex flex-col gap-2.5 border-b border-[#eadfce] px-3 py-3 lg:px-3.5">
+        <div className="flex flex-col gap-2.5 border-b border-[var(--seller-border)] px-3 py-3 lg:px-3.5">
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
             <div className="seller-label flex items-center gap-2">
               <Calendar size={13} />
               日历
             </div>
-            <div className="flex flex-wrap gap-1.5 text-[11px] font-semibold text-[#6f5a43]">
+            <div className="flex flex-wrap gap-1.5 text-[11px] font-semibold text-[var(--seller-muted)]">
               <span className="seller-chip">Day {day}/{maxDay}</span>
               <span className="seller-chip">剩 {daysRemaining} 天</span>
               <span className="seller-chip">{routine.label} · {routine.theme}</span>
@@ -184,11 +184,11 @@ export function Dashboard({ state, onSelectCase, onSetView, onOpenMarket }: Dash
                     今日
                   </span>
                   <span className="seller-chip seller-chip-accent">
-                    {firstPriority?.label || '先处理'}
+                    {firstPriority?.label || '主事项'}
                   </span>
                 </div>
 
-                <h1 className="seller-title mt-2.5 max-w-4xl text-[20px] leading-[1.18] md:text-[23px]">
+                <h1 className="seller-title mt-2.5 max-w-4xl text-[18px] leading-[1.18] md:text-[20px]">
                   {operatingBrief.today.title}
                 </h1>
                 <p className="seller-body mt-1.5 max-w-[72ch] text-[12px] leading-5 line-clamp-2">
@@ -196,16 +196,16 @@ export function Dashboard({ state, onSelectCase, onSetView, onOpenMarket }: Dash
                 </p>
 
                 <div className="mt-3 grid grid-cols-2 gap-1.5 md:grid-cols-4">
-                  <DeskMetric label="今天先盯" value={todayFocus} />
-                  <DeskMetric label="主要风险" value={todayRisk} tone="risk" />
+                  <DeskMetric label="主盯房源" value={todayFocus} />
+                  <DeskMetric label="先防什么" value={todayRisk} tone="risk" />
                   <DeskMetric label="今日精力" value={dashboardProjection.resourceSnapshot.energy} />
                   <DeskMetric label="活跃机会" value={`${dashboardProjection.resourceSnapshot.activeOpportunities} 条`} />
                 </div>
               </div>
 
-              <div className="border-t border-[#eadfce] pt-3 xl:border-l xl:border-t-0 xl:pl-3 xl:pt-0">
+              <div className="border-t border-[var(--seller-border)] pt-3 xl:border-l xl:border-t-0 xl:pl-3 xl:pt-0">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="seller-label">证据</div>
+                  <div className="seller-label">房源情况</div>
                   <button
                     type="button"
                     onClick={() => openCase(leadCaseId || undefined)}
@@ -217,13 +217,13 @@ export function Dashboard({ state, onSelectCase, onSetView, onOpenMarket }: Dash
                 <div className="mt-2 space-y-1.5">
                   {(leadCaseProjection?.factChain.slice(0, 3) || []).map((fact) => (
                     <div key={fact.id} className="seller-tablet px-2.5 py-2">
-                      <div className="text-[12px] font-semibold text-[#2b2118]">{fact.title}</div>
+                      <div className="text-[12px] font-semibold text-[var(--seller-ink)]">{fact.title}</div>
                       <p className="seller-body mt-0.5 text-[11px] leading-5">{fact.fact}</p>
                     </div>
                   ))}
                   {!leadCaseProjection && (
                     <p className="seller-empty px-2.5 py-2.5 text-[11px] leading-5">
-                      这会儿还没有特别突出的单房证据。
+                      这套房眼下还没有新的关键信息。
                     </p>
                   )}
                 </div>
@@ -237,12 +237,12 @@ export function Dashboard({ state, onSelectCase, onSetView, onOpenMarket }: Dash
                 <Clock3 size={13} />
                 今日安排
               </div>
-              <div className="text-[11px] text-[#8a7762]">
+              <div className="text-[11px] text-[var(--seller-subtle)]">
                 {visiblePriorities.length} 项
               </div>
             </div>
 
-            <div className="divide-y divide-[#efe3d4]">
+            <div className="divide-y divide-[color:var(--seller-border)]">
               {visiblePriorities.length > 0 ? visiblePriorities.map((item, index) => (
                 <div key={item.id}>
                   <AgendaRow
@@ -296,7 +296,7 @@ export function Dashboard({ state, onSelectCase, onSetView, onOpenMarket }: Dash
           <section className="seller-panel px-3.5 py-3">
             <div className="seller-label mb-2.5 flex items-center gap-2">
               <ShieldAlert size={13} />
-              风险
+              在手情况
             </div>
             <div className="grid grid-cols-1 gap-2">
               <EvidenceTile icon={<Target size={15} />} label="商圈聚焦房" value={`${activeCoreCount} 套`} detail={todayFocus} />
@@ -335,7 +335,7 @@ export function Dashboard({ state, onSelectCase, onSetView, onOpenMarket }: Dash
                     onClick={() => openCase(item.caseId)}
                     className="seller-tablet w-full px-2.5 py-2.5 text-left transition hover:bg-white"
                   >
-                    <div className="text-[12px] font-semibold text-[#2b2118]">{item.title}</div>
+                    <div className="text-[12px] font-semibold text-[var(--seller-ink)]">{item.title}</div>
                     <p className="seller-body mt-0.5 text-[11px] leading-5">{item.reason}</p>
                   </button>
                 )) : (
@@ -350,7 +350,7 @@ export function Dashboard({ state, onSelectCase, onSetView, onOpenMarket }: Dash
           <section className="seller-panel-muted px-3.5 py-3">
             <div className="seller-label mb-2 flex items-center gap-2">
               <Flag size={13} />
-              昨日
+              昨日记录
             </div>
             <div className="space-y-1.5">
               {dashboardProjection.yesterdayIntel.length > 0 ? dashboardProjection.yesterdayIntel.slice(0, 3).map((event) => (
@@ -360,7 +360,7 @@ export function Dashboard({ state, onSelectCase, onSetView, onOpenMarket }: Dash
                   onClick={() => openCase(event.caseId)}
                   className="seller-tablet w-full px-2.5 py-2.5 text-left transition hover:bg-white"
                 >
-                  <div className="text-[11px] font-semibold text-[#2b2118]">{event.title}</div>
+                  <div className="text-[11px] font-semibold text-[var(--seller-ink)]">{event.title}</div>
                   <p className="seller-body mt-0.5 line-clamp-2 text-[11px] leading-5">{event.detail}</p>
                 </button>
               )) : (
@@ -391,21 +391,21 @@ function CalendarRailCell({
       onClick={onClick}
       className={`min-w-[104px] rounded-[12px] border px-2.5 py-2 text-left transition ${
         active
-          ? 'border-[#2b2118] bg-[#2b2118] text-[#fff6df] shadow-[0_10px_20px_rgba(43,33,24,0.16)]'
+          ? 'border-[var(--seller-ink)] bg-[var(--seller-ink)] text-white shadow-[0_10px_20px_rgba(25,34,48,0.16)]'
           : entry.relation === 'future'
-            ? 'border-[#e9dece] bg-white/70 text-[#5b4a39] hover:bg-white'
-            : 'border-[#e4d4c0] bg-[#f5ead8] text-[#5b4a39] hover:bg-[#fff7e7]'
+            ? 'border-[var(--seller-border)] bg-white/70 text-[var(--seller-muted)] hover:bg-white'
+            : 'border-[var(--seller-border)] bg-[var(--seller-accent-soft)] text-[var(--seller-muted)] hover:bg-white'
       }`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="text-[10px] font-bold uppercase tracking-[0.14em] opacity-70">Day {entry.day}</div>
-        <span className={`h-1.5 w-1.5 rounded-full ${active ? 'bg-[#f6c35b]' : calendarToneDot(entry.tone)}`} />
+        <span className={`h-1.5 w-1.5 rounded-full ${active ? 'bg-white' : calendarToneDot(entry.tone)}`} />
       </div>
       <div className="mt-0.5 text-[12px] font-semibold tracking-[-0.02em]">{entry.label}</div>
-      <div className={`mt-0.5 line-clamp-1 text-[10px] font-medium ${active ? 'text-[#f7ddb0]' : 'text-[#8a7762]'}`}>
+      <div className={`mt-0.5 line-clamp-1 text-[10px] font-medium ${active ? 'text-white/72' : 'text-[var(--seller-subtle)]'}`}>
         {entry.title}
       </div>
-      <div className={`mt-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${active ? 'bg-white/10 text-[#fff6df]' : 'bg-white text-[#7b6349]'}`}>
+      <div className={`mt-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${active ? 'bg-white/10 text-white' : 'bg-white text-[var(--seller-muted)]'}`}>
         {entry.meta}
       </div>
     </button>
@@ -428,22 +428,22 @@ function SelectedDayPanel({
   if (entry.relation === 'future') {
     const prepTools = buildFuturePrepTools(entry);
     return (
-      <div className="border-t border-[#eadfce] bg-white px-3.5 py-3">
+      <div className="border-t border-[var(--seller-border)] bg-white px-3.5 py-3">
         <div className="grid grid-cols-1 gap-2.5 lg:grid-cols-[1fr_248px]">
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#9a6a31]">未来</div>
-            <h3 className="mt-1 text-[15px] font-semibold tracking-[-0.03em] text-[#2b2118]">
+            <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--seller-accent)]">未来</div>
+            <h3 className="mt-1 text-[14px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">
               Day {entry.day} · {entry.title}
             </h3>
-            <p className="mt-1 text-[11px] leading-5 text-[#6b5948]">
+            <p className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">
               {dateLabel}。{entry.detail}
             </p>
           </div>
-          <div className="rounded-[12px] border border-[#eadfce] bg-[#fffaf1] p-2.5">
-            <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#9a6a31]">提前看</div>
+          <div className="rounded-[12px] border border-[var(--seller-border)] bg-[var(--seller-accent-soft)] p-2.5">
+            <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-accent)]">提前准备</div>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {prepTools.map((tool) => (
-                <span key={tool} className="rounded-full border border-[#eadfce] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#5f4b37]">
+                <span key={tool} className="rounded-full border border-[var(--seller-border)] bg-white px-2.5 py-1 text-[11px] font-semibold text-[var(--seller-muted)]">
                   {tool}
                 </span>
               ))}
@@ -451,7 +451,7 @@ function SelectedDayPanel({
             <button
               type="button"
               onClick={onBackToday}
-              className="mt-2.5 w-full rounded-[11px] bg-[#2b2118] px-3 py-2 text-[11px] font-bold text-[#fff6df]"
+              className="mt-2.5 w-full rounded-[11px] bg-[var(--seller-ink)] px-3 py-2 text-[11px] font-bold text-white"
             >
               回到今天
             </button>
@@ -462,21 +462,21 @@ function SelectedDayPanel({
   }
 
   return (
-    <div className="border-t border-[#eadfce] bg-white px-3.5 py-3">
+    <div className="border-t border-[var(--seller-border)] bg-white px-3.5 py-3">
       <div className="flex flex-col gap-2.5 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#9a6a31]">过去</div>
-          <h3 className="mt-1 text-[15px] font-semibold tracking-[-0.03em] text-[#2b2118]">
+          <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--seller-accent)]">过去</div>
+          <h3 className="mt-1 text-[14px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">
             Day {entry.day} · {dateLabel}
           </h3>
-          <p className="mt-1 text-[11px] leading-5 text-[#6b5948]">
+          <p className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">
             这天留下的记录。
           </p>
         </div>
         <button
           type="button"
           onClick={onBackToday}
-          className="rounded-[11px] bg-[#2b2118] px-3 py-2 text-[11px] font-bold text-[#fff6df]"
+          className="rounded-[11px] bg-[var(--seller-ink)] px-3 py-2 text-[11px] font-bold text-white"
         >
           回到今天
         </button>
@@ -487,17 +487,17 @@ function SelectedDayPanel({
             key={event.id}
             type="button"
             onClick={() => onOpenCase(event.caseId)}
-            className="rounded-[12px] border border-[#eadfce] bg-[#fffdf8] px-2.5 py-2 text-left transition hover:bg-[#fff7e7]"
+            className="rounded-[12px] border border-[var(--seller-border)] bg-white px-2.5 py-2 text-left transition hover:bg-[var(--seller-accent-soft)]"
           >
             <div className="flex items-center gap-2">
               <span className={`h-1.5 w-1.5 rounded-full ${journalToneDot(event.tone)}`} />
-              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8a7762]">{event.actor}</span>
+              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">{event.actor}</span>
             </div>
-            <div className="mt-1 text-[12px] font-semibold text-[#2b2118]">{event.title}</div>
-            <p className="mt-0.5 line-clamp-2 text-[11px] leading-5 text-[#766551]">{event.detail}</p>
+            <div className="mt-1 text-[12px] font-semibold text-[var(--seller-ink)]">{event.title}</div>
+            <p className="mt-0.5 line-clamp-2 text-[11px] leading-5 text-[var(--seller-muted)]">{event.detail}</p>
           </button>
         )) : (
-          <div className="rounded-[12px] border border-dashed border-[#d9cbb8] bg-[#fffdf8] px-3 py-4 text-[11px] text-[#8a7762]">
+          <div className="rounded-[12px] border border-dashed border-[var(--seller-border)] bg-white px-3 py-4 text-[11px] text-[var(--seller-subtle)]">
             这天没有留下关键记录。
           </div>
         )}
@@ -518,13 +518,13 @@ function DeskMetric({
   return (
     <div className={`rounded-[12px] border px-2.5 py-2 ${
       tone === 'risk'
-        ? 'border-[#e6b8a8] bg-[#fff4ef]'
+        ? 'border-[color:var(--seller-risk)]/20 bg-[var(--seller-risk-soft)]'
         : tone === 'chance'
-          ? 'border-[#c9d8bc] bg-[#f4f8ed]'
-          : 'border-[#eadfce] bg-white'
+          ? 'border-[color:var(--seller-chance)]/22 bg-[var(--seller-chance-soft)]'
+          : 'border-[var(--seller-border)] bg-white'
     }`}>
-      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#9a8a76]">{label}</div>
-      <div className="mt-0.5 line-clamp-2 text-[11px] font-semibold leading-5 text-[#2b2118]">{value}</div>
+      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">{label}</div>
+      <div className="mt-0.5 line-clamp-2 text-[11px] font-semibold leading-5 text-[var(--seller-ink)]">{value}</div>
     </div>
   );
 }
@@ -544,11 +544,11 @@ function AgendaRow({
   return (
     <article className="grid grid-cols-1 gap-2.5 px-0 py-2.5 md:grid-cols-[74px_minmax(0,1fr)]">
       <div className="pt-0.5">
-        <div className="inline-flex rounded-full bg-[#f3eadb] px-2 py-0.5 text-[10px] font-semibold text-[#7b5b35]">
+        <div className="inline-flex rounded-full bg-[var(--seller-accent-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--seller-accent)]">
           {agendaSlot(index)}
         </div>
-        <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#9a8a76]">
-          {index === 0 ? '今日必办' : `第 ${index + 1} 件`}
+        <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">
+          {index === 0 ? '优先处理' : `第 ${index + 1} 件`}
         </div>
       </div>
       <div className="min-w-0">
@@ -560,21 +560,21 @@ function AgendaRow({
             <button
               type="button"
               onClick={() => onOpenCase(item.caseId)}
-              className="rounded-full border border-[#eadfce] bg-white px-2 py-0.5 text-[10px] font-bold text-[#5f4b37] transition hover:bg-[#fff7e7]"
+              className="rounded-full border border-[var(--seller-border)] bg-white px-2 py-0.5 text-[10px] font-bold text-[var(--seller-muted)] transition hover:bg-[var(--seller-accent-soft)]"
             >
               打开房源
             </button>
           )}
         </div>
-        <h4 className="mt-1 text-[13px] font-semibold tracking-[-0.02em] text-[#2b2118]">{item.title}</h4>
-        <p className="mt-0.5 max-w-[80ch] text-[11px] leading-5 text-[#766551]">{item.detail}</p>
+        <h4 className="mt-1 text-[13px] font-semibold tracking-[-0.02em] text-[var(--seller-ink)]">{item.title}</h4>
+        <p className="mt-0.5 max-w-[80ch] text-[11px] leading-5 text-[var(--seller-muted)]">{item.detail}</p>
         <div className="mt-2 flex flex-wrap gap-1.5">
           {tools.map((tool) => (
             <button
               key={tool.label}
               type="button"
               onClick={() => onUseTool(tool, item.caseId)}
-              className="rounded-full border border-[#d9cbb8] bg-white px-2.5 py-1 text-[10px] font-semibold text-[#5f4b37] transition hover:bg-[#2b2118] hover:text-[#fff6df]"
+              className="rounded-full border border-[var(--seller-border)] bg-white px-2.5 py-1 text-[10px] font-semibold text-[var(--seller-muted)] transition hover:bg-[var(--seller-ink)] hover:text-white"
             >
               {tool.label}
             </button>
@@ -590,19 +590,19 @@ function NewsBrief({ item, onOpen }: { item: IntelItem; onOpen: () => void }) {
     <button
       type="button"
       onClick={onOpen}
-      className="w-full rounded-[12px] border border-[#eadfce] bg-white px-2.5 py-2.5 text-left transition hover:bg-[#fff7e7]"
+      className="w-full rounded-[12px] border border-[var(--seller-border)] bg-white px-2.5 py-2.5 text-left transition hover:bg-[var(--seller-accent-soft)]"
     >
       <div className="flex flex-wrap items-center gap-1.5">
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${intelToneBadge(item.tone)}`}>
           {toneLabel(item.tone)}
         </span>
-        <span className="rounded-full bg-[#f3eadb] px-2 py-0.5 text-[10px] font-bold text-[#7b5b35]">
+        <span className="rounded-full bg-[var(--seller-accent-soft)] px-2 py-0.5 text-[10px] font-bold text-[var(--seller-accent)]">
           {layerLabel(item.layer)}
         </span>
-        <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#9a8a76]">{item.badge}</span>
+        <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">{item.badge}</span>
       </div>
-      <div className="mt-1 text-[12px] font-semibold leading-5 text-[#2b2118]">{item.title}</div>
-      <p className="mt-0.5 text-[11px] leading-5 text-[#766551]">{item.summary}</p>
+      <div className="mt-1 text-[12px] font-semibold leading-5 text-[var(--seller-ink)]">{item.title}</div>
+      <p className="mt-0.5 text-[11px] leading-5 text-[var(--seller-muted)]">{item.summary}</p>
     </button>
   );
 }
@@ -624,20 +624,20 @@ function EvidenceTile({
 }) {
   const className = `rounded-[12px] border px-2.5 py-2 text-left ${
     tone === 'risk'
-      ? 'border-[#e6b8a8] bg-[#fff4ef]'
+      ? 'border-[color:var(--seller-risk)]/20 bg-[var(--seller-risk-soft)]'
       : tone === 'chance'
-        ? 'border-[#c9d8bc] bg-[#f4f8ed]'
-        : 'border-[#eadfce] bg-[#fffdf8]'
-  } ${onClick ? 'transition hover:bg-[#fff7e7]' : ''}`;
+        ? 'border-[color:var(--seller-chance)]/22 bg-[var(--seller-chance-soft)]'
+        : 'border-[var(--seller-border)] bg-white'
+  } ${onClick ? 'transition hover:bg-[var(--seller-accent-soft)]' : ''}`;
 
   const content = (
     <>
-      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[#8a7762]">
+      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">
         {icon}
         {label}
       </div>
-      <div className="mt-0.5 text-[12px] font-semibold text-[#2b2118]">{value}</div>
-      <p className="mt-0.5 line-clamp-2 text-[11px] leading-5 text-[#766551]">{detail}</p>
+      <div className="mt-0.5 text-[12px] font-semibold text-[var(--seller-ink)]">{value}</div>
+      <p className="mt-0.5 line-clamp-2 text-[11px] leading-5 text-[var(--seller-muted)]">{detail}</p>
     </>
   );
 
@@ -774,7 +774,7 @@ function futureSignal(entry: CalendarDayProjection) {
 
 function buildFuturePrepTools(entry: CalendarRailEntry) {
   if (entry.title.includes('业主') || entry.detail.includes('业主')) {
-    return ['筛要反馈的房', '查客户记录', '整理竞品证据'];
+    return ['筛反馈房源', '看客户记录', '看竞品对比'];
   }
   if (entry.title.includes('获客') || entry.detail.includes('客户')) {
     return ['筛缺客户房源', '看推广金', '看商圈热度'];
@@ -790,7 +790,7 @@ function buildAgendaTools(item: ProjectionBrief): AgendaTool[] {
   if (/业主|反馈|信任|耐心/.test(text)) {
     return [
       { label: '写反馈要点', target: 'case' },
-      { label: '看客户证据', target: 'customers' },
+      { label: '看客户情况', target: 'customers' },
       { label: '查竞品对比', target: 'market', marketLayer: 'competition' },
     ];
   }
@@ -805,7 +805,7 @@ function buildAgendaTools(item: ProjectionBrief): AgendaTool[] {
     return [
       { label: '整理谈判口径', target: 'case' },
       { label: '看快成交客户', target: 'customers' },
-      { label: '查价格依据', target: 'case' },
+      { label: '看调价依据', target: 'case' },
     ];
   }
   if (/客户|准客|流失|带看/.test(text)) {
@@ -837,27 +837,27 @@ function agendaSlot(index: number) {
 }
 
 function projectionToneBadge(tone: ProjectionTone) {
-  if (tone === 'risk') return 'bg-[#fff0ea] text-[#9b3f25]';
-  if (tone === 'chance') return 'bg-[#eef7e7] text-[#4a6c2a]';
-  return 'bg-[#f3eadb] text-[#7b5b35]';
+  if (tone === 'risk') return 'bg-[var(--seller-risk-soft)] text-[color:var(--seller-risk)]';
+  if (tone === 'chance') return 'bg-[var(--seller-chance-soft)] text-[color:var(--seller-chance)]';
+  return 'bg-[var(--seller-accent-soft)] text-[color:var(--seller-accent)]';
 }
 
 function intelToneBadge(tone: IntelItem['tone']) {
-  if (tone === 'risk') return 'bg-[#fff0ea] text-[#9b3f25]';
-  if (tone === 'chance') return 'bg-[#eef7e7] text-[#4a6c2a]';
-  return 'bg-[#f3eadb] text-[#7b5b35]';
+  if (tone === 'risk') return 'bg-[var(--seller-risk-soft)] text-[color:var(--seller-risk)]';
+  if (tone === 'chance') return 'bg-[var(--seller-chance-soft)] text-[color:var(--seller-chance)]';
+  return 'bg-[var(--seller-accent-soft)] text-[color:var(--seller-accent)]';
 }
 
 function calendarToneDot(tone: ProjectionTone) {
-  if (tone === 'risk') return 'bg-[#b95635]';
-  if (tone === 'chance') return 'bg-[#66843b]';
-  return 'bg-[#b8a48c]';
+  if (tone === 'risk') return 'bg-[color:var(--seller-risk)]';
+  if (tone === 'chance') return 'bg-[color:var(--seller-chance)]';
+  return 'bg-[color:var(--seller-accent)]';
 }
 
 function journalToneDot(tone: JournalItem['tone']) {
-  if (tone === 'danger') return 'bg-[#b95635]';
-  if (tone === 'success') return 'bg-[#66843b]';
-  return 'bg-[#c9943b]';
+  if (tone === 'danger') return 'bg-[color:var(--seller-risk)]';
+  if (tone === 'success') return 'bg-[color:var(--seller-chance)]';
+  return 'bg-[color:var(--seller-accent)]';
 }
 
 function scoreCurrentDanger(caseItem: GameState['cases'][number]) {

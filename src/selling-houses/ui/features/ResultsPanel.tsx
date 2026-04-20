@@ -23,7 +23,7 @@ export function ResultsPanel({ state, onRestart }: ResultsPanelProps) {
             <div className="seller-label">
               {projection.hero.eyebrow}
             </div>
-            <h3 className="seller-title mt-2 text-[28px]">
+            <h3 className="seller-title mt-2 text-[22px]">
               {projection.hero.title}
             </h3>
             <p className="seller-body mt-2 text-sm">
@@ -61,18 +61,18 @@ export function ResultsPanel({ state, onRestart }: ResultsPanelProps) {
           />
           <BoundaryCard
             label="先看什么"
-            title={hasFinalResult ? '先看每套房最后落成什么样' : '先看场上每套房现在是什么状态'}
+            title={hasFinalResult ? '先看每套房最后是什么结果' : '先看场上每套房现在是什么状态'}
             detail={hasFinalResult
-              ? `这局已经有 ${resolvedCaseCount} 套房落成正式结果，单房结果才是这页最重要的内容。`
+              ? `这局已经有 ${resolvedCaseCount} 套房形成正式结果，单房结果才是这页最重要的内容。`
               : `现在还有 ${currentCases.length} 套房在场，先看它们各自卡在哪，再决定要不要继续打。`}
             tone={leadingHighlight ? 'chance' : 'neutral'}
           />
           <BoundaryCard
             label="最值得带走"
-            title={hasFinalResult ? (leadingHighlight || '还没有沉淀出明确亮点') : (leadingImprovement || '当前还没有明确复盘点')}
+            title={hasFinalResult ? (leadingHighlight || '还没有形成明确亮点') : (leadingImprovement || '当前还没有明确复盘点')}
             detail={hasFinalResult
               ? (leadingHighlight ? '这条会作为这局代表性的经营成果被保留下来。' : '要等更多局跑出来后，亮点和打法才会更稳定。')
-              : (leadingImprovement ? '这条最值得带回复盘页继续拆原因。' : '说明这局还没有形成特别集中的问题点。')}
+              : (leadingImprovement ? '这条最值得带回复盘页继续往下看。' : '这局还没有形成特别集中的问题点。')}
             tone={hasFinalResult ? (leadingHighlight ? 'chance' : 'neutral') : (leadingImprovement ? 'risk' : 'neutral')}
           />
         </div>
@@ -201,8 +201,8 @@ export function ResultsPanel({ state, onRestart }: ResultsPanelProps) {
         <section className="grid grid-cols-1 gap-4">
           {hasFinalResult ? (
             <section className="seller-panel-muted p-4 lg:p-5">
-              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-amber-700">生涯沉淀</div>
-              <h4 className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-slate-900">这局最后会留下什么</h4>
+              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-sky-700">生涯沉淀</div>
+              <h4 className="mt-2 text-[18px] font-semibold tracking-[-0.03em] text-slate-900">这局最后会留下什么</h4>
               <div className="mt-5 space-y-3">
                 {projection.careerNotes.map((note) => (
                   <React.Fragment key={note.title}>
@@ -213,8 +213,8 @@ export function ResultsPanel({ state, onRestart }: ResultsPanelProps) {
             </section>
           ) : (
             <section className="seller-panel-muted p-4 lg:p-5">
-              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-amber-700">当前阶段</div>
-              <h4 className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-slate-900">现在还不会记进跨局成绩</h4>
+              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-sky-700">当前阶段</div>
+              <h4 className="mt-2 text-[18px] font-semibold tracking-[-0.03em] text-slate-900">现在还不会记进跨局成绩</h4>
               <div className="mt-5 space-y-3">
                 <PlainNote
                   title="这页先给你局内台账"

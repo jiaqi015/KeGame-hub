@@ -22,8 +22,8 @@ const TONES = {
     panel: 'border-lime-200/70 bg-lime-50/60',
   },
   standard: {
-    badge: 'bg-amber-100 text-amber-700',
-    panel: 'border-amber-200/70 bg-amber-50/60',
+    badge: 'bg-sky-100 text-sky-700',
+    panel: 'border-sky-200/70 bg-sky-50/60',
   },
   advanced: {
     badge: 'bg-sky-100 text-sky-700',
@@ -85,7 +85,7 @@ export function ScenarioSetup({
             <Dice5 size={12} />
             标准局 / 随机局
           </div>
-          <h1 className="seller-title text-[28px] md:text-[34px]">选难度</h1>
+          <h1 className="seller-title text-[24px] md:text-[28px]">选难度</h1>
         </div>
         <p className="seller-body max-w-[38rem] text-[12px] leading-5">
           先定这局强度，再决定走标准局还是随机局。
@@ -156,7 +156,7 @@ export function ScenarioSetup({
             </div>
 
             <div className="seller-label">当前选择</div>
-            <h2 className="seller-title mt-1 text-[28px]">{selectedOption.label}</h2>
+            <h2 className="seller-title mt-1 text-[22px]">{selectedOption.label}</h2>
             <p className="mt-1.5 text-[13px] font-semibold leading-5 text-[var(--seller-ink)]">{selectedOption.summary}</p>
             <p className="seller-body mt-2 text-[12px] leading-5">{selectedOption.detail}</p>
 

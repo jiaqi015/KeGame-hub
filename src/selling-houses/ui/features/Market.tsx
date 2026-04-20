@@ -135,7 +135,7 @@ export function Market({ state, initialLayer = 'macro', onSelectCase, onOpenCase
               <Globe2 size={14} />
               市场
             </div>
-            <h3 className="seller-title mt-2 text-[24px]">{projection.headline}</h3>
+            <h3 className="seller-title mt-2 text-[20px]">{projection.headline}</h3>
             <p className="seller-body mt-2 text-[13px]">{projection.summary}</p>
             <div className="mt-2 text-[11px] font-medium text-[var(--seller-subtle)]">
               第 {state.day} 天先看外部变化，再确认它压到哪套房。
@@ -343,7 +343,7 @@ export function Market({ state, initialLayer = 'macro', onSelectCase, onOpenCase
           </section>
 
           <section className="seller-panel-muted p-4 lg:p-5">
-            <div className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-amber-700">
+            <div className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-sky-700">
               <History size={15} />
               昨日关键变化
             </div>

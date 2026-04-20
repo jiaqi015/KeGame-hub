@@ -1,32 +1,32 @@
-@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap");
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-serif: "Noto Serif SC", "Songti SC", "STSong", serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-sans: "IBM Plex Sans", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "IBM Plex Sans", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
 :root {
-  --seller-bg: oklch(0.968 0.008 84);
-  --seller-bg-strong: oklch(0.952 0.012 84);
-  --seller-paper: oklch(0.988 0.004 84);
-  --seller-paper-soft: oklch(0.976 0.006 84);
-  --seller-border: oklch(0.88 0.01 84);
-  --seller-border-strong: oklch(0.79 0.02 76);
-  --seller-ink: oklch(0.24 0.026 257);
-  --seller-muted: oklch(0.48 0.014 257);
-  --seller-subtle: oklch(0.64 0.012 257);
-  --seller-accent: oklch(0.56 0.06 68);
-  --seller-accent-soft: oklch(0.94 0.02 70);
-  --seller-risk: oklch(0.6 0.1 36);
-  --seller-risk-soft: oklch(0.95 0.018 36);
-  --seller-chance: oklch(0.6 0.06 145);
-  --seller-chance-soft: oklch(0.962 0.018 145);
-  --seller-info: oklch(0.48 0.04 243);
-  --seller-shadow-sm: 0 10px 20px rgba(28, 33, 44, 0.04);
-  --seller-shadow-md: 0 18px 38px rgba(28, 33, 44, 0.06);
-  --seller-shadow-lg: 0 28px 64px rgba(28, 33, 44, 0.1);
+  --seller-bg: oklch(0.975 0.004 248);
+  --seller-bg-strong: oklch(0.958 0.006 245);
+  --seller-paper: oklch(0.992 0.002 248);
+  --seller-paper-soft: oklch(0.982 0.004 245);
+  --seller-border: oklch(0.892 0.007 246);
+  --seller-border-strong: oklch(0.756 0.015 246);
+  --seller-ink: oklch(0.241 0.028 258);
+  --seller-muted: oklch(0.438 0.014 252);
+  --seller-subtle: oklch(0.626 0.01 248);
+  --seller-accent: oklch(0.54 0.043 228);
+  --seller-accent-soft: oklch(0.953 0.012 228);
+  --seller-risk: oklch(0.565 0.071 29);
+  --seller-risk-soft: oklch(0.966 0.013 28);
+  --seller-chance: oklch(0.553 0.05 176);
+  --seller-chance-soft: oklch(0.967 0.012 176);
+  --seller-info: oklch(0.5 0.03 241);
+  --seller-shadow-sm: 0 8px 20px rgba(18, 28, 45, 0.035);
+  --seller-shadow-md: 0 16px 34px rgba(18, 28, 45, 0.05);
+  --seller-shadow-lg: 0 24px 52px rgba(18, 28, 45, 0.08);
 }
 
 html,
@@ -36,8 +36,8 @@ body,
 }
 
 body {
-  background: #fafafa;
-  color: #1d1d1f;
+  background: #f3f5f7;
+  color: #1b2230;
   font-family: var(--font-sans);
   font-feature-settings: "kern" 1;
   letter-spacing: -0.01em;
@@ -57,64 +57,64 @@ select {
 
 .selling-houses-shell {
   background:
-    radial-gradient(circle at top left, rgba(102, 118, 145, 0.1), transparent 26%),
-    radial-gradient(circle at bottom right, rgba(171, 146, 101, 0.08), transparent 24%),
-    linear-gradient(180deg, #f5f2ec 0%, #ece8df 100%);
+    radial-gradient(circle at top right, rgba(94, 121, 171, 0.09), transparent 24%),
+    radial-gradient(circle at bottom left, rgba(82, 132, 120, 0.07), transparent 22%),
+    linear-gradient(180deg, #f4f6f8 0%, #edf1f5 100%);
   color: var(--seller-ink);
-  font-family: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-sans);
 }
 
 .seller-panel {
   border: 1px solid var(--seller-border);
-  background: color-mix(in srgb, var(--seller-paper) 94%, white 6%);
-  border-radius: 18px;
+  background: color-mix(in srgb, var(--seller-paper) 96%, white 4%);
+  border-radius: 14px;
   box-shadow: var(--seller-shadow-sm);
 }
 
 .seller-panel-muted {
   border: 1px solid var(--seller-border);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--seller-paper-soft) 92%, white 8%), color-mix(in srgb, var(--seller-bg) 82%, white 18%));
-  border-radius: 18px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--seller-paper-soft) 90%, white 10%), color-mix(in srgb, var(--seller-bg) 86%, white 14%));
+  border-radius: 14px;
   box-shadow: var(--seller-shadow-sm);
 }
 
 .seller-panel-soft {
   border: 1px solid color-mix(in srgb, var(--seller-border) 86%, white 14%);
-  background: rgba(255, 255, 255, 0.7);
-  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  border-radius: 12px;
 }
 
 .seller-panel-strong {
   border: 1px solid color-mix(in srgb, var(--seller-ink) 10%, var(--seller-border) 90%);
   background: var(--seller-ink);
-  border-radius: 18px;
-  color: #f7f5ef;
+  border-radius: 14px;
+  color: #f5f8fb;
   box-shadow: var(--seller-shadow-md);
 }
 
 .seller-band {
   border: 1px solid var(--seller-border);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(247, 244, 238, 0.92));
-  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(246, 248, 250, 0.94));
+  border-radius: 12px;
 }
 
 .seller-tablet {
   border: 1px solid color-mix(in srgb, var(--seller-ink) 6%, var(--seller-border) 94%);
   background: rgba(255, 255, 255, 0.72);
-  border-radius: 14px;
+  border-radius: 12px;
 }
 
 .seller-note {
   border: 1px solid var(--seller-border);
-  background: color-mix(in srgb, var(--seller-bg) 80%, white 20%);
+  background: color-mix(in srgb, var(--seller-bg) 86%, white 14%);
   border-radius: 16px;
   color: var(--seller-muted);
 }
 
 .seller-empty {
   border: 1px dashed color-mix(in srgb, var(--seller-border-strong) 72%, white 28%);
-  background: color-mix(in srgb, var(--seller-bg) 76%, white 24%);
-  border-radius: 16px;
+  background: color-mix(in srgb, var(--seller-bg) 82%, white 18%);
+  border-radius: 12px;
   color: var(--seller-muted);
 }
 
@@ -135,23 +135,24 @@ select {
 
 .seller-label {
   color: var(--seller-subtle);
-  font-size: 0.64rem;
+  font-size: 0.6rem;
   font-weight: 700;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.14em;
   line-height: 1;
   text-transform: uppercase;
 }
 
 .seller-title {
   color: var(--seller-ink);
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-weight: 700;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
 }
 
 .seller-body {
   color: var(--seller-muted);
-  line-height: 1.65;
+  line-height: 1.58;
 }
 
 .seller-number {
@@ -166,11 +167,11 @@ select {
   background: rgba(255, 255, 255, 0.85);
   border-radius: 999px;
   color: var(--seller-muted);
-  font-size: 0.66rem;
+  font-size: 0.63rem;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
   line-height: 1;
-  padding: 0.42rem 0.7rem;
+  padding: 0.34rem 0.65rem;
   text-transform: uppercase;
 }
 
@@ -207,12 +208,12 @@ select {
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
-  padding: 0.5rem 0.95rem;
+  padding: 0.45rem 0.88rem;
   border-radius: 999px;
   color: var(--seller-muted);
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
   line-height: 1;
   text-transform: uppercase;
   transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
@@ -231,9 +232,9 @@ select {
 .seller-button-primary {
   border: 1px solid color-mix(in srgb, var(--seller-ink) 8%, var(--seller-border) 92%);
   background: var(--seller-ink);
-  border-radius: 14px;
-  color: #f8f5ef;
-  font-size: 0.77rem;
+  border-radius: 12px;
+  color: #f5f8fb;
+  font-size: 0.74rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   transition: background 150ms ease, border-color 150ms ease, color 150ms ease, transform 150ms ease;
@@ -246,9 +247,9 @@ select {
 .seller-button-secondary {
   border: 1px solid var(--seller-border);
   background: rgba(255, 255, 255, 0.84);
-  border-radius: 14px;
+  border-radius: 12px;
   color: var(--seller-ink);
-  font-size: 0.77rem;
+  font-size: 0.74rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   transition: background 150ms ease, border-color 150ms ease, color 150ms ease, transform 150ms ease;
@@ -256,13 +257,13 @@ select {
 
 .seller-button-secondary:hover {
   border-color: var(--seller-border-strong);
-  background: #fffdf8;
+  background: rgba(255, 255, 255, 0.96);
 }
 
 .seller-button-ghost {
-  border-radius: 14px;
+  border-radius: 12px;
   color: var(--seller-muted);
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 700;
   transition: background 150ms ease, color 150ms ease;
 }
@@ -291,20 +292,26 @@ select {
 }
 
 .selling-houses-shell .bg-white {
-  background-color: rgba(255, 255, 255, 0.82);
+  background-color: rgba(255, 255, 255, 0.88);
 }
 
 .selling-houses-shell .bg-slate-50 {
-  background-color: color-mix(in srgb, var(--seller-bg) 82%, white 18%);
+  background-color: color-mix(in srgb, var(--seller-bg) 88%, white 12%);
 }
 
 .selling-houses-shell .bg-slate-100 {
   background-color: color-mix(in srgb, var(--seller-border) 54%, white 46%);
 }
 
+.selling-houses-shell .bg-sky-50,
+.selling-houses-shell .bg-sky-100,
 .selling-houses-shell .bg-amber-50,
 .selling-houses-shell .bg-amber-100 {
   background-color: var(--seller-accent-soft);
+}
+
+.selling-houses-shell .bg-amber-500 {
+  background-color: var(--seller-accent);
 }
 
 .selling-houses-shell .bg-emerald-50,
@@ -336,8 +343,13 @@ select {
   color: var(--seller-subtle);
 }
 
+.selling-houses-shell .text-sky-700,
+.selling-houses-shell .text-sky-600,
+.selling-houses-shell .text-amber-900,
+.selling-houses-shell .text-amber-800,
 .selling-houses-shell .text-amber-700,
-.selling-houses-shell .text-amber-600 {
+.selling-houses-shell .text-amber-600,
+.selling-houses-shell .text-amber-500 {
   color: var(--seller-accent);
 }
 
@@ -366,6 +378,10 @@ select {
   border-color: color-mix(in srgb, var(--seller-accent) 22%, var(--seller-border) 78%);
 }
 
+.selling-houses-shell [class*="border-sky"] {
+  border-color: color-mix(in srgb, var(--seller-accent) 20%, var(--seller-border) 80%);
+}
+
 .selling-houses-shell [class*="border-emerald"],
 .selling-houses-shell [class*="border-lime"] {
   border-color: color-mix(in srgb, var(--seller-chance) 20%, var(--seller-border) 80%);
@@ -380,29 +396,119 @@ select {
 .selling-houses-shell [class*="rounded-[32px]"],
 .selling-houses-shell [class*="rounded-[36px]"],
 .selling-houses-shell [class*="rounded-[40px]"] {
-  border-radius: 22px;
+  border-radius: 18px;
 }
 
 .selling-houses-shell [class*="rounded-[24px]"],
 .selling-houses-shell [class*="rounded-[26px]"],
 .selling-houses-shell [class*="rounded-[28px]"] {
-  border-radius: 18px;
+  border-radius: 16px;
 }
 
 .selling-houses-shell [class*="rounded-[20px]"],
 .selling-houses-shell [class*="rounded-[22px]"] {
-  border-radius: 16px;
+  border-radius: 14px;
 }
 
 .selling-houses-shell [class*="tracking-[0.18em]"],
 .selling-houses-shell [class*="tracking-[0.2em]"],
 .selling-houses-shell [class*="tracking-widest"] {
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
 }
 
 .selling-houses-shell [class*="bg-gradient-to-br"],
 .selling-houses-shell [class*="bg-gradient-to-b"] {
-  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.76), color-mix(in srgb, var(--seller-bg) 82%, white 18%));
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.82), color-mix(in srgb, var(--seller-bg) 88%, white 12%));
+}
+
+.selling-houses-shell [class*="bg-[#2b2118"] {
+  background-color: var(--seller-ink);
+}
+
+.selling-houses-shell [class*="bg-[#f3eadb"],
+.selling-houses-shell [class*="bg-[#f5ead8"] {
+  background-color: var(--seller-accent-soft);
+}
+
+.selling-houses-shell [class*="bg-[#fff7e7"],
+.selling-houses-shell [class*="bg-[#fffaf1"],
+.selling-houses-shell [class*="bg-[#fffdf8"] {
+  background-color: color-mix(in srgb, var(--seller-bg) 76%, white 24%);
+}
+
+.selling-houses-shell [class*="text-[#2b2118"],
+.selling-houses-shell [class*="text-[#241a12"] {
+  color: var(--seller-ink);
+}
+
+.selling-houses-shell [class*="text-[#5b4a39"],
+.selling-houses-shell [class*="text-[#5f4b37"],
+.selling-houses-shell [class*="text-[#6b5948"],
+.selling-houses-shell [class*="text-[#766551"] {
+  color: var(--seller-muted);
+}
+
+.selling-houses-shell [class*="text-[#7b5b35"],
+.selling-houses-shell [class*="text-[#9a6a31"] {
+  color: var(--seller-accent);
+}
+
+.selling-houses-shell [class*="text-[#8a7762"],
+.selling-houses-shell [class*="text-[#9a8a76"] {
+  color: var(--seller-subtle);
+}
+
+.selling-houses-shell [class*="border-[#e7dccd"],
+.selling-houses-shell [class*="border-[#d9cbb8"] {
+  border-color: var(--seller-border);
+}
+
+.selling-houses-shell [class*="text-[38px]"] {
+  font-size: 2rem;
+  line-height: 1.02;
+}
+
+.selling-houses-shell [class*="text-[34px]"] {
+  font-size: 1.75rem;
+  line-height: 1.06;
+}
+
+.selling-houses-shell [class*="text-[28px]"] {
+  font-size: 1.45rem;
+  line-height: 1.1;
+}
+
+.selling-houses-shell [class*="text-[26px]"] {
+  font-size: 1.32rem;
+  line-height: 1.12;
+}
+
+.selling-houses-shell [class*="text-[24px]"] {
+  font-size: 1.24rem;
+  line-height: 1.14;
+}
+
+.selling-houses-shell [class*="text-[22px]"] {
+  font-size: 1.12rem;
+  line-height: 1.16;
+}
+
+.selling-houses-shell [class*="text-[20px]"] {
+  font-size: 1.02rem;
+  line-height: 1.18;
+}
+
+.selling-houses-shell [class*="text-[18px]"] {
+  font-size: 0.96rem;
+  line-height: 1.24;
+}
+
+.selling-houses-shell [class*="text-[15px]"] {
+  font-size: 0.9rem;
+}
+
+.selling-houses-shell [class*="text-[14px]"] {
+  font-size: 0.86rem;
 }
 
 @layer utilities {

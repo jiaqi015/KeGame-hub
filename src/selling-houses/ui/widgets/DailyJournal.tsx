@@ -47,9 +47,9 @@ export function DailyJournal({ state, selectedCaseId, onSelectCase }: DailyJourn
               <History size={14} />
               经营记录
             </div>
-            <h3 className="seller-title mt-1 text-lg">为什么今天会变成这样</h3>
+            <h3 className="seller-title mt-1 text-lg">今天是怎么走到这里的</h3>
             <p className="seller-body mt-1 text-[12px]">
-              这里按时间还原事实。先看发生了什么，再回头做经营判断。
+              这里按时间还原发生过的事。先看发生了什么，再回头判断哪里开始变。
             </p>
           </div>
           <div className="flex gap-2 overflow-x-auto pb-1">
@@ -82,7 +82,7 @@ export function DailyJournal({ state, selectedCaseId, onSelectCase }: DailyJourn
                 : '从近到远回看整局经营变化。'}
           />
           <JournalMetricCard
-            icon={<Newspaper size={15} className="text-amber-600" />}
+            icon={<Newspaper size={15} className="text-sky-600" />}
             label="本日记录"
             value={`${sourceItems.filter((item) => item.day === state.day).length} 条`}
             detail="今天系统已经留下的事实记录。"
@@ -286,7 +286,7 @@ function ToneDot({ tone }: { tone: Tone }) {
     ? 'bg-rose-500'
     : tone === 'success'
       ? 'bg-emerald-500'
-      : 'bg-amber-500';
+      : 'bg-sky-500';
 
   return <span className={`inline-flex h-2.5 w-2.5 rounded-full ${className}`} />;
 }

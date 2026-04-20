@@ -54,7 +54,7 @@ export function Review({ state }: ReviewProps) {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
             <div className="seller-label">经营回看</div>
-            <h3 className="seller-title mt-2 text-[26px]">{projection.hero.title}</h3>
+            <h3 className="seller-title mt-2 text-[22px]">{projection.hero.title}</h3>
             <p className="seller-body mt-2 text-sm">{projection.hero.subtitle}</p>
             <p className="seller-body mt-3 text-[13px]">{projection.hero.note}</p>
           </div>
@@ -92,18 +92,18 @@ export function Review({ state }: ReviewProps) {
         <div className="mb-4 flex items-center gap-3">
           <TrendingUp size={18} className="text-slate-700" />
           <div>
-            <h4 className="text-[18px] font-semibold text-slate-900">这局是怎么走成现在这样的</h4>
-            <p className="seller-body mt-1 text-sm">先看变化，再看原因；先看事实，再看判断。</p>
+            <h4 className="text-[18px] font-semibold text-slate-900">这局是怎么走到现在的</h4>
+            <p className="seller-body mt-1 text-sm">先看转折，再看它具体压到了哪里。</p>
           </div>
         </div>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.05fr_0.95fr]">
           <div className="rounded-[22px] border border-black/[0.05] bg-white px-5 py-5">
-            <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">最早开始变样的地方</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">最早出问题或起量的地方</div>
             <div className="mt-2 text-[18px] font-semibold text-slate-900">
-              {leadTurningPoint?.title || '还没有形成足够清晰的变化点'}
+              {leadTurningPoint?.title || '还没有形成足够清晰的转折点'}
             </div>
             <div className="mt-2 text-[13px] leading-6 text-slate-600">
-              {leadTurningPoint?.detail || '说明这局目前还处在铺垫阶段，后续变化还没拉出明显因果。'}
+              {leadTurningPoint?.detail || '这局目前还处在铺垫阶段，后面几天才会慢慢看清。'}
             </div>
             {leadTurningPoint && (
               <div className="mt-4 inline-flex rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
@@ -195,7 +195,7 @@ export function Review({ state }: ReviewProps) {
         <section className="space-y-6">
           <section className="seller-panel p-4 lg:p-5">
             <div className="mb-4 flex items-center gap-3">
-              <Lightbulb size={18} className="text-amber-500" />
+              <Lightbulb size={18} className="text-sky-600" />
               <div>
               <h4 className="text-[18px] font-semibold text-slate-900">昨日摘要</h4>
               <p className="mt-1 text-sm text-slate-500">把昨天最关键的变化压成一眼能扫完的版本，方便你接回这局主线。</p>

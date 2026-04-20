@@ -236,7 +236,7 @@ export function SellingHousesWorkspace({
 
   return (
     <div className="selling-houses-shell flex h-full flex-col overflow-hidden font-sans text-slate-900">
-      <header className="shrink-0 border-b border-[var(--seller-border)] bg-[rgba(248,245,239,0.88)] px-5 py-3 backdrop-blur-xl">
+      <header className="shrink-0 border-b border-[var(--seller-border)] bg-[rgba(245,247,249,0.9)] px-4 py-2.5 backdrop-blur-xl">
         <div className="flex flex-col gap-2.5">
           <div className="seller-band flex flex-wrap items-center justify-between gap-3 px-3 py-2.5">
             <div className="flex min-w-0 flex-1">
@@ -254,8 +254,8 @@ export function SellingHousesWorkspace({
                 <div className="seller-separator h-8 w-px shrink-0" />
 
                 <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-[var(--seller-ink)] text-[rgba(247,245,239,0.96)] shadow-[var(--seller-shadow-sm)]">
-                    <Home size={18} />
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[var(--seller-ink)] text-[rgba(245,248,251,0.96)] shadow-[var(--seller-shadow-sm)]">
+                    <Home size={16} />
                   </div>
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-1.5">
@@ -270,7 +270,7 @@ export function SellingHousesWorkspace({
                         {difficultyLabel(runShellProjection.header.difficultyId)}
                       </div>
                     </div>
-                    <h2 className="seller-title mt-1 truncate text-[1.15rem] text-[var(--seller-ink)]">
+                    <h2 className="seller-title mt-1 truncate text-[1.02rem] text-[var(--seller-ink)]">
                       {runShellProjection.header.scenarioName}
                     </h2>
                   </div>
@@ -437,15 +437,15 @@ export function SellingHousesWorkspace({
           </Suspense>
         </main>
 
-        <aside className="hidden w-[332px] shrink-0 border-l border-[var(--seller-border)] bg-[linear-gradient(180deg,rgba(244,241,235,0.92),rgba(251,250,247,0.98))] xl:flex xl:flex-col">
+        <aside className="hidden w-[332px] shrink-0 border-l border-[var(--seller-border)] bg-[linear-gradient(180deg,rgba(242,245,248,0.92),rgba(249,251,252,0.98))] xl:flex xl:flex-col">
           <div className="border-b border-[var(--seller-border)] px-5 py-4">
             <div className="seller-label flex items-center gap-2">
               <Target size={14} />
-              今日工作台
+              今日工作面
             </div>
-            <h3 className="seller-title mt-1 text-[1.2rem] text-[var(--seller-ink)]">先做什么，为什么现在做</h3>
+            <h3 className="seller-title mt-1 text-[1rem] text-[var(--seller-ink)]">先处理哪件事</h3>
             <p className="seller-body mt-1 text-[12px]">
-              先看今天要处理的事，再看依据、外部变化和已经留下的记录。
+              先看今天的主事项，再看风险、外部变化和最近留下的记录。
             </p>
           </div>
 
@@ -575,9 +575,9 @@ export function SellingHousesWorkspace({
                   <History size={14} />
                   经营记录
                 </div>
-                <h3 className="seller-title mt-2 text-[26px]">整局记录</h3>
+                <h3 className="seller-title mt-2 text-[22px]">整局记录</h3>
                 <p className="seller-body mt-2 text-[13px]">
-                  {runShellProjection.sidebar.journal.brief} 从这里回看整局事实、今天变化和当前房源变化。
+                  {runShellProjection.sidebar.journal.brief} 从这里回看整局发生过什么，以及哪些变化真正影响了今天。
                 </p>
               </div>
               <button
@@ -618,7 +618,7 @@ export function SellingHousesWorkspace({
                   <Home size={13} className="text-[var(--seller-accent)]" />
                   当前房源详情
                 </div>
-                <h3 className="seller-title mt-2 text-[28px]">
+                <h3 className="seller-title mt-2 text-[22px]">
                   {runShellProjection.selectedCaseDetail.title}
                 </h3>
                 <p className="seller-body mt-2 text-sm">
@@ -652,18 +652,18 @@ export function SellingHousesWorkspace({
       {activeResourcePanel && activeResourceMeta && (
         <div className="fixed inset-0 z-[90] flex justify-end bg-slate-900/30 backdrop-blur-sm" onClick={() => setActiveResourcePanel(null)}>
           <div
-            className="h-full w-full max-w-[560px] overflow-y-auto border-l border-black/5 bg-[linear-gradient(180deg,#fffdf8_0%,#ffffff_28%)] p-7 shadow-2xl"
+            className="h-full w-full max-w-[560px] overflow-y-auto border-l border-black/5 bg-[linear-gradient(180deg,#f9fbfc_0%,#ffffff_28%)] p-7 shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-6 flex items-start justify-between gap-4">
               <div className="max-w-[360px]">
                 <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
                   {activeResourcePanel === 'energy'
-                    ? <Zap size={13} className="text-amber-500" />
+                    ? <Zap size={13} className="text-sky-600" />
                     : <CircleDollarSign size={13} className="text-emerald-500" />}
                   {activeResourceMeta.eyebrow}
                 </div>
-                <h3 className="mt-2 text-[28px] font-semibold tracking-tight text-slate-900">{activeResourceMeta.title}</h3>
+                <h3 className="mt-2 text-[22px] font-semibold tracking-tight text-slate-900">{activeResourceMeta.title}</h3>
                 <p className="mt-2 text-sm leading-6 text-slate-500">
                   {activeResourceMeta.description}
                 </p>
@@ -679,7 +679,7 @@ export function SellingHousesWorkspace({
 
             {activeResourcePanel === 'budget' && (
               <>
-                <div className="mb-5 rounded-[28px] border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-amber-50 px-5 py-5">
+                <div className="mb-5 rounded-[28px] border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-sky-50 px-5 py-5">
                   <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
                     <div>
                       <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">当前余额</div>
@@ -711,9 +711,9 @@ export function SellingHousesWorkspace({
                     </div>
                   </div>
 
-                  <div className="rounded-[20px] border border-amber-100 bg-amber-50/80 px-4 py-4">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-amber-700">资源说明</div>
-                    <p className="mt-3 text-sm leading-6 text-amber-900/85">
+                  <div className="rounded-[20px] border border-sky-100 bg-sky-50/80 px-4 py-4">
+                    <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-sky-700">怎么看这笔钱</div>
+                    <p className="mt-3 text-sm leading-6 text-slate-700">
                       {runShellProjection.budgetPanel.note}
                     </p>
                   </div>
@@ -839,12 +839,12 @@ export function SellingHousesWorkspace({
 
             {activeResourcePanel === 'energy' && (
               <>
-                <div className="mb-5 rounded-[28px] border border-amber-100 bg-gradient-to-br from-amber-50 via-white to-white px-5 py-5">
+                <div className="mb-5 rounded-[28px] border border-sky-100 bg-gradient-to-br from-sky-50 via-white to-white px-5 py-5">
                   <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
                     <div>
-                      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-amber-700">当前精力</div>
-                      <div className="mt-2 text-[38px] font-bold tracking-tight text-amber-950">{runShellProjection.energyPanel.energyLabel}</div>
-                      <div className="mt-2 max-w-md text-sm leading-6 text-amber-900/80">
+                      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-sky-700">当前精力</div>
+                      <div className="mt-2 text-[38px] font-bold tracking-tight text-slate-900">{runShellProjection.energyPanel.energyLabel}</div>
+                      <div className="mt-2 max-w-md text-sm leading-6 text-slate-700">
                         {runShellProjection.energyPanel.summary}
                       </div>
                     </div>
@@ -871,9 +871,9 @@ export function SellingHousesWorkspace({
                     </div>
                   </div>
 
-                  <div className="rounded-[20px] border border-amber-100 bg-amber-50/80 px-4 py-4">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-amber-700">资源说明</div>
-                    <p className="mt-3 text-sm leading-6 text-amber-900/85">
+                  <div className="rounded-[20px] border border-sky-100 bg-sky-50/80 px-4 py-4">
+                    <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-sky-700">精力说明</div>
+                    <p className="mt-3 text-sm leading-6 text-slate-700">
                       {runShellProjection.energyPanel.note}
                     </p>
                   </div>
@@ -895,7 +895,7 @@ export function SellingHousesWorkspace({
                             <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">{entry.label}</div>
                             <div className="mt-1 text-sm font-semibold text-slate-800">{entry.title}</div>
                           </div>
-                          <div className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-amber-700">
+                          <div className="rounded-full bg-sky-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-sky-700">
                             {entry.energyLabel}
                           </div>
                         </div>
@@ -926,28 +926,28 @@ function CompactMatterStrip({
   const lead = matter.actionItems[0];
 
   return (
-    <section className="mb-3 rounded-[18px] border border-[#e7dccd] bg-[#fffdf8] px-3.5 py-3 shadow-sm xl:hidden">
+    <section className="mb-3 rounded-[18px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.84)] px-3.5 py-3 shadow-sm xl:hidden">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[#9a6a31]">
+          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--seller-accent)]">
             <Target size={13} />
             今日工作面
           </div>
-          <h3 className="mt-1 truncate text-[15px] font-semibold tracking-tight text-[#241a12]">{matter.headline}</h3>
-          <p className="mt-1 line-clamp-2 text-[11px] leading-5 text-[#6b5948]">{matter.summary}</p>
+          <h3 className="mt-1 truncate text-[14px] font-semibold tracking-tight text-[var(--seller-ink)]">{matter.headline}</h3>
+          <p className="mt-1 line-clamp-2 text-[11px] leading-5 text-[var(--seller-muted)]">{matter.summary}</p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-1.5">
           <button
             type="button"
             onClick={() => onOpenMatter(lead?.caseId)}
-            className="rounded-full bg-[#2b2118] px-3 py-2 text-[11px] font-bold text-[#fff6df]"
+            className="rounded-full bg-[var(--seller-ink)] px-3 py-2 text-[11px] font-bold text-white"
           >
-            打开今日优先
+            打开主事项
           </button>
           <button
             type="button"
             onClick={onOpenJournal}
-            className="rounded-full border border-[#d9cbb8] bg-white px-3 py-2 text-[11px] font-bold text-[#5f4b37]"
+            className="rounded-full border border-[var(--seller-border)] bg-white px-3 py-2 text-[11px] font-bold text-[var(--seller-muted)]"
           >
             流水 {journal.todayCount}
           </button>
@@ -967,17 +967,17 @@ function MatterWorkPanel({
   onOpenMarket: () => void;
 }) {
   return (
-    <section className="mt-4 rounded-[22px] border border-[#e7dccd] bg-[#fffdf8] p-4 shadow-sm">
+    <section className="mt-4 rounded-[22px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.82)] p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[#9a6a31]">
+          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--seller-accent)]">
             <Target size={14} />
-            事项工作面
+            今日事项
           </div>
-          <h4 className="mt-1 text-[15px] font-semibold tracking-tight text-[#241a12]">{matter.headline}</h4>
+          <h4 className="mt-1 text-[14px] font-semibold tracking-tight text-[var(--seller-ink)]">{matter.headline}</h4>
         </div>
       </div>
-      <p className="mt-2 text-[12px] leading-6 text-[#6b5948]">{matter.summary}</p>
+      <p className="mt-2 text-[12px] leading-6 text-[var(--seller-muted)]">{matter.summary}</p>
 
       <div className="mt-3 grid grid-cols-3 gap-2">
         {matter.stats.map((entry) => (
@@ -989,8 +989,8 @@ function MatterWorkPanel({
 
       <div className="mt-4">
         <div className="mb-2 flex items-center justify-between gap-2">
-          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#9a6a31]">今日优先</div>
-          <span className="text-[10px] font-semibold text-[#8a7762]">{matter.actionItems.length} 项</span>
+          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--seller-accent)]">主事项</div>
+          <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">{matter.actionItems.length} 项</span>
         </div>
         <div className="space-y-2">
           {matter.actionItems.slice(0, 3).map((item) => (
@@ -999,7 +999,7 @@ function MatterWorkPanel({
             </React.Fragment>
           ))}
           {matter.actionItems.length === 0 && (
-            <div className="rounded-[14px] border border-dashed border-[#d9cbb8] bg-white px-3 py-4 text-[12px] leading-5 text-[#8a7762]">
+            <div className="rounded-[14px] border border-dashed border-[var(--seller-border)] bg-white px-3 py-4 text-[12px] leading-5 text-[var(--seller-subtle)]">
               今日没有明确待办，先守住当前主线。
             </div>
           )}
@@ -1008,11 +1008,11 @@ function MatterWorkPanel({
 
       <div className="mt-4">
         <div className="mb-2 flex items-center justify-between gap-2">
-          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#9a6a31]">昨日情报 / 竞品压力</div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--seller-accent)]">昨日变化 / 竞品压力</div>
           <button
             type="button"
             onClick={onOpenMarket}
-            className="rounded-full border border-[#d9cbb8] bg-white px-2.5 py-1 text-[10px] font-bold text-[#5f4b37] transition hover:bg-[#fff7e7]"
+            className="rounded-full border border-[var(--seller-border)] bg-white px-2.5 py-1 text-[10px] font-bold text-[var(--seller-muted)] transition hover:bg-[var(--seller-accent-soft)]"
           >
             去市场
           </button>
@@ -1069,18 +1069,18 @@ function MatterCueButton({
         item.tone === 'risk'
           ? 'border-[#e6b8a8] bg-[#fff4ef] hover:bg-[#ffeee6]'
           : item.tone === 'chance'
-            ? 'border-[#c9d8bc] bg-[#f4f8ed] hover:bg-[#edf5e2]'
-            : 'border-[#eadfce] bg-white hover:bg-[#fff7e7]'
+            ? 'border-[color:var(--seller-chance)]/22 bg-[var(--seller-chance-soft)] hover:bg-white'
+            : 'border-[var(--seller-border)] bg-white hover:bg-[var(--seller-accent-soft)]'
       }`}
     >
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#7b5b35]">
+        <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--seller-accent)]">
           {item.label}
         </span>
-        {item.caseId && <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#9a8a76]">房源</span>}
+        {item.caseId && <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">房源</span>}
       </div>
-      <div className="mt-1 text-[12px] font-semibold leading-5 text-[#2b2118]">{item.title}</div>
-      <p className="mt-0.5 line-clamp-2 text-[11px] leading-5 text-[#766551]">{item.detail}</p>
+      <div className="mt-1 text-[12px] font-semibold leading-5 text-[var(--seller-ink)]">{item.title}</div>
+      <p className="mt-0.5 line-clamp-2 text-[11px] leading-5 text-[var(--seller-muted)]">{item.detail}</p>
     </button>
   );
 }

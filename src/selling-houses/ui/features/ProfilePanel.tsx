@@ -33,14 +33,14 @@ export function ProfilePanel({ state, currentUserNickname }: ProfilePanelProps) 
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="seller-label">我的经营状态</div>
-            <h3 className="seller-title mt-2 text-[28px]">{playerLabel}</h3>
+            <h3 className="seller-title mt-2 text-[22px]">{playerLabel}</h3>
             <p className="seller-body mt-2 max-w-2xl text-sm">
               个人视角：今天还剩多少精力、场上还有多少房源、客户线厚不厚、最近留下了什么复盘记录。
             </p>
           </div>
           <div className="seller-tablet px-4 py-4">
             <div className="seller-label">当前进度</div>
-            <div className="mt-2 text-[20px] font-semibold text-slate-900">Day {state.day} / {state.maxDay}</div>
+            <div className="mt-2 text-[18px] font-semibold text-slate-900">Day {state.day} / {state.maxDay}</div>
             <div className="mt-1 text-[12px] text-slate-500">{state.runContext.scenarioName}</div>
           </div>
         </div>
@@ -56,7 +56,7 @@ export function ProfilePanel({ state, currentUserNickname }: ProfilePanelProps) 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <section className="seller-panel p-4 lg:p-5">
           <div className="seller-label">关系网络</div>
-          <h4 className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-slate-900">先看我现在在守谁、接着谁</h4>
+          <h4 className="mt-2 text-[18px] font-semibold tracking-[-0.03em] text-slate-900">我现在在守谁、接着谁</h4>
           <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
             {relationCards.map((entry) => (
               <div key={entry.key} className="rounded-[22px] border border-black/[0.05] bg-slate-50 px-4 py-4">
@@ -69,13 +69,13 @@ export function ProfilePanel({ state, currentUserNickname }: ProfilePanelProps) 
             ))}
           </div>
           <div className="mt-4 rounded-[22px] border border-sky-100 bg-sky-50/70 px-4 py-4 text-sm leading-6 text-slate-600">
-            当前平均信任 {averageTrust}。这一版先给经营关系总览，后面再细做“业主 / 客户 / 同行”三层关系页。
+            当前平均信任 {averageTrust}。先看手上关系够不够稳，后面再拆到业主、客户和同行三条线。
           </div>
         </section>
 
         <section className="seller-panel p-4 lg:p-5">
           <div className="seller-label">战绩与复盘</div>
-          <h4 className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-slate-900">先留住经营沉淀</h4>
+          <h4 className="mt-2 text-[18px] font-semibold tracking-[-0.03em] text-slate-900">留下这局沉淀</h4>
           <div className="mt-5 grid grid-cols-2 gap-3">
             <MetricChip label="已成交" value={`${soldCount} 套`} />
             <MetricChip label="平均信任" value={`${averageTrust}`} />
@@ -110,7 +110,7 @@ function MetricCard({
   return (
     <div className="rounded-[22px] border border-black/[0.05] bg-white px-4 py-4 shadow-sm">
       <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">{eyebrow}</div>
-      <div className="mt-2 text-[22px] font-semibold text-slate-900">{value}</div>
+      <div className="mt-2 text-[18px] font-semibold text-slate-900">{value}</div>
       <div className="mt-1 text-[12px] leading-5 text-slate-500">{note}</div>
     </div>
   );
