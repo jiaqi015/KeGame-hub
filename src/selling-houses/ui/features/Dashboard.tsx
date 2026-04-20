@@ -14,9 +14,7 @@ import {
   Flag,
   Newspaper,
   ShieldAlert,
-  Sparkles,
   Target,
-  Users,
   Zap,
 } from 'lucide-react';
 import { WEEKLY_ROUTINE } from '../../domain/constants';
@@ -174,75 +172,33 @@ export function Dashboard({ state, onSelectCase, onSetView, onOpenMarket }: Dash
         )}
       </section>
 
-      <div className="grid grid-cols-1 gap-3 2xl:grid-cols-[minmax(0,1.32fr)_332px]">
+      <div className="grid grid-cols-1 gap-3 2xl:grid-cols-[minmax(0,1fr)_330px]">
         <div className="space-y-3">
-          <section className="seller-panel px-3.5 py-3">
-            <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_232px]">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="seller-chip bg-[var(--seller-ink)] text-white">
-                    今日
-                  </span>
-                  <span className="seller-chip seller-chip-accent">
-                    {firstPriority?.label || '主事项'}
-                  </span>
+          <section className="seller-panel overflow-hidden">
+            <div className="border-b border-[var(--seller-border)] px-3.5 py-3">
+              <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                  <div className="seller-label flex items-center gap-2">
+                    <Clock3 size={13} />
+                    今日要处理
+                  </div>
+                  <h1 className="seller-title mt-1.5 max-w-[72ch] text-[16px] leading-5 md:text-[17px]">
+                    {operatingBrief.today.title}
+                  </h1>
+                  <p className="seller-body mt-1 max-w-[78ch] text-[11px] leading-5 line-clamp-2">
+                    {operatingBrief.today.detail}
+                  </p>
                 </div>
-
-                <h1 className="seller-title mt-2.5 max-w-4xl text-[18px] leading-[1.18] md:text-[20px]">
-                  {operatingBrief.today.title}
-                </h1>
-                <p className="seller-body mt-1.5 max-w-[72ch] text-[12px] leading-5 line-clamp-2">
-                  {operatingBrief.today.detail}
-                </p>
-
-                <div className="mt-3 grid grid-cols-2 gap-1.5 md:grid-cols-4">
-                  <DeskMetric label="主盯房源" value={todayFocus} />
-                  <DeskMetric label="先防什么" value={todayRisk} tone="risk" />
-                  <DeskMetric label="今日精力" value={dashboardProjection.resourceSnapshot.energy} />
-                  <DeskMetric label="活跃机会" value={`${dashboardProjection.resourceSnapshot.activeOpportunities} 条`} />
-                </div>
-              </div>
-
-              <div className="border-t border-[var(--seller-border)] pt-3 xl:border-l xl:border-t-0 xl:pl-3 xl:pt-0">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="seller-label">房源情况</div>
-                  <button
-                    type="button"
-                    onClick={() => openCase(leadCaseId || undefined)}
-                    className="seller-button-secondary rounded-full px-2.5 py-1 text-[10px]"
-                  >
-                    打开房源
-                  </button>
-                </div>
-                <div className="mt-2 space-y-1.5">
-                  {(leadCaseProjection?.factChain.slice(0, 3) || []).map((fact) => (
-                    <div key={fact.id} className="seller-tablet px-2.5 py-2">
-                      <div className="text-[12px] font-semibold text-[var(--seller-ink)]">{fact.title}</div>
-                      <p className="seller-body mt-0.5 text-[11px] leading-5">{fact.fact}</p>
-                    </div>
-                  ))}
-                  {!leadCaseProjection && (
-                    <p className="seller-empty px-2.5 py-2.5 text-[11px] leading-5">
-                      这套房眼下还没有新的关键信息。
-                    </p>
-                  )}
+                <div className="flex shrink-0 flex-wrap gap-1.5">
+                  <span className="seller-chip bg-[var(--seller-ink)] text-white">Day {day}</span>
+                  <span className="seller-chip">剩 {daysRemaining} 天</span>
+                  <span className="seller-chip">{dashboardProjection.resourceSnapshot.energy} 精力</span>
+                  <span className="seller-chip">{dashboardProjection.resourceSnapshot.promotionBudget} 推广金</span>
                 </div>
               </div>
             </div>
-          </section>
 
-          <section className="seller-panel px-3.5 py-3">
-            <div className="mb-2.5 flex items-center justify-between gap-3">
-              <div className="seller-label flex items-center gap-2">
-                <Clock3 size={13} />
-                今日安排
-              </div>
-              <div className="text-[11px] text-[var(--seller-subtle)]">
-                {visiblePriorities.length} 项
-              </div>
-            </div>
-
-            <div className="divide-y divide-[color:var(--seller-border)]">
+            <div className="divide-y divide-[color:var(--seller-border)] px-3.5">
               {visiblePriorities.length > 0 ? visiblePriorities.map((item, index) => (
                 <div key={item.id}>
                   <AgendaRow
@@ -253,70 +209,146 @@ export function Dashboard({ state, onSelectCase, onSetView, onOpenMarket }: Dash
                   />
                 </div>
               )) : (
-                <div className="seller-empty px-4 py-6 text-center text-[12px]">
-                  今天还没有明确安排，先回房源页看在场房。
+                <div className="py-4">
+                  <div className="seller-empty px-4 py-5 text-center text-[12px]">
+                    今天还没有明确安排，先从在场房源里挑一套处理。
+                  </div>
                 </div>
               )}
+            </div>
+          </section>
+
+          <section className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_0.92fr]">
+            <div className="seller-panel px-3.5 py-3">
+              <div className="mb-2.5 flex items-center justify-between gap-3">
+                <div className="seller-label flex items-center gap-2">
+                  <Newspaper size={13} />
+                  今日到达
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onOpenMarket(homepageIntel.lead?.layer || 'macro')}
+                  className="seller-button-secondary rounded-full px-2.5 py-1 text-[10px]"
+                >
+                  看市场
+                </button>
+              </div>
+              <div className="divide-y divide-[color:var(--seller-border)]">
+                {todayNews.length > 0 ? todayNews.map((item) => (
+                  <div key={item.id}>
+                    <NewsBrief
+                      item={item}
+                      onOpen={() => onOpenMarket(item.layer)}
+                    />
+                  </div>
+                )) : (
+                  <div className="seller-empty px-3 py-5 text-[12px] leading-5">
+                    今天没有新的市场变化。
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="seller-panel-muted px-3.5 py-3">
+              <div className="mb-2.5 flex items-center justify-between gap-3">
+                <div className="seller-label flex items-center gap-2">
+                  <Flag size={13} />
+                  过去信息
+                </div>
+                <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">
+                  {dashboardProjection.yesterdayIntel.length} 条
+                </span>
+              </div>
+              <div className="divide-y divide-[color:var(--seller-border)]">
+                {dashboardProjection.yesterdayIntel.length > 0 ? dashboardProjection.yesterdayIntel.slice(0, 3).map((event) => (
+                  <button
+                    key={event.id}
+                    type="button"
+                    onClick={() => openCase(event.caseId)}
+                    className="w-full px-0 py-2.5 text-left transition hover:px-2 hover:bg-white"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-[12px] font-semibold leading-5 text-[var(--seller-ink)]">{event.title}</div>
+                        <p className="seller-body mt-0.5 line-clamp-2 text-[11px] leading-5">{event.detail}</p>
+                      </div>
+                      <span className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${calendarToneDot(event.tone)}`} />
+                    </div>
+                  </button>
+                )) : (
+                  <div className="seller-empty px-3 py-5 text-[11px] leading-5">
+                    昨天没有留下会影响今天判断的记录。
+                  </div>
+                )}
+              </div>
             </div>
           </section>
         </div>
 
         <aside className="space-y-3">
-          <section className="seller-panel-muted px-3.5 py-3">
+          <section className="seller-panel px-3.5 py-3">
             <div className="mb-2.5 flex items-center justify-between gap-3">
               <div className="seller-label flex items-center gap-2">
-                <Newspaper size={13} />
-                市场变化
+                <Target size={13} />
+                主盯房源
               </div>
               <button
                 type="button"
-                onClick={() => onOpenMarket(homepageIntel.lead?.layer || 'macro')}
-                className="seller-button-secondary rounded-full px-2.5 py-1 text-[11px]"
+                onClick={() => openCase(leadCaseId || undefined)}
+                className="seller-button-secondary rounded-full px-2.5 py-1 text-[10px]"
               >
-                去市场
+                打开
               </button>
             </div>
 
-            <div className="space-y-2">
-              {todayNews.length > 0 ? todayNews.map((item) => (
-                <div key={item.id}>
-                  <NewsBrief
-                    item={item}
-                    onOpen={() => onOpenMarket(item.layer)}
-                  />
-                </div>
-              )) : (
-                <div className="seller-empty px-3 py-5 text-[12px] leading-5">
-                  今天没有新的市场变化。
-                </div>
+            <div className="rounded-[12px] border border-[var(--seller-border)] bg-white px-3 py-2.5">
+              <div className="text-[13px] font-semibold leading-5 text-[var(--seller-ink)]">{todayFocus}</div>
+              <p className="seller-body mt-1 text-[11px] leading-5 line-clamp-2">
+                {todayRisk}
+              </p>
+            </div>
+
+            <div className="mt-2.5 divide-y divide-[color:var(--seller-border)]">
+              {(leadCaseProjection?.factChain.slice(0, 3) || []).map((fact) => (
+                <button
+                  key={fact.id}
+                  type="button"
+                  onClick={() => openCase(leadCaseId || undefined)}
+                  className="w-full px-0 py-2.5 text-left transition hover:px-2 hover:bg-[var(--seller-accent-soft)]"
+                >
+                  <div className="text-[11px] font-semibold text-[var(--seller-ink)]">{fact.title}</div>
+                  <p className="seller-body mt-0.5 line-clamp-2 text-[11px] leading-5">{fact.fact}</p>
+                </button>
+              ))}
+              {!leadCaseProjection && (
+                <p className="seller-empty px-2.5 py-3 text-[11px] leading-5">
+                  这套房眼下还没有新的关键信息。
+                </p>
               )}
             </div>
           </section>
 
-          <section className="seller-panel px-3.5 py-3">
+          <section className="seller-panel-muted px-3.5 py-3">
             <div className="seller-label mb-2.5 flex items-center gap-2">
               <ShieldAlert size={13} />
               在手情况
             </div>
-            <div className="grid grid-cols-1 gap-2">
-              <EvidenceTile icon={<Target size={15} />} label="商圈聚焦房" value={`${activeCoreCount} 套`} detail={todayFocus} />
-              <EvidenceTile
-                icon={<ShieldAlert size={15} />}
+            <div className="space-y-1.5">
+              <DeskSignalRow label="商圈聚焦房" value={`${activeCoreCount} 套`} detail={todayFocus} />
+              <DeskSignalRow
                 label="走弱房源"
                 value={`${dangerCount} 套`}
                 detail={dangerCount > 0 ? todayRisk : '暂时没有明显掉队的房源'}
                 tone={dangerCount > 0 ? 'risk' : 'neutral'}
               />
-              <EvidenceTile
-                icon={<Users size={15} />}
+              <DeskSignalRow
                 label="快流失客户"
                 value={`${customerPressure.atRisk} 位`}
                 detail={customerPressure.atRiskCaseTitle || '短期流失压力不重'}
                 tone={customerPressure.atRisk > 0 ? 'risk' : 'neutral'}
                 onClick={customerPressure.atRiskCaseId ? () => openCase(customerPressure.atRiskCaseId) : undefined}
               />
-              <EvidenceTile
-                icon={<Sparkles size={15} />}
+              <DeskSignalRow
                 label="当前最强房"
                 value={customerPressure.strongestCaseTitle || '暂无'}
                 detail="客户和反馈暂时都在前面。"
@@ -324,49 +356,33 @@ export function Dashboard({ state, onSelectCase, onSetView, onOpenMarket }: Dash
                 onClick={customerPressure.strongestCaseId ? () => openCase(customerPressure.strongestCaseId) : undefined}
               />
             </div>
-
-            <div className="seller-panel-soft mt-2.5 p-2.5">
-              <div className="seller-label">受影响房源</div>
-              <div className="mt-2 space-y-1.5">
-                {homepageIntel.impactedCases.length > 0 ? homepageIntel.impactedCases.map((item) => (
-                  <button
-                    key={item.caseId}
-                    type="button"
-                    onClick={() => openCase(item.caseId)}
-                    className="seller-tablet w-full px-2.5 py-2.5 text-left transition hover:bg-white"
-                  >
-                    <div className="text-[12px] font-semibold text-[var(--seller-ink)]">{item.title}</div>
-                    <p className="seller-body mt-0.5 text-[11px] leading-5">{item.reason}</p>
-                  </button>
-                )) : (
-                  <p className="seller-empty px-2.5 py-4 text-[11px] leading-5">
-                    今天还没有房源被外部变化直接命中。
-                  </p>
-                )}
-              </div>
-            </div>
           </section>
 
-          <section className="seller-panel-muted px-3.5 py-3">
-            <div className="seller-label mb-2 flex items-center gap-2">
-              <Flag size={13} />
-              昨日记录
+          <section className="seller-panel px-3.5 py-3">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <div className="seller-label flex items-center gap-2">
+                <Zap size={13} />
+                受影响房源
+              </div>
+              <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">
+                {homepageIntel.impactedCases.length} 套
+              </span>
             </div>
-            <div className="space-y-1.5">
-              {dashboardProjection.yesterdayIntel.length > 0 ? dashboardProjection.yesterdayIntel.slice(0, 3).map((event) => (
+            <div className="divide-y divide-[color:var(--seller-border)]">
+              {homepageIntel.impactedCases.length > 0 ? homepageIntel.impactedCases.map((item) => (
                 <button
-                  key={event.id}
+                  key={item.caseId}
                   type="button"
-                  onClick={() => openCase(event.caseId)}
-                  className="seller-tablet w-full px-2.5 py-2.5 text-left transition hover:bg-white"
+                  onClick={() => openCase(item.caseId)}
+                  className="w-full px-0 py-2.5 text-left transition hover:px-2 hover:bg-white"
                 >
-                  <div className="text-[11px] font-semibold text-[var(--seller-ink)]">{event.title}</div>
-                  <p className="seller-body mt-0.5 line-clamp-2 text-[11px] leading-5">{event.detail}</p>
+                  <div className="text-[12px] font-semibold text-[var(--seller-ink)]">{item.title}</div>
+                  <p className="seller-body mt-0.5 line-clamp-2 text-[11px] leading-5">{item.reason}</p>
                 </button>
               )) : (
-                <div className="seller-empty px-3 py-4 text-[11px] leading-5">
-                  昨天没有留下关键记录。
-                </div>
+                <p className="seller-empty px-2.5 py-4 text-[11px] leading-5">
+                  今天还没有房源被外部变化直接命中。
+                </p>
               )}
             </div>
           </section>
@@ -506,29 +522,6 @@ function SelectedDayPanel({
   );
 }
 
-function DeskMetric({
-  label,
-  value,
-  tone = 'neutral',
-}: {
-  label: string;
-  value: string;
-  tone?: 'neutral' | 'risk' | 'chance';
-}) {
-  return (
-    <div className={`rounded-[12px] border px-2.5 py-2 ${
-      tone === 'risk'
-        ? 'border-[color:var(--seller-risk)]/20 bg-[var(--seller-risk-soft)]'
-        : tone === 'chance'
-          ? 'border-[color:var(--seller-chance)]/22 bg-[var(--seller-chance-soft)]'
-          : 'border-[var(--seller-border)] bg-white'
-    }`}>
-      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">{label}</div>
-      <div className="mt-0.5 line-clamp-2 text-[11px] font-semibold leading-5 text-[var(--seller-ink)]">{value}</div>
-    </div>
-  );
-}
-
 function AgendaRow({
   item,
   index,
@@ -590,7 +583,7 @@ function NewsBrief({ item, onOpen }: { item: IntelItem; onOpen: () => void }) {
     <button
       type="button"
       onClick={onOpen}
-      className="w-full rounded-[12px] border border-[var(--seller-border)] bg-white px-2.5 py-2.5 text-left transition hover:bg-[var(--seller-accent-soft)]"
+      className="w-full px-0 py-2.5 text-left transition hover:px-2 hover:bg-[var(--seller-accent-soft)]"
     >
       <div className="flex flex-wrap items-center gap-1.5">
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${intelToneBadge(item.tone)}`}>
@@ -607,38 +600,35 @@ function NewsBrief({ item, onOpen }: { item: IntelItem; onOpen: () => void }) {
   );
 }
 
-function EvidenceTile({
-  icon,
+function DeskSignalRow({
   label,
   value,
   detail,
   tone = 'neutral',
   onClick,
 }: {
-  icon: React.ReactNode;
   label: string;
   value: string;
   detail: string;
   tone?: 'neutral' | 'risk' | 'chance';
   onClick?: () => void;
 }) {
-  const className = `rounded-[12px] border px-2.5 py-2 text-left ${
-    tone === 'risk'
-      ? 'border-[color:var(--seller-risk)]/20 bg-[var(--seller-risk-soft)]'
-      : tone === 'chance'
-        ? 'border-[color:var(--seller-chance)]/22 bg-[var(--seller-chance-soft)]'
-        : 'border-[var(--seller-border)] bg-white'
-  } ${onClick ? 'transition hover:bg-[var(--seller-accent-soft)]' : ''}`;
+  const dotClass = tone === 'risk'
+    ? 'bg-[color:var(--seller-risk)]'
+    : tone === 'chance'
+      ? 'bg-[color:var(--seller-chance)]'
+      : 'bg-[color:var(--seller-accent)]';
+  const className = `w-full rounded-[10px] px-2.5 py-2 text-left ${onClick ? 'transition hover:bg-white' : ''}`;
 
   const content = (
-    <>
-      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">
-        {icon}
-        {label}
+    <div className="grid grid-cols-[7px_minmax(0,1fr)_auto] items-start gap-2">
+      <span className={`mt-1.5 h-1.5 w-1.5 rounded-full ${dotClass}`} />
+      <div className="min-w-0">
+        <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">{label}</div>
+        <p className="seller-body mt-0.5 line-clamp-2 text-[11px] leading-5">{detail}</p>
       </div>
-      <div className="mt-0.5 text-[12px] font-semibold text-[var(--seller-ink)]">{value}</div>
-      <p className="mt-0.5 line-clamp-2 text-[11px] leading-5 text-[var(--seller-muted)]">{detail}</p>
-    </>
+      <div className="max-w-[116px] truncate text-right text-[12px] font-semibold text-[var(--seller-ink)]">{value}</div>
+    </div>
   );
 
   if (onClick) {
