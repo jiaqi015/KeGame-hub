@@ -13,6 +13,15 @@ import {
   resolveAllowedWorkspaceFromPathname,
 } from '../workspaces/workspaceRegistry';
 
+export function resolveWorkspaceRestorePath(currentPathname: string, cachedPathname: string | null) {
+  const currentPath = normalizeWorkspacePathname(currentPathname || '/');
+  if (currentPath === '/') {
+    return null;
+  }
+
+  return currentPath || (cachedPathname?.trim() || null);
+}
+
 export function useAppSession(state: AppState, dispatch: React.Dispatch<AppAction>) {
   const { authorizedKey, authStatus, allowedWorkspaces, currentUserEmail, activeWorkspace } = state;
 
@@ -49,9 +58,8 @@ export function useAppSession(state: AppState, dispatch: React.Dispatch<AppActio
       try {
         const user = await fetchAuthenticatedUser();
         if (!disposed) {
-          const currentPath = normalizeWorkspacePathname(window.location.pathname || '/');
           const cachedPath = window.sessionStorage.getItem('kegame-target-path') || '';
-          const candidatePath = currentPath !== '/' ? currentPath : cachedPath;
+          const candidatePath = resolveWorkspaceRestorePath(window.location.pathname || '/', cachedPath);
           const matchedWorkspace = resolveAllowedWorkspaceFromPathname(candidatePath, user.allowedWorkspaces);
 
           dispatch({

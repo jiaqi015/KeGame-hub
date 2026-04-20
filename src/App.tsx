@@ -100,6 +100,8 @@ export default function App() {
     }
     if (activeWorkspace !== 'hub') {
       window.sessionStorage.setItem(WORKSPACE_PATH_STORAGE_KEY, expectedPath);
+    } else {
+      window.sessionStorage.removeItem(WORKSPACE_PATH_STORAGE_KEY);
     }
   }, [activeWorkspace]);
 
@@ -328,6 +330,7 @@ export default function App() {
     dispatch({ type: 'SET_PREVIEW', data: null });
     dispatch({ type: 'SET_WORKSPACE', workspace: 'hub' });
     pendingWorkspaceRef.current = 'hub';
+    window.sessionStorage.removeItem(WORKSPACE_PATH_STORAGE_KEY);
     window.history.pushState({}, '', '/');
   };
 
