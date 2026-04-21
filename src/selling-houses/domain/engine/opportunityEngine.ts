@@ -46,6 +46,7 @@ export function tickOpportunities(world: GameState) {
 
     opportunity.daysLeft -= 1;
     opportunity.stagnationTicks += 1;
+    opportunity.lifecycleStatus = opportunity.stagnationTicks >= 3 ? 'stagnated' : 'active';
 
     const pricePenalty = Math.max(0, caseItem.askPrice - opportunity.budgetMax) / tickBalance.pricePenaltyDivisor;
     opportunity.intent = clamp(
@@ -195,6 +196,7 @@ export function createOpportunity(
     stageIndex,
     stageLabel: OPPORTUNITY_STAGES[stageIndex],
     status: 'active',
+    lifecycleStatus: 'active',
     createdDay: world.day,
     daysLeft: stageIndex > 0 ? createBalance.boostedDaysLeft : createBalance.defaultDaysLeft,
     touchedToday: true,
@@ -270,16 +272,22 @@ export function closeOpportunity(
 
 export function refreshOpportunityLabel(opportunity: Opportunity) {
   if (opportunity.status === 'won') {
-    opportunity.stageLabel = '成交';
+    opportunity.lifecycleStatus = 'closed_by_deal';
+    opportunity.stageLabel = '已成交';
     return;
   }
   if (opportunity.status === 'lost') {
+    opportunity.lifecycleStatus = 'lost';
     opportunity.stageLabel = '已流失';
     return;
   }
   if (opportunity.status === 'closed') {
-    opportunity.stageLabel = '已结束';
+    opportunity.lifecycleStatus = 'closed_by_case';
+    opportunity.stageLabel = '已关闭';
     return;
+  }
+  if (opportunity.lifecycleStatus !== 'stagnated') {
+    opportunity.lifecycleStatus = 'active';
   }
   opportunity.stageLabel = OPPORTUNITY_STAGES[clamp(opportunity.stageIndex, 0, OPPORTUNITY_STAGES.length - 1)];
 }

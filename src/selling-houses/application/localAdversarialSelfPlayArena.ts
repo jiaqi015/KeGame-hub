@@ -3,7 +3,7 @@ import { updateDerivedState } from '../domain/runtimeState.js';
 import { advanceDays, executeAction, findBestOpportunity, getActionAvailability, seedInitialOpportunities } from '../domain/engine.js';
 import { getScenarioSnapshotById } from '../domain/scenarioCatalog.js';
 import type { Case, FinalResult, GameState, Opportunity, ScenarioSnapshot } from '../domain/models.js';
-import { getPromotionBudget } from '../domain/runtimeStats.js';
+import { getPromotionBudget, resolveFormalSoldCount } from '../domain/runtimeStats.js';
 
 type Severity = 'critical' | 'major' | 'minor';
 
@@ -123,13 +123,14 @@ export class LocalAdversarialSelfPlayArena {
     }
 
     updateDerivedState(state);
+    const soldCount = resolveFormalSoldCount(state);
 
     return {
       scenarioId: this.snapshot.scenario.id,
       scenarioName: this.snapshot.scenario.name,
       seed: this.seed,
       finalResult: state.finalResult,
-      soldCount: state.auxiliaryStats.soldCount,
+      soldCount,
       withdrawnCount: state.auxiliaryStats.withdrawnCount,
       commission: state.auxiliaryStats.commission,
       wordOfMouth: state.auxiliaryStats.wordOfMouth,

@@ -78,22 +78,22 @@ export function ScenarioSetup({
   const selectedTone = TONES[selectedOption.id];
 
   return (
-    <div className="mx-auto flex h-full min-h-0 w-full max-w-[1280px] flex-col overflow-hidden px-4 py-4 text-slate-900 lg:px-5">
-      <div className="mb-3 flex shrink-0 flex-wrap items-end justify-between gap-3">
+    <div className="mx-auto w-full max-w-[1240px] overflow-y-auto px-3 py-2.5 text-slate-900 lg:px-4">
+      <div className="mb-2 flex flex-wrap items-end justify-between gap-2.5">
         <div>
-          <div className="seller-chip seller-chip-accent mb-1.5 inline-flex items-center gap-2">
+          <div className="seller-chip seller-chip-accent mb-1 inline-flex items-center gap-2">
             <Dice5 size={12} />
             标准局 / 随机局
           </div>
-          <h1 className="seller-title text-[24px] md:text-[28px]">选难度</h1>
+          <h1 className="seller-title text-[21px] md:text-[24px]">选难度</h1>
         </div>
-        <p className="seller-body max-w-[38rem] text-[12px] leading-5">
+        <p className="seller-body max-w-[38rem] text-[11px] leading-4.5">
           先定这局强度，再决定走标准局还是随机局。
         </p>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="grid min-h-0 content-start gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid items-start gap-2 lg:grid-cols-[minmax(0,1fr)_288px]">
+        <div className="grid content-start gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
         {difficultyOptions.map((option) => {
           const Icon = ICONS[option.id];
           const tone = TONES[option.id];
@@ -106,19 +106,19 @@ export function ScenarioSetup({
               type="button"
               onClick={() => setSelectedDifficultyId(option.id)}
               disabled={starting}
-              className={`group seller-panel min-h-[132px] p-3 text-left transition-all ${
+              className={`group seller-panel flex min-h-[96px] flex-col p-2 text-left transition-all ${
                 selected
                   ? 'border-[color:var(--seller-ink)] bg-[var(--seller-paper)] shadow-[var(--seller-shadow-md)]'
                   : 'hover:-translate-y-0.5 hover:bg-white hover:shadow-[var(--seller-shadow-sm)]'
               } ${starting ? 'cursor-wait opacity-70' : ''}`}
             >
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[12px] ${tone.badge}`}>
-                  <Icon size={15} />
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[9px] ${tone.badge}`}>
+                  <Icon size={13} />
                 </div>
                 <div className="flex items-center gap-2">
                   {lastPlayed && (
-                    <div className="seller-chip seller-chip-accent px-2 py-0.5">
+                    <div className="seller-chip seller-chip-accent px-1.5 py-0.5">
                       上次
                     </div>
                   )}
@@ -126,16 +126,16 @@ export function ScenarioSetup({
                 </div>
               </div>
 
-              <div>
-                <div className="seller-title text-[18px]">{option.label}</div>
-                <div className="seller-body mt-0.5 line-clamp-2 text-[12px] font-semibold leading-5">{option.summary}</div>
+              <div className="flex-1">
+                <div className="seller-title text-[15px]">{option.label}</div>
+                <div className="seller-body mt-0.5 line-clamp-2 text-[10px] font-semibold leading-3.5">{option.summary}</div>
               </div>
 
-              <div className="mt-2 grid grid-cols-2 gap-1.5">
+              <div className="mt-1.25 grid grid-cols-2 gap-1">
                 {option.preview.slice(0, 2).map((item) => (
-                  <div key={`${option.id}-${item.label}`} className="seller-tablet px-2.5 py-1.5">
+                  <div key={`${option.id}-${item.label}`} className="seller-tablet px-1.5 py-1.5">
                     <div className="seller-label text-[9px]">{item.label}</div>
-                    <div className="mt-0.5 line-clamp-1 text-[11px] font-semibold text-[var(--seller-ink)]">{compactPreviewValue(item.value)}</div>
+                    <div className="mt-0.5 line-clamp-1 text-[9.5px] font-semibold text-[var(--seller-ink)]">{compactPreviewValue(item.value)}</div>
                   </div>
                 ))}
               </div>
@@ -144,11 +144,11 @@ export function ScenarioSetup({
         })}
         </div>
 
-        <aside className={`seller-panel-muted grid min-h-0 xl:grid-rows-[1fr_auto] ${selectedTone.panel}`}>
-          <div className="min-h-0 overflow-y-auto p-4">
-            <div className="mb-3 flex items-start justify-between gap-3">
-              <div className={`flex h-10 w-10 items-center justify-center rounded-[15px] ${selectedTone.badge}`}>
-                <SelectedIcon size={19} />
+        <aside className={`seller-panel-muted flex self-start flex-col overflow-hidden ${selectedTone.panel}`}>
+          <div className="space-y-2 p-2.5">
+            <div className="flex items-start justify-between gap-2">
+              <div className={`flex h-8 w-8 items-center justify-center rounded-[12px] ${selectedTone.badge}`}>
+                <SelectedIcon size={16} />
               </div>
               <div className="seller-chip">
                 标准局 + 随机局
@@ -156,60 +156,82 @@ export function ScenarioSetup({
             </div>
 
             <div className="seller-label">当前选择</div>
-            <h2 className="seller-title mt-1 text-[22px]">{selectedOption.label}</h2>
-            <p className="mt-1.5 text-[13px] font-semibold leading-5 text-[var(--seller-ink)]">{selectedOption.summary}</p>
-            <p className="seller-body mt-2 text-[12px] leading-5">{selectedOption.detail}</p>
-
-            <div className="seller-tablet mt-3 p-3">
-              <div className="seller-label mb-1 text-[9px]">标准局</div>
-              <div className="text-[15px] font-semibold tracking-tight text-[var(--seller-ink)]">{selectedFeatured?.scenario.name || '标准局生成中'}</div>
-              <div className="seller-body mt-1 line-clamp-2 text-[12px] leading-5">{selectedFeatured?.scenario.presentation.theme}</div>
+            <div className="flex items-start justify-between gap-2">
+              <h2 className="seller-title mt-1 text-[17px]">{selectedOption.label}</h2>
               {selectedFeatured && (
-                <div className="mt-2.5 flex flex-wrap gap-1.5 text-[10px] font-semibold text-slate-600">
-                  <span className="seller-chip">{selectedFeatured.scenario.presentation.caseCount} 套房源</span>
-                  <span className="seller-chip">{selectedFeatured.scenario.presentation.maxDay} 天</span>
-                  <span className="seller-chip seller-chip-accent">目标 {selectedFeatured.scenario.presentation.targetScore} 分</span>
-                  <span className="seller-chip">seed {selectedFeatured.seed}</span>
+                <div className="seller-chip seller-chip-accent mt-0.5 px-1.5 py-0.5">
+                  目标 {selectedFeatured.scenario.presentation.targetScore} 分
+                </div>
+              )}
+            </div>
+            <p className="mt-0.5 text-[11px] font-semibold leading-4 text-[var(--seller-ink)]">{selectedOption.summary}</p>
+            <p className="seller-body line-clamp-2 text-[10px] leading-4">{selectedOption.detail}</p>
+
+            <div className="seller-tablet p-2.5">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="seller-label mb-1 text-[9px]">标准局</div>
+                  <div className="line-clamp-1 text-[13px] font-semibold tracking-tight text-[var(--seller-ink)]">{selectedFeatured?.scenario.name || '标准局生成中'}</div>
+                  <div className="seller-body mt-0.5 line-clamp-1 text-[10px] leading-4">{selectedFeatured?.scenario.presentation.theme}</div>
+                </div>
+                {selectedFeatured && (
+                  <div className="seller-chip px-1.5 py-0.5">
+                    {selectedFeatured.scenario.presentation.maxDay} 天
+                  </div>
+                )}
+              </div>
+              {selectedFeatured && (
+                <div className="mt-2 grid grid-cols-2 gap-1 border-t border-[var(--seller-border)] pt-2">
+                  <div className="seller-fact-row px-1.5 py-1.25">
+                    <div className="seller-label text-[9px]">房源数</div>
+                    <div className="mt-0.5 text-[10px] font-semibold text-[var(--seller-ink)]">{selectedFeatured.scenario.presentation.caseCount} 套</div>
+                  </div>
+                  <div className="seller-fact-row px-1.5 py-1.25">
+                    <div className="seller-label text-[9px]">Seed</div>
+                    <div className="mt-0.5 text-[10px] font-semibold text-[var(--seller-ink)]">{selectedFeatured.seed}</div>
+                  </div>
+                </div>
+              )}
+              {selectedGoal && (
+                <div className="mt-2 border-t border-[var(--seller-border)] pt-2">
+                  <div className="seller-label mb-1 text-[9px]">这局看什么</div>
+                  <div className="text-[11.5px] font-semibold leading-4 text-[var(--seller-ink)]">{selectedGoal.title}</div>
+                  <p className="seller-body mt-0.5 line-clamp-2 text-[10px] leading-4">{selectedGoal.detail}</p>
                 </div>
               )}
             </div>
 
-            {selectedGoal && (
-              <div className="seller-tablet mt-2.5 p-3">
-                <div className="seller-label mb-1 text-[9px]">目标</div>
-                <div className="text-[13px] font-semibold text-[var(--seller-ink)]">{selectedGoal.title}</div>
-                <p className="seller-body mt-1 text-[12px] leading-5">{selectedGoal.detail}</p>
-              </div>
-            )}
-
-            <div className="mt-2.5 grid grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-2 gap-1">
               {primaryPreview.map((item) => (
-                <div key={`${selectedOption.id}-${item.label}`} className="seller-tablet px-2.5 py-2">
+                <div key={`${selectedOption.id}-${item.label}`} className="seller-fact-row px-1.75 py-1.5">
                   <div className="seller-label text-[9px]">{item.label}</div>
-                  <div className="mt-0.5 text-[11px] font-semibold leading-5 text-[var(--seller-ink)]">{compactPreviewValue(item.value)}</div>
+                  <div className="mt-0.5 text-[9.5px] font-semibold leading-4 text-[var(--seller-ink)]">{compactPreviewValue(item.value)}</div>
                 </div>
               ))}
             </div>
 
             {secondaryPreview.length > 0 && (
-              <div className="mt-2.5 space-y-1.5">
-                {secondaryPreview.map((item) => (
-                  <div key={`${selectedOption.id}-${item.label}`} className="seller-tablet flex items-center justify-between gap-3 px-2.5 py-1.5">
+              <div className="overflow-hidden rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)]">
+                {secondaryPreview.map((item, index) => (
+                  <div
+                    key={`${selectedOption.id}-${item.label}`}
+                    className={`flex items-center justify-between gap-2 px-2 py-1.5 ${index === 0 ? '' : 'border-t border-[var(--seller-border)]'}`}
+                  >
                     <div className="seller-label text-[9px]">{item.label}</div>
-                    <div className="line-clamp-1 text-right text-[11px] font-semibold text-[var(--seller-ink)]">{item.value}</div>
+                    <div className="line-clamp-1 text-right text-[9.5px] font-semibold text-[var(--seller-ink)]">{compactPreviewValue(item.value)}</div>
                   </div>
                 ))}
               </div>
             )}
           </div>
 
-          <div className="border-t border-[var(--seller-border)] bg-white/72 p-3 backdrop-blur-md">
-            <div className="grid gap-2">
+          <div className="border-t border-[var(--seller-border)] bg-white/72 p-2 backdrop-blur-md">
+            <div className="grid gap-1.5">
               <button
                 type="button"
                 disabled={starting}
                 onClick={() => onStartFeatured(selectedOption.id)}
-                className="seller-button-primary rounded-[16px] px-4 py-3 text-[13px] disabled:cursor-wait disabled:opacity-60"
+                className="seller-button-primary rounded-[14px] px-4 py-2.5 text-[12px] disabled:cursor-wait disabled:opacity-60"
               >
                 {starting ? '正在进入...' : `进入${selectedOption.label}`}
               </button>
@@ -217,7 +239,7 @@ export function ScenarioSetup({
                 type="button"
                 disabled={starting}
                 onClick={() => onStartRandom(selectedOption.id)}
-                className="seller-button-secondary rounded-[16px] px-4 py-3 text-[13px] disabled:cursor-wait disabled:opacity-60"
+                className="seller-button-secondary rounded-[14px] px-4 py-2.5 text-[12px] disabled:cursor-wait disabled:opacity-60"
               >
                 {starting ? '正在生成...' : '随机开一局'}
               </button>

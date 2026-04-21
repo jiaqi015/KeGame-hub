@@ -7,7 +7,7 @@ export type LeaderboardProjectionTabId = 'total-score' | 'best-score' | 'play-co
 
 export interface LeaderboardProjectionEntry {
   rank: number;
-  userId: string;
+  ownerKey: string;
   playerName: string;
   value: number;
   valueLabel: string;
@@ -87,7 +87,7 @@ function mapEntries(
 ): LeaderboardProjectionEntry[] {
   return entries.map((entry, index) => ({
     rank: index + 1,
-    userId: entry.userId,
+    ownerKey: entry.accountId || entry.playerProfileId || entry.userId,
     playerName: entry.playerName,
     value: entry.value,
     valueLabel: formatValue(entry.value, category),

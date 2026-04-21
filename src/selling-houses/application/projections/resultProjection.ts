@@ -5,6 +5,7 @@ import type {
   GoalTier,
   ScoreBreakdownEntry,
 } from '../../domain/models.js';
+import { resolveFormalSoldCount } from '../../domain/runtimeStats.js';
 import type { ProjectionTone } from './operatingProjection.js';
 
 export interface ResultHeroProjection {
@@ -64,11 +65,15 @@ export interface ResultProjection {
   customerReview: FinalCustomerReview | null;
 }
 
+function getClosedDealCount(state: GameState) {
+  return resolveFormalSoldCount(state);
+}
+
 export function buildResultProjection(state: GameState): ResultProjection {
   const finalResult = state.finalResult;
   const caseResults = Array.isArray(finalResult?.caseResults) ? finalResult.caseResults : [];
   const scoreBreakdown = Array.isArray(finalResult?.scoreBreakdown) ? finalResult.scoreBreakdown : [];
-  const soldCount = state.auxiliaryStats.soldCount;
+  const soldCount = getClosedDealCount(state);
   const withdrawnCount = state.auxiliaryStats.withdrawnCount;
   const lostCount = caseResults.filter((entry) => entry.defenseOutcome === 'lost_to_rival').length;
   const activeCount = state.cases.filter((entry) => entry.status === 'active').length;

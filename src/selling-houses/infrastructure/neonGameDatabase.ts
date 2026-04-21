@@ -39,6 +39,8 @@ export const SELLING_HOUSES_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS maintainer_game_runs (
     run_id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES maintainer_users(user_id) ON DELETE CASCADE,
+    account_id TEXT NULL,
+    player_profile_id TEXT NULL,
     player_name TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'active',
     season_id TEXT NOT NULL DEFAULT 'season-1',
@@ -71,6 +73,8 @@ export const SELLING_HOUSES_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS maintainer_leaderboard_entries (
     run_id TEXT PRIMARY KEY REFERENCES maintainer_game_runs(run_id) ON DELETE CASCADE,
     user_id TEXT NOT NULL REFERENCES maintainer_users(user_id) ON DELETE CASCADE,
+    account_id TEXT NULL,
+    player_profile_id TEXT NULL,
     player_name TEXT NOT NULL,
     season_id TEXT NOT NULL DEFAULT 'season-1',
     score INTEGER NOT NULL,
@@ -633,6 +637,16 @@ async function ensureSchema(sql: SellingHousesSqlClient) {
 
   await sql.query(`
     ALTER TABLE maintainer_game_runs
+    ADD COLUMN IF NOT EXISTS account_id TEXT NULL;
+  `);
+
+  await sql.query(`
+    ALTER TABLE maintainer_game_runs
+    ADD COLUMN IF NOT EXISTS player_profile_id TEXT NULL;
+  `);
+
+  await sql.query(`
+    ALTER TABLE maintainer_game_runs
     ADD COLUMN IF NOT EXISTS sold_count INTEGER NOT NULL DEFAULT 0;
   `);
 
@@ -704,6 +718,16 @@ async function ensureSchema(sql: SellingHousesSqlClient) {
   await sql.query(`
     ALTER TABLE maintainer_game_runs
     ADD COLUMN IF NOT EXISTS last_played_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+  `);
+
+  await sql.query(`
+    ALTER TABLE maintainer_leaderboard_entries
+    ADD COLUMN IF NOT EXISTS account_id TEXT NULL;
+  `);
+
+  await sql.query(`
+    ALTER TABLE maintainer_leaderboard_entries
+    ADD COLUMN IF NOT EXISTS player_profile_id TEXT NULL;
   `);
 
   await sql.query(`

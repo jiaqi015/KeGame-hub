@@ -59,13 +59,14 @@ function calculateD1(world: GameState, caseItem: Case) {
   // 2. 接触中客户数
   const activeContacts = opps.length;
 
-  // 3. 漏斗后段厚度: 出价*4 + 谈判*5 + 再看*2 + 看房*1.5 (Adjusted based on 7-stage model)
-  // Stage Map: 0:了解, 1:咨询, 2:看房, 3:再看, 4:出价, 5:谈判, 6:成交
+  // 3. 漏斗后段厚度：按照当前 canonical 机会阶段递增加权
+  // Stage Map:
+  // 0:线上咨询 1:有意向 2:预约首次看房 3:已看房 4:再次看房 5:见面沟通 6:出价
   const funnelWeight = opps.reduce((sum, o) => {
-    if (o.stageIndex === 5) return sum + 5; // 谈判
-    if (o.stageIndex === 4) return sum + 4; // 出价
-    if (o.stageIndex === 3) return sum + 2; // 再看
-    if (o.stageIndex === 2) return sum + 1.5; // 看房
+    if (o.stageIndex === 6) return sum + 5; // 出价
+    if (o.stageIndex === 5) return sum + 4; // 见面沟通
+    if (o.stageIndex === 4) return sum + 2; // 再次看房
+    if (o.stageIndex === 3) return sum + 1.5; // 已看房
     return sum;
   }, 0);
   const baselineFunnel = d1Normalization.lateStageBaseline;

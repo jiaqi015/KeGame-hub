@@ -1,5 +1,7 @@
 # 卖房（资产顾问）领域架构 v1
 
+最后更新：2026-04-21
+
 这份文档回答一个核心问题：
 
 > 卖房这个游戏，领域到底该怎么拆，后面代码应该围着什么建。
@@ -96,12 +98,12 @@
 
 建议放：
 
-- `User`
-- `UserIdentity`
-- `UserProfile`
-- `UserPermission`
-- `UserStats`
-- `UserProgression`
+- `Account`
+- `AccountIdentity`
+- `AccountWorkspaceGrant`
+- `PlayerProfile`
+- `PlayerCareerStats`
+- `PlayerProgression`
 - `LeaderboardEntry`
 
 这层只放跨局仍然成立的东西：
@@ -130,12 +132,13 @@
 建议放：
 
 - `GameRun`
-- `RunResult`
 - `World`
 - `Session`
 - 全部局内 Actor / Relation / Matter / Event / Model
 
-这层里的东西，原则上在局终结算后就冻结，只保留摘要，不继续跨局直接复用。
+这层里的对象只负责“这一局正在运行时”的状态推进。局终后，这些运行态被冻结，只保留可追溯摘要，不再直接作为跨局沉淀继续复用。
+
+`RunResult` 不放在“进行中的局内世界对象”里。它是由 `World / Events / Relations` 在局终结算后生成的稳定记录：可以引用局内事实，但不能像 `Session` 或 `GameRun` 当前状态一样随时改。
 
 ### 2.1 主体层
 
@@ -1734,12 +1737,12 @@ type ActionReadinessProjection = {
 
 建议游戏层只放：
 
-- `User`
-- `UserIdentity`
-- `UserProfile`
-- `UserPermission`
-- `UserStats`
-- `UserProgression`
+- `Account`
+- `AccountIdentity`
+- `AccountWorkspaceGrant`
+- `PlayerProfile`
+- `PlayerCareerStats`
+- `PlayerProgression`
 - `LeaderboardEntry`
 
 ### 15.2 局内层该放什么
@@ -1779,7 +1782,7 @@ type ActionReadinessProjection = {
 World / Events / Relations
   -> SettlementEngine
   -> RunResult
-  -> UserStats / LeaderboardEntry / Progression
+  -> PlayerCareerStats / LeaderboardEntry / Progression
 ```
 
 如果要继续往下细化“玩家为什么持续玩、跨局具体沉淀什么、三张榜单怎么设计”，详细见：

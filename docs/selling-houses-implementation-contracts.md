@@ -35,6 +35,54 @@ type OpportunityStage =
   - `DealClosingEvaluation`
   - `ClosedDealRecord`
 
+补充边界：
+
+```ts
+type OpportunityLifecycleStatus =
+  | 'active'
+  | 'stagnated'
+  | 'lost'
+  | 'closed_by_deal'
+  | 'closed_by_case';
+```
+
+实现口径：
+
+- `stage` 只讲推进主线，只到 `offer`。
+- `lifecycleStatus` 讲这条关系是否仍在推进、是否停滞、是否因为成交或房源结束而关闭。
+- legacy `status = 'won' | 'closed'` 只允许存在于兼容层，新的 domain 口径应映射为：
+  - `won -> closed_by_deal`
+  - `closed -> closed_by_case`
+
+---
+
+## 1.5 Matter canonical
+
+`Matter` 第一版至少要固定下面三个字段维度：
+
+```ts
+type MatterScene =
+  | 'showing'
+  | 'open_house'
+  | 'valuation'
+  | 'listing_prep'
+  | 'client_call'
+  | 'negotiation'
+  | 'report_to_owner'
+  | 'closing_prep'
+  | 'diagnose'
+  | 'co_selling'
+  | 'risk_followup';
+```
+
+实现口径：
+
+- `scene` 说明“这是什么业务事”。
+- `template` 说明“用什么交互方式处理”。
+- `presentation` 说明“显示成卡片、详情页还是专屏”。
+- `report / diagnose / execute / negotiate` 是 Matter 专题文档里的生命周期分类，不是当前 `template` 字段枚举。
+- `ClosedDealRecord` 不是 Matter；Matter 最多推进到成交前准备或收口动作。
+
 ---
 
 ## 2. 账号体系 canonical
@@ -129,6 +177,38 @@ type RunResult = {
 - 排行榜不能直接读 `GameRunSave`
 - 每日估分只能用于过程反馈、趋势图、日复盘
 
+## 4.5 当前已落地的成交事实最小字段
+
+当前代码里，`ClosedDealRecord` 已经至少固定到下面这组字段：
+
+```ts
+type ClosedDealRecord = {
+  dealId: string;
+  caseId: string;
+  customerId: string;
+  sourceRelationId: string;
+  opportunityId: string; // legacy alias
+  dayIndex: number;
+  day: number; // legacy alias
+  closedAt: string;
+  dealType: 'self_closed' | 'internal_cosale_closed' | 'external_competitor_closed' | 'platform_matched_closed';
+  dealPrice: number;
+  price: number; // legacy alias
+  closeReadiness: number;
+  closeProbability: number;
+  blockingReasons: string[];
+  supportingReasons: string[];
+};
+```
+
+实现口径：
+
+- `sourceRelationId` 是 canonical，表示成交来自哪条客户-房源关系。
+- `opportunityId`、`day`、`price` 只是兼容旧运行态和旧存档的 bridge 字段。
+- `closedDeals / ClosedDealRecord[]` 才是正式成交事实的 canonical 来源。
+- `auxiliaryStats.soldCount`、顶层 `soldCount` 只作为 legacy compatibility mirror 存在，允许桥接读取和回填，但不再作为主事实来源。
+- 结果页、正式结算、仓储持久化、排行榜摘要都应优先读 `closedDeals`，不能再只信 `auxiliaryStats.soldCount`。
+
 ---
 
 ## 5. 物理表与 legacy 桥接
@@ -137,6 +217,11 @@ type RunResult = {
 
 - 只能用于旧数据兼容、回填映射、灰度迁移
 - 不能继续充当 canonical 主键
+- authenticated session 链路中，客户端不应再把 `userId` 当必填 owner 传入；服务端应从 session `accountId` 推导兼容 owner
+- activation-key 旧链路可以继续要求 legacy `userId`，但它只代表内部工具/旧存档兼容边界
+- 类型边界必须拆开：
+  - `MaintainerCreateRunRequest / MaintainerSaveRunRequest` 面向客户端请求，允许 session 省略 `userId`
+  - `MaintainerCreateRunCommand / MaintainerSaveRunCommand` 面向仓储命令，必须已经有明确 `userId` 兼容 owner
 - 新主链一律归到：
   - `account_id`
   - `player_profile_id`

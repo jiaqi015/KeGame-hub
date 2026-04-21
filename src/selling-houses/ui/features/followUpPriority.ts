@@ -81,7 +81,7 @@ export function buildFollowUpPriorityProjection(state: GameState): FollowUpPrior
   const groups = {
     ownerRisk: buildPriorityGroup('ownerRisk', '业主关系风险', items.filter((entry) => entry.type === 'owner-risk')),
     competitionRisk: buildPriorityGroup('competitionRisk', '竞争截胡风险', items.filter((entry) => entry.type === 'competition-risk')),
-    closingOpportunity: buildPriorityGroup('closingOpportunity', '高成交机会', items.filter((entry) => entry.type === 'closing-opportunity')),
+    closingOpportunity: buildPriorityGroup('closingOpportunity', '成交线索', items.filter((entry) => entry.type === 'closing-opportunity')),
   } satisfies Record<FollowUpPriorityGroupId, FollowUpPriorityGroupProjection>;
 
   return {
@@ -292,7 +292,7 @@ function buildClosingOpportunitySummary(caseItem: Case, opportunities: Opportuni
   if (best?.stageIndex >= 3) {
     return {
       type: 'closing-opportunity',
-      label: '高成交机会',
+      label: '成交线索',
       score,
       reason: `${caseItem.title} 已经有客户走到 ${best.stageLabel}，这套房有机会尽快成交。`,
       shortReason: `客户已到${best.stageLabel}`,
@@ -302,7 +302,7 @@ function buildClosingOpportunitySummary(caseItem: Case, opportunities: Opportuni
 
   return {
     type: 'closing-opportunity',
-    label: '高成交机会',
+    label: '成交线索',
     score,
     reason: `${caseItem.title} 已经开始往成交走了，继续推容易出结果。`,
     shortReason: '这套房在起量',

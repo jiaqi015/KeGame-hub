@@ -1,11 +1,18 @@
 # 卖房（资产顾问）游戏边界与结算机制设计
 
-最后更新：2026-04-19
+最后更新：2026-04-21
 
 这份文档回答两个开发前必须讲清楚的问题：
 
 1. 哪些属于“局内剧情 / 局内世界”，哪些属于“游戏层 / 跨局系统”。
 2. 玩家能不能每天看到得分，每日怎么存，最后怎么正式结算。
+
+当前实现层 canonical 命名，以 [selling-houses-implementation-contracts.md](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-implementation-contracts.md) 和 [platform-account-player-run-score-architecture.md](/Users/jiaqi/Documents/开放日测算/docs/platform-account-player-run-score-architecture.md) 为准：
+
+- 平台账号主名是 `Account`
+- workspace 内玩家身份主名是 `PlayerProfile`
+- 跨局统计主名是 `PlayerCareerStats`
+- `userId / UserStats` 只作为历史口径或兼容描述出现
 
 ---
 
@@ -49,21 +56,22 @@
 
 游戏层回答的是：
 
-> 这个用户是谁，他玩过什么，历史表现怎样，和别人比在哪。
+> 这个账号是谁，它在某个 workspace 下对应哪个玩家身份，历史表现怎样，和别人比在哪。
 
 游戏层包括：
 
-- 用户账号
+- 平台账号 `Account`
 - 邮箱身份
 - 昵称
 - 权限
 - 白名单
 - 可玩的 workspace
+- 玩家身份 `PlayerProfile`
 - 开局入口
 - 难度选择
 - 历史局列表
 - 每局最终结果归档
-- 生涯统计
+- 生涯统计 `PlayerCareerStats`
 - 个人最好成绩
 - 成就
 - 排行榜
@@ -212,14 +220,14 @@ CaseEnding 是局终总结解释。
 | 成交记录 | 局内事实 | 记录谁和谁成交、哪个组织成交 |
 | 最终总分 | 结算层 | 局终正式结果 |
 | RunResult | 游戏层沉淀 | 正式历史成绩 |
-| 用户昵称 | 游戏层 | 跨局身份 |
+| 账号昵称 / 玩家展示名 | 游戏层 | 跨局身份与 workspace 内玩家身份 |
 | 白名单权限 | 游戏层 | 账号级能力 |
 | 生涯总分 | 游戏层 | 跨局统计 |
 | 排行榜 | 游戏层 | 只看正式结算结果 |
 
 ---
 
-## 6. 用户每天能不能看到自己的得分
+## 6. 玩家每天能不能看到自己的得分
 
 可以。
 
@@ -386,7 +394,7 @@ World
   -> SettlementEngine
   -> RunResult
   -> RunResultArchive
-  -> UserStats
+  -> PlayerCareerStats
   -> PersonalBest
   -> LeaderboardAggregation
   -> LeaderboardEntry
@@ -423,7 +431,8 @@ World
 ```ts
 type RunResult = {
   runId: string;
-  userId: string;
+  accountId: string;
+  playerProfileId: string;
   workspace: 'selling-houses';
   scenarioId?: string;
   difficultyTierId: string;

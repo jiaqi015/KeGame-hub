@@ -13,6 +13,7 @@ import {
   type Case,
   type CompetitionGroup,
   type CustomerProfile,
+  type ClosedDealRecord,
   type GameState,
   type GameRuleOverrides,
   type ScenarioSnapshot,
@@ -31,6 +32,7 @@ import {
 import {
   buildAuxiliaryStats,
   buildRuntimeAuxiliaryStats,
+  resolveFormalSoldCount,
   syncAuxiliaryMirrors,
   syncAuxiliaryStats,
 } from '../domain/runtimeStats.js';
@@ -337,6 +339,7 @@ export function createInitialState(snapshot: ScenarioSnapshot, seedInput: RunSee
     schedule: [],
     priorities: [],
     matters: [],
+    closedDeals: [],
     metrics: {
       activeCaseCount: generatedCases.filter((entry) => entry.status === 'active').length,
       activeOpportunityCount: 0,
@@ -480,9 +483,49 @@ function normalizeCase(caseItem: any): Case {
 function normalizeOpportunity(opportunity: any) {
   return {
     ...opportunity,
+    lifecycleStatus: ['active', 'stagnated', 'lost', 'closed_by_deal', 'closed_by_case'].includes(opportunity?.lifecycleStatus)
+      ? opportunity.lifecycleStatus
+      : opportunity?.status === 'won'
+        ? 'closed_by_deal'
+        : opportunity?.status === 'closed'
+          ? 'closed_by_case'
+          : opportunity?.status === 'lost'
+            ? 'lost'
+            : 'active',
     createdDay: Number(opportunity?.createdDay)
       || Number(opportunity?.history?.[0]?.day)
       || 1,
+  };
+}
+
+function normalizeClosedDeal(entry: any, index: number): ClosedDealRecord {
+  const dealId = String(entry?.dealId || `legacy-deal-${index + 1}`);
+  const caseId = String(entry?.caseId || '');
+  const customerId = String(entry?.customerId || '');
+  const sourceRelationId = String(entry?.sourceRelationId || entry?.opportunityId || '');
+  const dayIndex = Math.max(1, Number(entry?.dayIndex ?? entry?.day) || 1);
+  const dealPrice = Number(entry?.dealPrice ?? entry?.price) || 0;
+
+  return {
+    dealId,
+    caseId,
+    customerId,
+    sourceRelationId,
+    opportunityId: String(entry?.opportunityId || sourceRelationId),
+    dayIndex,
+    day: dayIndex,
+    closedAt: typeof entry?.closedAt === 'string' && entry.closedAt.trim()
+      ? entry.closedAt
+      : new Date().toISOString(),
+    dealType: ['self_closed', 'internal_cosale_closed', 'external_competitor_closed', 'platform_matched_closed'].includes(entry?.dealType)
+      ? entry.dealType
+      : 'self_closed',
+    dealPrice,
+    price: dealPrice,
+    closeReadiness: Math.max(0, Number(entry?.closeReadiness) || 0),
+    closeProbability: Math.max(0, Number(entry?.closeProbability) || 0),
+    blockingReasons: Array.isArray(entry?.blockingReasons) ? entry.blockingReasons.map(String) : [],
+    supportingReasons: Array.isArray(entry?.supportingReasons) ? entry.supportingReasons.map(String) : [],
   };
 }
 
@@ -503,6 +546,9 @@ function resolveParsedAuxiliaryStats(parsed: any) {
   return buildRuntimeAuxiliaryStats({
     cash: Number(parsed?.cash) || 0,
     auxiliaryStats: parsed?.auxiliaryStats,
+    closedDeals: Array.isArray(parsed?.closedDeals)
+      ? parsed.closedDeals.map(normalizeClosedDeal)
+      : undefined,
     commission: Number(parsed?.commission) || 0,
     wordOfMouth: Number(parsed?.wordOfMouth) || 0,
     reputation: Number(parsed?.reputation) || 0,
@@ -612,6 +658,9 @@ export function normalizeLoadedState(parsed: any): GameState | null {
     withdrawnCount: 0,
     cases: normalizedCases,
     opportunities: Array.isArray(parsed?.opportunities) ? parsed.opportunities.map(normalizeOpportunity) : [],
+    closedDeals: Array.isArray(parsed?.closedDeals)
+      ? parsed.closedDeals.map(normalizeClosedDeal)
+      : [],
     eventStore: Array.isArray(parsed?.eventStore) ? parsed.eventStore.map((entry: any, index: number) => ({
       id: String(entry?.id || `event-legacy-${index + 1}`),
       day: Number(entry?.day) || 1,
@@ -654,12 +703,13 @@ export function saveGameState(world: GameState, accountEmail?: string) {
 
   try {
     const legacyAuxiliaryStats = buildAuxiliaryStats(world);
+    const soldCount = resolveFormalSoldCount(world);
     const snapshot = {
       ...world,
       commission: legacyAuxiliaryStats.commission,
       wordOfMouth: legacyAuxiliaryStats.wordOfMouth,
       reputation: legacyAuxiliaryStats.wordOfMouth,
-      soldCount: legacyAuxiliaryStats.soldCount,
+      soldCount,
       withdrawnCount: legacyAuxiliaryStats.withdrawnCount,
       eventLog: world.eventLog.slice(0, 120),
       eventStore: world.eventStore,

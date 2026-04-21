@@ -6,8 +6,8 @@ export const STORAGE_KEY = "selling-world-save-v3";
 export const CLOUD_USER_STORAGE_KEY = "selling-world-user-v1";
 export const CLOUD_META_STORAGE_KEY = "selling-world-cloud-meta-v1";
 
-export const CASE_STAGES = ["开始找客户", "客户慢慢变多", "安排看房", "客户准备出价", "谈价格", "快成交了", "成交"];
-export const OPPORTUNITY_STAGES = ["了解", "咨询", "看房", "再看", "出价", "谈判", "成交"];
+export const CASE_STAGES = ["开始找客户", "客户慢慢变多", "安排看房", "客户准备出价", "谈价格", "快收口了", "已成交"];
+export const OPPORTUNITY_STAGES = ["线上咨询", "有意向", "预约首次看房", "已看房", "再次看房", "见面沟通", "出价"];
 
 export const COMPETITIVENESS_WEIGHTS = BALANCE.scoring.competitivenessWeights;
 

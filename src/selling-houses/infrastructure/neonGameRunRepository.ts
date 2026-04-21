@@ -15,7 +15,7 @@ import {
   deriveRunStatus,
   normalizePlayerName,
 } from '../application/cloudSync.js';
-import { buildRuntimeAuxiliaryStats } from '../domain/runtimeStats.js';
+import { buildRuntimeAuxiliaryStats, resolveFormalSoldCount } from '../domain/runtimeStats.js';
 import { MaintainerSyncConflictError } from '../application/maintainerSyncConflictError.js';
 import { buildShadowWriteSummary } from '../application/shadowSyncSummary.js';
 import { ACTIONS } from '../domain/actions/definitions.js';
@@ -24,6 +24,8 @@ import { withSellingHousesNeon } from './neonGameDatabase.js';
 interface GameRunRow {
   run_id: string;
   user_id: string;
+  account_id: string | null;
+  player_profile_id: string | null;
   player_name: string;
   status: string;
   season_id: string;
@@ -54,6 +56,8 @@ interface GameRunRow {
 interface LeaderboardRow {
   run_id: string;
   user_id: string;
+  account_id: string | null;
+  player_profile_id: string | null;
   player_name: string;
   season_id: string;
   score: number | string;
@@ -66,6 +70,8 @@ interface LeaderboardRow {
 
 interface LeaderboardDetailRow {
   user_id: string;
+  account_id: string | null;
+  player_profile_id: string | null;
   player_name: string;
   metric_value: number | string;
 }
@@ -113,6 +119,15 @@ function resolveSavedAuxiliaryStats(
     ? auxiliaryStats.reputation
     : undefined;
 
+  const formalSoldCount = resolveFormalSoldCount({
+    closedDeals: Array.isArray(saveRecord?.closedDeals)
+      ? saveRecord.closedDeals as MaintainerRunRecord['saveData']['closedDeals']
+      : undefined,
+    soldCount: auxiliaryStats && 'soldCount' in auxiliaryStats
+      ? toNumber(auxiliaryStats.soldCount)
+      : toNumber(saveRecord?.soldCount ?? row.sold_count),
+  });
+
   return {
     commission: auxiliaryStats && 'commission' in auxiliaryStats
       ? toNumber(auxiliaryStats.commission)
@@ -123,9 +138,7 @@ function resolveSavedAuxiliaryStats(
     wordOfMouth: auxiliaryStats && ('wordOfMouth' in auxiliaryStats || 'reputation' in auxiliaryStats)
       ? toNumber(auxiliaryStats.wordOfMouth ?? legacyReputationValue)
       : toNumber(saveRecord?.wordOfMouth ?? saveRecord?.reputation ?? row.reputation),
-    soldCount: auxiliaryStats && 'soldCount' in auxiliaryStats
-      ? toNumber(auxiliaryStats.soldCount)
-      : toNumber(saveRecord?.soldCount ?? row.sold_count),
+    soldCount: formalSoldCount,
     withdrawnCount: auxiliaryStats && 'withdrawnCount' in auxiliaryStats
       ? toNumber(auxiliaryStats.withdrawnCount)
       : toNumber(saveRecord?.withdrawnCount ?? row.withdrawn_count),
@@ -137,6 +150,8 @@ function mapRunRow(row: GameRunRow): MaintainerRunRecord {
   const resolvedAuxiliaryStats = resolveSavedAuxiliaryStats(saveData, row);
   return {
     runId: row.run_id,
+    accountId: row.account_id || undefined,
+    playerProfileId: row.player_profile_id || undefined,
     userId: row.user_id,
     playerName: row.player_name,
     status: row.status as MaintainerRunRecord['status'],
@@ -164,7 +179,11 @@ function mapRunRow(row: GameRunRow): MaintainerRunRecord {
 }
 
 function resolvePersistedAuxiliaryStats(state: MaintainerRunRecord['saveData']) {
-  return buildRuntimeAuxiliaryStats(state);
+  const auxiliaryStats = buildRuntimeAuxiliaryStats(state);
+  return {
+    ...auxiliaryStats,
+    soldCount: resolveFormalSoldCount(state),
+  };
 }
 
 function normalizeMaintainerFinalStats(value: unknown, fallback: MaintainerFinalStats): MaintainerFinalStats {
@@ -201,6 +220,8 @@ function mapLeaderboardRow(row: LeaderboardRow): MaintainerLeaderboardEntry {
 
   return {
     runId: row.run_id,
+    accountId: row.account_id || undefined,
+    playerProfileId: row.player_profile_id || undefined,
     userId: row.user_id,
     playerName: row.player_name,
     seasonId: row.season_id,
@@ -215,6 +236,8 @@ function mapLeaderboardRow(row: LeaderboardRow): MaintainerLeaderboardEntry {
 
 function mapLeaderboardCategoryRow(row: LeaderboardDetailRow): MaintainerLeaderboardCategoryEntry {
   return {
+    accountId: row.account_id || undefined,
+    playerProfileId: row.player_profile_id || undefined,
     userId: row.user_id,
     playerName: row.player_name,
     value: toNumber(row.metric_value),
@@ -731,6 +754,8 @@ export class NeonGameRunRepository {
           INSERT INTO maintainer_leaderboard_entries (
             run_id,
             user_id,
+            account_id,
+            player_profile_id,
             player_name,
             season_id,
             score,
@@ -740,10 +765,12 @@ export class NeonGameRunRepository {
             finished_at,
             created_at
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, COALESCE($9::timestamptz, NOW()), NOW())
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, COALESCE($11::timestamptz, NOW()), NOW())
           ON CONFLICT (run_id)
           DO UPDATE SET
             user_id = EXCLUDED.user_id,
+            account_id = EXCLUDED.account_id,
+            player_profile_id = EXCLUDED.player_profile_id,
             player_name = EXCLUDED.player_name,
             season_id = EXCLUDED.season_id,
             score = EXCLUDED.score,
@@ -755,6 +782,8 @@ export class NeonGameRunRepository {
         [
           run.runId,
           run.userId,
+          run.accountId || null,
+          run.playerProfileId || null,
           run.playerName,
           run.seasonId,
           run.score ?? deriveRunScore(run.saveData),
@@ -1886,7 +1915,7 @@ export class NeonGameRunRepository {
     const runContext = command.state.runContext;
     const auxiliaryStats = resolvePersistedAuxiliaryStats(command.state);
 
-    await this.touchUser(command.userId, playerName);
+    await this.touchUser(command.runOwnerId, playerName);
 
     const created = await withSellingHousesNeon(async (sql) => {
       const rows = await sql.query(
@@ -1894,6 +1923,8 @@ export class NeonGameRunRepository {
           INSERT INTO maintainer_game_runs (
             run_id,
             user_id,
+            account_id,
+            player_profile_id,
             player_name,
             status,
             season_id,
@@ -1939,19 +1970,23 @@ export class NeonGameRunRepository {
             $16,
             $17,
             $18,
+            $19,
+            $20,
             1,
-            $19::jsonb,
-            $20::jsonb,
             $21::jsonb,
+            $22::jsonb,
+            $23::jsonb,
             NOW(),
-            CASE WHEN $4 = 'finished' THEN NOW() ELSE NULL END,
+            CASE WHEN $6 = 'finished' THEN NOW() ELSE NULL END,
             NOW(),
-            $22::timestamptz,
+            $24::timestamptz,
             NOW()
           )
           RETURNING
             run_id,
             user_id,
+            account_id,
+            player_profile_id,
             player_name,
             status,
             season_id,
@@ -1980,7 +2015,9 @@ export class NeonGameRunRepository {
         `,
         [
           command.runId,
-          command.userId,
+          command.runOwnerId,
+          command.accountId || null,
+          command.playerProfileId || null,
           playerName,
           status,
           seasonId,
@@ -2028,6 +2065,8 @@ export class NeonGameRunRepository {
           SELECT
             run_id,
             user_id,
+            account_id,
+            player_profile_id,
             player_name,
             status,
             season_id,
@@ -2071,6 +2110,8 @@ export class NeonGameRunRepository {
           SELECT
             run_id,
             user_id,
+            account_id,
+            player_profile_id,
             player_name,
             status,
             season_id,
@@ -2116,46 +2157,50 @@ export class NeonGameRunRepository {
     const runContext = command.state.runContext;
     const auxiliaryStats = resolvePersistedAuxiliaryStats(command.state);
 
-    await this.touchUser(command.userId, playerName);
+    await this.touchUser(command.runOwnerId, playerName);
 
     const updatedRows = await withSellingHousesNeon(async (sql) => {
       return (await sql.query(
         `
           UPDATE maintainer_game_runs
           SET
-            player_name = $3,
-            status = $4,
-            season_id = $5,
-            scenario_id = $6,
-            difficulty_id = $7,
-            world_id = $8,
-            world_version = $9,
-            rng_seed = $10,
-            schema_version = $11,
-            day = $12,
-            cash = $13,
-            energy = $14,
-            reputation = $15,
-            sold_count = $16,
-            withdrawn_count = $17,
-            score = $18,
+            account_id = COALESCE($3, account_id),
+            player_profile_id = COALESCE($4, player_profile_id),
+            player_name = $5,
+            status = $6,
+            season_id = $7,
+            scenario_id = $8,
+            difficulty_id = $9,
+            world_id = $10,
+            world_version = $11,
+            rng_seed = $12,
+            schema_version = $13,
+            day = $14,
+            cash = $15,
+            energy = $16,
+            reputation = $17,
+            sold_count = $18,
+            withdrawn_count = $19,
+            score = $20,
             sync_version = sync_version + 1,
-            scenario_snapshot = $19::jsonb,
-            save_data = $20::jsonb,
-            daily_logs = $21::jsonb,
+            scenario_snapshot = $21::jsonb,
+            save_data = $22::jsonb,
+            daily_logs = $23::jsonb,
             finished_at = CASE
-              WHEN $4 = 'finished' THEN COALESCE(finished_at, NOW())
+              WHEN $6 = 'finished' THEN COALESCE(finished_at, NOW())
               ELSE NULL
             END,
             last_played_at = NOW(),
-            client_updated_at = $22::timestamptz,
+            client_updated_at = $24::timestamptz,
             updated_at = NOW()
           WHERE run_id = $1
             AND user_id = $2
-            AND sync_version = $23
+            AND sync_version = $25
           RETURNING
             run_id,
             user_id,
+            account_id,
+            player_profile_id,
             player_name,
             status,
             season_id,
@@ -2184,7 +2229,9 @@ export class NeonGameRunRepository {
         `,
         [
           command.runId,
-          command.userId,
+          command.runOwnerId,
+          command.accountId || null,
+          command.playerProfileId || null,
           playerName,
           status,
           seasonId,
@@ -2212,7 +2259,7 @@ export class NeonGameRunRepository {
 
     const updated = updatedRows[0];
     if (!updated) {
-      const latest = await this.getRun(command.runId, command.userId);
+      const latest = await this.getRun(command.runId, command.runOwnerId);
       throw new MaintainerSyncConflictError(latest);
     }
 
@@ -2238,6 +2285,8 @@ export class NeonGameRunRepository {
           SELECT
             run_id,
             user_id,
+            account_id,
+            player_profile_id,
             player_name,
             season_id,
             score,
@@ -2266,12 +2315,15 @@ export class NeonGameRunRepository {
         sql.query(
           `
             SELECT
-              user_id,
+              COALESCE(account_id, player_profile_id, user_id) AS owner_key,
+              MAX(user_id) AS user_id,
+              MAX(account_id) AS account_id,
+              MAX(player_profile_id) AS player_profile_id,
               MAX(player_name) AS player_name,
               SUM(score) AS metric_value
             FROM maintainer_leaderboard_entries
             WHERE season_id = $1
-            GROUP BY user_id
+            GROUP BY COALESCE(account_id, player_profile_id, user_id)
             ORDER BY metric_value DESC, MAX(player_name) ASC
             LIMIT $2
           `,
@@ -2280,12 +2332,15 @@ export class NeonGameRunRepository {
         sql.query(
           `
             SELECT
-              user_id,
+              COALESCE(account_id, player_profile_id, user_id) AS owner_key,
+              MAX(user_id) AS user_id,
+              MAX(account_id) AS account_id,
+              MAX(player_profile_id) AS player_profile_id,
               MAX(player_name) AS player_name,
               MAX(score) AS metric_value
             FROM maintainer_leaderboard_entries
             WHERE season_id = $1
-            GROUP BY user_id
+            GROUP BY COALESCE(account_id, player_profile_id, user_id)
             ORDER BY metric_value DESC, MAX(player_name) ASC
             LIMIT $2
           `,
@@ -2294,12 +2349,15 @@ export class NeonGameRunRepository {
         sql.query(
           `
             SELECT
-              user_id,
+              COALESCE(account_id, player_profile_id, user_id) AS owner_key,
+              MAX(user_id) AS user_id,
+              MAX(account_id) AS account_id,
+              MAX(player_profile_id) AS player_profile_id,
               MAX(player_name) AS player_name,
               COUNT(*) AS metric_value
             FROM maintainer_leaderboard_entries
             WHERE season_id = $1
-            GROUP BY user_id
+            GROUP BY COALESCE(account_id, player_profile_id, user_id)
             ORDER BY metric_value DESC, MAX(player_name) ASC
             LIMIT $2
           `,

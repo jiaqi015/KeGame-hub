@@ -16,7 +16,7 @@ async function createFixtureRun(repository: FileMaintainerRunRepository) {
   const state = createInitialState(snapshot, 20260418);
   return repository.createRun({
     runId: 'verify-file-shadow-run',
-    userId: 'verify-file-shadow-user',
+    runOwnerId: 'verify-file-shadow-user',
     playerName: '文件影子校验',
     seasonId: 'season-1',
     state,

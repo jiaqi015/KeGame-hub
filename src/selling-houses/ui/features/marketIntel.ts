@@ -20,6 +20,8 @@ export type ImpactedCaseIntel = {
   title: string;
   count: number;
   reason: string;
+  tone: IntelTone;
+  layer: IntelLayerTab;
 };
 
 export interface IntelLayerSummaryProjection {
@@ -264,16 +266,32 @@ function collectImpactedCases(state: GameState, intel: IntelItem[]): ImpactedCas
   return state.cases
     .filter((item) => item.status === 'active')
     .map((item) => {
-      const related = intel.filter((entry) => entry.affectedCaseIds.includes(item.id));
+      const related = intel
+        .filter((entry) => entry.affectedCaseIds.includes(item.id))
+        .sort((left, right) => weightTone(right.tone) - weightTone(left.tone));
+      const directImpact = related
+        .filter((entry) => entry.tone === 'risk' || entry.layer === 'listing')
+        .sort((left, right) => {
+          const toneDiff = weightTone(right.tone) - weightTone(left.tone);
+          if (toneDiff !== 0) return toneDiff;
+          return right.layer === 'listing' ? 1 : -1;
+        });
+      const lead = directImpact[0];
       return {
         caseId: item.id,
         title: item.title,
-        count: related.length,
-        reason: related[0]?.summary || related[0]?.title || '今天暂时没被外部变化打到',
+        count: directImpact.length,
+        reason: lead?.summary || lead?.title || '今天暂时没被外部变化打到',
+        tone: lead?.tone || 'neutral',
+        layer: lead?.layer || 'listing',
       };
     })
     .filter((item) => item.count > 0)
-    .sort((left, right) => right.count - left.count);
+    .sort((left, right) => {
+      const toneDiff = weightTone(right.tone) - weightTone(left.tone);
+      if (toneDiff !== 0) return toneDiff;
+      return right.count - left.count;
+    });
 }
 
 function buildLayerSummaries(items: IntelItem[]): IntelLayerSummaryProjection[] {

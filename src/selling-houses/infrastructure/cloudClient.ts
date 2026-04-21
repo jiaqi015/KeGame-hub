@@ -3,6 +3,8 @@ import type {
   MaintainerLeaderboardDetail,
   MaintainerLeaderboardEntry,
   MaintainerRunRecord,
+  MaintainerCreateRunRequest,
+  MaintainerSaveRunRequest,
   MaintainerSaveRunCommand,
 } from '../application/cloudSync.js';
 import type { ScenarioDefinition, ScenarioSummary, WorldSpec } from '../domain/models.js';
@@ -32,7 +34,7 @@ async function requestJson<T>(activationKey: string, input: string, init?: Reque
   return payload as T;
 }
 
-export function createMaintainerRun(activationKey: string, command: MaintainerCreateRunCommand) {
+export function createMaintainerRun(activationKey: string, command: MaintainerCreateRunRequest) {
   return requestJson<MaintainerRunRecord>(activationKey, '/api/maintainer-runs', {
     method: 'POST',
     headers: {
@@ -67,7 +69,7 @@ export function fetchMaintainerRuns(activationKey: string, userId?: string, limi
   );
 }
 
-export function saveMaintainerRun(activationKey: string, command: MaintainerSaveRunCommand) {
+export function saveMaintainerRun(activationKey: string, command: MaintainerSaveRunRequest) {
   return requestJson<MaintainerRunRecord>(activationKey, '/api/maintainer-runs', {
     method: 'PUT',
     headers: {

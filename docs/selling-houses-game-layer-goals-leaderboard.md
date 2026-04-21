@@ -1,6 +1,6 @@
 # 卖房（资产顾问）游戏层目标、沉淀与排行榜架构
 
-最后更新：2026-04-19
+最后更新：2026-04-21
 
 这份文档回答的是：
 
@@ -17,6 +17,8 @@
 1. 玩家为什么持续玩
 2. 跨局到底沉淀什么
 3. 排行榜应该拿什么比
+
+当前实现层 canonical 命名，以 [selling-houses-implementation-contracts.md](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-implementation-contracts.md) 和 [platform-account-player-run-score-architecture.md](/Users/jiaqi/Documents/开放日测算/docs/platform-account-player-run-score-architecture.md) 为准。
 
 ---
 
@@ -71,8 +73,8 @@
 
 这层目标由：
 
-- `UserStats`
-- `UserProgression`
+- `PlayerCareerStats`
+- `PlayerProgression`
 - `PersonalBest`
 
 来回答。
@@ -105,10 +107,10 @@
 
 建议放：
 
-- `User`
-- `UserIdentity`
-- `UserProfile`
-- `UserPermission`
+- `Account`
+- `AccountIdentity`
+- `AccountWorkspaceGrant`
+- `PlayerProfile`
 
 例如：
 
@@ -134,7 +136,8 @@
 ```ts
 type RunResultArchive = {
   runId: string;
-  userId: string;
+  accountId: string;
+  playerProfileId: string;
   finishedAt: string;
   workspace: 'selling-houses';
   scenarioId?: string;
@@ -162,7 +165,7 @@ type RunResultArchive = {
 
 建议放：
 
-- `UserStats`
+- `PlayerCareerStats`
 
 建议长期统计这些：
 
@@ -188,8 +191,8 @@ type RunResultArchive = {
 
 建议放：
 
-- `UserProgression`
-- `AchievementRecord`
+- `PlayerProgression`
+- `PlayerAchievement`
 
 例如：
 
@@ -317,7 +320,7 @@ type RunResultArchive = {
 
 ```ts
 type CareerScoreSummary = {
-  userId: string;
+  playerProfileId: string;
   qualifiedRunCount: number;
   effectiveTotalScore: number;
   countedRunIds: string[];
@@ -404,7 +407,8 @@ type LeaderboardType =
 type LeaderboardEntry = {
   id: string;
   leaderboardType: LeaderboardType;
-  userId: string;
+  accountId: string;
+  playerProfileId: string;
   displayName: string;
   scoreValue: number;
   secondaryValue?: number;
@@ -437,7 +441,7 @@ World
   -> SettlementEngine
   -> RunResult
   -> RunResultArchive
-  -> UserStats / Progression
+  -> PlayerCareerStats / PlayerProgression
   -> LeaderboardAggregation
   -> LeaderboardEntry
 ```

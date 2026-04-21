@@ -1,6 +1,6 @@
 # 模块地图
 
-最后整理：2026-04-19
+最后整理：2026-04-21
 
 这份文件只回答一个问题：要改某块功能，第一站该去哪里看。
 
@@ -228,7 +228,7 @@
 - `docs/selling-houses-interface-detail-design.md`
   - 界面信息架构详细设计，定义工作台布局、层级钻取、详情页、新闻、事件与流水日志。
 - `docs/selling-houses-projection-architecture.md`
-  - Projection 投影体系，定义经营概览、房源详情、市场雷达、复盘、结果、排行榜如何从世界事实派生。
+  - Projection 投影体系，定义经营概览、房源详情、市场、复盘、结果、排行榜如何从世界事实派生。
 - `docs/selling-houses-interaction-campaign-event-architecture.md`
   - 交互、活动、事件、地点与典型链路设计。
 - `docs/selling-houses-owner-conversation-architecture.md`
@@ -236,7 +236,7 @@
 - `docs/selling-houses-broker-action-architecture.md`
   - 经纪人动作总架构，统一沟通、营销推广、撮合互动、组织协同四类动作。
 - `docs/selling-houses-matter-template-architecture.md`
-  - Matter 模板体系，定义 report、diagnose、execute、negotiate 四类事项的阶段、完成条件和影响对象。
+  - Matter 体系，定义 scene / template / presentation，以及 report、diagnose、execute、negotiate 生命周期分类的阶段、完成条件和影响对象。
 - `docs/selling-houses-game-layer-goals-leaderboard.md`
   - 游戏层目标、跨局沉淀、个人纪录与三类排行榜的汇总架构。
 - `docs/selling-houses-game-positioning.md`

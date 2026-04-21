@@ -1,6 +1,6 @@
 # 接手清单
 
-最后整理：2026-04-19
+最后整理：2026-04-21
 
 这份清单只讲“重新接手时先做什么”，不重复解释长期规则和项目背景。
 
@@ -54,21 +54,24 @@
 
 1. `docs/selling-houses-master.md`
 2. `docs/selling-houses-total-design.md`
-3. `docs/selling-houses-business-facts.md`
-4. `docs/selling-houses-business-language-guide.md`
-5. `docs/platform-account-player-run-score-architecture.md`
-6. `docs/selling-houses-domain-architecture-v1.md`
-7. `docs/selling-houses-customer-opportunity-architecture.md`
-8. `docs/selling-houses-deal-fact-and-closing-model.md`
-9. `docs/selling-houses-competition-and-cosale-architecture.md`
-10. `docs/selling-houses-matter-template-architecture.md`
-11. `docs/selling-houses-projection-architecture.md`
-12. `docs/selling-houses-interface-detail-design.md`
-13. `docs/selling-houses-organization-acn-model.md`
-14. `docs/selling-houses-daily-tick-design.md`
-15. `docs/selling-houses-architecture-diagrams.md`
-16. `src/selling-houses/domain/`
-17. `src/selling-houses/ui/features/`
+3. `docs/selling-houses-implementation-contracts.md`
+4. `docs/selling-houses-information-architecture.md`
+5. `docs/selling-houses-design-system.md`
+6. `docs/platform-account-player-run-score-architecture.md`
+7. `docs/selling-houses-business-facts.md`
+8. `docs/selling-houses-business-language-guide.md`
+9. `docs/selling-houses-domain-architecture-v1.md`
+10. `docs/selling-houses-customer-opportunity-architecture.md`
+11. `docs/selling-houses-deal-fact-and-closing-model.md`
+12. `docs/selling-houses-competition-and-cosale-architecture.md`
+13. `docs/selling-houses-matter-template-architecture.md`
+14. `docs/selling-houses-projection-architecture.md`
+15. `docs/selling-houses-interface-detail-design.md`
+16. `docs/selling-houses-organization-acn-model.md`
+17. `docs/selling-houses-daily-tick-design.md`
+18. `docs/selling-houses-architecture-diagrams.md`
+19. `src/selling-houses/domain/`
+20. `src/selling-houses/ui/features/`
 
 ### 如果要继续做统一入口
 

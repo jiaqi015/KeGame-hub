@@ -1,10 +1,10 @@
 # 卖房（资产顾问）Projection 投影架构
 
-最后更新：2026-04-19
+最后更新：2026-04-21
 
 这份文档回答的是：
 
-> 底层世界算完以后，给玩家看的经营概览、房源详情、市场雷达、复盘、结果、排行榜，到底怎么从世界事实投影出来。
+> 底层世界算完以后，给玩家看的经营概览、房源详情、市场、复盘、结果、排行榜，到底怎么从世界事实投影出来。
 
 这份文档不回答：
 
@@ -58,7 +58,7 @@ Projection 是：
 1. `DashboardProjection`
 2. `CaseDetailProjection`
 3. `CustomerDetailProjection`
-4. `MarketRadarProjection`
+4. `MarketProjection`
 5. `ActionReadinessProjection`
 6. `ReviewProjection`
 7. `ResultProjection`
@@ -80,7 +80,7 @@ Projection 是：
 - `OwnerCaseRelation[]`
 - `CustomerCaseRelation[]`
 - `BrokerRuntimeState`
-- `MarketRadarProjection`
+- `MarketProjection`
 
 ### 主要输出什么
 
@@ -191,7 +191,7 @@ type CustomerDetailProjection = {
 
 ---
 
-## 6. MarketRadarProjection
+## 6. MarketProjection
 
 回答：
 
@@ -210,7 +210,7 @@ type CustomerDetailProjection = {
 ### 主要输出什么
 
 ```ts
-type MarketRadarProjection = {
+type MarketProjection = {
   yesterdayNews: MarketNewsProjection[];
   radarAxes: {
     demandHeat: number;
@@ -226,7 +226,7 @@ type MarketRadarProjection = {
 
 ### 注意
 
-市场雷达必须从全局到局部：
+市场页必须从全局到局部：
 
 - 城市
 - 区域
@@ -356,8 +356,9 @@ type ResultProjection = {
 ### 主要读什么
 
 - `LeaderboardEntry`
-- `UserProfile`
-- `UserStats`
+- `Account`
+- `PlayerProfile`
+- `PlayerCareerStats`
 
 ### 主要输出什么
 
@@ -390,7 +391,7 @@ Projection 不能：
 
 1. 改 `World`
 2. 改 `RunResult`
-3. 改 `UserStats`
+3. 改 `PlayerCareerStats`
 4. 改 `LeaderboardEntry`
 5. 生成新的世界事件
 

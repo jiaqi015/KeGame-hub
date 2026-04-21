@@ -6,7 +6,7 @@ import type {
 
 type AuxiliaryStatsInput = Partial<Pick<
   GameState,
-  'cash' | 'auxiliaryStats' | 'commission' | 'reputation' | 'soldCount' | 'withdrawnCount'
+  'cash' | 'auxiliaryStats' | 'closedDeals' | 'commission' | 'reputation' | 'soldCount' | 'withdrawnCount'
 >> & {
   wordOfMouth?: number;
 };
@@ -37,9 +37,17 @@ export function buildRuntimeAuxiliaryStats(
     promotionBudget: toNumber(auxiliaryStats?.promotionBudget ?? input.cash),
     commission: toNumber(auxiliaryStats?.commission ?? input.commission),
     wordOfMouth: toNumber(auxiliaryStats?.wordOfMouth ?? legacyAuxiliaryStats?.reputation ?? input.wordOfMouth ?? input.reputation),
-    soldCount: toNumber(auxiliaryStats?.soldCount ?? input.soldCount),
+    soldCount: resolveFormalSoldCount(input),
     withdrawnCount: toNumber(auxiliaryStats?.withdrawnCount ?? input.withdrawnCount),
   };
+}
+
+export function resolveFormalSoldCount(input: AuxiliaryStatsInput) {
+  if (Array.isArray(input.closedDeals) && input.closedDeals.length > 0) {
+    return input.closedDeals.length;
+  }
+
+  return toNumber(input.auxiliaryStats?.soldCount ?? input.soldCount);
 }
 
 export function syncAuxiliaryStats(state: GameState) {

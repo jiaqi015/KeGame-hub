@@ -1,6 +1,6 @@
 import React from 'react';
 import type { GameState } from '../../domain/models';
-import { getPromotionBudget } from '../../domain/runtimeStats';
+import { getPromotionBudget, resolveFormalSoldCount } from '../../domain/runtimeStats';
 
 interface ProfilePanelProps {
   state: GameState;
@@ -12,7 +12,7 @@ export function ProfilePanel({ state, currentUserNickname }: ProfilePanelProps) 
   const playerLabel = !normalizedNickname || normalizedNickname.toLowerCase() === 'preview'
     ? '当前顾问'
     : normalizedNickname;
-  const soldCount = state.auxiliaryStats.soldCount;
+  const soldCount = resolveFormalSoldCount(state);
   const promotionBudget = getPromotionBudget(state);
   const averageTrust = Math.round(state.metrics.averageTrust);
   const activeOwners = state.cases.filter((entry) => entry.status === 'active').length;

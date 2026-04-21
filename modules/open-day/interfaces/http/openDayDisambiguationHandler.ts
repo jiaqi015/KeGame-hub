@@ -6,7 +6,7 @@ import { authorizeRequest } from '../../../../lib/activation.js';
 const disambiguationService = new OpenDayDisambiguationService();
 
 export async function openDayDisambiguationHandler(req: Request, res: Response) {
-  const authorization = authorizeRequest(req);
+  const authorization = authorizeRequest(req, 'open-day');
   if (!authorization.ok) {
     res.status(authorization.status).json({ error: authorization.error });
     return;

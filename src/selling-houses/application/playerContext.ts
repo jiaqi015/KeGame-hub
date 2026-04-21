@@ -5,6 +5,13 @@ export interface SellingHousesPlayerContextInput {
 }
 
 export interface SellingHousesPlayerContext {
+  accountId?: string;
+  workspaceId: 'selling-houses';
+  playerProfileId: string;
+  storageScopeKey: string;
+  legacyEmailScopeKey?: string;
+  runOwnerSource: 'account' | 'legacy-fallback';
+  // Legacy aliases kept for compatibility with existing scripts.
   accountScopeKey: string;
   emailScopeKey?: string;
   displayName: string;
@@ -18,16 +25,41 @@ function normalizeEmail(value?: string) {
   return normalize(value).toLowerCase();
 }
 
+function toPlayerProfileSeed(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    || 'guest';
+}
+
+export function deriveSellingHousesPlayerProfileId(accountId?: string, email?: string) {
+  const ownerSeed = toPlayerProfileSeed(accountId || normalizeEmail(email) || 'guest');
+  return `profile_selling_houses_${ownerSeed}`;
+}
+
 export function buildSellingHousesPlayerContext(
   input: SellingHousesPlayerContextInput,
 ): SellingHousesPlayerContext {
   const accountId = normalize(input.accountId);
   const email = normalizeEmail(input.email);
   const nickname = normalize(input.nickname);
+  const workspaceId = 'selling-houses';
+  const storageScopeKey = accountId || email || 'guest';
+  const legacyEmailScopeKey = email || undefined;
+  const runOwnerSource = accountId ? 'account' : 'legacy-fallback';
+  const playerProfileId = deriveSellingHousesPlayerProfileId(accountId, email);
 
   return {
-    accountScopeKey: accountId || email || 'guest',
-    emailScopeKey: email || undefined,
+    accountId: accountId || undefined,
+    workspaceId,
+    playerProfileId,
+    storageScopeKey,
+    legacyEmailScopeKey,
+    runOwnerSource,
+    accountScopeKey: storageScopeKey,
+    emailScopeKey: legacyEmailScopeKey,
     displayName: nickname || email || '当前顾问',
   };
 }

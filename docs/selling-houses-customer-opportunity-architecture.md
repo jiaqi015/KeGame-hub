@@ -1,6 +1,6 @@
 # 卖房（资产顾问）客户与机会架构
 
-最后更新：2026-04-19
+最后更新：2026-04-21
 
 这份文档回答的是：
 
@@ -17,6 +17,14 @@
 1. 客户和机会怎么拆
 2. 机会阶段怎么定义
 3. 推进、停滞、流失怎么判断
+
+当前实现合同以 [selling-houses-implementation-contracts.md](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-implementation-contracts.md) 为准：
+
+- `CustomerCaseRelation.stage` / `OpportunityStage` 只表达推进主线，只到 `offer`
+- `closed` 不是机会阶段，不能回写成 `stage = 'closed'`
+- 关系是否关闭、为什么关闭，统一看 `lifecycleStatus`
+- 正式成交事实统一落在 `DealClosingEvaluation` 和 `ClosedDealRecord`
+- legacy `status = 'won' | 'closed'` 只作为兼容层输入，分别映射为 `closed_by_deal` / `closed_by_case`
 
 ---
 
@@ -185,6 +193,7 @@ type CustomerCaseRelation = {
   customerId: string;
   caseId: string;
   stage: OpportunityStage;
+  lifecycleStatus: 'active' | 'stagnated' | 'lost' | 'closed_by_deal' | 'closed_by_case';
   viewingMode?: 'self-arranged' | 'open-day';
   fitScore: number;
   affordabilityScore: number;
@@ -206,6 +215,7 @@ type CustomerCaseRelation = {
 - “看房”是阶段
 - “自己来 / 开放日”是方式
 - canonical 主线只到 `offer`，不包含 `closed`
+- 成交后这条关系不再继续推进，但关闭原因应该挂在 `lifecycleStatus`
 
 ---
 
@@ -279,7 +289,7 @@ type CustomerCaseRelation = {
 
 也就是说：
 
-> 机会阶段负责讲推进，成交记录负责讲落账。
+> 机会阶段负责讲推进，生命周期状态负责讲关闭原因，成交记录负责讲落账。
 
 ## 6.9 停滞 / 流失
 

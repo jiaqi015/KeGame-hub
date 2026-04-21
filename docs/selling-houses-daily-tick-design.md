@@ -1,5 +1,7 @@
 # 卖房（资产顾问）日结与每日计算设计
 
+最后更新：2026-04-21
+
 这份文档回答的是：
 
 > 一天结束后，系统到底会统一算什么，按什么顺序算，算完会发生什么。
@@ -9,6 +11,12 @@
 > “每天计算后，会发生什么？”
 
 这份文档就是把这件事一次讲透。
+
+当前实现合同以 [selling-houses-implementation-contracts.md](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-implementation-contracts.md) 为准：
+
+- 机会主线只到 `offer`
+- 日结里的正式成交要通过 `DealClosingEvaluation -> ClosedDealRecord`
+- `RunResult` 只在正式结算后生成，不混入进行中的日摘要
 
 ---
 

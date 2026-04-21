@@ -1,4 +1,5 @@
 import type { CaseFinalResult, FinalResult, GameState } from '../domain/models.js';
+import { resolveFormalSoldCount } from '../domain/runtimeStats.js';
 
 export type MaintainerRunStatus = 'active' | 'finished' | 'abandoned';
 
@@ -24,6 +25,8 @@ export interface MaintainerFinalStats {
 
 export interface MaintainerRunRecord {
   runId: string;
+  accountId?: string;
+  playerProfileId?: string;
   userId: string;
   playerName: string;
   status: MaintainerRunStatus;
@@ -51,7 +54,9 @@ export interface MaintainerRunRecord {
 }
 
 export interface MaintainerCreateRunCommand {
-  userId: string;
+  runOwnerId: string;
+  accountId?: string;
+  playerProfileId?: string;
   playerName?: string;
   seasonId?: string;
   state: GameState;
@@ -60,7 +65,9 @@ export interface MaintainerCreateRunCommand {
 
 export interface MaintainerSaveRunCommand {
   runId: string;
-  userId: string;
+  runOwnerId: string;
+  accountId?: string;
+  playerProfileId?: string;
   playerName?: string;
   seasonId?: string;
   state: GameState;
@@ -68,8 +75,20 @@ export interface MaintainerSaveRunCommand {
   clientUpdatedAt?: string | null;
 }
 
+export type MaintainerCreateRunRequest = Omit<MaintainerCreateRunCommand, 'runOwnerId'> & {
+  /** Compatibility owner used by activation-key legacy flows. Authenticated session requests may omit it. */
+  userId?: string;
+};
+
+export type MaintainerSaveRunRequest = Omit<MaintainerSaveRunCommand, 'runOwnerId'> & {
+  /** Compatibility owner used by activation-key legacy flows. Authenticated session requests may omit it. */
+  userId?: string;
+};
+
 export interface MaintainerLeaderboardEntry {
   runId: string;
+  accountId?: string;
+  playerProfileId?: string;
   userId: string;
   playerName: string;
   seasonId: string;
@@ -84,6 +103,8 @@ export interface MaintainerLeaderboardEntry {
 export type MaintainerLeaderboardCategory = 'total-score' | 'best-score' | 'play-count';
 
 export interface MaintainerLeaderboardCategoryEntry {
+  accountId?: string;
+  playerProfileId?: string;
   userId: string;
   playerName: string;
   value: number;
@@ -94,6 +115,22 @@ export interface MaintainerLeaderboardDetail {
   totalScore: MaintainerLeaderboardCategoryEntry[];
   bestScore: MaintainerLeaderboardCategoryEntry[];
   playCount: MaintainerLeaderboardCategoryEntry[];
+}
+
+export function resolveLeaderboardOwnerKey(entry: {
+  accountId?: string;
+  playerProfileId?: string;
+  userId: string;
+}) {
+  if (entry.accountId?.trim()) {
+    return `account:${entry.accountId.trim()}`;
+  }
+
+  if (entry.playerProfileId?.trim()) {
+    return `profile:${entry.playerProfileId.trim()}`;
+  }
+
+  return `legacy:${entry.userId.trim()}`;
 }
 
 export function normalizePlayerName(value: string | undefined) {
@@ -143,6 +180,7 @@ export function buildScoreBreakdown(state: GameState) {
 
 export function buildFinalStats(state: GameState) {
   const auxiliaryStats = state.auxiliaryStats;
+  const soldCount = resolveFormalSoldCount(state);
   return {
     title: state.finalResult?.title || deriveRankTitle(state),
     summary:
@@ -158,7 +196,7 @@ export function buildFinalStats(state: GameState) {
       commission: auxiliaryStats.commission,
       promotionBudget: auxiliaryStats.promotionBudget,
       wordOfMouth: auxiliaryStats.wordOfMouth,
-      soldCount: auxiliaryStats.soldCount,
+      soldCount,
       withdrawnCount: auxiliaryStats.withdrawnCount,
     },
   } satisfies MaintainerFinalStats;

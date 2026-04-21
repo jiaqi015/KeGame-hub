@@ -58,6 +58,13 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
     }),
     [input?.accountId, input?.email, input?.nickname],
   );
+  const runOwnerContext = useMemo(
+    () => ({
+      storageScopeKey: playerContext.storageScopeKey,
+      accountId: playerContext.accountId,
+    }),
+    [playerContext.storageScopeKey, playerContext.accountId],
+  );
   const difficultyOptions: DifficultyOption[] = useMemo(() => getDifficultyOptions(), []);
   const [state, setState] = useState<GameState | null>(null);
   const [catalog, setCatalog] = useState<ScenarioSummary[]>([]);
@@ -67,7 +74,7 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
   const [booting, setBooting] = useState(true);
   const [starting, setStarting] = useState(false);
   const [lastDifficulty, setLastDifficulty] = useState<DifficultyId>('standard');
-  const cloudMetaRef = useRef(loadMaintainerCloudMeta(playerContext.accountScopeKey));
+  const cloudMetaRef = useRef(loadMaintainerCloudMeta(playerContext.storageScopeKey));
   const userIdRef = useRef('');
   const hydratedRef = useRef(false);
   const skipCloudSaveRef = useRef(false);
@@ -78,15 +85,15 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
 
     const bootstrap = async () => {
       if (
-        playerContext.emailScopeKey
-        && playerContext.emailScopeKey !== playerContext.accountScopeKey
+        playerContext.legacyEmailScopeKey
+        && playerContext.legacyEmailScopeKey !== playerContext.storageScopeKey
       ) {
-        migrateSavedStateScope(playerContext.accountScopeKey, playerContext.emailScopeKey);
-        migrateMaintainerCloudMetaScope(playerContext.accountScopeKey, playerContext.emailScopeKey);
-        migrateMaintainerUserIdScope(playerContext.accountScopeKey, playerContext.emailScopeKey);
+        migrateSavedStateScope(playerContext.storageScopeKey, playerContext.legacyEmailScopeKey);
+        migrateMaintainerCloudMetaScope(playerContext.storageScopeKey, playerContext.legacyEmailScopeKey);
+        migrateMaintainerUserIdScope(playerContext.storageScopeKey, playerContext.legacyEmailScopeKey);
       }
 
-      const userId = getOrCreateMaintainerUserId(playerContext.accountScopeKey);
+      const userId = getOrCreateMaintainerUserId(runOwnerContext);
       userIdRef.current = userId;
       const localCatalog = await loadScenarioOpeningCatalog(activationKey, difficultyOptions);
       if (!disposed) {
@@ -94,17 +101,21 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
         setFeaturedScenarios(localCatalog.featuredScenarios);
       }
 
-      const localState = loadSavedState(playerContext.accountScopeKey);
+      const localState = loadSavedState(playerContext.storageScopeKey);
       let nextState = localState;
-      const localMeta = loadMaintainerCloudMeta(playerContext.accountScopeKey);
+      const localMeta = loadMaintainerCloudMeta(playerContext.storageScopeKey);
       cloudMetaRef.current = localMeta;
 
       if (activationKey) {
         try {
           const preferredCloudRun = await loadPreferredMaintainerCloudRun({
-            userId,
+            userId: playerContext.accountId ? undefined : userId,
             localMeta,
-            fetchRun: async (runId) => fetchMaintainerRun(activationKey, runId, userId),
+            fetchRun: async (runId) => fetchMaintainerRun(
+              activationKey,
+              runId,
+              playerContext.accountId ? undefined : userId,
+            ),
             listRuns: async (resumeUserId) => {
               const payload = await fetchMaintainerRuns(activationKey, resumeUserId, 8);
               return payload.runs;
@@ -117,11 +128,11 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
 
             if (normalized && (!localState || cloudRun.syncVersion >= (localMeta?.syncVersion || 0))) {
               nextState = normalized;
-              saveGameState(normalized, playerContext.accountScopeKey);
+              saveGameState(normalized, playerContext.storageScopeKey);
             }
 
             cloudMetaRef.current = nextMeta;
-            saveMaintainerCloudMeta(nextMeta, playerContext.accountScopeKey);
+            saveMaintainerCloudMeta(nextMeta, playerContext.storageScopeKey);
           }
         } catch (error) {
           console.warn('Failed to hydrate maintainer cloud save:', error);
@@ -147,15 +158,21 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
     return () => {
       disposed = true;
     };
-  }, [activationKey, difficultyOptions, playerContext.accountScopeKey]);
+  }, [
+    activationKey,
+    difficultyOptions,
+    playerContext.storageScopeKey,
+    playerContext.legacyEmailScopeKey,
+    runOwnerContext,
+  ]);
 
   useEffect(() => {
     if (!state) {
       return;
     }
 
-    saveGameState(state, playerContext.accountScopeKey);
-  }, [state, playerContext.accountScopeKey]);
+    saveGameState(state, playerContext.storageScopeKey);
+  }, [state, playerContext.storageScopeKey]);
 
   useEffect(() => {
     if (!state || !activationKey || !hydratedRef.current) {
@@ -172,13 +189,16 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
     }
 
     saveTimerRef.current = window.setTimeout(async () => {
-      const userId = userIdRef.current || getOrCreateMaintainerUserId(playerContext.accountScopeKey);
+      const userId = userIdRef.current || getOrCreateMaintainerUserId(runOwnerContext);
       const currentMeta = cloudMetaRef.current;
 
       try {
+        const compatibilityUserId = playerContext.accountId ? undefined : userId;
         if (!currentMeta?.runId) {
           const created = await createMaintainerRun(activationKey, {
-            userId,
+            userId: compatibilityUserId,
+            accountId: playerContext.accountId,
+            playerProfileId: playerContext.playerProfileId,
             playerName: playerContext.displayName,
             state,
             clientUpdatedAt: new Date().toISOString(),
@@ -189,13 +209,15 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
             syncVersion: created.syncVersion,
             updatedAt: created.updatedAt,
           };
-          saveMaintainerCloudMeta(cloudMetaRef.current, playerContext.accountScopeKey);
+          saveMaintainerCloudMeta(cloudMetaRef.current, playerContext.storageScopeKey);
           return;
         }
 
         const saved = await saveMaintainerRun(activationKey, {
           runId: currentMeta.runId,
-          userId,
+          userId: compatibilityUserId,
+          accountId: playerContext.accountId,
+          playerProfileId: playerContext.playerProfileId,
           playerName: playerContext.displayName,
           state,
           expectedSyncVersion: currentMeta.syncVersion,
@@ -207,7 +229,7 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
           syncVersion: saved.syncVersion,
           updatedAt: saved.updatedAt,
         };
-        saveMaintainerCloudMeta(cloudMetaRef.current, playerContext.accountScopeKey);
+        saveMaintainerCloudMeta(cloudMetaRef.current, playerContext.storageScopeKey);
       } catch (error) {
         const latest = error instanceof Error && 'latest' in error
           ? (error as Error & { latest?: { saveData?: unknown; runId?: string; syncVersion?: number; updatedAt?: string } }).latest
@@ -218,7 +240,7 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
           if (normalized) {
             skipCloudSaveRef.current = true;
             setState(normalized);
-            saveGameState(normalized, playerContext.accountScopeKey);
+            saveGameState(normalized, playerContext.storageScopeKey);
           }
         }
 
@@ -228,7 +250,7 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
             syncVersion: Number(latest.syncVersion),
             updatedAt: latest.updatedAt || new Date().toISOString(),
           };
-          saveMaintainerCloudMeta(cloudMetaRef.current, playerContext.accountScopeKey);
+          saveMaintainerCloudMeta(cloudMetaRef.current, playerContext.storageScopeKey);
         }
 
         console.warn('Failed to sync maintainer cloud save:', error);
@@ -240,7 +262,15 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
         window.clearTimeout(saveTimerRef.current);
       }
     };
-  }, [state, activationKey, playerContext.accountScopeKey, playerContext.displayName]);
+  }, [
+    state,
+    activationKey,
+    playerContext.accountId,
+    playerContext.playerProfileId,
+    playerContext.storageScopeKey,
+    playerContext.displayName,
+    runOwnerContext,
+  ]);
 
   const loadLeaderboardDetail = useCallback(async () => {
     if (!activationKey) {
@@ -259,12 +289,12 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
 
   const startScenarioState = useCallback((world: GameState, difficultyId: DifficultyId) => {
     setLastDifficulty(difficultyId);
-    clearMaintainerCloudMeta(playerContext.accountScopeKey);
-    clearSavedGameState(playerContext.accountScopeKey);
+    clearMaintainerCloudMeta(playerContext.storageScopeKey);
+    clearSavedGameState(playerContext.storageScopeKey);
     cloudMetaRef.current = null;
     setState(world);
-    saveGameState(world, playerContext.accountScopeKey);
-  }, [playerContext.accountScopeKey]);
+    saveGameState(world, playerContext.storageScopeKey);
+  }, [playerContext.storageScopeKey]);
 
   const startScenarioRun = useCallback(async (openingRef: ScenarioOpeningRef, fallbackDifficultyId: DifficultyId) => {
     setStarting(true);
@@ -315,11 +345,11 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
   }, []);
 
   const handleReset = useCallback(() => {
-    clearMaintainerCloudMeta(playerContext.accountScopeKey);
-    clearSavedGameState(playerContext.accountScopeKey);
+    clearMaintainerCloudMeta(playerContext.storageScopeKey);
+    clearSavedGameState(playerContext.storageScopeKey);
     cloudMetaRef.current = null;
     setState(null);
-  }, [playerContext.accountScopeKey]);
+  }, [playerContext.storageScopeKey]);
 
   const handleClearReport = useCallback(() => {
     setState((prev) => (prev ? { ...prev, currentReport: null } : null));

@@ -154,9 +154,9 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
   };
 
   return (
-    <div className="grid min-h-full grid-cols-1 gap-4 lg:grid-cols-[300px_1fr]">
+    <div className="grid min-h-full grid-cols-1 gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
       <aside className="seller-panel sticky top-0 flex max-h-full flex-col overflow-hidden">
-        <div className="z-10 space-y-3 border-b border-black/[0.04] bg-white/95 px-3 pb-3 pt-3 backdrop-blur">
+        <div className="z-10 space-y-3 border-b border-[var(--seller-border)] bg-[rgba(15,23,32,0.94)] px-3 pb-3 pt-3 backdrop-blur">
           <div>
             <div className="seller-label">阶段</div>
             <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1">
@@ -165,7 +165,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                   key={filter.id}
                   onClick={() => setStageFilter(filter.id)}
                   className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-semibold ${
-                    stageFilter === filter.id ? 'bg-[var(--seller-ink)] text-white' : 'bg-[rgba(255,255,255,0.7)] text-[var(--seller-muted)]'
+                    stageFilter === filter.id ? 'bg-[var(--seller-ink)] text-[var(--seller-bg)]' : 'bg-[rgba(255,255,255,0.05)] text-[var(--seller-muted)]'
                   }`}
                 >
                   {filter.label}
@@ -181,7 +181,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                   key={filter.id}
                   onClick={() => setQuickFilter((current) => current === filter.id ? null : filter.id)}
                   className={`rounded-full px-3 py-1.5 text-[11px] font-semibold ${
-                    quickFilter === filter.id ? 'seller-chip-chance' : 'bg-[rgba(255,255,255,0.7)] text-[var(--seller-muted)]'
+                    quickFilter === filter.id ? 'seller-chip-chance' : 'bg-[rgba(255,255,255,0.05)] text-[var(--seller-muted)]'
                   }`}
                 >
                   {filter.label}
@@ -197,27 +197,27 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
             onClick={() => onSelectCase(c.id)}
             className={`relative cursor-pointer overflow-hidden rounded-[12px] border px-2.5 py-2.5 transition-all ${
               c.id === selectedCase?.id
-                ? 'border-[color:var(--seller-ink)] bg-[var(--seller-paper)] shadow-inner'
-                : 'border-transparent bg-white/60 hover:bg-white'
+                ? 'border-[color:var(--seller-border-strong)] bg-[rgba(255,255,255,0.04)] shadow-inner'
+                : 'border-transparent bg-[rgba(255,255,255,0.02)] hover:border-[var(--seller-border)] hover:bg-[rgba(255,255,255,0.04)]'
             }`}
           >
               {c.isFocused && (
-                <div className="absolute right-0 top-0 rounded-bl-xl bg-amber-500 p-1 text-white shadow-lg animate-pulse">
+                <div className="absolute right-0 top-0 rounded-bl-xl bg-[var(--seller-accent)] p-1 text-[var(--seller-bg)] shadow-lg">
                   <Star size={10} fill="currentColor" />
                 </div>
               )}
             <div className="mb-1.5 flex items-start justify-between gap-2">
               <span className={`rounded-full px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.12em] ${
-                c.isFocused ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
+                c.isFocused ? 'bg-[var(--seller-accent-soft)] text-[var(--seller-accent)]' : 'bg-[rgba(255,255,255,0.06)] text-[var(--seller-subtle)]'
               }`}>
                 {c.isFocused ? '本周聚焦' : c.stageLabel}
               </span>
-              <small className="pt-0.5 text-[9px] font-medium text-slate-400">{c.district}</small>
+              <small className="pt-0.5 text-[9px] font-medium text-[var(--seller-subtle)]">{c.district}</small>
             </div>
-            <strong className="block line-clamp-1 text-[13px] font-semibold leading-5 text-slate-800">{c.title}</strong>
-            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-slate-500">
+            <strong className="block line-clamp-1 text-[13px] font-semibold leading-5 text-[var(--seller-ink)]">{c.title}</strong>
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-[var(--seller-muted)]">
               <span>{c.community}</span>
-              <span className="text-slate-300">/</span>
+              <span className="text-[var(--seller-border-strong)]">/</span>
               <span>{c.layout} · {c.area}㎡</span>
             </div>
             <div className="mt-2 flex flex-wrap gap-1">
@@ -233,8 +233,8 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
               <CompactMetric label="信" val={c.trust} />
               <CompactMetric label="热" val={c.heat} />
               <span className={`ml-auto rounded-full px-2 py-0.5 text-[8px] font-bold ${
-                c.personality === 'pragmatic' ? 'bg-emerald-100 text-emerald-600' :
-                c.personality === 'emotional' ? 'bg-indigo-100 text-indigo-600' : 'bg-rose-100 text-rose-600'
+                c.personality === 'pragmatic' ? 'bg-[var(--seller-accent-soft)] text-[var(--seller-accent)]' :
+                c.personality === 'emotional' ? 'bg-[rgba(102,209,224,0.12)] text-[var(--seller-chance)]' : 'bg-[var(--seller-risk-soft)] text-[var(--seller-risk)]'
               }`}>
                 {PERSONALITIES[c.personality as keyof typeof PERSONALITIES]?.label}
                 </span>
@@ -242,12 +242,12 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
             </div>
           ))}
           {visibleCases.length === 0 && (
-            <div className="rounded-[16px] border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-400">
+            <div className="seller-empty px-4 py-6 text-sm">
               当前筛选下没有房源，换个阶段或取消快速筛选看看。
             </div>
           )}
           {selectionHiddenByFilter && selectedCase && (
-            <div className="rounded-[16px] border border-amber-200 bg-amber-50/60 px-4 py-4 text-[12px] text-amber-800">
+            <div className="rounded-[16px] border border-[color:var(--seller-chance)]/22 bg-[var(--seller-chance-soft)] px-4 py-4 text-[12px] text-[var(--seller-chance)]">
               当前正在看 <strong>{selectedCase.title}</strong>，但它不在这组筛选里。
             </div>
           )}
@@ -259,40 +259,40 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
           <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.28fr)_320px]">
             <div className="flex min-h-0 flex-col gap-3">
               <section className="seller-workbench overflow-hidden">
-                <div className="grid gap-3 border-b border-[var(--seller-border)] px-3.5 py-3 xl:grid-cols-[minmax(0,1fr)_248px]">
+                <div className="grid gap-3 border-b border-[var(--seller-border)] px-3.5 py-3 xl:grid-cols-[minmax(0,1fr)_228px]">
                   <div className="min-w-0">
-                    <div className="seller-label">房源详情</div>
+                    <div className="seller-label">当前对象</div>
                     <div className="mt-2 flex flex-wrap items-center gap-1.5">
                       <h2 className="seller-title text-[17px] leading-5">{selectedCase.title}</h2>
-                      <span className="seller-chip bg-[var(--seller-ink)] text-white">{selectedCase.stageLabel}</span>
+                      <span className="seller-chip bg-[var(--seller-ink)] text-[var(--seller-bg)]">{selectedCase.stageLabel}</span>
                       {selectedCase.isFocused && (
                         <span className="seller-chip seller-chip-accent flex items-center gap-1">
                           <Star size={11} fill="currentColor" />
                           本周聚焦
                         </span>
                       )}
-                      {caseProjection?.mainProblemLabel && (
-                        <span className="seller-chip">{caseProjection.mainProblemLabel}</span>
-                      )}
                     </div>
                     <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[var(--seller-muted)]">
                       <span>{selectedCase.community}</span>
-                      <span className="text-slate-300">/</span>
+                      <span className="text-[var(--seller-border-strong)]">/</span>
                       <span>{selectedCase.district}</span>
-                      <span className="text-slate-300">/</span>
+                      <span className="text-[var(--seller-border-strong)]">/</span>
                       <span>{selectedCase.layout} · {selectedCase.area}㎡</span>
                       {selectedCase.personality && (
                         <>
-                          <span className="text-slate-300">/</span>
+                          <span className="text-[var(--seller-border-strong)]">/</span>
                           <span>{PERSONALITIES[selectedCase.personality as keyof typeof PERSONALITIES]?.label}业主</span>
                         </>
                       )}
                     </div>
-                    <div className="mt-3 text-[14px] font-semibold leading-5 text-[var(--seller-ink)]">
-                      {caseProjection?.headline || deriveManagerTake(selectedCase, activeOpportunities)}
+                    <div className="mt-3">
+                      <div className="seller-label">主矛盾</div>
+                      <div className="mt-1 text-[15px] font-semibold leading-5 text-[var(--seller-ink)]">
+                        {caseProjection?.mainProblemLabel || deriveManagerTake(selectedCase, activeOpportunities)}
+                      </div>
                     </div>
-                    <p className="seller-body mt-1 max-w-[72ch] text-[11px] leading-5">
-                      {caseProjection?.nextStepLine || caseProjection?.actionReasons[0]?.detail || '先把今天最该做的一步落下去，再看有没有新的客户变化。'}
+                    <p className="seller-body mt-2 max-w-[72ch] text-[11px] leading-5">
+                      {caseProjection?.headline || deriveManagerTake(selectedCase, activeOpportunities)}
                     </p>
                     {caseProjection?.currentRiskTags && caseProjection.currentRiskTags.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1.5">
@@ -305,49 +305,79 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-3 gap-1.5 xl:grid-cols-1">
+                  <div className="grid grid-cols-1 gap-1.5">
                     <PriceLine label="挂牌价" value={`${selectedCase.askPrice} 万`} strong />
                     <PriceLine label="市场成交位" value={`${selectedCase.marketPrice} 万`} />
                     <PriceLine label="业主底线" value={`${selectedCase.bottomPrice} 万`} />
                   </div>
                 </div>
 
-                <div className="grid gap-3 px-3.5 py-3 lg:grid-cols-3">
-                  <DiagnosisCard
-                    label="客户承接"
-                    value={caseProjection?.customerPoolSummary.title || deriveHeatLabel(selectedCase.heat)}
-                    detail={caseProjection?.customerPoolSummary.detail || '先看客户有没有接上，再看能不能推进到复看和报价。'}
-                    tone={deriveHeatTone(selectedCase.heat)}
-                    metrics={[
-                      { label: '已接上', value: `${caseProjection?.customerPoolSummary.metCount ?? customerStatesForSelectedCase.length} 位` },
-                      { label: '比较中', value: `${caseProjection?.customerPoolSummary.comparingCount ?? comparingCustomers.length} 位` },
-                    ]}
-                  />
-                  <DiagnosisCard
-                    label="价格站位"
-                    value={caseProjection?.priceSummary.title || derivePricePosition(selectedCase)}
-                    detail={caseProjection?.priceSummary.detail || '价格会直接影响客户看完以后愿不愿意继续往后走。'}
-                    tone={selectedCase.askPrice <= selectedCase.marketPrice ? 'emerald' : 'rose'}
-                    metrics={[
-                      { label: '价差', value: `${selectedCase.askPrice - selectedCase.marketPrice >= 0 ? '+' : ''}${selectedCase.askPrice - selectedCase.marketPrice} 万` },
-                      { label: '窗口', value: describeWindowDays(selectedCase.windowDays) },
-                    ]}
-                  />
-                  <DiagnosisCard
-                    label="竞争与窗口"
-                    value={caseProjection?.competitionSummary.title || deriveWindowLabel(selectedCase, activeOpportunities)}
-                    detail={caseProjection?.competitionSummary.detail || '先确认这套房是不是已经被竞品拿去比较。'}
-                    tone={caseProjection && caseProjection.competitionSummary.pressure >= 68 ? 'rose' : 'amber'}
-                    metrics={[
-                      { label: '竞品', value: `${caseProjection?.competitionSummary.rivalCount ?? 0} 套` },
-                      { label: '压力', value: `${caseProjection?.competitionSummary.pressure ?? 0}` },
-                    ]}
-                  />
+                <div className="grid gap-3 px-3.5 py-3 lg:grid-cols-[minmax(0,0.96fr)_minmax(0,1.04fr)]">
+                  <section className="seller-panel-soft px-3 py-3">
+                    <div className="seller-label">今天先看哪边</div>
+                    <div className="mt-2 grid gap-2">
+                      <DiagnosisCard
+                        label="客户承接"
+                        value={caseProjection?.customerPoolSummary.title || deriveHeatLabel(selectedCase.heat)}
+                        detail={caseProjection?.customerPoolSummary.detail || '先看客户有没有接上，再看能不能推进到复看和报价。'}
+                        tone={deriveHeatTone(selectedCase.heat)}
+                        metrics={[
+                          { label: '已接上', value: `${caseProjection?.customerPoolSummary.metCount ?? customerStatesForSelectedCase.length} 位` },
+                          { label: '比较中', value: `${caseProjection?.customerPoolSummary.comparingCount ?? comparingCustomers.length} 位` },
+                        ]}
+                      />
+                      <DiagnosisCard
+                        label="价格站位"
+                        value={caseProjection?.priceSummary.title || derivePricePosition(selectedCase)}
+                        detail={caseProjection?.priceSummary.detail || '价格会直接影响客户看完以后愿不愿意继续往后走。'}
+                        tone={selectedCase.askPrice <= selectedCase.marketPrice ? 'emerald' : 'rose'}
+                        metrics={[
+                          { label: '价差', value: `${selectedCase.askPrice - selectedCase.marketPrice >= 0 ? '+' : ''}${selectedCase.askPrice - selectedCase.marketPrice} 万` },
+                          { label: '窗口', value: describeWindowDays(selectedCase.windowDays) },
+                        ]}
+                      />
+                      <DiagnosisCard
+                        label="竞争与窗口"
+                        value={caseProjection?.competitionSummary.title || deriveWindowLabel(selectedCase, activeOpportunities)}
+                        detail={caseProjection?.competitionSummary.detail || '先确认这套房是不是已经被竞品拿去比较。'}
+                        tone={caseProjection && caseProjection.competitionSummary.pressure >= 68 ? 'rose' : 'amber'}
+                        metrics={[
+                          { label: '竞品', value: `${caseProjection?.competitionSummary.rivalCount ?? 0} 套` },
+                          { label: '压力', value: `${caseProjection?.competitionSummary.pressure ?? 0}` },
+                        ]}
+                      />
+                    </div>
+                  </section>
+
+                  <section className="seller-panel-soft px-3 py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="seller-label">现在该怎么动</div>
+                        <div className="mt-1 text-[14px] font-semibold leading-5 text-[var(--seller-ink)]">
+                          {caseProjection?.nextStepLine || '先把今天最容易掉线的一步补上。'}
+                        </div>
+                      </div>
+                      <span className="seller-chip seller-chip-accent">
+                        {availableActionCount}/{ACTIONS.length} 可做
+                      </span>
+                    </div>
+
+                    <div className="mt-3 space-y-2">
+                      {actionCards.filter(({ availability }) => availability.enabled).slice(0, 3).map((card, index) => (
+                        <div key={card.action.id}>
+                          <CompactActionButton card={card} onExecute={handleAction} index={index} />
+                        </div>
+                      ))}
+                      {actionCards.filter(({ availability }) => availability.enabled).length === 0 && (
+                        <div className="seller-empty px-3 py-4 text-[12px]">这套房眼下还没有能直接执行的动作。</div>
+                      )}
+                    </div>
+                  </section>
                 </div>
               </section>
 
-              <section className="grid gap-3 lg:grid-cols-[minmax(0,1.02fr)_minmax(0,1.1fr)]">
-                <DeskSection title="业主与房子" count="当前状态">
+              <section className="grid gap-3 lg:grid-cols-[minmax(0,0.98fr)_minmax(0,1.02fr)]">
+                <DeskSection title="对象状态" count="业主与房子">
                   <div className="grid gap-2 lg:grid-cols-2">
                     <SummaryPanel
                       title={caseProjection?.ownerSummary.title || '业主还在等明确反馈'}
@@ -369,9 +399,9 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                     />
                   </div>
                   <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                    <ProgressRail label="客户储备" value={selectedCase.d1} color="bg-sky-500" />
-                    <ProgressRail label="房子条件" value={selectedCase.d2} color="bg-slate-900" />
-                    <ProgressRail label="业主配合" value={selectedCase.d3} color="bg-rose-500" />
+                    <ProgressRail label="客户储备" value={selectedCase.d1} tone="chance" />
+                    <ProgressRail label="房子条件" value={selectedCase.d2} tone="neutral" />
+                    <ProgressRail label="业主配合" value={selectedCase.d3} tone="risk" />
                   </div>
                   <div className="mt-2 grid gap-2 sm:grid-cols-2">
                     <InfoStrip label="沟通方式" value={deriveCommunicationMode(selectedCase)} />
@@ -391,7 +421,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                     />
                   </div>
 
-                  <div className="mt-2.5 divide-y divide-slate-200/70">
+                  <div className="mt-2.5 divide-y divide-[color:var(--seller-border)]">
                     {engagedOpportunities.slice(0, 4).map((model) => (
                       <div key={model.opportunity.id}>
                         <OpportunityLine model={model} />
@@ -402,7 +432,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                     )}
                   </div>
 
-                  <div className="mt-2.5 border-t border-slate-200/70 pt-2.5">
+                  <div className="mt-2.5 border-t border-[var(--seller-border)] pt-2.5">
                     <div className="mb-1.5 flex items-center justify-between">
                       <div className="seller-label">潜在人群</div>
                       <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">{predictedOpportunities.length} 组</span>
@@ -435,7 +465,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                   </div>
                 </DeskSection>
 
-                <DeskSection title="判断依据" count={`${caseProjection?.factChain.length || 0} 条`}>
+                <DeskSection title="为什么这么判断" count={`${caseProjection?.factChain.length || 0} 条`}>
                   <div className="space-y-1.5">
                     {caseProjection?.factChain.slice(0, 4).map((fact) => (
                       <div key={fact.id}>
@@ -452,7 +482,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
 
             <aside className="flex min-h-0 flex-col gap-3">
               <section className="seller-panel-muted px-3.5 py-3">
-                <div className="seller-label">当前主矛盾</div>
+                <div className="seller-label">为什么是这件事</div>
                 <div className="mt-2 text-[15px] font-semibold leading-5 text-[var(--seller-ink)]">
                   {followUpPriority?.label || caseProjection?.mainProblemLabel || '继续推进'}
                 </div>
@@ -469,7 +499,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                 </div>
               </section>
 
-              <DeskSection title="今天能做的事" count={`${availableActionCount}/${ACTIONS.length} 可做`}>
+              <DeskSection title="暂时做不了" count={`${activeActionCategory?.blockedCards.length || 0} 项`}>
                 <div className="flex gap-1.5 overflow-x-auto pb-1">
                   {actionCardsByCategory.map(({ category, availableCards }) => (
                     <button
@@ -477,8 +507,8 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                       onClick={() => setActiveActionTab(category.id as ActionCategoryTab)}
                       className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-bold tracking-[0.08em] transition-colors ${
                         activeActionCategory?.category.id === category.id
-                          ? 'bg-slate-900 text-white'
-                          : 'bg-white text-slate-500 hover:bg-slate-100'
+                          ? 'bg-[var(--seller-ink)] text-[var(--seller-bg)]'
+                          : 'bg-[rgba(255,255,255,0.05)] text-[var(--seller-muted)] hover:bg-[rgba(255,255,255,0.08)]'
                       }`}
                     >
                       {category.name} · {availableCards.length}
@@ -492,30 +522,17 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                       {activeActionCategory.category.summary}
                     </p>
                     <div className="mt-2 space-y-2">
-                      {activeActionCategory.availableCards.slice(0, 4).map((card) => (
+                      {activeActionCategory.blockedCards.slice(0, 3).map((card) => (
                         <div key={card.action.id}>
-                          <CompactActionButton card={card} onExecute={handleAction} />
+                          <BlockedActionLine card={card} />
                         </div>
                       ))}
-                      {activeActionCategory.availableCards.length === 0 && (
-                        <div className="seller-empty px-3 py-4 text-[12px]">这一类动作现在还做不了，先看下面卡住的原因。</div>
+                      {activeActionCategory.blockedCards.length === 0 && (
+                        <div className="seller-empty px-3 py-4 text-[12px]">这一类动作目前没有明显阻塞。</div>
                       )}
                     </div>
                   </>
                 )}
-              </DeskSection>
-
-              <DeskSection title="暂时做不了" count={`${activeActionCategory?.blockedCards.length || 0} 项`}>
-                <div className="space-y-1.5">
-                  {activeActionCategory?.blockedCards.slice(0, 3).map((card) => (
-                    <div key={card.action.id}>
-                      <BlockedActionLine card={card} />
-                    </div>
-                  ))}
-                  {!activeActionCategory || activeActionCategory.blockedCards.length === 0 ? (
-                    <div className="seller-empty px-3 py-3 text-[11px]">这一类动作目前没有明显阻塞。</div>
-                  ) : null}
-                </div>
               </DeskSection>
 
               <DeskSection title="今天的推进顺序" count={`${caseAgenda.length || 0} 步`}>
@@ -530,27 +547,28 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                   )}
                 </div>
               </DeskSection>
+
             </aside>
           </div>
         ) : (
-          <div className="flex flex-1 items-center justify-center text-slate-400 italic">选择一个房源开始经营</div>
+          <div className="flex flex-1 items-center justify-center text-[var(--seller-subtle)] italic">选择一个房源开始经营</div>
         )}
       </main>
 
       {decisionConfig && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6 backdrop-blur-sm">
-          <div className="max-w-lg w-full animate-in zoom-in rounded-[32px] bg-white p-8 shadow-2xl fade-in duration-200">
-            <h3 className="mb-2 text-[18px] font-bold text-slate-900">{decisionConfig.title}</h3>
-            <div className="mb-4 flex flex-wrap gap-2 text-[10px] font-bold uppercase tracking-[0.18em]">
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-500">{decisionConfig.actorLabel}</span>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(5,8,12,0.72)] p-6 backdrop-blur-sm">
+          <div className="max-w-lg w-full animate-in zoom-in rounded-[24px] border border-[var(--seller-border)] bg-[var(--seller-paper)] p-6 shadow-[var(--seller-shadow-lg)] fade-in duration-200">
+            <h3 className="mb-2 text-[16px] font-bold text-[var(--seller-ink)]">{decisionConfig.title}</h3>
+            <div className="mb-4 flex flex-wrap gap-2 text-[10px] font-bold uppercase tracking-[0.14em]">
+              <span className="rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] px-3 py-1 text-[var(--seller-muted)]">{decisionConfig.actorLabel}</span>
               {decisionConfig.metricFocus.map(metric => (
-                <span key={metric} className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">
+                <span key={metric} className="rounded-full border border-[color:var(--seller-accent)]/22 bg-[var(--seller-accent-soft)] px-3 py-1 text-[var(--seller-accent)]">
                   {metric}
                 </span>
               ))}
             </div>
-            <p className="mb-2 text-[13px] font-semibold leading-relaxed text-slate-800">{decisionConfig.summary}</p>
-            <p className="mb-6 text-[12px] leading-relaxed text-slate-500">{decisionConfig.body}</p>
+            <p className="mb-2 text-[13px] font-semibold leading-relaxed text-[var(--seller-ink)]">{decisionConfig.summary}</p>
+            <p className="mb-5 text-[12px] leading-relaxed text-[var(--seller-muted)]">{decisionConfig.body}</p>
             <div className="space-y-3">
               {decisionConfig.options.map((opt) => (
                 <button
@@ -559,17 +577,17 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                     onExecuteAction(decisionConfig.actionId, selectedCase, opt.id);
                     setDecisionConfig(null);
                   }}
-                  className="group w-full rounded-2xl border border-black/[0.03] bg-slate-50 p-4 text-left transition-all hover:border-emerald-500 hover:bg-emerald-50"
+                  className="group w-full rounded-[14px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] p-3.5 text-left transition-all hover:border-[color:var(--seller-accent)]/45 hover:bg-[var(--seller-accent-soft)]"
                 >
-                  <strong className="block text-slate-800 group-hover:text-emerald-700">{opt.title}</strong>
-                  <p className="mt-1 text-[11px] text-slate-400">{opt.note}</p>
+                  <strong className="block text-[13px] text-[var(--seller-ink)] group-hover:text-[var(--seller-accent)]">{opt.title}</strong>
+                  <p className="mt-1 text-[11px] text-[var(--seller-muted)]">{opt.note}</p>
                 </button>
               ))}
             </div>
-            <div className="mt-8 flex justify-end">
+            <div className="mt-6 flex justify-end">
               <button
                 onClick={() => setDecisionConfig(null)}
-                className="rounded-full px-6 py-2 text-[12px] font-bold uppercase tracking-widest text-slate-400 transition-colors hover:text-slate-600"
+                className="rounded-full px-5 py-2 text-[12px] font-bold uppercase tracking-[0.12em] text-[var(--seller-muted)] transition-colors hover:text-[var(--seller-ink)]"
               >
                 取消
               </button>
@@ -584,12 +602,12 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
 function CompactMetric({ label, val }: { label: string; val: number }) {
   return (
     <div className="min-w-0 flex-1">
-      <div className="mb-1 flex justify-between text-[9px] font-bold uppercase tracking-[0.12em] text-slate-400">
+      <div className="mb-1 flex justify-between text-[9px] font-bold uppercase tracking-[0.12em] text-[var(--seller-subtle)]">
         <span>{label}</span>
         <span>{Math.round(val)}</span>
       </div>
-      <div className="h-1 w-full overflow-hidden rounded-full bg-black/5">
-        <div className="h-full bg-emerald-500" style={{ width: `${val}%` }} />
+      <div className="h-1 w-full overflow-hidden rounded-full bg-[rgba(255,255,255,0.07)]">
+        <div className="h-full bg-[var(--seller-accent)]" style={{ width: `${val}%` }} />
       </div>
     </div>
   );
@@ -610,12 +628,12 @@ function DiagnosisCard({
 }) {
   const toneClass =
     tone === 'emerald'
-      ? 'border-emerald-200 bg-emerald-50/72'
+      ? 'border-[color:var(--seller-accent)]/28 bg-[var(--seller-accent-soft)]'
       : tone === 'amber'
-        ? 'border-amber-200 bg-amber-50/72'
+        ? 'border-[color:var(--seller-chance)]/24 bg-[var(--seller-chance-soft)]'
         : tone === 'rose'
-          ? 'border-rose-200 bg-rose-50/72'
-          : 'border-slate-200 bg-white/85';
+          ? 'border-[color:var(--seller-risk)]/28 bg-[var(--seller-risk-soft)]'
+          : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)]';
 
   return (
     <div className={`rounded-[14px] border px-3 py-3 ${toneClass}`}>
@@ -635,16 +653,16 @@ function DiagnosisCard({
 
 function PoolMetric({ label, value, tone }: { label: string; value: number; tone: 'slate' | 'emerald' | 'amber' | 'rose' }) {
   const toneClass = tone === 'emerald'
-    ? 'bg-emerald-50 text-emerald-700'
+    ? 'border-[color:var(--seller-accent)]/24 bg-[var(--seller-accent-soft)] text-[var(--seller-accent)]'
     : tone === 'amber'
-      ? 'bg-amber-50 text-amber-700'
+      ? 'border-[color:var(--seller-chance)]/22 bg-[var(--seller-chance-soft)] text-[var(--seller-chance)]'
       : tone === 'rose'
-        ? 'bg-rose-50 text-rose-700'
-        : 'bg-slate-50 text-slate-700';
+        ? 'border-[color:var(--seller-risk)]/24 bg-[var(--seller-risk-soft)] text-[var(--seller-risk)]'
+        : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] text-[var(--seller-ink)]';
   return (
-    <div className={`rounded-xl px-4 py-3 ${toneClass}`}>
+    <div className={`rounded-xl border px-3 py-2.5 ${toneClass}`}>
       <div className="text-[9px] font-bold uppercase tracking-[0.14em] opacity-70">{label}</div>
-      <div className="mt-1.5 text-[20px] font-semibold">{value}</div>
+      <div className="mt-1 text-[17px] font-semibold">{value}</div>
     </div>
   );
 }
@@ -673,15 +691,17 @@ function SummaryPanel({
   );
 }
 
-function ProgressRail({ label, value, color }: { label: string; value: number; color: string }) {
+function ProgressRail({ label, value, tone }: { label: string; value: number; tone: 'neutral' | 'chance' | 'risk' }) {
+  const colorClass = tone === 'chance' ? 'bg-[var(--seller-chance)]' : tone === 'risk' ? 'bg-[var(--seller-risk)]' : 'bg-[var(--seller-accent)]';
+
   return (
-    <div className="rounded-[12px] border border-slate-200 bg-white px-3 py-2.5">
+    <div className="rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-2.5">
       <div className="mb-1 flex items-center justify-between">
         <div className="seller-label text-[9px]">{label}</div>
-        <div className="text-[10px] font-semibold text-slate-500">{Math.round(value)}</div>
+        <div className="text-[10px] font-semibold text-[var(--seller-muted)]">{Math.round(value)}</div>
       </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-black/5">
-        <div className={`h-full ${color}`} style={{ width: `${value}%` }} />
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-[rgba(255,255,255,0.07)]">
+        <div className={`h-full ${colorClass}`} style={{ width: `${value}%` }} />
       </div>
     </div>
   );
@@ -689,7 +709,7 @@ function ProgressRail({ label, value, color }: { label: string; value: number; c
 
 function InfoStrip({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[12px] border border-slate-200 bg-white px-3 py-2.5">
+    <div className="rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-2.5">
       <div className="seller-label text-[9px]">{label}</div>
       <div className="mt-1 text-[11px] font-semibold leading-5 text-[var(--seller-ink)]">{value}</div>
     </div>
@@ -709,7 +729,7 @@ function DeskSection({
     <section className="seller-panel min-h-0 px-3.5 py-3">
       <div className="mb-2.5 flex items-center justify-between gap-2">
         <div className="seller-label">{title}</div>
-        {count && <span className="text-[10px] font-semibold text-slate-400">{count}</span>}
+        {count && <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">{count}</span>}
       </div>
       {children}
     </section>
@@ -718,9 +738,9 @@ function DeskSection({
 
 function PriceLine({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
   return (
-    <div className={`rounded-[12px] border px-3 py-2.5 ${strong ? 'border-slate-200 bg-white' : 'border-[color:var(--seller-border)] bg-white/78'}`}>
+    <div className={`rounded-[12px] border px-3 py-2.5 ${strong ? 'border-[color:var(--seller-accent)]/28 bg-[var(--seller-accent-soft)]' : 'border-[color:var(--seller-border)] bg-[rgba(255,255,255,0.03)]'}`}>
       <div className="seller-label text-[9px]">{label}</div>
-      <div className={`mt-1 ${strong ? 'text-[18px]' : 'text-[13px]'} font-semibold text-slate-900`}>{value}</div>
+      <div className={`mt-1 ${strong ? 'text-[18px] text-[var(--seller-accent)]' : 'text-[13px] text-[var(--seller-ink)]'} font-semibold`}>{value}</div>
     </div>
   );
 }
@@ -736,12 +756,12 @@ function MiniStat({
 }) {
   const toneClass =
     tone === 'emerald'
-      ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+      ? 'bg-[var(--seller-accent-soft)] text-[var(--seller-accent)] border-[color:var(--seller-accent)]/24'
       : tone === 'amber'
-        ? 'bg-amber-50 text-amber-700 border-amber-100'
+        ? 'bg-[var(--seller-chance-soft)] text-[var(--seller-chance)] border-[color:var(--seller-chance)]/22'
         : tone === 'rose'
-          ? 'bg-rose-50 text-rose-700 border-rose-100'
-          : 'bg-slate-50 text-slate-700 border-slate-200';
+          ? 'bg-[var(--seller-risk-soft)] text-[var(--seller-risk)] border-[color:var(--seller-risk)]/24'
+          : 'bg-[rgba(255,255,255,0.03)] text-[var(--seller-muted)] border-[var(--seller-border)]';
 
   return (
     <div className={`rounded-[12px] border px-3 py-2 ${toneClass}`}>
@@ -759,16 +779,16 @@ function MatterLine({
   compact?: boolean;
 }) {
   const toneClass = matter.tone === 'rose'
-    ? 'bg-rose-50 text-rose-700'
+    ? 'bg-[var(--seller-risk-soft)] text-[var(--seller-risk)]'
     : matter.tone === 'amber'
-      ? 'bg-amber-50 text-amber-700'
-      : 'bg-emerald-50 text-emerald-700';
+      ? 'bg-[var(--seller-chance-soft)] text-[var(--seller-chance)]'
+      : 'bg-[var(--seller-accent-soft)] text-[var(--seller-accent)]';
 
   return (
-    <div className={compact ? 'rounded-[12px] border border-slate-200 bg-white px-3 py-2.5' : 'py-2.5'}>
+    <div className={compact ? 'rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-2.5' : 'py-2.5'}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[12px] font-semibold text-slate-900">{matter.title}</div>
+          <div className="text-[12px] font-semibold text-[var(--seller-ink)]">{matter.title}</div>
           <p className="seller-body mt-0.5 line-clamp-2 text-[11px] leading-5">{matter.detail}</p>
         </div>
         <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${toneClass}`}>{matter.badge}</span>
@@ -789,10 +809,10 @@ function FactLine({
       : 'seller-chip';
 
   return (
-    <div className="rounded-[12px] border border-slate-200 bg-white px-3 py-2.5">
+    <div className="rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-2.5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[12px] font-semibold text-slate-900">{fact.title}</div>
+          <div className="text-[12px] font-semibold text-[var(--seller-ink)]">{fact.title}</div>
           <p className="seller-body mt-0.5 text-[11px] leading-5">{fact.fact}</p>
           <p className="mt-1 text-[11px] font-semibold leading-5 text-[var(--seller-ink)]">下一步：{fact.nextStep}</p>
         </div>
@@ -810,17 +830,17 @@ function RecentChangeLine({
   change: { label: string; title: string; detail: string; tone: 'risk' | 'chance' | 'neutral' };
 }) {
   const toneClass = change.tone === 'risk'
-    ? 'bg-rose-50 text-rose-700'
+    ? 'bg-[var(--seller-risk-soft)] text-[var(--seller-risk)]'
     : change.tone === 'chance'
-      ? 'bg-emerald-50 text-emerald-700'
-      : 'bg-slate-100 text-slate-600';
+      ? 'bg-[var(--seller-accent-soft)] text-[var(--seller-accent)]'
+      : 'bg-[rgba(255,255,255,0.05)] text-[var(--seller-muted)]';
 
   return (
-    <div className="rounded-[12px] border border-slate-200 bg-white px-3 py-2.5">
+    <div className="rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-2.5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">{change.label}</div>
-          <div className="mt-0.5 text-[12px] font-semibold text-slate-900">{change.title}</div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--seller-subtle)]">{change.label}</div>
+          <div className="mt-0.5 text-[12px] font-semibold text-[var(--seller-ink)]">{change.title}</div>
           <p className="seller-body mt-0.5 line-clamp-2 text-[11px] leading-5">{change.detail}</p>
         </div>
         <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${toneClass}`}>
@@ -836,19 +856,19 @@ function OpportunityLine({ model }: { model: OpportunityViewModel }) {
     <div className="py-2.5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[12px] font-semibold text-slate-900">
+          <div className="text-[12px] font-semibold text-[var(--seller-ink)]">
             {model.customer?.name || model.opportunity.customerName}
           </div>
-          <p className="mt-0.5 text-[10px] text-slate-500">
+          <p className="mt-0.5 text-[10px] text-[var(--seller-subtle)]">
             {model.profileLine}
           </p>
           <p className="seller-body mt-1 line-clamp-2 text-[11px] leading-5">{model.opportunityStatusDetail}</p>
         </div>
         <div className="shrink-0 text-right">
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold text-slate-600">
+          <span className="rounded-full bg-[rgba(255,255,255,0.06)] px-2 py-0.5 text-[9px] font-bold text-[var(--seller-muted)]">
             {model.opportunity.stageLabel}
           </span>
-          <div className="mt-1 text-[10px] text-slate-400">{model.urgencyLabel}</div>
+          <div className="mt-1 text-[10px] text-[var(--seller-subtle)]">{model.urgencyLabel}</div>
         </div>
       </div>
     </div>
@@ -861,16 +881,16 @@ function PotentialSignalLine({
   row: { title: string; detail: string; count: number; budgetLine: string; urgency: string };
 }) {
   return (
-    <div className="rounded-[12px] border border-amber-100 bg-amber-50/55 px-3 py-2.5">
+    <div className="rounded-[12px] border border-[color:var(--seller-chance)]/22 bg-[var(--seller-chance-soft)] px-3 py-2.5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[12px] font-semibold text-slate-900">{row.title}</div>
+          <div className="text-[12px] font-semibold text-[var(--seller-ink)]">{row.title}</div>
           <p className="seller-body mt-0.5 line-clamp-2 text-[11px] leading-5">{row.detail}</p>
-          <div className="mt-1 text-[10px] text-slate-500">{row.budgetLine}</div>
+          <div className="mt-1 text-[10px] text-[var(--seller-muted)]">{row.budgetLine}</div>
         </div>
         <div className="shrink-0 text-right">
-          <div className="text-[11px] font-semibold text-amber-700">{row.count} 组</div>
-          <div className="mt-1 text-[10px] text-slate-400">{row.urgency}</div>
+          <div className="text-[11px] font-semibold text-[var(--seller-chance)]">{row.count} 组</div>
+          <div className="mt-1 text-[10px] text-[var(--seller-subtle)]">{row.urgency}</div>
         </div>
       </div>
     </div>
@@ -880,23 +900,31 @@ function PotentialSignalLine({
 function CompactActionButton({
   card,
   onExecute,
+  index,
 }: {
   card: ActionWorkspaceCard;
   onExecute: (actionId: string) => void;
+  index?: number;
 }) {
   const { action, hint } = card;
+  const primary = index === 0;
+
   return (
     <button
       type="button"
       onClick={() => onExecute(action.id)}
-      className="rounded-[12px] border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-slate-50"
+      className={`w-full rounded-[12px] border px-3 py-2.5 text-left transition ${
+        primary
+          ? 'border-[color:var(--seller-accent)]/38 bg-[var(--seller-accent-soft)] hover:border-[color:var(--seller-accent)]/56'
+          : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] hover:border-[var(--seller-border-strong)] hover:bg-[rgba(255,255,255,0.05)]'
+      }`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[12px] font-semibold text-slate-900">{action.name}</div>
+          <div className={`text-[12px] font-semibold ${primary ? 'text-[var(--seller-accent)]' : 'text-[var(--seller-ink)]'}`}>{action.name}</div>
           <p className="seller-body mt-0.5 line-clamp-2 text-[11px] leading-5">{hint}</p>
         </div>
-        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold text-slate-600">
+        <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${primary ? 'bg-[var(--seller-accent)] text-[var(--seller-bg)]' : 'bg-[rgba(255,255,255,0.06)] text-[var(--seller-muted)]'}`}>
           {costText(action)}
         </span>
       </div>
@@ -910,10 +938,10 @@ function BlockedActionLine({
   card: ActionWorkspaceCard;
 }) {
   return (
-    <div className="rounded-[12px] border border-slate-200 bg-white px-3 py-2.5">
+    <div className="rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] px-3 py-2.5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[12px] font-semibold text-slate-900">{card.action.name}</div>
+          <div className="text-[12px] font-semibold text-[var(--seller-muted)]">{card.action.name}</div>
           <p className="seller-body mt-0.5 text-[11px] leading-5">{card.availability.reason || '当前还不满足执行条件。'}</p>
         </div>
         <span className="seller-chip seller-chip-risk">暂缓</span>
@@ -1207,16 +1235,16 @@ function CompactTag({
 }) {
   const toneClass =
     tone === 'emerald'
-      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+      ? 'bg-[var(--seller-accent-soft)] text-[var(--seller-accent)] border-[color:var(--seller-accent)]/24'
       : tone === 'amber'
-        ? 'bg-amber-50 text-amber-700 border-amber-200'
+        ? 'bg-[var(--seller-chance-soft)] text-[var(--seller-chance)] border-[color:var(--seller-chance)]/22'
         : tone === 'rose'
-          ? 'bg-rose-50 text-rose-700 border-rose-200'
-          : 'bg-slate-50 text-slate-600 border-slate-200';
+          ? 'bg-[var(--seller-risk-soft)] text-[var(--seller-risk)] border-[color:var(--seller-risk)]/24'
+          : 'bg-[rgba(255,255,255,0.03)] text-[var(--seller-muted)] border-[var(--seller-border)]';
 
   return (
     <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-semibold leading-none ${toneClass}`}>
-      <span className="text-slate-400">{label}</span>
+      <span className="text-[var(--seller-subtle)]">{label}</span>
       <span>{value}</span>
     </span>
   );

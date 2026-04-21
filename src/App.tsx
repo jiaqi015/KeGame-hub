@@ -352,6 +352,14 @@ export default function App() {
     const meta = WORKSPACE_REGISTRY_BY_ID[workspace];
     const shouldRenderShellHeader = workspace !== 'selling-houses';
 
+    if (workspace === 'selling-houses') {
+      return (
+        <div className="selling-houses-shell flex-1 overflow-hidden">
+          {content}
+        </div>
+      );
+    }
+
     return (
       <div className="flex-1 overflow-hidden px-6 py-3">
         <div className="mx-auto flex h-full w-full max-w-[1520px] flex-col gap-4">
@@ -386,8 +394,14 @@ export default function App() {
     );
   };
 
+  const isSellingHousesActive = authStatus === 'authenticated' && activeWorkspace === 'selling-houses';
+
   return (
-    <div className="h-screen bg-[#FAFAFA] text-[#1D1D1F] font-sans selection:bg-blue-100 overflow-hidden flex flex-col">
+    <div className={`h-screen font-sans selection:bg-blue-100 overflow-hidden flex flex-col ${
+      isSellingHousesActive
+        ? 'bg-[var(--seller-bg)] text-[var(--seller-ink)]'
+        : 'bg-[#FAFAFA] text-[#1D1D1F]'
+    }`}>
       {authStatus !== 'authenticated' ? (
         <AuthOverlay
           loginEmail={loginEmail}
@@ -452,14 +466,16 @@ export default function App() {
         />
       )}
 
-      <footer className="shrink-0 py-3 text-center text-[#86868B] text-[11px] border-t border-black/5 bg-white">
-        <div className="flex items-center justify-center gap-2">
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>KeGame • 多模型PK + 开放日选址 + 资产顾问 + 商圈经营 + 理性业主</span>
-          <span className="text-black/10">|</span>
-          <span>© 2026</span>
-        </div>
-      </footer>
+      {!isSellingHousesActive && (
+        <footer className="shrink-0 py-3 text-center text-[#86868B] text-[11px] border-t border-black/5 bg-white">
+          <div className="flex items-center justify-center gap-2">
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>KeGame • 多模型PK + 开放日选址 + 资产顾问 + 商圈经营 + 理性业主</span>
+            <span className="text-black/10">|</span>
+            <span>© 2026</span>
+          </div>
+        </footer>
+      )}
 
       <PreviewModal
         data={previewData}

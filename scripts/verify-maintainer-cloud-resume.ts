@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import type { MaintainerCloudMeta } from '../src/selling-houses/application/cloudState.js';
 import type { MaintainerRunRecord } from '../src/selling-houses/application/cloudSync.js';
 import { loadPreferredMaintainerCloudRun } from '../src/selling-houses/application/cloudResume.js';
+import { getOrCreateMaintainerUserId } from '../src/selling-houses/application/cloudState.js';
 
 function buildRunRecord(overrides: Partial<MaintainerRunRecord> = {}): MaintainerRunRecord {
   const now = new Date().toISOString();
@@ -41,6 +42,15 @@ function buildRunRecord(overrides: Partial<MaintainerRunRecord> = {}): Maintaine
 }
 
 {
+  assert.equal(
+    getOrCreateMaintainerUserId({
+      storageScopeKey: 'scope-resume',
+      accountId: 'acct-session-owner',
+    }),
+    'acct-session-owner',
+    'authenticated resume should reuse accountId as run owner',
+  );
+
   const requestedRunIds: string[] = [];
   const requestedListUserIds: string[] = [];
   const localMeta: MaintainerCloudMeta = {
@@ -71,6 +81,32 @@ function buildRunRecord(overrides: Partial<MaintainerRunRecord> = {}): Maintaine
   assert.equal(result?.run.runId, 'run-local', 'expected local meta run to be fetched first');
   assert.deepEqual(requestedRunIds, ['run-local']);
   assert.deepEqual(requestedListUserIds, []);
+}
+
+{
+  const recent = buildRunRecord({
+    runId: 'run-session-owner',
+    userId: 'acct-session-owner',
+    updatedAt: '2026-04-20T10:00:00.000Z',
+    syncVersion: 7,
+  });
+  let requestedListUserId: string | undefined = 'uninitialized';
+
+  const result = await loadPreferredMaintainerCloudRun({
+    userId: undefined,
+    localMeta: null,
+    fetchRun: async (runId) => {
+      assert.equal(runId, 'run-session-owner', 'expected latest session-owned run to be fetched');
+      return recent;
+    },
+    listRuns: async (userId) => {
+      requestedListUserId = userId;
+      return [recent];
+    },
+  });
+
+  assert.equal(requestedListUserId, undefined, 'expected authenticated bootstrap to support omitting compatibility userId');
+  assert.equal(result?.run.runId, 'run-session-owner');
 }
 
 {

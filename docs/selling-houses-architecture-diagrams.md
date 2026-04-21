@@ -1,5 +1,7 @@
 # 卖房（资产顾问）架构图与 ER 图
 
+最后更新：2026-04-21
+
 这份图只服务一件事：把 `selling-houses-master.md` 里讲的目标架构，画成一眼能对齐的图。
 
 不是画现在代码里还没清干净的脏现状。
@@ -20,11 +22,12 @@ flowchart LR
   subgraph Content["Content / Config"]
     Balance["balance.ts\n手感参数 / 权重 / 阈值"]
     Blueprint["Scenario Blueprint\n剧本蓝图 / 难度旋钮"]
-    Templates["Matter Templates\nreport / negotiate / diagnose / execute"]
+    Templates["Matter Config\nscene / template / presentation\nlifecycle category"]
   end
 
   subgraph Runtime["Runtime"]
     subgraph SessionLayer["Session / Viewport Layer"]
+      Account["Account / PlayerProfile\n平台身份 / 玩家生涯身份"]
       Session["Session\n视角持久化\nlast route / panel / derived cache"]
       Viewport["Viewport\n玩家视角\nselectedCase / current tab / visible signals"]
       UI["React UI\nDashboard / Cases / Review / Result"]
@@ -49,6 +52,7 @@ flowchart LR
 
     subgraph Persistence["Persistence"]
       WorldSave["World Persistence\nsaveGameState / cloud save"]
+      ResultSave["RunResult / CareerStats / Leaderboard\n正式结算 / 生涯聚合 / 榜单"]
       SessionSave["Session Persistence\nlocalStorage / optional mirror"]
     end
   end
@@ -57,6 +61,7 @@ flowchart LR
   Content --> Rules
   Content --> Resolver
 
+  Account --> Session
   UI --> Viewport
   Viewport --> Session
   Session --> UI
@@ -88,6 +93,7 @@ flowchart LR
   World --> Environments
 
   World --> WorldSave
+  World --> ResultSave
   Session --> SessionSave
 
   Events -.为复盘/结果/回放提供因果链.-> UI
@@ -132,7 +138,7 @@ flowchart LR
 
 ```mermaid
 sequenceDiagram
-  participant U as User
+  participant A as Account
   participant UI as React UI
   participant V as Viewport / Session
   participant R as ActionResolver
@@ -169,6 +175,13 @@ erDiagram
   WORLD ||--o{ MATTER : contains
   WORLD ||--o{ WORLD_EVENT : contains
   WORLD ||--o{ ENVIRONMENT : contains
+  ACCOUNT ||--o{ PLAYER_PROFILE : owns
+  PLAYER_PROFILE ||--o{ GAME_RUN : starts
+  GAME_RUN ||--|| WORLD : restores
+  GAME_RUN ||--o{ DAILY_RUN_SNAPSHOT : produces
+  GAME_RUN ||--|| RUN_RESULT : settles
+  RUN_RESULT ||--o{ LEADERBOARD_ENTRY : feeds
+  PLAYER_PROFILE ||--|| PLAYER_CAREER_STATS : accumulates
 
   ACTOR ||--o{ MATTER : initiates
   ACTOR ||--o{ WORLD_EVENT : emits
@@ -193,6 +206,8 @@ erDiagram
   MATTER }o--o{ RELATION : subjects
   MATTER }o--o{ CASE : subjects
   MATTER ||--o{ WORLD_EVENT : produces
+  CUSTOMER_CASE_RELATION ||--o{ CLOSED_DEAL_RECORD : source_relation
+  CASE ||--o{ CLOSED_DEAL_RECORD : sold_case
 
   RELATION ||--o{ WORLD_EVENT : affected_by
   CASE ||--o{ WORLD_EVENT : affected_by
@@ -207,6 +222,57 @@ erDiagram
     int day
     string scenarioId
     string seed
+  }
+
+  ACCOUNT {
+    string accountId PK
+    string primaryEmail
+    string displayName
+  }
+
+  PLAYER_PROFILE {
+    string playerProfileId PK
+    string accountId FK
+    string workspaceId
+    string displayName
+  }
+
+  GAME_RUN {
+    string runId PK
+    string accountId FK
+    string playerProfileId FK
+    string workspaceId
+    string status
+  }
+
+  DAILY_RUN_SNAPSHOT {
+    string runId FK
+    int dayIndex
+    number estimatedTotalScore
+    int closedDealCount
+  }
+
+  RUN_RESULT {
+    string runId PK
+    string accountId FK
+    string playerProfileId FK
+    number totalScore
+    int soldCount
+  }
+
+  PLAYER_CAREER_STATS {
+    string playerProfileId PK
+    int completedRunCount
+    number effectiveCareerTotalScore
+    number bestSingleRunScore
+  }
+
+  LEADERBOARD_ENTRY {
+    string id PK
+    string accountId FK
+    string playerProfileId FK
+    string leaderboardType
+    number scoreValue
   }
 
   ACTOR {
@@ -280,8 +346,17 @@ erDiagram
     string caseId
     number intent
     number confidence
-    int stageIndex
-    string status
+    string stage
+    string lifecycleStatus
+  }
+
+  CLOSED_DEAL_RECORD {
+    string dealId PK
+    string caseId
+    string customerId
+    string sourceRelationId
+    string dealType
+    number dealPrice
   }
 
   OWNERSHIP_ENTRUST {
@@ -297,7 +372,10 @@ erDiagram
 
   MATTER {
     string id PK
+    string scene
     string template
+    string presentation
+    string lifecycleCategory
     string initiatorActorId
     string stage
     int openedAt

@@ -1,8 +1,15 @@
 import assert from 'node:assert/strict';
 
-import { createInitialState, updateDerivedState } from '../src/selling-houses/application/gameState';
+import {
+  createInitialState,
+  loadSavedState,
+  saveGameState,
+  normalizeLoadedState,
+  updateDerivedState,
+} from '../src/selling-houses/application/gameState';
 import { LocalAdversarialSelfPlayArena } from '../src/selling-houses/application/localAdversarialSelfPlayArena';
 import { LocalAdversarialSelfPlayLab } from '../src/selling-houses/application/localAdversarialSelfPlayLab';
+import { buildFinalStats } from '../src/selling-houses/application/cloudSync';
 import {
   buildSelfPlayGoldenReport,
   diffSelfPlayGoldenReports,
@@ -186,6 +193,7 @@ function buildWorld() {
       stageIndex: 0,
       stageLabel: '了解',
       status: 'closed',
+      lifecycleStatus: 'closed_by_case',
       leadSource: 'direct',
       visibility: 'revealed',
       createdDay: world.day,
@@ -234,6 +242,151 @@ function buildWorld() {
   assert.ok(report.finalResult, 'Expected self-play arena to finish a game');
   assert.ok(report.decisions.length > 0, 'Expected self-play arena to produce decisions');
   assert.ok(report.evaluation.verdict.length > 0, 'Expected self-play arena to produce evaluation');
+}
+
+{
+  const world = buildWorld();
+  const targetCase = world.cases[0];
+  const targetOpportunity = world.opportunities.find((entry) => entry.caseId === targetCase.id);
+  assert.ok(targetOpportunity, 'Expected seeded opportunity for aggregate sold-count verification');
+  if (!targetOpportunity) {
+    throw new Error('Expected seeded opportunity for aggregate sold-count verification');
+  }
+
+  world.closedDeals = [{
+    dealId: 'deal-aggregate-1',
+    caseId: targetCase.id,
+    customerId: targetOpportunity.customerId,
+    sourceRelationId: targetOpportunity.id,
+    opportunityId: targetOpportunity.id,
+    dayIndex: world.day,
+    day: world.day,
+    closedAt: new Date().toISOString(),
+    dealType: 'self_closed',
+    dealPrice: targetCase.askPrice,
+    price: targetCase.askPrice,
+    closeReadiness: 91,
+    closeProbability: 84,
+    blockingReasons: [],
+    supportingReasons: ['验证自博弈与归档口径'],
+  }];
+  world.auxiliaryStats.soldCount = 0;
+  world.soldCount = 0;
+  updateDerivedState(world);
+
+  const finalStats = buildFinalStats(world);
+  assert.equal(finalStats.auxiliaryStats.soldCount, 1, 'Expected buildFinalStats to follow formal closed deals');
+}
+
+{
+  const world = buildWorld();
+  const targetCase = world.cases[0];
+  const targetOpportunity = world.opportunities.find((entry) => entry.caseId === targetCase.id);
+  assert.ok(targetOpportunity, 'Expected seeded opportunity for compatibility verification');
+  if (!targetOpportunity) {
+    throw new Error('Expected seeded opportunity for compatibility verification');
+  }
+
+  world.closedDeals = [{
+    dealId: 'deal-compat-1',
+    caseId: targetCase.id,
+    customerId: targetOpportunity.customerId,
+    sourceRelationId: targetOpportunity.id,
+    opportunityId: targetOpportunity.id,
+    dayIndex: world.day,
+    day: world.day,
+    closedAt: new Date().toISOString(),
+    dealType: 'self_closed',
+    dealPrice: targetCase.askPrice,
+    price: targetCase.askPrice,
+    closeReadiness: 94,
+    closeProbability: 86,
+    blockingReasons: [],
+    supportingReasons: ['验证旧存档成交镜像回填'],
+  }];
+  world.auxiliaryStats.soldCount = 0;
+  world.soldCount = 0;
+
+  const normalized = normalizeLoadedState(JSON.parse(JSON.stringify(world)));
+  assert.ok(normalized, 'Expected normalizeLoadedState to restore saved world');
+  assert.equal(
+    normalized?.auxiliaryStats.soldCount,
+    1,
+    'Expected normalizeLoadedState to rebuild auxiliary sold count from closedDeals',
+  );
+  assert.equal(
+    normalized?.soldCount,
+    1,
+    'Expected normalizeLoadedState to rebuild legacy soldCount mirror from closedDeals',
+  );
+}
+
+{
+  const previousWindow = (globalThis as { window?: unknown }).window;
+  const storage = new Map<string, string>();
+  (globalThis as { window?: unknown }).window = {
+    localStorage: {
+      getItem(key: string) {
+        return storage.has(key) ? storage.get(key)! : null;
+      },
+      setItem(key: string, value: string) {
+        storage.set(key, value);
+      },
+      removeItem(key: string) {
+        storage.delete(key);
+      },
+    },
+  };
+
+  try {
+    const world = buildWorld();
+    const targetCase = world.cases[0];
+    const targetOpportunity = world.opportunities.find((entry) => entry.caseId === targetCase.id);
+    assert.ok(targetOpportunity, 'Expected seeded opportunity for save/load compatibility verification');
+    if (!targetOpportunity) {
+      throw new Error('Expected seeded opportunity for save/load compatibility verification');
+    }
+
+    world.closedDeals = [{
+      dealId: 'deal-browser-compat-1',
+      caseId: targetCase.id,
+      customerId: targetOpportunity.customerId,
+      sourceRelationId: targetOpportunity.id,
+      opportunityId: targetOpportunity.id,
+      dayIndex: world.day,
+      day: world.day,
+      closedAt: new Date().toISOString(),
+      dealType: 'self_closed',
+      dealPrice: targetCase.askPrice,
+      price: targetCase.askPrice,
+      closeReadiness: 95,
+      closeProbability: 89,
+      blockingReasons: [],
+      supportingReasons: ['验证本地保存成交镜像桥接'],
+    }];
+    world.auxiliaryStats.soldCount = 0;
+    world.soldCount = 0;
+
+    saveGameState(world, 'compat@test.ke.com');
+    const restored = loadSavedState('compat@test.ke.com');
+    assert.ok(restored, 'Expected loadSavedState to restore browser-saved world');
+    assert.equal(
+      restored?.auxiliaryStats.soldCount,
+      1,
+      'Expected browser save/load roundtrip to preserve formal sold count bridge',
+    );
+    assert.equal(
+      restored?.soldCount,
+      1,
+      'Expected browser save/load roundtrip to preserve legacy soldCount mirror',
+    );
+  } finally {
+    if (previousWindow === undefined) {
+      delete (globalThis as { window?: unknown }).window;
+    } else {
+      (globalThis as { window?: unknown }).window = previousWindow;
+    }
+  }
 }
 
 {

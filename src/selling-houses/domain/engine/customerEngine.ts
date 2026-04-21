@@ -266,8 +266,9 @@ function syncOpportunityFromCustomer(
       intent: Math.round(runtime.interest),
       confidence: Math.round(runtime.confidence),
       stageIndex: runtime.stageIndex,
-      stageLabel: '了解',
+      stageLabel: '线上咨询',
       status: 'active',
+      lifecycleStatus: 'active',
       createdDay: state.day,
       daysLeft: 5,
       touchedToday: customerState.lastTouchDay === state.day,
@@ -288,6 +289,7 @@ function syncOpportunityFromCustomer(
   opportunity.intent = Math.round(runtime.interest);
   opportunity.confidence = Math.round(runtime.confidence);
   opportunity.stageIndex = runtime.stageIndex;
+  opportunity.lifecycleStatus = runtime.interactions > 0 ? 'active' : opportunity.lifecycleStatus;
   opportunity.daysLeft = clamp(6 - Math.min(4, runtime.stageIndex) + (customerState.lastTouchDay === state.day ? 1 : 0), 2, 7);
   opportunity.touchedToday = customerState.lastTouchDay === state.day;
   refreshOpportunityLabel(opportunity);

@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useMemo, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Calendar,
   ChevronRight,
@@ -13,7 +13,6 @@ import {
   LogOut,
   MessageSquare,
   Newspaper,
-  RefreshCw,
   ScrollText,
   ShieldAlert,
   SquareUserRound,
@@ -27,6 +26,7 @@ import { LoadingScene } from '../components/Common/LoadingScene';
 import { useGame } from './application/useGame';
 import { buildWorkspaceShellProjection, type WorkspaceShellSidebarCueProjection } from './application/projections/workspaceShellProjection';
 import { DailyJournal } from './ui/widgets/DailyJournal';
+import { WorkspaceUtilityBar } from './ui/widgets/WorkspaceUtilityBar';
 
 const Dashboard = lazy(() => import('./ui/features/Dashboard').then((module) => ({ default: module.Dashboard })));
 const Cases = lazy(() => import('./ui/features/Cases').then((module) => ({ default: module.Cases })));
@@ -104,9 +104,17 @@ export function SellingHousesWorkspace({
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const mainScrollRef = useRef<HTMLElement | null>(null);
   const viewFallback = useMemo(() => <WorkspacePanelSkeleton />, []);
   const overlayFallback = useMemo(() => <WorkspaceOverlaySkeleton />, []);
   const shellProjection = useMemo(() => (state ? buildWorkspaceShellProjection(state) : null), [state]);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      mainScrollRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [activeView, state?.day]);
 
   if (phase === 'loading') {
     return (
@@ -119,7 +127,7 @@ export function SellingHousesWorkspace({
 
   if (phase === 'setup' || !state) {
     return (
-      <div className="selling-houses-shell flex h-full flex-col overflow-hidden text-slate-900">
+      <div className="selling-houses-shell flex h-full flex-col overflow-hidden text-[var(--seller-ink)]">
         <Suspense fallback={viewFallback}>
           <ScenarioSetup
             difficultyOptions={difficultyOptions}
@@ -236,9 +244,9 @@ export function SellingHousesWorkspace({
 
   return (
     <div className="selling-houses-shell flex h-full flex-col overflow-hidden font-sans text-[var(--seller-ink)]">
-      <header className="shrink-0 border-b border-[var(--seller-border)] bg-[rgba(11,17,24,0.92)] px-4 py-2.5 backdrop-blur-xl">
+      <header className="shrink-0 border-b border-[var(--seller-border)] bg-[rgba(11,17,24,0.96)] px-4 py-2 backdrop-blur-xl">
         <div className="flex flex-col gap-2.5">
-          <div className="seller-band flex flex-wrap items-center justify-between gap-3 px-3 py-2.5">
+          <div className="seller-band flex flex-wrap items-center justify-between gap-3 px-3 py-2">
             <div className="flex min-w-0 flex-1">
               <div className="flex min-w-0 flex-1 items-center gap-3">
                 <ConfirmBackButton
@@ -254,10 +262,7 @@ export function SellingHousesWorkspace({
                 <div className="seller-separator h-8 w-px shrink-0" />
 
                 <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[rgba(255,255,255,0.06)] text-[var(--seller-ink)] shadow-[var(--seller-shadow-sm)]">
-                    <Home size={16} />
-                  </div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex flex-wrap items-center gap-1.5">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <div className="seller-chip seller-chip-accent">
                         {runShellProjection.header.scenarioTheme}
@@ -270,39 +275,27 @@ export function SellingHousesWorkspace({
                         {difficultyLabel(runShellProjection.header.difficultyId)}
                       </div>
                     </div>
-                    <h2 className="seller-title mt-1 truncate text-[1.02rem] text-[var(--seller-ink)]">
+                    <div className="truncate text-[14px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">
                       {runShellProjection.header.scenarioName}
-                    </h2>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
             <div className="flex items-center justify-end">
-              <div className="seller-band flex items-center gap-1 p-1">
-                <button
-                  type="button"
-                  onClick={openLeaderboard}
-                  className="seller-button-secondary inline-flex h-9 items-center gap-1.5 px-3.5"
-                >
-                  <Medal size={14} />
-                  排行榜
-                </button>
-                <button
-                  type="button"
-                  onClick={onLogout}
-                  className="seller-button-ghost inline-flex h-9 items-center gap-1.5 px-3.5"
-                >
-                  <LogOut size={14} />
-                  退出
-                </button>
-              </div>
+              <WorkspaceUtilityBar
+                journalTodayCount={runShellProjection.sidebar.journal.todayCount}
+                onOpenJournal={() => setJournalOpen(true)}
+                onOpenLeaderboard={openLeaderboard}
+                onLogout={onLogout}
+              />
             </div>
           </div>
 
           <div className="seller-panel-muted flex flex-wrap items-center justify-between gap-2 p-1.5">
             <nav className="flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-[15px] bg-[rgba(255,255,255,0.03)] p-1">
-              <NavItem active={activeView === 'overview'} onClick={() => openView('overview')} icon={<LayoutDashboard size={16} />} label="概览" />
+              <NavItem active={activeView === 'overview'} onClick={() => openView('overview')} icon={<LayoutDashboard size={16} />} label="经营概览" />
               <NavItem active={activeView === 'cases'} onClick={() => openView('cases')} icon={<Home size={16} />} label="房源" />
               <NavItem active={activeView === 'customers'} onClick={() => openView('customers')} icon={<Users size={16} />} label="客户" />
               <NavItem active={activeView === 'market'} onClick={() => openMarketView('macro')} icon={<LineChart size={16} />} label="市场" />
@@ -318,7 +311,7 @@ export function SellingHousesWorkspace({
                 <button
                   type="button"
                   onClick={() => setActiveResourcePanel('budget')}
-                  className="min-w-[114px] rounded-[12px] border border-transparent bg-transparent px-2.5 py-2 text-left transition-all hover:border-[var(--seller-border)] hover:bg-white/80"
+                  className="min-w-[108px] rounded-[10px] border border-transparent bg-transparent px-2 py-2 text-left transition-all hover:border-[var(--seller-border)] hover:bg-[rgba(255,255,255,0.06)]"
                   aria-label="查看推广金详情"
                   title="查看推广金详情"
                 >
@@ -326,9 +319,9 @@ export function SellingHousesWorkspace({
                     icon={<Wallet size={15} />}
                     label={runShellProjection.resourceTiles.budget.label}
                     value={runShellProjection.resourceTiles.budget.value}
-                    color="text-slate-900"
+                    color="text-[var(--seller-ink)]"
                     trailing={(
-                      <div className="flex items-center gap-1 text-[10px] font-semibold text-slate-400">
+                      <div className="flex items-center gap-1 text-[10px] font-semibold text-[var(--seller-subtle)]">
                         <span>明细</span>
                         <ChevronRight size={13} />
                       </div>
@@ -339,7 +332,7 @@ export function SellingHousesWorkspace({
                 <button
                   type="button"
                   onClick={() => setActiveResourcePanel('auxiliary')}
-                  className="min-w-[112px] rounded-[12px] border border-transparent bg-transparent px-2.5 py-2 text-left transition-all hover:border-[var(--seller-border)] hover:bg-white/80"
+                  className="min-w-[108px] rounded-[10px] border border-transparent bg-transparent px-2 py-2 text-left transition-all hover:border-[var(--seller-border)] hover:bg-[rgba(255,255,255,0.06)]"
                   aria-label="查看成交与佣金详情"
                   title="查看成交与佣金详情"
                 >
@@ -347,7 +340,7 @@ export function SellingHousesWorkspace({
                     icon={<CircleDollarSign size={15} />}
                     label={runShellProjection.resourceTiles.auxiliary.label}
                     value={runShellProjection.resourceTiles.auxiliary.value}
-                    color="text-slate-700"
+                    color="text-[var(--seller-muted)]"
                     trailing={<ResourceDetailHint />}
                   />
                 </button>
@@ -355,7 +348,7 @@ export function SellingHousesWorkspace({
                 <button
                   type="button"
                   onClick={() => setActiveResourcePanel('energy')}
-                  className="min-w-[90px] rounded-[12px] border border-transparent bg-transparent px-2.5 py-2 text-left transition-all hover:border-[var(--seller-border)] hover:bg-white/80"
+                  className="min-w-[84px] rounded-[10px] border border-transparent bg-transparent px-2 py-2 text-left transition-all hover:border-[var(--seller-border)] hover:bg-[rgba(255,255,255,0.06)]"
                   aria-label="查看今日精力详情"
                   title="查看今日精力详情"
                 >
@@ -363,7 +356,7 @@ export function SellingHousesWorkspace({
                     icon={<Zap size={15} />}
                     label={runShellProjection.resourceTiles.energy.label}
                     value={runShellProjection.resourceTiles.energy.value}
-                    color="text-amber-600"
+                    color="text-[var(--seller-accent)]"
                     trailing={<ResourceDetailHint />}
                   />
                 </button>
@@ -373,7 +366,7 @@ export function SellingHousesWorkspace({
                 <button
                   onClick={() => handleAdvanceDays(7, displayMessage)}
                   disabled={state.gameOver}
-                  className="seller-button-secondary flex h-11 items-center gap-1.5 px-3.5 disabled:opacity-50"
+                  className="seller-button-secondary flex h-11 items-center gap-1.5 rounded-[10px] px-3.5 disabled:opacity-50"
                 >
                   <FastForward size={16} />
                   <span>推进一周</span>
@@ -381,7 +374,7 @@ export function SellingHousesWorkspace({
                 <button
                   onClick={() => handleAdvanceDays(1, displayMessage)}
                   disabled={state.gameOver}
-                  className="seller-button-primary h-11 px-3.5 shadow-[var(--seller-shadow-sm)] disabled:opacity-50"
+                  className="seller-button-primary h-11 rounded-[10px] px-3.5 shadow-[var(--seller-shadow-sm)] disabled:opacity-50"
                 >
                   结束今日
                 </button>
@@ -392,32 +385,13 @@ export function SellingHousesWorkspace({
       </header>
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
-        <main className="relative flex-1 overflow-y-auto p-5">
+        <main ref={mainScrollRef} className="relative flex-1 overflow-y-auto p-5">
           {message && (
             <div className="fixed bottom-10 left-1/2 z-[60] flex -translate-x-1/2 items-center gap-3 rounded-2xl border border-[var(--seller-border)] bg-[var(--seller-paper)] px-6 py-3 text-[var(--seller-ink)] shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300">
               <MessageSquare size={18} className="text-emerald-400" />
               <span className="text-sm font-medium">{message}</span>
             </div>
           )}
-
-          <div className="fixed bottom-5 right-6 z-40 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setJournalOpen(true)}
-              className="seller-button-secondary flex items-center gap-1.5 rounded-full px-3 py-2 backdrop-blur"
-            >
-              <History size={14} />
-              <span>经营记录</span>
-            </button>
-            <button
-              onClick={handleReset}
-              className="seller-button-secondary flex items-center gap-1.5 rounded-full px-3 py-2 text-[var(--seller-muted)] backdrop-blur hover:border-[color:var(--seller-risk)] hover:bg-[var(--seller-risk-soft)] hover:text-[color:var(--seller-risk)]"
-            >
-              <RefreshCw size={14} />
-              <span>重开本局</span>
-            </button>
-          </div>
-
           <Suspense fallback={viewFallback}>
             {renderView()}
           </Suspense>
@@ -536,26 +510,26 @@ export function SellingHousesWorkspace({
       {activeResourcePanel && activeResourceMeta && (
         <div className="fixed inset-0 z-[90] flex justify-end bg-slate-900/30 backdrop-blur-sm" onClick={() => setActiveResourcePanel(null)}>
           <div
-            className="h-full w-full max-w-[560px] overflow-y-auto border-l border-[var(--seller-border)] bg-[linear-gradient(180deg,rgba(17,25,35,0.98)_0%,rgba(9,16,24,0.98)_28%)] p-7 shadow-2xl"
+            className="h-full w-full max-w-[560px] overflow-y-auto border-l border-[var(--seller-border)] bg-[linear-gradient(180deg,rgba(17,25,35,0.98)_0%,rgba(9,16,24,0.98)_28%)] p-6 shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-6 flex items-start justify-between gap-4">
               <div className="max-w-[360px]">
-                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">
                   {activeResourcePanel === 'energy'
-                    ? <Zap size={13} className="text-sky-600" />
-                    : <CircleDollarSign size={13} className="text-emerald-500" />}
+                    ? <Zap size={13} className="text-[var(--seller-accent)]" />
+                    : <CircleDollarSign size={13} className="text-[var(--seller-chance)]" />}
                   {activeResourceMeta.eyebrow}
                 </div>
-                <h3 className="mt-2 text-[22px] font-semibold tracking-tight text-slate-900">{activeResourceMeta.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
+                <h3 className="mt-2 text-[20px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">{activeResourceMeta.title}</h3>
+                <p className="mt-2 text-[12px] leading-6 text-[var(--seller-muted)]">
                   {activeResourceMeta.description}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setActiveResourcePanel(null)}
-                className="rounded-xl border border-black/5 px-3 py-2 text-sm font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-slate-900"
+                className="seller-button-secondary rounded-[10px] px-3 py-2 text-[11px]"
               >
                 关闭
               </button>
@@ -563,12 +537,12 @@ export function SellingHousesWorkspace({
 
             {activeResourcePanel === 'budget' && (
               <>
-                <div className="mb-5 rounded-[28px] border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-sky-50 px-5 py-5">
+                <div className="seller-panel-strong mb-5 px-5 py-5">
                   <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
                     <div>
-                      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">当前余额</div>
-                      <div className="mt-2 text-[38px] font-bold tracking-tight text-emerald-950">{runShellProjection.budgetPanel.balanceLabel}</div>
-                      <div className="mt-2 max-w-md text-sm leading-6 text-emerald-800/80">
+                      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">当前余额</div>
+                      <div className="mt-2 text-[34px] font-semibold tracking-[-0.04em] text-[var(--seller-ink)]">{runShellProjection.budgetPanel.balanceLabel}</div>
+                      <div className="mt-2 max-w-md text-[12px] leading-6 text-[var(--seller-muted)]">
                         {runShellProjection.budgetPanel.summary}
                       </div>
                     </div>
@@ -583,21 +557,21 @@ export function SellingHousesWorkspace({
                 </div>
 
                 <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <div className="rounded-[20px] border border-black/[0.05] bg-white px-4 py-4 shadow-sm">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">规则摘要</div>
-                    <div className="mt-3 space-y-3 text-sm text-slate-600">
+                  <div className="seller-panel-soft px-4 py-4">
+                    <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">规则摘要</div>
+                    <div className="mt-3 space-y-3 text-[12px] text-[var(--seller-muted)]">
                       {runShellProjection.budgetPanel.rules.map((entry) => (
                         <div key={entry.label} className="flex items-start justify-between gap-3">
                           <span>{entry.label}</span>
-                          <strong className="text-slate-900">{entry.value}</strong>
+                          <strong className="text-[var(--seller-ink)]">{entry.value}</strong>
                         </div>
                       ))}
                     </div>
                   </div>
 
-                  <div className="rounded-[20px] border border-sky-100 bg-sky-50/80 px-4 py-4">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-sky-700">怎么看这笔钱</div>
-                    <p className="mt-3 text-sm leading-6 text-slate-700">
+                  <div className="seller-panel-soft px-4 py-4">
+                    <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-chance)]">这笔钱现在说明什么</div>
+                    <p className="mt-3 text-[12px] leading-6 text-[var(--seller-muted)]">
                       {runShellProjection.budgetPanel.note}
                     </p>
                   </div>
@@ -606,34 +580,34 @@ export function SellingHousesWorkspace({
                 <div className="space-y-3">
                   <div className="flex items-end justify-between gap-3 px-1">
                     <div>
-                      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">最近流水</div>
-                      <p className="mt-1 text-xs text-slate-500">默认展示最近 8 条，先看近因，再决定要不要回看更早记录。</p>
+                      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">最近流水</div>
+                      <p className="mt-1 text-[11px] text-[var(--seller-subtle)]">默认只看最近 8 条，先看钱是怎么花出去和补回来的。</p>
                     </div>
-                    <div className="text-[11px] font-semibold text-slate-400">按时间倒序</div>
+                    <div className="text-[11px] font-semibold text-[var(--seller-subtle)]">按时间倒序</div>
                   </div>
                   {runShellProjection.budgetPanel.entries.map((entry) => (
-                    <div key={entry.id} className="rounded-[18px] border border-black/[0.04] bg-white px-4 py-4 shadow-sm">
+                    <div key={entry.id} className="seller-fact-row rounded-[14px] px-4 py-4">
                       <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <div className="text-sm font-semibold text-slate-800">{entry.title}</div>
-                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                            <div className="text-[13px] font-semibold text-[var(--seller-ink)]">{entry.title}</div>
+                            <span className="seller-chip">
                               {entry.dayLabel}
                             </span>
                           </div>
-                          <div className="mt-1.5 text-xs leading-relaxed text-slate-500">{entry.detail}</div>
+                          <div className="mt-1.5 text-[11px] leading-6 text-[var(--seller-muted)]">{entry.detail}</div>
                         </div>
                         <div className="min-w-[92px] text-right">
-                          <div className={`text-base font-bold ${entry.positive ? 'text-emerald-600' : 'text-rose-500'}`}>
+                          <div className={`text-[15px] font-semibold ${entry.positive ? 'text-[var(--seller-chance)]' : 'text-[var(--seller-risk)]'}`}>
                             {entry.amountLabel}
                           </div>
-                          <div className="mt-1 text-[10px] font-medium text-slate-400">{entry.balanceLabel}</div>
+                          <div className="mt-1 text-[10px] font-medium text-[var(--seller-subtle)]">{entry.balanceLabel}</div>
                         </div>
                       </div>
                     </div>
                   ))}
                   {runShellProjection.budgetPanel.entries.length === 0 && (
-                    <div className="rounded-[18px] border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-400">
+                    <div className="seller-empty px-4 py-8 text-center text-[12px]">
                       暂时还没有推广金流水，先做一笔经营动作再回来看看。
                     </div>
                   )}
@@ -643,12 +617,12 @@ export function SellingHousesWorkspace({
 
             {activeResourcePanel === 'auxiliary' && (
               <>
-                <div className="mb-5 rounded-[28px] border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-sky-50 px-5 py-5">
+                <div className="seller-panel-strong mb-5 px-5 py-5">
                   <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
                     <div>
-                      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">辅助经营数据</div>
-                      <div className="mt-2 text-[38px] font-bold tracking-tight text-emerald-950">{runShellProjection.auxiliaryPanel.commissionLabel}</div>
-                      <div className="mt-2 max-w-md text-sm leading-6 text-emerald-800/80">
+                      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">成交与回款</div>
+                      <div className="mt-2 text-[34px] font-semibold tracking-[-0.04em] text-[var(--seller-ink)]">{runShellProjection.auxiliaryPanel.commissionLabel}</div>
+                      <div className="mt-2 max-w-md text-[12px] leading-6 text-[var(--seller-muted)]">
                         {runShellProjection.auxiliaryPanel.summary}
                       </div>
                     </div>
@@ -663,21 +637,21 @@ export function SellingHousesWorkspace({
                 </div>
 
                 <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <div className="rounded-[20px] border border-black/[0.05] bg-white px-4 py-4 shadow-sm">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">规则摘要</div>
-                    <div className="mt-3 space-y-3 text-sm text-slate-600">
+                  <div className="seller-panel-soft px-4 py-4">
+                    <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">规则摘要</div>
+                    <div className="mt-3 space-y-3 text-[12px] text-[var(--seller-muted)]">
                       {runShellProjection.auxiliaryPanel.rules.map((entry) => (
                         <div key={entry.label} className="flex items-start justify-between gap-3">
                           <span>{entry.label}</span>
-                          <strong className="text-slate-900">{entry.value}</strong>
+                          <strong className="text-[var(--seller-ink)]">{entry.value}</strong>
                         </div>
                       ))}
                     </div>
                   </div>
 
-                  <div className="rounded-[20px] border border-emerald-100 bg-emerald-50/80 px-4 py-4">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">怎么看这组数</div>
-                    <p className="mt-3 text-sm leading-6 text-emerald-900/85">
+                  <div className="seller-panel-soft px-4 py-4">
+                    <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-chance)]">这组数现在说明什么</div>
+                    <p className="mt-3 text-[12px] leading-6 text-[var(--seller-muted)]">
                       {runShellProjection.auxiliaryPanel.note}
                     </p>
                   </div>
@@ -686,34 +660,34 @@ export function SellingHousesWorkspace({
                 <div className="space-y-3">
                   <div className="flex items-end justify-between gap-3 px-1">
                     <div>
-                      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">最近成交</div>
-                      <p className="mt-1 text-xs text-slate-500">默认展示最近成交房源，方便快速回看佣金从哪里来。</p>
+                      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">最近成交</div>
+                      <p className="mt-1 text-[11px] text-[var(--seller-subtle)]">默认展示最近成交房源，先看佣金从哪里来。</p>
                     </div>
-                    <div className="text-[11px] font-semibold text-slate-400">按成交价倒序</div>
+                    <div className="text-[11px] font-semibold text-[var(--seller-subtle)]">按成交价倒序</div>
                   </div>
                   {runShellProjection.auxiliaryPanel.soldCases.map((entry) => (
-                    <div key={entry.id} className="rounded-[18px] border border-black/[0.04] bg-white px-4 py-4 shadow-sm">
+                    <div key={entry.id} className="seller-fact-row rounded-[14px] px-4 py-4">
                       <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <div className="text-sm font-semibold text-slate-800">{entry.title}</div>
-                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                            <div className="text-[13px] font-semibold text-[var(--seller-ink)]">{entry.title}</div>
+                            <span className="seller-chip">
                               {entry.community}
                             </span>
                           </div>
-                          <div className="mt-1.5 text-xs leading-relaxed text-slate-500">
+                          <div className="mt-1.5 text-[11px] leading-6 text-[var(--seller-muted)]">
                             {entry.detail}
                           </div>
                         </div>
                         <div className="min-w-[96px] text-right">
-                          <div className="text-base font-bold text-emerald-600">{entry.commissionLabel}</div>
-                          <div className="mt-1 text-[10px] font-medium text-slate-400">佣金</div>
+                          <div className="text-[15px] font-semibold text-[var(--seller-chance)]">{entry.commissionLabel}</div>
+                          <div className="mt-1 text-[10px] font-medium text-[var(--seller-subtle)]">佣金</div>
                         </div>
                       </div>
                     </div>
                   ))}
                   {runShellProjection.auxiliaryPanel.soldCases.length === 0 && (
-                    <div className="rounded-[18px] border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-400">
+                    <div className="seller-empty px-4 py-8 text-center text-[12px]">
                       这局还没有成交，佣金会在第一套房成交后开始累计。
                     </div>
                   )}
@@ -723,12 +697,12 @@ export function SellingHousesWorkspace({
 
             {activeResourcePanel === 'energy' && (
               <>
-                <div className="mb-5 rounded-[28px] border border-sky-100 bg-gradient-to-br from-sky-50 via-white to-white px-5 py-5">
+                <div className="seller-panel-strong mb-5 px-5 py-5">
                   <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
                     <div>
-                      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-sky-700">当前精力</div>
-                      <div className="mt-2 text-[38px] font-bold tracking-tight text-slate-900">{runShellProjection.energyPanel.energyLabel}</div>
-                      <div className="mt-2 max-w-md text-sm leading-6 text-slate-700">
+                      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">当前精力</div>
+                      <div className="mt-2 text-[34px] font-semibold tracking-[-0.04em] text-[var(--seller-ink)]">{runShellProjection.energyPanel.energyLabel}</div>
+                      <div className="mt-2 max-w-md text-[12px] leading-6 text-[var(--seller-muted)]">
                         {runShellProjection.energyPanel.summary}
                       </div>
                     </div>
@@ -743,21 +717,21 @@ export function SellingHousesWorkspace({
                 </div>
 
                 <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <div className="rounded-[20px] border border-black/[0.05] bg-white px-4 py-4 shadow-sm">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">规则摘要</div>
-                    <div className="mt-3 space-y-3 text-sm text-slate-600">
+                  <div className="seller-panel-soft px-4 py-4">
+                    <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">规则摘要</div>
+                    <div className="mt-3 space-y-3 text-[12px] text-[var(--seller-muted)]">
                       {runShellProjection.energyPanel.rules.map((entry) => (
                         <div key={entry.label} className="flex items-start justify-between gap-3">
                           <span>{entry.label}</span>
-                          <strong className="text-slate-900">{entry.value}</strong>
+                          <strong className="text-[var(--seller-ink)]">{entry.value}</strong>
                         </div>
                       ))}
                     </div>
                   </div>
 
-                  <div className="rounded-[20px] border border-sky-100 bg-sky-50/80 px-4 py-4">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-sky-700">精力说明</div>
-                    <p className="mt-3 text-sm leading-6 text-slate-700">
+                  <div className="seller-panel-soft px-4 py-4">
+                    <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-accent)]">精力现在说明什么</div>
+                    <p className="mt-3 text-[12px] leading-6 text-[var(--seller-muted)]">
                       {runShellProjection.energyPanel.note}
                     </p>
                   </div>
@@ -766,20 +740,20 @@ export function SellingHousesWorkspace({
                 <div className="space-y-3">
                   <div className="flex items-end justify-between gap-3 px-1">
                     <div>
-                      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">接下来几天</div>
-                      <p className="mt-1 text-xs text-slate-500">精力不是每天都一样，高成本动作最好放在余量更宽的时候。</p>
+                      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">接下来几天</div>
+                      <p className="mt-1 text-[11px] text-[var(--seller-subtle)]">精力不是每天都一样，高成本动作最好放在余量更宽的时候。</p>
                     </div>
-                    <div className="text-[11px] font-semibold text-slate-400">未来 4 天</div>
+                    <div className="text-[11px] font-semibold text-[var(--seller-subtle)]">未来 4 天</div>
                   </div>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     {runShellProjection.energyPanel.rhythm.map((entry) => (
-                      <div key={entry.key} className="rounded-[18px] border border-black/[0.04] bg-white px-4 py-4 shadow-sm">
+                      <div key={entry.key} className="seller-fact-row rounded-[14px] px-4 py-4">
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">{entry.label}</div>
-                            <div className="mt-1 text-sm font-semibold text-slate-800">{entry.title}</div>
+                            <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">{entry.label}</div>
+                            <div className="mt-1 text-[13px] font-semibold text-[var(--seller-ink)]">{entry.title}</div>
                           </div>
-                          <div className="rounded-full bg-sky-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-sky-700">
+                          <div className="seller-chip seller-chip-accent">
                             {entry.energyLabel}
                           </div>
                         </div>
@@ -807,15 +781,15 @@ function SelectedCaseDetailSheet({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-[22px] border border-black/[0.05] bg-slate-950 px-4 py-4 text-white shadow-sm">
-        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-300">当前主矛盾</div>
-        <div className="mt-2 text-[18px] font-semibold tracking-tight">{projection.mainProblemLabel}</div>
-        <p className="mt-2 text-[12px] leading-6 text-slate-300">{projection.actionReasons[0]?.detail || projection.ownerSummary.detail}</p>
+      <div className="seller-panel-strong px-4 py-4">
+        <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">当前先看</div>
+        <div className="mt-2 text-[17px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">{projection.mainProblemLabel}</div>
+        <p className="mt-2 text-[12px] leading-6 text-[var(--seller-muted)]">{projection.actionReasons[0]?.detail || projection.ownerSummary.detail}</p>
         <div className="mt-3 flex flex-wrap gap-2">
           {projection.currentRiskTags.slice(0, 3).map((tag) => (
             <span
               key={tag}
-              className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-200"
+              className="seller-chip"
             >
               {tag}
             </span>
@@ -841,7 +815,7 @@ function SelectedCaseDetailSheet({
           chips={[
             `已接 ${projection.customerPoolSummary.metCount}`,
             `潜力 ${projection.customerPoolSummary.potentialCount}`,
-            `后段 ${projection.customerPoolSummary.closingCount}`,
+            `快到报价 ${projection.customerPoolSummary.closingCount}`,
           ]}
         />
         <DetailMetricCard
@@ -865,16 +839,16 @@ function SelectedCaseDetailSheet({
         />
       </div>
 
-      <section className="rounded-[22px] border border-black/[0.05] bg-white p-4 shadow-sm">
+      <section className="seller-panel-soft p-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">下一步</div>
-            <div className="mt-1 text-[15px] font-semibold text-slate-900">这套房接下来先做什么</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">现在能接着做什么</div>
+            <div className="mt-1 text-[15px] font-semibold text-[var(--seller-ink)]">这套房接下来先处理哪一步</div>
           </div>
           <button
             type="button"
             onClick={onOpenFull}
-            className="rounded-full bg-slate-900 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white hover:bg-slate-700"
+            className="seller-button-secondary rounded-full px-3 py-1.5 text-[10px]"
           >
             去房源页
           </button>
@@ -885,15 +859,15 @@ function SelectedCaseDetailSheet({
               key={reason.id}
               className={`rounded-[18px] border px-3 py-3 ${
                 reason.tone === 'risk'
-                  ? 'border-rose-200 bg-rose-50/70'
+                  ? 'border-[color:var(--seller-risk)]/20 bg-[var(--seller-risk-soft)]'
                   : reason.tone === 'chance'
-                    ? 'border-emerald-200 bg-emerald-50/70'
-                    : 'border-black/[0.05] bg-slate-50/70'
+                    ? 'border-[color:var(--seller-chance)]/20 bg-[var(--seller-chance-soft)]'
+                    : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)]'
               }`}
             >
-              <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">{reason.label}</div>
-              <div className="mt-1 text-[13px] font-semibold text-slate-900">{reason.title}</div>
-              <p className="mt-1 text-[12px] leading-6 text-slate-500">{reason.detail}</p>
+              <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">{reason.label}</div>
+              <div className="mt-1 text-[13px] font-semibold text-[var(--seller-ink)]">{reason.title}</div>
+              <p className="mt-1 text-[12px] leading-6 text-[var(--seller-muted)]">{reason.detail}</p>
             </div>
           ))}
         </div>
@@ -914,15 +888,15 @@ function DetailMetricCard({
   chips: string[];
 }) {
   return (
-    <section className="rounded-[22px] border border-black/[0.05] bg-white p-4 shadow-sm">
-      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">{label}</div>
-      <div className="mt-1 text-[15px] font-semibold text-slate-900">{title}</div>
-      <p className="mt-2 text-[12px] leading-6 text-slate-500">{detail}</p>
+    <section className="seller-fact-row rounded-[14px] p-4">
+      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">{label}</div>
+      <div className="mt-1 text-[15px] font-semibold text-[var(--seller-ink)]">{title}</div>
+      <p className="mt-2 text-[12px] leading-6 text-[var(--seller-muted)]">{detail}</p>
       <div className="mt-3 flex flex-wrap gap-2">
         {chips.map((chip) => (
           <span
             key={chip}
-            className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-600"
+            className="seller-chip"
           >
             {chip}
           </span>
@@ -946,10 +920,10 @@ function NavItem({
   return (
     <button
       onClick={onClick}
-      className={`flex h-11 shrink-0 items-center gap-2 rounded-[14px] px-3.5 text-[12px] font-bold transition-all ${
+      className={`flex h-10 shrink-0 items-center gap-2 rounded-[10px] px-3.5 text-[12px] font-semibold transition-all ${
         active
-          ? 'border border-slate-200 bg-[linear-gradient(180deg,#2F3C4F,#243244)] text-white shadow-[0_8px_18px_rgba(36,50,68,0.16)]'
-          : 'border border-transparent text-slate-500 hover:bg-white hover:text-slate-900'
+          ? 'border border-[var(--seller-border-strong)] bg-[var(--seller-ink)] text-[var(--seller-bg)] shadow-[0_10px_20px_rgba(0,0,0,0.24)]'
+          : 'border border-transparent text-[var(--seller-muted)] hover:bg-[rgba(255,255,255,0.06)] hover:text-[var(--seller-ink)]'
       }`}
     >
       {icon}
@@ -974,9 +948,9 @@ function ResourceTile({
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="flex items-center gap-2">
-        <div className="text-slate-300">{icon}</div>
+        <div className="text-[var(--seller-subtle)]">{icon}</div>
         <div className="flex flex-col leading-none">
-          <span className="mb-1 text-[10px] font-bold uppercase tracking-tight text-slate-300">{label}</span>
+          <span className="mb-1 text-[10px] font-bold uppercase tracking-tight text-[var(--seller-subtle)]">{label}</span>
           <span className={`text-[13px] font-bold ${color}`}>{value}</span>
         </div>
       </div>
@@ -987,7 +961,7 @@ function ResourceTile({
 
 function ResourceDetailHint() {
   return (
-    <div className="flex items-center gap-1 text-[10px] font-semibold text-slate-400">
+    <div className="flex items-center gap-1 text-[10px] font-semibold text-[var(--seller-subtle)]">
       <span>详情</span>
       <ChevronRight size={14} />
     </div>
@@ -1003,18 +977,18 @@ function BudgetMiniStat({
   value: string;
   tone: 'emerald' | 'sky' | 'rose' | 'amber';
 }) {
-  const toneClass = tone === 'emerald'
-    ? 'bg-white text-emerald-700'
+  const valueClass = tone === 'emerald'
+    ? 'text-[var(--seller-chance)]'
     : tone === 'sky'
-      ? 'bg-white text-sky-700'
+      ? 'text-[var(--seller-accent)]'
       : tone === 'amber'
-        ? 'bg-white text-amber-700'
-        : 'bg-white text-rose-600';
+        ? 'text-[var(--seller-accent)]'
+        : 'text-[var(--seller-risk)]';
 
   return (
-    <div className={`rounded-2xl px-3 py-3 text-center shadow-sm ${toneClass}`}>
-      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">{label}</div>
-      <div className="mt-1 text-base font-bold">{value}</div>
+    <div className="seller-fact-row rounded-[14px] px-3 py-3 text-center">
+      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">{label}</div>
+      <div className={`mt-1 text-[15px] font-semibold ${valueClass}`}>{value}</div>
     </div>
   );
 }
@@ -1035,12 +1009,12 @@ function WorkspacePanelSkeleton() {
 function WorkspaceOverlaySkeleton() {
   return (
     <div className="fixed inset-0 z-[100] bg-slate-900/30 backdrop-blur-sm">
-      <div className="mx-auto mt-20 max-w-4xl animate-pulse rounded-[36px] bg-white/90 p-10 shadow-2xl">
-        <div className="mx-auto h-8 w-56 rounded bg-slate-200" />
-        <div className="mx-auto mt-4 h-4 w-96 max-w-full rounded bg-slate-100" />
+      <div className="mx-auto mt-20 max-w-4xl animate-pulse rounded-[18px] border border-[var(--seller-border)] bg-[var(--seller-paper)] p-10 shadow-2xl">
+        <div className="mx-auto h-8 w-56 rounded bg-[rgba(255,255,255,0.08)]" />
+        <div className="mx-auto mt-4 h-4 w-96 max-w-full rounded bg-[rgba(255,255,255,0.05)]" />
         <div className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, index) => (
-            <div key={index} className="h-24 rounded-2xl bg-slate-100" />
+            <div key={index} className="h-24 rounded-[14px] bg-[rgba(255,255,255,0.05)]" />
           ))}
         </div>
       </div>

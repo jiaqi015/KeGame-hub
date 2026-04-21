@@ -1,6 +1,6 @@
 # 卖房（资产顾问）Matter 模板架构
 
-最后更新：2026-04-19
+最后更新：2026-04-21
 
 这份文档回答的是：
 
@@ -18,6 +18,14 @@
 2. 每类模板的阶段怎么走
 3. Matter 和动作、事件、关系怎么连接
 4. 哪些 Matter 适合普通卡片，哪些适合独立页面，哪些适合专屏
+
+当前实现合同以 [selling-houses-implementation-contracts.md](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-implementation-contracts.md) 为准：
+
+- `scene` 说明“这是什么业务事”
+- `template` 说明“用什么交互方式处理”，当前实现取值为 `dialog | form | schedule | realtime`
+- `presentation` 说明“显示成卡片、详情页还是专屏”
+- `report / diagnose / execute / negotiate` 是本文的生命周期分类，不是当前实现字段枚举
+- `ClosedDealRecord` 不是 Matter；Matter 最多推进到成交前准备或收口动作
 
 ---
 
@@ -203,7 +211,8 @@ type MatterScene =
   | 'report_to_owner'
   | 'closing_prep'
   | 'diagnose'
-  | 'co_selling';
+  | 'co_selling'
+  | 'risk_followup';
 
 type InteractionTemplate =
   | 'dialog'
@@ -232,7 +241,7 @@ type MatterPresentation =
 
 ---
 
-## 2. 四类 Matter 模板
+## 2. 四类 Matter 生命周期分类
 
 先固定四类：
 
@@ -241,7 +250,9 @@ type MatterPresentation =
 3. `execute`
 4. `negotiate`
 
-这四类不是 UI 分类，而是生命周期模板。
+这四类不是 UI 分类，而是生命周期分类。
+
+注意：当前实现里的 `Matter.template` 字段已经用于交互模板，即 `dialog | form | schedule | realtime`。本节的 `report / diagnose / execute / negotiate` 暂时只作为设计分类，不能直接当成当前字段枚举写进代码。
 
 所以完整结构不是“4 个 Matter”。
 
@@ -249,8 +260,8 @@ type MatterPresentation =
 
 ```text
 scene
-  × lifecycle template
-  × interaction template
+  × lifecycle category
+  × template
   × presentation mode
 ```
 
@@ -276,17 +287,23 @@ scene
 ## 3. 通用 Matter 结构
 
 ```ts
-type MatterTemplate =
+type MatterLifecycleCategory =
   | 'report'
   | 'diagnose'
   | 'execute'
   | 'negotiate';
 
+type MatterTemplate =
+  | 'dialog'
+  | 'form'
+  | 'schedule'
+  | 'realtime';
+
 type Matter = {
   id: string;
   scene: MatterScene;
+  lifecycleCategory?: MatterLifecycleCategory;
   template: MatterTemplate;
-  interactionTemplate: InteractionTemplate;
   presentation: MatterPresentation;
   title: string;
   initiatorBrokerId: string;
@@ -329,7 +346,7 @@ type Matter = {
 
 下面这张表建议后面定成标准口径。
 
-| Scene | 含义 | 生命周期模板 | 交互模板 | 默认展示层级 | 说明 |
+| Scene | 含义 | 生命周期分类 | 当前 template | 默认展示层级 | 说明 |
 | ---- | ---- | ---- | ---- | ---- | ---- |
 | `showing` | 带看 | `execute` | `schedule` | `detail-page` | 需要预约、执行、反馈，通常不必整屏 |
 | `open_house` | 开放日 | `execute` | `realtime` | `full-screen` | 独立专屏，前中后链路完整 |

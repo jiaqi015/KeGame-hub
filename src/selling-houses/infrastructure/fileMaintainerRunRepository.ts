@@ -12,11 +12,12 @@ import {
   buildFinalStats,
   buildScoreBreakdown,
   deriveRankTitle,
+  resolveLeaderboardOwnerKey,
   deriveRunScore,
   deriveRunStatus,
   normalizePlayerName,
 } from '../application/cloudSync.js';
-import { buildRuntimeAuxiliaryStats } from '../domain/runtimeStats.js';
+import { buildRuntimeAuxiliaryStats, resolveFormalSoldCount } from '../domain/runtimeStats.js';
 import type { MaintainerRunRepository } from '../application/maintainerRunRepository.js';
 import { MaintainerSyncConflictError } from '../application/maintainerSyncConflictError.js';
 import {
@@ -29,6 +30,8 @@ import { getRuntimeTempDir } from '../../../lib/runtimeTemp.js';
 
 interface FileRunIndexItem {
   runId: string;
+  accountId?: string;
+  playerProfileId?: string;
   userId: string;
   playerName: string;
   status: MaintainerRunRecord['status'];
@@ -73,11 +76,14 @@ function buildLeaderboardCategoryEntries(
   const aggregated = new Map<string, MaintainerLeaderboardCategoryEntry>();
 
   for (const item of items) {
-    const existing = aggregated.get(item.userId);
+    const ownerKey = resolveLeaderboardOwnerKey(item);
+    const existing = aggregated.get(ownerKey);
     const nextValue = resolveValue(item);
 
     if (!existing) {
-      aggregated.set(item.userId, {
+      aggregated.set(ownerKey, {
+        accountId: item.accountId,
+        playerProfileId: item.playerProfileId,
         userId: item.userId,
         playerName: item.playerName,
         value: nextValue,
@@ -86,6 +92,12 @@ function buildLeaderboardCategoryEntries(
     }
 
     existing.value = combine(existing.value, nextValue);
+    if (!existing.accountId && item.accountId) {
+      existing.accountId = item.accountId;
+    }
+    if (!existing.playerProfileId && item.playerProfileId) {
+      existing.playerProfileId = item.playerProfileId;
+    }
     if (!existing.playerName && item.playerName) {
       existing.playerName = item.playerName;
     }
@@ -106,7 +118,11 @@ function resolveClientUpdatedAt(value: string | null | undefined) {
 }
 
 function buildAuxiliaryStats(state: MaintainerRunRecord['saveData']) {
-  return buildRuntimeAuxiliaryStats(state);
+  const auxiliaryStats = buildRuntimeAuxiliaryStats(state);
+  return {
+    ...auxiliaryStats,
+    soldCount: resolveFormalSoldCount(state),
+  };
 }
 
 function buildRunRecord(
@@ -125,7 +141,9 @@ function buildRunRecord(
 
   return {
     runId: command.runId,
-    userId: command.userId,
+    accountId: command.accountId || previous?.accountId,
+    playerProfileId: command.playerProfileId || previous?.playerProfileId,
+    userId: command.runOwnerId,
     playerName: normalizePlayerName(command.playerName),
     status,
     seasonId: command.seasonId || 'season-1',
@@ -156,6 +174,8 @@ function buildRunRecord(
 function toRunIndexItem(record: MaintainerRunRecord): FileRunIndexItem {
   return {
     runId: record.runId,
+    accountId: record.accountId,
+    playerProfileId: record.playerProfileId,
     userId: record.userId,
     playerName: record.playerName,
     status: record.status,
@@ -171,6 +191,8 @@ function buildLeaderboardEntry(
 ): MaintainerLeaderboardEntry {
   return {
     runId: record.runId,
+    accountId: record.accountId,
+    playerProfileId: record.playerProfileId,
     userId: record.userId,
     playerName: record.playerName,
     seasonId: record.seasonId,
@@ -211,7 +233,7 @@ export class FileMaintainerRunRepository implements MaintainerRunRepository {
 
   async saveRun(command: MaintainerSaveRunCommand): Promise<MaintainerRunRecord> {
     await this.ensureDirs();
-    const current = await this.getRun(command.runId, command.userId);
+    const current = await this.getRun(command.runId, command.runOwnerId);
     if (!current || current.syncVersion !== command.expectedSyncVersion) {
       throw new MaintainerSyncConflictError(current);
     }

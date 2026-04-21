@@ -1,5 +1,7 @@
 # 卖房（资产顾问）字段归属表
 
+最后更新：2026-04-21
+
 这份文档只解决一个最实际的问题：
 
 > 一个字段到底该挂在哪，为什么挂在那里，以后代码迁移时怎么判断对不对。
@@ -8,6 +10,8 @@
 是讲落地归属。
 
 如果后面有人继续把字段往 `Case` 上堆，或者把玩家视角字段写回世界状态，就拿这份表直接拦。
+
+当前实现层 canonical 命名和最小字段合同，以 [selling-houses-implementation-contracts.md](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-implementation-contracts.md) 为准。本表只判断“字段该归谁”，不覆盖实现合同里的枚举、主键和 legacy bridge 口径。
 
 ---
 
@@ -109,14 +113,16 @@
 | intent | `CustomerCaseRelation` | 关系 | 客户对这套房的购买意向 | 不该写到 `CustomerRuntimeState` |
 | confidence | `CustomerCaseRelation` | 关系 | 客户觉得这套房能不能成 | 不该写到 `CustomerRuntimeState` |
 | stage | `CustomerCaseRelation` | 关系 | 这是这条机会走到哪一步 | 不该写在 `Customer` |
-| status | `CustomerCaseRelation` | 关系 | 进行中/停滞/流失/成交是单房关系状态 | 不该写在 `Customer` |
+| lifecycleStatus | `CustomerCaseRelation` | 关系 | 进行中/停滞/流失/因成交关闭/因房源关闭是单房关系状态 | 不该写在 `Customer` |
 | compareRank | `CustomerCaseRelation` | 关系 | 客户内部比较中的位置 | 不该写在 `CaseRuntime` |
 | rivalPullScore | `CustomerCaseRelation` | 关系 | 竞品对这条机会的拉扯 | 不该写在客户整体状态 |
 | stagnationDays | `CustomerCaseRelation` | 关系 | 这条机会卡了多少天 | 不该写到客户整体疲劳度 |
 | viewingMode | `CustomerCaseRelation` | 关系 | 自己来/开放日是这条机会的看房方式 | 不该挂到阶段定义里 |
 | lastAdvanceDay | `CustomerCaseRelation` | 关系 | 记录这条关系最近推进时间 | 不该挂 customer |
 | matterId | `Matter` | identity | 一次事项主键 | 不该用 event id 代替 |
-| matterTemplate | `Matter` | 事项 | 事项属于汇报/诊断/执行/博弈哪类 | 不该写 relation |
+| matterScene | `Matter` | 事项 | 这件事在业务上是什么 | 不该混同 template |
+| matterTemplate | `Matter` | 事项 | 事项用什么交互方式处理 | 不该写 relation |
+| matterLifecycleCategory | `Matter` 或派生分类 | 事项分类 | 汇报/诊断/执行/博弈是设计分类，不是当前 `template` 枚举 | 不该覆盖 interaction template |
 | matterStage | `Matter` | 事项 | 事项自身流程进到哪 | 不该写 relation stage |
 | initiatorActorId | `Matter` | 事项 | 谁发起了这次事 | 不该写成 event 中唯一来源 |
 | subjectIds | `Matter` | 事项 | 这次事涉及谁和什么 | 不该只塞一堆字符串在 UI |
@@ -207,7 +213,7 @@
 | intent | `CustomerCaseRelation` | 客户对这套房的意愿 |
 | confidence | `CustomerCaseRelation` | 客户对推进成功的信心 |
 | stage | `CustomerCaseRelation` | 这条机会当前阶段 |
-| status | `CustomerCaseRelation` | 推进中、停滞、流失、成交 |
+| lifecycleStatus | `CustomerCaseRelation` | 推进中、停滞、流失、因成交关闭、因房源关闭 |
 | compareRank | `CustomerCaseRelation` | 这套房在客户候选池里的排序 |
 
 ---
@@ -218,7 +224,9 @@
 
 | 字段 | 应属对象 | 为什么 |
 | ---- | -------- | ------ |
-| template | `Matter` | 这次事是汇报、诊断、执行还是博弈 |
+| scene | `Matter` | 这次事在业务上是什么 |
+| template | `Matter` | 这次事用什么交互方式完成 |
+| lifecycleCategory | `Matter` 或派生分类 | 如果要记录汇报/诊断/执行/博弈，应独立于当前 `template` 字段 |
 | stage | `Matter` | 这次事当前进度 |
 | initiatorActorId | `Matter` | 谁发起 |
 | subjectIds | `Matter` | 涉及哪些人、关系、房子 |

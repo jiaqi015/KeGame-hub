@@ -15,7 +15,7 @@ import type {
   ScoreAttributionItem,
   ScoreDimensionResult,
 } from './models.js';
-import { getPromotionBudget } from './runtimeStats.js';
+import { getPromotionBudget, resolveFormalSoldCount } from './runtimeStats.js';
 
 const ABILITY_ACTION_IDS = new Set([
   'story',
@@ -773,6 +773,10 @@ function buildCustomerReview(world: GameState): FinalResult['customerReview'] {
   };
 }
 
+function getClosedDealCount(world: GameState) {
+  return resolveFormalSoldCount(world);
+}
+
 function pickCustomerLeadCaseTitle(
   world: GameState,
   predicate: (entry: GameState['customerStates'][number]) => boolean,
@@ -797,6 +801,7 @@ function pickCustomerLeadCaseTitle(
 export function evaluateFinalResult(world: GameState, reason: string): FinalResult {
   const attribution = buildAttributionSummary(Array.isArray(world.eventStore) ? world.eventStore : []);
   const caseResults = world.cases.map((caseItem) => buildCaseFinalResult(caseItem));
+  const closedDealCount = getClosedDealCount(world);
   const endingStats = buildEndingStats(caseResults);
   const ability = buildAbilityDimension(caseResults, attribution);
   const defense = buildDefenseDimension(caseResults, attribution);
@@ -844,6 +849,7 @@ export function evaluateFinalResult(world: GameState, reason: string): FinalResu
       { label: '经营天数', value: `${Math.min(world.day, world.maxDay)} / ${world.maxDay} 天` },
       { label: '目标分', value: `${targetScore}` },
       { label: '最终总分', value: `${score}` },
+      { label: '正式成交', value: `${closedDealCount} 套` },
       { label: '房源结局', value: `${endingStats.good} 好 / ${endingStats.neutral} 一般 / ${endingStats.bad} 坏` },
       { label: '能力分', value: `${ability.score} / ${ability.maxScore}` },
       { label: '保住房源分', value: `${defense.score} / ${defense.maxScore}` },

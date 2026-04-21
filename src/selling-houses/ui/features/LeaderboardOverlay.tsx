@@ -122,7 +122,7 @@ export function LeaderboardOverlay({ loading, detail, error, onClose }: Leaderbo
             <div className="space-y-3">
               {active.entries.map((entry) => (
                 <div
-                  key={`${active.id}-${entry.userId}-${entry.rank}`}
+                  key={`${active.id}-${entry.ownerKey}-${entry.rank}`}
                   className={`rounded-[22px] border px-4 py-4 ${
                     entry.rank <= 3
                       ? 'border-[#F1DFC9] bg-[linear-gradient(180deg,rgba(255,247,237,0.92),rgba(255,255,255,1))]'

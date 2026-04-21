@@ -7,6 +7,11 @@ export interface MaintainerCloudMeta {
   updatedAt: string;
 }
 
+export interface MaintainerRunOwnerContext {
+  storageScopeKey: string;
+  accountId?: string;
+}
+
 function isBrowser() {
   return typeof window !== 'undefined' && Boolean(window.localStorage);
 }
@@ -28,20 +33,40 @@ function loadRawMaintainerUserId(scopeKey?: string) {
   return window.localStorage.getItem(storageKey)?.trim() || null;
 }
 
-export function getOrCreateMaintainerUserId(accountEmail?: string) {
+function normalizeRunOwnerInput(input?: string | MaintainerRunOwnerContext): MaintainerRunOwnerContext {
+  if (typeof input === 'string' || typeof input === 'undefined') {
+    const storageScopeKey = (input || '').trim();
+    return {
+      storageScopeKey,
+    };
+  }
+
+  return {
+    storageScopeKey: (input.storageScopeKey || '').trim(),
+    accountId: (input.accountId || '').trim() || undefined,
+  };
+}
+
+export function getOrCreateMaintainerUserId(scopeKeyOrContext?: string | MaintainerRunOwnerContext) {
   if (!isBrowser()) {
-    return 'server-maintainer-user';
+    const normalized = normalizeRunOwnerInput(scopeKeyOrContext);
+    return normalized.accountId || 'server-maintainer-user';
   }
 
-  const storageKey = getScopedCloudUserStorageKey(accountEmail);
-  const cached = window.localStorage.getItem(storageKey)?.trim();
-  if (cached) {
-    return cached;
+  const normalized = normalizeRunOwnerInput(scopeKeyOrContext);
+  if (normalized.accountId) {
+    return normalized.accountId;
   }
 
-  const next = globalThis.crypto?.randomUUID?.() || `maintainer-${Date.now()}`;
-  window.localStorage.setItem(storageKey, next);
-  return next;
+  const storageKey = getScopedCloudUserStorageKey(normalized.storageScopeKey);
+  const cachedLegacy = window.localStorage.getItem(storageKey)?.trim();
+  if (cachedLegacy) {
+    return cachedLegacy;
+  }
+
+  const nextLegacy = globalThis.crypto?.randomUUID?.() || `maintainer-${Date.now()}`;
+  window.localStorage.setItem(storageKey, nextLegacy);
+  return nextLegacy;
 }
 
 export function migrateMaintainerUserIdScope(targetScopeKey: string, legacyScopeKey?: string) {

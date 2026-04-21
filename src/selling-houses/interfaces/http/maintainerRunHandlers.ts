@@ -1,9 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import type {
   MaintainerCreateRunCommand,
+  MaintainerCreateRunRequest,
   MaintainerSaveRunCommand,
+  MaintainerSaveRunRequest,
 } from '../../application/cloudSync.js';
 import { MaintainerSyncConflictError } from '../../application/maintainerSyncConflictError.js';
+import { deriveSellingHousesPlayerProfileId } from '../../application/playerContext.js';
 import { getMaintainerRunRepository } from '../../infrastructure/sellingHousesPlatform.js';
 
 const repository = getMaintainerRunRepository();
@@ -12,6 +15,26 @@ export interface MaintainerRunIdentityContext {
   accountId?: string;
   displayName?: string;
   source?: 'session' | 'activation-key';
+}
+
+function resolveOptionalString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function resolveCommandAccountId(candidateAccountId: unknown, identity?: MaintainerRunIdentityContext): string | undefined {
+  if (identity?.source === 'session' && identity.accountId?.trim()) {
+    return identity.accountId.trim();
+  }
+
+  return resolveOptionalString(candidateAccountId);
+}
+
+function resolveCommandPlayerProfileId(candidatePlayerProfileId: unknown, identity?: MaintainerRunIdentityContext): string | undefined {
+  if (identity?.source === 'session' && identity.accountId?.trim()) {
+    return deriveSellingHousesPlayerProfileId(identity.accountId.trim());
+  }
+
+  return resolveOptionalString(candidatePlayerProfileId);
 }
 
 function resolveUserId(candidateUserId: unknown, identity?: MaintainerRunIdentityContext): string {
@@ -49,9 +72,9 @@ function normalizeCreateBody(body: unknown, identity?: MaintainerRunIdentityCont
     throw new Error('创建存档时缺少请求体。');
   }
 
-  const candidate = body as Partial<MaintainerCreateRunCommand>;
-  const userId = resolveUserId(candidate.userId, identity);
-  if (!userId) {
+  const candidate = body as Partial<MaintainerCreateRunRequest>;
+  const runOwnerId = resolveUserId(candidate.userId, identity);
+  if (!runOwnerId) {
     throw new Error('缺少 userId。');
   }
 
@@ -60,7 +83,9 @@ function normalizeCreateBody(body: unknown, identity?: MaintainerRunIdentityCont
   }
 
   return {
-    userId,
+    runOwnerId,
+    accountId: resolveCommandAccountId(candidate.accountId, identity),
+    playerProfileId: resolveCommandPlayerProfileId(candidate.playerProfileId, identity),
     playerName: resolvePlayerName(candidate.playerName, identity),
     seasonId: typeof candidate.seasonId === 'string' ? candidate.seasonId : undefined,
     state: candidate.state as MaintainerCreateRunCommand['state'],
@@ -73,13 +98,13 @@ function normalizeSaveBody(body: unknown, identity?: MaintainerRunIdentityContex
     throw new Error('保存存档时缺少请求体。');
   }
 
-  const candidate = body as Partial<MaintainerSaveRunCommand>;
+  const candidate = body as Partial<MaintainerSaveRunRequest>;
   if (!candidate.runId || typeof candidate.runId !== 'string') {
     throw new Error('缺少 runId。');
   }
 
-  const userId = resolveUserId(candidate.userId, identity);
-  if (!userId) {
+  const runOwnerId = resolveUserId(candidate.userId, identity);
+  if (!runOwnerId) {
     throw new Error('缺少 userId。');
   }
 
@@ -93,7 +118,9 @@ function normalizeSaveBody(body: unknown, identity?: MaintainerRunIdentityContex
 
   return {
     runId: candidate.runId.trim(),
-    userId,
+    runOwnerId,
+    accountId: resolveCommandAccountId(candidate.accountId, identity),
+    playerProfileId: resolveCommandPlayerProfileId(candidate.playerProfileId, identity),
     playerName: resolvePlayerName(candidate.playerName, identity),
     seasonId: typeof candidate.seasonId === 'string' ? candidate.seasonId : undefined,
     state: candidate.state as MaintainerSaveRunCommand['state'],

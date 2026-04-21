@@ -82,7 +82,7 @@ select {
 
 .seller-panel-soft {
   border: 1px solid color-mix(in srgb, var(--seller-border) 92%, transparent);
-  background: rgba(21, 31, 43, 0.74);
+  background: rgba(21, 31, 43, 0.58);
   border-radius: 12px;
 }
 
@@ -115,7 +115,7 @@ select {
 .seller-workbench-dark {
   border: 1px solid color-mix(in srgb, var(--seller-accent) 20%, var(--seller-border) 80%);
   background:
-    radial-gradient(circle at top right, rgba(74, 227, 138, 0.12), transparent 36%),
+    radial-gradient(circle at top right, rgba(74, 227, 138, 0.06), transparent 34%),
     linear-gradient(180deg, rgba(17, 25, 35, 0.98), rgba(9, 16, 24, 0.98));
   border-radius: 16px;
   color: var(--seller-ink);
@@ -165,7 +165,7 @@ select {
   color: var(--seller-subtle);
   font-size: 0.6rem;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   line-height: 1;
   text-transform: uppercase;
 }
@@ -195,11 +195,11 @@ select {
   background: rgba(255, 255, 255, 0.04);
   border-radius: 999px;
   color: var(--seller-ink);
-  font-size: 0.63rem;
+  font-size: 0.6rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   line-height: 1;
-  padding: 0.34rem 0.65rem;
+  padding: 0.3rem 0.58rem;
   text-transform: uppercase;
 }
 
@@ -236,15 +236,21 @@ select {
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
-  padding: 0.45rem 0.88rem;
+  padding: 0.42rem 0.8rem;
   border-radius: 999px;
   color: var(--seller-muted);
-  font-size: 0.65rem;
+  font-size: 0.62rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   line-height: 1;
   text-transform: uppercase;
   transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.seller-fact-row {
+  border: 1px solid var(--seller-border);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
 }
 
 .seller-tab:hover {
@@ -262,7 +268,7 @@ select {
   background: var(--seller-accent);
   border-radius: 12px;
   color: var(--seller-bg);
-  font-size: 0.74rem;
+  font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   transition: background 150ms ease, border-color 150ms ease, color 150ms ease, transform 150ms ease;
@@ -277,7 +283,7 @@ select {
   background: rgba(255, 255, 255, 0.04);
   border-radius: 12px;
   color: var(--seller-ink);
-  font-size: 0.74rem;
+  font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   transition: background 150ms ease, border-color 150ms ease, color 150ms ease, transform 150ms ease;
@@ -323,11 +329,28 @@ select {
   background-color: rgba(17, 25, 35, 0.96);
 }
 
+.selling-houses-shell [class*="bg-white/90"],
+.selling-houses-shell [class*="bg-white/85"],
+.selling-houses-shell [class*="bg-white/80"],
+.selling-houses-shell [class*="bg-white/78"],
+.selling-houses-shell [class*="bg-white/72"],
+.selling-houses-shell [class*="bg-white/60"] {
+  background-color: rgba(17, 25, 35, 0.92);
+}
+
 .selling-houses-shell .bg-slate-50 {
   background-color: rgba(15, 23, 32, 0.92);
 }
 
-.selling-houses-shell .bg-slate-100 {
+.selling-houses-shell [class*="bg-slate-50/80"],
+.selling-houses-shell [class*="bg-slate-50/70"],
+.selling-houses-shell [class*="bg-slate-50/40"] {
+  background-color: rgba(15, 23, 32, 0.86);
+}
+
+.selling-houses-shell .bg-slate-100,
+.selling-houses-shell .bg-slate-200,
+.selling-houses-shell .bg-slate-300 {
   background-color: rgba(21, 31, 43, 0.94);
 }
 
@@ -357,12 +380,15 @@ select {
 }
 
 .selling-houses-shell .text-slate-950,
-.selling-houses-shell .text-slate-900 {
+.selling-houses-shell .text-slate-900,
+.selling-houses-shell .text-slate-800 {
   color: var(--seller-ink);
 }
 
 .selling-houses-shell .text-slate-700,
-.selling-houses-shell .text-slate-600 {
+.selling-houses-shell .text-slate-600,
+.selling-houses-shell .text-slate-300,
+.selling-houses-shell .text-slate-200 {
   color: var(--seller-muted);
 }
 
@@ -373,6 +399,7 @@ select {
 
 .selling-houses-shell .text-sky-700,
 .selling-houses-shell .text-sky-600,
+.selling-houses-shell .text-sky-500,
 .selling-houses-shell .text-amber-900,
 .selling-houses-shell .text-amber-800,
 .selling-houses-shell .text-amber-700,
@@ -383,12 +410,14 @@ select {
 
 .selling-houses-shell .text-emerald-700,
 .selling-houses-shell .text-emerald-600,
+.selling-houses-shell .text-emerald-500,
 .selling-houses-shell .text-lime-700 {
   color: var(--seller-chance);
 }
 
 .selling-houses-shell .text-rose-700,
 .selling-houses-shell .text-rose-600,
+.selling-houses-shell .text-rose-500,
 .selling-houses-shell .text-fuchsia-700 {
   color: var(--seller-risk);
 }
@@ -449,6 +478,15 @@ select {
   background-image: linear-gradient(180deg, rgba(17, 25, 35, 0.96), rgba(15, 23, 32, 0.96));
 }
 
+.selling-houses-shell [class*="hover:bg-white"]:hover,
+.selling-houses-shell [class*="hover:bg-slate-50"]:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+.selling-houses-shell [class*="hover:text-slate-900"]:hover {
+  color: var(--seller-ink);
+}
+
 .selling-houses-shell [class*="bg-[#2b2118"] {
   background-color: var(--seller-ink);
 }
@@ -502,27 +540,27 @@ select {
 }
 
 .selling-houses-shell [class*="text-[28px]"] {
-  font-size: 1.45rem;
+  font-size: 1.36rem;
   line-height: 1.1;
 }
 
 .selling-houses-shell [class*="text-[26px]"] {
-  font-size: 1.32rem;
+  font-size: 1.26rem;
   line-height: 1.12;
 }
 
 .selling-houses-shell [class*="text-[24px]"] {
-  font-size: 1.24rem;
+  font-size: 1.18rem;
   line-height: 1.14;
 }
 
 .selling-houses-shell [class*="text-[22px]"] {
-  font-size: 1.12rem;
+  font-size: 1.08rem;
   line-height: 1.16;
 }
 
 .selling-houses-shell [class*="text-[20px]"] {
-  font-size: 1.02rem;
+  font-size: 0.98rem;
   line-height: 1.18;
 }
 

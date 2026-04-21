@@ -585,14 +585,16 @@ export function buildMarketProjection(state: GameState): MarketProjection {
     .slice(0, 5)
     .map((item) => {
       const caseItem = activeCases.find((entry) => entry.id === item.caseId);
-      const pressure = caseItem ? calculateMarketPressureForCase(state, caseItem) : 0;
+      const pressure = item.tone === 'risk'
+        ? Math.max(item.count * 18, caseItem ? calculateMarketPressureForCase(state, caseItem) : 0)
+        : 0;
 
       return {
         id: `affected-${item.caseId}`,
         label: '受影响房源',
         title: item.title,
         detail: item.reason,
-        tone: pressure >= 70 ? 'risk' as const : pressure >= 45 ? 'neutral' as const : 'chance' as const,
+        tone: pressure >= 70 ? 'risk' as const : 'neutral' as const,
         caseId: item.caseId,
       };
     });
@@ -774,12 +776,12 @@ function deriveMainProblem(
 }
 
 function mainProblemLabel(problem: CaseMainProblem) {
-  if (problem === 'owner') return '业主关系';
-  if (problem === 'customer-pool') return '准客池';
+  if (problem === 'owner') return '业主沟通';
+  if (problem === 'customer-pool') return '客户承接';
   if (problem === 'price') return '价格';
   if (problem === 'competition') return '竞品压力';
-  if (problem === 'execution') return '动作承接';
-  return '市场变化';
+  if (problem === 'execution') return '今天动作';
+  return '外部变化';
 }
 
 function buildRiskTags(caseItem: Case, opportunities: Opportunity[], competitionPressure: number, atRiskCount: number) {
@@ -828,7 +830,7 @@ function buildCaseActionReasons(
     reasons.push({
       id: `${caseItem.id}-customer-pool`,
       label: '待处理',
-      title: '先补准客池厚度',
+      title: '先补客户线索',
       detail: '现在接上的客户不够，开放日、私域转介绍或合作经纪人都可以补线索。',
       tone: 'neutral',
       caseId: caseItem.id,
@@ -863,7 +865,7 @@ function buildCaseActionReasons(
       id: `${caseItem.id}-closing-${closing.id}`,
       label: '成交线索',
       title: `${closing.customerName} 已经到 ${closing.stageLabel}`,
-      detail: '这不是拉新阶段了，应该优先推进报价、谈判和成交确定性。',
+      detail: '这不是继续铺线索的时候了，今天要把报价、谈判和成交条件讲透。',
       tone: 'chance',
       caseId: caseItem.id,
     });
@@ -893,7 +895,7 @@ function buildOpportunityBuckets(
     },
     {
       id: 'closing',
-      label: '成交线索',
+      label: '快到报价',
       count: closingCount,
       summary: closingCount > 0 ? '已经进入报价或谈判区。' : '暂时没有走到成交桌的客户。',
     },
@@ -932,7 +934,7 @@ function deriveOwnerDetail(caseItem: Case) {
 }
 
 function deriveCustomerPoolTitle(metCount: number, potentialCount: number, closingCount: number, atRiskCount: number) {
-  if (closingCount > 0) return '客户已经进入成交线';
+  if (closingCount > 0) return '客户已经走到报价前后';
   if (atRiskCount > 0) return '客户池有流失风险';
   if (metCount >= 3) return '客户池比较厚';
   if (metCount > 0 || potentialCount > 0) return '客户池还在培养';
@@ -943,7 +945,7 @@ function deriveCustomerPoolDetail(caseItem: Case, met: Opportunity[], potential:
   if (met.some((opportunity) => opportunity.stageIndex >= 4)) return '已有客户进入报价或谈判，今天要把确定性往成交桌上推。';
   if (comparingCount > 0) return `${comparingCount} 位客户还在比较同类盘，${caseItem.title} 的价格和卖点要讲得更具体。`;
   if (potential.length > 0) return '有潜在线索，但预算和需求还没核实，不能当成真实成交机会。';
-  if (met.length > 0) return '已经接上客户，但阶段还浅，需要继续推进到看房或复看。';
+  if (met.length > 0) return '已经接上客户，但阶段还浅，需要继续推进到看房、复看或报价。';
   return '当前客户承接不足，先补线索和曝光。';
 }
 
@@ -985,7 +987,7 @@ function deriveMarketHeadline(state: GameState, rivalCount: number) {
   if (dailyEvent) return dailyEvent.title;
   if (rivalCount > 0) return `今天有 ${rivalCount} 套竞品在场`;
   const hottest = [...state.markets].sort((left, right) => right.demandHeat - left.demandHeat)[0];
-  return hottest ? `${hottest.name} 客户热度最高` : '今天市场变化不大';
+  return hottest ? `${hottest.name} 今天客户更活跃` : '今天市场变化不大';
 }
 
 function deriveMarketSummary(

@@ -712,6 +712,45 @@ export interface FinalResult {
   stats: Array<{ label: string; value: string }>;
 }
 
+export type DealType =
+  | 'self_closed'
+  | 'internal_cosale_closed'
+  | 'external_competitor_closed'
+  | 'platform_matched_closed';
+
+export interface DealClosingEvaluation {
+  relationId: string;
+  caseId: string;
+  customerId: string;
+  dayIndex: number;
+  isEligible: boolean;
+  closeReadiness: number;
+  closeProbability: number;
+  blockingReasons: string[];
+  supportingReasons: string[];
+}
+
+export interface ClosedDealRecord {
+  dealId: string;
+  caseId: string;
+  customerId: string;
+  sourceRelationId: string;
+  /** Legacy alias kept for older runtime helpers and persisted saves. */
+  opportunityId: string;
+  dayIndex: number;
+  /** Legacy alias kept for older saves. */
+  day: number;
+  closedAt: string;
+  dealType: DealType;
+  dealPrice: number;
+  /** Legacy alias kept for older saves. */
+  price: number;
+  closeReadiness: number;
+  closeProbability: number;
+  blockingReasons: string[];
+  supportingReasons: string[];
+}
+
 export interface Opportunity {
   id: string;
   caseId: string;
@@ -726,6 +765,7 @@ export interface Opportunity {
   stageIndex: number;
   stageLabel: string;
   status: 'active' | 'won' | 'lost' | 'closed';
+  lifecycleStatus: 'active' | 'stagnated' | 'lost' | 'closed_by_deal' | 'closed_by_case';
   leadSource: 'direct' | 'broker';
   visibility: 'shadow' | 'revealed';
   brokerName?: string;
@@ -791,6 +831,7 @@ export interface BudgetTransaction {
 export interface AuxiliaryStats {
   commission: number;
   wordOfMouth: number;
+  /** Legacy compatibility mirror. Canonical formal deal fact is GameState.closedDeals / ClosedDealRecord[]. */
   soldCount: number;
   withdrawnCount: number;
 }
@@ -862,12 +903,25 @@ export type MatterSource = 'schedule' | 'priority';
 export type MatterStage = 'pending' | 'in_progress' | 'completed' | 'abandoned';
 export type MatterTemplate = 'dialog' | 'form' | 'schedule' | 'realtime';
 export type MatterPresentation = 'inline-card' | 'detail-page' | 'full-screen';
+export type MatterScene =
+  | 'showing'
+  | 'open_house'
+  | 'valuation'
+  | 'listing_prep'
+  | 'client_call'
+  | 'negotiation'
+  | 'report_to_owner'
+  | 'closing_prep'
+  | 'diagnose'
+  | 'co_selling'
+  | 'risk_followup';
 
 export interface MatterEntry {
   id: string;
   source: MatterSource;
   sourceKey: string;
   caseId?: string;
+  scene: MatterScene;
   title: string;
   detail: string;
   badge?: string;
@@ -903,7 +957,7 @@ export interface GameState {
   reputation?: number;
   /** Legacy compatibility mirror for older saves/storage. Runtime code should use auxiliaryStats.commission. */
   commission?: number;
-  /** Legacy compatibility mirror for older saves/storage. Runtime code should use auxiliaryStats.soldCount. */
+  /** Legacy compatibility mirror for older saves/storage. Canonical formal deal fact is closedDeals / ClosedDealRecord[]. */
   soldCount?: number;
   /** Legacy compatibility mirror for older saves/storage. Runtime code should use auxiliaryStats.withdrawnCount. */
   withdrawnCount?: number;
@@ -929,6 +983,7 @@ export interface GameState {
   schedule: ScheduleEntry[];
   priorities: PriorityEntry[];
   matters: MatterEntry[];
+  closedDeals: ClosedDealRecord[];
   metrics: DerivedMetrics;
   currentReport: DailyReport | null;
   marketShadow: ShadowMarketState;

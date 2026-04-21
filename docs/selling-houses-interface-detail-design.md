@@ -1,6 +1,6 @@
 # 卖房（资产顾问）界面信息架构详细设计
 
-最后更新：2026-04-19
+最后更新：2026-04-21
 
 这份文档是“界面信息架构”的详细设计版。
 
@@ -453,7 +453,7 @@ type LogItemProjection = {
 
 进入条件：
 
-- `interactionTemplate = schedule`
+- `template = schedule`
 - 或者 `scheduledSlot.day = today`
 
 排序规则：

@@ -2,10 +2,10 @@ import type { MaintainerCloudMeta } from './cloudState.js';
 import type { MaintainerRunRecord } from './cloudSync.js';
 
 export interface LoadPreferredMaintainerCloudRunOptions {
-  userId: string;
+  userId?: string;
   localMeta: MaintainerCloudMeta | null;
   fetchRun: (runId: string) => Promise<MaintainerRunRecord>;
-  listRuns: (userId: string) => Promise<MaintainerRunRecord[]>;
+  listRuns: (userId?: string) => Promise<MaintainerRunRecord[]>;
 }
 
 export interface PreferredMaintainerCloudRun {

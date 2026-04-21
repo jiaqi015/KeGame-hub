@@ -22,7 +22,9 @@ const initialState = createInitialState(snapshot, 20260418);
 
 const created = await repository.createRun({
   runId: 'verify-run-1',
-  userId: 'verify-user',
+  runOwnerId: 'verify-user',
+  accountId: 'acct-unified-owner',
+  playerProfileId: 'profile_selling_houses_acct_unified_owner',
   playerName: '验证维护人',
   seasonId: 'season-1',
   state: initialState,
@@ -39,8 +41,26 @@ const updatedState = structuredClone(created.saveData);
 updatedState.day = 3;
 applyAuxiliaryStats(updatedState, {
   promotionBudget: updatedState.auxiliaryStats.promotionBudget + 1200,
+  soldCount: 0,
 });
 updatedState.energy = Math.max(0, updatedState.energy - 2);
+updatedState.closedDeals = [{
+  dealId: 'deal-file-repo-1',
+  caseId: updatedState.cases[0]?.id || 'case-1',
+  customerId: 'customer-file-repo-1',
+  sourceRelationId: 'relation-file-repo-1',
+  opportunityId: 'relation-file-repo-1',
+  dayIndex: updatedState.day,
+  day: updatedState.day,
+  closedAt: new Date().toISOString(),
+  dealType: 'self_closed',
+  dealPrice: 888,
+  price: 888,
+  closeReadiness: 93,
+  closeProbability: 87,
+  blockingReasons: [],
+  supportingReasons: ['验证 file repository 成交桥接'],
+}];
 updatedState.gameOver = true;
 updatedState.finalResult = {
   title: '验证通关',
@@ -91,7 +111,9 @@ updatedState.finalResult = {
 
 const saved = await repository.saveRun({
   runId: created.runId,
-  userId: created.userId,
+  runOwnerId: created.userId,
+  accountId: 'acct-unified-owner',
+  playerProfileId: 'profile_selling_houses_acct_unified_owner',
   playerName: created.playerName,
   seasonId: created.seasonId,
   state: updatedState,
@@ -101,15 +123,91 @@ const saved = await repository.saveRun({
 assert.equal(saved.syncVersion, 2, 'Expected saveRun to increment syncVersion');
 assert.equal(saved.status, 'finished', 'Expected finished state to be persisted');
 assert.equal(saved.score, 88, 'Expected final score to be derived');
+assert.equal(saved.auxiliaryStats.soldCount, 1, 'Expected repository save to prefer formal closed deals');
 
 const runs = await repository.listRuns(created.userId, 8);
 assert.equal(runs.length, 1, 'Expected listRuns to return the saved run');
 assert.equal(runs[0]?.syncVersion, 2, 'Expected listRuns to return latest sync version');
+assert.equal(runs[0]?.auxiliaryStats.soldCount, 1, 'Expected listRuns to expose formal closed deal count');
 
 const leaderboard = await repository.listLeaderboard('season-1', 10);
 assert.equal(leaderboard.length, 1, 'Expected finished run to enter leaderboard');
 assert.equal(leaderboard[0]?.runId, created.runId, 'Expected leaderboard to reference saved run');
 assert.equal(leaderboard[0]?.score, 88, 'Expected leaderboard score to match final score');
+assert.equal(leaderboard[0]?.finalStats.auxiliaryStats.soldCount, 1, 'Expected leaderboard detail to expose formal closed deal count');
+
+const secondRunState = createInitialState(snapshot, 20260419);
+secondRunState.day = 4;
+secondRunState.gameOver = true;
+secondRunState.finalResult = {
+  title: '第二局验证通关',
+  summary: '同一账号跨 legacy userId 的排行榜聚合验证。',
+  reason: '验证 accountId 优先聚合。',
+  score: 66,
+  goalContext: 'ability',
+  dimensions: {
+    ability: { score: 24, maxScore: 35, label: '控盘力', summary: '验证用' },
+    defense: { score: 22, maxScore: 35, label: '守盘力', summary: '验证用' },
+    satisfaction: { score: 20, maxScore: 30, label: '业主满意度', summary: '验证用' },
+  },
+  stats: [{ label: '验证', value: '账号聚合' }],
+  grade: 'B',
+  targetScore: 75,
+  endingStats: {
+    good: 1,
+    neutral: 0,
+    bad: 0,
+    coreBadCount: 0,
+    importantBadCount: 0,
+    weightedGood: 1,
+    weightedBad: 0,
+  },
+  scoreBreakdown: [{ label: '节奏', value: 22, maxValue: 35, summary: '验证用' }],
+  highlights: ['第二局用于聚合验证。'],
+  improvements: [],
+  promotionNotes: [],
+  coachNotes: [],
+  nextRunAdvice: [],
+  customerReview: {
+    engaged: 0,
+    comparing: 0,
+    atRisk: 0,
+    rivalPulled: 0,
+    strongestCaseTitle: null,
+    mostComparedCaseTitle: null,
+    mostAtRiskCaseTitle: null,
+    summary: '验证聚合路径。',
+    notes: [],
+  },
+  caseResults: [],
+};
+
+await repository.createRun({
+  runId: 'verify-run-2',
+  runOwnerId: 'legacy-device-user-2',
+  accountId: 'acct-unified-owner',
+  playerProfileId: 'profile_selling_houses_acct_unified_owner',
+  playerName: '验证维护人',
+  seasonId: 'season-1',
+  state: secondRunState,
+});
+
+const detail = await repository.getLeaderboardDetail('season-1', 10);
+assert.equal(
+  detail.totalScore.length,
+  1,
+  'Expected same accountId across different legacy userIds to collapse into one leaderboard owner',
+);
+assert.equal(
+  detail.totalScore[0]?.accountId,
+  'acct-unified-owner',
+  'Expected collapsed leaderboard owner to keep the canonical accountId',
+);
+assert.equal(
+  detail.totalScore[0]?.value,
+  154,
+  'Expected total-score leaderboard to sum both runs for the same account owner',
+);
 
 const verifiedBeforeRebuild = await repository.verifyShadowSync(created.runId, created.userId);
 assert.deepEqual(
@@ -138,7 +236,7 @@ let conflictCaught = false;
 try {
   await repository.saveRun({
     runId: created.runId,
-    userId: created.userId,
+    runOwnerId: created.userId,
     playerName: created.playerName,
     seasonId: created.seasonId,
     state: updatedState,

@@ -1,7 +1,7 @@
 import type { BudgetTransaction, Case, GameState, MatterEntry } from '../../domain/models.js';
 import { WEEKLY_ROUTINE } from '../../domain/constants.js';
 import { getRoutine } from '../../domain/utils.js';
-import { getPromotionBudget } from '../../domain/runtimeStats.js';
+import { getPromotionBudget, resolveFormalSoldCount } from '../../domain/runtimeStats.js';
 import {
   buildCaseDetailProjection,
   buildDashboardProjection,
@@ -173,6 +173,10 @@ export interface WorkspaceShellProjection {
   selectedCaseDetail: WorkspaceShellSelectedCaseDetailProjection | null;
 }
 
+function getClosedDealCount(state: GameState) {
+  return resolveFormalSoldCount(state);
+}
+
 export function buildWorkspaceShellProjection(state: GameState): WorkspaceShellProjection {
   const routine = getRoutine(state.day, WEEKLY_ROUTINE);
   const nextRoutine = getRoutine(state.day + 1, WEEKLY_ROUTINE);
@@ -185,8 +189,9 @@ export function buildWorkspaceShellProjection(state: GameState): WorkspaceShellP
     .filter((entry) => entry.status === 'sold')
     .sort((left, right) => (right.soldPrice || 0) - (left.soldPrice || 0))
     .slice(0, 6);
-  const averageCommission = state.auxiliaryStats.soldCount > 0
-    ? state.auxiliaryStats.commission / state.auxiliaryStats.soldCount
+  const soldCount = getClosedDealCount(state);
+  const averageCommission = soldCount > 0
+    ? state.auxiliaryStats.commission / soldCount
     : 0;
   const spentEnergy = Math.max(state.maxEnergy - state.energy, 0);
   const activeCaseCount = state.cases.filter((entry) => entry.status === 'active').length;
@@ -217,8 +222,8 @@ export function buildWorkspaceShellProjection(state: GameState): WorkspaceShellP
       },
       auxiliary: {
         label: '成交概况',
-        value: `${state.auxiliaryStats.soldCount} 成交`,
-        detail: state.auxiliaryStats.soldCount > 0 ? '已有正式成交回款。' : '成交还在累积中。',
+        value: `${soldCount} 成交`,
+        detail: soldCount > 0 ? '已有正式成交回款。' : '成交还在累积中。',
       },
       energy: {
         label: '今日精力',
@@ -261,16 +266,16 @@ export function buildWorkspaceShellProjection(state: GameState): WorkspaceShellP
     },
     auxiliaryPanel: {
       commissionLabel: `${formatPointValue(state.auxiliaryStats.commission)} 点`,
-      summary: `已成交 ${state.auxiliaryStats.soldCount} 套，平均每套 ${formatPointValue(averageCommission)} 点。佣金只解释成交结构，最终还是看房源结局和三项分数。`,
+      summary: `已成交 ${soldCount} 套，平均每套 ${formatPointValue(averageCommission)} 点。佣金只解释成交结构，最终还是看房源结局和三项分数。`,
       stats: [
-        { label: '已成交', value: `${state.auxiliaryStats.soldCount} 套`, tone: 'emerald' },
+        { label: '已成交', value: `${soldCount} 套`, tone: 'emerald' },
         { label: '均佣', value: `${formatPointValue(averageCommission)}`, tone: 'sky' },
         { label: '撤回', value: `${state.auxiliaryStats.withdrawnCount} 套`, tone: 'rose' },
       ],
       rules: [
         { label: '计佣规则', value: '成交价 1% x 25%' },
         { label: '在场房源', value: `${state.cases.filter((entry) => entry.status === 'active').length} 套` },
-        { label: '当前阶段', value: state.auxiliaryStats.soldCount > 0 ? '已有成交回款' : '仍在累积首单' },
+        { label: '当前阶段', value: soldCount > 0 ? '已有成交回款' : '仍在累积首单' },
       ],
       note: '如果佣金高但差结果很多，这局仍然不算打好；如果没成交但商圈聚焦房没被抢走，也可能算稳住了。',
       soldCases: soldCases.map((entry) => toSoldCaseProjection(entry)),
@@ -496,7 +501,7 @@ function buildSidebarFocus(
       detail: `最终得分 ${Math.round(state.finalResult.score)}，先看每套房最后落成什么样，再回头复盘。`,
       badges: [
         state.finalResult.grade,
-        `${state.auxiliaryStats.soldCount} 套成交`,
+        `${getClosedDealCount(state)} 套成交`,
         `${activeCount} 套在场`,
       ],
     };
@@ -638,7 +643,7 @@ function buildHeaderStatusNote(
   }
 
   if (activeOpportunityCount >= activeCaseCount * 2) {
-    return '当前承接还算有厚度，重点是别让后段机会掉出去。';
+    return '当前客户承接还算有厚度，重点是别让已经谈到深处的客户掉出去。';
   }
 
   return '今天优先看最需要处理的房源，再按资源承接关键动作。';

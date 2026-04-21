@@ -1,6 +1,6 @@
 # 卖房（资产顾问）总设计
 
-最后更新：2026-04-19
+最后更新：2026-04-21
 
 这份文档是给人看的“总设计稿”。
 
@@ -12,6 +12,8 @@
 如果只想快速理解这套游戏怎么设计，先读这份。
 
 当前实现层命名与最小字段合同，以 [selling-houses-implementation-contracts.md](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-implementation-contracts.md) 为准。
+
+当前页面职责、信息层级与视觉系统，以 [selling-houses-information-architecture.md](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-information-architecture.md) 和 [selling-houses-design-system.md](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-design-system.md) 为准。
 
 ---
 
@@ -597,16 +599,17 @@ Projection 的职责是：
 
 ## 14. 信息架构
 
-一级信息架构建议是：
+当前一级信息架构建议是：
 
 ```text
 开局
 经营概览
 房源
 客户
-市场雷达
+市场
 复盘
-结果 / 排行榜
+结果
+我
 ```
 
 玩家真正玩的界面，建议是一个经营工作台：
@@ -618,6 +621,16 @@ Projection 的职责是：
 右侧：洞察与行动侧栏
 底部 / 抽屉：流水日志
 ```
+
+当前页面边界要守住：
+
+- 经营概览负责“排今天顺序”
+- 市场负责“讲外因”
+- 房源负责“单房怎么打”
+- 客户负责“关系怎么推”
+- 复盘负责“因果链”
+- 结果负责“这局打成什么样”
+- 我负责“玩家自身状态和长期沉淀”
 
 信息层级固定为：
 
@@ -705,7 +718,7 @@ L1 一级导航
 - 哪个客户适合哪套房
 - 谁快流失了
 
-### 14.5 市场雷达
+### 14.5 市场
 
 外部环境。
 

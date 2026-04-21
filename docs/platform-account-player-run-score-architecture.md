@@ -1,6 +1,6 @@
 # 平台账号、玩家、局、得分、总分数据架构
 
-最后更新：2026-04-19
+最后更新：2026-04-21
 
 这份文档回答 5 个问题：
 
@@ -61,6 +61,7 @@
 这里要明确：
 
 - 旧 `User*` 只作为历史别名，不再作为主模型名继续扩写
+- 第一版物理落库里仍可能出现 legacy `userId` 字段名，但它只允许作为迁移桥，不能再作为 canonical 主键
 
 ### 1.2 还没真正统一好的
 
@@ -69,23 +70,24 @@
 当前代码里有一个明显问题：
 
 1. 账号登录走的是 `lib/auth.ts`
-2. selling-houses run 存储用的是浏览器本地生成的 `userId`
+2. selling-houses 物理仓储和旧 activation-key 链路里仍保留 legacy `userId`
 
 也就是说：
 
 ```text
-认证用户
-  email / nickname / allowedWorkspaces
+已登录 session 主链
+  accountId / playerProfileId
 
-游戏存档用户
-  localStorage 里的 maintainer userId
+兼容桥
+  maintainer_* 里的 user_id
+  activation-key 旧链路里的 client userId
 ```
 
-这两套身份现在还不是同一个主键体系。
+session 主链已经开始按 `accountId` 收口，但兼容桥还没有完成物理命名迁移。
 
 所以我的判断是：
 
-> 方向已经对了，但“账号 -> 玩家 -> 局 -> 结果 -> 榜单”这条数据链，还没有被明确建模成一套统一结构。
+> 方向已经对了，“账号 -> 玩家 -> 局 -> 结果 -> 榜单”的主链已经能跑；剩下要解决的是 legacy `userId` 的迁移边界和物理命名。
 
 ---
 
@@ -628,7 +630,7 @@ PlayerProfile.playerProfileId
 
 现在最明显的问题是：
 
-> selling-houses run 的 `userId` 还是浏览器本地生成的，不是平台账号主键。
+> selling-houses 历史 run 的 legacy `userId` 仍可能来自浏览器本地生成，它现在只能作为兼容桥，不能继续被当成平台账号主键。
 
 这会导致：
 

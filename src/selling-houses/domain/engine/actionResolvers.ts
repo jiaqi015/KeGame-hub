@@ -4,7 +4,14 @@ import { updateDerivedState, logEvent, recordDomainEvent } from '../runtimeState
 import { recordBudgetChange } from '../budget.js';
 import { applyAuxiliaryStats, getPromotionBudget } from '../runtimeStats.js';
 import { clamp, randomInt } from '../utils.js';
-import type { ActionDefinition, Case, GameState, Opportunity } from '../models.js';
+import type {
+  ActionDefinition,
+  Case,
+  ClosedDealRecord,
+  DealClosingEvaluation,
+  GameState,
+  Opportunity,
+} from '../models.js';
 import {
   adjustCaseOpportunities,
   closeOpportunity,
@@ -513,6 +520,88 @@ function resolveNegotiation(
   }
 }
 
+function buildDealClosingEvaluation(
+  state: GameState,
+  caseItem: Case,
+  opportunity: Opportunity,
+  soldPrice: number,
+): DealClosingEvaluation {
+  const closeReadiness = clamp(
+    Math.round(
+      opportunity.intent * 0.34
+      + opportunity.confidence * 0.26
+      + caseItem.trust * 0.2
+      + caseItem.competitiveness * 0.12
+      + Math.max(0, 100 - Math.max(0, soldPrice - opportunity.budgetMax) * 0.25) * 0.08,
+    ),
+    0,
+    100,
+  );
+  const closeProbability = clamp(
+    Math.round(
+      opportunity.intent * 0.3
+      + opportunity.confidence * 0.25
+      + caseItem.trust * 0.15
+      + caseItem.competitiveness * 0.15
+      + Math.max(0, 100 - Math.abs(soldPrice - caseItem.marketPrice) * 0.8) * 0.15,
+    ),
+    0,
+    100,
+  );
+
+  const blockingReasons: string[] = [];
+  if (soldPrice > opportunity.budgetMax) {
+    blockingReasons.push('成交价高于客户预算上限');
+  }
+  if (caseItem.trust < 60) {
+    blockingReasons.push('业主对当前顾问信任不足');
+  }
+
+  return {
+    relationId: opportunity.id,
+    caseId: caseItem.id,
+    customerId: opportunity.customerId,
+    dayIndex: state.day,
+    isEligible: blockingReasons.length === 0,
+    closeReadiness,
+    closeProbability,
+    blockingReasons,
+    supportingReasons: [
+      `${opportunity.customerName} 已进入 ${opportunity.stageLabel}`,
+      `客户意向 ${Math.round(opportunity.intent)}，信心 ${Math.round(opportunity.confidence)}`,
+      `业主信任 ${Math.round(caseItem.trust)}，房源竞争力 ${Math.round(caseItem.competitiveness)}`,
+    ],
+  };
+}
+
+function buildClosedDealRecord(
+  state: GameState,
+  caseItem: Case,
+  opportunity: Opportunity,
+  soldPrice: number,
+  evaluation: DealClosingEvaluation,
+): ClosedDealRecord {
+  const closedAt = new Date().toISOString();
+
+  return {
+    dealId: `deal-${caseItem.id}-${opportunity.customerId}-${state.day}`,
+    caseId: caseItem.id,
+    customerId: opportunity.customerId,
+    sourceRelationId: opportunity.id,
+    opportunityId: opportunity.id,
+    dayIndex: state.day,
+    day: state.day,
+    closedAt,
+    dealType: 'self_closed',
+    dealPrice: soldPrice,
+    price: soldPrice,
+    closeReadiness: evaluation.closeReadiness,
+    closeProbability: evaluation.closeProbability,
+    blockingReasons: [...evaluation.blockingReasons],
+    supportingReasons: [...evaluation.supportingReasons],
+  };
+}
+
 function sellCase(
   state: GameState,
   caseItem: Case,
@@ -520,6 +609,11 @@ function sellCase(
   soldPrice: number,
   wordOfMouthBonus: number,
 ) {
+  const existingDeal = state.closedDeals.find((entry) => entry.caseId === caseItem.id);
+  if (existingDeal) {
+    return;
+  }
+
   const saleBalance = BALANCE.actions.sale;
   caseItem.status = 'sold';
   caseItem.soldPrice = soldPrice;
@@ -556,6 +650,10 @@ function sellCase(
     }
   });
 
+  const evaluation = buildDealClosingEvaluation(state, caseItem, opportunity, soldPrice);
+  const closedDeal = buildClosedDealRecord(state, caseItem, opportunity, soldPrice, evaluation);
+  state.closedDeals.unshift(closedDeal);
+
   state.customerStates.forEach((customerState) => {
     const runtime = customerState.caseStates[caseItem.id];
     if (!runtime) return;
@@ -586,9 +684,12 @@ function sellCase(
     opportunityId: opportunity.id,
     customerId: opportunity.customerId,
     payload: {
+      dealId: closedDeal.dealId,
       soldPrice,
       commission,
       budgetReturn,
+      closeReadiness: evaluation.closeReadiness,
+      closeProbability: evaluation.closeProbability,
       endingType: caseItem.endingType,
       endingBucket: caseItem.endingBucket,
     },

@@ -1,6 +1,6 @@
 # 卖房（资产顾问）成交事实与成交引擎设计
 
-最后更新：2026-04-19
+最后更新：2026-04-21
 
 这份文档解决一个很关键的问题：
 
@@ -52,6 +52,16 @@
 所以：
 
 > 成交不是机会字段的一次改值，而是世界里新增了一条正式事实。
+
+补充当前实现状态（2026-04-20）：
+
+- 运行态已经落了最小版 `ClosedDealRecord`
+- `CustomerCaseRelation.stage` / `OpportunityStage` 仍只到 `offer`
+- 结果页和正式结算开始优先消费 `closedDeals`
+- `auxiliaryStats.soldCount` / 顶层 `soldCount` 已降级为兼容镜像字段，只做旧存档、旧仓储和旧投影 bridge
+- 但组织归因、品牌归因、市场快照还没完全接入，仍属于下一轮扩展
+
+当前实现合同以 [selling-houses-implementation-contracts.md](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-implementation-contracts.md) 为准。代码里的 `ClosedDealRecord.dealType` 已使用下划线命名，旧文档里的连字符写法只作为历史语义参考。
 
 ---
 
@@ -200,12 +210,6 @@ type DealClosingEvaluation = {
   closeProbability: number;
   blockingReasons: string[];
   supportingReasons: string[];
-  marketLiquidityScore: number;
-  priceAgreementScore: number;
-  ownerReadinessScore: number;
-  customerReadinessScore: number;
-  competitionInterferenceScore: number;
-  organizationSupportScore: number;
 };
 ```
 
@@ -225,49 +229,35 @@ type DealClosingEvaluation = {
 
 ```ts
 type DealType =
-  | 'self-closed'
-  | 'internal-cosale-closed'
-  | 'external-competitor-closed'
-  | 'platform-matched-closed';
+  | 'self_closed'
+  | 'internal_cosale_closed'
+  | 'external_competitor_closed'
+  | 'platform_matched_closed';
 
 type ClosedDealRecord = {
   dealId: string;
-  runId: string;
-  dayIndex: number;
-  closedAt: string;
-
   caseId: string;
-  ownerId: string;
   customerId: string;
   sourceRelationId: string;
-
+  opportunityId: string;
+  dayIndex: number;
+  day: number;
+  closedAt: string;
   dealType: DealType;
-  viewingMode?: 'self-arranged' | 'open-day';
-
   dealPrice: number;
-  ownerExpectedPriceAtClose: number;
-  marketEstimatedPriceAtClose: number;
-  customerBudgetBandAtClose: [number, number];
-
-  listingSideBrokerId: string;
-  listingSideStoreId: string;
-  listingSideBrandId: string;
-
-  customerSideBrokerId: string;
-  customerSideStoreId: string;
-  customerSideBrandId: string;
-
-  acnId?: string;
-  isSameBrand: boolean;
-  isSameAcn: boolean;
-  isPlayerListingSide: boolean;
-  isPlayerCustomerSide: boolean;
-
-  marketContextSnapshot: DealMarketSnapshot;
-  scoringTags: DealScoringTag[];
-  closeReasonSummary: string[];
+  price: number;
+  closeReadiness: number;
+  closeProbability: number;
+  blockingReasons: string[];
+  supportingReasons: string[];
 };
 ```
+
+说明：
+
+- 这是当前代码已落地的最小事实层，不是最终完备版。
+- `opportunityId`、`day`、`price` 仍保留为 legacy alias，方便旧投影和旧存档继续工作。
+- 后续如果接组织层、联卖层、市场层，需要在这条记录上继续加 `listingSide* / customerSide* / marketSnapshot*`，而不是重新发明一套成交对象。
 
 再补一个市场快照：
 
@@ -697,7 +687,7 @@ Step 10 一致性检查
 
 那么这是一笔：
 
-`internal-cosale-closed`
+`internal_cosale_closed`
 
 它不是简单的输赢，而是要看：
 
@@ -739,7 +729,7 @@ Step 10 一致性检查
 
 成交独立出来以后，页面信息会更清楚。
 
-### 10.1 市场雷达
+### 10.1 市场
 
 可以看：
 

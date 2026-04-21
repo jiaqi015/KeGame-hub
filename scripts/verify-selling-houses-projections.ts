@@ -10,8 +10,11 @@ import {
 } from '../src/selling-houses/application/projections/operatingProjection';
 import { buildResultProjection } from '../src/selling-houses/application/projections/resultProjection';
 import { buildLeaderboardProjection } from '../src/selling-houses/application/projections/leaderboardProjection';
+import { buildWorkspaceShellProjection } from '../src/selling-houses/application/projections/workspaceShellProjection';
+import { ProfilePanel } from '../src/selling-houses/ui/features/ProfilePanel';
 import { advanceDays, seedInitialOpportunities } from '../src/selling-houses/domain/engine';
 import { getScenarioSnapshotById } from '../src/selling-houses/domain/scenarioCatalog';
+import { renderToStaticMarkup } from 'react-dom/server';
 
 function buildWorld() {
   const snapshot = getScenarioSnapshotById('standard-window-chain');
@@ -83,25 +86,66 @@ function buildWorld() {
 }
 
 {
+  const world = buildWorld();
+  const targetCase = world.cases[0];
+  const targetOpportunity = world.opportunities.find((entry) => entry.caseId === targetCase.id);
+  assert.ok(targetOpportunity, 'Expected target opportunity for shell projection verification');
+  if (!targetOpportunity) {
+    throw new Error('Expected target opportunity for shell projection verification');
+  }
+
+  world.closedDeals = [{
+    dealId: 'deal-shell-1',
+    caseId: targetCase.id,
+    customerId: targetOpportunity.customerId,
+    sourceRelationId: targetOpportunity.id,
+    opportunityId: targetOpportunity.id,
+    dayIndex: world.day,
+    day: world.day,
+    closedAt: new Date().toISOString(),
+    dealType: 'self_closed',
+    dealPrice: targetCase.askPrice,
+    price: targetCase.askPrice,
+    closeReadiness: 92,
+    closeProbability: 88,
+    blockingReasons: [],
+    supportingReasons: ['验证工作台口径'],
+  }];
+  world.auxiliaryStats.soldCount = 0;
+  world.soldCount = 0;
+  updateDerivedState(world);
+
+  const shell = buildWorkspaceShellProjection(world);
+  assert.equal(shell.resourceTiles.auxiliary.value, '1 成交', 'Expected workspace shell to count formal closed deals');
+  assert.equal(shell.auxiliaryPanel.stats[0]?.value, '1 套', 'Expected auxiliary panel to count formal closed deals');
+  assert.equal(shell.auxiliaryPanel.rules[2]?.value, '已有成交回款', 'Expected shell phase note to follow formal closed deals');
+
+  const profileMarkup = renderToStaticMarkup(ProfilePanel({ state: world, currentUserNickname: 'tester' }));
+  assert.ok(profileMarkup.includes('已成交'), 'Expected profile panel to render sold metric');
+  assert.ok(profileMarkup.includes('1 套'), 'Expected profile panel to follow formal closed deal count');
+}
+
+{
   const leaderboard = buildLeaderboardProjection({
     seasonId: 'season-1',
     totalScore: [
-      { userId: 'u1', playerName: '顾问甲', value: 220 },
-      { userId: 'u2', playerName: '顾问乙', value: 185 },
+      { accountId: 'acct-1', userId: 'u1', playerName: '顾问甲', value: 220 },
+      { playerProfileId: 'profile-2', userId: 'u2', playerName: '顾问乙', value: 185 },
     ],
     bestScore: [
-      { userId: 'u1', playerName: '顾问甲', value: 92 },
+      { accountId: 'acct-1', userId: 'u1', playerName: '顾问甲', value: 92 },
       { userId: 'u3', playerName: '顾问丙', value: 88 },
     ],
     playCount: [
-      { userId: 'u2', playerName: '顾问乙', value: 8 },
-      { userId: 'u1', playerName: '顾问甲', value: 6 },
+      { playerProfileId: 'profile-2', userId: 'u2', playerName: '顾问乙', value: 8 },
+      { accountId: 'acct-1', userId: 'u1', playerName: '顾问甲', value: 6 },
     ],
   });
 
   assert.equal(leaderboard.tabs.length, 3, 'Expected three leaderboard tabs');
   assert.ok(leaderboard.tabs.every((tab) => tab.summary.length > 0), 'Expected leaderboard tab summaries');
   assert.ok(leaderboard.highlights.length === 3, 'Expected three leaderboard highlight cards');
+  assert.equal(leaderboard.tabs[0]?.entries[0]?.ownerKey, 'acct-1', 'Expected projection to prefer canonical owner key over legacy userId');
 }
 
 console.log('selling-houses projection verification passed');

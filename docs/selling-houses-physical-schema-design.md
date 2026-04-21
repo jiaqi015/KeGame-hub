@@ -1,6 +1,6 @@
 # 卖房平台层到世界层物理表设计
 
-最后更新：2026-04-20
+最后更新：2026-04-21
 
 这份文档只回答一件事：
 
@@ -546,6 +546,8 @@ game_runs.run_id
 - `matter_id`
 - `matter_scene`
 - `template_type`
+- `presentation_type`
+- `lifecycle_category`
 - `priority`
 - `status`
 - `case_id`
@@ -603,7 +605,7 @@ game_runs.run_id
 说明：
 
 - 这张表记录“谁和谁成交了、由哪个组织成交、房经纪人和客经纪人是谁”
-- 成交不应该只是 `CustomerCaseRelation.stage = closed`
+- 成交不应该只是 `CustomerCaseRelation.stage = 'closed'`
 - 旧 `maintainer_*` 人员标识如果还存在，只能做 legacy 映射桥，不能替代 `account_id` / `player_profile_id`
 
 ### 8.4 `run_good_house_evaluations`
