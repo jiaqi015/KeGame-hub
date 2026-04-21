@@ -16,7 +16,7 @@ export function ResultsPanel({ state, onRestart }: ResultsPanelProps) {
   const resolvedCaseCount = projection.tierGroups.reduce((sum, group) => sum + group.total, 0);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4">
+    <div className="mx-auto max-w-6xl space-y-4" data-selling-houses-page="results">
       <section className="seller-panel-muted p-4 lg:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
@@ -52,27 +52,27 @@ export function ResultsPanel({ state, onRestart }: ResultsPanelProps) {
 
         <div className="mt-5 grid grid-cols-1 gap-3 lg:grid-cols-3">
           <BoundaryCard
-            label="你现在看的"
+            label="当前状态"
             title={hasFinalResult ? '正式结算' : '未结算台账'}
             detail={hasFinalResult
-              ? '这页已经切到正式结算口径，后续会沉淀进生涯和排行榜。'
-              : '这页现在还是局内未结算台账，只帮你看当前收成，不会直接入榜。'}
+              ? '这局结果已经定下。'
+              : '这页现在还是过程台账。'}
             tone={hasFinalResult ? 'chance' : 'neutral'}
           />
           <BoundaryCard
-            label="先看什么"
-            title={hasFinalResult ? '先看每套房最后是什么结果' : '先看场上每套房现在是什么状态'}
+            label="重点"
+            title={hasFinalResult ? '每套房最后是什么结果' : '场上每套房现在是什么状态'}
             detail={hasFinalResult
-              ? `这局已经有 ${resolvedCaseCount} 套房形成正式结果，单房结果才是这页最重要的内容。`
-              : `现在还有 ${currentCases.length} 套房在场，先看它们各自卡在哪，再决定要不要继续打。`}
+              ? `这局已经有 ${resolvedCaseCount} 套房形成正式结果。`
+              : `现在还有 ${currentCases.length} 套房在场。`}
             tone={leadingHighlight ? 'chance' : 'neutral'}
           />
           <BoundaryCard
-            label="最值得带走"
+            label="带走"
             title={hasFinalResult ? (leadingHighlight || '还没有形成明确亮点') : (leadingImprovement || '当前还没有明确复盘点')}
             detail={hasFinalResult
-              ? (leadingHighlight ? '这条会作为这局代表性的经营成果被保留下来。' : '要等更多局跑出来后，亮点和打法才会更稳定。')
-              : (leadingImprovement ? '这条最值得带回复盘页继续往下看。' : '这局还没有形成特别集中的问题点。')}
+              ? (leadingHighlight ? '这条最值得记住。' : '这局还没有特别突出的亮点。')
+              : (leadingImprovement ? '这条最值得带回复盘页。' : '这局还没有特别集中的问题点。')}
             tone={hasFinalResult ? (leadingHighlight ? 'chance' : 'neutral') : (leadingImprovement ? 'risk' : 'neutral')}
           />
         </div>
@@ -83,7 +83,7 @@ export function ResultsPanel({ state, onRestart }: ResultsPanelProps) {
           <div>
             <div className="seller-label">单房结果</div>
             <h4 className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">
-              {hasFinalResult ? '先看每套房最后都怎么样了' : '先看场上每套房现在收成什么样'}
+              {hasFinalResult ? '每套房最后都怎么样了' : '场上每套房现在收成什么样'}
             </h4>
           </div>
           <div className="text-[11px] font-semibold text-[var(--seller-subtle)]">
@@ -93,8 +93,8 @@ export function ResultsPanel({ state, onRestart }: ResultsPanelProps) {
 
         <div className="seller-note mt-4 px-4 py-4 text-[12px] leading-6">
           {hasFinalResult
-            ? '先把每套房的最后结果看明白，再回头看总分和三项得分。总分只是把这些结果翻译成整局成绩。'
-            : '这块先帮你看过程里的当前收成。只要还没正式结算，这些都只是过程信号，不是最终成绩。'}
+            ? '单房结果和总分已生成。'
+            : '当前收成预览。'}
         </div>
 
         {hasFinalResult ? (
@@ -143,8 +143,8 @@ export function ResultsPanel({ state, onRestart }: ResultsPanelProps) {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <div className="space-y-6">
             <section className="seller-panel-muted p-4 lg:p-5">
-            <div className="seller-label text-[var(--seller-accent)]">结算边界</div>
-            <h4 className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">哪些会正式落账，哪些还只是过程</h4>
+            <div className="seller-label text-[var(--seller-accent)]">哪些算结果</div>
+            <h4 className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">结果和过程怎么分</h4>
             <div className="mt-5 space-y-3">
               {projection.settlementNotes.map((note) => (
                 <React.Fragment key={note.title}>
@@ -157,7 +157,7 @@ export function ResultsPanel({ state, onRestart }: ResultsPanelProps) {
           {hasFinalResult ? (
             <section className="seller-panel p-4 lg:p-5">
               <div className="seller-label">三项得分</div>
-              <h4 className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">总分只是把单房结果翻译成整局成绩</h4>
+              <h4 className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">得分</h4>
               <div className="mt-5 space-y-3">
                 {projection.scoreBreakdown.length > 0 ? projection.scoreBreakdown.map((entry) => (
                   <div key={entry.label} className="seller-tablet px-4 py-4">
@@ -180,16 +180,16 @@ export function ResultsPanel({ state, onRestart }: ResultsPanelProps) {
             </section>
           ) : (
             <section className="seller-panel p-4 lg:p-5">
-              <div className="seller-label">现在还没有正式成绩</div>
-              <h4 className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">先别把当前台账当成最终成绩</h4>
+              <div className="seller-label">还没结算</div>
+              <h4 className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">当前台账还不是最终成绩</h4>
               <div className="mt-5 space-y-3">
                 <PlainNote
                   title="现在只看当前收成"
-                  detail="这页先帮你确认哪些房还在场、哪些房已经危险，方便决定要不要继续把这局打完。"
+                  detail="这页只看哪些房还在场、哪些房已经危险。"
                   tone="neutral"
                 />
                 <PlainNote
-                  title="真正落账要等结算"
+                  title="正式结果要等结算"
                   detail="只有正式结算之后，单房结果、三项得分和榜单资格才会一起定下来。"
                   tone="neutral"
                 />
@@ -201,7 +201,7 @@ export function ResultsPanel({ state, onRestart }: ResultsPanelProps) {
         <section className="grid grid-cols-1 gap-4">
           {hasFinalResult ? (
             <section className="seller-panel-muted p-4 lg:p-5">
-              <div className="seller-label text-[var(--seller-accent)]">生涯沉淀</div>
+              <div className="seller-label text-[var(--seller-accent)]">生涯记录</div>
               <h4 className="mt-2 text-[18px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">这局最后会留下什么</h4>
               <div className="mt-5 space-y-3">
                 {projection.careerNotes.map((note) => (
@@ -213,17 +213,17 @@ export function ResultsPanel({ state, onRestart }: ResultsPanelProps) {
             </section>
           ) : (
             <section className="seller-panel-muted p-4 lg:p-5">
-              <div className="seller-label text-[var(--seller-accent)]">当前阶段</div>
+              <div className="seller-label text-[var(--seller-accent)]">当前状态</div>
               <h4 className="mt-2 text-[18px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">现在还不会记进跨局成绩</h4>
               <div className="mt-5 space-y-3">
                 <PlainNote
-                  title="这页先给你局内台账"
-                  detail="你现在看到的是局内未结算台账，方便提前判断哪里稳、哪里危险，还不会写进生涯。"
+                  title="局内台账"
+                  detail="你现在看到的是局内未结算台账，还不会写进生涯。"
                   tone="neutral"
                 />
                 <PlainNote
-                  title="正式沉淀要等结算"
-                  detail="只有本局正式结算之后，成绩、单房结果和亮点复盘才会真正落账。"
+                  title="正式结果要等结算"
+                  detail="只有本局正式结算之后，成绩、单房结果和亮点复盘才会真正写入。"
                   tone="neutral"
                 />
               </div>
@@ -233,12 +233,12 @@ export function ResultsPanel({ state, onRestart }: ResultsPanelProps) {
           <InsightBlock
             title={hasFinalResult ? '这局正式留下的亮点' : '当前最稳的一笔'}
             items={projection.highlights}
-            emptyText={hasFinalResult ? '这局目前还没有沉淀出特别突出的亮点。' : '现在还没有特别突出的过程亮点，继续把局面往前推。'}
+            emptyText={hasFinalResult ? '这局目前还没有特别突出的亮点。' : '现在还没有特别突出的过程亮点。'}
           />
           <InsightBlock
             title={hasFinalResult ? '这局正式留下的复盘点' : '当前最该回看的地方'}
             items={projection.improvements}
-            emptyText={hasFinalResult ? '这局目前还没有沉淀出特别集中的复盘点。' : '先把局面推进到正式结算，再回来确认真正需要复盘的点。'}
+            emptyText={hasFinalResult ? '这局目前还没有特别集中的复盘点。' : '现在还没有明确复盘点。'}
           />
         </section>
       </div>
@@ -288,8 +288,8 @@ function CurrentCaseResultCard({ caseItem }: { caseItem: Case }) {
     : caseItem.status === 'withdrawn'
       ? '这套房已经撤回，后续需要回看撤回前发生了什么。'
       : caseItem.status === 'lost_to_rival'
-        ? '这套房已经被别人做掉了，后续要重点回看是价格、客户线还是跟进先出了问题。'
-        : '这套房还在经营中，这里先给你当前状态，只有正式结算后才会变成成绩口径。';
+      ? '这套房已经被别人做掉了，后续要重点回看是价格、客户线还是跟进先出了问题。'
+        : '这套房还在经营中，正式结算后才会变成成绩。';
 
   return (
     <div className="seller-tablet p-5">

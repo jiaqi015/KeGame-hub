@@ -6,6 +6,8 @@
 > - `selling-houses-iteration-plan.md` — 6 周执行手册（本纲 §5 的来源）
 >
 > 如果以下结论之间有冲突，以总纲为准。
+>
+> 2026-04-21 对齐：这份总纲仍是目标架构锚点，但部分“现状诊断”已经被这两天的实现推进覆盖。当前代码已具备 `eventStore`、`DomainEventEntry`、`DailyTickResult`、`DirtyScopeSet`、`MatterEntry` 和多条 projection 主链；但 `Owner / OwnershipEntrust / EventImpact / 细粒度事件 taxonomy / 完整 Matter 状态机` 仍是目标模型，不应误读成已经完整落地。
 
 ---
 
@@ -41,6 +43,14 @@
 需求**都变成补丁，永远装不进 Case 对象里。
 
 证据详见附录 A（`-diagnosis.md`）§1-§11。
+
+**当前进展补充（2026-04-21）**：
+
+- 事件流不再只是 `budget.ts` 局部可用；当前已有 `GameState.eventStore` 和 `DomainEventKind` 粗粒度事实流。
+- 日结已经输出 `DailyTickResult`，包含 `emittedEvents / closedDeals / dirtyScopes / invariantAlerts`。
+- Matter 已经作为运行态条目进入代码，但仍未完全达到本纲 §2.3 的“模板化状态机 + 事件链”目标。
+- `Opportunity` 仍是当前主要运行实体，目标语义是 `Customer × Case` 的关系；后续迁移要保持兼容，不要直接替换破坏页面投影。
+- 好房模型已落地 `D1 / D2 / D3 / competitiveness`，但当前权重和因子是第一阶段近似，详见 `selling-houses-good-house-model.md`。
 
 ---
 

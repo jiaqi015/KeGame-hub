@@ -1,17 +1,20 @@
 import React from 'react';
-import { DailyReport } from '../../domain/models';
-import { TrendingUp, AlertCircle, Star, Calendar, ArrowRight, Zap, Target, SunMedium, BriefcaseBusiness } from 'lucide-react';
+import type { DailyReport, DailyTickResult, TickInvariantAlert } from '../../domain/models';
+import { TrendingUp, AlertCircle, Star, Calendar, ArrowRight, Zap, Target, SunMedium, BriefcaseBusiness, MapPinned, ShieldAlert, Users } from 'lucide-react';
 
 interface DailySummaryOverlayProps {
   report: DailyReport;
+  tickResult?: DailyTickResult | null;
   onContinue: () => void;
 }
 
-export function DailySummaryOverlay({ report, onContinue }: DailySummaryOverlayProps) {
+export function DailySummaryOverlay({ report, tickResult, onContinue }: DailySummaryOverlayProps) {
   const overnightEvents = [
     ...report.majorEvents.map((entry) => ({ ...entry, kind: 'major' as const })),
     ...report.randomEvents.map((entry) => ({ ...entry, kind: 'random' as const })),
   ];
+  const scopeChips = buildScopeChips(tickResult);
+  const invariantAlerts = tickResult?.invariantAlerts || [];
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/40 p-6 backdrop-blur-md">
@@ -115,6 +118,48 @@ export function DailySummaryOverlay({ report, onContinue }: DailySummaryOverlayP
                     )}
                   </div>
                 </div>
+
+                {(scopeChips.length > 0 || invariantAlerts.length > 0) && (
+                  <div className="border-t border-black/[0.06] pt-5">
+                    {scopeChips.length > 0 && (
+                      <div className="seller-tablet px-4 py-4">
+                        <div className="seller-label mb-3 flex items-center gap-2">
+                          <MapPinned size={12} className="text-emerald-600" />
+                          今天影响到哪里
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {scopeChips.map((chip) => (
+                            <span
+                              key={chip}
+                              className="inline-flex items-center rounded-full bg-white px-3 py-1 text-[12px] font-medium text-slate-700 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08)]"
+                            >
+                              {chip}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="seller-tablet mt-3 px-4 py-4">
+                      <div className="seller-label mb-3 flex items-center gap-2">
+                        <ShieldAlert size={12} className={invariantAlerts.length > 0 ? 'text-rose-500' : 'text-emerald-600'} />
+                        系统提醒
+                      </div>
+                      {invariantAlerts.length > 0 ? (
+                        <div className="space-y-2.5">
+                          {invariantAlerts.slice(0, 3).map((alert, index) => (
+                            <InvariantAlertRow key={`${alert.code}-${index}`} alert={alert} />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="flex items-start gap-2 text-sm leading-6 text-slate-600">
+                          <Users size={14} className="mt-1 shrink-0 text-emerald-600" />
+                          <span>今天没有发现结构异常，房源、客户和事项链条都还在合理范围内。</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </aside>
           </div>
@@ -183,6 +228,48 @@ function PriorityRow({ index, text, isLast }: { key?: React.Key; index: number; 
         {index}
       </div>
       <div className="pt-0.5 text-sm font-medium leading-6 text-slate-700">{text}</div>
+    </div>
+  );
+}
+
+function buildScopeChips(tickResult?: DailyTickResult | null) {
+  if (!tickResult) {
+    return [];
+  }
+
+  const chips: string[] = [];
+  tickResult.dirtyScopes.cases.slice(0, 3).forEach((caseId) => {
+    chips.push(`房源 ${caseId}`);
+  });
+  tickResult.dirtyScopes.customers.slice(0, 2).forEach((customerId) => {
+    chips.push(`客户 ${customerId}`);
+  });
+  tickResult.dirtyScopes.owners.slice(0, 2).forEach((ownerRef) => {
+    chips.push(`业主 ${ownerRef}`);
+  });
+  tickResult.dirtyScopes.districts.slice(0, 2).forEach((district) => {
+    chips.push(`商圈 ${district}`);
+  });
+  if (tickResult.dirtyScopes.market) {
+    chips.push('市场层有波动');
+  }
+
+  return chips.slice(0, 8);
+}
+
+function InvariantAlertRow({ alert }: { key?: React.Key; alert: TickInvariantAlert }) {
+  const toneClass = alert.level === 'error'
+    ? 'text-rose-600 bg-rose-50'
+    : 'text-amber-700 bg-amber-50';
+
+  return (
+    <div className={`rounded-[14px] px-3 py-2.5 ${toneClass}`}>
+      <div className="text-[11px] font-bold tracking-[0.02em] uppercase">
+        {alert.level === 'error' ? '需修正' : '请留意'}
+      </div>
+      <div className="mt-1 text-[13px] font-medium leading-6">
+        {alert.message}
+      </div>
     </div>
   );
 }

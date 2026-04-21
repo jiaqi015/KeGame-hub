@@ -344,6 +344,7 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
 function finishGame(state: GameState, reason: string, onMessage?: (msg: string) => void) {
   if (state.gameOver) return;
   updateDerivedState(state);
+  state.currentReport = null;
   state.gameOver = true;
   state.finalResult = evaluateFinalResult(state, reason);
   onMessage?.(state.finalResult.summary);

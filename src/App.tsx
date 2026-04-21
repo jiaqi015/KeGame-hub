@@ -441,7 +441,9 @@ export default function App() {
     <div className={`h-screen font-sans selection:bg-blue-100 overflow-hidden flex flex-col ${
       isSellingHousesActive
         ? 'bg-[var(--seller-bg)] text-[var(--seller-ink)]'
-        : 'bg-[#FAFAFA] text-[#1D1D1F]'
+        : authStatus !== 'authenticated'
+          ? 'bg-[#050505]'
+          : 'bg-[#FAFAFA] text-[#1D1D1F]'
     }`}>
       {authStatus !== 'authenticated' ? (
         <AuthOverlay

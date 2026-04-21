@@ -84,6 +84,8 @@
 - [时间架构设计](selling-houses-time-architecture.md)
 - [日结与每日计算设计](selling-houses-daily-tick-design.md)
 - [业务语言指南](selling-houses-business-language-guide.md)
+- [架构图与 ER 图](selling-houses-architecture-diagrams.md)
+  当前 4K 全景图入口；包含 ER + 领域对象图、每日引擎 + 事件流图。
 
 ## 设计系统与页面规则
 
@@ -106,6 +108,7 @@
 - [游戏层目标、沉淀与排行榜架构](selling-houses-game-layer-goals-leaderboard.md)
 - [卖房平台层到世界层物理表设计](selling-houses-physical-schema-design.md)
 - [架构图与 ER 图](selling-houses-architecture-diagrams.md)
+  若要看全景，优先看其中的两张 4K 当前图；Mermaid 图作为目标架构辅助理解。
 
 ## 卖房（资产顾问）体验、玩法与系统专题
 
@@ -137,7 +140,6 @@
 - [6 周执行手册](selling-houses-iteration-plan.md)
 - [卖房工作台 4 小时并行开发总控计划](dev-session-selling-houses-2026-04-19.md)
 - [并行线程任务入口](dev-session-thread-briefs.md)
-- [卖房架构图与 ER 图](selling-houses-architecture-diagrams.md)
 - [卖房平台层到世界层物理表设计](selling-houses-physical-schema-design.md)
 
 ## 已删除的旧文档

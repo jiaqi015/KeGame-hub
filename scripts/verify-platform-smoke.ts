@@ -53,6 +53,16 @@ const steps: Step[] = [
     args: ['tsx', 'scripts/verify-selling-houses-daily-tick-contract.ts'],
   },
   {
+    label: 'Maintainer endgame transition contract verify',
+    command: 'npx',
+    args: ['tsx', 'scripts/verify-selling-houses-endgame-transition-contract.ts'],
+  },
+  {
+    label: 'Maintainer daily summary overlay contract verify',
+    command: 'npx',
+    args: ['tsx', 'scripts/verify-selling-houses-daily-summary-overlay-contract.ts'],
+  },
+  {
     label: 'Maintainer shell contract verify',
     command: 'npm',
     args: ['run', 'verify:maintainer-shell'],

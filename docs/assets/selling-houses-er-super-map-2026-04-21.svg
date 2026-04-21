@@ -1,0 +1,555 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="3840" height="2160" viewBox="0 0 3840 2160" fill="none" xmlns="http://www.w3.org/2000/svg">
+  
+    <defs>
+      <linearGradient id="bg" x1="180" y1="40" x2="3620" y2="2120" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#0B110D"/>
+        <stop offset="0.48" stop-color="#101813"/>
+        <stop offset="1" stop-color="#141E17"/>
+      </linearGradient>
+      <radialGradient id="glowA" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(520 260) rotate(16) scale(1040 760)">
+        <stop stop-color="#97F7B5" stop-opacity="0.16"/>
+        <stop offset="1" stop-color="#97F7B5" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="glowB" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(3120 300) rotate(18) scale(1180 760)">
+        <stop stop-color="#B6F5FF" stop-opacity="0.10"/>
+        <stop offset="1" stop-color="#B6F5FF" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="glowC" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(2040 1840) rotate(-10) scale(1460 820)">
+        <stop stop-color="#FFC991" stop-opacity="0.14"/>
+        <stop offset="1" stop-color="#FFC991" stop-opacity="0"/>
+      </radialGradient>
+      <pattern id="grid" width="44" height="44" patternUnits="userSpaceOnUse">
+        <path d="M44 0L0 0 0 44" stroke="#D3F1D9" stroke-opacity="0.05" stroke-width="1"/>
+      </pattern>
+      <filter id="panelShadow" x="-30%" y="-30%" width="160%" height="160%">
+        <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#000000" flood-opacity="0.34"/>
+      </filter>
+      <filter id="boxShadow" x="-30%" y="-30%" width="160%" height="160%">
+        <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000000" flood-opacity="0.26"/>
+      </filter>
+      <marker id="arrowGold" markerWidth="16" markerHeight="16" refX="12" refY="6" orient="auto">
+        <path d="M0 0L12 6L0 12Z" fill="#FFC991"/>
+      </marker>
+      <marker id="arrowMint" markerWidth="16" markerHeight="16" refX="12" refY="6" orient="auto">
+        <path d="M0 0L12 6L0 12Z" fill="#85D29A"/>
+      </marker>
+      <marker id="arrowIce" markerWidth="16" markerHeight="16" refX="12" refY="6" orient="auto">
+        <path d="M0 0L12 6L0 12Z" fill="#D8ECFF"/>
+      </marker>
+      <style>
+        .title {
+          fill: #F7FFF8;
+          font-family: "Avenir Next", "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif;
+          font-size: 68px;
+          font-weight: 700;
+          letter-spacing: -0.05em;
+        }
+        .subtitle {
+          fill: #C6D5C9;
+          font-family: "Avenir Next", "PingFang SC", sans-serif;
+          font-size: 27px;
+          font-weight: 500;
+        }
+        .kicker {
+          fill: #FFC991;
+          font-family: "Avenir Next", sans-serif;
+          font-size: 18px;
+          font-weight: 800;
+          letter-spacing: 0.18em;
+        }
+        .panelTitle {
+          fill: #F8FFF8;
+          font-family: "Avenir Next", "PingFang SC", sans-serif;
+          font-size: 34px;
+          font-weight: 700;
+          letter-spacing: -0.03em;
+        }
+        .panelNote {
+          fill: #B7C8BA;
+          font-family: "Avenir Next", "PingFang SC", sans-serif;
+          font-size: 20px;
+          font-weight: 500;
+        }
+        .boxTitle {
+          fill: #F8FFF8;
+          font-family: "Avenir Next", "PingFang SC", sans-serif;
+          font-size: 22px;
+          font-weight: 700;
+          letter-spacing: -0.02em;
+        }
+        .boxBody {
+          fill: #D8E5DA;
+          font-family: "Avenir Next", "PingFang SC", sans-serif;
+          font-size: 16px;
+          font-weight: 500;
+        }
+        .small {
+          fill: #BED0C1;
+          font-family: "Avenir Next", "PingFang SC", sans-serif;
+          font-size: 14px;
+          font-weight: 500;
+        }
+        .badgeDark {
+          fill: #0B120D;
+          font-family: "Avenir Next", sans-serif;
+          font-size: 13px;
+          font-weight: 800;
+          letter-spacing: 0.08em;
+        }
+        .legend {
+          fill: #F4FFF5;
+          font-family: "Avenir Next", "PingFang SC", sans-serif;
+          font-size: 18px;
+          font-weight: 600;
+        }
+        .sectionLabel {
+          fill: #90B59B;
+          font-family: "Avenir Next", sans-serif;
+          font-size: 15px;
+          font-weight: 800;
+          letter-spacing: 0.08em;
+        }
+        .linkLabel {
+          fill: #DCE9DE;
+          font-family: "Avenir Next", "PingFang SC", sans-serif;
+          font-size: 14px;
+          font-weight: 600;
+        }
+      </style>
+    </defs>
+  
+  <rect width="3840" height="2160" fill="url(#bg)"/>
+  <rect width="3840" height="2160" fill="url(#grid)"/>
+  <rect width="3840" height="2160" fill="url(#glowA)"/>
+  <rect width="3840" height="2160" fill="url(#glowB)"/>
+  <rect width="3840" height="2160" fill="url(#glowC)"/>
+  <text class="title" x="84" y="100">我是王牌资产管理顾问 · 全景领域 ER 超级总图</text>
+  <text class="subtitle" x="84" y="144">聚焦：世界实体、关系边界、好房模型、正式事实层、结果层、投影层。</text>
+  <text class="subtitle" x="84" y="180">目标：让后续开发先看清“谁是原始真相，谁是运行态，谁是评估器，谁是正式结算结果”。</text>
+  
+    <rect x="2942" y="54" width="790" height="148" rx="24" fill="#152019" fill-opacity="0.92" stroke="#46644D" stroke-width="2"/>
+    <line x1="2982" y1="96" x2="3070" y2="96" stroke="#FFC991" stroke-width="4"  marker-end="url(#arrowGold)"/>
+    <text class="legend" x="3098" y="103">当前代码已形成的实体 / 关系</text>
+    <line x1="2982" y1="136" x2="3070" y2="136" stroke="#D8ECFF" stroke-width="4" stroke-dasharray="12 10" marker-end="url(#arrowIce)"/>
+    <text class="legend" x="3098" y="143">文档已定义、但仍待继续拆分的正式实体</text>
+    
+    <rect x="2982" y="162" width="93" height="26" rx="13" fill="#85D29A" fill-opacity="0.95"/>
+    <text class="badgeDark" x="2996" y="180">MODEL</text>
+  
+    <text class="legend" x="3094" y="179">评估器或投影，不应混成原始世界字段</text>
+
+    
+    <g filter="url(#panelShadow)">
+      <rect x="42" y="230" width="920" height="512" rx="34" fill="#161C17" fill-opacity="0.94" stroke="#45624C" stroke-width="2"/>
+      <text class="kicker" x="78" y="278">ACTOR / ORG</text>
+      <text class="panelTitle" x="78" y="322">角色、组织、视角绑定</text>
+      <text class="panelNote" x="78" y="354"><tspan x="78" dy="0">玩家不是直接操作数据库记录，而是绑定到“经纪人/资产顾问”视角进入 world。</tspan><tspan x="78" dy="26">组织层、角色层、房源经营层要分开，否则后续同世界多视角玩法会纠缠。</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="82" y="382" width="180" height="110" rx="18" fill="#23352B" stroke="#85D29A" stroke-width="2" />
+      <rect x="100" y="396" width="106" height="24" rx="12" fill="#85D29A" fill-opacity="0.95"/>
+      <text class="badgeDark" x="112" y="413">VIEWER</text>
+      <text class="boxTitle" x="100" y="440">Player</text>
+      <text class="boxBody" x="100" y="466"><tspan x="100" dy="0">accountId</tspan><tspan x="100" dy="21">playerProfileId</tspan><tspan x="100" dy="21">workspace identity</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="300" y="382" width="192" height="110" rx="18" fill="#24352A" stroke="#85D29A" stroke-width="2" />
+      <rect x="318" y="396" width="88" height="24" rx="12" fill="#85D29A" fill-opacity="0.95"/>
+      <text class="badgeDark" x="330" y="413">ROLE</text>
+      <text class="boxTitle" x="318" y="440">Broker Actor</text>
+      <text class="boxBody" x="318" y="466"><tspan x="318" dy="0">maintainerName</tspan><tspan x="318" dy="21">resource owner</tspan><tspan x="318" dy="21">action executor</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="530" y="382" width="184" height="110" rx="18" fill="#243129" stroke="#85D29A" stroke-width="2" />
+      <rect x="548" y="396" width="88" height="24" rx="12" fill="#85D29A" fill-opacity="0.95"/>
+      <text class="badgeDark" x="560" y="413">ROLE</text>
+      <text class="boxTitle" x="548" y="440">Owner</text>
+      <text class="boxBody" x="548" y="466"><tspan x="548" dy="0">ownerName</tspan><tspan x="548" dy="21">ownerArchetype</tspan><tspan x="548" dy="21">sell intent</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="752" y="382" width="166" height="110" rx="18" fill="#243129" stroke="#85D29A" stroke-width="2" />
+      <rect x="770" y="396" width="88" height="24" rx="12" fill="#85D29A" fill-opacity="0.95"/>
+      <text class="badgeDark" x="782" y="413">ROLE</text>
+      <text class="boxTitle" x="770" y="440">Customer</text>
+      <text class="boxBody" x="770" y="466"><tspan x="770" dy="0">profile</tspan><tspan x="770" dy="21">budget</tspan><tspan x="770" dy="21">district intent</tspan></text>
+    </g>
+  
+    <line x1="262" y1="436" x2="300" y2="436" stroke="#85D29A" stroke-width="4"  marker-end="url(#arrowMint)"/>
+    <line x1="492" y1="436" x2="530" y2="436" stroke="#85D29A" stroke-width="4"  marker-end="url(#arrowMint)"/>
+    <line x1="714" y1="436" x2="752" y2="436" stroke="#85D29A" stroke-width="4"  marker-end="url(#arrowMint)"/>
+    <text class="linkLabel" x="274" y="426">controls</text>
+    <text class="linkLabel" x="500" y="426">serves</text>
+    <text class="linkLabel" x="722" y="426">matches</text>
+
+    
+    <g filter="url(#boxShadow)">
+      <rect x="82" y="544" width="238" height="154" rx="18" fill="#1F2925" stroke="#D8ECFF" stroke-width="2" stroke-dasharray="12 10"/>
+      <rect x="100" y="558" width="106" height="24" rx="12" fill="#D8ECFF" fill-opacity="0.95"/>
+      <text class="badgeDark" x="112" y="575">TARGET</text>
+      <text class="boxTitle" x="100" y="602">Company / Brand / ACN</text>
+      <text class="boxBody" x="100" y="628"><tspan x="100" dy="0">平台与组织协作层</tspan><tspan x="100" dy="21">共享客户池 / 协同规则 / store network</tspan><tspan x="100" dy="21">当前代码只部分投到 companyPressure + broker leads</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="352" y="544" width="252" height="154" rx="18" fill="#213028" stroke="#85D29A" stroke-width="2" />
+      <rect x="370" y="558" width="120" height="24" rx="12" fill="#85D29A" fill-opacity="0.95"/>
+      <text class="badgeDark" x="382" y="575">CURRENT</text>
+      <text class="boxTitle" x="370" y="602">Store / RivalStore</text>
+      <text class="boxBody" x="370" y="628"><tspan x="370" dy="0">同公司门店 / 外部门店</tspan><tspan x="370" dy="21">leadCapturePower / pricingPressurePower</tspan><tspan x="370" dy="21">当前运行时落在 marketShadow.rivalStores[]</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="636" y="544" width="282" height="154" rx="18" fill="#1F2925" stroke="#D8ECFF" stroke-width="2" stroke-dasharray="12 10"/>
+      <rect x="654" y="558" width="106" height="24" rx="12" fill="#D8ECFF" fill-opacity="0.95"/>
+      <text class="badgeDark" x="666" y="575">TARGET</text>
+      <text class="boxTitle" x="654" y="602">OwnerSide Formalization</text>
+      <text class="boxBody" x="654" y="628"><tspan x="654" dy="0">OwnershipEntrust</tspan><tspan x="654" dy="21">BrokerOwnerRelation</tspan><tspan x="654" dy="21">当前仍主要内嵌到 case.trust/patience/urgency</tspan><tspan x="654" dy="21">后续建议从 case 内字段正式拆出</tspan></text>
+    </g>
+  
+
+    
+    <g filter="url(#panelShadow)">
+      <rect x="992" y="230" width="2792" height="1118" rx="34" fill="#161C17" fill-opacity="0.94" stroke="#45624C" stroke-width="2"/>
+      <text class="kicker" x="1028" y="278">WORLD ER</text>
+      <text class="panelTitle" x="1028" y="322">核心领域实体关系全景</text>
+      <text class="panelNote" x="1028" y="354"><tspan x="1028" dy="0">当前系统真正的骨架是：GameState/World -&gt; Case -&gt; Opportunity -&gt; ClosedDealRecord / DomainEventEntry，同时配套 CustomerRuntimeState、MatterEntry、ShadowMarketState。</tspan><tspan x="1028" dy="26">下面同时画“当前已落地对象”和“文档目标拆分对象”。</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="1034" y="374" width="288" height="128" rx="18" fill="#243629" stroke="#85D29A" stroke-width="2" />
+      <rect x="1052" y="388" width="88" height="24" rx="12" fill="#85D29A" fill-opacity="0.95"/>
+      <text class="badgeDark" x="1064" y="405">ROOT</text>
+      <text class="boxTitle" x="1052" y="432">GameState / World</text>
+      <text class="boxBody" x="1052" y="458"><tspan x="1052" dy="0">day / currentDate / rngState / rules</tspan><tspan x="1052" dy="21">cases / opportunities / customers / markets</tspan><tspan x="1052" dy="21">eventStore / matters / closedDeals / marketShadow</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="1380" y="374" width="252" height="116" rx="18" fill="#223026" stroke="#85D29A" stroke-width="2" />
+      <rect x="1398" y="388" width="134" height="24" rx="12" fill="#85D29A" fill-opacity="0.95"/>
+      <text class="badgeDark" x="1410" y="405">SNAPSHOT</text>
+      <text class="boxTitle" x="1398" y="432">ScenarioSnapshot</text>
+      <text class="boxBody" x="1398" y="458"><tspan x="1398" dy="0">world / scenario / opening / difficulty</tspan><tspan x="1398" dy="21">runContext holds immutable scenario truth</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="1684" y="374" width="240" height="116" rx="18" fill="#21312B" stroke="#85D29A" stroke-width="2" />
+      <rect x="1702" y="388" width="106" height="24" rx="12" fill="#85D29A" fill-opacity="0.95"/>
+      <text class="badgeDark" x="1714" y="405">MARKET</text>
+      <text class="boxTitle" x="1702" y="432">MarketCell</text>
+      <text class="boxBody" x="1702" y="458"><tspan x="1702" dy="0">demandHeat / supplyPressure</tspan><tspan x="1702" dy="21">competitivePressure / sentiment</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="1968" y="356" width="366" height="166" rx="18" fill="#23372A" stroke="#85D29A" stroke-width="2" />
+      <rect x="1986" y="370" width="120" height="24" rx="12" fill="#85D29A" fill-opacity="0.95"/>
+      <text class="badgeDark" x="1998" y="387">LISTING</text>
+      <text class="boxTitle" x="1986" y="414">Case</text>
+      <text class="boxBody" x="1986" y="440"><tspan x="1986" dy="0">profile: district / layout / area / axisScores / tags / defects</tspan><tspan x="1986" dy="21">runtime: askPrice / marketPrice / bottomPrice / heat</tspan><tspan x="1986" dy="21">trust / patience / urgency / windowDays / stage / status</tspan><tspan x="1986" dy="21">d1 / d2 / d3 / competitiveness / competitivenessSnapshots[]</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="2380" y="374" width="334" height="126" rx="18" fill="#22332A" stroke="#85D29A" stroke-width="2" />
+      <rect x="2398" y="388" width="134" height="24" rx="12" fill="#85D29A" fill-opacity="0.95"/>
+      <text class="badgeDark" x="2410" y="405">RELATION</text>
+      <text class="boxTitle" x="2398" y="432">Opportunity</text>
+      <text class="boxBody" x="2398" y="458"><tspan x="2398" dy="0">caseId / customerId / channelId</tspan><tspan x="2398" dy="21">fit / intent / confidence / stageIndex</tspan><tspan x="2398" dy="21">status / lifecycleStatus / daysLeft / visibility</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="2760" y="374" width="300" height="126" rx="18" fill="#21312B" stroke="#85D29A" stroke-width="2" />
+      <rect x="2778" y="388" width="120" height="24" rx="12" fill="#85D29A" fill-opacity="0.95"/>
+      <text class="badgeDark" x="2790" y="405">RUNTIME</text>
+      <text class="boxTitle" x="2778" y="432">CustomerRuntimeState</text>
+      <text class="boxBody" x="2778" y="458"><tspan x="2778" dy="0">status / decisionStyle / advisorTrust</tspan><tspan x="2778" dy="21">fatigue / churnRisk / activeCaseIds[] / caseStates{}</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="3104" y="374" width="292" height="126" rx="18" fill="#223129" stroke="#85D29A" stroke-width="2" />
+      <rect x="3122" y="388" width="106" height="24" rx="12" fill="#85D29A" fill-opacity="0.95"/>
+      <text class="badgeDark" x="3134" y="405">MATTER</text>
+      <text class="boxTitle" x="3122" y="432">MatterEntry</text>
+      <text class="boxBody" x="3122" y="458"><tspan x="3122" dy="0">source / scene / stage / template / presentation</tspan><tspan x="3122" dy="21">caseId / sourceKey / resolutionSummary</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="1034" y="568" width="274" height="120" rx="18" fill="#253228" stroke="#85D29A" stroke-width="2" />
+      <rect x="1052" y="582" width="92" height="24" rx="12" fill="#85D29A" fill-opacity="0.95"/>
+      <text class="badgeDark" x="1064" y="599">EVENT</text>
+      <text class="boxTitle" x="1052" y="626">DomainEventEntry</text>
+      <text class="boxBody" x="1052" y="652"><tspan x="1052" dy="0">kind / actor / title / detail / tone</tspan><tspan x="1052" dy="21">caseId? / opportunityId? / customerId? / payload{}</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="1350" y="568" width="292" height="120" rx="18" fill="#2B3222" stroke="#85D29A" stroke-width="2" />
+      <rect x="1368" y="582" width="88" height="24" rx="12" fill="#85D29A" fill-opacity="0.95"/>
+      <text class="badgeDark" x="1380" y="599">FACT</text>
+      <text class="boxTitle" x="1368" y="626">ClosedDealRecord</text>
+      <text class="boxBody" x="1368" y="652"><tspan x="1368" dy="0">caseId / customerId / sourceRelationId</tspan><tspan x="1368" dy="21">dealPrice / readiness / probability / snapshots</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="1690" y="568" width="282" height="120" rx="18" fill="#24312B" stroke="#85D29A" stroke-width="2" />
+      <rect x="1708" y="582" width="106" height="24" rx="12" fill="#85D29A" fill-opacity="0.95"/>
+      <text class="badgeDark" x="1720" y="599">SHADOW</text>
+      <text class="boxTitle" x="1708" y="626">ShadowMarketState</text>
+      <text class="boxBody" x="1708" y="652"><tspan x="1708" dy="0">rivalStores[] / rivalListings[]</tspan><tspan x="1708" dy="21">companyPressure / marketSignals[] / inboundQueue[]</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="2012" y="568" width="322" height="120" rx="18" fill="#21312B" stroke="#85D29A" stroke-width="2" />
+      <rect x="2030" y="582" width="106" height="24" rx="12" fill="#85D29A" fill-opacity="0.95"/>
+      <text class="badgeDark" x="2042" y="599">MASTER</text>
+      <text class="boxTitle" x="2030" y="626">CustomerProfile</text>
+      <text class="boxBody" x="2030" y="652"><tspan x="2030" dy="0">budgetMin/max / targetDistrict / layouts[]</tspan><tspan x="2030" dy="21">activity / urgency / priceSensitivity / preferences[]</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="2380" y="568" width="334" height="120" rx="18" fill="#213026" stroke="#85D29A" stroke-width="2" />
+      <rect x="2398" y="582" width="106" height="24" rx="12" fill="#85D29A" fill-opacity="0.95"/>
+      <text class="badgeDark" x="2410" y="599">MASTER</text>
+      <text class="boxTitle" x="2398" y="626">Owner Archetype / HousePrototype</text>
+      <text class="boxBody" x="2398" y="652"><tspan x="2398" dy="0">world master data</tspan><tspan x="2398" dy="21">ownerArchetypes[] / housePrototypes[]</tspan><tspan x="2398" dy="21">instantiateScenarioCases 的输入</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="2760" y="568" width="300" height="120" rx="18" fill="#2D3022" stroke="#85D29A" stroke-width="2" />
+      <rect x="2778" y="582" width="106" height="24" rx="12" fill="#85D29A" fill-opacity="0.95"/>
+      <text class="badgeDark" x="2790" y="599">RESULT</text>
+      <text class="boxTitle" x="2778" y="626">FinalResult / RunResult</text>
+      <text class="boxBody" x="2778" y="652"><tspan x="2778" dy="0">正式结算结果</tspan><tspan x="2778" dy="21">caseResults[] / scoreBreakdown / customerReview</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="3104" y="568" width="292" height="120" rx="18" fill="#283126" stroke="#85D29A" stroke-width="2" />
+      <rect x="3122" y="582" width="134" height="24" rx="12" fill="#85D29A" fill-opacity="0.95"/>
+      <text class="badgeDark" x="3134" y="599">TICK OUT</text>
+      <text class="boxTitle" x="3122" y="626">DailyTickResult</text>
+      <text class="boxBody" x="3122" y="652"><tspan x="3122" dy="0">report / emittedEvents[] / closedDeals[]</tspan><tspan x="3122" dy="21">dirtyScopes / invariantAlerts[]</tspan></text>
+    </g>
+  
+
+    <line x1="1322" y1="438" x2="1380" y2="438" stroke="#85D29A" stroke-width="4"  marker-end="url(#arrowMint)"/>
+    <text class="linkLabel" x="1332" y="428">initialized from</text>
+    <line x1="1632" y1="432" x2="1684" y2="432" stroke="#85D29A" stroke-width="4"  marker-end="url(#arrowMint)"/>
+    <text class="linkLabel" x="1640" y="422">contains</text>
+    <line x1="1924" y1="432" x2="1968" y2="432" stroke="#85D29A" stroke-width="4"  marker-end="url(#arrowMint)"/>
+    <text class="linkLabel" x="1912" y="422">prices / influences</text>
+    <line x1="2334" y1="432" x2="2380" y2="432" stroke="#85D29A" stroke-width="4"  marker-end="url(#arrowMint)"/>
+    <text class="linkLabel" x="2342" y="422">1 case -&gt; n</text>
+    <line x1="2714" y1="432" x2="2760" y2="432" stroke="#85D29A" stroke-width="4"  marker-end="url(#arrowMint)"/>
+    <text class="linkLabel" x="2720" y="422">per customer</text>
+    <line x1="3060" y1="432" x2="3104" y2="432" stroke="#85D29A" stroke-width="4"  marker-end="url(#arrowMint)"/>
+    <text class="linkLabel" x="3066" y="422">spawns / updates</text>
+
+    <line x1="1150" y1="568" x2="1150" y2="510" stroke="#85D29A" stroke-width="4"  marker-end="url(#arrowMint)"/>
+    <text class="linkLabel" x="1116" y="544">world emits</text>
+    <line x1="1452" y1="568" x2="2120" y2="522" stroke="#FFC991" stroke-width="4"  marker-end="url(#arrowGold)"/>
+    <text class="linkLabel" x="1650" y="540">1 sold case -&gt; 0 or 1 formal deal fact</text>
+    <line x1="1832" y1="568" x2="1848" y2="500" stroke="#85D29A" stroke-width="4"  marker-end="url(#arrowMint)"/>
+    <text class="linkLabel" x="1796" y="546">market pressure</text>
+    <line x1="2162" y1="568" x2="2460" y2="500" stroke="#85D29A" stroke-width="4"  marker-end="url(#arrowMint)"/>
+    <text class="linkLabel" x="2200" y="544">matched into</text>
+    <line x1="2930" y1="568" x2="2930" y2="500" stroke="#FFC991" stroke-width="4"  marker-end="url(#arrowGold)"/>
+    <text class="linkLabel" x="2882" y="544">settlement</text>
+    <line x1="3248" y1="568" x2="3248" y2="500" stroke="#85D29A" stroke-width="4"  marker-end="url(#arrowMint)"/>
+    <text class="linkLabel" x="3198" y="544">per day output</text>
+
+    
+    <g filter="url(#boxShadow)">
+      <rect x="1034" y="742" width="804" height="214" rx="18" fill="#1F2A24" stroke="#85D29A" stroke-width="2" />
+      
+      
+      <text class="boxTitle" x="1052" y="776">关系规则（当前骨架最关键的 cardinality）</text>
+      <text class="boxBody" x="1052" y="804"><tspan x="1052" dy="0">1 个 GameState / World 运行时拥有 N 个 Case、N 个 Opportunity、N 个 DomainEvent、N 个 Matter。</tspan><tspan x="1052" dy="21">1 个 Case 可同时对应 N 个 Opportunity，但正式成交后同 case 不应出现重复 ClosedDealRecord。</tspan><tspan x="1052" dy="21">1 个 CustomerRuntimeState 可并行比较多套房，但 activeCaseIds / caseStates[] 会收缩到有限注意力窗口。</tspan><tspan x="1052" dy="21">1 个 Case 当前把部分 owner relation 状态内嵌在自己身上；文档目标是拆成 OwnershipEntrust / BrokerOwnerRelation。</tspan><tspan x="1052" dy="21">ShadowMarketState 是“平行市场环境层”，不应直接替代正式 case/customer 事实。</tspan></text>
+    </g>
+  
+
+    
+    <g filter="url(#boxShadow)">
+      <rect x="1870" y="742" width="640" height="214" rx="18" fill="#203028" stroke="#85D29A" stroke-width="2" />
+      
+      
+      <text class="boxTitle" x="1888" y="776">好房模型 / 价格模型 / 客户关系 边界</text>
+      <text class="boxBody" x="1888" y="804"><tspan x="1888" dy="0">GoodHouseModel 回答：这套房整体好不好卖。</tspan><tspan x="1888" dy="21">PriceModel 回答：价格站不站得住、离成交区有多远。</tspan><tspan x="1888" dy="21">Opportunity / CustomerCaseRelation 回答：这个客户与这套房推进到哪一步。</tspan><tspan x="1888" dy="21">三者不能混。Case 上保留 d1/d2/d3/competitiveness 只代表当前评估结果，不代表完整的原始事实。</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="2546" y="742" width="850" height="214" rx="18" fill="#1F2925" stroke="#D8ECFF" stroke-width="2" stroke-dasharray="12 10"/>
+      
+      
+      <text class="boxTitle" x="2564" y="776">文档目标拆分（建议继续演进）</text>
+      <text class="boxBody" x="2564" y="804"><tspan x="2564" dy="0">Owner 实体独立：ownerId / owner archetype / anxiety / market understanding</tspan><tspan x="2564" dy="21">OwnershipEntrust：ownerId + caseId + primaryBrokerId + exclusive status + signed window</tspan><tspan x="2564" dy="21">BrokerOwnerRelation：brokerId + ownerId + trust / cadence / alignment / route agreement</tspan><tspan x="2564" dy="21">PriceModelOutput / GoodHouseScoreProjection / DealStatsProjection 作为独立 projection，不回写原始世界真相</tspan><tspan x="2564" dy="21">eventStore 后续可继续细化到 relation.* / price.* / goodHouse.* / marketEvent.* taxonomy</tspan></text>
+    </g>
+  
+
+    
+    <g filter="url(#panelShadow)">
+      <rect x="992" y="1376" width="1620" height="666" rx="34" fill="#161C17" fill-opacity="0.94" stroke="#45624C" stroke-width="2"/>
+      <text class="kicker" x="1028" y="1424">GOOD HOUSE MODEL</text>
+      <text class="panelTitle" x="1028" y="1468">好房模型、价格模型、关系推进的完整输入输出</text>
+      <text class="panelNote" x="1028" y="1500"><tspan x="1028" dy="0">这部分放在 ER 图里，是因为它决定 Case 上哪些字段是“源事实”，哪些字段只是评估结果。</tspan><tspan x="1028" dy="26">后续开发时，模型一定要继续和世界实体分层，不要把 projection 再塞回实体定义。</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="1034" y="1520" width="300" height="194" rx="18" fill="#21312A" stroke="#85D29A" stroke-width="2" />
+      <rect x="1052" y="1534" width="92" height="24" rx="12" fill="#85D29A" fill-opacity="0.95"/>
+      <text class="badgeDark" x="1064" y="1551">INPUT</text>
+      <text class="boxTitle" x="1052" y="1578">Case Profile 输入</text>
+      <text class="boxBody" x="1052" y="1604"><tspan x="1052" dy="0">district / layout / area / tags / defects</tspan><tspan x="1052" dy="21">axisScores(layout/light/floor/decor/amenity/neighborhood/structure)</tspan><tspan x="1052" dy="21">housePrototype / story / product quality</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="1364" y="1520" width="294" height="194" rx="18" fill="#21312A" stroke="#85D29A" stroke-width="2" />
+      <rect x="1382" y="1534" width="92" height="24" rx="12" fill="#85D29A" fill-opacity="0.95"/>
+      <text class="badgeDark" x="1394" y="1551">INPUT</text>
+      <text class="boxTitle" x="1382" y="1578">Case Runtime 输入</text>
+      <text class="boxBody" x="1382" y="1604"><tspan x="1382" dy="0">heat / exposure proxy / competitiveness</tspan><tspan x="1382" dy="21">competitionGroupIds / marketCellId</tspan><tspan x="1382" dy="21">viewings / offers / stage / status</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="1688" y="1520" width="296" height="194" rx="18" fill="#21312A" stroke="#85D29A" stroke-width="2" />
+      <rect x="1706" y="1534" width="92" height="24" rx="12" fill="#85D29A" fill-opacity="0.95"/>
+      <text class="badgeDark" x="1718" y="1551">INPUT</text>
+      <text class="boxTitle" x="1706" y="1578">Owner / Price Side 输入</text>
+      <text class="boxBody" x="1706" y="1604"><tspan x="1706" dy="0">trust / patience / urgency</tspan><tspan x="1706" dy="21">askPrice / marketPrice / bottomPrice / priceGapPct</tspan><tspan x="1706" dy="21">current code 用 case 字段代理 owner relation</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="2014" y="1520" width="286" height="194" rx="18" fill="#21312A" stroke="#85D29A" stroke-width="2" />
+      <rect x="2032" y="1534" width="92" height="24" rx="12" fill="#85D29A" fill-opacity="0.95"/>
+      <text class="badgeDark" x="2044" y="1551">INPUT</text>
+      <text class="boxTitle" x="2032" y="1578">Customer / Opportunity 输入</text>
+      <text class="boxBody" x="2032" y="1604"><tspan x="2032" dy="0">active opportunities / stage history</tspan><tspan x="2032" dy="21">intent / confidence / stagnationTicks</tspan><tspan x="2032" dy="21">customerState.comparing / fatigue / churnRisk</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="2330" y="1520" width="242" height="194" rx="18" fill="#21312A" stroke="#85D29A" stroke-width="2" />
+      <rect x="2348" y="1534" width="92" height="24" rx="12" fill="#85D29A" fill-opacity="0.95"/>
+      <text class="badgeDark" x="2360" y="1551">INPUT</text>
+      <text class="boxTitle" x="2348" y="1578">Market 输入</text>
+      <text class="boxBody" x="2348" y="1604"><tspan x="2348" dy="0">marketCell demand/supply/sentiment</tspan><tspan x="2348" dy="21">rival listings / company pressure</tspan><tspan x="2348" dy="21">seasonality / daily event / signals</tspan></text>
+    </g>
+  
+
+    
+    <g filter="url(#boxShadow)">
+      <rect x="1034" y="1758" width="472" height="230" rx="18" fill="#1F2925" stroke="#D8ECFF" stroke-width="2" stroke-dasharray="12 10"/>
+      <rect x="1052" y="1772" width="88" height="24" rx="12" fill="#D8ECFF" fill-opacity="0.95"/>
+      <text class="badgeDark" x="1064" y="1789">DOC</text>
+      <text class="boxTitle" x="1052" y="1816">文档业务语义</text>
+      <text class="boxBody" x="1052" y="1842"><tspan x="1052" dy="0">D1 = 准客池厚度</tspan><tspan x="1052" dy="21">D2 = 房屋吸引力</tspan><tspan x="1052" dy="21">D3 = 业主意愿 / 配合度</tspan><tspan x="1052" dy="21">goodHouseScore / level / positiveReasons / negativeReasons</tspan><tspan x="1052" dy="21">边界：不替代价格模型，不替代成交概率，不直接替代玩家行动建议</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="1540" y="1758" width="512" height="230" rx="18" fill="#23342A" stroke="#85D29A" stroke-width="2" />
+      <rect x="1558" y="1772" width="190" height="24" rx="12" fill="#85D29A" fill-opacity="0.95"/>
+      <text class="badgeDark" x="1570" y="1789">CURRENT CODE</text>
+      <text class="boxTitle" x="1558" y="1816">当前 scoring.ts 实际实现</text>
+      <text class="boxBody" x="1558" y="1842"><tspan x="1558" dy="0">D1: poolSize + activeContacts + lateStageThickness + advanceSpeed - stagnationRisk</tspan><tspan x="1558" dy="21">D2: axisScores 按权重求和</tspan><tspan x="1558" dy="21">D3: priceFlex + patience + urgency + recentCooperation(trust proxy) + consistencyBaseline</tspan><tspan x="1558" dy="21">competitiveness = 0.50*D1 + 0.25*D2 + 0.25*D3</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="2086" y="1758" width="484" height="230" rx="18" fill="#202C24" stroke="#85D29A" stroke-width="2" />
+      <rect x="2104" y="1772" width="88" height="24" rx="12" fill="#85D29A" fill-opacity="0.95"/>
+      <text class="badgeDark" x="2116" y="1789">NOTE</text>
+      <text class="boxTitle" x="2104" y="1816">开发注意点</text>
+      <text class="boxBody" x="2104" y="1842"><tspan x="2104" dy="0">页面文案可讲业务意义，但代码要明确目前只是“近似实现”。</tspan><tspan x="2104" dy="21">如果补平台匹配规模、可触达规模、缺点惩罚、路线认同度，应优先补到模型层，不要散落到页面条件判断。</tspan><tspan x="2104" dy="21">reason tags 建议沉淀成稳定 projection，而不是页面临时拼接。</tspan></text>
+    </g>
+  
+
+    
+    <g filter="url(#panelShadow)">
+      <rect x="2640" y="1376" width="1144" height="666" rx="34" fill="#161C17" fill-opacity="0.94" stroke="#45624C" stroke-width="2"/>
+      <text class="kicker" x="2676" y="1424">RESULT / EVENT / VIEW</text>
+      <text class="panelTitle" x="2676" y="1468">正式结果、事件层、视图层的边界</text>
+      <text class="panelNote" x="2676" y="1500"><tspan x="2676" dy="0">这块是后续开发最容易混的地方，所以放在 ER 图收口：DailyReport != ClosedDealRecord != FinalResult。</tspan><tspan x="2676" dy="26">eventStore 是过程事实流，ClosedDealRecord 是成交事实，FinalResult / RunResult 是结算结果。</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="2684" y="1520" width="324" height="180" rx="18" fill="#21312A" stroke="#85D29A" stroke-width="2" />
+      <rect x="2702" y="1534" width="120" height="24" rx="12" fill="#85D29A" fill-opacity="0.95"/>
+      <text class="badgeDark" x="2714" y="1551">SUMMARY</text>
+      <text class="boxTitle" x="2702" y="1578">DailyReport / currentReport</text>
+      <text class="boxBody" x="2702" y="1604"><tspan x="2702" dy="0">日内/次日摘要</tspan><tspan x="2702" dy="21">majorEvents / metricsDelta / marketNews / todayPlan</tspan><tspan x="2702" dy="21">服务 Review / Dashboard，不是正式成绩</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="3042" y="1520" width="324" height="180" rx="18" fill="#23342A" stroke="#85D29A" stroke-width="2" />
+      <rect x="3060" y="1534" width="190" height="24" rx="12" fill="#85D29A" fill-opacity="0.95"/>
+      <text class="badgeDark" x="3072" y="1551">PROCESS FACT</text>
+      <text class="boxTitle" x="3060" y="1578">eventStore</text>
+      <text class="boxBody" x="3060" y="1604"><tspan x="3060" dy="0">结构化过程事件</tspan><tspan x="3060" dy="21">用于复盘、归因、dirty scope、结果叙事</tspan><tspan x="3060" dy="21">当前 kind 仍偏粗粒度</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="2684" y="1736" width="324" height="180" rx="18" fill="#2C3223" stroke="#85D29A" stroke-width="2" />
+      <rect x="2702" y="1750" width="176" height="24" rx="12" fill="#85D29A" fill-opacity="0.95"/>
+      <text class="badgeDark" x="2714" y="1767">FORMAL FACT</text>
+      <text class="boxTitle" x="2702" y="1794">ClosedDealRecord</text>
+      <text class="boxBody" x="2702" y="1820"><tspan x="2702" dy="0">正式成交事实</tspan><tspan x="2702" dy="21">priceSnapshot / marketSnapshot</tspan><tspan x="2702" dy="21">一个 case 一局内不应重复成交</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="3042" y="1736" width="324" height="180" rx="18" fill="#2D3022" stroke="#85D29A" stroke-width="2" />
+      <rect x="3060" y="1750" width="162" height="24" rx="12" fill="#85D29A" fill-opacity="0.95"/>
+      <text class="badgeDark" x="3072" y="1767">SETTLEMENT</text>
+      <text class="boxTitle" x="3060" y="1794">FinalResult / RunResult</text>
+      <text class="boxBody" x="3060" y="1820"><tspan x="3060" dy="0">正式结算结果</tspan><tspan x="3060" dy="21">score / grade / dimensions / caseResults</tspan><tspan x="3060" dy="21">排行榜与生涯只看这层</tspan></text>
+    </g>
+  
+    
+    <g filter="url(#boxShadow)">
+      <rect x="3400" y="1520" width="338" height="396" rx="18" fill="#202C24" stroke="#85D29A" stroke-width="2" />
+      <rect x="3418" y="1534" width="162" height="24" rx="12" fill="#85D29A" fill-opacity="0.95"/>
+      <text class="badgeDark" x="3430" y="1551">READ MODEL</text>
+      <text class="boxTitle" x="3418" y="1578">Projection Layer</text>
+      <text class="boxBody" x="3418" y="1604"><tspan x="3418" dy="0">buildOperatingProjection</tspan><tspan x="3418" dy="21">buildWorkspaceShellProjection</tspan><tspan x="3418" dy="21">buildReviewProjection</tspan><tspan x="3418" dy="21">buildResultProjection</tspan><tspan x="3418" dy="21">规则：Projection 只读 World/Fact，不反向成为世界真相</tspan></text>
+    </g>
+  
+
+    <line x1="3008" y1="1610" x2="3042" y2="1610" stroke="#85D29A" stroke-width="4"  marker-end="url(#arrowMint)"/>
+    <line x1="3008" y1="1826" x2="3042" y2="1826" stroke="#FFC991" stroke-width="4"  marker-end="url(#arrowGold)"/>
+    <line x1="3366" y1="1826" x2="3400" y2="1826" stroke="#85D29A" stroke-width="4"  marker-end="url(#arrowMint)"/>
+    <text class="linkLabel" x="3014" y="1600">feeds</text>
+    <text class="linkLabel" x="3014" y="1816">settles</text>
+    <text class="linkLabel" x="3372" y="1816">projects</text>
+  
+  <text class="small" x="84" y="2138">Generated for 卖房 / 资产顾问 workspace on 2026-04-21 · 4K editable SVG retained for regeneration.</text>
+</svg>

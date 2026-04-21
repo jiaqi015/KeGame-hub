@@ -102,7 +102,7 @@ async function startServer() {
   const preferredPort = Number(process.env.PORT || 3000);
   const server = http.createServer(app);
 
-  app.use(express.json());
+  app.use(express.json({ limit: "4mb" }));
 
   app.post("/api/auth-start", async (req, res) => {
     try {

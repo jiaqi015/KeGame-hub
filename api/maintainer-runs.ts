@@ -19,6 +19,14 @@ import {
   isMaintainerSyncConflictError,
 } from '../src/selling-houses/interfaces/http/maintainerRunHandlers.js';
 
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '4mb',
+    },
+  },
+};
+
 function buildIdentityContext(authorization: {
   accountId?: string;
   displayName?: string;

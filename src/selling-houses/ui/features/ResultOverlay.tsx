@@ -34,7 +34,7 @@ export function ResultOverlay({ state, onRestart }: ResultOverlayProps) {
   return (
     <div className="fixed inset-0 z-[100] overflow-y-auto bg-slate-900/50 p-6 backdrop-blur-md">
       <div className="seller-panel mx-auto my-8 max-w-6xl overflow-hidden rounded-[24px] shadow-[var(--seller-shadow-lg)] animate-in fade-in zoom-in duration-300">
-        <div className="relative bg-[var(--seller-ink)] px-10 pb-10 pt-12 text-white">
+        <div className="relative bg-[var(--seller-paper)] px-10 pb-10 pt-12 text-[var(--seller-ink)]">
           <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2">
             <div className="flex h-20 w-20 items-center justify-center rounded-[20px] bg-[var(--seller-chance)] text-white">
               <Trophy size={40} />
@@ -42,29 +42,26 @@ export function ResultOverlay({ state, onRestart }: ResultOverlayProps) {
           </div>
 
           <div className="mx-auto max-w-4xl text-center">
-            <div className="seller-label mt-4 text-white/60">
+            <div className="seller-label mt-4 text-[var(--seller-subtle)]">
               {projection.hero.eyebrow}
             </div>
-            <h2 className="seller-title mt-3 text-3xl text-white">{projection.hero.title}</h2>
+            <h2 className="seller-title mt-3 text-3xl text-[var(--seller-ink)]">{projection.hero.title}</h2>
             <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-              <span className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white/80">
+              <span className="seller-chip">
                 {projection.hero.difficultyId}
               </span>
-              <span className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-bold tracking-[0.04em] text-white/80">
+              <span className="seller-chip">
                 {projection.hero.scenarioName}
               </span>
-              <span className="rounded-full bg-emerald-500/20 px-3 py-1 text-[10px] font-bold tracking-[0.16em] text-emerald-200">
+              <span className="seller-chip seller-chip-chance">
                 {projection.hero.grade}
               </span>
             </div>
-            <p className="mx-auto mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
+            <p className="mx-auto mt-3 max-w-3xl text-sm leading-relaxed text-[var(--seller-muted)]">
               {projection.hero.summary}
             </p>
-            <div className="mt-5 inline-flex rounded-full bg-white/10 px-4 py-2 text-[11px] font-semibold text-white/80">
+            <div className="seller-chip mt-5 inline-flex">
               {projection.hero.settlementLabel}
-            </div>
-            <div className="mt-3 text-[12px] leading-6 text-white/70">
-              本页只展示本局正式结算；跨局名次和长期成绩请到排行榜查看。
             </div>
           </div>
         </div>
@@ -80,53 +77,53 @@ export function ResultOverlay({ state, onRestart }: ResultOverlayProps) {
 
           <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
             <SettlementSignalCard
-              label="结算口径"
+              label="当前状态"
               title="这页已经锁定到正式成绩"
-              detail="这里不再展示局内每日预估和未结束过程，只看这局已经落账的结果。"
+              detail="这局结果已经定下。"
               tone="chance"
             />
             <SettlementSignalCard
-              label="先看什么"
-              title={totalResolvedCases > 0 ? `先看 ${totalResolvedCases} 套房最后落成什么样` : '先看这局有没有形成正式房源结果'}
-              detail={totalResolvedCases > 0 ? '单房结果是这页最重要的内容，总分只是把这些结果翻译成整局成绩。' : '如果还没有正式房源结果，这页也不会有真正的结算意义。'}
+              label="重点"
+              title={totalResolvedCases > 0 ? `${totalResolvedCases} 套房最后落成什么样` : '这局有没有形成正式房源结果'}
+              detail={totalResolvedCases > 0 ? '单房结果已经生成。' : '还没有形成正式房源结果。'}
               tone={totalResolvedCases > 0 ? 'chance' : 'neutral'}
             />
             <SettlementSignalCard
-              label="这局带走什么"
+              label="带走"
               title={leadHighlight || leadImprovement || '这局还没有特别集中的代表作'}
               detail={leadHighlight
-                ? '这条会作为这局最能代表你打法的一笔被保留下来。'
+                ? '这条最能代表这局。'
                 : leadImprovement
-                  ? '这条最值得带回复盘页继续拆原因。'
-                  : '说明这局没有特别突出的单点高光或单点失手。'}
+                  ? '这条最值得带回复盘页。'
+                  : '这局没有特别突出的单点高光或失手。'}
               tone={leadHighlight ? 'chance' : leadImprovement ? 'risk' : 'neutral'}
             />
           </section>
 
           <section className="seller-panel overflow-hidden">
-            <div className="border-b border-black/[0.05] px-6 py-5">
+            <div className="border-b border-[var(--seller-border)] px-6 py-5">
               <div className="seller-label flex items-center gap-2 text-sm">
                 <Sparkles size={16} />
-                正式单房结果总览
+                正式单房结果
               </div>
               <div className="seller-body mt-2 text-[12px]">
-                先把每套房最后怎么收的看明白，再回头看三项得分和生涯沉淀。
+                每套房最后怎么收。
               </div>
             </div>
             <div className="space-y-5 p-6">
               {projection.tierGroups.map((group) => (
-                <section key={group.goalTier} className="rounded-[28px] border border-black/[0.04] bg-slate-50/70 p-5">
+                <section key={group.goalTier} className="seller-panel-soft p-5">
                   <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                      <div className="flex items-center gap-2 text-sm font-bold text-[var(--seller-ink)]">
                         {group.goalTier === 'core'
-                          ? <Target size={16} className="text-rose-500" />
+                          ? <Target size={16} className="text-[var(--seller-risk)]" />
                           : group.goalTier === 'important'
-                            ? <ShieldAlert size={16} className="text-amber-500" />
-                            : <Sparkles size={16} className="text-slate-400" />}
+                            ? <ShieldAlert size={16} className="text-[var(--seller-accent)]" />
+                            : <Sparkles size={16} className="text-[var(--seller-subtle)]" />}
                         {group.label}
                       </div>
-                      <div className="mt-1 text-xs text-slate-500">{group.preview}</div>
+                      <div className="mt-1 text-xs text-[var(--seller-muted)]">{group.preview}</div>
                     </div>
                     <div className="grid grid-cols-4 gap-2">
                       <TierPill label="结果不错" value={group.good} tone="emerald" />
@@ -144,8 +141,8 @@ export function ResultOverlay({ state, onRestart }: ResultOverlayProps) {
                       ))}
                     </div>
                   ) : (
-                    <div className="rounded-[22px] border border-dashed border-slate-200 bg-white px-4 py-10 text-center text-[12px] text-slate-400">
-                      这组本局没有房源需要正式落账。
+                    <div className="seller-empty px-4 py-10 text-center text-[12px]">
+                      这组本局没有房源需要结算。
                     </div>
                   )}
                 </section>
@@ -155,13 +152,13 @@ export function ResultOverlay({ state, onRestart }: ResultOverlayProps) {
 
           <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1.08fr_0.92fr]">
             <div className="space-y-4">
-              <section className="rounded-[28px] border border-black/[0.04] bg-slate-50 p-6">
-                <div className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
+              <section className="seller-panel-soft p-6">
+                <div className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[var(--seller-subtle)]">
                   <CircleDollarSign size={15} />
-                  结算拆分
+                  得分
                 </div>
-                <div className="mb-4 rounded-2xl border border-black/[0.04] bg-white px-4 py-4 text-[12px] leading-6 text-slate-600">
-                  三项得分是把单房结果、守盘情况和业主感受翻译成整局正式成绩，不是独立于房源之外的一套分数。
+                <div className="seller-note mb-4 px-4 py-4 text-[12px] leading-6">
+                  三项得分来自单房结果、守盘情况和业主感受。
                 </div>
                 <div className="space-y-3">
                   {projection.scoreBreakdown.map((entry) => (
@@ -172,10 +169,10 @@ export function ResultOverlay({ state, onRestart }: ResultOverlayProps) {
                 </div>
               </section>
 
-              <section className="rounded-[28px] border border-sky-100 bg-sky-50/70 p-6">
-                <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-sky-700">
+              <section className="seller-panel-soft p-6">
+                <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[var(--seller-accent)]">
                   <ShieldAlert size={15} />
-                  本局结算边界
+                  哪些算结果
                 </div>
                 <div className="space-y-2.5">
                   {projection.settlementNotes.map((item) => (
@@ -188,10 +185,10 @@ export function ResultOverlay({ state, onRestart }: ResultOverlayProps) {
             </div>
 
             <div className="space-y-4">
-              <section className="rounded-[28px] border border-amber-100 bg-amber-50/70 p-6">
-                <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-amber-700">
+              <section className="seller-panel-soft p-6">
+                <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[var(--seller-accent)]">
                   <Target size={15} />
-                  跨局生涯沉淀
+                  生涯记录
                 </div>
                 <div className="space-y-2.5">
                   {projection.careerNotes.map((item) => (
@@ -202,27 +199,27 @@ export function ResultOverlay({ state, onRestart }: ResultOverlayProps) {
                 </div>
               </section>
 
-              <section className="rounded-[28px] border border-emerald-100 bg-emerald-50 p-6">
-                <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">
+              <section className="seller-panel-soft p-6">
+                <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[var(--seller-chance)]">
                   <BadgeCheck size={15} />
-                  这局正式亮点
+                  这局亮点
                 </div>
-                <StackNotes items={projection.highlights} empty="这局还没有沉淀出明显亮点。" />
+                <StackNotes items={projection.highlights} empty="这局还没有明显亮点。" />
               </section>
 
-              <section className="rounded-[28px] border border-rose-100 bg-rose-50/80 p-6">
-                <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-rose-700">
+              <section className="seller-panel-soft p-6">
+                <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[var(--seller-risk)]">
                   <TriangleAlert size={15} />
-                  这局正式复盘点
+                  这局复盘点
                 </div>
-                <StackNotes items={projection.improvements} empty="这局还没有沉淀出明确复盘点。" />
+                <StackNotes items={projection.improvements} empty="这局还没有明确复盘点。" />
               </section>
             </div>
           </section>
 
           {customerReview && (
-            <section className="rounded-[28px] border border-sky-100 bg-sky-50/70 p-6">
-              <div className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-sky-700">
+            <section className="seller-panel-soft p-6">
+              <div className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[var(--seller-accent)]">
                 <Users size={15} />
                 客户复盘
               </div>
@@ -232,12 +229,12 @@ export function ResultOverlay({ state, onRestart }: ResultOverlayProps) {
                 <TierPill label="掉线风险" value={customerReview.atRisk} tone="rose" />
                 <TierPill label="被带偏" value={customerReview.rivalPulled} tone="slate" />
               </div>
-              <div className="mt-4 rounded-2xl border border-sky-100 bg-white px-4 py-3 text-sm leading-relaxed text-slate-700">
+              <div className="seller-note mt-4 px-4 py-3 text-sm leading-relaxed">
                 {customerReview.summary}
               </div>
               <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
                 {customerReview.notes.map((entry, index) => (
-                  <div key={`${entry}-${index}`} className="rounded-2xl border border-white/80 bg-white/90 px-4 py-4 text-sm leading-relaxed text-slate-700 shadow-sm">
+                  <div key={`${entry}-${index}`} className="seller-tablet px-4 py-4 text-sm leading-relaxed text-[var(--seller-muted)]">
                     {entry}
                   </div>
                 ))}
@@ -252,7 +249,7 @@ export function ResultOverlay({ state, onRestart }: ResultOverlayProps) {
 
           <button
             onClick={onRestart}
-            className="flex w-full items-center justify-center gap-3 rounded-2xl bg-slate-900 py-5 text-lg font-bold text-white shadow-xl shadow-slate-900/20 transition-all hover:scale-[1.01]"
+            className="seller-button-primary flex w-full items-center justify-center gap-3 rounded-2xl py-5 text-lg font-bold transition-all hover:scale-[1.01]"
           >
             <RefreshCw size={20} />
             <span>回到难度选择</span>
@@ -269,23 +266,23 @@ function FormalCaseResultCard({
   item: NonNullable<ReturnType<typeof buildResultProjection>['tierGroups'][number]['items'][number]>;
 }) {
   return (
-    <div className="rounded-2xl border border-black/[0.04] bg-white p-5">
+    <div className="seller-tablet p-5">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
-          <div className="text-lg font-semibold text-slate-900">{item.title}</div>
-          <div className="mt-1 text-xs text-slate-400">{item.ownerName} · {item.community}</div>
+          <div className="text-lg font-semibold text-[var(--seller-ink)]">{item.title}</div>
+          <div className="mt-1 text-xs text-[var(--seller-subtle)]">{item.ownerName} · {item.community}</div>
         </div>
         <span className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${
           item.endingBucket === 'good'
-            ? 'bg-emerald-100 text-emerald-700'
+            ? 'bg-[var(--seller-chance-soft)] text-[var(--seller-chance)]'
             : item.endingBucket === 'bad'
-              ? 'bg-rose-100 text-rose-600'
-              : 'bg-amber-100 text-amber-700'
+              ? 'bg-[var(--seller-risk-soft)] text-[var(--seller-risk)]'
+              : 'bg-[var(--seller-accent-soft)] text-[var(--seller-accent)]'
         }`}>
           {item.endingBucketLabel} · {item.endingLabel}
         </span>
       </div>
-      <p className="mb-3 text-sm leading-relaxed text-slate-500">{item.endingSummary}</p>
+      <p className="mb-3 text-sm leading-relaxed text-[var(--seller-muted)]">{item.endingSummary}</p>
       <div className="grid grid-cols-2 gap-3 text-sm">
         <MiniStat icon={<TrendingUp size={14} />} label="和同类房相比" value={item.relativeOutcomeLabel} />
         <MiniStat icon={<ArrowRightLeft size={14} />} label="房源去向" value={item.defenseOutcomeLabel} />
@@ -308,16 +305,16 @@ function SettlementSignalCard({
   tone: 'neutral' | 'chance' | 'risk';
 }) {
   const className = tone === 'chance'
-    ? 'border-emerald-100 bg-emerald-50/70'
+    ? 'border-[color:var(--seller-chance)]/22 bg-[var(--seller-chance-soft)]'
     : tone === 'risk'
-      ? 'border-rose-100 bg-rose-50/70'
-      : 'border-black/[0.04] bg-slate-50';
+      ? 'border-[color:var(--seller-risk)]/22 bg-[var(--seller-risk-soft)]'
+      : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)]';
 
   return (
     <div className={`rounded-[24px] border px-5 py-5 ${className}`}>
-      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">{label}</div>
-      <div className="mt-2 text-[16px] font-semibold text-slate-900">{title}</div>
-      <div className="mt-2 text-[12px] leading-6 text-slate-600">{detail}</div>
+      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--seller-subtle)]">{label}</div>
+      <div className="mt-2 text-[16px] font-semibold text-[var(--seller-ink)]">{title}</div>
+      <div className="mt-2 text-[12px] leading-6 text-[var(--seller-muted)]">{detail}</div>
     </div>
   );
 }
@@ -334,16 +331,16 @@ function SummaryCard({
   tone: 'neutral' | 'chance' | 'risk';
 }) {
   const toneClass = tone === 'chance'
-    ? 'bg-emerald-50'
+    ? 'bg-[var(--seller-chance-soft)]'
     : tone === 'risk'
-      ? 'bg-rose-50'
-      : 'bg-slate-50';
+      ? 'bg-[var(--seller-risk-soft)]'
+      : 'bg-[rgba(255,255,255,0.03)]';
 
   return (
-    <div className={`rounded-2xl border border-black/[0.04] p-5 ${toneClass}`}>
-      <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">{label}</div>
-      <div className="mt-2 text-xl font-bold text-slate-900">{value}</div>
-      <div className="mt-1 text-[11px] leading-5 text-slate-500">{note}</div>
+    <div className={`seller-tablet p-5 ${toneClass}`}>
+      <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--seller-subtle)]">{label}</div>
+      <div className="mt-2 text-xl font-bold text-[var(--seller-ink)]">{value}</div>
+      <div className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">{note}</div>
     </div>
   );
 }
@@ -358,28 +355,28 @@ function PlainNote({
   tone: 'neutral' | 'chance' | 'risk';
 }) {
   const toneClass = tone === 'chance'
-    ? 'bg-emerald-50/70'
+    ? 'bg-[var(--seller-chance-soft)]'
     : tone === 'risk'
-      ? 'bg-rose-50/70'
-      : 'bg-white';
+      ? 'bg-[var(--seller-risk-soft)]'
+      : 'bg-[rgba(255,255,255,0.03)]';
 
   return (
-    <div className={`rounded-2xl border border-white/80 px-4 py-4 ${toneClass}`}>
-      <div className="text-sm font-semibold text-slate-900">{title}</div>
-      <div className="mt-1 text-[12px] leading-6 text-slate-600">{detail}</div>
+    <div className={`seller-tablet px-4 py-4 ${toneClass}`}>
+      <div className="text-sm font-semibold text-[var(--seller-ink)]">{title}</div>
+      <div className="mt-1 text-[12px] leading-6 text-[var(--seller-muted)]">{detail}</div>
     </div>
   );
 }
 
 function StackNotes({ items, empty }: { items: string[]; empty: string }) {
   if (items.length === 0) {
-    return <div className="rounded-xl bg-white/80 px-4 py-3 text-sm text-slate-500">{empty}</div>;
+    return <div className="seller-empty px-4 py-3 text-sm">{empty}</div>;
   }
 
   return (
     <div className="space-y-2">
       {items.map((entry, index) => (
-        <div key={`${entry}-${index}`} className="rounded-xl bg-white/80 px-4 py-3 text-sm leading-relaxed text-slate-800">
+        <div key={`${entry}-${index}`} className="seller-tablet px-4 py-3 text-sm leading-relaxed text-[var(--seller-ink)]">
           {entry}
         </div>
       ))}
@@ -399,13 +396,13 @@ function ScoreBreakdownCard({
   };
 }) {
   return (
-    <div className="rounded-xl bg-white px-4 py-3 shadow-sm">
+    <div className="seller-tablet px-4 py-3">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="text-sm font-medium text-slate-600">{entry.label}</div>
-          {entry.summary && <div className="mt-1 text-[11px] leading-5 text-slate-400">{entry.summary}</div>}
+          <div className="text-sm font-medium text-[var(--seller-muted)]">{entry.label}</div>
+          {entry.summary && <div className="mt-1 text-[11px] leading-5 text-[var(--seller-subtle)]">{entry.summary}</div>}
         </div>
-        <span className="shrink-0 text-sm font-bold text-emerald-600">
+        <span className="shrink-0 text-sm font-bold text-[var(--seller-chance)]">
           {entry.value}{entry.maxValue ? ` / ${entry.maxValue}` : ''}
         </span>
       </div>
@@ -418,15 +415,15 @@ function ScoreAttributionBlock({ attribution }: { attribution: ScoreAttribution 
   const items = [...attribution.actions, ...attribution.events].slice(0, 5);
   if (!items.length) {
     return (
-      <div className="mt-3 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-[11px] leading-5 text-slate-400">
+      <div className="seller-empty mt-3 px-3 py-2 text-[11px] leading-5">
         {attribution.headline}
       </div>
     );
   }
 
   return (
-    <div className="mt-3 rounded-lg border border-slate-100 bg-slate-50/70 px-3 py-2">
-      <div className="text-[11px] leading-5 text-slate-500">{attribution.headline}</div>
+    <div className="seller-note mt-3 px-3 py-2">
+      <div className="text-[11px] leading-5 text-[var(--seller-muted)]">{attribution.headline}</div>
       <div className="mt-2 flex flex-wrap gap-2">
         {items.map((item) => (
           <div key={item.key}>
@@ -440,10 +437,10 @@ function ScoreAttributionBlock({ attribution }: { attribution: ScoreAttribution 
 
 function AttributionPill({ item }: { item: ScoreAttributionItem }) {
   const className = item.tone === 'positive'
-    ? 'bg-emerald-50 text-emerald-700 ring-emerald-100'
+    ? 'bg-[var(--seller-chance-soft)] text-[var(--seller-chance)] ring-[color:var(--seller-chance)]/20'
     : item.tone === 'warning'
-      ? 'bg-rose-50 text-rose-600 ring-rose-100'
-      : 'bg-slate-100 text-slate-600 ring-slate-200';
+      ? 'bg-[var(--seller-risk-soft)] text-[var(--seller-risk)] ring-[color:var(--seller-risk)]/20'
+      : 'bg-[rgba(255,255,255,0.06)] text-[var(--seller-muted)] ring-[var(--seller-border)]';
 
   return (
     <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold ring-1 ${className}`}>
@@ -465,15 +462,15 @@ function InsightBlock({
   items: string[];
 }) {
   const toneClass = tone === 'emerald'
-    ? 'border-emerald-100 bg-emerald-50 text-emerald-900'
+    ? 'border-[color:var(--seller-chance)]/22 bg-[var(--seller-chance-soft)] text-[var(--seller-ink)]'
     : tone === 'amber'
-      ? 'border-amber-100 bg-amber-50 text-amber-900'
-      : 'border-slate-200 bg-slate-50 text-slate-900';
+      ? 'border-[color:var(--seller-accent)]/22 bg-[var(--seller-accent-soft)] text-[var(--seller-ink)]'
+      : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] text-[var(--seller-ink)]';
   const titleClass = tone === 'emerald'
-    ? 'text-emerald-700'
+    ? 'text-[var(--seller-chance)]'
     : tone === 'amber'
-      ? 'text-amber-700'
-      : 'text-slate-600';
+      ? 'text-[var(--seller-accent)]'
+      : 'text-[var(--seller-muted)]';
 
   return (
     <section className={`rounded-[28px] border p-6 ${toneClass}`}>
@@ -481,7 +478,7 @@ function InsightBlock({
         {icon}
         {title}
       </div>
-      <StackNotes items={items} empty="这部分还没有新的沉淀内容。" />
+      <StackNotes items={items} empty="这部分还没有新内容。" />
     </section>
   );
 }
@@ -496,12 +493,12 @@ function MiniStat({
   value: string;
 }) {
   return (
-    <div className="rounded-xl bg-white px-3.5 py-3 shadow-sm">
-      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
+    <div className="seller-tablet px-3.5 py-3">
+      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">
         {icon}
         {label}
       </div>
-      <div className="mt-1 text-sm font-semibold text-slate-800">{value}</div>
+      <div className="mt-1 text-sm font-semibold text-[var(--seller-ink)]">{value}</div>
     </div>
   );
 }
@@ -516,12 +513,12 @@ function TierPill({
   tone: 'emerald' | 'amber' | 'rose' | 'slate';
 }) {
   const className = tone === 'emerald'
-    ? 'bg-emerald-50 text-emerald-700'
+    ? 'bg-[var(--seller-chance-soft)] text-[var(--seller-chance)]'
     : tone === 'amber'
-      ? 'bg-amber-50 text-amber-700'
+      ? 'bg-[var(--seller-accent-soft)] text-[var(--seller-accent)]'
       : tone === 'rose'
-        ? 'bg-rose-50 text-rose-600'
-        : 'bg-slate-100 text-slate-600';
+        ? 'bg-[var(--seller-risk-soft)] text-[var(--seller-risk)]'
+        : 'bg-[rgba(255,255,255,0.06)] text-[var(--seller-muted)]';
 
   return (
     <div className={`rounded-xl px-3 py-2 text-center ${className}`}>

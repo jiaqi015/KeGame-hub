@@ -40,9 +40,6 @@ export function LeaderboardOverlay({ loading, detail, error, onClose }: Leaderbo
             </div>
             <h3 className="seller-title mt-2 text-[28px]">{projection.heroTitle}</h3>
             <p className="seller-body mt-2 text-sm">{projection.heroSummary}</p>
-            <p className="seller-body mt-1 text-[12px]">
-              这里是跨局对比视角，只消费正式完局后的结果，不显示单局过程细节。
-            </p>
           </div>
           <button
             type="button"
@@ -63,7 +60,7 @@ export function LeaderboardOverlay({ loading, detail, error, onClose }: Leaderbo
           <SummaryCard
             label="榜首"
             title={leadingEntry ? leadingEntry.playerName : '当前还没有榜首'}
-            detail={leadingEntry ? `${leaderboardLabel}${leadingEntry.valueLabel}。` : '先完成一局正式结算后，这里才会开始出现跨局排名。'}
+            detail={leadingEntry ? `${leaderboardLabel}${leadingEntry.valueLabel}。` : '还没有跨局记录。'}
           />
         </div>
 
@@ -89,7 +86,7 @@ export function LeaderboardOverlay({ loading, detail, error, onClose }: Leaderbo
         </div>
 
         <section className="seller-panel mb-5 p-5">
-          <div className="seller-label text-[11px]">这张榜在比什么</div>
+          <div className="seller-label text-[11px]">榜单说明</div>
           <div className="mt-2 text-[18px] font-semibold text-slate-900">{active.summary}</div>
           <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
             {projection.highlights.map((item) => (
@@ -116,7 +113,7 @@ export function LeaderboardOverlay({ loading, detail, error, onClose }: Leaderbo
             <div className="flex min-h-[280px] flex-col items-center justify-center gap-3 text-center text-slate-500">
               <div className="text-lg font-semibold text-slate-900">{active.emptyTitle}</div>
               <div className="max-w-[320px] text-sm leading-6">{active.emptyDetail}</div>
-              <div className="max-w-[320px] text-xs leading-6 text-slate-400">先完成一局正式结算后，这里会出现你的跨局记录。</div>
+              <div className="max-w-[320px] text-xs leading-6 text-slate-400">正式结算后会显示。</div>
             </div>
           ) : (
             <div className="space-y-3">

@@ -83,7 +83,7 @@ export function buildResultProjection(state: GameState): ResultProjection {
     hero: {
       eyebrow: finalResult ? '本局正式结算' : '结果台账',
       title: finalResult?.title || '当前结果台账',
-      summary: finalResult?.summary || '这页先看这局当前收成。还没正式结算前，这里都是过程中的台账，不是最终成绩。',
+      summary: finalResult?.summary || '本局当前收成。',
       score: typeof finalResult?.score === 'number' ? `${finalResult.score}` : '--',
       grade: finalResult?.grade || '待结算',
       scenarioName: state.runContext.scenarioName,
@@ -112,7 +112,7 @@ export function buildResultProjection(state: GameState): ResultProjection {
       {
         label: '仍在场上',
         value: `${activeCount} 套`,
-        note: activeCount > 0 ? '这部分不进入当前榜单结算' : '本局房源已经结算',
+        note: activeCount > 0 ? '这部分还没结算' : '本局房源已经结算',
         tone: activeCount > 0 ? 'neutral' : 'chance',
       },
       {
@@ -146,31 +146,31 @@ function buildSettlementNotes(hasFinalResult: boolean, caseResultCount: number):
     return [
       {
         title: '还没生成正式结算',
-        detail: '现在看到的只是当前局面，不会写入生涯和排行榜。',
+        detail: '现在看到的只是当前局面，还不会写入生涯和排行榜。',
         tone: 'risk',
       },
       {
         title: '每日预估分不入榜',
-        detail: '局内每天看到的预估分只服务判断和复盘，不属于正式成绩。',
+        detail: '局内每天看到的预估分不算正式成绩。',
         tone: 'neutral',
       },
     ];
   }
 
   return [
-    {
-      title: '这页是正式结算',
-      detail: `当前已经生成 ${caseResultCount} 条单房结果，会作为本局 RunResult 的正式内容沉淀下来。`,
-      tone: 'chance',
-    },
+      {
+        title: '已经结算',
+        detail: `当前已经生成 ${caseResultCount} 条单房结果。`,
+        tone: 'chance',
+      },
     {
       title: '每日预估分不会入榜',
-      detail: '局内每天看到的预估分只是过程参考，不会直接写进排行榜。',
+      detail: '局内每天看到的预估分不会写进排行榜。',
       tone: 'neutral',
     },
     {
       title: '排行榜只看正式结果',
-      detail: '总分榜、单局最高榜、局数榜都只消费正式结算后的 RunResult。',
+      detail: '总分榜、单局最高榜、局数榜都只看正式结算。',
       tone: 'neutral',
     },
   ];
@@ -184,19 +184,19 @@ function buildCareerNotes(
 ): ResultCareerNoteProjection[] {
   return [
     {
-      title: '这局会沉淀什么',
-      detail: `正式总分、三维得分、${soldCount} 套成交和单房结局，会一起沉淀进你的生涯档案。`,
+      title: '这局会留下什么',
+      detail: `正式总分、三维得分、${soldCount} 套成交和单房结果会一起写进生涯。`,
       tone: soldCount > 0 ? 'chance' : 'neutral',
     },
     {
-      title: '这局不会沉淀什么',
-      detail: '精力、推广金、客户过程状态这些局内运行数据，不会直接带到下一局。',
+      title: '这局不会留下什么',
+      detail: '精力、推广金、客户过程状态这些局内数据，不会直接带到下一局。',
       tone: 'neutral',
     },
     {
-      title: '下一次看什么',
+      title: '下次重点',
       detail: lostCount > 0
-        ? `这局有 ${lostCount} 套丢盘，下一局优先看守盘和竞品处理。`
+        ? `这局有 ${lostCount} 套丢盘，下一局重点是守盘和竞品处理。`
         : activeCount > 0
           ? `这局结束时还有 ${activeCount} 套房在场，下一局重点看怎么更早把机会推进到成交桌。`
           : `这局整体已经结算，下一局可以挑战更高难度的经营局面。`,

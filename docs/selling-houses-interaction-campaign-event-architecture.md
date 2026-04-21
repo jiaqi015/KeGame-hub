@@ -292,6 +292,45 @@ type CampaignParticipation = {
 事件不是过程。
 事件是已经发生的事实。
 
+### 7.0 当前实现对齐（2026-04-21）
+
+当前代码已经有 `GameState.eventStore`、`DomainEventEntry` 和 `DailyTickResult.emittedEvents`，但事件类型仍是第一阶段兼容式粗粒度：
+
+```ts
+type DomainEventKind =
+  | 'journal'
+  | 'action_executed'
+  | 'budget_changed'
+  | 'opportunity_advanced'
+  | 'opportunity_closed'
+  | 'case_sold'
+  | 'case_withdrawn'
+  | 'case_lost_to_rival'
+  | 'window_extended'
+  | 'market_event';
+```
+
+因此这份文档下面写的 `WorldEvent / EventImpact` 是目标模型，不要误读成已完整落地的数据结构。
+
+后续事件体系要补的不是“更多滚动日志”，而是把当前粗事件逐步扩展成细粒度事实流：
+
+- `marketEvent.started / marketEvent.ended`
+- `case.heat.changed / case.exposure.changed`
+- `owner.anxiety.changed`
+- `ownerCase.trust.changed / ownerCase.patience.changed / ownerCase.priceWindow.opened`
+- `customer.activity.changed / customer.fatigue.changed / customer.urgency.changed`
+- `relation.intent.changed / relation.confidence.changed / relation.stage.advanced / relation.stagnated / relation.lost`
+- `price.marketEstimate.changed / price.ownerPsych.changed / price.pressure.changed`
+- `goodHouse.d1.changed / goodHouse.d2.changed / goodHouse.d3.changed / goodHouse.score.changed`
+- `deal.closed / relation.closed-by-deal / case.closed`
+- `tick.invariant.warning / tick.invariant.error`
+
+迁移原则：
+
+- 先双写，不直接破坏当前 `DomainEventKind` 消费方。
+- 细事件必须能被 `dirtyScopes`、复盘页、结果页和每日摘要消费。
+- `EventImpact` 不是装饰字段，它要说明事件影响了哪个对象、哪个字段、为什么变化。
+
 ### 7.1 建议字段
 
 ```ts

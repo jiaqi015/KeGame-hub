@@ -157,7 +157,7 @@ function buildGroupSummary(id: FollowUpPriorityGroupId, items: FollowUpPriorityI
   }
 
   if (items.length === 1) {
-    return `${lead.caseTitle} 当前最值得先看。`;
+    return `${lead.caseTitle} 当前最值得处理。`;
   }
 
   return `${lead.caseTitle} 领头，另外还有 ${items.length - 1} 套房也在这一组。`;

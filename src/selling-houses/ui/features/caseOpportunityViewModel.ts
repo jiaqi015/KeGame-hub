@@ -147,7 +147,7 @@ function deriveCustomerStatusDetail(
   runtime?: CustomerCaseRuntime,
 ) {
   if (opportunity.visibility === 'shadow') {
-    return '这里只能看出哪类人会被吸引，离真实客户还差一步接触和核实。';
+    return '还没形成真人客户，仍需接触和核实。';
   }
 
   if (!customerState) {
@@ -206,11 +206,11 @@ function deriveOpportunityStatusDetail(
   }
 
   if ((customerState?.churnRisk || 0) >= 60 || opportunity.daysLeft <= 2) {
-    return '已经进入掉线风险区，再不推进，这次见面沉淀下来的意向也会回落。';
+    return '已经进入掉线风险区，再不推进，这次见面留下的意向也会回落。';
   }
 
   if (opportunity.stageIndex >= 4) {
-    return '已经是后段机会，现在重点不再是讲卖点，而是把价格和确定性谈拢。';
+    return '已经快成交了，现在重点不再是讲卖点，而是把价格和确定性谈拢。';
   }
 
   if (runtime?.selected) {
@@ -250,7 +250,7 @@ function deriveRelationshipFact(
     return `这组信号还没形成真人客户，当前更多是在看 ${caseItem?.title || '这套房'} 对哪类人有吸引力。`;
   }
   if (!customerState) {
-    return '已经接上，但客户整体状态还没沉淀出稳定判断。';
+    return '已经接上，但客户状态还不稳定。';
   }
   if (customerState.churnRisk >= 60) {
     return '这位客户最近在往外滑，当前关系处在容易断联的边缘。';

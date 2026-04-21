@@ -57,15 +57,15 @@ export function buildReviewProjection(state: GameState): ReviewProjection {
   const turningPoints = buildTurningPoints(state);
   const recentChanges = buildRecentChanges(state);
   const customer = buildCustomerProjection(state);
-  const dailyBrief = buildDailyBrief(state.currentReport);
+  const dailyBrief = buildDailyBrief(state);
 
   return {
     hero: {
       title: '经营回看',
       subtitle: `${state.runContext.scenarioName} · ${difficultyLabel(state.runContext.difficultyId)}`,
       note: dailyBrief
-        ? '先看哪几天开始往前走了，哪几天开始出问题。'
-        : '这局还没跑完第一天，先把时间往前推进一点，复盘才会开始有因果。',
+        ? '看哪几天开始往前走，哪几天开始出问题。'
+        : '这局还没跑完第一天，先把时间往前推进一点。',
     },
     turningPoints,
     customer,
@@ -141,22 +141,55 @@ function buildCustomerProjection(state: GameState): ReviewCustomerProjection {
   };
 }
 
-function buildDailyBrief(report: DailyReport | null): ReviewDailyBriefProjection | null {
+function buildDailyBrief(state: GameState): ReviewDailyBriefProjection | null {
+  const report = state.currentReport;
   if (!report) {
     return null;
+  }
+
+  const metricNotes = report.metricsDelta.map((entry) => {
+    const prefix = entry.value > 0 ? '+' : '';
+    return `${entry.label} ${prefix}${entry.value}${entry.unit}`;
+  });
+  const impactSummary = buildImpactSummary(state);
+  if (impactSummary) {
+    metricNotes.push(`影响范围 ${impactSummary}`);
+  }
+  if (state.lastDailyTickResult?.invariantAlerts.length) {
+    metricNotes.push(`系统提醒 ${state.lastDailyTickResult.invariantAlerts.length} 条`);
   }
 
   return {
     title: report.title,
     headline: report.majorEvents[0]?.message || '昨天没有特别大的事件，但日结已经落完账。',
-    metricNotes: report.metricsDelta.map((entry) => {
-      const prefix = entry.value > 0 ? '+' : '';
-      return `${entry.label} ${prefix}${entry.value}${entry.unit}`;
-    }),
+    metricNotes,
     marketNews: report.marketNews.slice(0, 3),
     focusCases: report.todayPlan.focusCases.slice(0, 3),
     priorities: report.todayPlan.priorities.slice(0, 3),
   };
+}
+
+function buildImpactSummary(state: GameState) {
+  const tickResult = state.lastDailyTickResult;
+  if (!tickResult) {
+    return '';
+  }
+
+  const segments: string[] = [];
+  if (tickResult.dirtyScopes.cases.length > 0) {
+    segments.push(`${tickResult.dirtyScopes.cases.length} 套房`);
+  }
+  if (tickResult.dirtyScopes.customers.length > 0) {
+    segments.push(`${tickResult.dirtyScopes.customers.length} 位客户`);
+  }
+  if (tickResult.dirtyScopes.districts.length > 0) {
+    segments.push(tickResult.dirtyScopes.districts.slice(0, 2).join('、'));
+  }
+  if (tickResult.dirtyScopes.market) {
+    segments.push('市场层');
+  }
+
+  return segments.slice(0, 3).join('、');
 }
 
 function toReviewEvent(event: DomainEventEntry, state: GameState): ReviewTurningPointProjection {
@@ -179,7 +212,7 @@ function toReviewEvent(event: DomainEventEntry, state: GameState): ReviewTurning
 function labelForEvent(event: DomainEventEntry) {
   switch (event.kind) {
     case 'case_sold':
-      return '成交落账';
+      return '成交';
     case 'case_lost_to_rival':
       return '丢盘';
     case 'case_withdrawn':

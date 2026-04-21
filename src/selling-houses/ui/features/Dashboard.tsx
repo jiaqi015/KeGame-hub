@@ -126,7 +126,7 @@ export function Dashboard({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-selling-houses-page="overview">
       <section className="seller-workbench-dark overflow-hidden px-5 py-4">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
           <div className="min-w-0">
@@ -135,7 +135,7 @@ export function Dashboard({
               className="mt-2 text-[28px] font-semibold leading-[1.04] tracking-[-0.04em] text-[var(--seller-ink)] md:text-[30px]"
               style={{ fontFamily: 'var(--font-display)' }}
             >
-              先定入口，再进入对应页面
+              今天先去哪
             </h1>
             <p className="mt-2 max-w-[72ch] text-[12px] leading-6 text-[var(--seller-muted)]">
               当前在场 {dashboard.resourceSnapshot.activeCases} 套房，活跃客户线 {dashboard.resourceSnapshot.activeOpportunities} 条。
@@ -231,7 +231,7 @@ export function Dashboard({
         <div className="space-y-3">
           <section className="seller-panel overflow-hidden">
             <div className="flex items-center justify-between gap-3 border-b border-[var(--seller-border)] px-4 py-3">
-              <div className="seller-label">次级信息</div>
+              <div className="seller-label">更多</div>
               <div className="seller-tabbar">
                 <button
                   type="button"
@@ -245,7 +245,7 @@ export function Dashboard({
                   onClick={() => setActiveSidePanel('scope')}
                   className={`seller-tab ${activeSidePanel === 'scope' ? 'seller-tab-active' : ''}`}
                 >
-                  去向说明
+                  去向
                 </button>
               </div>
             </div>
@@ -381,7 +381,7 @@ function AgendaPanel({
         )) : (
           <div className="py-5">
             <div className="seller-empty px-4 py-5 text-center text-[12px]">
-              当前还没有排出明确事项，先去房源页挑出最紧的一套房。
+              当前还没有明确事项，先去房源里找最紧的一套。
             </div>
           </div>
         )}
@@ -517,7 +517,7 @@ function PinnedCasePanel({
 
       <div className="px-4 py-4">
         <div className="seller-fact-row px-3.5 py-3.5">
-          <div className="seller-label">现在先看哪</div>
+          <div className="seller-label">当前重点</div>
           <div className="mt-2 text-[13px] font-semibold text-[var(--seller-ink)]">
             {projection.actionReasons[0]?.title || `${caseItem.title} 今天要先盯住`}
           </div>
@@ -714,14 +714,6 @@ function TriageSummaryPanel({
           </div>
         </section>
 
-        <section className="px-4 py-4">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div className="text-[11px] font-semibold text-[var(--seller-ink)]">说明</div>
-          </div>
-          <div className="seller-empty px-4 py-5 text-[12px] leading-6">
-            `overview` 只负责分诊，`cases` 管单房，`customers` 管关系，`market` 管外因。
-          </div>
-        </section>
       </div>
     </section>
   );
@@ -969,7 +961,7 @@ function buildAgendaTools(item: ProjectionBrief): AgendaTool[] {
   }
   if (/成交|报价|谈判/.test(text)) {
       return [
-        { label: '整理谈判口径', target: 'case' },
+        { label: '看谈判', target: 'case' },
         { label: '看报价前客户', target: 'customers' },
         { label: '看调价依据', target: 'case' },
       ];
@@ -990,7 +982,7 @@ function buildAgendaTools(item: ProjectionBrief): AgendaTool[] {
   }
 
   return [
-    { label: '去房源页', target: 'case' },
+    { label: '打开房源', target: 'case' },
     { label: '看客户线', target: 'customers' },
     { label: '回看记录', target: 'review' },
   ];

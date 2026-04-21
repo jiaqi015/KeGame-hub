@@ -15,6 +15,29 @@
 
 ---
 
+## 0. 当前 4K 全景图入口（2026-04-21）
+
+这两张图是当前阶段优先看的“大版图”：
+
+1. [全景 ER + 领域对象图 PNG](assets/selling-houses-er-super-map-2026-04-21.png) / [SVG](assets/selling-houses-er-super-map-2026-04-21.svg)
+   重点看 `World / GameRun / Case / Owner / Customer / Opportunity / Matter / EventStore / GoodHouseModel / PriceModel / Result / Leaderboard` 怎么连。
+2. [每日引擎 + 事件流图 PNG](assets/selling-houses-engine-event-super-map-2026-04-21.png) / [SVG](assets/selling-houses-engine-event-super-map-2026-04-21.svg)
+   重点看 `resolveOneDay` 当前真实调用顺序、事件类型、dirty scope、invariant、投影和页面承接。
+
+历史合并版仍可参考：
+
+- [早期全合一架构 ER 图 PNG](assets/selling-houses-super-architecture-er-2026-04-21.png) / [SVG](assets/selling-houses-super-architecture-er-2026-04-21.svg)
+- [每日引擎事件超图 PNG](assets/selling-houses-daily-engine-event-super-map-2026-04-21.png) / [SVG](assets/selling-houses-daily-engine-event-super-map-2026-04-21.svg)
+
+维护说明：
+
+- 上面两张 4K 图是“当前代码事实 + 目标领域模型”的对齐图。
+- 下方 Mermaid 图更偏 `selling-houses-master.md` 的目标架构语义，用来理解方向，不保证每个节点都已完整落地。
+- 如果 `src/selling-houses/domain/engine.ts`、`models.ts`、`scoring.ts` 或 projection 主链改动，优先同步这两张 4K 图和本页入口。
+- 生成脚本在 [generate-selling-houses-dual-super-maps.mjs](/Users/jiaqi/Documents/开放日测算/scripts/generate-selling-houses-dual-super-maps.mjs)；早期每日引擎图脚本在 [generate-selling-houses-daily-engine-event-super-map.mjs](/Users/jiaqi/Documents/开放日测算/scripts/generate-selling-houses-daily-engine-event-super-map.mjs)。
+
+---
+
 ## 1. 总体架构图
 
 ```mermaid

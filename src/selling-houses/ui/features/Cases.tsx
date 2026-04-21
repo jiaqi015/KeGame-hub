@@ -155,7 +155,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
   };
 
   return (
-    <div className="grid min-h-full grid-cols-1 gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
+    <div className="grid min-h-full grid-cols-1 gap-4 lg:grid-cols-[300px_minmax(0,1fr)]" data-selling-houses-page="cases">
       <aside className="seller-panel sticky top-0 flex max-h-full flex-col overflow-hidden">
         <div className="z-10 space-y-3 border-b border-[var(--seller-border)] bg-[rgba(15,23,32,0.94)] px-3 pb-3 pt-3 backdrop-blur">
           <div>
@@ -315,12 +315,12 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
 
                 <div className="grid gap-3 px-3.5 py-3 lg:grid-cols-[minmax(0,0.96fr)_minmax(0,1.04fr)]">
                   <section className="seller-panel-soft px-3 py-3">
-                    <div className="seller-label">先看什么</div>
+                    <div className="seller-label">当前判断</div>
                     <div className="mt-2 grid gap-2">
                       <DiagnosisCard
                         label="客户承接"
                         value={caseProjection?.customerPoolSummary.title || deriveHeatLabel(selectedCase.heat)}
-                        detail={caseProjection?.customerPoolSummary.detail || '先看客户有没有接上。'}
+                        detail={caseProjection?.customerPoolSummary.detail || '客户是否已经接上。'}
                         tone={deriveHeatTone(selectedCase.heat)}
                         metrics={[
                           { label: '已接上', value: `${caseProjection?.customerPoolSummary.metCount ?? customerStatesForSelectedCase.length} 位` },
@@ -330,7 +330,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                       <DiagnosisCard
                         label="价格站位"
                         value={caseProjection?.priceSummary.title || derivePricePosition(selectedCase)}
-                        detail={caseProjection?.priceSummary.detail || '先看价格是否拦住成交。'}
+                        detail={caseProjection?.priceSummary.detail || '价格是否拦住成交。'}
                         tone={selectedCase.askPrice <= selectedCase.marketPrice ? 'emerald' : 'rose'}
                         metrics={[
                           { label: '价差', value: `${selectedCase.askPrice - selectedCase.marketPrice >= 0 ? '+' : ''}${selectedCase.askPrice - selectedCase.marketPrice} 万` },
@@ -340,7 +340,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                       <DiagnosisCard
                         label="竞争与窗口"
                         value={caseProjection?.competitionSummary.title || deriveWindowLabel(selectedCase, activeOpportunities)}
-                        detail={caseProjection?.competitionSummary.detail || '先看是不是已经被竞品拖住。'}
+                        detail={caseProjection?.competitionSummary.detail || '竞品是否已经拖住推进。'}
                         tone={caseProjection && caseProjection.competitionSummary.pressure >= 68 ? 'rose' : 'amber'}
                         metrics={[
                           { label: '竞品', value: `${caseProjection?.competitionSummary.rivalCount ?? 0} 套` },
@@ -379,12 +379,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
 
               <section className="seller-panel overflow-hidden">
                 <div className="flex flex-col gap-3 border-b border-[var(--seller-border)] px-3.5 py-3 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
-                    <div className="seller-label">更多信息</div>
-                    <div className="mt-1 text-[13px] font-semibold text-[var(--seller-ink)]">
-                      次级信息放到页内，不和主判断抢首屏。
-                    </div>
-                  </div>
+                  <div className="seller-label">更多信息</div>
                   <div className="seller-tabbar">
                     <button
                       type="button"
@@ -1150,7 +1145,7 @@ function deriveShortCaseState(caseItem: Case, opportunities: any[]) {
   if (caseItem.status === 'lost_to_rival') return '被截走';
   if (caseItem.status === 'withdrawn') return '已撤盘';
   if (caseItem.windowDays <= 3 || caseItem.trust < 50) return '有丢盘风险';
-  if (opportunities.some(o => o.visibility !== 'shadow' && o.stageIndex >= 3)) return '有后段机会';
+  if (opportunities.some(o => o.visibility !== 'shadow' && o.stageIndex >= 3)) return '快成交';
   if (opportunities.length === 0) return '缺客户';
   if (caseItem.askPrice > caseItem.marketPrice * 1.05) return '价格硬';
   if (caseItem.heat < 45) return '偏冷';
@@ -1174,7 +1169,7 @@ function buildExecutionChecklist(caseItem: Case, projection: NonNullable<ReturnT
   if (projection.currentRiskTags.length > 0) {
     checklist.unshift({
       title: projection.currentRiskTags[0],
-      detail: `${caseItem.title} 现在最容易掉在这里，今天别放过。`,
+      detail: `${caseItem.title} 当前最容易掉在这个点上。`,
       badge: '风险点',
       tone: 'rose',
     });

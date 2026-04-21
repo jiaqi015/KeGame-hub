@@ -18,6 +18,80 @@
 - 日结里的正式成交要通过 `DealClosingEvaluation -> ClosedDealRecord`
 - `RunResult` 只在正式结算后生成，不混入进行中的日摘要
 
+## 当前实现对齐（2026-04-21）
+
+当前真实入口是 [engine.ts](/Users/jiaqi/Documents/开放日测算/src/selling-houses/domain/engine.ts) 里的 `advanceOneDay -> resolveOneDay`。
+
+这一节是代码事实锚点。下面第 4 节“推荐的日结顺序”保留为领域语义上的目标顺序，不等于当前 `resolveOneDay` 的逐行调用顺序。
+
+当前 `DailyTickResult` 已落成：
+
+```ts
+type DailyTickResult = {
+  day: number;
+  nextDay: number;
+  report: DailyReport | null;
+  emittedEvents: DomainEventEntry[];
+  closedDeals: ClosedDealRecord[];
+  dirtyScopes: DirtyScopeSet;
+  invariantAlerts: TickInvariantAlert[];
+};
+```
+
+当前 `resolveOneDay` 的真实顺序是：
+
+1. 记录日初指标：活跃房源 `D1 / D3 / trust / danger` 均值、推广金余额。
+2. `updateMarkets` 更新市场状态。
+3. `tickSeasonality` 推进季节性影响。
+4. `rollDailyMarketEvent` 抽取每日市场事件。
+5. `applyDailyMarketEvent` 应用每日市场事件。
+6. `tickRivalStores` 推进竞对门店。
+7. `tickRivalListings` 推进竞品房源。
+8. `applyRivalPressure` 将竞对压力作用到玩家房源。
+9. `tickCompanyPressure` 推进公司压力。
+10. `applyCompanyPressure` 将公司压力作用到房源和经营状态。
+11. `updateCustomers` 更新客户状态。
+12. `progressCustomerDemand` 推进客户需求。
+13. `applyRivalPullOnCustomers` 应用竞品对客户的拉走效应。
+14. `tickOpportunities` 推进机会关系。
+15. `applyCustomerFeedbackToCases` 将客户反馈回写到房源。
+16. `tickCompetition` 推进竞争关系。
+17. `fireScheduledEvents` 触发剧本排程事件。
+18. `settlePendingDealClosings` 结算待确认成交。
+19. `tickCases` 推进房源自身状态，并重算价格、好房分等派生指标。
+20. `spawnPassiveLeads` 生成被动线索。
+21. `triggerRandomEvent` 触发随机事件。
+22. `settleMarketSignals` 收束市场信号。
+23. 每 7 天触发 `createWeeklyReview`，并按规则做周度推广金拨付。
+24. `updateDerivedState` 生成当前投影和运行态摘要。
+25. 若到达结束条件，进入 `finishGame` 并生成最终结果。
+26. 若未结束，推进到下一天、恢复精力、重置焦点房源、生成 `currentReport`、写入 `lastDailyTickResult`。
+
+当前事件输出粒度仍是兼容式粗粒度 `DomainEventKind`：
+
+```ts
+type DomainEventKind =
+  | 'journal'
+  | 'action_executed'
+  | 'budget_changed'
+  | 'opportunity_advanced'
+  | 'opportunity_closed'
+  | 'case_sold'
+  | 'case_withdrawn'
+  | 'case_lost_to_rival'
+  | 'window_extended'
+  | 'market_event';
+```
+
+这说明现在已经有 `eventStore` 和 `DailyTickResult.emittedEvents`，但还没有完全落成 `marketEvent.started / customer.activity.changed / goodHouse.score.changed / tick.invariant.warning` 这种细粒度事件 taxonomy。后续补事件时要做“从粗事件兼容到细事件双写”，不要直接删掉现有 `DomainEventKind` 消费方。
+
+当前 `DirtyScopeSet` 已覆盖 `cases / opportunities / customers / owners / districts / marketCells / matters / market / dashboard / result`。当前 invariant 检查已覆盖：
+
+1. `duplicate_closed_deal`
+2. `active_opportunity_after_case_closed`
+3. `opportunity_stage_out_of_range`
+4. `negative_window_days`
+
 ---
 
 ## 0. 一句话结论

@@ -238,17 +238,17 @@ export function buildWorkspaceShellProjection(state: GameState): WorkspaceShellP
       budget: {
         eyebrow: '资源详情',
         title: '推广金',
-        description: '这里展示余额、流水和投放结构。',
+        description: '余额、流水和投放结构。',
       },
       auxiliary: {
         eyebrow: '成交与回款',
         title: '成交与佣金',
-        description: '这里看成交套数和佣金变化，只作为辅助参考。',
+        description: '成交套数和佣金变化。',
       },
       energy: {
         eyebrow: '日程资源',
         title: '今日精力',
-        description: '这里看今天还能做多少事，以及接下来几天的精力安排。',
+        description: '今天还能做多少事。',
       },
     },
     budgetPanel: {
@@ -269,7 +269,7 @@ export function buildWorkspaceShellProjection(state: GameState): WorkspaceShellP
     },
     auxiliaryPanel: {
       commissionLabel: `${formatPointValue(state.auxiliaryStats.commission)} 点`,
-      summary: `已成交 ${soldCount} 套，平均每套 ${formatPointValue(averageCommission)} 点。佣金只解释成交结构，最终还是看房源结局和三项分数。`,
+      summary: `已成交 ${soldCount} 套，平均每套 ${formatPointValue(averageCommission)} 点。`,
       stats: [
         { label: '已成交', value: `${soldCount} 套`, tone: 'emerald' },
         { label: '均佣', value: `${formatPointValue(averageCommission)}`, tone: 'sky' },
@@ -278,9 +278,9 @@ export function buildWorkspaceShellProjection(state: GameState): WorkspaceShellP
       rules: [
         { label: '计佣规则', value: '成交价 1% x 25%' },
         { label: '在场房源', value: `${state.cases.filter((entry) => entry.status === 'active').length} 套` },
-        { label: '当前阶段', value: soldCount > 0 ? '已有成交回款' : '仍在累积首单' },
+        { label: '成交状态', value: soldCount > 0 ? '已有成交回款' : '仍在累积首单' },
       ],
-      note: '如果佣金高但差结果很多，这局仍然不算打好；如果没成交但商圈聚焦房没被抢走，也可能算稳住了。',
+      note: '佣金只看成交回款。',
       soldCases: soldCases.map((entry) => toSoldCaseProjection(entry)),
     },
     energyPanel: {
@@ -402,7 +402,7 @@ function buildMatterProjection(
 
   return {
     headline: buildMatterHeadline(actionItems, dashboardProjection.todayHeadline),
-    summary: `当前重点是 ${mainProblem}。先处理今天最要紧的事项，再看昨天变化和竞品动向有没有改变优先级。`,
+    summary: `当前重点是 ${mainProblem}。`,
     stats: [
       {
         label: '今日先办',
@@ -467,12 +467,12 @@ function buildSidebarJournalSummary(state: GameState): WorkspaceShellJournalSumm
   return {
     todayCount: todayItems.length,
     totalCount: journalItems.length,
-    lastTitle: lastEvent?.title || '这局还没有留下新的关键记录。',
-    lastDetail: lastEvent?.detail || '先推进一天，系统才会开始留下可追溯的经营变化。',
+    lastTitle: lastEvent?.title || '这局还没有新的记录。',
+    lastDetail: lastEvent?.detail || '先推进一天，再回来查看。',
     yesterdayCount: yesterdayItems.length,
     riskCount,
     chanceCount,
-    brief: buildJournalBrief(todayItems.length, yesterdayItems.length, riskCount, chanceCount),
+    brief: buildJournalBrief(state, todayItems.length, yesterdayItems.length, riskCount, chanceCount),
     actionLabel: '展开记录',
   };
 }
@@ -504,7 +504,7 @@ function buildSidebarFocus(
     return {
       eyebrow: '本局状态',
       title: `${state.runContext.scenarioName} 已正式结算`,
-      detail: `最终得分 ${Math.round(state.finalResult.score)}，先看每套房最后落成什么样，再回头复盘。`,
+      detail: `最终得分 ${Math.round(state.finalResult.score)}。`,
       badges: [
         state.finalResult.grade,
         `${getClosedDealCount(state)} 套成交`,
@@ -517,7 +517,7 @@ function buildSidebarFocus(
   return {
     eyebrow: '今日经营',
     title: dashboardProjection.todayHeadline,
-    detail: dashboardProjection.todayPriority[0]?.detail || '今天先看最需要承接的房源，再安排关键动作。',
+    detail: dashboardProjection.todayPriority[0]?.detail || '最需要承接的房源。',
     badges: [
       `${dashboardProjection.resourceSnapshot.activeCases} 套在场`,
       `${dashboardProjection.resourceSnapshot.activeOpportunities} 条机会`,
@@ -577,20 +577,53 @@ function buildMatterHeadline(items: WorkspaceShellSidebarCueProjection[], fallba
   return `${lead.label} · ${lead.title}`;
 }
 
-function buildJournalBrief(todayCount: number, yesterdayCount: number, riskCount: number, chanceCount: number) {
+function buildJournalBrief(state: GameState, todayCount: number, yesterdayCount: number, riskCount: number, chanceCount: number) {
+  const tickResult = state.lastDailyTickResult;
+  const dirtySummary = buildJournalDirtyScopeSummary(tickResult);
+
+  if (tickResult && dirtySummary) {
+    if (tickResult.invariantAlerts.length > 0) {
+      return `今天影响到 ${dirtySummary}，还有 ${tickResult.invariantAlerts.length} 条系统提醒。`;
+    }
+
+    return `今天影响到 ${dirtySummary}，适合顺着这条线回看近因。`;
+  }
+
   if (todayCount === 0 && yesterdayCount === 0) {
-    return '还没有足够记录，先做动作或推进一天形成可回看的事实。';
+    return '还没有足够记录。';
   }
 
   if (riskCount > 0) {
-    return `今天已有 ${todayCount} 条记录，其中 ${riskCount} 条涉及风险变化，先追近因。`;
+    return `今天 ${todayCount} 条记录，其中 ${riskCount} 条是风险变化。`;
   }
 
   if (chanceCount > 0) {
-    return `今天已有 ${todayCount} 条记录，其中 ${chanceCount} 条是机会推进，适合回看成交线索。`;
+    return `今天 ${todayCount} 条记录，其中 ${chanceCount} 条是机会推进。`;
   }
 
-  return `今天 ${todayCount} 条记录，昨天留下 ${yesterdayCount} 条变化，可用于解释当前排序。`;
+  return `今天 ${todayCount} 条记录，昨天有 ${yesterdayCount} 条变化。`;
+}
+
+function buildJournalDirtyScopeSummary(tickResult: GameState['lastDailyTickResult']) {
+  if (!tickResult) {
+    return '';
+  }
+
+  const parts: string[] = [];
+  if (tickResult.dirtyScopes.cases.length > 0) {
+    parts.push(`${tickResult.dirtyScopes.cases.length} 套房源`);
+  }
+  if (tickResult.dirtyScopes.customers.length > 0) {
+    parts.push(`${tickResult.dirtyScopes.customers.length} 位客户`);
+  }
+  if (tickResult.dirtyScopes.districts.length > 0) {
+    parts.push(tickResult.dirtyScopes.districts.slice(0, 2).join('、'));
+  }
+  if (tickResult.dirtyScopes.market) {
+    parts.push('市场层');
+  }
+
+  return parts.slice(0, 3).join('、');
 }
 
 function trimJournalTitle(message: string) {
@@ -654,7 +687,7 @@ function buildHeaderStatusNote(
     return '当前客户承接还算有厚度，重点是别让已经谈到深处的客户掉出去。';
   }
 
-  return '今天优先看最需要处理的房源，再按资源承接关键动作。';
+  return '今天重点处理最需要承接的房源。';
 }
 
 function toBudgetEntryProjection(entry: BudgetTransaction): WorkspaceShellBudgetEntryProjection {

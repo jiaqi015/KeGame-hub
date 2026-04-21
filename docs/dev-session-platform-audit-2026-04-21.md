@@ -411,6 +411,8 @@
   - `DailyTickResult` 已补上 `dirtyScopes / invariantAlerts` 最小骨架，并开始承载“本次日结增量结果 + 投影重算入口”的职责
   - `dirtyScopes` 已从最小三项扩展为兼容式实体口径：`cases / opportunities / customers / owners / districts / marketCells / matters`
   - `dirtyScopes.matters` 已按“刚结算的那一天”收口，不再误把下一天的 day 当成事项脏范围判定基准
+  - 日结浮层 `DailySummaryOverlay` 已开始消费 `lastDailyTickResult`，能直接展示“今天影响到哪里 / 系统提醒”
+  - `workspaceShellProjection` 和 `reviewProjection` 也已开始消费 `dirtyScopes / invariantAlerts`，右侧经营记录摘要与复盘昨日摘要都会体现影响范围
   - 相关验证已新增：`scripts/verify-selling-houses-daily-tick-contract.ts`，并接入 `scripts/verify-platform-smoke.ts`
 - Matter 链：
   - 已把 Matter 派生逻辑从“每次重算生成全新数组”收成带生命周期合并的 `src/selling-houses/domain/matterEngine.ts`

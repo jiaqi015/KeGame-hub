@@ -21,6 +21,57 @@
 
 ---
 
+## 当前实现对齐（2026-04-21）
+
+当前真实实现位于 [scoring.ts](/Users/jiaqi/Documents/开放日测算/src/selling-houses/domain/scoring.ts) 和 [balance.ts](/Users/jiaqi/Documents/开放日测算/src/selling-houses/domain/config/balance.ts)。
+
+当前综合分公式是：
+
+```text
+competitiveness =
+  0.50 * D1
++ 0.25 * D2
++ 0.25 * D3
+```
+
+这和第 4 节里的目标建议权重 `0.40 / 0.35 / 0.25` 不同。当前代码更强调 `D1 准客池/漏斗厚度`，属于第一阶段可玩性和经营反馈优先的实现；目标语义仍保留“D1 客、D2 房、D3 业主”三维拆分，后续是否调成目标权重要通过手感校准决定。
+
+当前 `D1` 实际使用这些信号：
+
+| 当前信号 | 代码语义 | 对应业务解释 |
+| -------- | -------- | ------------ |
+| `poolSize` | 过去 7 天进入该房源的机会数 | 最近准客池新增厚度 |
+| `activeContacts` | 当前活跃机会数 | 正在接触的客户数 |
+| `lateStageThickness` | 后段机会按阶段加权 | 漏斗后段厚度 |
+| `advanceSpeed` | 近 7 天 stage 变化次数 | 推进速度 |
+| `stagnationRisk` | 停滞机会数惩罚 | 准客池失温风险 |
+
+当前 `D2` 实际是 `axisScores` 加权：
+
+| 轴 | 含义 |
+| -- | ---- |
+| `layout` | 户型 |
+| `light` | 采光 |
+| `floor` | 楼层 |
+| `decor` | 装修 |
+| `amenity` | 配套 |
+| `neighborhood` | 小区/板块 |
+| `structure` | 建筑/结构 |
+
+当前 `D3` 实际使用这些信号：
+
+| 当前信号 | 代码语义 | 对应业务解释 |
+| -------- | -------- | ------------ |
+| `priceFlex` | `(askPrice - bottomPrice) / askPrice` | 价格可谈空间 |
+| `patience` | 业主耐心 | 持续经营窗口 |
+| `urgency` | 业主紧迫度 | 出售意愿或时间压力 |
+| `recentCooperation` | 当前用 `trust` 近似 | 近期配合度 |
+| `consistencyBaseline` | 固定基线 | 稳定性补偿 |
+
+结论：当前实现已经能支撑页面解释和日结反馈，但仍是“目标模型的第一阶段近似”。后续要补的是 `PriceModelOutput / PlatformCaseCustomerMatch / OwnerCaseRelation` 等更完整输入，而不是推翻三维模型。
+
+---
+
 ## 0. 一句话结论
 
 好房模型回答的是：

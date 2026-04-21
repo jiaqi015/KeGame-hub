@@ -8,11 +8,12 @@ import {
   buildOpportunityListProjection,
   buildOperatingProjection,
 } from '../src/selling-houses/application/projections/operatingProjection';
+import { buildReviewProjection } from '../src/selling-houses/application/projections/reviewProjection';
 import { buildResultProjection } from '../src/selling-houses/application/projections/resultProjection';
 import { buildLeaderboardProjection } from '../src/selling-houses/application/projections/leaderboardProjection';
 import { buildWorkspaceShellProjection } from '../src/selling-houses/application/projections/workspaceShellProjection';
 import { ProfilePanel } from '../src/selling-houses/ui/features/ProfilePanel';
-import { advanceDays, seedInitialOpportunities } from '../src/selling-houses/domain/engine';
+import { advanceDays, executeAction, seedInitialOpportunities } from '../src/selling-houses/domain/engine';
 import { getScenarioSnapshotById } from '../src/selling-houses/domain/scenarioCatalog';
 import { renderToStaticMarkup } from 'react-dom/server';
 
@@ -71,6 +72,48 @@ function buildWorld() {
   assert.ok(market.radarCards.length === 5, 'Expected radar cards for all market axes');
   assert.ok(opportunities.bucketSummaries.some((entry) => entry.id === 'met'), 'Expected met opportunity bucket');
   assert.ok(opportunities.bucketSummaries.some((entry) => entry.id === 'potential'), 'Expected potential opportunity bucket');
+}
+
+{
+  const world = buildWorld();
+  const caseItem = world.cases[0];
+  assert.ok(caseItem, 'Expected case for projection dirty scope verification');
+  const opportunity = world.opportunities.find((entry) => entry.caseId === caseItem.id && entry.status === 'active');
+  assert.ok(opportunity, 'Expected active opportunity for projection dirty scope verification');
+  if (!opportunity) {
+    throw new Error('Expected active opportunity for projection dirty scope verification');
+  }
+
+  caseItem.askPrice = caseItem.marketPrice;
+  caseItem.trust = 100;
+  caseItem.competitiveness = 100;
+  opportunity.intent = 100;
+  opportunity.confidence = 100;
+  opportunity.stageIndex = 4;
+  opportunity.daysLeft = 3;
+  updateDerivedState(world);
+
+  assert.equal(
+    executeAction(world, 'invite-customer-negotiation', caseItem, 'close'),
+    true,
+    'Expected negotiation action to execute before projection dirty scope verification',
+  );
+
+  advanceDays(world, 1);
+  updateDerivedState(world);
+
+  const shell = buildWorkspaceShellProjection(world);
+  const review = buildReviewProjection(world);
+
+  assert.ok(
+    shell.sidebar.journal.brief.includes(caseItem.district) || shell.sidebar.journal.brief.includes('影响到'),
+    'Expected shell journal brief to reflect dirty scope context after daily settlement',
+  );
+  assert.ok(review.dailyBrief, 'Expected review projection to expose daily brief after settlement');
+  assert.ok(
+    review.dailyBrief?.metricNotes.some((entry) => entry.includes('影响范围') || entry.includes(caseItem.district)),
+    'Expected review daily brief to include dirty scope or impact context',
+  );
 }
 
 {

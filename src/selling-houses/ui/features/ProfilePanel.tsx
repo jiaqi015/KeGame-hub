@@ -28,14 +28,14 @@ export function ProfilePanel({ state, currentUserNickname }: ProfilePanelProps) 
   const recentReviews = state.weeklyReviews.slice(0, 3);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4">
+    <div className="mx-auto max-w-6xl space-y-4" data-selling-houses-page="profile">
       <section className="seller-panel-muted p-4 lg:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="seller-label">我的经营状态</div>
             <h3 className="seller-title mt-2 text-[22px]">{playerLabel}</h3>
             <p className="seller-body mt-2 max-w-2xl text-sm">
-              个人视角：今天还剩多少精力、场上还有多少房源、客户线厚不厚、最近留下了什么复盘记录。
+              看今天还剩多少精力、场上还有多少房源、客户线厚不厚。
             </p>
           </div>
           <div className="seller-tablet px-4 py-4">
@@ -69,13 +69,13 @@ export function ProfilePanel({ state, currentUserNickname }: ProfilePanelProps) 
             ))}
           </div>
           <div className="seller-note mt-4 px-4 py-4 text-sm leading-6">
-            当前平均信任 {averageTrust}。先看手上关系够不够稳，后面再拆到业主、客户和同行三条线。
+            当前平均信任 {averageTrust}。
           </div>
         </section>
 
         <section className="seller-panel p-4 lg:p-5">
           <div className="seller-label">战绩与复盘</div>
-          <h4 className="mt-2 text-[18px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">留下这局沉淀</h4>
+          <h4 className="mt-2 text-[18px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">这局记录</h4>
           <div className="mt-5 grid grid-cols-2 gap-3">
             <MetricChip label="已成交" value={`${soldCount} 套`} />
             <MetricChip label="平均信任" value={`${averageTrust}`} />
@@ -88,7 +88,7 @@ export function ProfilePanel({ state, currentUserNickname }: ProfilePanelProps) 
               </div>
             )) : (
               <div className="seller-empty px-4 py-10 text-center text-sm">
-                这局还没跑出周复盘，后面推进几天这里就会开始沉淀。
+                这局还没跑出周复盘。
               </div>
             )}
           </div>

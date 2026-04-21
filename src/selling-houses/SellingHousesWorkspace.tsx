@@ -130,8 +130,7 @@ export function SellingHousesWorkspace({
   if (phase === 'loading') {
     return (
       <LoadingScene
-        title="正在初始化这一局"
-        subtitle="先恢复本地进度，云端续局和目录更新会在后台检查。"
+        title="正在恢复进度"
       />
     );
   }
@@ -157,8 +156,7 @@ export function SellingHousesWorkspace({
   if (!runShellProjection) {
     return (
       <LoadingScene
-        title="正在初始化这一局"
-        subtitle="先恢复本地进度，云端续局和目录更新会在后台检查。"
+        title="正在恢复进度"
       />
     );
   }
@@ -362,7 +360,7 @@ export function SellingHousesWorkspace({
                     )}
                   />
                 </button>
-                <div className="h-8 w-px bg-slate-100" />
+                <div className="seller-separator h-8 w-px" />
                 <button
                   type="button"
                   onClick={() => setActiveResourcePanel('auxiliary')}
@@ -378,7 +376,7 @@ export function SellingHousesWorkspace({
                     trailing={<ResourceDetailHint />}
                   />
                 </button>
-                <div className="h-8 w-px bg-slate-100" />
+                <div className="seller-separator h-8 w-px" />
                 <button
                   type="button"
                   onClick={() => setActiveResourcePanel('energy')}
@@ -450,9 +448,13 @@ export function SellingHousesWorkspace({
           <ResultOverlay state={state} onRestart={handleReset} />
         </Suspense>
       )}
-      {state.currentReport && (
+      {state.currentReport && !state.gameOver && (
         <Suspense fallback={overlayFallback}>
-          <DailySummaryOverlay report={state.currentReport} onContinue={handleClearReport} />
+          <DailySummaryOverlay
+            report={state.currentReport}
+            tickResult={state.lastDailyTickResult}
+            onContinue={handleClearReport}
+          />
         </Suspense>
       )}
       {leaderboardOpen && (
@@ -467,7 +469,7 @@ export function SellingHousesWorkspace({
       )}
       {journalOpen && (
         <div
-          className="fixed inset-0 z-[95] flex items-end justify-center bg-slate-900/30 backdrop-blur-sm"
+          className="fixed inset-0 z-[95] flex items-end justify-center bg-[rgba(5,8,12,0.42)] backdrop-blur-sm"
           onClick={() => setJournalOpen(false)}
         >
           <div
@@ -482,7 +484,7 @@ export function SellingHousesWorkspace({
                 </div>
                 <h3 className="seller-title mt-2 text-[22px]">整局记录</h3>
                 <p className="seller-body mt-2 text-[13px]">
-                  {runShellProjection.sidebar.journal.brief} 从这里回看整局发生过什么，以及哪些变化真正影响了今天。
+                  {runShellProjection.sidebar.journal.brief}
                 </p>
               </div>
               <button
@@ -510,7 +512,7 @@ export function SellingHousesWorkspace({
       )}
       {activeDetailPanel === 'selected-case' && runShellProjection.selectedCaseDetail && (
         <div
-          className="fixed inset-0 z-[94] flex justify-end bg-slate-900/30 backdrop-blur-sm"
+          className="fixed inset-0 z-[94] flex justify-end bg-[rgba(5,8,12,0.42)] backdrop-blur-sm"
           onClick={() => setActiveDetailPanel(null)}
         >
           <div
@@ -555,7 +557,7 @@ export function SellingHousesWorkspace({
       )}
 
       {activeResourcePanel && activeResourceMeta && (
-        <div className="fixed inset-0 z-[90] flex justify-end bg-slate-900/30 backdrop-blur-sm" onClick={() => setActiveResourcePanel(null)}>
+        <div className="fixed inset-0 z-[90] flex justify-end bg-[rgba(5,8,12,0.42)] backdrop-blur-sm" onClick={() => setActiveResourcePanel(null)}>
           <div
             className="h-full w-full max-w-[560px] overflow-y-auto border-l border-[var(--seller-border)] bg-[linear-gradient(180deg,rgba(17,25,35,0.98)_0%,rgba(9,16,24,0.98)_28%)] p-6 shadow-2xl"
             onClick={(event) => event.stopPropagation()}
@@ -617,7 +619,7 @@ export function SellingHousesWorkspace({
                   </div>
 
                   <div className="seller-panel-soft px-4 py-4">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-chance)]">这笔钱现在说明什么</div>
+                    <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-chance)]">当前含义</div>
                     <p className="mt-3 text-[12px] leading-6 text-[var(--seller-muted)]">
                       {runShellProjection.budgetPanel.note}
                     </p>
@@ -628,7 +630,7 @@ export function SellingHousesWorkspace({
                   <div className="flex items-end justify-between gap-3 px-1">
                     <div>
                       <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">最近流水</div>
-                      <p className="mt-1 text-[11px] text-[var(--seller-subtle)]">默认只看最近 8 条，先看钱是怎么花出去和补回来的。</p>
+                      <p className="mt-1 text-[11px] text-[var(--seller-subtle)]">最近 8 条收支。</p>
                     </div>
                     <div className="text-[11px] font-semibold text-[var(--seller-subtle)]">按时间倒序</div>
                   </div>
@@ -697,7 +699,7 @@ export function SellingHousesWorkspace({
                   </div>
 
                   <div className="seller-panel-soft px-4 py-4">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-chance)]">这组数现在说明什么</div>
+                    <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-chance)]">当前含义</div>
                     <p className="mt-3 text-[12px] leading-6 text-[var(--seller-muted)]">
                       {runShellProjection.auxiliaryPanel.note}
                     </p>
@@ -708,7 +710,7 @@ export function SellingHousesWorkspace({
                   <div className="flex items-end justify-between gap-3 px-1">
                     <div>
                       <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">最近成交</div>
-                      <p className="mt-1 text-[11px] text-[var(--seller-subtle)]">默认展示最近成交房源，先看佣金从哪里来。</p>
+                      <p className="mt-1 text-[11px] text-[var(--seller-subtle)]">最近成交房源。</p>
                     </div>
                     <div className="text-[11px] font-semibold text-[var(--seller-subtle)]">按成交价倒序</div>
                   </div>
@@ -829,7 +831,7 @@ function SelectedCaseDetailSheet({
   return (
     <div className="space-y-4">
       <div className="seller-panel-strong px-4 py-4">
-        <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">当前先看</div>
+        <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">当前问题</div>
         <div className="mt-2 text-[17px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">{projection.mainProblemLabel}</div>
         <p className="mt-2 text-[12px] leading-6 text-[var(--seller-muted)]">{projection.actionReasons[0]?.detail || projection.ownerSummary.detail}</p>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -890,14 +892,14 @@ function SelectedCaseDetailSheet({
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">现在能接着做什么</div>
-            <div className="mt-1 text-[15px] font-semibold text-[var(--seller-ink)]">这套房接下来先处理哪一步</div>
+            <div className="mt-1 text-[15px] font-semibold text-[var(--seller-ink)]">可做动作</div>
           </div>
           <button
             type="button"
             onClick={onOpenFull}
             className="seller-button-secondary rounded-full px-3 py-1.5 text-[10px]"
           >
-            去房源页
+            打开房源
           </button>
         </div>
         <div className="mt-3 space-y-2.5">
@@ -1081,7 +1083,7 @@ export function WorkspaceRightRail({
       <WorkspaceRailSection
         eyebrow="壳层分诊"
         title="今日事项"
-        actionLabel={sidebar.matter.primaryCue ? '处理首项' : undefined}
+        actionLabel={sidebar.matter.primaryCue ? '去处理' : undefined}
         onAction={sidebar.matter.primaryCue ? () => onOpenCue(sidebar.matter.primaryCue!) : undefined}
       >
         <div className="seller-panel-muted px-4 py-4">
@@ -1255,9 +1257,7 @@ function WorkspacePanelSkeleton() {
     <div className="min-h-[420px]">
       <LoadingScene
         compact
-        title="正在准备当前页面"
-        subtitle="页面代码正在载入，当前经营数据已经保留。"
-        steps={['保留当前位置', '载入页面代码', '恢复页面内容']}
+        title="正在加载页面"
       />
     </div>
   );
@@ -1265,7 +1265,7 @@ function WorkspacePanelSkeleton() {
 
 function WorkspaceOverlaySkeleton() {
   return (
-    <div className="fixed inset-0 z-[100] bg-slate-900/30 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[100] bg-[rgba(5,8,12,0.42)] backdrop-blur-sm">
       <div className="mx-auto mt-20 max-w-4xl animate-pulse rounded-[18px] border border-[var(--seller-border)] bg-[var(--seller-paper)] p-10 shadow-2xl">
         <div className="mx-auto h-8 w-56 rounded bg-[rgba(255,255,255,0.08)]" />
         <div className="mx-auto mt-4 h-4 w-96 max-w-full rounded bg-[rgba(255,255,255,0.05)]" />

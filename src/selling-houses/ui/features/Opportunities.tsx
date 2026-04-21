@@ -47,15 +47,12 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
   const contactedModels = metModels.filter((model) => !model.hasViewed);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-selling-houses-page="customers">
       <section className="seller-panel p-4 lg:p-5">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-3xl">
             <div className="seller-label">客户</div>
-            <h2 className="seller-title mt-2 text-[20px]">关系池</h2>
-            <p className="seller-body mt-2 text-[13px]">
-              这里只看关系推进。先推已接上的客户，未接上的留在潜在人群。
-            </p>
+            <h2 className="seller-title mt-2 text-[20px]">客户</h2>
           </div>
 
           <div className="grid min-w-[280px] grid-cols-2 gap-2 md:grid-cols-4">
@@ -75,17 +72,12 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
 
       <section className="seller-panel overflow-hidden p-4 lg:p-5">
         <div className="flex flex-col gap-3 border-b border-[var(--seller-border)] pb-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="seller-label">分区</div>
-            <div className="mt-1 text-[13px] font-semibold text-[var(--seller-ink)]">
-              首屏只保留一类关系，其他放到页内切换。
-            </div>
-          </div>
+          <div className="seller-label">分区</div>
           <div className="seller-tabbar">
             <button type="button" onClick={() => setActiveTab('active')} className={`seller-tab ${activeTab === 'active' ? 'seller-tab-active' : ''}`}>已接上</button>
-            <button type="button" onClick={() => setActiveTab('closing')} className={`seller-tab ${activeTab === 'closing' ? 'seller-tab-active' : ''}`}>临近成交</button>
-            <button type="button" onClick={() => setActiveTab('risk')} className={`seller-tab ${activeTab === 'risk' ? 'seller-tab-active' : ''}`}>掉线风险</button>
-            <button type="button" onClick={() => setActiveTab('potential')} className={`seller-tab ${activeTab === 'potential' ? 'seller-tab-active' : ''}`}>潜在人群</button>
+            <button type="button" onClick={() => setActiveTab('closing')} className={`seller-tab ${activeTab === 'closing' ? 'seller-tab-active' : ''}`}>快成交</button>
+            <button type="button" onClick={() => setActiveTab('risk')} className={`seller-tab ${activeTab === 'risk' ? 'seller-tab-active' : ''}`}>掉线</button>
+            <button type="button" onClick={() => setActiveTab('potential')} className={`seller-tab ${activeTab === 'potential' ? 'seller-tab-active' : ''}`}>潜在</button>
           </div>
         </div>
 
@@ -106,22 +98,22 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
               />
             </div>
             <div className="seller-note p-3.5">
-              <div className="grid grid-cols-2 gap-3 text-[11px] text-slate-600 md:grid-cols-4">
+              <div className="grid grid-cols-2 gap-3 text-[11px] text-[var(--seller-muted)] md:grid-cols-4">
                 <div>
-                  <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">已接上</div>
-                  <div className="mt-1 text-[15px] font-semibold text-slate-900">{projection.realCustomerSummary.contactedCount}</div>
+                  <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">已接上</div>
+                  <div className="mt-1 text-[15px] font-semibold text-[var(--seller-ink)]">{projection.realCustomerSummary.contactedCount}</div>
                 </div>
                 <div>
-                  <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">比较中</div>
-                  <div className="mt-1 text-[15px] font-semibold text-slate-900">{projection.realCustomerSummary.comparingCount}</div>
+                  <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">比较中</div>
+                  <div className="mt-1 text-[15px] font-semibold text-[var(--seller-ink)]">{projection.realCustomerSummary.comparingCount}</div>
                 </div>
                 <div>
-                  <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">谈价中</div>
-                  <div className="mt-1 text-[15px] font-semibold text-slate-900">{projection.realCustomerSummary.negotiatingCount}</div>
+                  <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">谈价中</div>
+                  <div className="mt-1 text-[15px] font-semibold text-[var(--seller-ink)]">{projection.realCustomerSummary.negotiatingCount}</div>
                 </div>
                 <div>
-                  <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">看过房</div>
-                  <div className="mt-1 text-[15px] font-semibold text-slate-900">{projection.realCustomerSummary.viewedCount}</div>
+                  <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">看过房</div>
+                  <div className="mt-1 text-[15px] font-semibold text-[var(--seller-ink)]">{projection.realCustomerSummary.viewedCount}</div>
                 </div>
               </div>
             </div>
@@ -188,18 +180,18 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
         {activeTab === 'potential' && (
           <div className="mt-4 space-y-4">
             <div className="seller-note px-4 py-3">
-              <div className="grid grid-cols-1 gap-3 text-[11px] text-slate-600 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 text-[11px] text-[var(--seller-muted)] md:grid-cols-3">
                 <div>
-                  <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-sky-700">有信号的房源</div>
-                  <div className="mt-1 text-[15px] font-semibold text-slate-900">{projection.potentialSummary.caseCount}</div>
+                  <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-[var(--seller-chance)]">有信号的房源</div>
+                  <div className="mt-1 text-[15px] font-semibold text-[var(--seller-ink)]">{projection.potentialSummary.caseCount}</div>
                 </div>
                 <div>
-                  <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-sky-700">主要来源渠道</div>
-                  <div className="mt-1 text-[15px] font-semibold text-slate-900">{projection.potentialSummary.channelCount}</div>
+                  <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-[var(--seller-chance)]">主要来源渠道</div>
+                  <div className="mt-1 text-[15px] font-semibold text-[var(--seller-ink)]">{projection.potentialSummary.channelCount}</div>
                 </div>
                 <div>
-                  <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-sky-700">最早散开窗口</div>
-                  <div className="mt-1 text-[15px] font-semibold text-slate-900">
+                  <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-[var(--seller-chance)]">最早散开窗口</div>
+                  <div className="mt-1 text-[15px] font-semibold text-[var(--seller-ink)]">
                     {projection.potentialSummary.soonestDaysLeft === null ? '暂无' : `${Math.max(0, projection.potentialSummary.soonestDaysLeft)} 天`}
                   </div>
                 </div>
@@ -455,7 +447,7 @@ function CompactOpportunityCard({
     <button
       type="button"
       onClick={onOpenCase}
-      className={`w-full rounded-2xl border px-4 py-3 text-left transition hover:bg-white ${cardClass}`}
+      className={`w-full rounded-2xl border px-4 py-3 text-left transition hover:bg-[rgba(255,255,255,0.05)] ${cardClass}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -577,12 +569,12 @@ function InlineFlag({
   tone: 'slate' | 'amber' | 'emerald' | 'rose';
 }) {
   const toneClass = tone === 'emerald'
-    ? 'bg-emerald-50 text-emerald-700'
+    ? 'bg-[var(--seller-chance-soft)] text-[var(--seller-chance)]'
     : tone === 'amber'
-      ? 'bg-amber-50 text-amber-700'
+      ? 'bg-[var(--seller-accent-soft)] text-[var(--seller-accent)]'
       : tone === 'rose'
-        ? 'bg-rose-50 text-rose-700'
-        : 'bg-slate-100 text-slate-600';
+        ? 'bg-[var(--seller-risk-soft)] text-[var(--seller-risk)]'
+        : 'bg-[rgba(255,255,255,0.06)] text-[var(--seller-muted)]';
 
   return (
     <div className={`rounded-[14px] px-3 py-2 text-[10px] font-semibold ${toneClass}`}>

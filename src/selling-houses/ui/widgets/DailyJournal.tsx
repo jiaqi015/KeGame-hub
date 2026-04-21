@@ -24,8 +24,8 @@ type JournalItem = {
 
 const JOURNAL_SCOPES: Array<{ id: JournalScope; label: string }> = [
   { id: 'today', label: '今日' },
-  { id: 'timeline', label: '全局流水' },
-  { id: 'selected-case', label: '当前房源' },
+  { id: 'timeline', label: '全部' },
+  { id: 'selected-case', label: '房源' },
 ];
 
 export function DailyJournal({ state, selectedCaseId, onSelectCase }: DailyJournalProps) {
@@ -126,7 +126,7 @@ export function DailyJournal({ state, selectedCaseId, onSelectCase }: DailyJourn
                               onClick={() => onSelectCase(item.caseId!)}
                               className="seller-button-secondary rounded-full px-2 py-0.5 text-[10px]"
                             >
-                              去房源页
+                              打开房源
                             </button>
                           )}
                         </div>
@@ -151,7 +151,7 @@ export function DailyJournal({ state, selectedCaseId, onSelectCase }: DailyJourn
           </div>
           <div className="mt-3 text-sm font-semibold text-[var(--seller-ink)]">这一段还没有记录</div>
           <p className="mt-1 text-[12px] leading-6 text-[var(--seller-muted)]">
-            先推进一天、做一个动作，或切一套房回来再看。
+            暂无可回看的变化。
           </p>
         </div>
       )}

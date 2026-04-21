@@ -52,7 +52,7 @@ export function Review({ state }: ReviewProps) {
   ] as const;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-4">
+    <div className="mx-auto max-w-5xl space-y-4" data-selling-houses-page="review">
       <section className="seller-panel p-4 lg:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
@@ -61,9 +61,9 @@ export function Review({ state }: ReviewProps) {
             <p className="seller-body mt-2 text-sm">{projection.hero.subtitle}</p>
           </div>
           <div className="seller-tablet px-4 py-4">
-            <div className="seller-label">回看范围</div>
+            <div className="seller-label">记录</div>
             <div className="mt-2 text-sm font-semibold text-[var(--seller-ink)]">
-              {projection.turningPoints.length} 条关键变化 · {projection.weeklyReviews.length} 条周沉淀
+              {projection.turningPoints.length} 条关键变化 · {projection.weeklyReviews.length} 条周记录
             </div>
           </div>
         </div>
@@ -95,8 +95,7 @@ export function Review({ state }: ReviewProps) {
           <div className="flex items-center gap-3">
             <TrendingUp size={18} className="text-[var(--seller-accent)]" />
             <div>
-              <h4 className="text-[18px] font-semibold text-[var(--seller-ink)]">回看主线</h4>
-              <p className="seller-body mt-1 text-sm">先看结果，再切到对应明细。</p>
+              <h4 className="text-[18px] font-semibold text-[var(--seller-ink)]">关键变化</h4>
             </div>
           </div>
           <div className="seller-tabbar">
@@ -126,7 +125,7 @@ export function Review({ state }: ReviewProps) {
               onClick={() => setActiveTab('weekly')}
               className={`seller-tab ${activeTab === 'weekly' ? 'seller-tab-active' : ''}`}
             >
-              周沉淀
+              周记录
             </button>
           </div>
         </div>
@@ -169,7 +168,7 @@ export function Review({ state }: ReviewProps) {
                   <ReviewListBlock title="指标" items={projection.dailyBrief.metricNotes} emptyText="昨天没有明显指标变化。" />
                   <ReviewListBlock title="市场" items={projection.dailyBrief.marketNews} emptyText="昨天没有新增市场消息。" />
                   <ReviewListBlock title="聚焦房源" items={projection.dailyBrief.focusCases} emptyText="今天还没有聚焦房源。" />
-                  <ReviewListBlock title="先处理" items={projection.dailyBrief.priorities} emptyText="今天还没有生成优先事项。" />
+                  <ReviewListBlock title="事项" items={projection.dailyBrief.priorities} emptyText="今天还没有生成优先事项。" />
                 </div>
               </div>
             ) : (
@@ -216,7 +215,7 @@ export function Review({ state }: ReviewProps) {
                 <div className="text-sm font-semibold text-[var(--seller-ink)]">{entry.title}</div>
                 <div className="seller-body mt-2 text-[12px] leading-6">{entry.note}</div>
                 <div className="seller-note mt-3 px-3 py-3">
-                  <div className="seller-label">留下的话</div>
+                  <div className="seller-label">备注</div>
                   <div className="mt-1 text-[12px] leading-6 text-[var(--seller-muted)]">
                     {entry.suggestion}
                   </div>
@@ -259,7 +258,7 @@ export function Review({ state }: ReviewProps) {
             {projection.recentChanges.length > 0 ? projection.recentChanges.map((event) => (
               <React.Fragment key={`recent-${event.id}`}>{renderTurningPointCard(event, true)}</React.Fragment>
             )) : (
-              <EmptyReviewState text="最近还没有沉淀出明显变化。" />
+              <EmptyReviewState text="最近还没有明显变化。" />
             )}
           </div>
         </section>
@@ -270,13 +269,10 @@ export function Review({ state }: ReviewProps) {
               <Lightbulb size={18} className="text-[var(--seller-accent)]" />
               <div>
                 <h4 className="text-[18px] font-semibold text-[var(--seller-ink)]">回看提示</h4>
-                <p className="seller-body mt-1 text-sm">{projection.hero.note}</p>
               </div>
             </div>
             <div className="seller-note px-4 py-4 text-sm leading-6">
-              {projection.turningPoints.length > 0
-                ? `先从 ${projection.turningPoints[0]?.label || '关键变化'} 看起，再切去昨日摘要或客户线。`
-                : '先继续推进几天，再回来回看。'}
+              {projection.hero.note}
             </div>
           </section>
 

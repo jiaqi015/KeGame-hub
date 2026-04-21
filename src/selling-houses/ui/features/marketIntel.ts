@@ -340,7 +340,7 @@ function buildLayerSummary(
   }
 
   if (riskCount > 0 && chanceCount > 0) {
-    return `${layerLabel(layer)}同时有风险和机会，先看最靠前那条。`;
+    return `${layerLabel(layer)}同时有风险和机会，最靠前那条更重要。`;
   }
 
   if (riskCount > 0) {

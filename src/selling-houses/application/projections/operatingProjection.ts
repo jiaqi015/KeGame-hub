@@ -686,7 +686,7 @@ function buildDashboardTriageCards(
       id: 'cases',
       label: '去房源',
       title: firstPriority?.title || '先打开最需要承接的房源',
-      detail: firstPriority?.detail || '房源页负责单房判断和执行，这里只负责把入口排出来。',
+      detail: firstPriority?.detail || '先打开最需要承接的房源。',
       countLabel: `${todayPriority.length} 件在排`,
       tone: firstPriority?.tone || 'neutral',
       targetView: 'cases',
@@ -701,8 +701,8 @@ function buildDashboardTriageCards(
           ? '客户池里还有活跃关系可推进'
           : '当前客户线比较薄，需要先回看承接情况',
       detail: closingLead?.reason || (activeOpportunityCount > 0
-        ? `当前有 ${activeOpportunityCount} 条活跃机会，客户页负责关系推进池。`
-        : '客户页只看关系推进，不重复房源经营判断。'),
+        ? `当前有 ${activeOpportunityCount} 条活跃机会。`
+        : '当前客户线比较薄。'),
       countLabel: `${activeOpportunityCount} 条活跃线`,
       tone: closingLead?.tone || (activeOpportunityCount > 0 ? 'chance' : 'neutral'),
       targetView: 'customers',
@@ -712,7 +712,7 @@ function buildDashboardTriageCards(
       id: 'market',
       label: '去市场',
       title: marketBrief.lead?.title || '外部变化今天不算强',
-      detail: marketBrief.lead?.detail || '市场页只负责解释外因，不负责今天先做什么。',
+      detail: marketBrief.lead?.detail || '去看外部变化。',
       countLabel: `${marketBrief.todayCount} 条外因`,
       tone: marketBrief.lead?.tone || (marketBrief.riskCount > 0 ? 'risk' : marketBrief.chanceCount > 0 ? 'chance' : 'neutral'),
       targetView: 'market',
@@ -723,7 +723,7 @@ function buildDashboardTriageCards(
       id: 'review',
       label: '去复盘',
       title: reviewLead?.title || '昨天没有留下强解释信号',
-      detail: reviewLead?.detail || '复盘页负责回看已发生的变化，不参与今日分诊。',
+      detail: reviewLead?.detail || '去看昨天留下的变化。',
       countLabel: `${yesterdayIntel.length} 条记录`,
       tone: reviewLead?.tone || 'neutral',
       targetView: 'review',

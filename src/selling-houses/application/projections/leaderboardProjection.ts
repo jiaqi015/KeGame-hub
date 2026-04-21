@@ -47,34 +47,34 @@ export function buildLeaderboardProjection(detail: MaintainerLeaderboardDetail |
   return {
     seasonId,
     heroTitle: '排行榜',
-    heroSummary: '这里只展示正式结算后的历史成绩，不展示局内过程分。',
+    heroSummary: '只看正式结算后的历史成绩。',
     tabs: [
       {
         id: 'total-score',
         label: '总分榜',
-        summary: '看谁长期稳定打出高质量结果。',
+        summary: '看谁长期更稳。',
         accent: 'umber',
         entries: mapEntries(totalScore, 'total-score'),
         emptyTitle: '总分榜还没有人上榜',
-        emptyDetail: '等有人完成正式结算后，这里会开始累计生涯有效总分。',
+        emptyDetail: '有人正式结算后，榜单会开始累计总分。',
       },
       {
         id: 'best-score',
         label: '单局最高榜',
-        summary: '看谁打出过最强的一局。',
+        summary: '看谁单局最高。',
         accent: 'emerald',
         entries: mapEntries(bestScore, 'best-score'),
         emptyTitle: '单局最高榜还没有记录',
-        emptyDetail: '等第一批正式结算跑出来后，这里会出现代表作。',
+        emptyDetail: '有正式结算后，榜单会出现最高分。',
       },
       {
         id: 'play-count',
         label: '局数榜',
-        summary: '看谁持续投入得最久。',
+        summary: '看谁完局更多。',
         accent: 'slate',
         entries: mapEntries(playCount, 'play-count'),
         emptyTitle: '局数榜还没有人上榜',
-        emptyDetail: '等玩家累计更多正式完局后，这里会体现资历和持续投入。',
+        emptyDetail: '有人多次完局后，榜单会出现记录。',
       },
     ],
     highlights: buildHighlights(totalScore, bestScore, playCount),
@@ -103,15 +103,15 @@ function formatValue(value: number, category: LeaderboardProjectionTabId) {
 
 function buildEntryNote(rankIndex: number, value: number, category: LeaderboardProjectionTabId) {
   if (category === 'total-score') {
-    if (rankIndex === 0) return `当前生涯有效总分最高，累计 ${value} 分。`;
-    return `继续稳定完局，才能往上追。`;
+    if (rankIndex === 0) return `当前总分 ${value} 分。`;
+    return `当前总分 ${value} 分。`;
   }
   if (category === 'best-score') {
-    if (rankIndex === 0) return `目前最强代表作，单局做到 ${value} 分。`;
-    return `差的是上限，不只是场次。`;
+    if (rankIndex === 0) return `单局最高 ${value} 分。`;
+    return `单局最高 ${value} 分。`;
   }
-  if (rankIndex === 0) return `目前正式完局最多，已经打了 ${value} 局。`;
-  return `看的是持续参与和资历。`;
+  if (rankIndex === 0) return `已完局 ${value} 局。`;
+  return `已完局 ${value} 局。`;
 }
 
 function buildHighlights(
@@ -121,22 +121,22 @@ function buildHighlights(
 ): LeaderboardHighlightProjection[] {
   return [
     {
-      title: '总分榜看长期稳定',
+      title: '总分榜',
       detail: totalScore[0]
         ? `${totalScore[0].playerName} 目前领跑，总分 ${totalScore[0].value}。`
-        : '当前还没有正式完局数据进入总分榜。',
+        : '还没有总分记录。',
     },
     {
-      title: '单局最高榜看代表作',
+      title: '单局最高榜',
       detail: bestScore[0]
         ? `${bestScore[0].playerName} 目前单局最高，做到 ${bestScore[0].value} 分。`
-        : '当前还没有正式结算结果进入单局最高榜。',
+        : '还没有单局最高记录。',
     },
     {
-      title: '局数榜看投入强度',
+      title: '局数榜',
       detail: playCount[0]
         ? `${playCount[0].playerName} 当前完局最多，已经打了 ${playCount[0].value} 局。`
-        : '当前还没有玩家形成稳定完局记录。',
+        : '还没有完局记录。',
     },
   ];
 }
