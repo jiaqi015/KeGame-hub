@@ -4,11 +4,7 @@ import { getRoutine } from '../../domain/utils.js';
 import { getPromotionBudget, resolveFormalSoldCount } from '../../domain/runtimeStats.js';
 import {
   buildCaseDetailProjection,
-  buildDashboardProjection,
-  buildMarketProjection,
   type CaseDetailProjection,
-  type ProjectionBrief,
-  type ProjectionTone,
 } from './operatingProjection.js';
 
 export type WorkspaceShellResourcePanelId = 'budget' | 'auxiliary' | 'energy';
@@ -100,15 +96,6 @@ export interface WorkspaceShellEnergyPanelProjection {
   rhythm: WorkspaceShellEnergyRhythmProjection[];
 }
 
-export interface WorkspaceShellSidebarCueProjection {
-  id: string;
-  label: string;
-  title: string;
-  detail: string;
-  tone: ProjectionTone;
-  caseId?: string;
-}
-
 export interface WorkspaceShellJournalSummaryProjection {
   todayCount: number;
   totalCount: number;
@@ -121,27 +108,7 @@ export interface WorkspaceShellJournalSummaryProjection {
   actionLabel: string;
 }
 
-export interface WorkspaceShellMatterStatProjection {
-  label: string;
-  value: string;
-  detail: string;
-  tone: ProjectionTone;
-}
-
-export interface WorkspaceShellMatterProjection {
-  headline: string;
-  summary: string;
-  stats: WorkspaceShellMatterStatProjection[];
-  actionItems: WorkspaceShellSidebarCueProjection[];
-  intelligenceItems: WorkspaceShellSidebarCueProjection[];
-  primaryCue: WorkspaceShellSidebarCueProjection | null;
-}
-
 export interface WorkspaceShellSidebarProjection {
-  matter: WorkspaceShellMatterProjection;
-  actionCues: WorkspaceShellSidebarCueProjection[];
-  riskCues: WorkspaceShellSidebarCueProjection[];
-  marketCues: WorkspaceShellSidebarCueProjection[];
   journal: WorkspaceShellJournalSummaryProjection;
 }
 
@@ -189,8 +156,6 @@ export function buildWorkspaceShellProjection(state: GameState): WorkspaceShellP
   const spentEnergy = Math.max(state.maxEnergy - state.energy, 0);
   const activeCaseCount = state.cases.filter((entry) => entry.status === 'active').length;
   const activeOpportunityCount = state.opportunities.filter((entry) => entry.status === 'active').length;
-  const dashboardProjection = buildDashboardProjection(state);
-  const marketProjection = buildMarketProjection(state);
   const selectedCase = state.selectedCaseId
     ? state.cases.find((entry) => entry.id === state.selectedCaseId) || null
     : null;
@@ -299,12 +264,7 @@ export function buildWorkspaceShellProjection(state: GameState): WorkspaceShellP
         };
       }),
     },
-    sidebar: buildSidebarProjection(
-      state,
-      dashboardProjection,
-      marketProjection,
-      selectedCaseProjection,
-    ),
+    sidebar: buildSidebarProjection(state),
     selectedCaseDetail: selectedCase && selectedCaseProjection
       ? {
         caseId: selectedCase.id,
@@ -319,99 +279,9 @@ export function buildWorkspaceShellProjection(state: GameState): WorkspaceShellP
   };
 }
 
-function buildSidebarProjection(
-  state: GameState,
-  dashboardProjection: ReturnType<typeof buildDashboardProjection>,
-  marketProjection: ReturnType<typeof buildMarketProjection>,
-  selectedCaseProjection: ReturnType<typeof buildCaseDetailProjection> | null,
-): WorkspaceShellSidebarProjection {
-  const journal = buildSidebarJournalSummary(state);
-  const matter = buildMatterProjection(state, dashboardProjection, marketProjection, selectedCaseProjection);
-  const actionCues = matter.actionItems.length > 0
-    ? matter.actionItems.slice(0, 3)
-    : dashboardProjection.todayPriority.slice(0, 3).map(toSidebarCue);
-
+function buildSidebarProjection(state: GameState): WorkspaceShellSidebarProjection {
   return {
-    matter,
-    actionCues,
-    riskCues: dashboardProjection.riskReminders.slice(0, 3).map(toSidebarCue),
-    marketCues: (
-      marketProjection.affectedCases.length > 0
-        ? marketProjection.affectedCases
-        : dashboardProjection.marketBrief.briefs
-    )
-      .slice(0, 3)
-      .map(toSidebarCue),
-    journal,
-  };
-}
-
-function buildMatterProjection(
-  state: GameState,
-  dashboardProjection: ReturnType<typeof buildDashboardProjection>,
-  marketProjection: ReturnType<typeof buildMarketProjection>,
-  selectedCaseProjection: ReturnType<typeof buildCaseDetailProjection> | null,
-): WorkspaceShellMatterProjection {
-  const runtimeMatters = state.matters
-    .filter((entry) => entry.stage === 'pending' || entry.stage === 'in_progress')
-    .slice(0, 6)
-    .map(toMatterCue);
-  const todayPriority = dashboardProjection.todayPriority.slice(0, 4).map(toSidebarCue);
-  const actionItems = dedupeSidebarCues([...runtimeMatters, ...todayPriority]).slice(0, 4);
-  const yesterdayItems = dashboardProjection.yesterdayIntel.slice(0, 2).map((item) => ({
-    ...toSidebarCue(item),
-    label: '昨日情报',
-  }));
-  const marketItems = (
-    marketProjection.affectedCases.length > 0
-      ? marketProjection.affectedCases
-      : dashboardProjection.marketBrief.briefs
-  )
-    .slice(0, Math.max(0, 4 - yesterdayItems.length))
-    .map((item) => ({
-      ...toSidebarCue(item),
-      label: item.tone === 'risk' ? '竞品压力' : '昨日情报',
-    }));
-  const intelligenceItems = dedupeSidebarCues([...yesterdayItems, ...marketItems]).slice(0, 4);
-  const pendingMatters = state.matters.filter((entry) => entry.stage === 'pending');
-  const urgentMatterCount = pendingMatters.filter((entry) => (entry.urgency || 0) >= 78).length;
-  const closingGroupCount = dashboardProjection.priorityGroups.find((group) => group.id === 'closingOpportunity')?.count || 0;
-  const closingCount = pendingMatters.filter((entry) => entry.kind === 'opportunity').length + closingGroupCount;
-  const competitionCount = [
-    ...dashboardProjection.riskReminders,
-    ...marketProjection.affectedCases,
-    ...dashboardProjection.todayPriority,
-  ].filter((item) => /竞品|竞争|分流|同类/.test(`${item.label} ${item.title} ${item.detail}`)).length;
-  const mainProblem = selectedCaseProjection?.mainProblemLabel
-    || dashboardProjection.todayPriority[0]?.label
-    || '今日先办';
-
-  return {
-    headline: buildMatterHeadline(actionItems, dashboardProjection.todayHeadline),
-    summary: `当前重点是 ${mainProblem}。`,
-    stats: [
-      {
-        label: '今日先办',
-        value: `${pendingMatters.length}`,
-        detail: actionItems[0]?.title || '今天没有新的明确待办。',
-        tone: urgentMatterCount > 0 ? 'risk' : 'neutral',
-      },
-      {
-        label: '成交线索',
-        value: `${closingCount}`,
-        detail: closingCount > 0 ? '已有机会接近报价或谈判，需要优先承接。' : '暂时没有明确到成交桌的机会。',
-        tone: closingCount > 0 ? 'chance' : 'neutral',
-      },
-      {
-        label: '竞品压力',
-        value: `${competitionCount}`,
-        detail: competitionCount > 0 ? '有外部压力命中房源或客户判断。' : '暂时没有明显竞品分流信号。',
-        tone: competitionCount > 0 ? 'risk' : 'neutral',
-      },
-    ],
-    actionItems,
-    intelligenceItems,
-    primaryCue: actionItems[0] || intelligenceItems[0] || null,
+    journal: buildSidebarJournalSummary(state),
   };
 }
 
@@ -461,55 +331,6 @@ function buildSidebarJournalSummary(state: GameState): WorkspaceShellJournalSumm
     brief: buildJournalBrief(state, todayItems.length, yesterdayItems.length, riskCount, chanceCount),
     actionLabel: '展开记录',
   };
-}
-
-function toSidebarCue(item: ProjectionBrief): WorkspaceShellSidebarCueProjection {
-  return {
-    id: item.id,
-    label: item.label,
-    title: item.title,
-    detail: item.detail,
-    tone: item.tone,
-    caseId: item.caseId,
-  };
-}
-
-function toMatterCue(item: MatterEntry): WorkspaceShellSidebarCueProjection {
-  return {
-    id: item.id,
-    label: item.kind === 'opportunity'
-      ? '成交线索'
-      : item.template === 'schedule'
-        ? '今日先办'
-        : '重点问题',
-    title: item.title,
-    detail: item.badge ? `${item.detail} · ${item.badge}` : item.detail,
-    tone: item.kind === 'opportunity'
-      ? 'chance'
-      : (item.urgency || 0) >= 78
-        ? 'risk'
-        : 'neutral',
-    caseId: item.caseId,
-  };
-}
-
-function dedupeSidebarCues(items: WorkspaceShellSidebarCueProjection[]) {
-  const seen = new Set<string>();
-  return items.filter((item) => {
-    const key = `${item.caseId || 'global'}-${item.title}-${item.label}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-function buildMatterHeadline(items: WorkspaceShellSidebarCueProjection[], fallback: string) {
-  const firstRisk = items.find((item) => item.tone === 'risk');
-  const firstChance = items.find((item) => item.label === '成交线索' || item.tone === 'chance');
-  const lead = firstRisk || firstChance || items[0];
-
-  if (!lead) return fallback;
-  return `${lead.label} · ${lead.title}`;
 }
 
 function buildJournalBrief(state: GameState, todayCount: number, yesterdayCount: number, riskCount: number, chanceCount: number) {

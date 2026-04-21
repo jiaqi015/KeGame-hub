@@ -43,19 +43,31 @@ export function AuthOverlay({
   const mouseX = useMotionValue(0.5);
   const mouseY = useMotionValue(0.5);
 
-  const springConfig = { damping: 30, stiffness: 100 };
-  const smoothX = useSpring(mouseX, springConfig);
-  const smoothY = useSpring(mouseY, springConfig);
+  // 配置三组不同律动感的弹簧，模拟水纹的层次
+  // 1. 核心层：响应最快
+  const springCore = { damping: 30, stiffness: 120 };
+  const smoothX = useSpring(mouseX, springCore);
+  const smoothY = useSpring(mouseY, springCore);
 
-  // 衍生出的偏移量
-  const spotlightX = useTransform(smoothX, [0, 1], ['-25%', '25%']);
-  const spotlightY = useTransform(smoothY, [0, 1], ['-25%', '25%']);
-  
-  const blob1X = useTransform(smoothX, [0, 1], [40, -40]);
-  const blob1Y = useTransform(smoothY, [0, 1], [40, -40]);
-  
-  const blob2X = useTransform(smoothX, [0, 1], [-60, 60]);
-  const blob2Y = useTransform(smoothY, [0, 1], [-60, 60]);
+  // 2. 中层波纹：略有滞后
+  const springMid = { damping: 40, stiffness: 80 };
+  const midX = useSpring(mouseX, springMid);
+  const midY = useSpring(mouseY, springMid);
+
+  // 3. 外层涟漪：最柔和、滞后感最强
+  const springOuter = { damping: 50, stiffness: 40 };
+  const outerX = useSpring(mouseX, springOuter);
+  const outerY = useSpring(mouseY, springOuter);
+
+  // 将坐标映射为偏移百分比
+  const spotlightX = useTransform(smoothX, [0, 1], ['-15%', '15%']);
+  const spotlightY = useTransform(smoothY, [0, 1], ['-15%', '15%']);
+
+  const rippleMidX = useTransform(midX, [0, 1], ['-20%', '20%']);
+  const rippleMidY = useTransform(midY, [0, 1], ['-20%', '20%']);
+
+  const rippleOuterX = useTransform(outerX, [0, 1], ['-25%', '25%']);
+  const rippleOuterY = useTransform(outerY, [0, 1], ['-25%', '25%']);
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!containerRef.current) return;
@@ -70,32 +82,50 @@ export function AuthOverlay({
       onMouseMove={handleMouseMove}
       className="relative flex-1 overflow-hidden bg-[#020203] px-6 py-10 text-white"
     >
-      {/* 极富律动感与流动感的互动背景 */}
+      {/* 极富水纹律动感的互动背景 */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        {/* 底层渐变 */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,#0a0a12_0%,#020203_100%)]" />
+        {/* 底层深邃背景 */}
+        <div className="absolute inset-0 bg-[#020203]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,#0a0a1a_0%,#020203_100%)]" />
         
-        {/* 鼠标跟随的柔和光晕 (Spotlight) */}
+        {/* 三层互动水纹 (Ripple Layers) */}
+        {/* 外层：大面积、最模糊、最慢 */}
+        <motion.div
+          style={{
+            left: rippleOuterX,
+            top: rippleOuterY,
+            background: 'radial-gradient(circle at center, rgba(79, 70, 229, 0.08) 0%, transparent 60%)',
+          }}
+          className="absolute inset-[-40%] z-0"
+        />
+
+        {/* 中层：中等亮度、中等速度 */}
+        <motion.div
+          style={{
+            left: rippleMidX,
+            top: rippleMidY,
+            background: 'radial-gradient(circle at center, rgba(59, 130, 246, 0.1) 0%, transparent 55%)',
+          }}
+          className="absolute inset-[-30%] z-0"
+        />
+
+        {/* 核心层：最亮、最快，形成视觉中心 */}
         <motion.div
           style={{
             left: spotlightX,
             top: spotlightY,
-            background: 'radial-gradient(circle at center, rgba(59, 130, 246, 0.08) 0%, transparent 65%)',
+            background: 'radial-gradient(circle at center, rgba(255, 255, 255, 0.05) 0%, transparent 50%)',
           }}
           className="absolute inset-[-20%] z-0"
         />
 
-        {/* 动态流动的光晕群 - 结合鼠标物理反馈 */}
+        {/* 动态流动的光晕群 */}
         <motion.div
           animate={{
             x: [-80, 80, -80],
             y: [-30, 120, -30],
             scale: [1, 1.2, 1],
             rotate: [0, 45, 0],
-          }}
-          style={{
-            translateX: blob1X,
-            translateY: blob1Y,
           }}
           transition={{
             duration: 25,
@@ -112,10 +142,6 @@ export function AuthOverlay({
             scale: [1.1, 0.9, 1.1],
             rotate: [0, -60, 0],
           }}
-          style={{
-            translateX: blob2X,
-            translateY: blob2Y,
-          }}
           transition={{
             duration: 30,
             repeat: Infinity,
@@ -130,10 +156,6 @@ export function AuthOverlay({
             scale: [1, 1.4, 1],
             x: [-50, 50, -50],
           }}
-          style={{
-            translateX: useTransform(smoothX, [0, 1], [20, -20]),
-            translateY: useTransform(smoothY, [0, 1], [20, -20]),
-          }}
           transition={{
             duration: 20,
             repeat: Infinity,
@@ -147,10 +169,6 @@ export function AuthOverlay({
             opacity: [0, 0.15, 0],
             scale: [0.8, 1.2, 0.8],
             y: [100, -100, 100],
-          }}
-          style={{
-            translateX: useTransform(smoothX, [0, 1], [-30, 30]),
-            translateY: useTransform(smoothY, [0, 1], [-30, 30]),
           }}
           transition={{
             duration: 18,

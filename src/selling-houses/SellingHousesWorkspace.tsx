@@ -3,19 +3,14 @@ import {
   Calendar,
   ChevronRight,
   CircleDollarSign,
-  Clock3,
   FastForward,
   History,
   Home,
   LayoutDashboard,
   Medal,
   LineChart,
-  LogOut,
   MessageSquare,
-  Newspaper,
-  ShieldAlert,
   SquareUserRound,
-  Target,
   Users,
   Wallet,
   Zap,
@@ -25,8 +20,6 @@ import { LoadingScene } from '../components/Common/LoadingScene';
 import { useGame } from './application/useGame';
 import {
   buildWorkspaceShellProjection,
-  type WorkspaceShellSidebarCueProjection,
-  type WorkspaceShellSidebarProjection,
 } from './application/projections/workspaceShellProjection';
 import { DailyJournal } from './ui/widgets/DailyJournal';
 import { WorkspaceUtilityBar } from './ui/widgets/WorkspaceUtilityBar';
@@ -163,6 +156,15 @@ export function SellingHousesWorkspace({
     setTimeout(() => setMessage(null), 3000);
   };
 
+  const executeActionByCaseId = (actionId: string, caseId: string) => {
+    const caseItem = state.cases.find((entry) => entry.id === caseId);
+    if (!caseItem) {
+      displayMessage('这套房当前不在场，先刷新一下再试。');
+      return false;
+    }
+    return handleExecuteAction(actionId, caseItem, null, displayMessage);
+  };
+
   const openLeaderboard = async () => {
     setLeaderboardOpen(true);
     setLeaderboardError(null);
@@ -207,20 +209,6 @@ export function SellingHousesWorkspace({
     setActiveView('market');
   };
 
-  const handleRailCue = (cue: WorkspaceShellSidebarCueProjection) => {
-    if (cue.caseId) {
-      openSelectedCaseQuickView(cue.caseId);
-      return;
-    }
-
-    if (cue.label === '昨日情报' || cue.label === '竞品压力') {
-      openMarketView('macro');
-      return;
-    }
-
-    setActiveView('overview');
-  };
-
   const renderView = () => {
     switch (activeView) {
       case 'overview':
@@ -228,6 +216,7 @@ export function SellingHousesWorkspace({
           <Dashboard
             state={state}
             onSelectCase={handleSelectCase}
+            onExecuteAction={executeActionByCaseId}
             onSetView={openViewFromChild}
             onOpenMarket={openMarketView}
           />
@@ -258,6 +247,7 @@ export function SellingHousesWorkspace({
           <Dashboard
             state={state}
             onSelectCase={handleSelectCase}
+            onExecuteAction={executeActionByCaseId}
             onSetView={openViewFromChild}
             onOpenMarket={openMarketView}
           />
@@ -275,10 +265,7 @@ export function SellingHousesWorkspace({
             <div className="flex min-w-0 flex-1">
               <div className="flex min-w-0 flex-1 items-center gap-3">
                 <ConfirmBackButton
-                  onConfirm={() => {
-                    handleReset();
-                    onReturnToHub();
-                  }}
+                  onConfirm={onReturnToHub}
                   title="确认返回？"
                   description="将离开当前这一局，回到功能入口。当前进度会按系统状态保留。"
                   buttonClassName="seller-button-secondary inline-flex h-9 shrink-0 items-center gap-1.5 px-3"
@@ -419,12 +406,6 @@ export function SellingHousesWorkspace({
             {renderView()}
           </Suspense>
         </main>
-
-        <WorkspaceRightRail
-          sidebar={runShellProjection.sidebar}
-          onOpenJournal={() => setJournalOpen(true)}
-          onOpenCue={handleRailCue}
-        />
       </div>
 
       {state.gameOver && (
@@ -1024,191 +1005,6 @@ function BudgetMiniStat({
       <div className={`mt-1 text-[15px] font-semibold ${valueClass}`}>{value}</div>
     </div>
   );
-}
-
-export function WorkspaceRightRail({
-  sidebar,
-  onOpenJournal,
-  onOpenCue,
-}: {
-  sidebar: WorkspaceShellSidebarProjection;
-  onOpenJournal: () => void;
-  onOpenCue: (cue: WorkspaceShellSidebarCueProjection) => void;
-}) {
-  const combinedMarketAndRisk = [...sidebar.riskCues, ...sidebar.marketCues].slice(0, 4);
-
-  return (
-    <aside className="seller-right-rail hidden w-[360px] shrink-0 xl:flex xl:flex-col xl:gap-4 xl:overflow-y-auto xl:px-5 xl:pb-5 xl:pt-4">
-      <WorkspaceRailSection
-        eyebrow="壳层分诊"
-        title="今日事项"
-        actionLabel={sidebar.matter.primaryCue ? '去处理' : undefined}
-        onAction={sidebar.matter.primaryCue ? () => onOpenCue(sidebar.matter.primaryCue!) : undefined}
-      >
-        <div className="seller-panel-muted px-4 py-4">
-          <div className="text-[15px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">
-            {sidebar.matter.headline}
-          </div>
-          <p className="mt-2 text-[12px] leading-6 text-[var(--seller-muted)]">
-            {sidebar.matter.summary}
-          </p>
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            {sidebar.matter.stats.map((stat) => (
-              <div key={stat.label} className="seller-fact-row rounded-[14px] px-3 py-3">
-                <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">{stat.label}</div>
-                <div className={`mt-1 text-[15px] font-semibold ${toneTextClass(stat.tone)}`}>{stat.value}</div>
-              </div>
-            ))}
-          </div>
-            <div className="mt-3 space-y-2.5">
-              {sidebar.actionCues.map((cue) => (
-                <React.Fragment key={cue.id}>
-                  <RailCueCard cue={cue} onClick={() => onOpenCue(cue)} />
-                </React.Fragment>
-              ))}
-            </div>
-          </div>
-        </WorkspaceRailSection>
-
-      <WorkspaceRailSection eyebrow="变化解释" title="风险与市场">
-        <div className="seller-panel-muted px-4 py-4">
-          <div className="grid grid-cols-2 gap-2">
-            <div className="seller-fact-row rounded-[14px] px-3 py-3">
-              <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">风险提示</div>
-              <div className="mt-1 text-[15px] font-semibold text-[var(--seller-risk)]">{sidebar.riskCues.length}</div>
-            </div>
-            <div className="seller-fact-row rounded-[14px] px-3 py-3">
-              <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">市场变化</div>
-              <div className="mt-1 text-[15px] font-semibold text-[var(--seller-chance)]">{sidebar.marketCues.length}</div>
-            </div>
-          </div>
-          <div className="mt-3 space-y-2.5">
-            {combinedMarketAndRisk.map((cue) => (
-              <React.Fragment key={cue.id}>
-                <RailCueCard cue={cue} onClick={() => onOpenCue(cue)} />
-              </React.Fragment>
-            ))}
-          </div>
-        </div>
-      </WorkspaceRailSection>
-
-      <WorkspaceRailSection
-        eyebrow="回看入口"
-        title="经营记录"
-        actionLabel={sidebar.journal.actionLabel}
-        onAction={onOpenJournal}
-      >
-        <div className="seller-panel-muted px-4 py-4">
-          <div className="grid grid-cols-4 gap-2">
-            <div className="seller-fact-row rounded-[14px] px-3 py-3">
-              <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">今日</div>
-              <div className="mt-1 text-[15px] font-semibold text-[var(--seller-ink)]">{sidebar.journal.todayCount}</div>
-            </div>
-            <div className="seller-fact-row rounded-[14px] px-3 py-3">
-              <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">昨日</div>
-              <div className="mt-1 text-[15px] font-semibold text-[var(--seller-ink)]">{sidebar.journal.yesterdayCount}</div>
-            </div>
-            <div className="seller-fact-row rounded-[14px] px-3 py-3">
-              <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">风险</div>
-              <div className="mt-1 text-[15px] font-semibold text-[var(--seller-risk)]">{sidebar.journal.riskCount}</div>
-            </div>
-            <div className="seller-fact-row rounded-[14px] px-3 py-3">
-              <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">机会</div>
-              <div className="mt-1 text-[15px] font-semibold text-[var(--seller-chance)]">{sidebar.journal.chanceCount}</div>
-            </div>
-          </div>
-          <div className="seller-fact-row mt-3 rounded-[14px] px-4 py-4">
-            <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">最新记录</div>
-            <div className="mt-2 text-[14px] font-semibold text-[var(--seller-ink)]">
-              {sidebar.journal.lastTitle}
-            </div>
-            <p className="mt-1 text-[12px] leading-6 text-[var(--seller-muted)]">
-              {sidebar.journal.lastDetail}
-            </p>
-            <p className="mt-2 text-[11px] leading-6 text-[var(--seller-subtle)]">
-              {sidebar.journal.brief}
-            </p>
-          </div>
-        </div>
-      </WorkspaceRailSection>
-    </aside>
-  );
-}
-
-function WorkspaceRailSection({
-  eyebrow,
-  title,
-  actionLabel,
-  onAction,
-  children,
-}: {
-  eyebrow: string;
-  title: string;
-  actionLabel?: string;
-  onAction?: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="space-y-2">
-      <div className="flex items-center justify-between gap-3 px-1">
-        <div>
-          <div className="seller-label">{eyebrow}</div>
-          <div className="mt-1 text-[13px] font-semibold text-[var(--seller-ink)]">{title}</div>
-        </div>
-        {actionLabel && onAction ? (
-          <button
-            type="button"
-            onClick={onAction}
-            className="seller-button-secondary rounded-full px-3 py-1.5 text-[10px]"
-          >
-            {actionLabel}
-          </button>
-        ) : null}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function RailCueCard({
-  cue,
-  onClick,
-}: {
-  cue: WorkspaceShellSidebarCueProjection;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`w-full rounded-[14px] border px-3 py-3 text-left transition-all hover:border-[var(--seller-border-strong)] hover:bg-[rgba(255,255,255,0.06)] ${toneSurfaceClass(cue.tone)}`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">{cue.label}</div>
-          <div className="mt-1 text-[13px] font-semibold text-[var(--seller-ink)]">{cue.title}</div>
-          <p className="mt-1 text-[12px] leading-6 text-[var(--seller-muted)]">{cue.detail}</p>
-        </div>
-        <ChevronRight size={14} className="mt-1 shrink-0 text-[var(--seller-subtle)]" />
-      </div>
-    </button>
-  );
-}
-
-function toneTextClass(tone: 'neutral' | 'chance' | 'risk') {
-  if (tone === 'chance') return 'text-[var(--seller-chance)]';
-  if (tone === 'risk') return 'text-[var(--seller-risk)]';
-  return 'text-[var(--seller-ink)]';
-}
-
-function toneSurfaceClass(tone: 'neutral' | 'chance' | 'risk') {
-  if (tone === 'chance') {
-    return 'border-[color:var(--seller-chance)]/20 bg-[var(--seller-chance-soft)]';
-  }
-  if (tone === 'risk') {
-    return 'border-[color:var(--seller-risk)]/20 bg-[var(--seller-risk-soft)]';
-  }
-  return 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)]';
 }
 
 function WorkspacePanelSkeleton() {

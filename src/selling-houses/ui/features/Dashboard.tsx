@@ -3,6 +3,8 @@ import type { GameState } from '../../domain/models';
 import { formatDate, getRoutine } from '../../domain/utils';
 import { WEEKLY_ROUTINE } from '../../domain/constants';
 import {
+  type ArrangementItemProjection,
+  type ArrangementProjection,
   buildOperatingProjection,
   type CalendarDayProjection,
   type DashboardProjection,
@@ -20,6 +22,7 @@ import {
 interface DashboardProps {
   state: GameState;
   onSelectCase: (id: string) => void;
+  onExecuteAction: (actionId: string, caseId: string) => boolean;
   onSetView: (view: string) => void;
   onOpenMarket: (layer?: IntelLayerTab) => void;
 }
@@ -58,6 +61,7 @@ type DashboardSidePanel = 'case' | 'scope';
 export function Dashboard({
   state,
   onSelectCase,
+  onExecuteAction,
   onSetView,
   onOpenMarket,
 }: DashboardProps) {
@@ -219,11 +223,12 @@ export function Dashboard({
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.58fr)_minmax(320px,0.92fr)]">
         <AgendaPanel
-          items={visiblePriorities}
+          arrangement={dashboard.arrangement}
           day={state.day}
           energyLabel={dashboard.resourceSnapshot.energy}
           budgetLabel={dashboard.resourceSnapshot.promotionBudget}
           onOpenCase={openCase}
+          onExecuteAction={onExecuteAction}
           onUseTool={handleAgendaTool}
         />
 
@@ -322,18 +327,20 @@ function TriageRouteCard({
 }
 
 function AgendaPanel({
-  items,
+  arrangement,
   day,
   energyLabel,
   budgetLabel,
   onOpenCase,
+  onExecuteAction,
   onUseTool,
 }: {
-  items: ProjectionBrief[];
+  arrangement: ArrangementProjection;
   day: number;
   energyLabel: string;
   budgetLabel: string;
   onOpenCase: (caseId?: string) => void;
+  onExecuteAction: (actionId: string, caseId: string) => boolean;
   onUseTool: (tool: AgendaTool, caseId?: string) => void;
 }) {
   return (
@@ -342,45 +349,69 @@ function AgendaPanel({
         <div className="min-w-0">
           <div className="seller-label flex items-center gap-2">
             <Clock3 size={13} />
-            今日事项
+            今日安排
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <h2 className="text-[17px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">
-              先处理这 {items.length} 件事
+              {arrangement.headline}
             </h2>
             <span className="seller-chip">DAY {day}</span>
             <span className="seller-chip seller-chip-accent">{energyLabel} 精力</span>
             <span className="seller-chip">{budgetLabel} 推广金</span>
+            <span className="seller-chip">{arrangement.remainingEnergyLabel}</span>
           </div>
           <p className="mt-2 max-w-[78ch] text-[12px] leading-6 text-[var(--seller-muted)]">
-            {items[0]?.detail || '先处理最影响顺序的一件事。'}
+            {arrangement.summary}
           </p>
         </div>
 
-        {items[0] && (
+        {arrangement.fixedItems[0] && (
           <div className="mt-4 rounded-[12px] border border-[color:var(--seller-accent)]/26 bg-[var(--seller-accent-soft)] px-3.5 py-3">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="seller-chip seller-chip-accent">先做</span>
-              <span className="text-[12px] font-semibold text-[var(--seller-ink)]">{items[0].title}</span>
+              <span className="seller-chip seller-chip-accent">本周节奏</span>
+              <span className="text-[12px] font-semibold text-[var(--seller-ink)]">{arrangement.weekFocusLabel}</span>
             </div>
           </div>
         )}
       </div>
 
+      <div className="border-b border-[var(--seller-border)] px-4 py-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="seller-label">固定安排</div>
+          <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">{arrangement.fixedItems.length} 件</span>
+        </div>
+        <div className="mt-3 grid gap-3">
+          {arrangement.fixedItems.length > 0 ? arrangement.fixedItems.map((item) => (
+            <div key={item.id}>
+              <FixedArrangementCard
+                item={item}
+                onOpenCase={onOpenCase}
+                onExecuteAction={onExecuteAction}
+              />
+            </div>
+          )) : (
+            <div className="seller-empty px-4 py-4 text-center text-[12px]">
+              今天没有硬性死线，可以优先把最能改变局势的动作排进去。
+            </div>
+          )}
+        </div>
+      </div>
+
       <div className="divide-y divide-[color:var(--seller-border)] px-4">
-        {items.length > 0 ? items.map((item, index) => (
+        {arrangement.candidateItems.length > 0 ? arrangement.candidateItems.map((item, index) => (
           <div key={item.id}>
             <AgendaItemRow
               item={item}
               index={index}
               onOpenCase={onOpenCase}
+              onExecuteAction={onExecuteAction}
               onUseTool={onUseTool}
             />
           </div>
         )) : (
           <div className="py-5">
             <div className="seller-empty px-4 py-5 text-center text-[12px]">
-              当前还没有明确事项，先去房源里找最紧的一套。
+              当前还没有新的候选动作，先去房源里找最紧的一套。
             </div>
           </div>
         )}
@@ -389,18 +420,67 @@ function AgendaPanel({
   );
 }
 
+function FixedArrangementCard({
+  item,
+  onOpenCase,
+  onExecuteAction,
+}: {
+  item: ArrangementItemProjection;
+  onOpenCase: (caseId?: string) => void;
+  onExecuteAction: (actionId: string, caseId: string) => boolean;
+}) {
+  return (
+    <div className={`rounded-[12px] border px-3.5 py-3 ${item.tone === 'risk' ? 'border-[color:var(--seller-risk)]/24 bg-[var(--seller-risk-soft)]' : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)]'}`}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="seller-chip">{item.label}</span>
+        <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">{item.statusLabel}</span>
+        <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">需 {item.energyCost} 点精力</span>
+      </div>
+      <div className="mt-2 text-[14px] font-semibold text-[var(--seller-ink)]">{item.title}</div>
+      <p className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">{item.detail}</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {item.actionId && item.caseId ? (
+          <button
+            type="button"
+            onClick={() => onExecuteAction(item.actionId!, item.caseId!)}
+            className="seller-button-primary rounded-[10px] px-3 py-2 text-[11px]"
+          >
+            {item.ctaLabel}
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => onOpenCase(item.caseId)}
+          className="seller-button-secondary rounded-[10px] px-3 py-2 text-[11px]"
+        >
+          打开房源
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function AgendaItemRow({
   item,
   index,
   onOpenCase,
+  onExecuteAction,
   onUseTool,
 }: {
-  item: ProjectionBrief;
+  item: ArrangementItemProjection;
   index: number;
   onOpenCase: (caseId?: string) => void;
+  onExecuteAction: (actionId: string, caseId: string) => boolean;
   onUseTool: (tool: AgendaTool, caseId?: string) => void;
 }) {
-  const tools = buildAgendaTools(item);
+  const tools = buildAgendaTools({
+    label: item.label,
+    title: item.title,
+    detail: item.detail,
+    tone: item.tone,
+    caseId: item.caseId,
+    id: item.id,
+  });
   return (
     <article className="grid gap-3 py-4 md:grid-cols-[72px_minmax(0,1fr)_auto] md:items-start">
       <div className="pt-0.5">
@@ -422,7 +502,8 @@ function AgendaItemRow({
           <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${toneChipClass(item.tone)}`}>
             {item.label}
           </span>
-          <span className="text-[10px] font-medium text-[var(--seller-subtle)]">需 1 点精力</span>
+          <span className="text-[10px] font-medium text-[var(--seller-subtle)]">需 {item.energyCost} 点精力</span>
+          <span className="text-[10px] font-medium text-[var(--seller-subtle)]">{item.statusLabel}</span>
         </div>
         <h3 className="mt-2 text-[16px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">
           {item.title}
@@ -443,18 +524,30 @@ function AgendaItemRow({
       </div>
 
       <div className="flex shrink-0 items-start justify-start md:justify-end">
-        <button
-          type="button"
-          onClick={() => onOpenCase(item.caseId)}
-          className={`inline-flex items-center gap-1 rounded-[10px] px-3 py-2 text-[11px] font-semibold ${
-            index === 0
-              ? 'seller-button-primary'
-              : 'seller-button-secondary'
-          }`}
-        >
-          打开房源
-          <ArrowRight size={12} />
-        </button>
+        <div className="flex flex-wrap gap-2 md:flex-col">
+          {item.actionId && item.caseId ? (
+            <button
+              type="button"
+              onClick={() => onExecuteAction(item.actionId!, item.caseId!)}
+              className={`inline-flex items-center gap-1 rounded-[10px] px-3 py-2 text-[11px] font-semibold ${
+                index === 0
+                  ? 'seller-button-primary'
+                  : 'seller-button-secondary'
+              }`}
+            >
+              {item.ctaLabel}
+              <ArrowRight size={12} />
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => onOpenCase(item.caseId)}
+            className="seller-button-secondary inline-flex items-center gap-1 rounded-[10px] px-3 py-2 text-[11px] font-semibold"
+          >
+            打开房源
+            <ArrowRight size={12} />
+          </button>
+        </div>
       </div>
     </article>
   );

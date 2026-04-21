@@ -1,7 +1,8 @@
 import type { Case, CustomerRuntimeState, GameState, Opportunity, Tone } from '../../domain/models.js';
+import { ACTIONS, WEEKLY_ROUTINE } from '../../domain/constants.js';
+import { getActionAvailability } from '../../domain/engine.js';
 import { getActiveOpportunities } from '../../domain/engine/opportunityEngine.js';
 import { getDayOfWeek, getRoutine } from '../../domain/utils.js';
-import { WEEKLY_ROUTINE } from '../../domain/constants.js';
 import { buildFollowUpPriorityProjection } from '../../ui/features/followUpPriority.js';
 import {
   buildMarketBoardDetail,
@@ -44,6 +45,32 @@ export interface ResourceSnapshotProjection {
   activeOpportunities: number;
 }
 
+export interface ArrangementItemProjection {
+  id: string;
+  source: 'fixed' | 'candidate';
+  label: string;
+  title: string;
+  detail: string;
+  tone: ProjectionTone;
+  caseId?: string;
+  energyCost: number;
+  statusLabel: string;
+  actionId?: string;
+  executionMode: 'direct' | 'scenario' | 'navigate';
+  ctaLabel: string;
+  secondaryLabel?: string;
+}
+
+export interface ArrangementProjection {
+  headline: string;
+  summary: string;
+  remainingEnergy: number;
+  remainingEnergyLabel: string;
+  fixedItems: ArrangementItemProjection[];
+  candidateItems: ArrangementItemProjection[];
+  weekFocusLabel: string;
+}
+
 export interface DashboardProjection {
   todayHeadline: string;
   todayPriority: ProjectionBrief[];
@@ -78,6 +105,7 @@ export interface DashboardProjection {
     marketLayer?: IntelLayerTab;
     caseId?: string;
   }>;
+  arrangement: ArrangementProjection;
 }
 
 export interface OpportunityBucketProjection {
@@ -309,7 +337,141 @@ export function buildDashboardProjection(
     })),
     marketBrief,
     triageCards: buildDashboardTriageCards(state, todayPriority, marketBrief, priorityProjection),
+    arrangement: buildArrangementProjection(state, caseDetails, todayPriority),
   };
+}
+
+function buildArrangementProjection(
+  state: GameState,
+  caseDetails: CaseDetailProjection[],
+  todayPriority: ProjectionBrief[],
+): ArrangementProjection {
+  const fixedItems = buildFixedArrangementItems(state);
+  const candidateItems = buildCandidateArrangementItems(state, caseDetails, todayPriority);
+  const fixedEnergy = fixedItems.reduce((sum, item) => sum + item.energyCost, 0);
+  const remainingEnergy = Math.max(0, state.energy - fixedEnergy);
+  const weekFocus = buildWeekCalendar(state)
+    .slice(0, 7)
+    .sort((left, right) => right.energy - left.energy)[0];
+
+  return {
+    headline: fixedItems[0]
+      ? `今天先把 ${fixedItems[0].title} 顶住`
+      : candidateItems[0]
+        ? `今天先排 ${candidateItems[0].title}`
+        : '今天先处理最影响顺序的一件事',
+    summary: fixedItems.length > 0
+      ? `固定安排 ${fixedItems.length} 件，先守住窗口和快掉线的线索，再把剩余精力排给能直接推进的动作。`
+      : candidateItems.length > 0
+        ? '今天没有硬性死线，优先把最能改变局势的动作排进去。'
+        : '今天先从房源页挑一套最紧的盘开始。',
+    remainingEnergy,
+    remainingEnergyLabel: `剩余 ${remainingEnergy}/${state.maxEnergy} 精力`,
+    fixedItems,
+    candidateItems,
+    weekFocusLabel: weekFocus ? `${weekFocus.label} · ${weekFocus.title}` : '本周按节奏推进',
+  };
+}
+
+function buildFixedArrangementItems(state: GameState): ArrangementItemProjection[] {
+  const scheduleItems = state.schedule.slice(0, 2).map<ArrangementItemProjection>((entry) => ({
+    id: `fixed-schedule-${entry.key}`,
+    source: 'fixed',
+    label: '固定安排',
+    title: entry.title,
+    detail: entry.note,
+    tone: entry.urgency >= 82 ? 'risk' : 'neutral',
+    caseId: entry.caseId,
+    energyCost: entry.urgency >= 92 ? 2 : 1,
+    statusLabel: entry.badge,
+    executionMode: 'navigate',
+    ctaLabel: '打开房源',
+    secondaryLabel: '看客户线',
+  }));
+
+  const negotiationItems = state.matters
+    .filter((entry) => entry.stage === 'pending' && entry.kind === 'opportunity')
+    .slice(0, 1)
+    .map<ArrangementItemProjection>((entry) => ({
+      id: `fixed-matter-${entry.id}`,
+      source: 'fixed',
+      label: '固定安排',
+      title: entry.title,
+      detail: entry.detail,
+      tone: 'chance',
+      caseId: entry.caseId,
+      energyCost: 1,
+      statusLabel: entry.badge || '今日承接',
+      actionId: 'invite-customer-negotiation',
+      executionMode: 'direct',
+      ctaLabel: '直接推进',
+      secondaryLabel: '打开房源',
+    }));
+
+  return [...scheduleItems, ...negotiationItems].slice(0, 3);
+}
+
+function buildCandidateArrangementItems(
+  state: GameState,
+  caseDetails: CaseDetailProjection[],
+  todayPriority: ProjectionBrief[],
+): ArrangementItemProjection[] {
+  const seenCaseIds = new Set<string>();
+  const candidates: ArrangementItemProjection[] = [];
+
+  for (const item of todayPriority) {
+    if (!item.caseId || seenCaseIds.has(item.caseId)) {
+      continue;
+    }
+    seenCaseIds.add(item.caseId);
+
+    const caseItem = state.cases.find((entry) => entry.id === item.caseId);
+    if (!caseItem || caseItem.status !== 'active') {
+      continue;
+    }
+
+    const detail = caseDetails.find((entry) => entry.caseId === item.caseId) || null;
+    const actionId = pickSuggestedActionId(state, caseItem, item, detail);
+    const action = actionId ? ACTIONS.find((entry) => entry.id === actionId) || null : null;
+
+    candidates.push({
+      id: `candidate-${item.id}`,
+      source: 'candidate',
+      label: item.label,
+      title: action ? action.name : item.title,
+      detail: action ? `${item.detail} 这一步更适合先做“${action.name}”。` : item.detail,
+      tone: item.tone,
+      caseId: item.caseId,
+      energyCost: action?.costEnergy ?? 1,
+      statusLabel: action ? '可排入今天' : '先去房源判断',
+      actionId: action?.id,
+      executionMode: action?.type === 'scenario' ? 'scenario' : action ? 'direct' : 'navigate',
+      ctaLabel: action ? '直接执行' : '打开房源',
+      secondaryLabel: action ? '看房源' : '看客户线',
+    });
+  }
+
+  return candidates.slice(0, 4);
+}
+
+function pickSuggestedActionId(
+  state: GameState,
+  caseItem: Case,
+  item: ProjectionBrief,
+  detail: CaseDetailProjection | null,
+): string | undefined {
+  const text = `${item.label} ${item.title} ${item.detail} ${detail?.mainProblemLabel || ''}`;
+  const actionIds = /成交|报价|谈判/.test(text)
+    ? ['invite-customer-negotiation', 'sincerity-sale', 'showing']
+    : /业主|反馈|信任|耐心|定价/.test(text)
+      ? ['weekly-feedback', 'deep-diagnosis', 'pricing-advice']
+      : /客户|带看|流失/.test(text)
+        ? ['showing', 'private-referral', 'story']
+        : /竞品|竞争|窗口|商圈|市场/.test(text)
+          ? ['deep-diagnosis', 'story', 'open-day']
+          : ['deep-diagnosis', 'story', 'showing'];
+
+  return actionIds.find((actionId) => getActionAvailability(state, caseItem, actionId).enabled);
 }
 
 export function buildCaseDetailProjection(state: GameState, caseItem: Case): CaseDetailProjection {

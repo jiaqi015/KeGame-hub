@@ -43,6 +43,7 @@ const dashboardMarkup = render(
   React.createElement(Dashboard, {
     state: world,
     onSelectCase: () => {},
+    onExecuteAction: () => false,
     onSetView: () => {},
     onOpenMarket: () => {},
   }),
@@ -50,7 +51,7 @@ const dashboardMarkup = render(
 
 expectIncludes(
   dashboardMarkup,
-  ['data-selling-houses-page="overview"', '总览', '今天先去哪', '本周节奏', '今日事项', '更多', '主房源', '去向', '当前主房源'],
+  ['data-selling-houses-page="overview"', '总览', '今天先去哪', '本周节奏', '今日安排', '固定安排', '更多', '主房源', '去向', '当前主房源'],
   'overview',
 );
 expectExcludes(dashboardMarkup, ['市场雷达', '房源筛选', '单房结果', '去复盘'], 'overview');
