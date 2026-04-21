@@ -82,11 +82,11 @@ export function ResultsPanel({ state, onRestart }: ResultsPanelProps) {
         <div className="flex items-end justify-between gap-3">
           <div>
             <div className="seller-label">单房结果</div>
-            <h4 className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-slate-900">
+            <h4 className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">
               {hasFinalResult ? '先看每套房最后都怎么样了' : '先看场上每套房现在收成什么样'}
             </h4>
           </div>
-          <div className="text-[11px] font-semibold text-slate-400">
+          <div className="text-[11px] font-semibold text-[var(--seller-subtle)]">
             {hasFinalResult ? '来自正式结算' : '当前局面预览'}
           </div>
         </div>
@@ -100,11 +100,11 @@ export function ResultsPanel({ state, onRestart }: ResultsPanelProps) {
         {hasFinalResult ? (
           <div className="mt-5 space-y-4">
             {projection.tierGroups.map((group) => (
-              <section key={group.goalTier} className="rounded-[24px] border border-black/[0.05] bg-slate-50/70 p-5">
+              <section key={group.goalTier} className="seller-panel-soft p-5">
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <div className="text-[16px] font-semibold text-slate-900">{group.label}</div>
-                    <div className="mt-1 text-[12px] leading-6 text-slate-500">{group.preview}</div>
+                    <div className="text-[16px] font-semibold text-[var(--seller-ink)]">{group.label}</div>
+                    <div className="seller-body mt-1 text-[12px] leading-6">{group.preview}</div>
                   </div>
                   <div className="grid grid-cols-4 gap-2">
                     <MiniTierBadge label="结果不错" value={group.good} tone="emerald" />
@@ -122,7 +122,7 @@ export function ResultsPanel({ state, onRestart }: ResultsPanelProps) {
                     ))}
                   </div>
                 ) : (
-                  <div className="rounded-[20px] border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-[12px] text-slate-400">
+                  <div className="seller-empty px-4 py-8 text-center text-[12px]">
                     这组本局没有分到房源。
                   </div>
                 )}
@@ -143,8 +143,8 @@ export function ResultsPanel({ state, onRestart }: ResultsPanelProps) {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <div className="space-y-6">
             <section className="seller-panel-muted p-4 lg:p-5">
-            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-sky-700">结算边界</div>
-            <h4 className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-slate-900">哪些会正式落账，哪些还只是过程</h4>
+            <div className="seller-label text-[var(--seller-accent)]">结算边界</div>
+            <h4 className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">哪些会正式落账，哪些还只是过程</h4>
             <div className="mt-5 space-y-3">
               {projection.settlementNotes.map((note) => (
                 <React.Fragment key={note.title}>
@@ -156,23 +156,23 @@ export function ResultsPanel({ state, onRestart }: ResultsPanelProps) {
 
           {hasFinalResult ? (
             <section className="seller-panel p-4 lg:p-5">
-              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">三项得分</div>
-              <h4 className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-slate-900">总分只是把单房结果翻译成整局成绩</h4>
+              <div className="seller-label">三项得分</div>
+              <h4 className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">总分只是把单房结果翻译成整局成绩</h4>
               <div className="mt-5 space-y-3">
                 {projection.scoreBreakdown.length > 0 ? projection.scoreBreakdown.map((entry) => (
-                  <div key={entry.label} className="rounded-[20px] border border-black/[0.05] bg-slate-50 px-4 py-4">
+                  <div key={entry.label} className="seller-tablet px-4 py-4">
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <div className="text-sm font-semibold text-slate-900">{entry.label}</div>
-                        {entry.summary && <div className="mt-1 text-[12px] leading-5 text-slate-500">{entry.summary}</div>}
+                        <div className="text-sm font-semibold text-[var(--seller-ink)]">{entry.label}</div>
+                        {entry.summary && <div className="seller-body mt-1 text-[12px] leading-5">{entry.summary}</div>}
                       </div>
-                      <div className="text-base font-bold text-emerald-600">
+                      <div className="text-base font-bold text-[var(--seller-accent)]">
                         {entry.value}{entry.maxValue ? ` / ${entry.maxValue}` : ''}
                       </div>
                     </div>
                   </div>
                 )) : (
-                  <div className="rounded-[20px] border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-400">
+                  <div className="seller-empty px-4 py-10 text-center text-sm">
                     这局还没有正式结算分数。
                   </div>
                 )}
@@ -180,8 +180,8 @@ export function ResultsPanel({ state, onRestart }: ResultsPanelProps) {
             </section>
           ) : (
             <section className="seller-panel p-4 lg:p-5">
-              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">现在还没有正式成绩</div>
-              <h4 className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-slate-900">先别把当前台账当成最终成绩</h4>
+              <div className="seller-label">现在还没有正式成绩</div>
+              <h4 className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">先别把当前台账当成最终成绩</h4>
               <div className="mt-5 space-y-3">
                 <PlainNote
                   title="现在只看当前收成"
@@ -201,8 +201,8 @@ export function ResultsPanel({ state, onRestart }: ResultsPanelProps) {
         <section className="grid grid-cols-1 gap-4">
           {hasFinalResult ? (
             <section className="seller-panel-muted p-4 lg:p-5">
-              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-sky-700">生涯沉淀</div>
-              <h4 className="mt-2 text-[18px] font-semibold tracking-[-0.03em] text-slate-900">这局最后会留下什么</h4>
+              <div className="seller-label text-[var(--seller-accent)]">生涯沉淀</div>
+              <h4 className="mt-2 text-[18px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">这局最后会留下什么</h4>
               <div className="mt-5 space-y-3">
                 {projection.careerNotes.map((note) => (
                   <React.Fragment key={note.title}>
@@ -213,8 +213,8 @@ export function ResultsPanel({ state, onRestart }: ResultsPanelProps) {
             </section>
           ) : (
             <section className="seller-panel-muted p-4 lg:p-5">
-              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-sky-700">当前阶段</div>
-              <h4 className="mt-2 text-[18px] font-semibold tracking-[-0.03em] text-slate-900">现在还不会记进跨局成绩</h4>
+              <div className="seller-label text-[var(--seller-accent)]">当前阶段</div>
+              <h4 className="mt-2 text-[18px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">现在还不会记进跨局成绩</h4>
               <div className="mt-5 space-y-3">
                 <PlainNote
                   title="这页先给你局内台账"
@@ -248,23 +248,23 @@ export function ResultsPanel({ state, onRestart }: ResultsPanelProps) {
 
 function FinalCaseResultCard({ entry }: { entry: NonNullable<ReturnType<typeof buildResultProjection>['tierGroups'][number]['items'][number]> }) {
   return (
-    <div className="rounded-[22px] border border-black/[0.05] bg-white p-5">
+    <div className="seller-tablet p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-[18px] font-semibold text-slate-900">{entry.title}</div>
-          <div className="mt-1 text-[12px] text-slate-500">{entry.ownerName} · {entry.community}</div>
+          <div className="text-[18px] font-semibold text-[var(--seller-ink)]">{entry.title}</div>
+          <div className="mt-1 text-[12px] text-[var(--seller-subtle)]">{entry.ownerName} · {entry.community}</div>
         </div>
         <span className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${
           entry.endingBucket === 'good'
-            ? 'bg-emerald-100 text-emerald-700'
+            ? 'bg-[var(--seller-chance-soft)] text-[var(--seller-chance)]'
             : entry.endingBucket === 'bad'
-              ? 'bg-rose-100 text-rose-600'
-              : 'bg-amber-100 text-amber-700'
+              ? 'bg-[var(--seller-risk-soft)] text-[var(--seller-risk)]'
+              : 'bg-[var(--seller-accent-soft)] text-[var(--seller-accent)]'
         }`}>
           {entry.endingBucketLabel}
         </span>
       </div>
-      <p className="mt-3 text-sm leading-6 text-slate-600">{entry.endingSummary}</p>
+      <p className="seller-body mt-3 text-sm leading-6">{entry.endingSummary}</p>
       <div className="mt-4 grid grid-cols-2 gap-3">
         <MetricChip label="房源去向" value={entry.defenseOutcomeLabel} />
         <MetricChip label="业主感受" value={entry.ownerSatisfactionLabel} />
@@ -292,17 +292,17 @@ function CurrentCaseResultCard({ caseItem }: { caseItem: Case }) {
         : '这套房还在经营中，这里先给你当前状态，只有正式结算后才会变成成绩口径。';
 
   return (
-    <div className="rounded-[22px] border border-black/[0.05] bg-slate-50/80 p-5">
+    <div className="seller-tablet p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-[18px] font-semibold text-slate-900">{caseItem.title}</div>
-          <div className="mt-1 text-[12px] text-slate-500">{caseItem.ownerName} · {caseItem.community}</div>
+          <div className="text-[18px] font-semibold text-[var(--seller-ink)]">{caseItem.title}</div>
+          <div className="mt-1 text-[12px] text-[var(--seller-subtle)]">{caseItem.ownerName} · {caseItem.community}</div>
         </div>
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">
+        <span className="seller-chip">
           {statusLabel}
         </span>
       </div>
-      <p className="mt-3 text-sm leading-6 text-slate-600">
+      <p className="seller-body mt-3 text-sm leading-6">
         {statusDetail}
       </p>
       <div className="mt-4 grid grid-cols-2 gap-3">
@@ -325,15 +325,15 @@ function MiniTierBadge({
   tone: 'emerald' | 'amber' | 'rose' | 'slate';
 }) {
   const className = tone === 'emerald'
-    ? 'bg-emerald-50 text-emerald-700'
+    ? 'border-[color:var(--seller-chance)]/22 bg-[var(--seller-chance-soft)] text-[var(--seller-chance)]'
     : tone === 'amber'
-      ? 'bg-amber-50 text-amber-700'
+      ? 'border-[color:var(--seller-accent)]/22 bg-[var(--seller-accent-soft)] text-[var(--seller-accent)]'
       : tone === 'rose'
-        ? 'bg-rose-50 text-rose-600'
-        : 'bg-slate-100 text-slate-600';
+        ? 'border-[color:var(--seller-risk)]/22 bg-[var(--seller-risk-soft)] text-[var(--seller-risk)]'
+        : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] text-[var(--seller-muted)]';
 
   return (
-    <div className={`rounded-[16px] px-3 py-2 text-center ${className}`}>
+    <div className={`rounded-[16px] border px-3 py-2 text-center ${className}`}>
       <div className="text-[9px] font-bold uppercase tracking-[0.12em] opacity-75">{label}</div>
       <div className="mt-1 text-[13px] font-semibold">{value}</div>
     </div>
@@ -352,16 +352,16 @@ function BoundaryCard({
   tone: 'neutral' | 'chance' | 'risk';
 }) {
   const className = tone === 'chance'
-    ? 'border-emerald-100 bg-emerald-50/80'
+    ? 'border-[color:var(--seller-chance)]/22 bg-[var(--seller-chance-soft)]'
     : tone === 'risk'
-      ? 'border-rose-100 bg-rose-50/80'
-      : 'border-black/[0.05] bg-white/90';
+      ? 'border-[color:var(--seller-risk)]/22 bg-[var(--seller-risk-soft)]'
+      : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)]';
 
   return (
     <div className={`rounded-[22px] border px-4 py-4 ${className}`}>
-      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">{label}</div>
-      <div className="mt-2 text-[15px] font-semibold text-slate-900">{title}</div>
-      <div className="mt-2 text-[12px] leading-6 text-slate-600">{detail}</div>
+      <div className="seller-label">{label}</div>
+      <div className="mt-2 text-[15px] font-semibold text-[var(--seller-ink)]">{title}</div>
+      <div className="seller-body mt-2 text-[12px] leading-6">{detail}</div>
     </div>
   );
 }
@@ -376,10 +376,10 @@ function PlainNote({
   tone: 'neutral' | 'chance' | 'risk';
 }) {
   const toneClass = tone === 'chance'
-    ? 'border-emerald-100 bg-white text-emerald-900'
+    ? 'border-[color:var(--seller-chance)]/22 bg-[var(--seller-chance-soft)] text-[var(--seller-chance)]'
     : tone === 'risk'
-      ? 'border-rose-100 bg-white text-rose-900'
-      : 'border-black/[0.05] bg-white text-slate-700';
+      ? 'border-[color:var(--seller-risk)]/22 bg-[var(--seller-risk-soft)] text-[var(--seller-risk)]'
+      : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] text-[var(--seller-muted)]';
 
   return (
     <div className={`rounded-[18px] border px-4 py-4 ${toneClass}`}>
@@ -399,15 +399,15 @@ function InsightBlock({
   emptyText: string;
 }) {
   return (
-    <section className="rounded-[30px] border border-black/[0.05] bg-white p-6 shadow-sm">
-      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">{title}</div>
+    <section className="seller-panel p-6">
+      <div className="seller-label">{title}</div>
       <div className="mt-4 space-y-3">
         {items.length > 0 ? items.map((entry, index) => (
-          <div key={`${entry}-${index}`} className="rounded-[20px] border border-black/[0.05] bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-600">
+          <div key={`${entry}-${index}`} className="seller-tablet px-4 py-4 text-sm leading-6 text-[var(--seller-muted)]">
             {entry}
           </div>
         )) : (
-          <div className="rounded-[20px] border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-400">
+          <div className="seller-empty px-4 py-10 text-center text-sm">
             {emptyText}
           </div>
         )}
@@ -427,13 +427,13 @@ function MetricCard({
   note: string;
   tone?: 'neutral' | 'chance' | 'risk';
 }) {
-  const valueClass = tone === 'chance' ? 'text-emerald-700' : tone === 'risk' ? 'text-rose-600' : 'text-slate-900';
+  const valueClass = tone === 'chance' ? 'text-[var(--seller-chance)]' : tone === 'risk' ? 'text-[var(--seller-risk)]' : 'text-[var(--seller-ink)]';
 
   return (
-    <div className="rounded-[22px] border border-black/[0.05] bg-white px-4 py-4 shadow-sm">
-      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">{eyebrow}</div>
+    <div className="seller-tablet px-4 py-4">
+      <div className="seller-label">{eyebrow}</div>
       <div className={`mt-2 text-[22px] font-semibold ${valueClass}`}>{value}</div>
-      <div className="mt-1 text-[12px] leading-5 text-slate-500">{note}</div>
+      <div className="seller-body mt-1 text-[12px] leading-5">{note}</div>
     </div>
   );
 }
@@ -446,9 +446,9 @@ function MetricChip({
   value: string;
 }) {
   return (
-    <div className="rounded-[18px] border border-black/[0.05] bg-slate-50 px-4 py-3">
-      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">{label}</div>
-      <div className="mt-1 text-sm font-semibold text-slate-900">{value}</div>
+    <div className="seller-tablet px-4 py-3">
+      <div className="seller-label">{label}</div>
+      <div className="mt-1 text-sm font-semibold text-[var(--seller-ink)]">{value}</div>
     </div>
   );
 }

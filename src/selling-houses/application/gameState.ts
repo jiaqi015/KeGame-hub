@@ -349,6 +349,7 @@ export function createInitialState(snapshot: ScenarioSnapshot, seedInput: RunSee
       topConversion: '',
     },
     currentReport: null,
+    lastDailyTickResult: null,
     marketShadow: createInitialShadowMarket(snapshot),
   };
 
@@ -495,6 +496,13 @@ function normalizeOpportunity(opportunity: any) {
     createdDay: Number(opportunity?.createdDay)
       || Number(opportunity?.history?.[0]?.day)
       || 1,
+    pendingClosingEvaluation: Boolean(opportunity?.pendingClosingEvaluation),
+    pendingClosingStrategyId: typeof opportunity?.pendingClosingStrategyId === 'string'
+      ? opportunity.pendingClosingStrategyId
+      : undefined,
+    pendingClosingRequestedDay: Number.isFinite(opportunity?.pendingClosingRequestedDay)
+      ? Number(opportunity.pendingClosingRequestedDay)
+      : undefined,
   };
 }
 
@@ -685,6 +693,7 @@ export function normalizeLoadedState(parsed: any): GameState | null {
       : [],
     budgetLedger: normalizeBudgetLedger(parsed?.budgetLedger, Number(parsed?.cash) || 0),
     currentReport: parsed?.currentReport || null,
+    lastDailyTickResult: parsed?.lastDailyTickResult || null,
     marketShadow: normalizeShadowMarket(parsed?.marketShadow, snapshot),
   } as GameState;
 

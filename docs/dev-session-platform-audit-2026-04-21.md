@@ -397,6 +397,30 @@
 - 领域对象边界继续混杂
 - 下一轮想做“可回放 / 可解释 / 可扩展”的日结就会越来越难
 
+状态：
+
+- 本轮已完成第一步收口，但还没有彻底做完
+- 成交链：
+  - 已把 `DealClosingEvaluation / ClosedDealRecord` 的构建逻辑从 `actionResolvers.ts` 抽到独立模块 `src/selling-houses/domain/dealClosing.ts`
+  - `ClosedDealRecord` 已补最小归因与快照字段：`caseTitle/customerName/ownerName/maintainerName/marketSnapshot/priceSnapshot`
+  - 已把 `invite-customer-negotiation` 从“动作内立即成交”改为“动作发起价格确认，日结统一落 `ClosedDealRecord`”
+  - 相关验证已补强：`scripts/verify-selling-houses-deal-facts.ts`，并接入 `scripts/verify-platform-smoke.ts`
+- 日结链：
+  - 已新增 `advanceOneDay()`，开始返回最小结构化结果 `DailyTickResult`
+  - `GameState` 现已保留 `lastDailyTickResult`，可供后续日志、回放、Matter 生命周期和 UI 投影消费
+  - `DailyTickResult` 已补上 `dirtyScopes / invariantAlerts` 最小骨架，并开始承载“本次日结增量结果 + 投影重算入口”的职责
+  - `dirtyScopes` 已从最小三项扩展为兼容式实体口径：`cases / opportunities / customers / owners / districts / marketCells / matters`
+  - `dirtyScopes.matters` 已按“刚结算的那一天”收口，不再误把下一天的 day 当成事项脏范围判定基准
+  - 相关验证已新增：`scripts/verify-selling-houses-daily-tick-contract.ts`，并接入 `scripts/verify-platform-smoke.ts`
+- Matter 链：
+  - 已把 Matter 派生逻辑从“每次重算生成全新数组”收成带生命周期合并的 `src/selling-houses/domain/matterEngine.ts`
+  - 同一 matter 现在可保留 `stage/openedAtDay`，源头消失时会自动结算成 `completed`
+  - `invite-customer-negotiation` 发起后，现已可派生出 `scene = negotiation` 的真实事项，并在日结后自动结算
+  - 相关验证已新增：`npm run verify:maintainer-matters`
+- 仍未完成的部分：
+  - Matter 还没有接入完整的 report/diagnose/execute/negotiate 生命周期
+  - `advanceDays / resolveOneDay` 虽然已开始产出结构化结果，但仍然是原地 mutate，不是纯函数日结主链
+
 #### P2-2 selling-houses 场景仓储平台选择职责不一致
 
 现状：

@@ -1,4 +1,5 @@
 import { CASE_STAGES } from './constants.js';
+import { deriveMatters as derivePersistentMatters } from './matterEngine.js';
 import { calculateUrgency, updateCompetitiveness } from './scoring.js';
 import type { Case, DomainEventEntry, DomainEventKind, GameState, GoalTier, MatterEntry, Opportunity, Tone } from './models.js';
 import { getOpportunityPriority, average, clamp } from './utils.js';
@@ -135,7 +136,7 @@ export function updateDerivedState(world: GameState) {
 
   world.schedule = deriveSchedule(world);
   world.priorities = derivePriorities(world);
-  world.matters = deriveMatters(world);
+  world.matters = derivePersistentMatters(world);
   world.metrics = deriveMetrics(world);
   syncAuxiliaryMirrors(world);
 
@@ -243,43 +244,6 @@ function derivePriorities(world: GameState) {
     });
 
   return items.slice(0, 5);
-}
-
-function deriveMatters(world: GameState): MatterEntry[] {
-  const scheduleMatters: MatterEntry[] = world.schedule.map((entry) => ({
-    id: `matter-schedule-${entry.key}`,
-    source: 'schedule',
-    sourceKey: entry.key,
-    caseId: entry.caseId,
-    scene: 'risk_followup',
-    title: entry.title,
-    detail: entry.note,
-    badge: entry.badge,
-    stage: 'pending',
-    template: 'schedule',
-    presentation: 'inline-card',
-    kind: 'case',
-    urgency: entry.urgency,
-    openedAtDay: world.day,
-  }));
-
-  const priorityMatters: MatterEntry[] = world.priorities.map((entry) => ({
-    id: `matter-priority-${entry.key}`,
-    source: 'priority',
-    sourceKey: entry.key,
-    caseId: entry.caseId,
-    scene: entry.kind === 'opportunity' ? 'client_call' : 'report_to_owner',
-    title: entry.title,
-    detail: entry.detail,
-    stage: 'pending',
-    template: entry.kind === 'opportunity' ? 'dialog' : 'form',
-    presentation: 'inline-card',
-    kind: entry.kind,
-    urgency: entry.kind === 'opportunity' ? 72 : 84,
-    openedAtDay: world.day,
-  }));
-
-  return [...scheduleMatters, ...priorityMatters];
 }
 
 function deriveMetrics(world: GameState) {

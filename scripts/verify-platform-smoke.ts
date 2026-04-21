@@ -43,6 +43,16 @@ const steps: Step[] = [
     args: ['run', 'verify:maintainer-projections'],
   },
   {
+    label: 'Maintainer deal fact verify',
+    command: 'npx',
+    args: ['tsx', 'scripts/verify-selling-houses-deal-facts.ts'],
+  },
+  {
+    label: 'Maintainer daily tick contract verify',
+    command: 'npx',
+    args: ['tsx', 'scripts/verify-selling-houses-daily-tick-contract.ts'],
+  },
+  {
     label: 'Maintainer shell contract verify',
     command: 'npm',
     args: ['run', 'verify:maintainer-shell'],

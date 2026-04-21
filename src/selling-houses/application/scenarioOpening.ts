@@ -93,12 +93,29 @@ export function buildFeaturedScenarioPreviews(
   }));
 }
 
+export function buildLocalScenarioOpeningCatalog(
+  difficultyOptions: Pick<DifficultyOption, 'id' | 'featuredSeed'>[],
+): ScenarioOpeningCatalog {
+  const featuredScenarios = buildFeaturedScenarioPreviews(difficultyOptions);
+
+  return {
+    scenarios: [...featuredScenarios.map((entry) => entry.scenario), ...listBuiltInScenarioSummaries()],
+    featuredScenarios,
+  };
+}
+
 export async function loadScenarioOpeningCatalog(
   activationKey: string | undefined,
   difficultyOptions: Pick<DifficultyOption, 'id' | 'featuredSeed'>[],
 ): Promise<ScenarioOpeningCatalog> {
+  const localCatalog = buildLocalScenarioOpeningCatalog(difficultyOptions);
+
+  if (!activationKey) {
+    return localCatalog;
+  }
+
   const baseCatalog = await loadScenarioCatalog(activationKey);
-  const featuredScenarios = buildFeaturedScenarioPreviews(difficultyOptions);
+  const featuredScenarios = localCatalog.featuredScenarios;
   const scenarios = [...featuredScenarios.map((entry) => entry.scenario), ...baseCatalog];
 
   return {

@@ -212,15 +212,23 @@ export async function completeEmailLogin(input: {
   return payload.user as AuthenticatedUserPayload;
 }
 
+let authenticatedUserInFlight: Promise<AuthenticatedUserPayload> | null = null;
+
 export async function fetchAuthenticatedUser(): Promise<AuthenticatedUserPayload> {
-  const response = await fetch('/api/auth?mode=me');
-  const payload = await response.json().catch(() => ({}));
+  authenticatedUserInFlight ??= (async () => {
+    const response = await fetch('/api/auth?mode=me');
+    const payload = await response.json().catch(() => ({}));
 
-  if (!response.ok) {
-    throw new Error(typeof payload?.error === 'string' ? payload.error : '获取用户信息失败。');
-  }
+    if (!response.ok) {
+      throw new Error(typeof payload?.error === 'string' ? payload.error : '获取用户信息失败。');
+    }
 
-  return payload.user as AuthenticatedUserPayload;
+    return payload.user as AuthenticatedUserPayload;
+  })().finally(() => {
+    authenticatedUserInFlight = null;
+  });
+
+  return authenticatedUserInFlight;
 }
 
 export async function logoutCurrentSession(): Promise<void> {

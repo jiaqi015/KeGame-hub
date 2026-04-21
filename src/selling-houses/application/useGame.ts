@@ -37,6 +37,7 @@ import { loadPreferredMaintainerCloudRun } from './cloudResume.js';
 import { buildSellingHousesPlayerContext, type SellingHousesPlayerContextInput } from './playerContext.js';
 import type { FeaturedScenarioPreview } from './scenarioOpening.js';
 import {
+  buildLocalScenarioOpeningCatalog,
   createRandomGeneratedOpeningRef,
   createGeneratedScenarioSeed,
   createStateFromScenarioOpening,
@@ -47,6 +48,28 @@ import {
   advanceGameDays,
   executeGameAction,
 } from './gameTransitions.js';
+
+const cloudHydrationInFlight = new Map<
+  string,
+  Promise<Awaited<ReturnType<typeof loadPreferredMaintainerCloudRun>>>
+>();
+const scenarioCatalogRefreshInFlight = new Map<
+  string,
+  Promise<Awaited<ReturnType<typeof loadScenarioOpeningCatalog>>>
+>();
+
+function dedupeInFlight<T>(cache: Map<string, Promise<T>>, key: string, loader: () => Promise<T>) {
+  const existing = cache.get(key);
+  if (existing) {
+    return existing;
+  }
+
+  const promise = loader().finally(() => {
+    cache.delete(key);
+  });
+  cache.set(key, promise);
+  return promise;
+}
 
 export function useGame(input?: { activationKey?: string } & SellingHousesPlayerContextInput) {
   const activationKey = input?.activationKey;
@@ -83,6 +106,83 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
   useEffect(() => {
     let disposed = false;
 
+    const hydrateFromCloudInBackground = async (
+      localState: GameState | null,
+      localMeta: ReturnType<typeof loadMaintainerCloudMeta>,
+    ) => {
+      if (!activationKey) {
+        return;
+      }
+
+      try {
+        const compatibilityUserId = playerContext.accountId ? undefined : userIdRef.current;
+        const hydrationKey = [
+          activationKey,
+          playerContext.accountId || compatibilityUserId || playerContext.storageScopeKey,
+          localMeta?.runId || 'latest',
+          localMeta?.syncVersion || 0,
+        ].join('|');
+        const preferredCloudRun = await dedupeInFlight(cloudHydrationInFlight, hydrationKey, () => (
+          loadPreferredMaintainerCloudRun({
+            userId: compatibilityUserId,
+            localMeta,
+            fetchRun: async (runId) => fetchMaintainerRun(
+              activationKey,
+              runId,
+              compatibilityUserId,
+            ),
+            listRuns: async (resumeUserId) => {
+              const payload = await fetchMaintainerRuns(activationKey, resumeUserId, 8);
+              return payload.runs;
+            },
+          })
+        ));
+
+        if (disposed || !preferredCloudRun) {
+          return;
+        }
+
+        const { run: cloudRun, meta: nextMeta } = preferredCloudRun;
+        const normalized = normalizeLoadedState(cloudRun.saveData);
+
+        if (normalized && (!localState || cloudRun.syncVersion >= (localMeta?.syncVersion || 0))) {
+          skipCloudSaveRef.current = true;
+          setState(normalized);
+          saveGameState(normalized, playerContext.storageScopeKey);
+          if (normalized.runContext?.difficultyId) {
+            setLastDifficulty(normalized.runContext.difficultyId);
+          }
+        }
+
+        cloudMetaRef.current = nextMeta;
+        saveMaintainerCloudMeta(nextMeta, playerContext.storageScopeKey);
+      } catch (error) {
+        console.warn('Failed to hydrate maintainer cloud save:', error);
+      }
+    };
+
+    const refreshScenarioCatalogInBackground = async () => {
+      if (!activationKey) {
+        return;
+      }
+
+      try {
+        const catalogKey = `${activationKey}|${difficultyOptions.map((option) => option.id).join(',')}`;
+        const nextCatalog = await dedupeInFlight(
+          scenarioCatalogRefreshInFlight,
+          catalogKey,
+          () => loadScenarioOpeningCatalog(activationKey, difficultyOptions),
+        );
+        if (disposed) {
+          return;
+        }
+        setCatalog(nextCatalog.scenarios);
+        setFeaturedScenarios(nextCatalog.featuredScenarios);
+      } catch (error) {
+        console.warn('Failed to refresh scenario catalog:', error);
+      }
+    };
+
     const bootstrap = async () => {
       if (
         playerContext.legacyEmailScopeKey
@@ -95,7 +195,7 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
 
       const userId = getOrCreateMaintainerUserId(runOwnerContext);
       userIdRef.current = userId;
-      const localCatalog = await loadScenarioOpeningCatalog(activationKey, difficultyOptions);
+      const localCatalog = buildLocalScenarioOpeningCatalog(difficultyOptions);
       if (!disposed) {
         setCatalog(localCatalog.scenarios);
         setFeaturedScenarios(localCatalog.featuredScenarios);
@@ -105,39 +205,6 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
       let nextState = localState;
       const localMeta = loadMaintainerCloudMeta(playerContext.storageScopeKey);
       cloudMetaRef.current = localMeta;
-
-      if (activationKey) {
-        try {
-          const preferredCloudRun = await loadPreferredMaintainerCloudRun({
-            userId: playerContext.accountId ? undefined : userId,
-            localMeta,
-            fetchRun: async (runId) => fetchMaintainerRun(
-              activationKey,
-              runId,
-              playerContext.accountId ? undefined : userId,
-            ),
-            listRuns: async (resumeUserId) => {
-              const payload = await fetchMaintainerRuns(activationKey, resumeUserId, 8);
-              return payload.runs;
-            },
-          });
-
-          if (preferredCloudRun) {
-            const { run: cloudRun, meta: nextMeta } = preferredCloudRun;
-            const normalized = normalizeLoadedState(cloudRun.saveData);
-
-            if (normalized && (!localState || cloudRun.syncVersion >= (localMeta?.syncVersion || 0))) {
-              nextState = normalized;
-              saveGameState(normalized, playerContext.storageScopeKey);
-            }
-
-            cloudMetaRef.current = nextMeta;
-            saveMaintainerCloudMeta(nextMeta, playerContext.storageScopeKey);
-          }
-        } catch (error) {
-          console.warn('Failed to hydrate maintainer cloud save:', error);
-        }
-      }
 
       if (disposed) {
         return;
@@ -151,6 +218,8 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
       hydratedRef.current = true;
       setState(nextState);
       setBooting(false);
+      void hydrateFromCloudInBackground(nextState, localMeta);
+      void refreshScenarioCatalogInBackground();
     };
 
     bootstrap();

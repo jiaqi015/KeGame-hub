@@ -89,7 +89,14 @@ export function useAppSession(state: AppState, dispatch: React.Dispatch<AppActio
   // Catalog loading
   useEffect(() => {
     let disposed = false;
-    if (authStatus !== 'authenticated' || !authorizedKey || !allowedWorkspaces.includes('sabrina')) return;
+    if (
+      authStatus !== 'authenticated'
+      || !authorizedKey
+      || activeWorkspace !== 'sabrina'
+      || !allowedWorkspaces.includes('sabrina')
+    ) {
+      return;
+    }
 
     const loadModels = async () => {
       try {
@@ -111,7 +118,7 @@ export function useAppSession(state: AppState, dispatch: React.Dispatch<AppActio
 
     loadModels();
     return () => { disposed = true; };
-  }, [authStatus, authorizedKey, authorizedFetch, allowedWorkspaces, dispatch]);
+  }, [authStatus, authorizedKey, authorizedFetch, allowedWorkspaces, activeWorkspace, dispatch]);
 
   useEffect(() => {
     if (authStatus === 'authenticated' && currentUserEmail) {

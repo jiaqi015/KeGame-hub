@@ -203,6 +203,9 @@ export function createOpportunity(
     budgetMax: chosen.customer.budgetMax,
     priceSensitivity: chosen.customer.priceSensitivity,
     stagnationTicks: 0,
+    pendingClosingEvaluation: false,
+    pendingClosingStrategyId: undefined,
+    pendingClosingRequestedDay: undefined,
     history: [],
     leadSource,
     visibility,
@@ -251,6 +254,9 @@ export function closeOpportunity(
   tone: Tone = 'accent',
 ) {
   opportunity.status = status;
+  opportunity.pendingClosingEvaluation = false;
+  opportunity.pendingClosingStrategyId = undefined;
+  opportunity.pendingClosingRequestedDay = undefined;
   refreshOpportunityLabel(opportunity);
   recordDomainEvent(world, {
     kind: 'opportunity_closed',

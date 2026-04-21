@@ -730,6 +730,26 @@ export interface DealClosingEvaluation {
   supportingReasons: string[];
 }
 
+export interface ClosedDealMarketSnapshot {
+  askPrice: number;
+  marketPrice: number;
+  bottomPrice: number;
+  competitiveness: number;
+  trust: number;
+  d1: number;
+  d2: number;
+  d3: number;
+}
+
+export interface ClosedDealPriceSnapshot {
+  soldPrice: number;
+  askPrice: number;
+  marketPrice: number;
+  bottomPrice: number;
+  discountToAskPct: number;
+  premiumToMarketPct: number;
+}
+
 export interface ClosedDealRecord {
   dealId: string;
   caseId: string;
@@ -749,6 +769,12 @@ export interface ClosedDealRecord {
   closeProbability: number;
   blockingReasons: string[];
   supportingReasons: string[];
+  caseTitle?: string;
+  customerName?: string;
+  ownerName?: string;
+  maintainerName?: string;
+  marketSnapshot?: ClosedDealMarketSnapshot;
+  priceSnapshot?: ClosedDealPriceSnapshot;
 }
 
 export interface Opportunity {
@@ -775,6 +801,9 @@ export interface Opportunity {
   budgetMax: number;
   priceSensitivity: number;
   stagnationTicks: number;
+  pendingClosingEvaluation?: boolean;
+  pendingClosingStrategyId?: string;
+  pendingClosingRequestedDay?: number;
   history: { day: number; stage: string }[];
 }
 
@@ -808,6 +837,37 @@ export interface DailyReport {
     priorities: string[];
   };
   randomEvents: { actor: string; message: string; tone: string }[];
+}
+
+export interface DailyTickResult {
+  day: number;
+  nextDay: number;
+  report: DailyReport | null;
+  emittedEvents: DomainEventEntry[];
+  closedDeals: ClosedDealRecord[];
+  dirtyScopes: DirtyScopeSet;
+  invariantAlerts: TickInvariantAlert[];
+}
+
+export interface DirtyScopeSet {
+  cases: string[];
+  opportunities: string[];
+  customers: string[];
+  owners: string[];
+  districts: string[];
+  marketCells: string[];
+  matters: string[];
+  market: boolean;
+  dashboard: boolean;
+  result: boolean;
+}
+
+export interface TickInvariantAlert {
+  level: 'warning' | 'error';
+  code: string;
+  message: string;
+  caseId?: string;
+  opportunityId?: string;
 }
 
 export type BudgetTransactionKind =
@@ -899,7 +959,7 @@ export interface PriorityEntry {
   caseId: string;
 }
 
-export type MatterSource = 'schedule' | 'priority';
+export type MatterSource = 'schedule' | 'priority' | 'negotiation';
 export type MatterStage = 'pending' | 'in_progress' | 'completed' | 'abandoned';
 export type MatterTemplate = 'dialog' | 'form' | 'schedule' | 'realtime';
 export type MatterPresentation = 'inline-card' | 'detail-page' | 'full-screen';
@@ -931,6 +991,9 @@ export interface MatterEntry {
   kind?: 'case' | 'opportunity';
   urgency?: number;
   openedAtDay: number;
+  updatedAtDay?: number;
+  resolvedAtDay?: number;
+  resolutionSummary?: string;
 }
 
 export interface DerivedMetrics {
@@ -986,5 +1049,6 @@ export interface GameState {
   closedDeals: ClosedDealRecord[];
   metrics: DerivedMetrics;
   currentReport: DailyReport | null;
+  lastDailyTickResult?: DailyTickResult | null;
   marketShadow: ShadowMarketState;
 }

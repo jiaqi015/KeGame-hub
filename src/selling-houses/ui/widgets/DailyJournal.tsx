@@ -45,12 +45,9 @@ export function DailyJournal({ state, selectedCaseId, onSelectCase }: DailyJourn
           <div>
             <div className="seller-label flex items-center gap-2">
               <History size={14} />
-              经营记录
+              流水
             </div>
-            <h3 className="seller-title mt-1 text-lg">今天是怎么走到这里的</h3>
-            <p className="seller-body mt-1 text-[12px]">
-              这里按时间还原发生过的事。先看发生了什么，再回头判断哪里开始变。
-            </p>
+            <h3 className="seller-title mt-1 text-lg">经营流水</h3>
           </div>
           <div className="flex gap-2 overflow-x-auto pb-1">
             {JOURNAL_SCOPES.map((entry) => (
@@ -58,10 +55,10 @@ export function DailyJournal({ state, selectedCaseId, onSelectCase }: DailyJourn
                 key={entry.id}
                 type="button"
                 onClick={() => setScope(entry.id)}
-                className={`shrink-0 rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] ${
+                className={`shrink-0 rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] transition-colors ${
                   scope === entry.id
-                    ? 'bg-slate-900 text-white'
-                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                    ? 'border border-[var(--seller-border-strong)] bg-[var(--seller-ink)] text-[var(--seller-bg)]'
+                    : 'border border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] text-[var(--seller-subtle)] hover:bg-[rgba(255,255,255,0.08)] hover:text-[var(--seller-ink)]'
                 }`}
               >
                 {entry.label}
@@ -70,28 +67,22 @@ export function DailyJournal({ state, selectedCaseId, onSelectCase }: DailyJourn
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <JournalMetricCard
-            icon={<CalendarDays size={15} className="text-slate-500" />}
-            label="当前范围"
+            icon={<CalendarDays size={15} className="text-[var(--seller-subtle)]" />}
+            label="范围"
             value={scope === 'today' ? '今天的变化' : scope === 'selected-case' ? (selectedCase?.title || '当前房源') : '全局时间线'}
             detail={scope === 'today'
-              ? '只看今天已经落账的变化。'
+              ? '只看今天'
               : scope === 'selected-case'
-                ? '只看当前房源被命中的变化。'
-                : '从近到远回看整局经营变化。'}
+                ? '只看当前房源'
+                : '按时间回看'}
           />
           <JournalMetricCard
-            icon={<Newspaper size={15} className="text-sky-600" />}
-            label="本日记录"
+            icon={<Newspaper size={15} className="text-[var(--seller-chance)]" />}
+            label="今日记录"
             value={`${sourceItems.filter((item) => item.day === state.day).length} 条`}
-            detail="今天系统已经留下的事实记录。"
-          />
-          <JournalMetricCard
-            icon={<Target size={15} className="text-emerald-600" />}
-            label="当前房源"
-            value={selectedCase?.title || '暂未指定'}
-            detail={selectedCase ? '可切到“当前房源”只看这套盘的变化。' : '先在房源页点进一套房，再回来追这套盘的时间线。'}
+            detail={selectedCase ? `当前房源：${selectedCase.title}` : '当前未指定房源'}
           />
         </div>
       </div>
@@ -101,15 +92,15 @@ export function DailyJournal({ state, selectedCaseId, onSelectCase }: DailyJourn
           {groupedByDay.map((group) => (
             <section key={group.day} className="seller-panel p-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-9 min-w-9 items-center justify-center rounded-full bg-slate-900 text-[12px] font-bold text-white">
+                <div className="flex h-9 min-w-9 items-center justify-center rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.08)] text-[12px] font-bold text-[var(--seller-ink)]">
                   {group.day}
                 </div>
                 <div className="min-w-0">
-                  <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                  <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--seller-subtle)]">
                     Day {group.day}
                   </div>
-                  <div className="text-sm font-semibold text-slate-900">
-                    {group.day === state.day ? '今天的经营变化' : `第 ${group.day} 天留下的记录`}
+                  <div className="text-sm font-semibold text-[var(--seller-ink)]">
+                    {group.day === state.day ? '今天的变化' : `第 ${group.day} 天记录`}
                   </div>
                 </div>
               </div>
@@ -118,39 +109,33 @@ export function DailyJournal({ state, selectedCaseId, onSelectCase }: DailyJourn
                 {group.items.map((item) => (
                   <article
                     key={item.id}
-                    className={`rounded-[18px] border px-4 py-4 ${
-                      item.tone === 'danger'
-                        ? 'border-rose-200 bg-rose-50/70'
-                        : item.tone === 'success'
-                          ? 'border-emerald-200 bg-emerald-50/70'
-                          : 'border-black/[0.05] bg-slate-50/70'
-                    }`}
+                    className={`rounded-[18px] border px-4 py-4 ${toneSurfaceClass(item.tone)}`}
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                          <span className="rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.05)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--seller-subtle)]">
                             {describeKind(item.kind)}
                           </span>
-                          <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                          <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--seller-subtle)]">
                             {item.actor}
                           </span>
                           {item.caseId && onSelectCase && (
                             <button
                               type="button"
                               onClick={() => onSelectCase(item.caseId!)}
-                              className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white hover:bg-slate-700"
+                              className="seller-button-secondary rounded-full px-2 py-0.5 text-[10px]"
                             >
                               去房源页
                             </button>
                           )}
                         </div>
-                        <div className="mt-2 text-[14px] font-semibold text-slate-900">{item.title}</div>
-                        <p className="mt-1 text-[12px] leading-6 text-slate-600">{item.detail}</p>
+                        <div className="mt-2 text-[14px] font-semibold text-[var(--seller-ink)]">{item.title}</div>
+                        <p className="mt-1 text-[12px] leading-6 text-[var(--seller-muted)]">{item.detail}</p>
                       </div>
                       <div className="flex items-center gap-2">
                         <ToneDot tone={item.tone} />
-                        <span className="text-[10px] font-medium text-slate-400">{item.date?.split('T')[1]?.slice(0, 5) || `Day ${item.day}`}</span>
+                        <span className="text-[10px] font-medium text-[var(--seller-subtle)]">{item.date?.split('T')[1]?.slice(0, 5) || `Day ${item.day}`}</span>
                       </div>
                     </div>
                   </article>
@@ -160,13 +145,13 @@ export function DailyJournal({ state, selectedCaseId, onSelectCase }: DailyJourn
           ))}
         </div>
       ) : (
-        <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50 px-5 py-12 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-sm">
-            <ShieldAlert size={20} className="text-slate-400" />
+        <div className="seller-empty px-5 py-12 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.05)]">
+            <ShieldAlert size={20} className="text-[var(--seller-subtle)]" />
           </div>
-          <div className="mt-3 text-sm font-semibold text-slate-700">这一段暂时还没有记录</div>
-          <p className="mt-1 text-[12px] leading-6 text-slate-500">
-            先推进一天、做一个动作或切一套房回来，这里才会开始形成可回看的时间线。
+          <div className="mt-3 text-sm font-semibold text-[var(--seller-ink)]">这一段还没有记录</div>
+          <p className="mt-1 text-[12px] leading-6 text-[var(--seller-muted)]">
+            先推进一天、做一个动作，或切一套房回来再看。
           </p>
         </div>
       )}
@@ -283,10 +268,10 @@ function describeKind(kind: string) {
 
 function ToneDot({ tone }: { tone: Tone }) {
   const className = tone === 'danger'
-    ? 'bg-rose-500'
+    ? 'bg-[var(--seller-risk)]'
     : tone === 'success'
-      ? 'bg-emerald-500'
-      : 'bg-sky-500';
+      ? 'bg-[var(--seller-chance)]'
+      : 'bg-[var(--seller-accent)]';
 
   return <span className={`inline-flex h-2.5 w-2.5 rounded-full ${className}`} />;
 }
@@ -303,13 +288,25 @@ function JournalMetricCard({
   detail: string;
 }) {
   return (
-    <div className="rounded-[18px] border border-black/[0.05] bg-white px-4 py-4 shadow-sm">
-      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
+    <div className="seller-fact-row rounded-[18px] px-4 py-4 shadow-sm">
+      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--seller-subtle)]">
         {icon}
         {label}
       </div>
-      <div className="mt-2 text-[15px] font-semibold text-slate-900">{value}</div>
-      <p className="mt-1 text-[12px] leading-6 text-slate-500">{detail}</p>
+      <div className="mt-2 text-[15px] font-semibold text-[var(--seller-ink)]">{value}</div>
+      <p className="mt-1 text-[12px] leading-6 text-[var(--seller-muted)]">{detail}</p>
     </div>
   );
+}
+
+function toneSurfaceClass(tone: Tone) {
+  if (tone === 'danger') {
+    return 'border-[color:var(--seller-risk)]/20 bg-[var(--seller-risk-soft)]';
+  }
+
+  if (tone === 'success') {
+    return 'border-[color:var(--seller-chance)]/20 bg-[var(--seller-chance-soft)]';
+  }
+
+  return 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)]';
 }

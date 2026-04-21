@@ -106,6 +106,7 @@ export interface WorkspaceShellSidebarFocusProjection {
   detail: string;
   badges: string[];
   caseId?: string;
+  actionLabel?: string;
 }
 
 export interface WorkspaceShellSidebarCueProjection {
@@ -126,6 +127,7 @@ export interface WorkspaceShellJournalSummaryProjection {
   riskCount: number;
   chanceCount: number;
   brief: string;
+  actionLabel: string;
 }
 
 export interface WorkspaceShellMatterStatProjection {
@@ -141,6 +143,7 @@ export interface WorkspaceShellMatterProjection {
   stats: WorkspaceShellMatterStatProjection[];
   actionItems: WorkspaceShellSidebarCueProjection[];
   intelligenceItems: WorkspaceShellSidebarCueProjection[];
+  primaryCue: WorkspaceShellSidebarCueProjection | null;
 }
 
 export interface WorkspaceShellSidebarProjection {
@@ -422,6 +425,7 @@ function buildMatterProjection(
     ],
     actionItems,
     intelligenceItems,
+    primaryCue: actionItems[0] || intelligenceItems[0] || null,
   };
 }
 
@@ -469,6 +473,7 @@ function buildSidebarJournalSummary(state: GameState): WorkspaceShellJournalSumm
     riskCount,
     chanceCount,
     brief: buildJournalBrief(todayItems.length, yesterdayItems.length, riskCount, chanceCount),
+    actionLabel: '展开记录',
   };
 }
 
@@ -490,6 +495,7 @@ function buildSidebarFocus(
         `信任 ${Math.round(selectedCase.trust)}`,
       ],
       caseId: selectedCase.id,
+      actionLabel: '查看房源',
     };
   }
 
@@ -504,6 +510,7 @@ function buildSidebarFocus(
         `${getClosedDealCount(state)} 套成交`,
         `${activeCount} 套在场`,
       ],
+      actionLabel: '查看结果',
     };
   }
 
@@ -517,6 +524,7 @@ function buildSidebarFocus(
       `精力 ${dashboardProjection.resourceSnapshot.energy}`,
     ],
     caseId: dashboardProjection.todayPriority[0]?.caseId,
+    actionLabel: dashboardProjection.todayPriority[0]?.caseId ? '打开快看' : '查看概览',
   };
 }
 

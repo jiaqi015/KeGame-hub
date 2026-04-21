@@ -11,6 +11,10 @@ const SellingHousesWorkspace = lazy(() =>
   import('../selling-houses/SellingHousesWorkspace').then((module) => ({ default: module.SellingHousesWorkspace })),
 );
 
+export function preloadSellingHousesWorkspace() {
+  return import('../selling-houses/SellingHousesWorkspace');
+}
+
 function PlaceholderWorkspace({
   badge,
   title,

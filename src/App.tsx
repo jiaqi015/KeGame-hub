@@ -26,6 +26,7 @@ import { ComparisonWorkspace } from './components/Comparison/ComparisonWorkspace
 import { PreviewModal } from './components/Common/PreviewModal';
 import { LoadingScene } from './components/Common/LoadingScene';
 import {
+  preloadSellingHousesWorkspace,
   resolvePathnameForWorkspace,
   resolveWorkspaceFromPathname,
   WORKSPACE_REGISTRY_BY_ID,
@@ -71,6 +72,16 @@ export default function App() {
   const activeControllersRef = useRef<AbortController[]>([]);
   const summaryControllerRef = useRef<AbortController | null>(null);
 
+  const prepareWorkspace = (workspace: ActivationWorkspaceId) => {
+    if (workspace !== 'selling-houses') {
+      return;
+    }
+
+    void preloadSellingHousesWorkspace()
+      .then((module) => module.preloadSellingHousesPrimaryViews?.())
+      .catch(() => {});
+  };
+
   useEffect(() => {
     const initialWorkspace = resolveWorkspaceFromPathname(window.location.pathname);
     pendingWorkspaceRef.current = initialWorkspace;
@@ -89,6 +100,36 @@ export default function App() {
       window.removeEventListener('popstate', handlePopState);
     };
   }, []);
+
+  useEffect(() => {
+    const targetWorkspace = pendingWorkspaceRef.current;
+    const shouldPreloadSellingHouses = targetWorkspace === 'selling-houses'
+      || allowedWorkspaces.includes('selling-houses');
+
+    if (!shouldPreloadSellingHouses) {
+      return;
+    }
+
+    const schedulePreload = window.requestIdleCallback
+      ? window.requestIdleCallback(() => {
+        void preloadSellingHousesWorkspace()
+          .then((module) => module.preloadSellingHousesPrimaryViews?.())
+          .catch(() => {});
+      }, { timeout: 1200 })
+      : window.setTimeout(() => {
+        void preloadSellingHousesWorkspace()
+          .then((module) => module.preloadSellingHousesPrimaryViews?.())
+          .catch(() => {});
+      }, 120);
+
+    return () => {
+      if (window.requestIdleCallback && typeof schedulePreload === 'number') {
+        window.cancelIdleCallback(schedulePreload);
+        return;
+      }
+      window.clearTimeout(schedulePreload);
+    };
+  }, [allowedWorkspaces]);
 
   useEffect(() => {
     const expectedPath = resolvePathnameForWorkspace(activeWorkspace);
@@ -419,6 +460,7 @@ export default function App() {
       ) : activeWorkspace === 'hub' ? (
         <WorkspaceHub
           onSelect={handleSelectWorkspace}
+          onPrepareWorkspace={prepareWorkspace}
           onLogout={() => lockApplication('', '')}
           allowedWorkspaces={allowedWorkspaces}
           currentUserNickname={currentUserNickname}
@@ -459,6 +501,7 @@ export default function App() {
       ) : (
         <WorkspaceHub
           onSelect={handleSelectWorkspace}
+          onPrepareWorkspace={prepareWorkspace}
           onLogout={() => lockApplication('', '')}
           allowedWorkspaces={allowedWorkspaces}
           currentUserNickname={currentUserNickname}
@@ -489,7 +532,7 @@ function WorkspaceShellSkeleton() {
   return (
     <LoadingScene
       title="正在进入工作台"
-      subtitle="加载模块、准备界面、同步当前状态…"
+      subtitle="先载入工作区骨架，业务进度进入页面后再按本地优先恢复。"
     />
   );
 }

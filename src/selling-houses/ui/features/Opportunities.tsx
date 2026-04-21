@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { GameState } from '../../domain/models';
 import {
   AlertTriangle,
@@ -32,8 +32,11 @@ type PotentialPoolGroup = {
   soonestDaysLeft: number;
 };
 
+type OpportunityTab = 'active' | 'closing' | 'risk' | 'potential';
+
 export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesProps) {
   const projection = useMemo(() => buildOpportunityListProjection(state), [state]);
+  const [activeTab, setActiveTab] = useState<OpportunityTab>('active');
   const metModels = useMemo(() => buildOpportunityViewModels(state, projection.met), [projection.met, state]);
   const potentialModels = useMemo(() => buildOpportunityViewModels(state, projection.potential), [projection.potential, state]);
   const closingModels = useMemo(() => buildOpportunityViewModels(state, projection.closing), [projection.closing, state]);
@@ -49,9 +52,9 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-3xl">
             <div className="seller-label">客户</div>
-            <h2 className="seller-title mt-2 text-[20px]">客户线在往哪里走</h2>
+            <h2 className="seller-title mt-2 text-[20px]">关系池</h2>
             <p className="seller-body mt-2 text-[13px]">
-              已经接上和见过面的客户进入机会列表；没接上的只作为潜在人群信号。
+              这里只看关系推进。先推已接上的客户，未接上的留在潜在人群。
             </p>
           </div>
 
@@ -70,194 +73,157 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.18fr_0.82fr]">
-        <section className="seller-panel p-4 lg:p-5">
-          <div className="seller-label mb-4 flex items-center gap-2 text-[11px]">
-            <Users size={15} />
-            已接上的客户机会
-          </div>
-          <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-            <StageOverviewCard
-              title="已见过面"
-              count={viewedModels.length}
-              detail="看过房的客户要盯复看、报价和家人决策，别让热度掉下去。"
-              tone="emerald"
-            />
-            <StageOverviewCard
-              title="只接上话"
-              count={contactedModels.length}
-              detail="已经知道是谁，但还没形成现场判断，重点是尽快推进到带看。"
-              tone="slate"
-            />
-          </div>
-          <div className="seller-note mb-4 p-3.5">
-            <div className="grid grid-cols-1 gap-3 text-[11px] text-slate-600 md:grid-cols-4">
-              <div>
-                <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">已接上</div>
-                <div className="mt-1 text-[15px] font-semibold text-slate-900">{projection.realCustomerSummary.contactedCount}</div>
-              </div>
-              <div>
-                <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">进入比较</div>
-                <div className="mt-1 text-[15px] font-semibold text-slate-900">{projection.realCustomerSummary.comparingCount}</div>
-              </div>
-              <div>
-                <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">进入谈价</div>
-                <div className="mt-1 text-[15px] font-semibold text-slate-900">{projection.realCustomerSummary.negotiatingCount}</div>
-              </div>
-              <div>
-                <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">有看房记录</div>
-                <div className="mt-1 text-[15px] font-semibold text-slate-900">{projection.realCustomerSummary.viewedCount}</div>
-              </div>
+      <section className="seller-panel overflow-hidden p-4 lg:p-5">
+        <div className="flex flex-col gap-3 border-b border-[var(--seller-border)] pb-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <div className="seller-label">分区</div>
+            <div className="mt-1 text-[13px] font-semibold text-[var(--seller-ink)]">
+              首屏只保留一类关系，其他放到页内切换。
             </div>
           </div>
-          <div className="space-y-3">
-            {metModels.length > 0 ? metModels.map((model) => (
+          <div className="seller-tabbar">
+            <button type="button" onClick={() => setActiveTab('active')} className={`seller-tab ${activeTab === 'active' ? 'seller-tab-active' : ''}`}>已接上</button>
+            <button type="button" onClick={() => setActiveTab('closing')} className={`seller-tab ${activeTab === 'closing' ? 'seller-tab-active' : ''}`}>临近成交</button>
+            <button type="button" onClick={() => setActiveTab('risk')} className={`seller-tab ${activeTab === 'risk' ? 'seller-tab-active' : ''}`}>掉线风险</button>
+            <button type="button" onClick={() => setActiveTab('potential')} className={`seller-tab ${activeTab === 'potential' ? 'seller-tab-active' : ''}`}>潜在人群</button>
+          </div>
+        </div>
+
+        {activeTab === 'active' && (
+          <div className="mt-4 space-y-4">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <StageOverviewCard
+                title="已见过面"
+                count={viewedModels.length}
+                detail="重点盯复看、报价和家人决策。"
+                tone="emerald"
+              />
+              <StageOverviewCard
+                title="只接上话"
+                count={contactedModels.length}
+                detail="重点推进到带看。"
+                tone="slate"
+              />
+            </div>
+            <div className="seller-note p-3.5">
+              <div className="grid grid-cols-2 gap-3 text-[11px] text-slate-600 md:grid-cols-4">
+                <div>
+                  <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">已接上</div>
+                  <div className="mt-1 text-[15px] font-semibold text-slate-900">{projection.realCustomerSummary.contactedCount}</div>
+                </div>
+                <div>
+                  <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">比较中</div>
+                  <div className="mt-1 text-[15px] font-semibold text-slate-900">{projection.realCustomerSummary.comparingCount}</div>
+                </div>
+                <div>
+                  <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">谈价中</div>
+                  <div className="mt-1 text-[15px] font-semibold text-slate-900">{projection.realCustomerSummary.negotiatingCount}</div>
+                </div>
+                <div>
+                  <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">看过房</div>
+                  <div className="mt-1 text-[15px] font-semibold text-slate-900">{projection.realCustomerSummary.viewedCount}</div>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-3">
+              {metModels.length > 0 ? metModels.map((model) => (
+                <React.Fragment key={model.opportunity.id}>
+                  <CustomerOpportunityCard
+                    model={model}
+                    onOpenCase={() => openCase(model.opportunity.caseId, onSelectCase, onSetView)}
+                  />
+                </React.Fragment>
+              )) : (
+                <EmptyState
+                  title="还没有稳定接上的客户"
+                  detail="先从房源页接出第一批真人客户。"
+                />
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'closing' && (
+          <div className="mt-4 space-y-2.5">
+            {closingModels.length > 0 ? closingModels.map((model) => (
               <React.Fragment key={model.opportunity.id}>
-                <CustomerOpportunityCard
+                <CompactOpportunityCard
                   model={model}
+                  accent="emerald"
+                  titleSuffix="已进入报价或谈判"
                   onOpenCase={() => openCase(model.opportunity.caseId, onSelectCase, onSetView)}
                 />
               </React.Fragment>
             )) : (
               <EmptyState
-                title="还没有稳定接上的客户"
-                detail="现在更多是在养线索。先把有量的房源接出第一批带看，再来这里看推进。"
+                title="还没有客户走到报价或谈判"
+                detail="先把看过房的客户继续往后推。"
+                compact
               />
             )}
           </div>
-        </section>
+        )}
 
-        <section className="space-y-5">
-          <section className="seller-panel p-4 lg:p-5">
-            <div className="seller-label mb-3 flex items-center gap-2 text-[11px]">
-              <HandCoins size={15} />
-              报价与谈判
-            </div>
-            <div className="space-y-2.5">
-              {closingModels.length > 0 ? closingModels.map((model) => (
-                <React.Fragment key={model.opportunity.id}>
-                  <CompactOpportunityCard
-                    model={model}
-                    accent="emerald"
-                    titleSuffix="已经进入报价或谈判"
-                    onOpenCase={() => openCase(model.opportunity.caseId, onSelectCase, onSetView)}
-                  />
-                </React.Fragment>
-              )) : (
-                <EmptyState
-                  title="还没有客户走到报价或谈判"
-                  detail="现在还在经营中段，先把看过房的客户继续往后推。"
-                  compact
+        {activeTab === 'risk' && (
+          <div className="mt-4 space-y-2.5">
+            {atRiskModels.length > 0 ? atRiskModels.map((model) => (
+              <React.Fragment key={model.opportunity.id}>
+                <CompactOpportunityCard
+                  model={model}
+                  accent="rose"
+                  titleSuffix={model.urgencyLabel}
+                  onOpenCase={() => openCase(model.opportunity.caseId, onSelectCase, onSetView)}
                 />
-              )}
-            </div>
-          </section>
-
-          <section className="seller-panel p-4 lg:p-5">
-            <div className="seller-label mb-3 flex items-center gap-2 text-[11px]">
-              <AlertTriangle size={15} />
-              掉线风险
-            </div>
-            <div className="space-y-2.5">
-              {atRiskModels.length > 0 ? atRiskModels.map((model) => (
-                <React.Fragment key={model.opportunity.id}>
-                  <CompactOpportunityCard
-                    model={model}
-                    accent="rose"
-                    titleSuffix={model.urgencyLabel}
-                    onOpenCase={() => openCase(model.opportunity.caseId, onSelectCase, onSetView)}
-                  />
-                </React.Fragment>
-              )) : (
-                <EmptyState
-                  title="短期掉线压力不重"
-                  detail="目前没有大面积掉线，可以把精力更多放在推进见面和复看。"
-                  compact
-                />
-              )}
-            </div>
-          </section>
-        </section>
-      </div>
-
-      <section className="seller-panel p-4 lg:p-5">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <div className="seller-label flex items-center gap-2 text-[11px]">
-              <EyeOff size={15} />
-              潜在人群
-            </div>
-            <p className="seller-body mt-2 max-w-[72ch] text-[12px]">
-              这里看哪套房还在吸人。它只说明哪里还有量、哪类人更容易进来，不当作已经在跟的客户。
-            </p>
-          </div>
-          <span className="seller-chip seller-chip-accent">
-            只看规模和信号
-          </span>
-        </div>
-        <div className="seller-note mt-4 px-4 py-3">
-          <div className="grid grid-cols-1 gap-3 text-[11px] text-slate-600 md:grid-cols-3">
-            <div>
-              <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-sky-700">有信号的房源</div>
-              <div className="mt-1 text-[15px] font-semibold text-slate-900">{projection.potentialSummary.caseCount}</div>
-            </div>
-            <div>
-              <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-sky-700">主要来源渠道</div>
-              <div className="mt-1 text-[15px] font-semibold text-slate-900">{projection.potentialSummary.channelCount}</div>
-            </div>
-            <div>
-              <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-sky-700">最早散开窗口</div>
-              <div className="mt-1 text-[15px] font-semibold text-slate-900">
-                {projection.potentialSummary.soonestDaysLeft === null ? '暂无' : `${Math.max(0, projection.potentialSummary.soonestDaysLeft)} 天`}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {projection.signalCards.length > 0 && (
-          <div className="seller-panel-muted mt-4 p-4">
-            <div className="seller-label mb-3 flex items-center gap-2 text-[10px]">
-              <Sparkles size={14} />
-              商圈信号
-            </div>
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-              {projection.signalCards.map((signal) => (
-                <div key={signal.id} className="rounded-2xl border border-white bg-white/90 p-4 shadow-sm">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h3 className="text-[14px] font-semibold text-slate-900">{signal.title}</h3>
-                      <p className="mt-1 text-[11px] leading-5 text-slate-500">{signal.detail}</p>
-                    </div>
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
-                      {describeSignalStrength(signal.confidence)}
-                    </span>
-                  </div>
-                  <div className="mt-3 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
-                    {signal.district} · 还可观察 {signal.expiresInDays} 天
-                  </div>
-                </div>
-              ))}
-            </div>
+              </React.Fragment>
+            )) : (
+              <EmptyState
+                title="短期掉线压力不重"
+                detail="目前没有大面积掉线。"
+                compact
+              />
+            )}
           </div>
         )}
 
-        <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-2">
-          {potentialPools.length > 0 ? potentialPools.map((pool) => (
-            <React.Fragment key={pool.caseId}>
-              <PotentialPoolCard
-                pool={pool}
-                onOpenCase={() => openCase(pool.caseId, onSelectCase, onSetView)}
-              />
-            </React.Fragment>
-          )) : (
-            <div className="col-span-full">
-              <EmptyState
-                title="潜在人群还没浮出来"
-                detail="当前更像是在守已经接上的客户，新的模糊客群信号还不够明显。"
-              />
+        {activeTab === 'potential' && (
+          <div className="mt-4 space-y-4">
+            <div className="seller-note px-4 py-3">
+              <div className="grid grid-cols-1 gap-3 text-[11px] text-slate-600 md:grid-cols-3">
+                <div>
+                  <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-sky-700">有信号的房源</div>
+                  <div className="mt-1 text-[15px] font-semibold text-slate-900">{projection.potentialSummary.caseCount}</div>
+                </div>
+                <div>
+                  <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-sky-700">主要来源渠道</div>
+                  <div className="mt-1 text-[15px] font-semibold text-slate-900">{projection.potentialSummary.channelCount}</div>
+                </div>
+                <div>
+                  <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-sky-700">最早散开窗口</div>
+                  <div className="mt-1 text-[15px] font-semibold text-slate-900">
+                    {projection.potentialSummary.soonestDaysLeft === null ? '暂无' : `${Math.max(0, projection.potentialSummary.soonestDaysLeft)} 天`}
+                  </div>
+                </div>
+              </div>
             </div>
-          )}
-        </div>
+            <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+              {potentialPools.length > 0 ? potentialPools.map((pool) => (
+                <React.Fragment key={pool.caseId}>
+                  <PotentialPoolCard
+                    pool={pool}
+                    onOpenCase={() => openCase(pool.caseId, onSelectCase, onSetView)}
+                  />
+                </React.Fragment>
+              )) : (
+                <div className="col-span-full">
+                  <EmptyState
+                    title="潜在人群还没浮出来"
+                    detail="新的客群信号还不够明显。"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </section>
     </div>
   );
@@ -326,7 +292,7 @@ function buildPotentialPoolSummary(models: OpportunityViewModel[], channels: str
   const lead = models[0];
   const channelLine = channels.length > 0 ? `主要来自 ${channels.join('、')}` : '来源还在分散';
   const needLine = lead.profileDetail || '需求还没核实';
-  return `${channelLine}。${needLine} 下一步先把可联系人接出来，再判断是否值得重点投入。`;
+  return `${channelLine}。${needLine}`;
 }
 
 function BucketStat({
@@ -341,15 +307,15 @@ function BucketStat({
   tone: 'slate' | 'amber' | 'emerald' | 'rose';
 }) {
   const toneClass = tone === 'emerald'
-    ? 'bg-emerald-50 text-emerald-700'
+    ? 'border-[color:var(--seller-chance)]/22 bg-[var(--seller-chance-soft)] text-[var(--seller-chance)]'
     : tone === 'amber'
-      ? 'bg-amber-50 text-amber-700'
+      ? 'border-[color:var(--seller-accent)]/22 bg-[var(--seller-accent-soft)] text-[var(--seller-accent)]'
       : tone === 'rose'
-        ? 'bg-rose-50 text-rose-700'
-        : 'bg-slate-50 text-slate-700';
+        ? 'border-[color:var(--seller-risk)]/22 bg-[var(--seller-risk-soft)] text-[var(--seller-risk)]'
+        : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] text-[var(--seller-ink)]';
 
   return (
-    <div className={`rounded-2xl px-4 py-3 ${toneClass}`}>
+    <div className={`rounded-2xl border px-4 py-3 ${toneClass}`}>
       <div className="text-[10px] font-bold uppercase tracking-[0.16em] opacity-70">{label}</div>
       <div className="mt-1 text-[20px] font-bold">{value}</div>
       <div className="mt-1 text-[11px] leading-5 opacity-70">{summary}</div>
@@ -369,16 +335,16 @@ function StageOverviewCard({
   tone: 'slate' | 'emerald';
 }) {
   const toneClass = tone === 'emerald'
-    ? 'border-emerald-200 bg-emerald-50/60'
-    : 'border-slate-200 bg-slate-50/80';
+    ? 'border-[color:var(--seller-chance)]/22 bg-[var(--seller-chance-soft)]'
+    : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)]';
 
   return (
     <div className={`rounded-[20px] border px-4 py-4 ${toneClass}`}>
       <div className="flex items-center justify-between gap-3">
-        <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">{title}</div>
-        <div className="text-[22px] font-bold text-slate-900">{count}</div>
+        <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--seller-subtle)]">{title}</div>
+        <div className="text-[22px] font-bold text-[var(--seller-ink)]">{count}</div>
       </div>
-      <p className="mt-2 text-[12px] leading-6 text-slate-600">{detail}</p>
+      <p className="mt-2 text-[12px] leading-6 text-[var(--seller-muted)]">{detail}</p>
     </div>
   );
 }
@@ -397,28 +363,28 @@ function CustomerOpportunityCard({
     <button
       type="button"
       onClick={onOpenCase}
-      className="w-full rounded-[22px] border border-black/[0.05] bg-slate-50/70 px-4 py-4 text-left transition hover:border-black/[0.08] hover:bg-white"
+      className="w-full rounded-[22px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-4 py-4 text-left transition hover:border-[var(--seller-border-strong)] hover:bg-[rgba(255,255,255,0.05)]"
     >
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <strong className="text-[15px] font-semibold text-slate-900">{model.opportunity.customerName}</strong>
-              <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
-                {model.opportunityStatusLabel}
-              </span>
-              {comparing && (
-                <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-amber-700">
-                  比较中
+                <strong className="text-[15px] font-semibold text-[var(--seller-ink)]">{model.opportunity.customerName}</strong>
+                <span className="rounded-full bg-[rgba(255,255,255,0.05)] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">
+                  {model.opportunityStatusLabel}
                 </span>
-              )}
-              {atRisk && (
-                <span className="rounded-full bg-rose-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-rose-700">
-                  掉线风险
-                </span>
-              )}
-            </div>
-            <p className="mt-1 text-[12px] leading-6 text-slate-500">{model.caseItem?.title || '未知房源'} · {model.opportunity.channelName}</p>
+                {comparing && (
+                  <span className="rounded-full bg-[var(--seller-accent-soft)] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-accent)]">
+                    比较中
+                  </span>
+                )}
+                {atRisk && (
+                  <span className="rounded-full bg-[var(--seller-risk-soft)] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-risk)]">
+                    掉线风险
+                  </span>
+                )}
+              </div>
+            <p className="mt-1 text-[12px] leading-6 text-[var(--seller-subtle)]">{model.caseItem?.title || '未知房源'} · {model.opportunity.channelName}</p>
           </div>
 
           <div className="grid grid-cols-3 gap-2 text-right lg:min-w-[240px]">
@@ -482,8 +448,8 @@ function CompactOpportunityCard({
   onOpenCase: () => void;
 }) {
   const cardClass = accent === 'emerald'
-    ? 'border-emerald-200 bg-emerald-50/70'
-    : 'border-rose-200 bg-rose-50/70';
+    ? 'border-[color:var(--seller-chance)]/22 bg-[var(--seller-chance-soft)]'
+    : 'border-[color:var(--seller-risk)]/22 bg-[var(--seller-risk-soft)]';
 
   return (
     <button
@@ -493,13 +459,13 @@ function CompactOpportunityCard({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[13px] font-semibold text-slate-800">{model.opportunity.customerName}</div>
-          <p className="mt-1 text-[11px] leading-5 text-slate-500">
+          <div className="text-[13px] font-semibold text-[var(--seller-ink)]">{model.opportunity.customerName}</div>
+          <p className="mt-1 text-[11px] leading-5 text-[var(--seller-subtle)]">
             {model.caseItem?.title || '未知房源'} · {titleSuffix}
           </p>
-          <p className="mt-1 text-[11px] leading-5 text-slate-500">{model.nextStep}</p>
+          <p className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">{model.nextStep}</p>
         </div>
-        <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-slate-500">
+        <span className="rounded-full bg-[rgba(255,255,255,0.05)] px-2 py-0.5 text-[10px] font-bold text-[var(--seller-subtle)]">
           {model.opportunity.stageLabel}
         </span>
       </div>
@@ -518,18 +484,18 @@ function PotentialPoolCard({
     <button
       type="button"
       onClick={onOpenCase}
-      className="group rounded-[22px] border border-amber-100 bg-amber-50/40 p-4 text-left shadow-sm transition hover:border-amber-200 hover:bg-white"
+      className="group rounded-[22px] border border-[color:var(--seller-accent)]/22 bg-[var(--seller-accent-soft)] p-4 text-left shadow-sm transition hover:border-[color:var(--seller-accent)]/35 hover:bg-[rgba(255,255,255,0.05)]"
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-amber-700">
+          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-accent)]">
             <EyeOff size={14} />
             潜在人群池
           </div>
-          <h3 className="mt-2 text-[16px] font-semibold text-slate-900">{pool.title}</h3>
-          <p className="mt-1 text-[11px] leading-5 text-slate-500">{pool.district} · {pool.signalCount} 组还没接上的人</p>
+          <h3 className="mt-2 text-[16px] font-semibold text-[var(--seller-ink)]">{pool.title}</h3>
+          <p className="mt-1 text-[11px] leading-5 text-[var(--seller-subtle)]">{pool.district} · {pool.signalCount} 组还没接上的人</p>
         </div>
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-amber-600 transition group-hover:bg-amber-500 group-hover:text-white">
+        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[rgba(255,255,255,0.08)] text-[var(--seller-accent)] transition group-hover:bg-[var(--seller-accent)] group-hover:text-[var(--seller-bg)]">
           <ArrowRight size={15} />
         </div>
       </div>
@@ -549,14 +515,14 @@ function PotentialPoolCard({
           tone="amber"
           compact
         />
-        <div className="flex flex-wrap gap-2 text-[10px] font-semibold text-slate-500">
+      <div className="flex flex-wrap gap-2 text-[10px] font-semibold text-[var(--seller-subtle)]">
           {pool.channels.map((channel) => (
-            <span key={channel} className="rounded-full bg-white px-2.5 py-1">
+            <span key={channel} className="rounded-full bg-[rgba(255,255,255,0.06)] px-2.5 py-1">
               {channel}
             </span>
           ))}
           {pool.channels.length === 0 && (
-            <span className="rounded-full bg-white px-2.5 py-1">
+            <span className="rounded-full bg-[rgba(255,255,255,0.06)] px-2.5 py-1">
               来源待补
             </span>
           )}
@@ -582,29 +548,23 @@ function StatusPanel({
   compact?: boolean;
 }) {
   const toneClass = tone === 'emerald'
-    ? 'border-emerald-100 bg-emerald-50/60'
+    ? 'border-[color:var(--seller-chance)]/22 bg-[var(--seller-chance-soft)]'
     : tone === 'amber'
-      ? 'border-amber-100 bg-amber-50/60'
+      ? 'border-[color:var(--seller-accent)]/22 bg-[var(--seller-accent-soft)]'
       : tone === 'rose'
-        ? 'border-rose-100 bg-rose-50/60'
-        : 'border-black/[0.05] bg-white';
+        ? 'border-[color:var(--seller-risk)]/22 bg-[var(--seller-risk-soft)]'
+        : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)]';
 
   return (
     <div className={`rounded-[18px] border px-3.5 ${compact ? 'py-3' : 'py-3.5'} ${toneClass}`}>
-      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
+      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">
         {icon}
         {label}
       </div>
-      <div className="mt-2 text-[13px] font-semibold leading-5 text-slate-900">{title}</div>
-      <p className="mt-2 text-[11px] leading-5 text-slate-500">{detail}</p>
+      <div className="mt-2 text-[13px] font-semibold leading-5 text-[var(--seller-ink)]">{title}</div>
+      <p className="mt-2 text-[11px] leading-5 text-[var(--seller-muted)]">{detail}</p>
     </div>
   );
-}
-
-function describeSignalStrength(confidence: number) {
-  if (confidence >= 80) return '信号强';
-  if (confidence >= 60) return '信号中';
-  return '信号弱';
 }
 
 function InlineFlag({
@@ -642,10 +602,10 @@ function MetricPill({
   tone: 'slate' | 'amber' | 'rose';
 }) {
   const toneClass = tone === 'amber'
-    ? 'bg-amber-50 text-amber-700'
+    ? 'bg-[var(--seller-accent-soft)] text-[var(--seller-accent)]'
     : tone === 'rose'
-      ? 'bg-rose-50 text-rose-700'
-      : 'bg-white text-slate-700';
+      ? 'bg-[var(--seller-risk-soft)] text-[var(--seller-risk)]'
+      : 'bg-[rgba(255,255,255,0.06)] text-[var(--seller-ink)]';
 
   return (
     <div className={`rounded-xl px-2.5 py-2 ${toneClass}`}>
@@ -665,11 +625,11 @@ function PotentialMetric({
   suffix?: string;
 }) {
   return (
-    <div className="rounded-xl bg-white px-3 py-2.5">
-      <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">{label}</div>
-      <div className="mt-1 text-[14px] font-semibold text-slate-900">
+    <div className="rounded-xl border border-[var(--seller-border)] bg-[rgba(255,255,255,0.05)] px-3 py-2.5">
+      <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">{label}</div>
+      <div className="mt-1 text-[14px] font-semibold text-[var(--seller-ink)]">
         {value}
-        {suffix ? <span className="ml-1 text-[11px] font-medium text-slate-400">{suffix}</span> : null}
+        {suffix ? <span className="ml-1 text-[11px] font-medium text-[var(--seller-subtle)]">{suffix}</span> : null}
       </div>
     </div>
   );
@@ -685,10 +645,10 @@ function EmptyState({
   compact?: boolean;
 }) {
   return (
-    <div className={`rounded-[22px] border border-dashed border-slate-200 bg-slate-50 text-center text-slate-400 ${compact ? 'px-4 py-6' : 'px-4 py-10'}`}>
+    <div className={`seller-empty rounded-[22px] border text-center ${compact ? 'px-4 py-6' : 'px-4 py-10'}`}>
       <Gauge size={compact ? 20 : 28} className="mx-auto mb-3 opacity-25" />
-      <div className="text-[13px] font-semibold text-slate-500">{title}</div>
-      <p className="mx-auto mt-2 max-w-[42ch] text-[12px] leading-6 text-slate-400">{detail}</p>
+      <div className="text-[13px] font-semibold text-[var(--seller-muted)]">{title}</div>
+      <p className="mx-auto mt-2 max-w-[42ch] text-[12px] leading-6 text-[var(--seller-subtle)]">{detail}</p>
     </div>
   );
 }

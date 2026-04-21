@@ -122,6 +122,20 @@ select {
   box-shadow: var(--seller-shadow-md);
 }
 
+.seller-shell-body {
+  position: relative;
+}
+
+.seller-right-rail {
+  border-left: 1px solid color-mix(in srgb, var(--seller-border) 76%, white 24%);
+  background:
+    linear-gradient(180deg, rgba(11, 17, 24, 0.86) 0%, rgba(9, 16, 24, 0.96) 100%);
+}
+
+.seller-right-rail > * {
+  flex-shrink: 0;
+}
+
 .seller-workbench-line {
   border-color: color-mix(in srgb, var(--seller-border) 76%, white 24%);
 }
@@ -584,18 +598,6 @@ select {
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
-  }
-}
-
-@keyframes loading-slide {
-  0% {
-    transform: translateX(-100%);
-  }
-  50% {
-    transform: translateX(80%);
-  }
-  100% {
-    transform: translateX(220%);
   }
 }
 

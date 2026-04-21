@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ArrowRightLeft, History, Lightbulb, ShieldAlert, Target, TrendingUp, Users } from 'lucide-react';
 import type { GameState } from '../../domain/models';
 import {
@@ -10,8 +10,11 @@ interface ReviewProps {
   state: GameState;
 }
 
+type ReviewTab = 'turning' | 'brief' | 'customer' | 'weekly';
+
 export function Review({ state }: ReviewProps) {
   const projection = useMemo(() => buildReviewProjection(state), [state]);
+  const [activeTab, setActiveTab] = useState<ReviewTab>('turning');
   const leadTurningPoint = projection.turningPoints[0];
   const supportTurningPoint = projection.turningPoints[1];
   const riskTurningPoint = projection.turningPoints.find((event) => event.tone === 'risk');
@@ -56,11 +59,10 @@ export function Review({ state }: ReviewProps) {
             <div className="seller-label">经营回看</div>
             <h3 className="seller-title mt-2 text-[22px]">{projection.hero.title}</h3>
             <p className="seller-body mt-2 text-sm">{projection.hero.subtitle}</p>
-            <p className="seller-body mt-3 text-[13px]">{projection.hero.note}</p>
           </div>
           <div className="seller-tablet px-4 py-4">
             <div className="seller-label">回看范围</div>
-            <div className="mt-2 text-sm font-semibold text-slate-900">
+            <div className="mt-2 text-sm font-semibold text-[var(--seller-ink)]">
               {projection.turningPoints.length} 条关键变化 · {projection.weeklyReviews.length} 条周沉淀
             </div>
           </div>
@@ -68,65 +70,171 @@ export function Review({ state }: ReviewProps) {
 
         <div className="mt-5 grid grid-cols-1 gap-3 lg:grid-cols-3">
           <TurningSummaryCard
-            label="先从哪开始变"
+            label="先变的点"
             title={leadTurningPoint?.title || '还没有形成主变化'}
-            detail={leadTurningPoint?.detail || '先把这局往前推进几天，经营回看才会开始清楚。'}
+            detail={leadTurningPoint?.detail || '再推进几天会更清楚。'}
             tone={leadTurningPoint?.tone || 'neutral'}
           />
           <TurningSummaryCard
-            label="哪一步开始顺"
+            label="转好的点"
             title={chanceTurningPoint?.title || '往前走的机会还不明显'}
-            detail={chanceTurningPoint?.detail || '说明这局目前更多还是补动作和守住客户，还没有明显起量点。'}
+            detail={chanceTurningPoint?.detail || '目前还没有明显起量点。'}
             tone={chanceTurningPoint?.tone || 'neutral'}
           />
           <TurningSummaryCard
-            label="哪一步开始出问题"
+            label="转差的点"
             title={riskTurningPoint?.title || '暂时没有集中失手点'}
-            detail={riskTurningPoint?.detail || '说明当前还没有一条明显把局面拖坏的风险线。'}
+            detail={riskTurningPoint?.detail || '当前还没有集中风险线。'}
             tone={riskTurningPoint?.tone || 'neutral'}
           />
         </div>
       </section>
 
       <section className="seller-panel-muted p-4 lg:p-5">
-        <div className="mb-4 flex items-center gap-3">
-          <TrendingUp size={18} className="text-slate-700" />
-          <div>
-            <h4 className="text-[18px] font-semibold text-slate-900">这局是怎么走到现在的</h4>
-            <p className="seller-body mt-1 text-sm">先看转折，再看它具体压到了哪里。</p>
+        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-3">
+            <TrendingUp size={18} className="text-[var(--seller-accent)]" />
+            <div>
+              <h4 className="text-[18px] font-semibold text-[var(--seller-ink)]">回看主线</h4>
+              <p className="seller-body mt-1 text-sm">先看结果，再切到对应明细。</p>
+            </div>
+          </div>
+          <div className="seller-tabbar">
+            <button
+              type="button"
+              onClick={() => setActiveTab('turning')}
+              className={`seller-tab ${activeTab === 'turning' ? 'seller-tab-active' : ''}`}
+            >
+              关键变化
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('brief')}
+              className={`seller-tab ${activeTab === 'brief' ? 'seller-tab-active' : ''}`}
+            >
+              昨日摘要
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('customer')}
+              className={`seller-tab ${activeTab === 'customer' ? 'seller-tab-active' : ''}`}
+            >
+              客户线
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('weekly')}
+              className={`seller-tab ${activeTab === 'weekly' ? 'seller-tab-active' : ''}`}
+            >
+              周沉淀
+            </button>
           </div>
         </div>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.05fr_0.95fr]">
-          <div className="rounded-[22px] border border-black/[0.05] bg-white px-5 py-5">
-            <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">最早出问题或起量的地方</div>
-            <div className="mt-2 text-[18px] font-semibold text-slate-900">
-              {leadTurningPoint?.title || '还没有形成足够清晰的转折点'}
-            </div>
-            <div className="mt-2 text-[13px] leading-6 text-slate-600">
-              {leadTurningPoint?.detail || '这局目前还处在铺垫阶段，后面几天才会慢慢看清。'}
-            </div>
-            {leadTurningPoint && (
-              <div className="mt-4 inline-flex rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
-                Day {leadTurningPoint.day} · {leadTurningPoint.label}
+
+        {activeTab === 'turning' && (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.05fr_0.95fr]">
+            <div className="seller-tablet px-5 py-5">
+              <div className="seller-label">主变化</div>
+              <div className="mt-2 text-[18px] font-semibold text-[var(--seller-ink)]">
+                {leadTurningPoint?.title || '还没有形成足够清晰的转折点'}
               </div>
+              <div className="seller-body mt-2 text-[13px] leading-6">
+                {leadTurningPoint?.detail || '这局目前还处在铺垫阶段。'}
+              </div>
+              {leadTurningPoint && (
+                <div className="seller-chip mt-4 inline-flex">
+                  Day {leadTurningPoint.day} · {leadTurningPoint.label}
+                </div>
+              )}
+            </div>
+            <div className="space-y-3">
+              {narrativeFlow.map((item) => (
+                <React.Fragment key={item.label}>
+                  <NarrativeNote title={item.label} body={`${item.title}。${item.detail}`} tone={item.tone} />
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'brief' && (
+          <>
+            {projection.dailyBrief ? (
+              <div className="space-y-4">
+                <div className="seller-note px-4 py-4">
+                  <div className="seller-label">{projection.dailyBrief.title}</div>
+                  <div className="mt-2 text-sm font-semibold text-[var(--seller-ink)]">{projection.dailyBrief.headline}</div>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <ReviewListBlock title="指标" items={projection.dailyBrief.metricNotes} emptyText="昨天没有明显指标变化。" />
+                  <ReviewListBlock title="市场" items={projection.dailyBrief.marketNews} emptyText="昨天没有新增市场消息。" />
+                  <ReviewListBlock title="聚焦房源" items={projection.dailyBrief.focusCases} emptyText="今天还没有聚焦房源。" />
+                  <ReviewListBlock title="先处理" items={projection.dailyBrief.priorities} emptyText="今天还没有生成优先事项。" />
+                </div>
+              </div>
+            ) : (
+              <EmptyReviewState text="当前还没有昨日简报。" />
+            )}
+          </>
+        )}
+
+        {activeTab === 'customer' && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <ReviewMetric label="推进中" value={`${projection.customer.engaged}`} tone="emerald" />
+              <ReviewMetric label="比较中" value={`${projection.customer.comparing}`} tone="amber" />
+              <ReviewMetric label="掉线风险" value={`${projection.customer.atRisk}`} tone="rose" />
+              <ReviewMetric label="被带偏" value={`${projection.customer.rivalPulled}`} tone="slate" />
+            </div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <ReviewCallout
+                icon={<Target size={16} />}
+                title="接客最稳"
+                body={projection.customer.strongestCaseTitle ? `${projection.customer.strongestCaseTitle} 现在最容易接住客户。` : '暂时没有明显最稳的一套。'}
+              />
+              <ReviewCallout
+                icon={<ArrowRightLeft size={16} />}
+                title="最常被比"
+                body={projection.customer.mostComparedCaseTitle ? `${projection.customer.mostComparedCaseTitle} 最常被客户拿去和别的盘一起比。` : '目前没有明显的比盘焦点。'}
+              />
+              <ReviewCallout
+                icon={<ShieldAlert size={16} />}
+                title="最容易掉客"
+                body={projection.customer.mostAtRiskCaseTitle ? `${projection.customer.mostAtRiskCaseTitle} 挂着最多容易掉线的客户。` : '目前没有特别集中的掉线风险房源。'}
+              />
+            </div>
+            <div className="seller-note px-4 py-4 text-sm leading-6">
+              {projection.customer.summary}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'weekly' && (
+          <div className="space-y-3">
+            {projection.weeklyReviews.length > 0 ? projection.weeklyReviews.map((entry) => (
+              <div key={entry.id} className="seller-tablet px-4 py-4">
+                <div className="text-sm font-semibold text-[var(--seller-ink)]">{entry.title}</div>
+                <div className="seller-body mt-2 text-[12px] leading-6">{entry.note}</div>
+                <div className="seller-note mt-3 px-3 py-3">
+                  <div className="seller-label">留下的话</div>
+                  <div className="mt-1 text-[12px] leading-6 text-[var(--seller-muted)]">
+                    {entry.suggestion}
+                  </div>
+                </div>
+              </div>
+            )) : (
+              <EmptyReviewState text="这局还没跑满一周。" />
             )}
           </div>
-          <div className="space-y-3">
-            {narrativeFlow.map((item) => (
-              <React.Fragment key={item.label}>
-                <NarrativeNote title={item.label} body={`${item.title}。${item.detail}`} tone={item.tone} />
-              </React.Fragment>
-            ))}
-          </div>
-        </div>
+        )}
       </section>
 
       <section className="seller-panel p-4 lg:p-5">
         <div className="mb-4 flex items-center gap-3">
-          <Target size={18} className="text-emerald-600" />
+          <Target size={18} className="text-[var(--seller-chance)]" />
           <div>
-            <h4 className="text-[18px] font-semibold text-slate-900">关键变化</h4>
-            <p className="seller-body mt-1 text-sm">只放真正改变局面的点，不把所有记录都堆在这里。</p>
+            <h4 className="text-[18px] font-semibold text-[var(--seller-ink)]">关键变化</h4>
+            <p className="seller-body mt-1 text-sm">只放改变局面的点。</p>
           </div>
         </div>
         <div className="space-y-3">
@@ -138,49 +246,13 @@ export function Review({ state }: ReviewProps) {
         </div>
       </section>
 
-      <section className="seller-panel p-4 lg:p-5">
-        <div className="mb-4 flex items-center gap-3">
-          <Users size={18} className="text-sky-600" />
-          <div>
-            <h4 className="text-[18px] font-semibold text-slate-900">客户线怎么变的</h4>
-            <p className="seller-body mt-1 text-sm">先看客户有没有接住，再看哪套房在吸客、丢客、被带偏。</p>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <ReviewMetric label="推进中" value={`${projection.customer.engaged}`} tone="emerald" />
-          <ReviewMetric label="比较中" value={`${projection.customer.comparing}`} tone="amber" />
-          <ReviewMetric label="掉线风险" value={`${projection.customer.atRisk}`} tone="rose" />
-          <ReviewMetric label="被带偏" value={`${projection.customer.rivalPulled}`} tone="slate" />
-        </div>
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <ReviewCallout
-            icon={<Target size={16} />}
-            title="接客最稳"
-            body={projection.customer.strongestCaseTitle ? `${projection.customer.strongestCaseTitle} 现在最容易接住客户。` : '暂时没有明显最稳的一套。'}
-          />
-          <ReviewCallout
-            icon={<ArrowRightLeft size={16} />}
-            title="最常被比"
-            body={projection.customer.mostComparedCaseTitle ? `${projection.customer.mostComparedCaseTitle} 最常被客户拿去和别的盘一起比。` : '目前没有明显的比盘焦点。'}
-          />
-          <ReviewCallout
-            icon={<ShieldAlert size={16} />}
-            title="最容易掉客"
-            body={projection.customer.mostAtRiskCaseTitle ? `${projection.customer.mostAtRiskCaseTitle} 挂着最多容易掉线的客户。` : '目前没有特别集中的掉线风险房源。'}
-          />
-        </div>
-        <div className="mt-4 rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-600">
-          {projection.customer.summary}
-        </div>
-      </section>
-
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.02fr_0.98fr]">
         <section className="seller-panel p-4 lg:p-5">
           <div className="mb-4 flex items-center gap-3">
-            <History size={18} className="text-rose-500" />
+            <History size={18} className="text-[var(--seller-risk)]" />
             <div>
-              <h4 className="text-[18px] font-semibold text-slate-900">补充变化</h4>
-              <p className="seller-body mt-1 text-sm">主线之外，再看哪些变化在补强，哪些变化在拖慢。</p>
+              <h4 className="text-[18px] font-semibold text-[var(--seller-ink)]">补充变化</h4>
+              <p className="seller-body mt-1 text-sm">主线之外的补充变化。</p>
             </div>
           </div>
           <div className="space-y-3">
@@ -195,51 +267,32 @@ export function Review({ state }: ReviewProps) {
         <section className="space-y-6">
           <section className="seller-panel p-4 lg:p-5">
             <div className="mb-4 flex items-center gap-3">
-              <Lightbulb size={18} className="text-sky-600" />
+              <Lightbulb size={18} className="text-[var(--seller-accent)]" />
               <div>
-              <h4 className="text-[18px] font-semibold text-slate-900">昨日摘要</h4>
-              <p className="mt-1 text-sm text-slate-500">把昨天最关键的变化压成一眼能扫完的版本，方便你接回这局主线。</p>
+                <h4 className="text-[18px] font-semibold text-[var(--seller-ink)]">回看提示</h4>
+                <p className="seller-body mt-1 text-sm">{projection.hero.note}</p>
               </div>
             </div>
-            {projection.dailyBrief ? (
-              <div className="space-y-4">
-                <div className="rounded-[20px] border border-black/[0.05] bg-slate-50 px-4 py-4">
-                  <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">{projection.dailyBrief.title}</div>
-                  <div className="mt-2 text-sm font-semibold text-slate-900">{projection.dailyBrief.headline}</div>
-                </div>
-                <ReviewListBlock title="指标变化" items={projection.dailyBrief.metricNotes} emptyText="昨天没有明显指标变化。" />
-                <ReviewListBlock title="市场变化" items={projection.dailyBrief.marketNews} emptyText="昨天没有新增市场消息。" />
-                <ReviewListBlock title="今日聚焦" items={projection.dailyBrief.focusCases} emptyText="今天还没有聚焦房源。" />
-                <ReviewListBlock title="今日先办" items={projection.dailyBrief.priorities} emptyText="今天还没有生成优先事项。" />
-              </div>
-            ) : (
-              <EmptyReviewState text="当前还没有昨日简报，先把今天推进完。" />
-            )}
+            <div className="seller-note px-4 py-4 text-sm leading-6">
+              {projection.turningPoints.length > 0
+                ? `先从 ${projection.turningPoints[0]?.label || '关键变化'} 看起，再切去昨日摘要或客户线。`
+                : '先继续推进几天，再回来回看。'}
+            </div>
           </section>
 
           <section className="seller-panel p-4 lg:p-5">
             <div className="mb-4 flex items-center gap-3">
-              <History size={18} className="text-slate-500" />
+              <Users size={18} className="text-[var(--seller-subtle)]" />
               <div>
-                <h4 className="text-[18px] font-semibold text-slate-900">周度沉淀</h4>
-                <p className="mt-1 text-sm text-slate-500">一周一条，留住已经跑出来的经营判断，不把它们散在每天变化里。</p>
+                <h4 className="text-[18px] font-semibold text-[var(--seller-ink)]">客户摘要</h4>
+                <p className="seller-body mt-1 text-sm">回看里只留结论。</p>
               </div>
             </div>
-            <div className="space-y-3">
-              {projection.weeklyReviews.length > 0 ? projection.weeklyReviews.map((entry) => (
-                <div key={entry.id} className="rounded-[20px] border border-black/[0.05] bg-slate-50 px-4 py-4">
-                  <div className="text-sm font-semibold text-slate-900">{entry.title}</div>
-                  <div className="mt-2 text-[12px] leading-6 text-slate-600">{entry.note}</div>
-                  <div className="mt-3 rounded-[16px] border border-black/[0.05] bg-white px-3 py-3">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">这周留下的话</div>
-                    <div className="mt-1 text-[12px] leading-6 text-slate-700">
-                      {entry.suggestion}
-                    </div>
-                  </div>
-                </div>
-              )) : (
-                <EmptyReviewState text="这局还没跑满一周，后面推进几天这里就会开始沉淀。" />
-              )}
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <ReviewMetric label="推进中" value={`${projection.customer.engaged}`} tone="emerald" />
+              <ReviewMetric label="比较中" value={`${projection.customer.comparing}`} tone="amber" />
+              <ReviewMetric label="掉线风险" value={`${projection.customer.atRisk}`} tone="rose" />
+              <ReviewMetric label="被带偏" value={`${projection.customer.rivalPulled}`} tone="slate" />
             </div>
           </section>
         </section>
@@ -260,16 +313,16 @@ function TurningSummaryCard({
   tone: 'neutral' | 'chance' | 'risk';
 }) {
   const toneClass = tone === 'chance'
-    ? 'border-emerald-100 bg-emerald-50/80'
+    ? 'border-[color:var(--seller-chance)]/22 bg-[var(--seller-chance-soft)]'
     : tone === 'risk'
-      ? 'border-rose-100 bg-rose-50/80'
-      : 'border-black/[0.05] bg-slate-50';
+      ? 'border-[color:var(--seller-risk)]/22 bg-[var(--seller-risk-soft)]'
+      : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)]';
 
   return (
     <div className={`rounded-[20px] border px-4 py-4 ${toneClass}`}>
-      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">{label}</div>
-      <div className="mt-2 text-[15px] font-semibold text-slate-900">{title}</div>
-      <div className="mt-2 text-[12px] leading-6 text-slate-600">{detail}</div>
+      <div className="seller-label">{label}</div>
+      <div className="mt-2 text-[15px] font-semibold text-[var(--seller-ink)]">{title}</div>
+      <div className="seller-body mt-2 text-[12px] leading-6">{detail}</div>
     </div>
   );
 }
@@ -284,43 +337,43 @@ function NarrativeNote({
   tone?: 'neutral' | 'chance' | 'risk';
 }) {
   const toneClass = tone === 'chance'
-    ? 'border-emerald-100 bg-emerald-50/60'
+    ? 'border-[color:var(--seller-chance)]/22 bg-[var(--seller-chance-soft)]'
     : tone === 'risk'
-      ? 'border-rose-100 bg-rose-50/60'
-      : 'border-black/[0.05] bg-white';
+      ? 'border-[color:var(--seller-risk)]/22 bg-[var(--seller-risk-soft)]'
+      : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)]';
 
   return (
     <div className={`rounded-[18px] border px-4 py-4 ${toneClass}`}>
-      <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">{title}</div>
-      <div className="mt-2 text-[12px] leading-6 text-slate-600">{body}</div>
+      <div className="seller-label">{title}</div>
+      <div className="seller-body mt-2 text-[12px] leading-6">{body}</div>
     </div>
   );
 }
 
 function renderTurningPointCard(event: ReviewTurningPointProjection, compact = false) {
   const toneClass = event.tone === 'chance'
-    ? 'border-emerald-100 bg-emerald-50/70'
+    ? 'border-[color:var(--seller-chance)]/22 bg-[var(--seller-chance-soft)]'
     : event.tone === 'risk'
-      ? 'border-rose-100 bg-rose-50/70'
-      : 'border-black/[0.05] bg-slate-50';
+      ? 'border-[color:var(--seller-risk)]/22 bg-[var(--seller-risk-soft)]'
+      : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)]';
 
   return (
     <div className={`rounded-[20px] border px-4 py-4 ${toneClass}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+          <span className="seller-chip">
             {event.label}
           </span>
           {event.caseTitle && (
-            <span className="text-[11px] font-semibold text-slate-500">{event.caseTitle}</span>
+            <span className="text-[11px] font-semibold text-[var(--seller-muted)]">{event.caseTitle}</span>
           )}
         </div>
-        <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
+        <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">
           Day {event.day} · {event.date}
         </div>
       </div>
-      <div className={`mt-2 font-semibold text-slate-900 ${compact ? 'text-[14px]' : 'text-[15px]'}`}>{event.title}</div>
-      <div className={`mt-1 leading-6 text-slate-600 ${compact ? 'text-[12px]' : 'text-[13px]'}`}>{event.detail}</div>
+      <div className={`mt-2 font-semibold text-[var(--seller-ink)] ${compact ? 'text-[14px]' : 'text-[15px]'}`}>{event.title}</div>
+      <div className={`seller-body mt-1 leading-6 ${compact ? 'text-[12px]' : 'text-[13px]'}`}>{event.detail}</div>
     </div>
   );
 }
@@ -335,15 +388,15 @@ function ReviewMetric({
   tone: 'slate' | 'emerald' | 'amber' | 'rose';
 }) {
   const toneClass = tone === 'emerald'
-    ? 'bg-emerald-50 text-emerald-700'
+    ? 'border-[color:var(--seller-chance)]/22 bg-[var(--seller-chance-soft)] text-[var(--seller-chance)]'
     : tone === 'amber'
-      ? 'bg-amber-50 text-amber-700'
+      ? 'border-[color:var(--seller-accent)]/22 bg-[var(--seller-accent-soft)] text-[var(--seller-accent)]'
       : tone === 'rose'
-        ? 'bg-rose-50 text-rose-700'
-        : 'bg-slate-50 text-slate-700';
+        ? 'border-[color:var(--seller-risk)]/22 bg-[var(--seller-risk-soft)] text-[var(--seller-risk)]'
+        : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] text-[var(--seller-ink)]';
 
   return (
-    <div className={`rounded-xl px-4 py-3 ${toneClass}`}>
+    <div className={`rounded-xl border px-4 py-3 ${toneClass}`}>
       <div className="text-[10px] font-bold uppercase tracking-[0.14em] opacity-70">{label}</div>
       <div className="mt-1.5 text-[20px] font-semibold">{value}</div>
     </div>
@@ -360,12 +413,12 @@ function ReviewCallout({
   body: string;
 }) {
   return (
-    <div className="rounded-xl border border-black/[0.05] bg-slate-50 px-4 py-4">
-      <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">
+    <div className="seller-tablet px-4 py-4">
+      <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">
         {icon}
         {title}
       </div>
-      <p className="mt-2 text-[12px] leading-6 text-slate-600">{body}</p>
+      <p className="seller-body mt-2 text-[12px] leading-6">{body}</p>
     </div>
   );
 }
@@ -380,15 +433,15 @@ function ReviewListBlock({
   emptyText: string;
 }) {
   return (
-    <div className="rounded-[20px] border border-black/[0.05] bg-slate-50 px-4 py-4">
-      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">{title}</div>
+    <div className="seller-tablet px-4 py-4">
+      <div className="seller-label">{title}</div>
       <div className="mt-3 space-y-2">
         {items.length > 0 ? items.map((item, index) => (
-          <div key={`${title}-${index}`} className="text-[12px] leading-6 text-slate-600">
+          <div key={`${title}-${index}`} className="seller-body text-[12px] leading-6">
             {item}
           </div>
         )) : (
-          <div className="text-[12px] leading-6 text-slate-400">{emptyText}</div>
+          <div className="text-[12px] leading-6 text-[var(--seller-subtle)]">{emptyText}</div>
         )}
       </div>
     </div>
@@ -397,7 +450,7 @@ function ReviewListBlock({
 
 function EmptyReviewState({ text }: { text: string }) {
   return (
-    <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-[12px] text-slate-400">
+    <div className="seller-empty rounded-[22px] px-4 py-8 text-center text-[12px]">
       {text}
     </div>
   );

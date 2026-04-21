@@ -1,5 +1,6 @@
 import { motion } from 'motion/react';
 import { LogOut, Sparkles, CheckCircle2, ArrowRight } from 'lucide-react';
+import { useState } from 'react';
 import { ActivationWorkspaceId } from '../../types';
 import { WORKSPACE_REGISTRY } from '../../workspaces/workspaceRegistry';
 import { KeGameHubMark } from '../Brand/KeGameHubMark';
@@ -7,16 +8,25 @@ import { UserIdentityBadge } from '../Auth/UserIdentityBadge';
 
 interface WorkspaceHubProps {
   onSelect: (id: ActivationWorkspaceId) => void;
+  onPrepareWorkspace?: (id: ActivationWorkspaceId) => void;
   onLogout: () => void;
   allowedWorkspaces: ActivationWorkspaceId[];
   currentUserNickname?: string;
   currentUserEmail?: string;
 }
 
-export function WorkspaceHub({ onSelect, onLogout, allowedWorkspaces, currentUserNickname, currentUserEmail }: WorkspaceHubProps) {
+export function WorkspaceHub({
+  onSelect,
+  onPrepareWorkspace,
+  onLogout,
+  allowedWorkspaces,
+  currentUserNickname,
+  currentUserEmail,
+}: WorkspaceHubProps) {
   const visibleWorkspaces = WORKSPACE_REGISTRY
     .filter((workspace) => allowedWorkspaces.includes(workspace.id))
     .sort((a, b) => a.sortOrder - b.sortOrder);
+  const [openingWorkspace, setOpeningWorkspace] = useState<ActivationWorkspaceId | null>(null);
 
   return (
     <motion.div
@@ -64,7 +74,12 @@ export function WorkspaceHub({ onSelect, onLogout, allowedWorkspaces, currentUse
               <button
                 key={workspace.id}
                 type="button"
-                onClick={isAvailable ? () => onSelect(workspace.id) : undefined}
+                onClick={isAvailable ? () => {
+                  setOpeningWorkspace(workspace.id);
+                  onSelect(workspace.id);
+                } : undefined}
+                onMouseEnter={isAvailable ? () => onPrepareWorkspace?.(workspace.id) : undefined}
+                onFocus={isAvailable ? () => onPrepareWorkspace?.(workspace.id) : undefined}
                 disabled={!isAvailable}
                 aria-disabled={!isAvailable}
                 className={cardClassName}
@@ -92,12 +107,12 @@ export function WorkspaceHub({ onSelect, onLogout, allowedWorkspaces, currentUse
                   ))}
                 </div>
                 <div className="mt-auto flex items-center justify-between pt-8 text-sm font-semibold text-[#111111]">
-                  <span>{footerLabel}</span>
+                  <span>{openingWorkspace === workspace.id ? '正在打开…' : footerLabel}</span>
                   {isAvailable ? (
                     <span
                       className={`inline-flex items-center gap-1 transition group-hover:translate-x-1 ${workspace.accentClassName.split(' ').slice(0, 1).join(' ')}`}
                     >
-                      打开
+                      {openingWorkspace === workspace.id ? '进入中' : '打开'}
                       <ArrowRight className="h-4 w-4" />
                     </span>
                   ) : (

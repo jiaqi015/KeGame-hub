@@ -413,17 +413,26 @@ Projection 只能：
 
 ```ts
 type DirtyScopeSet = {
-  caseIds: string[];
-  customerIds: string[];
-  ownerIds: string[];
-  bizAreaIds: string[];
+  cases: string[];
+  opportunities: string[];
+  customers: string[];
+  owners: string[];
+  districts: string[];
+  marketCells: string[];
+  matters: string[];
   market: boolean;
   dashboard: boolean;
-  result?: boolean;
+  result: boolean;
 };
 ```
 
 这样 UI 不需要全量重算。
+
+说明：
+
+- 当前实现先用 `cases / opportunities / matters` 保持兼容。
+- `customers / owners / districts / marketCells` 是给后续客户页、业主页、商圈雷达和回放系统准备的稳定脏范围。
+- `owners` 现阶段是 owner ref，不是正式 ownerId；等 Owner 实体独立后再迁移。
 
 ---
 

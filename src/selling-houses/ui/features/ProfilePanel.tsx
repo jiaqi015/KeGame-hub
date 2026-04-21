@@ -40,8 +40,8 @@ export function ProfilePanel({ state, currentUserNickname }: ProfilePanelProps) 
           </div>
           <div className="seller-tablet px-4 py-4">
             <div className="seller-label">当前进度</div>
-            <div className="mt-2 text-[18px] font-semibold text-slate-900">Day {state.day} / {state.maxDay}</div>
-            <div className="mt-1 text-[12px] text-slate-500">{state.runContext.scenarioName}</div>
+            <div className="mt-2 text-[18px] font-semibold text-[var(--seller-ink)]">Day {state.day} / {state.maxDay}</div>
+            <div className="mt-1 text-[12px] text-[var(--seller-subtle)]">{state.runContext.scenarioName}</div>
           </div>
         </div>
 
@@ -56,38 +56,38 @@ export function ProfilePanel({ state, currentUserNickname }: ProfilePanelProps) 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <section className="seller-panel p-4 lg:p-5">
           <div className="seller-label">关系网络</div>
-          <h4 className="mt-2 text-[18px] font-semibold tracking-[-0.03em] text-slate-900">我现在在守谁、接着谁</h4>
+          <h4 className="mt-2 text-[18px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">我现在在守谁、接着谁</h4>
           <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
             {relationCards.map((entry) => (
-              <div key={entry.key} className="rounded-[22px] border border-black/[0.05] bg-slate-50 px-4 py-4">
-                <div className="text-sm font-semibold text-slate-900">{entry.title}</div>
-                <div className="mt-1 text-[12px] text-slate-500">{entry.note}</div>
-                <div className="mt-3 inline-flex rounded-full bg-white px-3 py-1 text-[11px] font-bold text-slate-700">
+              <div key={entry.key} className="seller-tablet px-4 py-4">
+                <div className="text-sm font-semibold text-[var(--seller-ink)]">{entry.title}</div>
+                <div className="mt-1 text-[12px] text-[var(--seller-subtle)]">{entry.note}</div>
+                <div className="seller-chip mt-3 inline-flex">
                   {entry.value}
                 </div>
               </div>
             ))}
           </div>
-          <div className="mt-4 rounded-[22px] border border-sky-100 bg-sky-50/70 px-4 py-4 text-sm leading-6 text-slate-600">
+          <div className="seller-note mt-4 px-4 py-4 text-sm leading-6">
             当前平均信任 {averageTrust}。先看手上关系够不够稳，后面再拆到业主、客户和同行三条线。
           </div>
         </section>
 
         <section className="seller-panel p-4 lg:p-5">
           <div className="seller-label">战绩与复盘</div>
-          <h4 className="mt-2 text-[18px] font-semibold tracking-[-0.03em] text-slate-900">留下这局沉淀</h4>
+          <h4 className="mt-2 text-[18px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">留下这局沉淀</h4>
           <div className="mt-5 grid grid-cols-2 gap-3">
             <MetricChip label="已成交" value={`${soldCount} 套`} />
             <MetricChip label="平均信任" value={`${averageTrust}`} />
           </div>
           <div className="mt-5 space-y-3">
             {recentReviews.length > 0 ? recentReviews.map((entry) => (
-              <div key={entry.id} className="rounded-[20px] border border-black/[0.05] bg-slate-50 px-4 py-4">
-                <div className="text-sm font-semibold text-slate-900">{entry.title}</div>
-                <div className="mt-2 text-[12px] leading-6 text-slate-600">{entry.note}</div>
+              <div key={entry.id} className="seller-tablet px-4 py-4">
+                <div className="text-sm font-semibold text-[var(--seller-ink)]">{entry.title}</div>
+                <div className="seller-body mt-2 text-[12px] leading-6">{entry.note}</div>
               </div>
             )) : (
-              <div className="rounded-[20px] border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-400">
+              <div className="seller-empty px-4 py-10 text-center text-sm">
                 这局还没跑出周复盘，后面推进几天这里就会开始沉淀。
               </div>
             )}
@@ -108,10 +108,10 @@ function MetricCard({
   note: string;
 }) {
   return (
-    <div className="rounded-[22px] border border-black/[0.05] bg-white px-4 py-4 shadow-sm">
-      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">{eyebrow}</div>
-      <div className="mt-2 text-[18px] font-semibold text-slate-900">{value}</div>
-      <div className="mt-1 text-[12px] leading-5 text-slate-500">{note}</div>
+    <div className="seller-tablet px-4 py-4">
+      <div className="seller-label">{eyebrow}</div>
+      <div className="mt-2 text-[18px] font-semibold text-[var(--seller-ink)]">{value}</div>
+      <div className="seller-body mt-1 text-[12px] leading-5">{note}</div>
     </div>
   );
 }
@@ -124,9 +124,9 @@ function MetricChip({
   value: string;
 }) {
   return (
-    <div className="rounded-[18px] border border-black/[0.05] bg-slate-50 px-4 py-3">
-      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">{label}</div>
-      <div className="mt-1 text-sm font-semibold text-slate-900">{value}</div>
+    <div className="seller-tablet px-4 py-3">
+      <div className="seller-label">{label}</div>
+      <div className="mt-1 text-sm font-semibold text-[var(--seller-ink)]">{value}</div>
     </div>
   );
 }

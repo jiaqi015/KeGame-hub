@@ -1,4 +1,4 @@
-import type { Case, CustomerRuntimeState, GameState, MarketSignal, Opportunity, Tone } from '../../domain/models.js';
+import type { Case, CustomerRuntimeState, GameState, Opportunity, Tone } from '../../domain/models.js';
 import { getActiveOpportunities } from '../../domain/engine/opportunityEngine.js';
 import { getDayOfWeek, getRoutine } from '../../domain/utils.js';
 import { WEEKLY_ROUTINE } from '../../domain/constants.js';
@@ -10,6 +10,7 @@ import {
   buildMarketIntelProjection,
   describeLeadSiphonPower,
   type IntelItem,
+  type IntelLayerTab,
 } from '../../ui/features/marketIntel.js';
 
 export type ProjectionTone = 'neutral' | 'chance' | 'risk';
@@ -66,6 +67,17 @@ export interface DashboardProjection {
     briefs: ProjectionBrief[];
     impactedCases: ProjectionBrief[];
   };
+  triageCards: Array<{
+    id: 'cases' | 'customers' | 'market' | 'review';
+    label: string;
+    title: string;
+    detail: string;
+    countLabel: string;
+    tone: ProjectionTone;
+    targetView: 'cases' | 'customers' | 'market' | 'review';
+    marketLayer?: IntelLayerTab;
+    caseId?: string;
+  }>;
 }
 
 export interface OpportunityBucketProjection {
@@ -145,20 +157,32 @@ export interface OpportunityListProjection {
     soonestDaysLeft: number | null;
   };
   bucketSummaries: OpportunityBucketProjection[];
-  signalCards: Array<{
-    id: string;
-    title: string;
-    detail: string;
-    confidence: number;
-    district: string;
-    expiresInDays: number;
-  }>;
 }
 
 export interface MarketProjection {
   headline: string;
   summary: string;
   yesterdayNews: ProjectionBrief[];
+  layerCards: Array<{
+    id: IntelLayerTab;
+    label: string;
+    count: number;
+    title: string;
+    detail: string;
+    tone: ProjectionTone;
+  }>;
+  signalFeed: Array<{
+    id: string;
+    layer: IntelLayerTab;
+    label: string;
+    title: string;
+    summary: string;
+    detail: string;
+    tone: ProjectionTone;
+    badge: string;
+    day: number;
+    affectedCaseIds: string[];
+  }>;
   radarAxes: {
     demandHeat: number;
     supplyPressure: number;
@@ -237,6 +261,21 @@ export function buildDashboardProjection(
   const riskReminders = buildRiskReminders(state, caseDetails, priorityProjection);
   const todayPriority = buildTodayPriority(state, caseDetails, priorityProjection);
   const yesterdayIntel = buildYesterdayIntel(state);
+  const marketBrief = {
+    todayCount: marketIntelProjection.todayCount,
+    riskCount: marketIntelProjection.riskCount,
+    chanceCount: marketIntelProjection.chanceCount,
+    lead: marketIntelProjection.homepage.lead ? toIntelProjectionBrief(marketIntelProjection.homepage.lead) : null,
+    briefs: marketIntelProjection.homepage.briefs.map((item) => toIntelProjectionBrief(item)),
+    impactedCases: marketIntelProjection.homepage.impactedCases.map((item) => ({
+      id: `market-impacted-${item.caseId}`,
+      label: '受影响房源',
+      title: item.title,
+      detail: item.reason,
+      tone: 'risk' as const,
+      caseId: item.caseId,
+    })),
+  };
 
   return {
     todayHeadline: topPriorityCase
@@ -268,21 +307,8 @@ export function buildDashboardProjection(
       leadCaseTitle: group.leadCaseTitle,
       leadReason: group.leadReason,
     })),
-    marketBrief: {
-      todayCount: marketIntelProjection.todayCount,
-      riskCount: marketIntelProjection.riskCount,
-      chanceCount: marketIntelProjection.chanceCount,
-      lead: marketIntelProjection.homepage.lead ? toIntelProjectionBrief(marketIntelProjection.homepage.lead) : null,
-      briefs: marketIntelProjection.homepage.briefs.map((item) => toIntelProjectionBrief(item)),
-      impactedCases: marketIntelProjection.homepage.impactedCases.map((item) => ({
-        id: `market-impacted-${item.caseId}`,
-        label: '受影响房源',
-        title: item.title,
-        detail: item.reason,
-        tone: 'risk',
-        caseId: item.caseId,
-      })),
-    },
+    marketBrief,
+    triageCards: buildDashboardTriageCards(state, todayPriority, yesterdayIntel, marketBrief, priorityProjection),
   };
 }
 
@@ -386,7 +412,6 @@ export function buildOpportunityListProjection(state: GameState): OpportunityLis
       soonestDaysLeft: potential.length > 0 ? Math.min(...potential.map((opportunity) => opportunity.daysLeft)) : null,
     },
     bucketSummaries: buildOpportunityBuckets(met, potential, closing.length, atRisk.length),
-    signalCards: buildOpportunitySignalCards(state.marketShadow?.marketSignals || []),
   };
 }
 
@@ -603,6 +628,25 @@ export function buildMarketProjection(state: GameState): MarketProjection {
     headline: deriveMarketHeadline(state, rivalListings.length),
     summary: deriveMarketSummary(state, radarAxes, rivalListings.length),
     yesterdayNews,
+    layerCards: buildMarketLayerCards(marketIntelProjection),
+    signalFeed: marketIntelProjection.items.map((item) => ({
+      id: item.id,
+      layer: item.layer,
+      label: item.layer === 'macro'
+        ? '全城'
+        : item.layer === 'district'
+          ? '板块'
+          : item.layer === 'competition'
+            ? '竞争'
+            : '房源',
+      title: item.title,
+      summary: item.summary,
+      detail: item.detail,
+      tone: item.tone,
+      badge: item.badge,
+      day: item.day,
+      affectedCaseIds: item.affectedCaseIds,
+    })),
     radarAxes,
     radarCards: buildMarketRadarCards(radarAxes),
     districtBoards: buildDistrictBoards(state),
@@ -623,6 +667,93 @@ export function buildMarketProjection(state: GameState): MarketProjection {
       })),
     },
   };
+}
+
+function buildDashboardTriageCards(
+  state: GameState,
+  todayPriority: ProjectionBrief[],
+  yesterdayIntel: ProjectionBrief[],
+  marketBrief: DashboardProjection['marketBrief'],
+  priorityProjection: ReturnType<typeof buildFollowUpPriorityProjection>,
+): DashboardProjection['triageCards'] {
+  const activeOpportunityCount = state.opportunities.filter((opportunity) => opportunity.status === 'active').length;
+  const closingLead = priorityProjection.groups.closingOpportunity.items[0] || null;
+  const firstPriority = todayPriority[0] || null;
+  const reviewLead = yesterdayIntel[0] || null;
+
+  return [
+    {
+      id: 'cases',
+      label: '去房源',
+      title: firstPriority?.title || '先打开最需要承接的房源',
+      detail: firstPriority?.detail || '房源页负责单房判断和执行，这里只负责把入口排出来。',
+      countLabel: `${todayPriority.length} 件在排`,
+      tone: firstPriority?.tone || 'neutral',
+      targetView: 'cases',
+      caseId: firstPriority?.caseId,
+    },
+    {
+      id: 'customers',
+      label: '去客户',
+      title: closingLead
+        ? `${closingLead.caseTitle} 这条客户线更接近成交`
+        : activeOpportunityCount > 0
+          ? '客户池里还有活跃关系可推进'
+          : '当前客户线比较薄，需要先回看承接情况',
+      detail: closingLead?.reason || (activeOpportunityCount > 0
+        ? `当前有 ${activeOpportunityCount} 条活跃机会，客户页负责关系推进池。`
+        : '客户页只看关系推进，不重复房源经营判断。'),
+      countLabel: `${activeOpportunityCount} 条活跃线`,
+      tone: closingLead?.tone || (activeOpportunityCount > 0 ? 'chance' : 'neutral'),
+      targetView: 'customers',
+      caseId: closingLead?.caseId,
+    },
+    {
+      id: 'market',
+      label: '去市场',
+      title: marketBrief.lead?.title || '外部变化今天不算强',
+      detail: marketBrief.lead?.detail || '市场页只负责解释外因，不负责今天先做什么。',
+      countLabel: `${marketBrief.todayCount} 条外因`,
+      tone: marketBrief.lead?.tone || (marketBrief.riskCount > 0 ? 'risk' : marketBrief.chanceCount > 0 ? 'chance' : 'neutral'),
+      targetView: 'market',
+      marketLayer: 'macro',
+      caseId: marketBrief.impactedCases[0]?.caseId,
+    },
+    {
+      id: 'review',
+      label: '去复盘',
+      title: reviewLead?.title || '昨天没有留下强解释信号',
+      detail: reviewLead?.detail || '复盘页负责回看已发生的变化，不参与今日分诊。',
+      countLabel: `${yesterdayIntel.length} 条记录`,
+      tone: reviewLead?.tone || 'neutral',
+      targetView: 'review',
+      caseId: reviewLead?.caseId,
+    },
+  ];
+}
+
+function buildMarketLayerCards(
+  marketIntelProjection: ReturnType<typeof buildMarketIntelProjection>,
+): MarketProjection['layerCards'] {
+  return (['macro', 'district', 'competition', 'listing'] as IntelLayerTab[]).map((layer) => {
+    const summary = marketIntelProjection.layers.find((entry) => entry.layer === layer);
+    const label = layer === 'macro'
+      ? '全城'
+      : layer === 'district'
+        ? '板块'
+        : layer === 'competition'
+          ? '竞争'
+          : '房源';
+
+    return {
+      id: layer,
+      label,
+      count: summary?.totalCount || 0,
+      title: summary?.lead?.title || `${label}层暂时没有强信号`,
+      detail: summary?.summary || `今天 ${label}层没有形成明确主导变化。`,
+      tone: summary?.lead?.tone || (summary?.riskCount ? 'risk' : summary?.chanceCount ? 'chance' : 'neutral'),
+    };
+  });
 }
 
 function buildTodayPriority(
@@ -906,17 +1037,6 @@ function buildOpportunityBuckets(
       summary: atRiskCount > 0 ? '今天需要优先回访或解释价格。' : '短期流失压力不明显。',
     },
   ];
-}
-
-function buildOpportunitySignalCards(signals: MarketSignal[]) {
-  return signals.slice(0, 3).map((signal) => ({
-    id: signal.id,
-    title: signal.title,
-    detail: signal.message,
-    confidence: signal.confidence,
-    district: signal.district,
-    expiresInDays: signal.expiresInDays,
-  }));
 }
 
 function deriveOwnerTitle(caseItem: Case) {

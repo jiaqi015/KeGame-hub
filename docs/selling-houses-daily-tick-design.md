@@ -126,6 +126,25 @@ type AdvanceDayResult = {
 - `dirtyScopes`
   用来控制后续哪些 projection 需要重算
 
+当前代码里的 `DirtyScopeSet` 先采用兼容式命名，保留旧消费方已经使用的 `cases / opportunities / matters`，同时补上实体维度：
+
+```ts
+type DirtyScopeSet = {
+  cases: string[];
+  opportunities: string[];
+  customers: string[];
+  owners: string[];
+  districts: string[];
+  marketCells: string[];
+  matters: string[];
+  market: boolean;
+  dashboard: boolean;
+  result: boolean;
+};
+```
+
+这里的 `owners` 暂时使用当前运行态已有的 `ownerName` 作为 owner ref。等后续把 `Owner / OwnershipEntrust` 独立成正式实体后，再迁到稳定 `ownerId`。
+
 ---
 
 ## 3. 白天即时更新和日结的边界

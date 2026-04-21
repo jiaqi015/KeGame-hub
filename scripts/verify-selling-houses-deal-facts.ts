@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createInitialState, updateDerivedState } from '../src/selling-houses/application/gameState.js';
 import { buildFinalStats } from '../src/selling-houses/application/cloudSync.js';
 import { buildResultProjection } from '../src/selling-houses/application/projections/resultProjection.js';
-import { executeAction, seedInitialOpportunities } from '../src/selling-houses/domain/engine.js';
+import { advanceDays, executeAction, seedInitialOpportunities } from '../src/selling-houses/domain/engine.js';
 import { evaluateFinalResult } from '../src/selling-houses/domain/resultEvaluation.js';
 import { getScenarioSnapshotById } from '../src/selling-houses/domain/scenarioCatalog.js';
 
@@ -29,9 +29,13 @@ opportunity.stageIndex = 4;
 opportunity.daysLeft = 3;
 updateDerivedState(world);
 
+const negotiationDay = world.day;
 const sold = executeAction(world, 'invite-customer-negotiation', caseItem, 'close');
 assert.equal(sold, true, 'Expected high-confidence negotiation action to execute');
-assert.equal(world.closedDeals.length, 1, 'Expected exactly one closed deal record after sale');
+assert.equal(world.closedDeals.length, 0, 'Expected negotiation action not to create a closed deal before daily settlement');
+
+advanceDays(world, 1);
+assert.equal(world.closedDeals.length, 1, 'Expected daily settlement to create exactly one closed deal record');
 
 const deal = world.closedDeals[0];
 assert.ok(deal, 'Expected closed deal record to exist');
@@ -39,11 +43,18 @@ assert.equal(deal.caseId, caseItem.id, 'Expected deal to reference sold case');
 assert.equal(deal.customerId, opportunity.customerId, 'Expected deal to reference buying customer');
 assert.equal(deal.sourceRelationId, opportunity.id, 'Expected deal to reference source customer-case relation');
 assert.equal(deal.opportunityId, opportunity.id, 'Expected legacy opportunity id alias to be preserved');
-assert.equal(deal.dayIndex, world.day, 'Expected deal day index to match world day');
+assert.equal(deal.dayIndex, negotiationDay, 'Expected deal day index to match the day that was just settled');
 assert.equal(deal.dealPrice, caseItem.soldPrice, 'Expected deal price to mirror sold price');
 assert.equal(deal.dealType, 'self_closed', 'Expected player-negotiated sale to be self_closed');
 assert.ok(deal.closedAt.length > 0, 'Expected deal to have a durable timestamp');
 assert.ok(deal.supportingReasons.length > 0, 'Expected deal to store supporting reasons');
+assert.equal(deal.caseTitle, caseItem.title, 'Expected deal to retain case title for downstream projections');
+assert.equal(deal.customerName, opportunity.customerName, 'Expected deal to retain customer name for downstream projections');
+assert.equal(deal.ownerName, caseItem.ownerName, 'Expected deal to retain owner name for downstream projections');
+assert.equal(deal.maintainerName, caseItem.maintainerName, 'Expected deal to retain advisor name for downstream projections');
+assert.equal(deal.marketSnapshot?.askPrice, caseItem.askPrice, 'Expected deal to retain market snapshot ask price');
+assert.equal(deal.marketSnapshot?.marketPrice, caseItem.marketPrice, 'Expected deal to retain market snapshot market price');
+assert.equal(deal.priceSnapshot?.soldPrice, caseItem.soldPrice, 'Expected deal to retain price snapshot sold price');
 assert.ok(
   world.eventStore.some((entry) => entry.kind === 'case_sold' && entry.payload.dealId === deal.dealId),
   'Expected case_sold event to reference closed deal id',

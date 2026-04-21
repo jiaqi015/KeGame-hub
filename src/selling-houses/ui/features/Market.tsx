@@ -6,10 +6,6 @@ import {
   type ProjectionTone,
 } from '../../application/projections/operatingProjection.js';
 import {
-  deriveImpactedCases,
-  deriveIntelFeed,
-  layerLabel,
-  type IntelItem,
   type IntelLayerTab,
 } from './marketIntel';
 import {
@@ -78,35 +74,31 @@ export function Market({
   const [activeLayer, setActiveLayer] = useState<IntelLayerTab>(initialLayer);
   const [activePanel, setActivePanel] = useState<MarketPanelTab>('radar');
   const projection = useMemo(() => buildMarketProjection(state), [state]);
-  const intel = useMemo(() => deriveIntelFeed(state), [state]);
-  const impactedCases = useMemo(() => deriveImpactedCases(state, intel), [intel, state]);
+  const impactedCases = projection.affectedCases;
 
   const layerCards = useMemo<LayerCard[]>(() => (
-    (['macro', 'district', 'competition', 'listing'] as IntelLayerTab[]).map((layer) => {
-      const items = intel.filter((item) => item.layer === layer);
-      const fallback = LAYER_FALLBACKS[layer];
-      return {
-        id: layer,
-        label: fallback.label,
-        count: items.length,
-        title: items[0]?.title || fallback.title,
-        detail: items[0]?.summary || items[0]?.detail || fallback.detail,
-      };
-    })
-  ), [intel]);
+    projection.layerCards.map((card) => ({
+      id: card.id,
+      label: card.label,
+      count: card.count,
+      title: card.title,
+      detail: card.detail,
+    }))
+  ), [projection.layerCards]);
 
   const effectiveLayer = layerCards.find((item) => item.id === activeLayer && item.count > 0)?.id
     || layerCards.find((item) => item.count > 0)?.id
     || activeLayer;
 
   const activeLayerIntel = useMemo(
-    () => intel.filter((item) => item.layer === activeLayer),
-    [activeLayer, intel],
+    () => projection.signalFeed.filter((item) => item.layer === activeLayer),
+    [activeLayer, projection.signalFeed],
   );
   const activeLayerRisk = activeLayerIntel.find((item) => item.tone === 'risk') || null;
   const activeLayerChance = activeLayerIntel.find((item) => item.tone === 'chance') || null;
   const currentLayerCard = layerCards.find((item) => item.id === activeLayer) || layerCards[0];
-  const currentLayerImpactedCase = impactedCases.find((item) => item.layer === activeLayer) || null;
+  const currentLayerImpactedCase = projection.signalFeed
+    .find((item) => item.layer === activeLayer && item.affectedCaseIds.length > 0) || null;
   const leadImpactedCase = currentLayerImpactedCase || impactedCases[0] || null;
   const hottestBoard = projection.districtBoards[0] || null;
   const radarCards = projection.radarCards.slice(0, 3);
@@ -144,7 +136,7 @@ export function Market({
           <div className="min-w-0">
             <div className="seller-label flex items-center gap-2">
               <Globe2 size={13} />
-              市场
+              外因解释
             </div>
             <h1 className="mt-2 text-[24px] font-semibold leading-[1.14] tracking-[-0.035em] text-[var(--seller-ink)] md:text-[28px]">
               {projection.headline}
@@ -153,21 +145,21 @@ export function Market({
               {heroSummary}
             </p>
             <div className="mt-4 text-[11px] font-medium text-[var(--seller-subtle)]">
-              先看外部变化，再回到具体房源。
+              这里只解释外因，不排今天顺序。
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <HeaderStat label="今日新增情报" value={`${projection.intelSummary.todayCount}`} tone="neutral" />
-            <HeaderStat label="优先处理风险" value={`${projection.intelSummary.riskCount}`} tone="risk" />
-            <HeaderStat label="可跟进机会" value={`${projection.intelSummary.chanceCount}`} tone="chance" />
+            <HeaderStat label="风险信号" value={`${projection.intelSummary.riskCount}`} tone="risk" />
+            <HeaderStat label="机会信号" value={`${projection.intelSummary.chanceCount}`} tone="chance" />
             <HeaderStat label="已影响房源" value={`${impactedCases.length}`} tone="warm" />
           </div>
         </div>
 
         <div className="mt-5 grid gap-3 lg:grid-cols-3">
           <HeroStoryCard
-            label="今日判断"
+            label="外因判断"
             title={buildRadarJudgement(projection.radarAxes)}
             detail={actionLine}
             tone="neutral"
@@ -179,24 +171,24 @@ export function Market({
             tone={activeLayerChance ? 'chance' : hottestBoard?.tone || 'neutral'}
           />
           <HeroStoryCard
-            label="先稳房源"
+            label="受压房源"
             title={leadImpactedCase ? `${leadImpactedCase.title} 优先受压` : '暂时没有单套房被外部集中打到'}
             detail={leadImpactedCase
-              ? `${leadImpactedCase.reason} 今天被命中 ${leadImpactedCase.count} 次。`
+              ? '这条变化最后已经压到具体房源上，接下来回到房源页处理。'
               : '今天更多是在商圈和竞争层面变化，先按当前重点房源推进。'}
-            tone={leadImpactedCase ? leadImpactedCase.tone : 'neutral'}
+            tone={leadImpactedCase ? (leadImpactedCase.tone || 'neutral') : 'neutral'}
           />
         </div>
       </section>
 
       <section className="seller-panel overflow-hidden">
-        <div className="flex flex-col gap-2 border-b border-[var(--seller-border)] px-5 py-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <div className="seller-label">变化怎么传下来</div>
-            <div className="mt-2 text-[12px] leading-6 text-[var(--seller-muted)]">
-              先看哪一层先动，再回到受影响房源。
+          <div className="flex flex-col gap-2 border-b border-[var(--seller-border)] px-5 py-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="seller-label">变化链路</div>
+              <div className="mt-2 text-[12px] leading-6 text-[var(--seller-muted)]">
+                先看哪一层先动，再回到受影响房源。
+              </div>
             </div>
-          </div>
           <div className="text-[11px] font-medium text-[var(--seller-subtle)]">
             当前重点在 {currentLayerCard.label} 这一层
           </div>
@@ -237,10 +229,10 @@ export function Market({
             <div>
               <div className="seller-label flex items-center gap-2">
                 <Radar size={13} />
-                先看哪层最该看
+                按层解释
               </div>
               <div className="mt-2 text-[12px] leading-6 text-[var(--seller-muted)]">
-                全城、板块、竞争、房源拆开看，更容易找到最需要跟的信号。
+                全城、板块、竞争、房源拆开看。
               </div>
             </div>
             <div className="seller-tabbar">
@@ -297,26 +289,26 @@ export function Market({
 
         <section className="seller-panel overflow-hidden">
           <div className="border-b border-[var(--seller-border)] px-5 py-4">
-            <div className="seller-label">今天先怎么做</div>
+            <div className="seller-label">外因落点</div>
           </div>
 
           <div className="space-y-3 px-5 py-4">
-            <ActionNote
-              label="先动的哪里最弱"
+            <ExplanationNote
+              label="先变的是哪里"
               title={buildRadarJudgement(projection.radarAxes)}
               detail={actionLine}
             />
-            <ActionNote
-              label="先看哪层"
+            <ExplanationNote
+              label="当前层级"
               title={currentLayerCard.title}
               detail={currentLayerCard.detail}
               accent={activeLayer === 'district' ? 'chance' : activeLayer === 'listing' ? 'risk' : 'neutral'}
             />
-            <ActionNote
-              label="先看哪套房"
-              title={leadImpactedCase ? `${leadImpactedCase.title} 先回看` : '暂时没有明确受压房源'}
+            <ExplanationNote
+              label="最后压到哪"
+              title={leadImpactedCase ? `${leadImpactedCase.title} 受影响` : '暂时没有明确受压房源'}
               detail={leadImpactedCase
-                ? `${leadImpactedCase.reason}，先看客户推进、竞品比较和价格站位。`
+                ? '这条变化已经落到具体房源，下一步应该回房源页继续判断。'
                 : '今天先从板块和竞争层的变化判断，再回到重点房源。'}
               accent={leadImpactedCase?.tone || 'neutral'}
               caseId={leadImpactedCase?.caseId}
@@ -532,7 +524,7 @@ function BriefRow({
   );
 }
 
-function ActionNote({
+function ExplanationNote({
   label,
   title,
   detail,
@@ -686,23 +678,23 @@ function buildActionLine({
     customerActivity: number;
     coSaleOpportunity: number;
   };
-  leadRisk: IntelItem | null;
-  leadCase: ReturnType<typeof deriveImpactedCases>[number] | null;
+  leadRisk: ReturnType<typeof buildMarketProjection>['signalFeed'][number] | null;
+  leadCase: ProjectionBrief | null;
   activeLayerLabel: string;
 }) {
   if (leadRisk) {
     return leadRisk.detail;
   }
   if (leadCase) {
-    return `${activeLayerLabel}这一层最后压到 ${leadCase.title}，先看客户推进、竞品比较和价格站位。`;
+    return `${activeLayerLabel}这一层最后压到 ${leadCase.title}，这解释了为什么需要回到对应房源继续判断。`;
   }
   if (radarAxes.rivalActivity >= 70 || radarAxes.supplyPressure >= 70) {
-    return '同行抢客已经抬头，市场真正的重点不是看热闹，而是先确认哪些房源会被比价和分客。';
+    return '同行抢客已经抬头，先确认哪些房源会被比价和分客。';
   }
   if (radarAxes.demandHeat >= 68 && radarAxes.customerActivity >= 62) {
-    return '客户热度和跟进意愿都不差，今天更适合把带看和约见往前推。';
+    return '客户热度和跟进意愿都不差，说明带看和约见更容易被市场放大。';
   }
-  return '今天先把外部变化和重点房源对应起来，避免动作发散。';
+  return '先把外部变化和重点房源对应起来，解释今天排序背后的原因。';
 }
 
 function buildRadarJudgement(radarAxes: {
