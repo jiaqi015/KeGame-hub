@@ -24,12 +24,11 @@ const railMarkup = renderToStaticMarkup(
   WorkspaceRightRail({
     sidebar: shell.sidebar,
     onOpenJournal: () => {},
-    onOpenFocus: () => {},
     onOpenCue: () => {},
   }),
 );
 
-assert.ok(railMarkup.includes('当前焦点'), 'Expected right rail to expose focus section');
+assert.ok(!railMarkup.includes('当前焦点'), 'Expected right rail not to expose focus section');
 assert.ok(railMarkup.includes('今日事项'), 'Expected right rail to expose matter section');
 assert.ok(railMarkup.includes('风险与市场'), 'Expected right rail to expose risk and market section');
 assert.ok(railMarkup.includes('经营记录'), 'Expected right rail to expose journal section');

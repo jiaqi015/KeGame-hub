@@ -13,7 +13,6 @@ import {
   LogOut,
   MessageSquare,
   Newspaper,
-  ScrollText,
   ShieldAlert,
   SquareUserRound,
   Target,
@@ -36,8 +35,6 @@ const Dashboard = lazy(() => import('./ui/features/Dashboard').then((module) => 
 const Cases = lazy(() => import('./ui/features/Cases').then((module) => ({ default: module.Cases })));
 const Opportunities = lazy(() => import('./ui/features/Opportunities').then((module) => ({ default: module.Opportunities })));
 const Market = lazy(() => import('./ui/features/Market').then((module) => ({ default: module.Market })));
-const Review = lazy(() => import('./ui/features/Review').then((module) => ({ default: module.Review })));
-const ResultsPanel = lazy(() => import('./ui/features/ResultsPanel').then((module) => ({ default: module.ResultsPanel })));
 const ProfilePanel = lazy(() => import('./ui/features/ProfilePanel').then((module) => ({ default: module.ProfilePanel })));
 const ResultOverlay = lazy(() => import('./ui/features/ResultOverlay').then((module) => ({ default: module.ResultOverlay })));
 const DailySummaryOverlay = lazy(() => import('./ui/features/DailySummaryOverlay').then((module) => ({ default: module.DailySummaryOverlay })));
@@ -52,7 +49,7 @@ export function preloadSellingHousesPrimaryViews() {
 }
 
 type ResourcePanelType = 'budget' | 'auxiliary' | 'energy';
-type WorkspaceView = 'overview' | 'cases' | 'customers' | 'market' | 'review' | 'results' | 'profile';
+type WorkspaceView = 'overview' | 'cases' | 'customers' | 'market' | 'profile';
 type MarketEntryLayer = 'macro' | 'district' | 'competition' | 'listing';
 type DetailPanelType = 'selected-case';
 
@@ -198,7 +195,7 @@ export function SellingHousesWorkspace({
       setActiveView('customers');
       return;
     }
-    if (view === 'cases' || view === 'market' || view === 'review' || view === 'results' || view === 'profile') {
+    if (view === 'cases' || view === 'market' || view === 'profile') {
       setActiveView(view);
       return;
     }
@@ -254,10 +251,6 @@ export function SellingHousesWorkspace({
             onOpenCases={() => openView('cases')}
           />
         );
-      case 'review':
-        return <Review state={state} />;
-      case 'results':
-        return <ResultsPanel state={state} onRestart={handleReset} />;
       case 'profile':
         return <ProfilePanel state={state} currentUserNickname={currentUserNickname} />;
       default:
@@ -331,8 +324,6 @@ export function SellingHousesWorkspace({
               <NavItem active={activeView === 'cases'} onClick={() => openView('cases')} icon={<Home size={16} />} label="房源" />
               <NavItem active={activeView === 'customers'} onClick={() => openView('customers')} icon={<Users size={16} />} label="客户" />
               <NavItem active={activeView === 'market'} onClick={() => openMarketView('macro')} icon={<LineChart size={16} />} label="市场" />
-              <NavItem active={activeView === 'review'} onClick={() => openView('review')} icon={<History size={16} />} label="复盘" />
-              <NavItem active={activeView === 'results'} onClick={() => openView('results')} icon={<ScrollText size={16} />} label="结果" />
               <NavItem active={activeView === 'profile'} onClick={() => openView('profile')} icon={<SquareUserRound size={16} />} label="我" />
             </nav>
 
@@ -432,13 +423,6 @@ export function SellingHousesWorkspace({
         <WorkspaceRightRail
           sidebar={runShellProjection.sidebar}
           onOpenJournal={() => setJournalOpen(true)}
-          onOpenFocus={(caseId) => {
-            if (state.finalResult && !caseId) {
-              setActiveView('results');
-              return;
-            }
-            openSelectedCaseQuickView(caseId);
-          }}
           onOpenCue={handleRailCue}
         />
       </div>
@@ -1045,41 +1029,16 @@ function BudgetMiniStat({
 export function WorkspaceRightRail({
   sidebar,
   onOpenJournal,
-  onOpenFocus,
   onOpenCue,
 }: {
   sidebar: WorkspaceShellSidebarProjection;
   onOpenJournal: () => void;
-  onOpenFocus: (caseId?: string) => void;
   onOpenCue: (cue: WorkspaceShellSidebarCueProjection) => void;
 }) {
   const combinedMarketAndRisk = [...sidebar.riskCues, ...sidebar.marketCues].slice(0, 4);
 
   return (
     <aside className="seller-right-rail hidden w-[360px] shrink-0 xl:flex xl:flex-col xl:gap-4 xl:overflow-y-auto xl:px-5 xl:pb-5 xl:pt-4">
-      <WorkspaceRailSection
-        eyebrow={sidebar.focus.eyebrow}
-        title="当前焦点"
-        actionLabel={sidebar.focus.actionLabel || '查看'}
-        onAction={() => onOpenFocus(sidebar.focus.caseId)}
-      >
-        <div className="seller-panel-strong px-4 py-4">
-          <div className="text-[16px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">
-            {sidebar.focus.title}
-          </div>
-          <p className="mt-2 text-[12px] leading-6 text-[var(--seller-muted)]">
-            {sidebar.focus.detail}
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {sidebar.focus.badges.map((badge) => (
-              <span key={badge} className="seller-chip">
-                {badge}
-              </span>
-            ))}
-          </div>
-        </div>
-      </WorkspaceRailSection>
-
       <WorkspaceRailSection
         eyebrow="壳层分诊"
         title="今日事项"

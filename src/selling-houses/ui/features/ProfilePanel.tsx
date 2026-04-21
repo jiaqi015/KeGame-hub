@@ -74,7 +74,7 @@ export function ProfilePanel({ state, currentUserNickname }: ProfilePanelProps) 
         </section>
 
         <section className="seller-panel p-4 lg:p-5">
-          <div className="seller-label">战绩与复盘</div>
+          <div className="seller-label">战绩与记录</div>
           <h4 className="mt-2 text-[18px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">这局记录</h4>
           <div className="mt-5 grid grid-cols-2 gap-3">
             <MetricChip label="已成交" value={`${soldCount} 套`} />
@@ -88,7 +88,7 @@ export function ProfilePanel({ state, currentUserNickname }: ProfilePanelProps) 
               </div>
             )) : (
               <div className="seller-empty px-4 py-10 text-center text-sm">
-                这局还没跑出周复盘。
+                这局还没有周记录。
               </div>
             )}
           </div>

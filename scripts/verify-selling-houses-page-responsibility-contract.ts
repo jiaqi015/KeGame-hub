@@ -4,15 +4,12 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import { createInitialState, updateDerivedState } from '../src/selling-houses/application/gameState.js';
-import { evaluateFinalResult } from '../src/selling-houses/domain/resultEvaluation.js';
 import { getScenarioSnapshotById } from '../src/selling-houses/domain/scenarioCatalog.js';
 import { seedInitialOpportunities } from '../src/selling-houses/domain/engine.js';
 import { Dashboard } from '../src/selling-houses/ui/features/Dashboard.js';
 import { Market } from '../src/selling-houses/ui/features/Market.js';
 import { Cases } from '../src/selling-houses/ui/features/Cases.js';
 import { Opportunities } from '../src/selling-houses/ui/features/Opportunities.js';
-import { Review } from '../src/selling-houses/ui/features/Review.js';
-import { ResultsPanel } from '../src/selling-houses/ui/features/ResultsPanel.js';
 import { ProfilePanel } from '../src/selling-houses/ui/features/ProfilePanel.js';
 
 function buildWorld() {
@@ -56,7 +53,7 @@ expectIncludes(
   ['data-selling-houses-page="overview"', '总览', '今天先去哪', '本周节奏', '今日事项', '更多', '主房源', '去向', '当前主房源'],
   'overview',
 );
-expectExcludes(dashboardMarkup, ['市场雷达', '房源筛选', '单房结果'], 'overview');
+expectExcludes(dashboardMarkup, ['市场雷达', '房源筛选', '单房结果', '去复盘'], 'overview');
 
 const marketMarkup = render(
   React.createElement(Market, {
@@ -122,69 +119,6 @@ expectIncludes(
 );
 expectExcludes(opportunitiesMarkup, ['房源筛选', '市场雷达', '单房结果'], 'customers');
 
-const reviewMarkup = render(
-  React.createElement(Review, {
-    state: world,
-  }),
-);
-
-expectIncludes(
-  reviewMarkup,
-  ['data-selling-houses-page="review"', '经营回看', '记录', '先变的点', '转好的点', '转差的点', '关键变化', '昨日摘要', '客户线', '周记录', '主变化'],
-  'review',
-);
-expectExcludes(reviewMarkup, ['市场雷达', '房源筛选', '单房结果'], 'review');
-
-const pendingResultsMarkup = render(
-  React.createElement(ResultsPanel, {
-    state: world,
-    onRestart: () => {},
-  }),
-);
-
-expectIncludes(
-  pendingResultsMarkup,
-  [
-    'data-selling-houses-page="results"',
-    '当前状态',
-    '重点',
-    '带走',
-    '单房结果',
-    '哪些算结果',
-    '结果和过程怎么分',
-    '重开本局',
-    '未结算台账',
-    '当前台账还不是最终成绩',
-    '现在还不会记进跨局成绩',
-  ],
-  'results-pending',
-);
-expectExcludes(pendingResultsMarkup, ['房源筛选', '市场雷达', '经营回看'], 'results-pending');
-
-const settledWorld = buildWorld();
-settledWorld.finalResult = evaluateFinalResult(settledWorld, '测试结算');
-
-const finalResultsMarkup = render(
-  React.createElement(ResultsPanel, {
-    state: settledWorld,
-    onRestart: () => {},
-  }),
-);
-
-expectIncludes(
-  finalResultsMarkup,
-  [
-    'data-selling-houses-page="results"',
-    '正式结算',
-    '三项得分',
-    '得分',
-    '生涯记录',
-    '单房结果',
-  ],
-  'results-final',
-);
-expectExcludes(finalResultsMarkup, ['房源筛选', '市场雷达', '经营回看'], 'results-final');
-
 const profileMarkup = render(
   React.createElement(ProfilePanel, {
     state: world,
@@ -204,7 +138,7 @@ expectIncludes(
     '活跃客户',
     '关系网络',
     '我现在在守谁、接着谁',
-    '战绩与复盘',
+    '战绩与记录',
     '这局记录',
     '已成交',
     '平均信任',

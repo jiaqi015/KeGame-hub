@@ -6,8 +6,6 @@ import { createInitialState, updateDerivedState } from '../src/selling-houses/ap
 import { getScenarioSnapshotById } from '../src/selling-houses/domain/scenarioCatalog.js';
 import { seedInitialOpportunities } from '../src/selling-houses/domain/engine.js';
 import { ProfilePanel } from '../src/selling-houses/ui/features/ProfilePanel.js';
-import { ResultsPanel } from '../src/selling-houses/ui/features/ResultsPanel.js';
-import { Review } from '../src/selling-houses/ui/features/Review.js';
 
 function buildWorld() {
   const snapshot = getScenarioSnapshotById('standard-window-chain');
@@ -21,8 +19,6 @@ function buildWorld() {
 const world = buildWorld();
 
 const pages = {
-  review: renderToStaticMarkup(React.createElement(Review, { state: world })),
-  results: renderToStaticMarkup(React.createElement(ResultsPanel, { state: world, onRestart: () => {} })),
   profile: renderToStaticMarkup(React.createElement(ProfilePanel, { state: world, currentUserNickname: '当前顾问' })),
 };
 

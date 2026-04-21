@@ -1,5 +1,5 @@
-import React from 'react';
-import { motion } from 'motion/react';
+import React, { useRef } from 'react';
+import { motion, useMotionValue, useSpring, useTransform } from 'motion/react';
 import { KeyRound, Loader2, Mail, ShieldCheck } from 'lucide-react';
 import { AuthMode, AuthStatus } from '../../app/appReducer';
 import { KeGameHubMark } from '../Brand/KeGameHubMark';
@@ -39,140 +39,304 @@ export function AuthOverlay({
       ? '验证并登录'
       : '完成首登';
 
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mouseX = useMotionValue(0.5);
+  const mouseY = useMotionValue(0.5);
+
+  const springConfig = { damping: 30, stiffness: 100 };
+  const smoothX = useSpring(mouseX, springConfig);
+  const smoothY = useSpring(mouseY, springConfig);
+
+  // 衍生出的偏移量
+  const spotlightX = useTransform(smoothX, [0, 1], ['-25%', '25%']);
+  const spotlightY = useTransform(smoothY, [0, 1], ['-25%', '25%']);
+  
+  const blob1X = useTransform(smoothX, [0, 1], [40, -40]);
+  const blob1Y = useTransform(smoothY, [0, 1], [40, -40]);
+  
+  const blob2X = useTransform(smoothX, [0, 1], [-60, 60]);
+  const blob2Y = useTransform(smoothY, [0, 1], [-60, 60]);
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!containerRef.current) return;
+    const { left, top, width, height } = containerRef.current.getBoundingClientRect();
+    mouseX.set((e.clientX - left) / width);
+    mouseY.set((e.clientY - top) / height);
+  };
+
   return (
-    <div className="relative flex-1 overflow-hidden bg-[#050505] px-6 py-10 text-white">
-      {/* 流动感背景元素 */}
+    <div 
+      ref={containerRef}
+      onMouseMove={handleMouseMove}
+      className="relative flex-1 overflow-hidden bg-[#020203] px-6 py-10 text-white"
+    >
+      {/* 极富律动感与流动感的互动背景 */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(17,24,39,1)_0%,rgba(5,5,5,1)_100%)]" />
+        {/* 底层渐变 */}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,#0a0a12_0%,#020203_100%)]" />
         
+        {/* 鼠标跟随的柔和光晕 (Spotlight) */}
+        <motion.div
+          style={{
+            left: spotlightX,
+            top: spotlightY,
+            background: 'radial-gradient(circle at center, rgba(59, 130, 246, 0.08) 0%, transparent 65%)',
+          }}
+          className="absolute inset-[-20%] z-0"
+        />
+
+        {/* 动态流动的光晕群 - 结合鼠标物理反馈 */}
         <motion.div
           animate={{
-            x: [-20, 20, -20],
-            y: [-20, 20, -20],
-            scale: [1, 1.1, 1],
-            rotate: [0, 10, 0],
+            x: [-80, 80, -80],
+            y: [-30, 120, -30],
+            scale: [1, 1.2, 1],
+            rotate: [0, 45, 0],
+          }}
+          style={{
+            translateX: blob1X,
+            translateY: blob1Y,
           }}
           transition={{
-            duration: 15,
+            duration: 25,
             repeat: Infinity,
             ease: "easeInOut"
           }}
-          className="absolute -left-[10%] top-[10%] h-[80%] w-[80%] rounded-full bg-blue-500/10 blur-[120px]"
+          className="absolute -left-[10%] -top-[5%] h-[80%] w-[80%] rounded-full bg-blue-600/10 blur-[120px]"
         />
         
         <motion.div
           animate={{
-            x: [20, -20, 20],
-            y: [20, -20, 20],
-            scale: [1.1, 1, 1.1],
-            rotate: [0, -10, 0],
+            x: [80, -80, 80],
+            y: [30, -120, 30],
+            scale: [1.1, 0.9, 1.1],
+            rotate: [0, -60, 0],
+          }}
+          style={{
+            translateX: blob2X,
+            translateY: blob2Y,
+          }}
+          transition={{
+            duration: 30,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+          className="absolute -right-[10%] -bottom-[5%] h-[85%] w-[85%] rounded-full bg-indigo-600/08 blur-[140px]"
+        />
+
+        <motion.div
+          animate={{
+            opacity: [0.1, 0.25, 0.1],
+            scale: [1, 1.4, 1],
+            x: [-50, 50, -50],
+          }}
+          style={{
+            translateX: useTransform(smoothX, [0, 1], [20, -20]),
+            translateY: useTransform(smoothY, [0, 1], [20, -20]),
+          }}
+          transition={{
+            duration: 20,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+          className="absolute left-[10%] top-[20%] h-[60%] w-[60%] rounded-full bg-purple-600/10 blur-[120px]"
+        />
+
+        <motion.div
+          animate={{
+            opacity: [0, 0.15, 0],
+            scale: [0.8, 1.2, 0.8],
+            y: [100, -100, 100],
+          }}
+          style={{
+            translateX: useTransform(smoothX, [0, 1], [-30, 30]),
+            translateY: useTransform(smoothY, [0, 1], [-30, 30]),
           }}
           transition={{
             duration: 18,
             repeat: Infinity,
-            ease: "easeInOut"
+            ease: "easeInOut",
+            delay: 5
           }}
-          className="absolute -right-[10%] bottom-[10%] h-[80%] w-[80%] rounded-full bg-indigo-500/10 blur-[120px]"
+          className="absolute right-[20%] top-[10%] h-[50%] w-[50%] rounded-full bg-cyan-500/10 blur-[100px]"
         />
 
-        <motion.div
+        {/* 呼吸感的线条/波动层 */}
+        <svg className="absolute inset-0 h-full w-full opacity-[0.07]" xmlns="http://www.w3.org/2000/svg">
+          <filter id="blur">
+            <feGaussianBlur stdDeviation="2" />
+          </filter>
+          <motion.path
+            d="M-100 300 Q 200 100 500 300 T 1100 300"
+            fill="none"
+            stroke="white"
+            strokeWidth="1"
+            filter="url(#blur)"
+            animate={{
+              d: [
+                "M-100 300 Q 200 100 500 300 T 1100 300",
+                "M-100 350 Q 250 150 550 350 T 1100 350",
+                "M-100 300 Q 200 100 500 300 T 1100 300"
+              ]
+            }}
+            transition={{
+              duration: 10,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+          />
+          <motion.path
+            d="M-100 450 Q 300 250 600 450 T 1300 450"
+            fill="none"
+            stroke="rgba(255,255,255,0.5)"
+            strokeWidth="0.5"
+            animate={{
+              d: [
+                "M-100 450 Q 300 250 600 450 T 1300 450",
+                "M-100 400 Q 250 200 550 400 T 1300 400",
+                "M-100 450 Q 300 250 600 450 T 1300 450"
+              ]
+            }}
+            transition={{
+              duration: 12,
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay: 1
+            }}
+          />
+        </svg>
+
+        {/* 噪点纹理增强质感 */}
+        <div className="absolute inset-0 opacity-[0.04] mix-blend-overlay" 
+             style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }} 
+        />
+
+        {/* 顶部微弱的高光扫射 */}
+        <motion.div 
           animate={{
-            opacity: [0.1, 0.2, 0.1],
-            scale: [0.8, 1.2, 0.8],
+            x: ['-100%', '200%'],
           }}
           transition={{
-            duration: 12,
+            duration: 15,
             repeat: Infinity,
-            ease: "easeInOut"
+            ease: "linear",
           }}
-          className="absolute left-[20%] top-[30%] h-[40%] w-[40%] rounded-full bg-purple-500/10 blur-[100px]"
-        />
-
-        {/* 噪点纹理层 */}
-        <div className="absolute inset-0 opacity-[0.03] mix-blend-overlay" 
-             style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }} 
+          className="absolute top-0 h-[2px] w-[30%] bg-gradient-to-r from-transparent via-blue-400/20 to-transparent blur-[2px]"
         />
       </div>
 
       <motion.form
-        initial={{ opacity: 0, y: 18 }}
-        animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0, scale: 0.98, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
         onSubmit={onSubmit}
-        className="relative mx-auto flex h-full w-full max-w-[540px] items-center"
+        className="relative mx-auto flex h-full w-full max-w-[520px] items-center"
       >
-        <div className="w-full rounded-[40px] border border-white/10 bg-white/5 p-3 shadow-[0_30px_90px_rgba(0,0,0,0.4)] backdrop-blur-3xl">
-          <div className="rounded-[32px] border border-white/5 bg-[#111111]/80 p-8 md:p-10 shadow-inner">
-            <div className="mb-8 flex items-start justify-between gap-6">
+        <div className="group relative w-full overflow-hidden rounded-[42px] border border-white/[0.08] bg-white/[0.02] p-1 shadow-[0_40px_100px_rgba(0,0,0,0.6)] backdrop-blur-3xl">
+          {/* 卡片内部的流动光晕 */}
+          <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-blue-500/10 blur-[80px] transition-opacity duration-500 group-hover:opacity-100 opacity-50" />
+          <div className="pointer-events-none absolute -left-20 -bottom-20 h-64 w-64 rounded-full bg-indigo-500/10 blur-[80px] transition-opacity duration-500 group-hover:opacity-100 opacity-50" />
+          
+          <div className="relative rounded-[38px] border border-white/[0.05] bg-[#0c0c0e]/60 p-8 md:p-11 shadow-inner">
+            <div className="mb-10 flex items-start justify-between gap-6">
               <div>
-                <div className="flex items-center gap-3">
-                  <KeGameHubMark size={36} />
-                  <h1 className="text-[34px] font-semibold tracking-[-0.04em] text-white">
+                <motion.div 
+                  initial={{ x: -10, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: 0.2 }}
+                  className="flex items-center gap-3"
+                >
+                  <KeGameHubMark size={40} className="drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]" />
+                  <h1 className="bg-gradient-to-br from-white to-white/60 bg-clip-text text-[38px] font-bold tracking-[-0.05em] text-transparent">
                     KeGame
                   </h1>
-                </div>
-                <p className="mt-3 max-w-sm text-[15px] leading-7 text-[#A1A1AA]">
-                  第一次登录：必须使用 `@ke.com` 邮箱，先获取验证码，再输入分配给你的激活 key 完成开通。以后登录：只需要验证码登录。
-                </p>
-                <p className="mt-4 text-[12px] leading-6 text-[#71717A]">
-                  已开通多模型 PK、开放日选址、王牌资产顾问等功能。
-                </p>
+                </motion.div>
+                <motion.p 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.3 }}
+                  className="mt-4 max-w-sm text-[15px] font-medium leading-relaxed text-zinc-400"
+                >
+                  第一次登录：必须使用 <span className="text-blue-400/90">@ke.com</span> 邮箱，获取验证码后使用分配的激活 Key 完成开通。
+                </motion.p>
+                <motion.p 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.4 }}
+                  className="mt-3 text-[12px] font-medium tracking-wide text-zinc-500"
+                >
+                  已集成多模型 PK、选址决策、王牌顾问等核心能力。
+                </motion.p>
               </div>
 
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] bg-white text-[#111111] shadow-[0_18px_40px_rgba(255,255,255,0.1)]">
+              <motion.div 
+                whileHover={{ scale: 1.05, rotate: 5 }}
+                className="flex h-15 w-15 shrink-0 items-center justify-center rounded-[22px] bg-white text-[#050505] shadow-[0_20px_40px_rgba(255,255,255,0.12)]"
+              >
                 {authStatus === 'checking' || authStatus === 'submitting' ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <Loader2 className="h-6 w-6 animate-spin" />
                 ) : (
-                  <ShieldCheck className="h-5 w-5" />
+                  <ShieldCheck className="h-6 w-6" />
                 )}
-              </div>
+              </motion.div>
             </div>
 
-            <div className="grid gap-4">
-              <label className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#71717A]">
-                企业邮箱
-              </label>
-              <div className="flex items-center gap-3 rounded-[24px] border border-white/10 bg-white/5 px-4 py-4 transition focus-within:border-white/20 focus-within:bg-white/10 focus-within:shadow-[0_0_0_4px_rgba(255,255,255,0.05)]">
-                <Mail className="h-4.5 w-4.5 shrink-0 text-[#71717A]" />
-                <input
-                  value={loginEmail}
-                  onChange={(event) => onEmailChange(event.target.value)}
-                  placeholder="输入 @ke.com 邮箱"
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  disabled={isBusy || authMode !== 'email'}
-                  className="w-full bg-transparent text-sm tracking-[0.01em] text-white outline-none placeholder:text-[#52525B] disabled:cursor-not-allowed"
-                />
+            <div className="grid gap-5">
+              <div className="space-y-2.5">
+                <label className="ml-1 text-[11px] font-bold uppercase tracking-[0.25em] text-zinc-500">
+                  企业邮箱
+                </label>
+                <div className="group/input flex items-center gap-4 rounded-[26px] border border-white/[0.06] bg-white/[0.03] px-5 py-4.5 transition-all duration-300 focus-within:border-white/20 focus-within:bg-white/[0.06] focus-within:shadow-[0_0_25px_rgba(255,255,255,0.03)]">
+                  <Mail className="h-5 w-5 shrink-0 text-zinc-500 transition-colors group-focus-within/input:text-white" />
+                  <input
+                    value={loginEmail}
+                    onChange={(event) => onEmailChange(event.target.value)}
+                    placeholder="请输入 @ke.com 邮箱"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    disabled={isBusy || authMode !== 'email'}
+                    className="w-full bg-transparent text-[15px] font-medium tracking-[0.01em] text-white outline-none placeholder:text-zinc-600 disabled:cursor-not-allowed"
+                  />
+                </div>
               </div>
 
               {authMode !== 'email' ? (
-                <>
-                  <label className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#71717A]">
+                <motion.div 
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  className="space-y-2.5 overflow-hidden"
+                >
+                  <label className="ml-1 text-[11px] font-bold uppercase tracking-[0.25em] text-zinc-500">
                     邮件验证码
                   </label>
-                  <div className="flex items-center gap-3 rounded-[24px] border border-white/10 bg-white/5 px-4 py-4 transition focus-within:border-white/20 focus-within:bg-white/10 focus-within:shadow-[0_0_0_4px_rgba(255,255,255,0.05)]">
-                    <ShieldCheck className="h-4.5 w-4.5 shrink-0 text-[#71717A]" />
+                  <div className="group/input flex items-center gap-4 rounded-[26px] border border-white/[0.06] bg-white/[0.03] px-5 py-4.5 transition-all duration-300 focus-within:border-white/20 focus-within:bg-white/[0.06] focus-within:shadow-[0_0_25px_rgba(255,255,255,0.03)]">
+                    <ShieldCheck className="h-5 w-5 shrink-0 text-zinc-500 transition-colors group-focus-within/input:text-white" />
                     <input
                       value={verificationCode}
                       onChange={(event) => onCodeChange(event.target.value)}
-                      placeholder="输入 6 位验证码"
+                      placeholder="6 位数字验证码"
                       autoCapitalize="none"
                       autoCorrect="off"
                       spellCheck={false}
                       disabled={isBusy}
-                      className="w-full bg-transparent font-mono text-sm tracking-[0.1em] text-white outline-none placeholder:text-[#52525B] disabled:cursor-not-allowed"
+                      className="w-full bg-transparent font-mono text-[16px] font-medium tracking-[0.2em] text-white outline-none placeholder:text-zinc-600 disabled:cursor-not-allowed"
                     />
                   </div>
-                </>
+                </motion.div>
               ) : null}
 
               {shouldShowActivationInput ? (
-                <>
-                  <label className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#71717A]">
+                <motion.div 
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  className="space-y-2.5 overflow-hidden"
+                >
+                  <label className="ml-1 text-[11px] font-bold uppercase tracking-[0.25em] text-zinc-500">
                     首登激活密钥
                   </label>
-                  <div className="flex items-center gap-3 rounded-[24px] border border-white/10 bg-white/5 px-4 py-4 transition focus-within:border-white/20 focus-within:bg-white/10 focus-within:shadow-[0_0_0_4px_rgba(255,255,255,0.05)]">
-                    <KeyRound className="h-4.5 w-4.5 shrink-0 text-[#71717A]" />
+                  <div className="group/input flex items-center gap-4 rounded-[26px] border border-white/[0.06] bg-white/[0.03] px-5 py-4.5 transition-all duration-300 focus-within:border-white/20 focus-within:bg-white/[0.06] focus-within:shadow-[0_0_25px_rgba(255,255,255,0.03)]">
+                    <KeyRound className="h-5 w-5 shrink-0 text-zinc-500 transition-colors group-focus-within/input:text-white" />
                     <input
                       value={activationInput}
                       onChange={(event) => onChange(event.target.value)}
@@ -181,41 +345,55 @@ export function AuthOverlay({
                       autoCorrect="off"
                       spellCheck={false}
                       disabled={isBusy}
-                      className="w-full bg-transparent font-mono text-sm tracking-[0.04em] text-white outline-none placeholder:text-[#52525B] disabled:cursor-not-allowed"
+                      className="w-full bg-transparent font-mono text-[15px] font-medium tracking-[0.05em] text-white outline-none placeholder:text-zinc-600 disabled:cursor-not-allowed"
                     />
                   </div>
-                </>
+                </motion.div>
               ) : null}
 
-              <button
+              <motion.button
                 type="submit"
+                whileHover={{ scale: 1.01, backgroundColor: '#fdfdfd' }}
+                whileTap={{ scale: 0.98 }}
                 disabled={
                   isBusy
                   || (authMode === 'email' && !loginEmail.trim())
                   || (authMode !== 'email' && !verificationCode.trim())
                   || (shouldShowActivationInput && !activationInput.trim())
                 }
-                className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-[24px] bg-white px-4 py-4 text-sm font-semibold text-[#111111] shadow-[0_18px_30px_rgba(255,255,255,0.1)] transition hover:bg-[#F4F4F5] disabled:cursor-not-allowed disabled:bg-[#27272A] disabled:text-[#71717A] disabled:shadow-none"
+                className="mt-4 inline-flex w-full items-center justify-center gap-3 rounded-[26px] bg-white px-5 py-5 text-[15px] font-bold text-[#050505] shadow-[0_25px_50px_-12px_rgba(255,255,255,0.15)] transition-all disabled:cursor-not-allowed disabled:bg-zinc-800 disabled:text-zinc-500 disabled:shadow-none"
               >
-                {authStatus === 'submitting' ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-                {authStatus === 'checking' ? '正在恢复会话' : authStatus === 'submitting' ? '处理中...' : submitLabel}
-              </button>
+                {authStatus === 'submitting' ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShieldCheck className="h-5 w-5" />}
+                <span className="tracking-wide">
+                  {authStatus === 'checking' ? '正在恢复会话' : authStatus === 'submitting' ? '处理中...' : submitLabel}
+                </span>
+              </motion.button>
             </div>
 
             {authHint && (
-              <div className="mt-4 rounded-[22px] border border-blue-900/50 bg-blue-900/20 px-4 py-3 text-sm text-blue-300">
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-5 rounded-[24px] border border-blue-500/20 bg-blue-500/5 px-5 py-4 text-[13px] font-medium leading-relaxed text-blue-300/90"
+              >
                 {authHint}
-              </div>
+              </motion.div>
             )}
 
             {authError && (
-              <div className="mt-4 rounded-[22px] border border-red-900/50 bg-red-900/20 px-4 py-3 text-sm text-red-300">
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-5 rounded-[24px] border border-red-500/20 bg-red-500/5 px-5 py-4 text-[13px] font-medium leading-relaxed text-red-300/90"
+              >
                 {authError}
-              </div>
+              </motion.div>
             )}
 
-            <div className="mt-6 text-xs text-[#71717A]">
+            <div className="mt-8 flex items-center justify-center gap-2 text-xs font-medium tracking-wide text-zinc-500">
+              <div className="h-1 w-1 rounded-full bg-zinc-600" />
               {authStatus === 'checking' ? '正在恢复已登录状态' : '登录后会记住当前设备'}
+              <div className="h-1 w-1 rounded-full bg-zinc-600" />
             </div>
           </div>
         </div>

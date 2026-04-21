@@ -8,7 +8,6 @@ import {
   buildOpportunityListProjection,
   buildOperatingProjection,
 } from '../src/selling-houses/application/projections/operatingProjection';
-import { buildReviewProjection } from '../src/selling-houses/application/projections/reviewProjection';
 import { buildResultProjection } from '../src/selling-houses/application/projections/resultProjection';
 import { buildLeaderboardProjection } from '../src/selling-houses/application/projections/leaderboardProjection';
 import { buildWorkspaceShellProjection } from '../src/selling-houses/application/projections/workspaceShellProjection';
@@ -103,16 +102,10 @@ function buildWorld() {
   updateDerivedState(world);
 
   const shell = buildWorkspaceShellProjection(world);
-  const review = buildReviewProjection(world);
 
   assert.ok(
     shell.sidebar.journal.brief.includes(caseItem.district) || shell.sidebar.journal.brief.includes('影响到'),
     'Expected shell journal brief to reflect dirty scope context after daily settlement',
-  );
-  assert.ok(review.dailyBrief, 'Expected review projection to expose daily brief after settlement');
-  assert.ok(
-    review.dailyBrief?.metricNotes.some((entry) => entry.includes('影响范围') || entry.includes(caseItem.district)),
-    'Expected review daily brief to include dirty scope or impact context',
   );
 }
 

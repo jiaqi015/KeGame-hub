@@ -68,13 +68,13 @@ export interface DashboardProjection {
     impactedCases: ProjectionBrief[];
   };
   triageCards: Array<{
-    id: 'cases' | 'customers' | 'market' | 'review';
+    id: 'cases' | 'customers' | 'market';
     label: string;
     title: string;
     detail: string;
     countLabel: string;
     tone: ProjectionTone;
-    targetView: 'cases' | 'customers' | 'market' | 'review';
+    targetView: 'cases' | 'customers' | 'market';
     marketLayer?: IntelLayerTab;
     caseId?: string;
   }>;
@@ -308,7 +308,7 @@ export function buildDashboardProjection(
       leadReason: group.leadReason,
     })),
     marketBrief,
-    triageCards: buildDashboardTriageCards(state, todayPriority, yesterdayIntel, marketBrief, priorityProjection),
+    triageCards: buildDashboardTriageCards(state, todayPriority, marketBrief, priorityProjection),
   };
 }
 
@@ -672,14 +672,12 @@ export function buildMarketProjection(state: GameState): MarketProjection {
 function buildDashboardTriageCards(
   state: GameState,
   todayPriority: ProjectionBrief[],
-  yesterdayIntel: ProjectionBrief[],
   marketBrief: DashboardProjection['marketBrief'],
   priorityProjection: ReturnType<typeof buildFollowUpPriorityProjection>,
 ): DashboardProjection['triageCards'] {
   const activeOpportunityCount = state.opportunities.filter((opportunity) => opportunity.status === 'active').length;
   const closingLead = priorityProjection.groups.closingOpportunity.items[0] || null;
   const firstPriority = todayPriority[0] || null;
-  const reviewLead = yesterdayIntel[0] || null;
 
   return [
     {
@@ -718,16 +716,6 @@ function buildDashboardTriageCards(
       targetView: 'market',
       marketLayer: 'macro',
       caseId: marketBrief.impactedCases[0]?.caseId,
-    },
-    {
-      id: 'review',
-      label: '去复盘',
-      title: reviewLead?.title || '昨天没有留下强解释信号',
-      detail: reviewLead?.detail || '去看昨天留下的变化。',
-      countLabel: `${yesterdayIntel.length} 条记录`,
-      tone: reviewLead?.tone || 'neutral',
-      targetView: 'review',
-      caseId: reviewLead?.caseId,
     },
   ];
 }

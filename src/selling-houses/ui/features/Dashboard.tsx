@@ -49,7 +49,7 @@ type JournalItem = {
 
 type AgendaTool = {
   label: string;
-  target: 'case' | 'customers' | 'market' | 'review';
+  target: 'case' | 'customers' | 'market';
   marketLayer?: IntelLayerTab;
 };
 
@@ -122,7 +122,6 @@ export function Dashboard({
       onOpenMarket(tool.marketLayer || 'macro');
       return;
     }
-    onSetView('review');
   };
 
   return (
@@ -977,14 +976,14 @@ function buildAgendaTools(item: ProjectionBrief): AgendaTool[] {
     return [
       { label: '看市场变化', target: 'market', marketLayer: 'district' },
       { label: '看受影响房源', target: 'market', marketLayer: 'listing' },
-      { label: '回看今天记录', target: 'review' },
+      { label: '看今日事项', target: 'case' },
     ];
   }
 
   return [
     { label: '打开房源', target: 'case' },
     { label: '看客户线', target: 'customers' },
-    { label: '回看记录', target: 'review' },
+    { label: '看市场变化', target: 'market', marketLayer: 'macro' },
   ];
 }
 

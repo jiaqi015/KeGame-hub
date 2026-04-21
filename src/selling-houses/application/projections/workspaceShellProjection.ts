@@ -100,15 +100,6 @@ export interface WorkspaceShellEnergyPanelProjection {
   rhythm: WorkspaceShellEnergyRhythmProjection[];
 }
 
-export interface WorkspaceShellSidebarFocusProjection {
-  eyebrow: string;
-  title: string;
-  detail: string;
-  badges: string[];
-  caseId?: string;
-  actionLabel?: string;
-}
-
 export interface WorkspaceShellSidebarCueProjection {
   id: string;
   label: string;
@@ -147,7 +138,6 @@ export interface WorkspaceShellMatterProjection {
 }
 
 export interface WorkspaceShellSidebarProjection {
-  focus: WorkspaceShellSidebarFocusProjection;
   matter: WorkspaceShellMatterProjection;
   actionCues: WorkspaceShellSidebarCueProjection[];
   riskCues: WorkspaceShellSidebarCueProjection[];
@@ -313,7 +303,6 @@ export function buildWorkspaceShellProjection(state: GameState): WorkspaceShellP
       state,
       dashboardProjection,
       marketProjection,
-      selectedCase,
       selectedCaseProjection,
     ),
     selectedCaseDetail: selectedCase && selectedCaseProjection
@@ -334,10 +323,8 @@ function buildSidebarProjection(
   state: GameState,
   dashboardProjection: ReturnType<typeof buildDashboardProjection>,
   marketProjection: ReturnType<typeof buildMarketProjection>,
-  selectedCase: Case | null,
   selectedCaseProjection: ReturnType<typeof buildCaseDetailProjection> | null,
 ): WorkspaceShellSidebarProjection {
-  const focus = buildSidebarFocus(state, dashboardProjection, selectedCase, selectedCaseProjection);
   const journal = buildSidebarJournalSummary(state);
   const matter = buildMatterProjection(state, dashboardProjection, marketProjection, selectedCaseProjection);
   const actionCues = matter.actionItems.length > 0
@@ -345,7 +332,6 @@ function buildSidebarProjection(
     : dashboardProjection.todayPriority.slice(0, 3).map(toSidebarCue);
 
   return {
-    focus,
     matter,
     actionCues,
     riskCues: dashboardProjection.riskReminders.slice(0, 3).map(toSidebarCue),
@@ -474,57 +460,6 @@ function buildSidebarJournalSummary(state: GameState): WorkspaceShellJournalSumm
     chanceCount,
     brief: buildJournalBrief(state, todayItems.length, yesterdayItems.length, riskCount, chanceCount),
     actionLabel: '展开记录',
-  };
-}
-
-function buildSidebarFocus(
-  state: GameState,
-  dashboardProjection: ReturnType<typeof buildDashboardProjection>,
-  selectedCase: Case | null,
-  selectedCaseProjection: ReturnType<typeof buildCaseDetailProjection> | null,
-): WorkspaceShellSidebarFocusProjection {
-  if (selectedCase && selectedCaseProjection) {
-    return {
-      eyebrow: '当前焦点',
-      title: selectedCase.title,
-      detail: selectedCaseProjection.actionReasons[0]?.detail
-        || selectedCaseProjection.ownerSummary.detail,
-      badges: [
-        selectedCaseProjection.mainProblemLabel,
-        `窗口 ${selectedCase.windowDays} 天`,
-        `信任 ${Math.round(selectedCase.trust)}`,
-      ],
-      caseId: selectedCase.id,
-      actionLabel: '查看房源',
-    };
-  }
-
-  if (state.finalResult) {
-    const activeCount = state.cases.filter((entry) => entry.status === 'active').length;
-    return {
-      eyebrow: '本局状态',
-      title: `${state.runContext.scenarioName} 已正式结算`,
-      detail: `最终得分 ${Math.round(state.finalResult.score)}。`,
-      badges: [
-        state.finalResult.grade,
-        `${getClosedDealCount(state)} 套成交`,
-        `${activeCount} 套在场`,
-      ],
-      actionLabel: '查看结果',
-    };
-  }
-
-  return {
-    eyebrow: '今日经营',
-    title: dashboardProjection.todayHeadline,
-    detail: dashboardProjection.todayPriority[0]?.detail || '最需要承接的房源。',
-    badges: [
-      `${dashboardProjection.resourceSnapshot.activeCases} 套在场`,
-      `${dashboardProjection.resourceSnapshot.activeOpportunities} 条机会`,
-      `精力 ${dashboardProjection.resourceSnapshot.energy}`,
-    ],
-    caseId: dashboardProjection.todayPriority[0]?.caseId,
-    actionLabel: dashboardProjection.todayPriority[0]?.caseId ? '打开快看' : '查看概览',
   };
 }
 

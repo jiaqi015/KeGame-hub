@@ -94,7 +94,7 @@ export function ResultOverlay({ state, onRestart }: ResultOverlayProps) {
               detail={leadHighlight
                 ? '这条最能代表这局。'
                 : leadImprovement
-                  ? '这条最值得带回复盘页。'
+                  ? '这条最值得回看。'
                   : '这局没有特别突出的单点高光或失手。'}
               tone={leadHighlight ? 'chance' : leadImprovement ? 'risk' : 'neutral'}
             />
@@ -210,9 +210,9 @@ export function ResultOverlay({ state, onRestart }: ResultOverlayProps) {
               <section className="seller-panel-soft p-6">
                 <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[var(--seller-risk)]">
                   <TriangleAlert size={15} />
-                  这局复盘点
+                  这局回看点
                 </div>
-                <StackNotes items={projection.improvements} empty="这局还没有明确复盘点。" />
+                <StackNotes items={projection.improvements} empty="这局还没有明确回看点。" />
               </section>
             </div>
           </section>
@@ -221,7 +221,7 @@ export function ResultOverlay({ state, onRestart }: ResultOverlayProps) {
             <section className="seller-panel-soft p-6">
               <div className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[var(--seller-accent)]">
                 <Users size={15} />
-                客户复盘
+                客户记录
               </div>
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <TierPill label="推进中" value={customerReview.engaged} tone="emerald" />
@@ -243,8 +243,8 @@ export function ResultOverlay({ state, onRestart }: ResultOverlayProps) {
           )}
 
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-            <InsightBlock icon={<Sparkles size={16} />} title="推广复盘" tone="slate" items={projection.promotionNotes} />
-            <InsightBlock icon={<Lightbulb size={16} />} title="关键复盘" tone="emerald" items={projection.coachNotes} />
+            <InsightBlock icon={<Sparkles size={16} />} title="推广记录" tone="slate" items={projection.promotionNotes} />
+            <InsightBlock icon={<Lightbulb size={16} />} title="关键记录" tone="emerald" items={projection.coachNotes} />
           </div>
 
           <button
