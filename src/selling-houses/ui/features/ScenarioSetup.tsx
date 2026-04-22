@@ -118,7 +118,7 @@ export function ScenarioSetup({
         })}
       </div>
 
-      <div className="seller-panel-muted flex flex-1 flex-col overflow-hidden rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(17,25,35,0.98),rgba(11,17,24,0.98))]">
+      <div className="seller-panel-muted flex flex-1 flex-col overflow-y-auto rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(17,25,35,0.98),rgba(11,17,24,0.98))]">
         <div className="flex flex-1 flex-col gap-5 p-5">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
