@@ -45,9 +45,14 @@ import {
   resolveScenarioOpening,
 } from './scenarioOpening.js';
 import {
+  addTodayPlanItem,
   advanceGameDays,
+  executeTodayPlanItem,
   executeGameAction,
+  removeTodayPlanItem,
+  syncTodayPlanForCurrentDay,
 } from './gameTransitions.js';
+import type { TodayPlanDraft } from './todayPlan.js';
 
 const cloudHydrationInFlight = new Map<
   string,
@@ -413,6 +418,60 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
     return success;
   }, []);
 
+  const handleSyncTodayPlan = useCallback(() => {
+    setState((prev) => {
+      if (!prev) return null;
+      return syncTodayPlanForCurrentDay(prev);
+    });
+  }, []);
+
+  const handleAddTodayPlanItem = useCallback((input: TodayPlanDraft, onMessage?: (msg: string) => void) => {
+    let success = false;
+    let reason = '';
+    setState((prev) => {
+      if (!prev) return null;
+      const result = addTodayPlanItem(prev, input, onMessage);
+      success = result.success;
+      reason = result.reason;
+      return result.success ? result.nextState : prev;
+    });
+    return { success, reason };
+  }, []);
+
+  const handleRemoveTodayPlanItem = useCallback((itemId: string, onMessage?: (msg: string) => void) => {
+    let success = false;
+    let reason = '';
+    setState((prev) => {
+      if (!prev) return null;
+      const result = removeTodayPlanItem(prev, itemId, onMessage);
+      success = result.success;
+      reason = result.reason;
+      return result.success ? result.nextState : prev;
+    });
+    return { success, reason };
+  }, []);
+
+  const handleExecuteTodayPlanItem = useCallback((
+    itemId: string,
+    optionId: string | null = null,
+    onMessage?: (msg: string) => void,
+  ) => {
+    let success = false;
+    let reason = '';
+    let outcome: 'executed' | 'scenario' | 'missing' | 'blocked' = 'blocked';
+    let executionMode: TodayPlanDraft['executionMode'] | null = null;
+    setState((prev) => {
+      if (!prev) return null;
+      const result = executeTodayPlanItem(prev, itemId, optionId, onMessage);
+      success = result.success;
+      reason = result.reason;
+      outcome = result.outcome;
+      executionMode = result.executionMode;
+      return result.success && result.outcome === 'executed' ? result.nextState : prev;
+    });
+    return { success, reason, outcome, executionMode };
+  }, []);
+
   const handleReset = useCallback(() => {
     clearMaintainerCloudMeta(playerContext.storageScopeKey);
     clearSavedGameState(playerContext.storageScopeKey);
@@ -440,6 +499,10 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
     handleSelectCase,
     handleAdvanceDays,
     handleExecuteAction,
+    handleSyncTodayPlan,
+    handleAddTodayPlanItem,
+    handleRemoveTodayPlanItem,
+    handleExecuteTodayPlanItem,
     handleReset,
     handleClearReport,
   };

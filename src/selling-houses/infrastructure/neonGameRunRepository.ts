@@ -618,7 +618,7 @@ function buildResolvedCaseMatterSummary(
   }
 
   if (caseItem.status === 'lost_to_rival') {
-    return `${caseItem.title} 已被竞品截走，本轮经营窗口已经失效。`;
+    return `${caseItem.title} 已被别人先成交，本轮经营窗口已经失效。`;
   }
 
   return `${caseItem.title} 当前已不在活跃经营阶段。`;
@@ -655,7 +655,7 @@ function resolveClosedMatterStatus(
   return {
     status: 'expired' as const,
     resolutionCode: 'lost_to_rival',
-    resolutionSummary: '竞品先一步成交，当前事项已失效。',
+    resolutionSummary: '被别人先成交，这件事现在做不成了。',
   };
 }
 

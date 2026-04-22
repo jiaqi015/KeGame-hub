@@ -114,7 +114,7 @@ function deriveProfileDetail(
   if (opportunity.visibility === 'shadow') {
     return opportunity.profile
       ? `${opportunity.profile}，但还没接上真人。`
-      : '这波还只是潜在人群，预算、家人意见和真实看房意愿都没核实。';
+      : '还只是潜在人群，预算、意愿都没核实。';
   }
 
   return opportunity.profile || '需求还在摸底。';
@@ -157,26 +157,26 @@ function deriveCustomerStatusDetail(
   if (customerState.churnRisk >= 60) {
     return customerState.lastActionNote
       ? `最近一次明显变化是：${customerState.lastActionNote}`
-      : '最近跟进偏弱，或者被竞品房源分走了注意力。';
+      : '最近跟进偏弱，或者被同类房分走了注意力。';
   }
 
   if (customerState.status === 'comparing') {
-    return '客户不是没兴趣，而是在反复比较价格、位置和房子条件。';
+    return '客户在比较价格、位置和房子条件。';
   }
 
   if (customerState.status === 'negotiating') {
-    return '客户已经不只是看不看，而是在确认价格、时机和成交确定性。';
+    return '客户在确认价格、时机和成交确定性。';
   }
 
   if (runtime?.selected) {
-    return '这套房目前仍在客户的优先选择里，关键是别让跟进断掉。';
+    return '这套房仍在客户优先选择里，别断跟进。';
   }
 
   if ((customerState.fatigue || 0) >= 60) {
-    return '客户看房比较累，沟通要更聚焦，别再重复泛泛介绍。';
+    return '客户看房累，沟通要聚焦。';
   }
 
-  return '客户还在往前走，但需要你继续给出更具体的推进理由。';
+  return '客户还在往前走，需要更具体的推进理由。';
 }
 
 function deriveOpportunityStatusLabel(
@@ -196,7 +196,7 @@ function deriveOpportunityStatusDetail(
   engagementBand: OpportunityEngagementBand,
 ) {
   if (engagementBand === 'potential') {
-    return '先别把它当成已经在跟的机会，它只能说明这套房对这类人还有吸引力。';
+    return '别当已在跟的机会，只能说明这类客户对这套房有兴趣。';
   }
 
   if (engagementBand === 'contacted') {
@@ -273,7 +273,7 @@ function deriveNextStep(
   runtime: CustomerCaseRuntime | undefined,
 ) {
   if (opportunity.visibility === 'shadow') return '先接上真人，再核实预算、决策人和看房时间。';
-  if ((customerState?.churnRisk || 0) >= 60) return '先补一次有结论的回访，稳住这次机会。';
+  if ((customerState?.churnRisk || 0) >= 60) return '需要一次明确回访，稳住机会。';
   if (opportunity.stageIndex >= 4 || customerState?.status === 'negotiating') return '集中推进报价和谈判细节，争取尽快落到成交动作。';
   if (runtime?.viewed || opportunity.stageIndex >= 2) return '趁现场记忆还热，推进复看或明确出价意向。';
   return '尽快推进到带看，把模糊意向变成现场判断。';

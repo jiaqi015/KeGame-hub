@@ -21,6 +21,10 @@ import {
   type RivalStore,
   type RivalListing,
   type CompanyPressureState,
+  type TodayArrangementExecutionMode,
+  type TodayArrangementItem,
+  type TodayArrangementSlot,
+  type TodayPlanState,
 } from '../domain/models.js';
 import { createInitialBudgetLedger, normalizeBudgetLedger } from '../domain/budget.js';
 import { getBuiltInWorld, resolveScenarioRules } from '../domain/scenarioCatalog.js';
@@ -180,7 +184,7 @@ function normalizeCompanyPressure(input?: Partial<CompanyPressureState>): Compan
 function normalizeRivalStore(entry: any, index: number): RivalStore {
   return {
     id: String(entry?.id || `rival-store-${index + 1}`),
-    name: String(entry?.name || `竞品门店 ${index + 1}`),
+    name: String(entry?.name || `其他门店 ${index + 1}`),
     type: entry?.type === 'same_company' ? 'same_company' : 'external_company',
     style: ['aggressive', 'steady', 'relationship', 'traffic'].includes(entry?.style) ? entry.style : 'steady',
     districtFocus: Array.isArray(entry?.districtFocus) ? entry.districtFocus.map(String) : [],
@@ -195,7 +199,7 @@ function normalizeRivalListing(entry: any, index: number): RivalListing {
   return {
     id: String(entry?.id || `rival-listing-${index + 1}`),
     storeId: String(entry?.storeId || 'unknown-rival-store'),
-    title: String(entry?.title || `竞品房源 ${index + 1}`),
+    title: String(entry?.title || `同类在卖房 ${index + 1}`),
     district: String(entry?.district || ''),
     marketCellId: String(entry?.marketCellId || ''),
     linkedCaseId: typeof entry?.linkedCaseId === 'string' ? entry.linkedCaseId : undefined,
@@ -320,7 +324,7 @@ export function createInitialState(snapshot: ScenarioSnapshot, seedInput: RunSee
     selectedCaseId: generatedCases[0]?.id || null,
     gameOver: false,
     finalResult: null,
-    lastMessage: `本局剧本：${snapshot.scenario.name}。你有 ${rules.maxDay} 天把握节奏，别让竞品和窗口一起把你拖垮。`,
+    lastMessage: `本局剧本：${snapshot.scenario.name}。你有 ${rules.maxDay} 天把握节奏，别让同类房和窗口一起把你拖垮。`,
     rules,
     scheduledEvents: snapshot.scenario.scriptedEvents.map((entry) => ({ ...entry })),
     competitionGroups: snapshot.scenario.competitionGroups.map((entry) => ({ ...entry })),
@@ -339,6 +343,10 @@ export function createInitialState(snapshot: ScenarioSnapshot, seedInput: RunSee
     schedule: [],
     priorities: [],
     matters: [],
+    todayPlan: {
+      day: 1,
+      playerItems: [],
+    },
     closedDeals: [],
     metrics: {
       activeCaseCount: generatedCases.filter((entry) => entry.status === 'active').length,
@@ -550,6 +558,64 @@ function normalizeRules(snapshot: ScenarioSnapshot, rules: unknown) {
   return mergeRules(rules as GameRuleOverrides);
 }
 
+function normalizeTodayArrangementExecutionMode(value: unknown): TodayArrangementExecutionMode {
+  return value === 'scenario' ? 'scenario' : 'direct';
+}
+
+function normalizeTodayArrangementSlot(value: unknown): TodayArrangementSlot | undefined {
+  return value === 'pm' ? 'pm' : 'am';
+}
+
+function normalizeTodayArrangementItem(entry: any, fallbackDay: number, index: number): TodayArrangementItem | null {
+  const linkedActionId = typeof entry?.linkedActionId === 'string' ? entry.linkedActionId.trim() : '';
+  if (!linkedActionId) {
+    return null;
+  }
+
+  return {
+    id: typeof entry?.id === 'string' && entry.id.trim()
+      ? entry.id
+      : `today-item-${fallbackDay}-${index + 1}`,
+    day: Math.max(1, Number(entry?.day) || fallbackDay),
+    sourceMatterId: typeof entry?.sourceMatterId === 'string' ? entry.sourceMatterId : undefined,
+    linkedActionId,
+    linkedCaseId: typeof entry?.linkedCaseId === 'string' ? entry.linkedCaseId : undefined,
+    linkedCustomerId: typeof entry?.linkedCustomerId === 'string' ? entry.linkedCustomerId : undefined,
+    executionMode: normalizeTodayArrangementExecutionMode(entry?.executionMode),
+    status: entry?.status === 'completed' ? 'completed' : 'planned',
+    slot: normalizeTodayArrangementSlot(entry?.slot),
+  };
+}
+
+function normalizeTodayPlan(input: unknown, currentDay: number): TodayPlanState {
+  const fallback: TodayPlanState = {
+    day: currentDay,
+    playerItems: [],
+  };
+
+  if (!input || typeof input !== 'object') {
+    return fallback;
+  }
+
+  const parsedDay = Math.max(1, Number((input as { day?: unknown }).day) || currentDay);
+  if (parsedDay !== currentDay) {
+    return fallback;
+  }
+
+  const rawPlayerItems = (input as { playerItems?: unknown[] }).playerItems;
+  const playerItems = Array.isArray(rawPlayerItems)
+    ? rawPlayerItems
+        .map((entry, index) => normalizeTodayArrangementItem(entry, currentDay, index))
+        .filter((entry): entry is TodayArrangementItem => Boolean(entry))
+        .filter((entry) => entry.day === currentDay)
+    : [];
+
+  return {
+    day: currentDay,
+    playerItems,
+  };
+}
+
 function resolveParsedAuxiliaryStats(parsed: any) {
   return buildRuntimeAuxiliaryStats({
     cash: Number(parsed?.cash) || 0,
@@ -623,6 +689,7 @@ export function normalizeLoadedState(parsed: any): GameState | null {
     Number(parsedRunContext?.scenarioSeed ?? parsedRunContext?.runSeed ?? parsedRunContext?.rngSeed ?? runSeed),
   );
   const normalizedCases = Array.isArray(parsed?.cases) ? parsed.cases.map(normalizeCase) : [];
+  const currentDay = Math.max(1, Number(parsed?.day) || 1);
   const restoredCustomers = Array.isArray(parsed?.customers)
     ? parsed.customers.map((entry: any) => cloneCustomer(entry as CustomerProfile))
     : snapshot.world.customers.map(cloneCustomer);
@@ -650,6 +717,7 @@ export function normalizeLoadedState(parsed: any): GameState | null {
       scenarioSnapshot: parsedRunContext?.scenarioSnapshot || snapshot,
     },
     rules,
+    day: currentDay,
     maxDay: Number(parsed?.maxDay) || rules.maxDay,
     maxEnergy: Number(parsed?.maxEnergy) || rules.baseMaxEnergy,
     scheduledEvents: Array.isArray(parsed?.scheduledEvents)
@@ -691,6 +759,7 @@ export function normalizeLoadedState(parsed: any): GameState | null {
           caseStates: entry?.caseStates && typeof entry.caseStates === 'object' ? entry.caseStates : {},
         }))
       : [],
+    todayPlan: normalizeTodayPlan(parsed?.todayPlan, currentDay),
     budgetLedger: normalizeBudgetLedger(parsed?.budgetLedger, Number(parsed?.cash) || 0),
     currentReport: parsed?.currentReport || null,
     lastDailyTickResult: parsed?.lastDailyTickResult || null,

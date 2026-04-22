@@ -285,6 +285,10 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
 
   state.day += 1;
   state.currentDate = addDays(state.currentDate, 1);
+  state.todayPlan = {
+    day: state.day,
+    playerItems: [],
+  };
 
   const routine = getRoutine(state.day, WEEKLY_ROUTINE);
   state.maxEnergy = routine.energy;

@@ -26,14 +26,15 @@ export function useAppSession(state: AppState, dispatch: React.Dispatch<AppActio
   const { authorizedKey, authStatus, allowedWorkspaces, currentUserEmail, activeWorkspace } = state;
 
   const lockApplication = useCallback((message: string, nextInput = '') => {
-    if (activeWorkspace !== 'hub') {
-      window.sessionStorage.setItem('kegame-target-path', window.location.pathname || '/');
+    const currentPath = normalizeWorkspacePathname(window.location.pathname || '/');
+    if (currentPath !== '/') {
+      window.sessionStorage.setItem('kegame-target-path', currentPath);
     }
     window.localStorage.removeItem(ACTIVATION_STORAGE_KEY);
     window.localStorage.removeItem(AUTH_EMAIL_STORAGE_KEY);
     void logoutCurrentSession().catch(() => {});
     dispatch({ type: 'LOCK_APPLICATION', message, nextInput });
-  }, [activeWorkspace, dispatch]);
+  }, [dispatch]);
 
   const authorizedFetch = useCallback(async (input: string, init: RequestInit = {}) => {
     const response = await fetch(input, {
@@ -84,7 +85,7 @@ export function useAppSession(state: AppState, dispatch: React.Dispatch<AppActio
 
     restoreActivation();
     return () => { disposed = true; };
-  }, [dispatch, lockApplication]);
+  }, [dispatch]);
 
   // Catalog loading
   useEffect(() => {

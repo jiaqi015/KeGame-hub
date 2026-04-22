@@ -1,4 +1,11 @@
-import type { Case, CustomerRuntimeState, GameState, Opportunity, Tone } from '../../domain/models.js';
+import type {
+  Case,
+  CustomerRuntimeState,
+  GameState,
+  Opportunity,
+  TodayArrangementSlot,
+  Tone,
+} from '../../domain/models.js';
 import { ACTIONS, WEEKLY_ROUTINE } from '../../domain/constants.js';
 import { getActionAvailability } from '../../domain/engine.js';
 import { getActiveOpportunities } from '../../domain/engine/opportunityEngine.js';
@@ -47,18 +54,33 @@ export interface ResourceSnapshotProjection {
 
 export interface ArrangementItemProjection {
   id: string;
-  source: 'fixed' | 'candidate';
+  source: 'fixed' | 'candidate' | 'planned' | 'completed';
+  slot?: TodayArrangementSlot;
   label: string;
   title: string;
   detail: string;
   tone: ProjectionTone;
   caseId?: string;
+  matterId?: string;
+  customerId?: string;
   energyCost: number;
   statusLabel: string;
   actionId?: string;
   executionMode: 'direct' | 'scenario' | 'navigate';
   ctaLabel: string;
   secondaryLabel?: string;
+  todayPlanItemId?: string;
+  disabledReason?: string;
+  isDisabled?: boolean;
+}
+
+export interface ArrangementSlotProjection {
+  slot: TodayArrangementSlot;
+  label: string;
+  fixedItems: ArrangementItemProjection[];
+  plannedItems: ArrangementItemProjection[];
+  candidateItems: ArrangementItemProjection[];
+  completedItems: ArrangementItemProjection[];
 }
 
 export interface ArrangementProjection {
@@ -67,8 +89,11 @@ export interface ArrangementProjection {
   remainingEnergy: number;
   remainingEnergyLabel: string;
   fixedItems: ArrangementItemProjection[];
+  plannedItems: ArrangementItemProjection[];
   candidateItems: ArrangementItemProjection[];
+  completedItems: ArrangementItemProjection[];
   weekFocusLabel: string;
+  slots: Record<TodayArrangementSlot, ArrangementSlotProjection>;
 }
 
 export interface DashboardProjection {
@@ -347,46 +372,101 @@ function buildArrangementProjection(
   todayPriority: ProjectionBrief[],
 ): ArrangementProjection {
   const fixedItems = buildFixedArrangementItems(state);
-  const candidateItems = buildCandidateArrangementItems(state, caseDetails, todayPriority);
-  const fixedEnergy = fixedItems.reduce((sum, item) => sum + item.energyCost, 0);
-  const remainingEnergy = Math.max(0, state.energy - fixedEnergy);
+  const todayPlan = state.todayPlan?.day === state.day
+    ? state.todayPlan
+    : { day: state.day, playerItems: [] };
+  const plannedItems = buildPlannedArrangementItems(state, caseDetails, todayPlan.playerItems);
+  const completedItems = buildCompletedArrangementItems(state, caseDetails, todayPlan.playerItems);
+  const reservedEnergy = plannedItems.reduce((sum, item) => sum + item.energyCost, 0);
+  const remainingEnergy = Math.max(0, state.energy - reservedEnergy);
+  const candidateItems = buildCandidateArrangementItems(state, caseDetails, todayPriority, todayPlan.playerItems, remainingEnergy);
   const weekFocus = buildWeekCalendar(state)
     .slice(0, 7)
     .sort((left, right) => right.energy - left.energy)[0];
+  const slots = buildArrangementSlotProjection(fixedItems, plannedItems, candidateItems, completedItems);
 
   return {
-    headline: fixedItems[0]
-      ? `今天先把 ${fixedItems[0].title} 顶住`
-      : candidateItems[0]
+    headline: plannedItems[0]
+      ? `今天先做 ${plannedItems[0].title}`
+      : fixedItems[0]
+        ? `今天先把 ${fixedItems[0].title} 顶住`
+        : candidateItems[0]
         ? `今天先排 ${candidateItems[0].title}`
         : '今天先处理最影响顺序的一件事',
-    summary: fixedItems.length > 0
-      ? `固定安排 ${fixedItems.length} 件，先守住窗口和快掉线的线索，再把剩余精力排给能直接推进的动作。`
+    summary: plannedItems.length > 0
+      ? `你已经给今天排了 ${plannedItems.length} 件事，先按顺序推进；固定安排继续盯窗口，剩余精力再决定要不要加单。`
+      : fixedItems.length > 0
+        ? `固定安排 ${fixedItems.length} 件，先守住窗口和快掉线的线索，再把剩余精力排给能直接推进的动作。`
       : candidateItems.length > 0
         ? '今天没有硬性死线，优先把最能改变局势的动作排进去。'
         : '今天先从房源页挑一套最紧的盘开始。',
     remainingEnergy,
     remainingEnergyLabel: `剩余 ${remainingEnergy}/${state.maxEnergy} 精力`,
     fixedItems,
+    plannedItems,
     candidateItems,
+    completedItems,
     weekFocusLabel: weekFocus ? `${weekFocus.label} · ${weekFocus.title}` : '本周按节奏推进',
+    slots,
   };
+}
+
+function buildArrangementSlotProjection(
+  fixedItems: ArrangementItemProjection[],
+  plannedItems: ArrangementItemProjection[],
+  candidateItems: ArrangementItemProjection[],
+  completedItems: ArrangementItemProjection[],
+): Record<TodayArrangementSlot, ArrangementSlotProjection> {
+  const createSlot = (slot: TodayArrangementSlot, label: string): ArrangementSlotProjection => ({
+    slot,
+    label,
+    fixedItems: [],
+    plannedItems: [],
+    candidateItems: [],
+    completedItems: [],
+  });
+
+  const slots = {
+    am: createSlot('am', '上午'),
+    pm: createSlot('pm', '下午'),
+  };
+
+  fixedItems.forEach((item) => {
+    const slot = item.slot || 'am';
+    slots[slot].fixedItems.push(item);
+  });
+  plannedItems.forEach((item) => {
+    const slot = item.slot || 'am';
+    slots[slot].plannedItems.push(item);
+  });
+  candidateItems.forEach((item) => {
+    const slot = item.slot || 'am';
+    slots[slot].candidateItems.push(item);
+  });
+  completedItems.forEach((item) => {
+    const slot = item.slot || 'pm';
+    slots[slot].completedItems.push(item);
+  });
+
+  return slots;
 }
 
 function buildFixedArrangementItems(state: GameState): ArrangementItemProjection[] {
   const scheduleItems = state.schedule.slice(0, 2).map<ArrangementItemProjection>((entry) => ({
     id: `fixed-schedule-${entry.key}`,
     source: 'fixed',
+    slot: scheduleEntrySlot(entry.title),
     label: '固定安排',
     title: entry.title,
     detail: entry.note,
-    tone: entry.urgency >= 82 ? 'risk' : 'neutral',
-    caseId: entry.caseId,
-    energyCost: entry.urgency >= 92 ? 2 : 1,
-    statusLabel: entry.badge,
-    executionMode: 'navigate',
-    ctaLabel: '打开房源',
-    secondaryLabel: '看客户线',
+      tone: entry.urgency >= 82 ? 'risk' : 'neutral',
+      caseId: entry.caseId,
+      energyCost: entry.urgency >= 92 ? 2 : 1,
+      statusLabel: entry.badge,
+      isDisabled: false,
+      executionMode: 'navigate',
+      ctaLabel: '打开房源',
+      secondaryLabel: '看客户线',
   }));
 
   const negotiationItems = state.matters
@@ -395,14 +475,17 @@ function buildFixedArrangementItems(state: GameState): ArrangementItemProjection
     .map<ArrangementItemProjection>((entry) => ({
       id: `fixed-matter-${entry.id}`,
       source: 'fixed',
+      slot: 'pm',
       label: '固定安排',
       title: entry.title,
       detail: entry.detail,
       tone: 'chance',
       caseId: entry.caseId,
+      matterId: entry.id,
       energyCost: 1,
       statusLabel: entry.badge || '今日承接',
       actionId: 'invite-customer-negotiation',
+      isDisabled: false,
       executionMode: 'direct',
       ctaLabel: '直接推进',
       secondaryLabel: '打开房源',
@@ -415,8 +498,15 @@ function buildCandidateArrangementItems(
   state: GameState,
   caseDetails: CaseDetailProjection[],
   todayPriority: ProjectionBrief[],
+  playerItems: GameState['todayPlan']['playerItems'],
+  remainingEnergy: number,
 ): ArrangementItemProjection[] {
   const seenCaseIds = new Set<string>();
+  const reservedKeys = new Set(
+    playerItems
+      .filter((entry) => entry.day === state.day)
+      .map((entry) => buildTodayPlanKey(entry.linkedActionId, entry.linkedCaseId, entry.sourceMatterId)),
+  );
   const candidates: ArrangementItemProjection[] = [];
 
   for (const item of todayPriority) {
@@ -433,25 +523,126 @@ function buildCandidateArrangementItems(
     const detail = caseDetails.find((entry) => entry.caseId === item.caseId) || null;
     const actionId = pickSuggestedActionId(state, caseItem, item, detail);
     const action = actionId ? ACTIONS.find((entry) => entry.id === actionId) || null : null;
+    const linkedMatter = state.matters.find((entry) => entry.caseId === item.caseId && entry.stage === 'pending') || null;
+    const candidateKey = buildTodayPlanKey(action?.id, item.caseId, linkedMatter?.id);
+    const isAlreadyPlanned = reservedKeys.has(candidateKey);
+    const isEnergyBlocked = Boolean(action && action.costEnergy > remainingEnergy);
+
+    if (isAlreadyPlanned) {
+      continue;
+    }
 
     candidates.push({
       id: `candidate-${item.id}`,
       source: 'candidate',
+      slot: suggestedCandidateSlot(candidates.length),
       label: item.label,
       title: action ? action.name : item.title,
       detail: action ? `${item.detail} 这一步更适合先做“${action.name}”。` : item.detail,
       tone: item.tone,
       caseId: item.caseId,
+      matterId: linkedMatter?.id,
       energyCost: action?.costEnergy ?? 1,
-      statusLabel: action ? '可排入今天' : '先去房源判断',
+      statusLabel: action
+        ? isEnergyBlocked
+          ? '精力不够，先完成已排事项'
+          : '可加入今天'
+        : '先去房源判断',
       actionId: action?.id,
       executionMode: action?.type === 'scenario' ? 'scenario' : action ? 'direct' : 'navigate',
-      ctaLabel: action ? '直接执行' : '打开房源',
+      ctaLabel: action ? '加入今天' : '打开房源',
       secondaryLabel: action ? '看房源' : '看客户线',
+      isDisabled: isEnergyBlocked,
+      disabledReason: isEnergyBlocked ? '当前剩余精力不足，先完成已安排事项。' : undefined,
     });
   }
 
   return candidates.slice(0, 4);
+}
+
+function buildPlannedArrangementItems(
+  state: GameState,
+  caseDetails: CaseDetailProjection[],
+  items: GameState['todayPlan']['playerItems'],
+): ArrangementItemProjection[] {
+  return items
+    .filter((entry) => entry.day === state.day && entry.status === 'planned')
+    .map((entry) => buildTodayPlanArrangementItem(state, caseDetails, entry, 'planned'))
+    .filter(Boolean) as ArrangementItemProjection[];
+}
+
+function buildCompletedArrangementItems(
+  state: GameState,
+  caseDetails: CaseDetailProjection[],
+  items: GameState['todayPlan']['playerItems'],
+): ArrangementItemProjection[] {
+  return items
+    .filter((entry) => entry.day === state.day && entry.status === 'completed')
+    .map((entry) => buildTodayPlanArrangementItem(state, caseDetails, entry, 'completed'))
+    .filter(Boolean) as ArrangementItemProjection[];
+}
+
+function buildTodayPlanArrangementItem(
+  state: GameState,
+  caseDetails: CaseDetailProjection[],
+  entry: GameState['todayPlan']['playerItems'][number],
+  source: 'planned' | 'completed',
+): ArrangementItemProjection | null {
+  const action = ACTIONS.find((item) => item.id === entry.linkedActionId) || null;
+  const caseItem = entry.linkedCaseId
+    ? state.cases.find((item) => item.id === entry.linkedCaseId) || null
+    : null;
+  const caseProjection = entry.linkedCaseId
+    ? caseDetails.find((item) => item.caseId === entry.linkedCaseId) || null
+    : null;
+  const matter = entry.sourceMatterId
+    ? state.matters.find((item) => item.id === entry.sourceMatterId) || null
+    : null;
+  const availability = action && caseItem
+    ? getActionAvailability(state, caseItem, action.id)
+    : null;
+
+  return {
+    id: `${source}-${entry.id}`,
+    todayPlanItemId: entry.id,
+    source,
+    slot: entry.slot,
+    label: source === 'planned' ? '我今天安排的' : '已完成',
+    title: action?.name || matter?.title || caseProjection?.headline || '今日事项',
+    detail: matter?.detail || caseProjection?.nextStepLine || action?.description || '今天安排的一件事。',
+    tone: source === 'completed'
+      ? 'chance'
+      : caseProjection?.mainProblem === 'owner' || caseProjection?.mainProblem === 'competition'
+        ? 'risk'
+        : 'neutral',
+    caseId: entry.linkedCaseId,
+    matterId: entry.sourceMatterId,
+    customerId: entry.linkedCustomerId,
+    energyCost: action?.costEnergy ?? 1,
+    statusLabel: source === 'completed'
+      ? '今天已完成'
+      : availability?.enabled === false
+        ? '当前不可执行'
+        : '已排进今天',
+    actionId: action?.id,
+    executionMode: entry.executionMode,
+    ctaLabel: entry.executionMode === 'scenario' ? '进入情境' : '开始执行',
+    secondaryLabel: source === 'completed' ? '打开房源' : '移出今天',
+    isDisabled: source === 'planned' ? availability?.enabled === false : false,
+    disabledReason: source === 'planned' && availability && !availability.enabled ? availability.reason : undefined,
+  };
+}
+
+function scheduleEntrySlot(title: string): TodayArrangementSlot {
+  return /下午|晚|收尾/.test(title) ? 'pm' : 'am';
+}
+
+function suggestedCandidateSlot(index: number): TodayArrangementSlot {
+  return index % 2 === 0 ? 'am' : 'pm';
+}
+
+function buildTodayPlanKey(actionId?: string, caseId?: string, matterId?: string) {
+  return [actionId || 'unknown-action', caseId || 'no-case', matterId || 'no-matter'].join('::');
 }
 
 function pickSuggestedActionId(
@@ -599,8 +790,8 @@ function buildCaseFactChain(
       ? `${caseItem.lastOwnerTouchedDay} 天没做业主反馈，信任和耐心都在下滑边缘。`
       : `当前信任 ${Math.round(caseItem.trust)}，耐心 ${Math.round(caseItem.patience)}，业主还在等明确反馈。`,
     nextStep: caseItem.lastOwnerTouchedDay >= 4
-      ? '今天补一次带事实的反馈，把客户、带看、竞品和价格讲完整。'
-      : '继续保持固定频率反馈，别让沟通断档。',
+        ? '补一次带事实的业主反馈。'
+        : '保持固定频率反馈。',
     tone: caseItem.lastOwnerTouchedDay >= 4 || caseItem.trust < 52 || caseItem.patience < 42 ? 'risk' : 'neutral',
   });
 
@@ -612,8 +803,8 @@ function buildCaseFactChain(
       ? `挂牌比市场常见成交价高 ${priceGap} 万，当前底价 ${caseItem.bottomPrice} 万。`
       : `挂牌与市场常见成交价基本贴近，当前更看执行和客户承接。`,
     nextStep: priceGap > 0
-      ? '先统一价格说法，再推进复看或报价，避免客户反复拿价格做比较。'
-      : '保持价格稳定，集中把客户理由讲实。',
+        ? '先统一价格说法，再推进复看或报价。'
+        : '保持价格稳定，集中讲实客户理由。',
     tone: priceGap > 0 ? (priceGap >= 12 ? 'risk' : 'neutral') : 'chance',
   });
 
@@ -623,12 +814,12 @@ function buildCaseFactChain(
     title: '客户承接',
     fact: `已接上 ${metCount} 位、潜在人群 ${potentialCount} 组，比较中 ${customerLinks.filter((entry) => entry.status === 'comparing').length} 位。`,
     nextStep: closingCount > 0
-      ? '先盯已经走到报价和谈判的客户，把最后几步推进到确定动作。'
+      ? '盯报价和谈判的客户，推进最后几步。'
       : atRiskCount > 0
-        ? '先回访快要掉线的客户，别让已接上的机会断掉。'
+        ? '回访快要掉线的客户。'
         : metCount === 0
-          ? '先补第一批真人客户，再谈阶段推进。'
-          : '把已接上的客户推进到看房或复看，别停在浅沟通。',
+          ? '先补第一批真人客户。'
+          : '把已接上的客户推进到看房或复看。',
     tone: closingCount > 0 ? 'chance' : atRiskCount > 0 || metCount === 0 ? 'risk' : 'neutral',
   });
 
@@ -637,11 +828,11 @@ function buildCaseFactChain(
     lane: 'main',
     title: '竞争与窗口',
     fact: caseItem.windowDays <= 3
-      ? `窗口只剩 ${caseItem.windowDays} 天，竞品压力 ${competitionPressure}。`
-      : `当前竞品压力 ${competitionPressure}，窗口还有 ${caseItem.windowDays} 天。`,
+      ? `窗口只剩 ${caseItem.windowDays} 天，同类房抢客户压力 ${competitionPressure}。`
+      : `当前同类房抢客户压力 ${competitionPressure}，窗口还有 ${caseItem.windowDays} 天。`,
     nextStep: competitionPressure >= 68 || caseItem.windowDays <= 3
-      ? '优先做能立刻影响客户和业主判断的动作，减少无效铺量。'
-      : '保持持续跟进，稳住业主和客户两条线。',
+      ? '优先做能立刻影响客户和业主判断的动作。'
+      : '保持跟进，稳住业主和客户。',
     tone: competitionPressure >= 68 || caseItem.windowDays <= 3 ? 'risk' : 'neutral',
   });
 
@@ -1060,7 +1251,7 @@ function mainProblemLabel(problem: CaseMainProblem) {
   if (problem === 'owner') return '业主沟通';
   if (problem === 'customer-pool') return '客户承接';
   if (problem === 'price') return '价格';
-  if (problem === 'competition') return '竞品压力';
+  if (problem === 'competition') return '同类房在抢客户';
   if (problem === 'execution') return '今天动作';
   return '外部变化';
 }
@@ -1071,7 +1262,7 @@ function buildRiskTags(caseItem: Case, opportunities: Opportunity[], competition
   if (caseItem.patience < 42) tags.push('业主耐心低');
   if (caseItem.askPrice > caseItem.marketPrice * 1.04) tags.push('挂牌价偏高');
   if (caseItem.windowDays <= 3) tags.push('窗口很短');
-  if (competitionPressure >= 68) tags.push('竞品压力高');
+  if (competitionPressure >= 68) tags.push('同类房抢客户压力高');
   if (atRiskCount > 0) tags.push('客户可能流失');
   if (opportunities.length === 0) tags.push('缺客户');
   return tags;
@@ -1090,7 +1281,7 @@ function buildCaseActionReasons(
       id: `${caseItem.id}-owner-feedback`,
       label: '待处理',
       title: '先给业主一次有事实的反馈',
-      detail: '业主关系在变紧，反馈要带上客户、带看、竞品和价格依据。',
+      detail: '需带上客户、带看、同类房和价格依据。',
       tone: 'risk',
       caseId: caseItem.id,
     });
@@ -1100,8 +1291,8 @@ function buildCaseActionReasons(
     reasons.push({
       id: `${caseItem.id}-price-talk`,
       label: '待处理',
-      title: '先把价格说法统一',
-      detail: `挂牌价比市场常见成交价高 ${Math.max(0, caseItem.askPrice - caseItem.marketPrice)} 万，客户推进会被价格卡住。`,
+      title: '价格需统一',
+      detail: `挂牌比市场价高 ${Math.max(0, caseItem.askPrice - caseItem.marketPrice)} 万，客户会犹豫。`,
       tone: 'risk',
       caseId: caseItem.id,
     });
@@ -1111,8 +1302,8 @@ function buildCaseActionReasons(
     reasons.push({
       id: `${caseItem.id}-customer-pool`,
       label: '待处理',
-      title: '先补客户线索',
-      detail: '现在接上的客户不够，开放日、私域转介绍或合作经纪人都可以补线索。',
+      title: '缺客户线索',
+      detail: '可补开放日、私域转介绍或合作经纪人。',
       tone: 'neutral',
       caseId: caseItem.id,
     });
@@ -1122,8 +1313,8 @@ function buildCaseActionReasons(
     reasons.push({
       id: `${caseItem.id}-competition`,
       label: '待处理',
-      title: '先处理竞品分流',
-      detail: competitionPressure >= 70 ? '同类盘正在分走客户，要么提速带看，要么把价格和卖点讲硬。' : '窗口变短，今天动作不能再拖。',
+      title: '同类房在抢客户',
+      detail: competitionPressure >= 70 ? '同类盘在分客，需提速带看或讲硬卖点。' : '窗口变短，尽快行动。',
       tone: 'risk',
       caseId: caseItem.id,
     });
@@ -1133,8 +1324,8 @@ function buildCaseActionReasons(
     reasons.push({
       id: `${caseItem.id}-execution`,
       label: '待处理',
-      title: '先补一个明确动作',
-      detail: caseItem.hasCompletedFirstVisit ? '今天还没有明确触达，先把客户或业主接上。' : '首次面访没完成，业主、价格和房源故事都还不稳。',
+      title: '需要明确动作',
+      detail: caseItem.hasCompletedFirstVisit ? '今天还没有明确触达，先接上客户或业主。' : '首次面访没完成，业主、价格、房源故事都不稳。',
       tone: 'neutral',
       caseId: caseItem.id,
     });
@@ -1146,7 +1337,7 @@ function buildCaseActionReasons(
       id: `${caseItem.id}-closing-${closing.id}`,
       label: '成交线索',
       title: `${closing.customerName} 已经到 ${closing.stageLabel}`,
-      detail: '这不是继续铺线索的时候了，今天要把报价、谈判和成交条件讲透。',
+      detail: '别铺线索了，直接推进报价、谈判和成交条件。',
       tone: 'chance',
       caseId: caseItem.id,
     });
@@ -1172,7 +1363,7 @@ function buildOpportunityBuckets(
       id: 'potential',
       label: '潜在人群',
       count: potential.length,
-      summary: potential.length > 0 ? '只能先按规模和概率判断，不能当成真实意向。' : '潜在人群还没浮出来。',
+      summary: potential.length > 0 ? '按规模和概率判断，不是真实意向。' : '潜在人群还没浮出来。',
     },
     {
       id: 'closing',
@@ -1198,7 +1389,7 @@ function deriveOwnerTitle(caseItem: Case) {
 
 function deriveOwnerDetail(caseItem: Case) {
   if (caseItem.lastOwnerTouchedDay >= 4) return `${caseItem.lastOwnerTouchedDay} 天没做业主反馈，今天要补事实。`;
-  if (caseItem.trust < 52) return '反馈不能只说“在推”，要拿客户、带看、竞品和价格讲清楚。';
+  if (caseItem.trust < 52) return '反馈不能只说“在推”，要拿客户、带看、同类房和价格讲清楚。';
   if (caseItem.patience < 42) return '沟通要更直接，别绕太久。';
   return caseItem.ownerMood || '当前业主状态相对稳定。';
 }
@@ -1216,7 +1407,7 @@ function deriveCustomerPoolDetail(caseItem: Case, met: Opportunity[], potential:
   if (comparingCount > 0) return `${comparingCount} 位客户还在比较同类盘，${caseItem.title} 的价格和卖点要讲得更具体。`;
   if (potential.length > 0) return '有潜在线索，但预算和需求还没核实，不能当成真实成交机会。';
   if (met.length > 0) return '已经接上客户，但阶段还浅，需要继续推进到看房、复看或报价。';
-  return '当前客户承接不足，先补线索和曝光。';
+  return '客户承接不足，先补线索和曝光。';
 }
 
 function derivePriceTitle(caseItem: Case) {
@@ -1232,21 +1423,21 @@ function derivePriceDetail(caseItem: Case) {
 }
 
 function deriveCompetitionTitle(rivalCount: number, pressure: number) {
-  if (pressure >= 70) return '竞品压力很高';
+  if (pressure >= 70) return '同类房抢客户压力高';
   if (rivalCount > 0) return '已有同类房在抢客户';
-  return '竞品压力可控';
+  return '同类房抢客户压力可控';
 }
 
 function deriveCompetitionDetail(caseItem: Case, rivalCount: number, pressure: number) {
   if (pressure >= 70) return `${caseItem.district} 的同类竞争偏强，客户容易被分走。`;
-  if (rivalCount > 0) return `有 ${rivalCount} 套同类竞品在场，需要盯客户比较关系。`;
-  return '当前没有明显强竞品压到这套房。';
+  if (rivalCount > 0) return `有 ${rivalCount} 套同类房在场，需要盯客户比较关系。`;
+  return '当前没有明显强竞品房压到这套房。';
 }
 
 function deriveCalendarDetail(dayOfWeek: number, theme: string) {
   if (dayOfWeek === 6) return '周末带看高峰，适合集中承接客户。';
   if (dayOfWeek === 7) return '适合追开放日和周末带看反馈。';
-  if (theme.includes('业主')) return '把客户、带看、竞品和价格整理成事实再沟通。';
+  if (theme.includes('业主')) return '把客户、带看、同类房和价格整理成事实再沟通。';
   if (theme.includes('获客')) return '重点补客户池，不要只等自然进线。';
   if (theme.includes('聚焦')) return '确定资源位，别让好房被同类盘分走。';
   return '按当天资源处理最关键事项。';
@@ -1255,7 +1446,7 @@ function deriveCalendarDetail(dayOfWeek: number, theme: string) {
 function deriveMarketHeadline(state: GameState, rivalCount: number) {
   const dailyEvent = state.marketShadow?.dailyMarketEvent;
   if (dailyEvent) return dailyEvent.title;
-  if (rivalCount > 0) return `今天有 ${rivalCount} 套竞品在场`;
+  if (rivalCount > 0) return `今天有 ${rivalCount} 套同类房在抢客户`;
   const hottest = [...state.markets].sort((left, right) => right.demandHeat - left.demandHeat)[0];
   return hottest ? `${hottest.name} 今天客户更活跃` : '今天市场变化不大';
 }
@@ -1276,7 +1467,7 @@ function deriveMarketSummary(
     fragments.push(`${toughest.name} 的竞争最挤`);
   }
   if (rivalCount > 0) {
-    fragments.push(`现在有 ${rivalCount} 套竞品在抢同类客户`);
+    fragments.push(`现在有 ${rivalCount} 套同类房在抢客户`);
   }
   if (radarAxes.coSaleOpportunity >= 55) {
     fragments.push('同 ACN 联卖空间还在');
@@ -1305,10 +1496,10 @@ function buildMarketRadarCards(radarAxes: MarketProjection['radarAxes']) {
     },
     {
       id: 'rivalActivity' as const,
-      label: '竞对动作',
+      label: '别家门店动作',
       value: radarAxes.rivalActivity,
       tone: (radarAxes.rivalActivity >= 65 ? 'risk' : 'neutral') as ProjectionTone,
-      summary: radarAxes.rivalActivity >= 65 ? '竞店和竞品动作偏猛，容易分客。' : '竞对动作暂时不算太猛。',
+      summary: radarAxes.rivalActivity >= 65 ? '别家门店和同类房动作偏猛，容易分客。' : '别家门店动作暂时不算太猛。',
     },
     {
       id: 'customerActivity' as const,
@@ -1373,7 +1564,7 @@ function buildCompetitionBoards(
     .slice(0, 4)
     .map((listing) => ({
       id: `rival-listing-${listing.id}`,
-      label: '竞品房源',
+      label: '同类在卖房',
       title: listing.title,
       detail: `${listing.district} · ${listing.segment} · ${describeLeadSiphonPower(listing.leadSiphonPower)}。`,
       tone: listing.leadSiphonPower >= 62 ? 'risk' as const : 'neutral' as const,

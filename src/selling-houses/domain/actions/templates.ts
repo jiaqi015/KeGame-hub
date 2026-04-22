@@ -176,7 +176,7 @@ export const ACTION_TEMPLATES: Record<string, ActionBattleTemplate> = {
       return `${caseItem.ownerName} 当前对价格的接受度，决定了后面是继续保价、小调，还是直接走快卖路线。当前挂牌价 ${caseItem.askPrice} 万，市场常见成交价 ${caseItem.marketPrice} 万。`;
     },
     getStrategies: () => [
-      { id: 'compete-view', title: '先讲竞品压力', note: '更理性，但容易让业主觉得你在压价。' },
+      { id: 'compete-view', title: '先讲同类房压力', note: '更理性，但容易让业主觉得你在压价。' },
       { id: 'client-view', title: '先讲客户反馈', note: '更容易让业主接受真实市场反馈。' },
       { id: 'window-view', title: '先讲时间窗口', note: '更适合窗口紧、节奏慢的盘。' },
     ],

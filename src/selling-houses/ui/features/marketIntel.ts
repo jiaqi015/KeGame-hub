@@ -143,7 +143,7 @@ function collectIntelFeed(state: GameState): IntelItem[] {
       detail: buildSignalDetail(signal),
       tone: signal.type === 'rival_activity' ? 'risk' : 'chance',
       day: state.day,
-      badge: signal.type === 'buyer_demand' ? '需求' : signal.type === 'seller_intent' ? '业主风向' : '竞品风声',
+      badge: signal.type === 'buyer_demand' ? '需求' : signal.type === 'seller_intent' ? '业主风向' : '同类房动作',
       affectedCaseIds: activeCases.filter((item) => item.district === signal.district).map((item) => item.id),
     });
   });
@@ -161,7 +161,7 @@ function collectIntelFeed(state: GameState): IntelItem[] {
       detail: `${listing.district} · ${listing.segment}，${describeLeadSiphonPower(listing.leadSiphonPower)}，预计还会活跃 ${listing.daysLeft} 天。`,
       tone: listing.leadSiphonPower >= 62 ? 'risk' : 'neutral',
       day: state.day,
-      badge: '竞品在场',
+      badge: '同类房有动静',
       affectedCaseIds,
     });
   });
@@ -230,7 +230,7 @@ function dedupeIntel(items: IntelItem[]) {
 function buildEventSummary(layer: string, affectedCount: number) {
   if (layer === 'market') return affectedCount > 0 ? '今天外部变化已经传到这几套房。' : '今天大环境有变化，会先影响客户和带看。';
   if (layer === 'company') return '同公司也在抢客户，会影响你今天能不能分到客。';
-  if (layer === 'rival') return affectedCount > 0 ? '竞品已经压到你的房源上。' : '竞品在抢同板块客户。';
+  if (layer === 'rival') return affectedCount > 0 ? '同类房已经压到你的房源上。' : '同类房在抢同板块客户。';
   return '这条变化已经落到具体房源。';
 }
 
@@ -364,7 +364,7 @@ export function buildMarketBoardTitle(market: GameState['markets'][number]) {
 
 export function buildMarketBoardSummary(market: GameState['markets'][number]) {
   if (market.demandHeat >= 70 && market.competitivePressure < 60) return '这个商圈今天更容易出客户。';
-  if (market.competitivePressure >= 70) return '这个商圈今天更容易被竞品分客。';
+  if (market.competitivePressure >= 70) return '这个商圈今天更容易被同类房分客。';
   if (market.supplyPressure >= 70) return '同类房变多，业主更容易拿你去比较。';
   if (market.sentiment <= 40) return '客户在观望，带看和谈价都会慢一点。';
   return '这个商圈今天没有明显顺风。';

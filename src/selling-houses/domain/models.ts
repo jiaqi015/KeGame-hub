@@ -996,6 +996,27 @@ export interface MatterEntry {
   resolutionSummary?: string;
 }
 
+export type TodayArrangementStatus = 'planned' | 'completed';
+export type TodayArrangementExecutionMode = 'direct' | 'scenario';
+export type TodayArrangementSlot = 'am' | 'pm';
+
+export interface TodayArrangementItem {
+  id: string;
+  day: number;
+  sourceMatterId?: string;
+  linkedActionId: string;
+  linkedCaseId?: string;
+  linkedCustomerId?: string;
+  executionMode: TodayArrangementExecutionMode;
+  status: TodayArrangementStatus;
+  slot?: TodayArrangementSlot;
+}
+
+export interface TodayPlanState {
+  day: number;
+  playerItems: TodayArrangementItem[];
+}
+
 export interface DerivedMetrics {
   activeCaseCount: number;
   activeOpportunityCount: number;
@@ -1046,6 +1067,7 @@ export interface GameState {
   schedule: ScheduleEntry[];
   priorities: PriorityEntry[];
   matters: MatterEntry[];
+  todayPlan: TodayPlanState;
   closedDeals: ClosedDealRecord[];
   metrics: DerivedMetrics;
   currentReport: DailyReport | null;

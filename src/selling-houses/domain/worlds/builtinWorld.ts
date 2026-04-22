@@ -266,14 +266,14 @@ export const BUILT_IN_WORLD: WorldSpec = {
     {
       id: 'rival-activity-rise',
       type: 'rival_activity',
-      title: '竞品动作变密',
+      title: '同类房有动静',
       message: '附近门店这两天动作变密，同类房的参考价可能又被往下压了。',
     },
   ],
   dailyEventTemplates: [
     {
       id: 'shadow-rival-inflow',
-      title: '新竞品入场',
+      title: '新同类房入场',
       message: '商圈里突然多出一套同价位平替盘，客户注意力开始被分流。',
       tone: 'danger',
       layer: 'rival',

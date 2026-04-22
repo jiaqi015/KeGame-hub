@@ -269,7 +269,7 @@ function buildCompetitionRiskSummary(caseItem: Case, opportunities: Opportunity[
       score,
       reason: `${caseItem.title} 已经被同类房拿去比较了，客户很容易被分走。`,
       shortReason: '同类房在抢客户',
-      metric: `${caseItem.competitionGroupIds.length} 组竞品在场`,
+      metric: `${caseItem.competitionGroupIds.length} 组同类房在场`,
     };
   }
 

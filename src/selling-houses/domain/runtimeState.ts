@@ -120,7 +120,7 @@ export function updateDerivedState(world: GameState) {
     if (caseItem.status === 'sold') {
       caseItem.stageLabel = '已成交';
     } else if (caseItem.status === 'lost_to_rival') {
-      caseItem.stageLabel = '被竞品截走';
+      caseItem.stageLabel = '被别人先成交';
     } else if (caseItem.status === 'withdrawn') {
       caseItem.stageLabel = '已撤盘';
     } else {

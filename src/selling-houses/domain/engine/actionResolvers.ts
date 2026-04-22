@@ -1,5 +1,6 @@
 import { ACTIONS } from '../constants.js';
 import { BALANCE } from '../config/balance.js';
+import { markCaseWithdrawn } from '../caseOutcome.js';
 import { queueDealClosingEvaluation } from '../dealClosing.js';
 import { updateDerivedState, logEvent, recordDomainEvent } from '../runtimeState.js';
 import { recordBudgetChange } from '../budget.js';
@@ -486,6 +487,9 @@ function resolveNegotiation(
 export function withdrawCase(world: GameState, caseItem: Case, reason: string) {
   caseItem.status = 'withdrawn';
   caseItem.stageLabel = '已撤盘';
+
+  markCaseWithdrawn(caseItem);
+
   applyAuxiliaryStats(world, {
     withdrawnCount: world.auxiliaryStats.withdrawnCount + 1,
     wordOfMouth: clamp(world.auxiliaryStats.wordOfMouth - 3, 0, 100),

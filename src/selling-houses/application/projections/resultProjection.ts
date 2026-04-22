@@ -196,7 +196,7 @@ function buildCareerNotes(
     {
       title: '下次重点',
       detail: lostCount > 0
-        ? `这局有 ${lostCount} 套丢盘，下一局重点是守盘和竞品处理。`
+        ? `这局有 ${lostCount} 套丢盘，下一局重点是守盘和同类房处理。`
         : activeCount > 0
           ? `这局结束时还有 ${activeCount} 套房在场，下一局重点看怎么更早把机会推进到成交桌。`
           : `这局整体已经结算，下一局可以挑战更高难度的经营局面。`,

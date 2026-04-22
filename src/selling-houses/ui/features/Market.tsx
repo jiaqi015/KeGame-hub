@@ -213,12 +213,12 @@ export function Market({
 
           <div className="h-5" />
 
-          <SectionHead label="在场竞品" color="var(--market-red)" />
+          <SectionHead label="当前在抢客户的房源" color="var(--market-red)" />
           <div>
             {rivalList.length > 0 ? rivalList.map((item, index) => (
               <RivalRow key={item.id} item={item} last={index === rivalRows.length - 1} />
             )) : (
-              <div className="rounded-[12px] border border-dashed border-[var(--market-border-strong)] bg-[rgba(15,23,32,0.72)] px-3 py-4 text-[12px] text-[var(--market-muted)]">暂无活跃竞品。</div>
+              <div className="rounded-[12px] border border-dashed border-[var(--market-border-strong)] bg-[rgba(15,23,32,0.72)] px-3 py-4 text-[12px] text-[var(--market-muted)]">当前没有明显在抢客户的房源。</div>
             )}
           </div>
 

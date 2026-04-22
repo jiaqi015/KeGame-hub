@@ -96,7 +96,7 @@ export function createRivalListing(
 
   state.marketShadow.rivalListings.unshift(listing);
   if (!options.silent) {
-    logEvent(state, '竞品房源', `${listing.title} 入场，${store?.name || '外部门店'}开始分流同板块客户。`, 'danger');
+    logEvent(state, '同类房', `${listing.title} 入场，${store?.name || '外部门店'}开始分流同板块客户。`, 'danger');
   }
   return listing;
 }
@@ -125,7 +125,7 @@ export function sellVisibleRivalForCase(state: GameState, caseItem: Case, detail
   }
 
   logEvent(state, lossEvent.actor, lossEvent.message, 'danger');
-  logEvent(state, '竞品房源', `${existingListing.title} 抢先成交，你手里对应那套房也被顺势抢走了。`, 'danger');
+  logEvent(state, '同类房', `${existingListing.title} 抢先成交，你手里对应那套房也被顺势抢走了。`, 'danger');
   return true;
 }
 
@@ -141,7 +141,7 @@ export function tickRivalListings(state: GameState) {
       const closedPlayerCase = listing.status === 'sold' ? markCaseLostToVisibleRival(state, listing) : false;
       logEvent(
         state,
-        '竞品房源',
+        '同类房',
         `${listing.title}${listing.status === 'sold' ? '被别家卖掉了' : '从市场上撤出'}，同板块压力重新洗牌。${closedPlayerCase ? ' 你手里对应那套房也被顺势抢走了。' : ''}`,
         listing.status === 'sold' ? 'danger' : 'accent',
       );

@@ -11,6 +11,7 @@ import { applyAuxiliaryStats } from './runtimeStats.js';
 import { logEvent, recordDomainEvent } from './runtimeState.js';
 import { closeOpportunity, refreshOpportunityLabel } from './engine/opportunityEngine.js';
 import { clamp, randomInt } from './utils.js';
+import { markCaseSold } from './caseOutcome.js';
 
 function resolveNegotiationStrategy(strategyId?: string | null) {
   const strategies = BALANCE.actions.negotiation.strategies;
@@ -59,6 +60,8 @@ function finalizeClosedDeal(
   caseItem.stageLabel = '已成交';
   caseItem.trust = clamp(caseItem.trust + saleBalance.soldTrustBonus, 0, 100);
   caseItem.heat = clamp(caseItem.heat + saleBalance.soldHeatBonus, 0, 100);
+
+  markCaseSold(caseItem, soldPrice);
 
   const commission = Math.round(
     soldPrice
@@ -130,8 +133,11 @@ function finalizeClosedDeal(
       budgetReturn,
       closeReadiness: evaluation.closeReadiness,
       closeProbability: evaluation.closeProbability,
+      ownerSatisfaction: caseItem.ownerSatisfaction,
+      defenseOutcome: caseItem.defenseOutcome,
       endingType: caseItem.endingType,
       endingBucket: caseItem.endingBucket,
+      relativeOutcome: caseItem.relativeOutcome,
     },
   });
 

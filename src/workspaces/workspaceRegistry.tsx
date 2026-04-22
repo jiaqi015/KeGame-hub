@@ -22,6 +22,7 @@ function PlaceholderWorkspace({
   prompts,
   nextSteps,
   tone = 'sky',
+  visual,
 }: {
   badge: string;
   title: string;
@@ -29,6 +30,7 @@ function PlaceholderWorkspace({
   prompts: string[];
   nextSteps: string[];
   tone?: 'sky' | 'rose';
+  visual: string;
 }) {
   const accentClassName = tone === 'rose'
     ? 'bg-[#B9385D] text-white shadow-[0_18px_34px_rgba(185,56,93,0.18)]'
@@ -57,6 +59,13 @@ function PlaceholderWorkspace({
                 <p className="mt-2 text-[15px] leading-7 text-[#6E6E73]">{subtitle}</p>
               </div>
             </div>
+
+            {/* 视觉图示占位 */}
+            <div className="mt-8 rounded-[28px] border border-black/[0.05] bg-slate-50 p-6 text-center text-slate-500 shadow-inner">
+              <img src="/placeholder-image.svg" alt={visual} className="mx-auto h-48 object-contain" />
+              <p className="mt-4 text-sm font-medium">{visual}</p>
+            </div>
+
           </div>
 
           <div className={`rounded-[24px] border px-5 py-4 ${sectionClassName} lg:max-w-[300px]`}>

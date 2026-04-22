@@ -21,6 +21,9 @@ import { useGame } from './application/useGame';
 import {
   buildWorkspaceShellProjection,
 } from './application/projections/workspaceShellProjection';
+import type { ArrangementItemProjection } from './application/projections/operatingProjection';
+import type { TodayArrangementSlot } from './domain/models';
+import { ActionDecisionOverlay, buildActionDecisionConfig } from './ui/features/ActionDecisionOverlay';
 import { DailyJournal } from './ui/widgets/DailyJournal';
 import { WorkspaceUtilityBar } from './ui/widgets/WorkspaceUtilityBar';
 
@@ -45,6 +48,11 @@ type ResourcePanelType = 'budget' | 'auxiliary' | 'energy';
 type WorkspaceView = 'overview' | 'cases' | 'customers' | 'market' | 'profile';
 type MarketEntryLayer = 'macro' | 'district' | 'competition' | 'listing';
 type DetailPanelType = 'selected-case';
+type ActiveTodayScenario = {
+  todayPlanItemId: string;
+  actionId: string;
+  caseId: string;
+};
 
 interface SellingHousesWorkspaceProps {
   activationKey: string;
@@ -88,6 +96,9 @@ export function SellingHousesWorkspace({
     handleSelectCase,
     handleAdvanceDays,
     handleExecuteAction,
+    handleAddTodayPlanItem,
+    handleRemoveTodayPlanItem,
+    handleExecuteTodayPlanItem,
     handleReset,
     handleClearReport,
   } = useGame({
@@ -105,10 +116,17 @@ export function SellingHousesWorkspace({
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [activeTodayScenario, setActiveTodayScenario] = useState<ActiveTodayScenario | null>(null);
   const mainScrollRef = useRef<HTMLElement | null>(null);
   const viewFallback = useMemo(() => <WorkspacePanelSkeleton />, []);
   const overlayFallback = useMemo(() => <WorkspaceOverlaySkeleton />, []);
   const shellProjection = useMemo(() => (state ? buildWorkspaceShellProjection(state) : null), [state]);
+  const activeScenarioCase = state && activeTodayScenario
+    ? state.cases.find((entry) => entry.id === activeTodayScenario.caseId) || null
+    : null;
+  const activeScenarioConfig = state && activeTodayScenario && activeScenarioCase
+    ? buildActionDecisionConfig(state, activeScenarioCase, activeTodayScenario.actionId)
+    : null;
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -116,6 +134,23 @@ export function SellingHousesWorkspace({
     });
     return () => cancelAnimationFrame(frame);
   }, [activeView, state?.day]);
+
+  useEffect(() => {
+    if (activeTodayScenario && !activeScenarioConfig) {
+      setActiveTodayScenario(null);
+    }
+  }, [activeScenarioConfig, activeTodayScenario]);
+
+  useEffect(() => {
+    if (!activeTodayScenario || !state) {
+      return;
+    }
+
+    const activeItem = state.todayPlan.playerItems.find((entry) => entry.id === activeTodayScenario.todayPlanItemId) || null;
+    if (!activeItem || activeItem.status !== 'planned') {
+      setActiveTodayScenario(null);
+    }
+  }, [activeTodayScenario, state]);
 
   if (phase === 'loading') {
     return (
@@ -163,6 +198,57 @@ export function SellingHousesWorkspace({
       return false;
     }
     return handleExecuteAction(actionId, caseItem, null, displayMessage);
+  };
+
+  const addTodayPlanFromProjection = (item: ArrangementItemProjection, slot: TodayArrangementSlot) => {
+    if (!item?.actionId) {
+      displayMessage('这件事还不能直接排进今天。');
+      return false;
+    }
+    return handleAddTodayPlanItem({
+      sourceMatterId: item.matterId,
+      linkedActionId: item.actionId,
+      linkedCaseId: item.caseId,
+      linkedCustomerId: item.customerId,
+      executionMode: item.executionMode === 'scenario' ? 'scenario' : 'direct',
+      slot,
+    }, displayMessage).success;
+  };
+
+  const removeTodayPlanItem = (itemId: string) => handleRemoveTodayPlanItem(itemId, displayMessage).success;
+  const executeTodayPlanItem = (itemId: string) => {
+    const todayPlanItem = state.todayPlan.playerItems.find((entry) => entry.id === itemId) || null;
+    if (
+      todayPlanItem?.status === 'planned'
+      && todayPlanItem.executionMode === 'scenario'
+      && todayPlanItem.linkedCaseId
+    ) {
+      setActiveTodayScenario({
+        todayPlanItemId: itemId,
+        actionId: todayPlanItem.linkedActionId,
+        caseId: todayPlanItem.linkedCaseId,
+      });
+      return true;
+    }
+
+    const result = handleExecuteTodayPlanItem(itemId, null, displayMessage);
+    return result.success;
+  };
+
+  const closeTodayScenario = () => setActiveTodayScenario(null);
+
+  const completeTodayScenario = (optionId: string) => {
+    if (!activeTodayScenario || !activeScenarioCase) {
+      setActiveTodayScenario(null);
+      return;
+    }
+
+    handleExecuteAction(
+      activeTodayScenario.actionId,
+      activeScenarioCase,
+      optionId,
+      displayMessage,
+    );
   };
 
   const openLeaderboard = async () => {
@@ -217,6 +303,9 @@ export function SellingHousesWorkspace({
             state={state}
             onSelectCase={handleSelectCase}
             onExecuteAction={executeActionByCaseId}
+            onAddToToday={addTodayPlanFromProjection}
+            onRemoveFromToday={removeTodayPlanItem}
+            onExecuteTodayItem={executeTodayPlanItem}
             onSetView={openViewFromChild}
             onOpenMarket={openMarketView}
           />
@@ -248,6 +337,9 @@ export function SellingHousesWorkspace({
             state={state}
             onSelectCase={handleSelectCase}
             onExecuteAction={executeActionByCaseId}
+            onAddToToday={addTodayPlanFromProjection}
+            onRemoveFromToday={removeTodayPlanItem}
+            onExecuteTodayItem={executeTodayPlanItem}
             onSetView={openViewFromChild}
             onOpenMarket={openMarketView}
           />
@@ -432,6 +524,13 @@ export function SellingHousesWorkspace({
           />
         </Suspense>
       )}
+      {activeScenarioConfig && (
+        <ActionDecisionOverlay
+          config={activeScenarioConfig}
+          onChoose={completeTodayScenario}
+          onClose={closeTodayScenario}
+        />
+      )}
       {journalOpen && (
         <div
           className="fixed inset-0 z-[95] flex items-end justify-center bg-[rgba(5,8,12,0.42)] backdrop-blur-sm"
@@ -572,7 +671,7 @@ export function SellingHousesWorkspace({
 
                 <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div className="seller-panel-soft px-4 py-4">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">规则摘要</div>
+                    <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">怎么算</div>
                     <div className="mt-3 space-y-3 text-[12px] text-[var(--seller-muted)]">
                       {runShellProjection.budgetPanel.rules.map((entry) => (
                         <div key={entry.label} className="flex items-start justify-between gap-3">
@@ -584,7 +683,7 @@ export function SellingHousesWorkspace({
                   </div>
 
                   <div className="seller-panel-soft px-4 py-4">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-chance)]">当前含义</div>
+                    <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-chance)]">这说明什么</div>
                     <p className="mt-3 text-[12px] leading-6 text-[var(--seller-muted)]">
                       {runShellProjection.budgetPanel.note}
                     </p>
@@ -744,7 +843,7 @@ export function SellingHousesWorkspace({
                   </div>
 
                   <div className="seller-panel-soft px-4 py-4">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-accent)]">精力现在说明什么</div>
+                    <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-accent)]">剩余精力说明</div>
                     <p className="mt-3 text-[12px] leading-6 text-[var(--seller-muted)]">
                       {runShellProjection.energyPanel.note}
                     </p>
@@ -847,7 +946,7 @@ function SelectedCaseDetailSheet({
           title={projection.competitionSummary.title}
           detail={projection.competitionSummary.detail}
           chips={[
-            `竞品 ${projection.competitionSummary.rivalCount} 套`,
+            `同类房 ${projection.competitionSummary.rivalCount} 套`,
             `压力 ${projection.competitionSummary.pressure}`,
           ]}
         />
@@ -856,8 +955,8 @@ function SelectedCaseDetailSheet({
       <section className="seller-panel-soft p-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">现在能接着做什么</div>
-            <div className="mt-1 text-[15px] font-semibold text-[var(--seller-ink)]">可做动作</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">推荐操作</div>
+            <div className="mt-1 text-[15px] font-semibold text-[var(--seller-ink)]">推荐操作</div>
           </div>
           <button
             type="button"

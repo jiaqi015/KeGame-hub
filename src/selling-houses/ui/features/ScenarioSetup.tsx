@@ -14,28 +14,34 @@ const ICONS = {
 
 const TONES = {
   warmup: {
-    badge: 'bg-emerald-100 text-emerald-700',
-    panel: 'border-emerald-200/70 bg-emerald-50/60',
+    icon: 'bg-emerald-500/14 text-emerald-300',
+    accent: 'text-emerald-300',
+    badge: 'bg-emerald-500/14 text-emerald-200 border-emerald-400/18',
   },
   easy: {
-    badge: 'bg-lime-100 text-lime-700',
-    panel: 'border-lime-200/70 bg-lime-50/60',
+    icon: 'bg-lime-500/14 text-lime-300',
+    accent: 'text-lime-300',
+    badge: 'bg-lime-500/14 text-lime-200 border-lime-400/18',
   },
   standard: {
-    badge: 'bg-sky-100 text-sky-700',
-    panel: 'border-sky-200/70 bg-sky-50/60',
+    icon: 'bg-cyan-500/14 text-cyan-300',
+    accent: 'text-cyan-300',
+    badge: 'bg-cyan-500/14 text-cyan-200 border-cyan-400/18',
   },
   advanced: {
-    badge: 'bg-sky-100 text-sky-700',
-    panel: 'border-sky-200/70 bg-sky-50/60',
+    icon: 'bg-sky-500/14 text-sky-300',
+    accent: 'text-sky-300',
+    badge: 'bg-sky-500/14 text-sky-200 border-sky-400/18',
   },
   hard: {
-    badge: 'bg-rose-100 text-rose-700',
-    panel: 'border-rose-200/70 bg-rose-50/60',
+    icon: 'bg-rose-500/14 text-rose-300',
+    accent: 'text-rose-300',
+    badge: 'bg-rose-500/14 text-rose-200 border-rose-400/18',
   },
   extreme: {
-    badge: 'bg-fuchsia-100 text-fuchsia-700',
-    panel: 'border-fuchsia-200/70 bg-fuchsia-50/60',
+    icon: 'bg-fuchsia-500/14 text-fuchsia-300',
+    accent: 'text-fuchsia-300',
+    badge: 'bg-fuchsia-500/14 text-fuchsia-200 border-fuchsia-400/18',
   },
 } as const;
 
@@ -58,195 +64,167 @@ export function ScenarioSetup({
   const selectedOption = difficultyOptions.find((entry) => entry.id === selectedDifficultyId)
     || difficultyOptions.find((entry) => entry.id === lastDifficulty)
     || difficultyOptions[0];
-  const selectedFeatured = featuredScenarios.find((entry) => entry.difficultyId === selectedOption?.id);
-  const selectedGoal = selectedFeatured
-    ? goalCopy(selectedFeatured.scenario.presentation.goalContext, selectedFeatured.scenario.presentation.targetScore)
-    : null;
-  const selectedPreview = selectedOption?.preview || [];
-  const primaryPreview = selectedPreview.slice(0, 4);
-  const secondaryPreview = selectedPreview.slice(4, 8);
 
   if (!selectedOption) {
     return (
-      <div className="flex h-full items-center justify-center px-6 text-sm font-semibold text-slate-500">
+      <div className="flex h-full items-center justify-center px-6 text-sm font-semibold text-[var(--seller-muted)]">
         暂时没有可用难度。
       </div>
     );
   }
 
+  const selectedFeatured = featuredScenarios.find((entry) => entry.difficultyId === selectedOption.id);
+  const selectedGoal = selectedFeatured
+    ? goalCopy(selectedFeatured.scenario.presentation.goalContext, selectedFeatured.scenario.presentation.targetScore)
+    : null;
   const SelectedIcon = ICONS[selectedOption.id];
   const selectedTone = TONES[selectedOption.id];
+  const primaryPreview = selectedOption.preview.slice(0, 4);
+  const secondaryPreview = selectedOption.preview.slice(4, 8);
 
   return (
-    <div className="mx-auto w-full max-w-[1240px] overflow-y-auto px-3 py-2.5 text-slate-900 lg:px-4">
-      <div className="mb-2 flex flex-wrap items-end justify-between gap-2.5">
+    <div className="mx-auto flex h-full w-full max-w-[880px] flex-col overflow-y-auto px-4 py-5 text-[var(--seller-ink)] lg:px-6">
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <div className="seller-chip seller-chip-accent mb-1 inline-flex items-center gap-2">
+          <div className="seller-chip seller-chip-accent mb-2 inline-flex items-center gap-2">
             <Dice5 size={12} />
             标准局 / 随机局
           </div>
-          <h1 className="seller-title text-[21px] md:text-[24px]">选难度</h1>
+          <h1 className="seller-title text-[26px]">选难度</h1>
         </div>
-        <p className="seller-body max-w-[38rem] text-[11px] leading-4.5">
+        <p className="seller-body max-w-[26rem] text-[12px] leading-6">
           先定这局强度，再决定走标准局还是随机局。
         </p>
       </div>
 
-      <div className="grid items-start gap-2 lg:grid-cols-[minmax(0,1fr)_288px]">
-        <div className="grid content-start gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mb-4 flex flex-wrap gap-2">
         {difficultyOptions.map((option) => {
-          const Icon = ICONS[option.id];
-          const tone = TONES[option.id];
           const selected = option.id === selectedOption.id;
-          const lastPlayed = option.id === lastDifficulty;
-
           return (
             <button
               key={option.id}
               type="button"
-              onClick={() => setSelectedDifficultyId(option.id)}
               disabled={starting}
-              className={`group seller-panel flex min-h-[96px] flex-col p-2 text-left transition-all ${
+              onClick={() => setSelectedDifficultyId(option.id)}
+              className={`rounded-full border px-4 py-2 text-[13px] font-semibold transition ${
                 selected
-                  ? 'border-[color:var(--seller-ink)] bg-[var(--seller-paper)] shadow-[var(--seller-shadow-md)]'
-                  : 'hover:-translate-y-0.5 hover:bg-white hover:shadow-[var(--seller-shadow-sm)]'
-              } ${starting ? 'cursor-wait opacity-70' : ''}`}
+                  ? 'border-white/18 bg-[#efe8da] text-[#121821]'
+                  : 'border-white/10 bg-white/[0.03] text-white/68 hover:border-white/18 hover:bg-white/[0.06] hover:text-white'
+              } ${starting ? 'cursor-wait opacity-60' : ''}`}
             >
-              <div className="mb-1.5 flex items-center justify-between gap-2">
-                <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[9px] ${tone.badge}`}>
-                  <Icon size={13} />
-                </div>
-                <div className="flex items-center gap-2">
-                  {lastPlayed && (
-                    <div className="seller-chip seller-chip-accent px-1.5 py-0.5">
-                      上次
-                    </div>
-                  )}
-                  <div className={`h-2 w-2 shrink-0 rounded-full ${selected ? 'bg-[var(--seller-ink)]' : 'bg-[rgba(52,60,76,0.16)]'}`} />
-                </div>
-              </div>
-
-              <div className="flex-1">
-                <div className="seller-title text-[15px]">{option.label}</div>
-                <div className="seller-body mt-0.5 line-clamp-2 text-[10px] font-semibold leading-3.5">{option.summary}</div>
-              </div>
-
-              <div className="mt-1.25 grid grid-cols-2 gap-1">
-                {option.preview.slice(0, 2).map((item) => (
-                  <div key={`${option.id}-${item.label}`} className="seller-tablet px-1.5 py-1.5">
-                    <div className="seller-label text-[9px]">{item.label}</div>
-                    <div className="mt-0.5 line-clamp-1 text-[9.5px] font-semibold text-[var(--seller-ink)]">{compactPreviewValue(item.value)}</div>
-                  </div>
-                ))}
-              </div>
+              {option.label}
             </button>
           );
         })}
-        </div>
+      </div>
 
-        <aside className={`seller-panel-muted flex self-start flex-col overflow-hidden ${selectedTone.panel}`}>
-          <div className="space-y-2 p-2.5">
-            <div className="flex items-start justify-between gap-2">
-              <div className={`flex h-8 w-8 items-center justify-center rounded-[12px] ${selectedTone.badge}`}>
-                <SelectedIcon size={16} />
-              </div>
-              <div className="seller-chip">
-                标准局 + 随机局
-              </div>
-            </div>
-
-            <div className="seller-label">当前选择</div>
-            <div className="flex items-start justify-between gap-2">
-              <h2 className="seller-title mt-1 text-[17px]">{selectedOption.label}</h2>
-              {selectedFeatured && (
-                <div className="seller-chip seller-chip-accent mt-0.5 px-1.5 py-0.5">
-                  目标 {selectedFeatured.scenario.presentation.targetScore} 分
+      <div className="seller-panel-muted flex flex-1 flex-col overflow-hidden rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(17,25,35,0.98),rgba(11,17,24,0.98))]">
+        <div className="flex flex-1 flex-col gap-5 p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="mb-3 flex items-center gap-2">
+                <div className={`flex h-10 w-10 items-center justify-center rounded-[14px] ${selectedTone.icon}`}>
+                  <SelectedIcon size={18} />
                 </div>
-              )}
-            </div>
-            <p className="mt-0.5 text-[11px] font-semibold leading-4 text-[var(--seller-ink)]">{selectedOption.summary}</p>
-            <p className="seller-body line-clamp-2 text-[10px] leading-4">{selectedOption.detail}</p>
-
-            <div className="seller-tablet p-2.5">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="seller-label mb-1 text-[9px]">标准局</div>
-                  <div className="line-clamp-1 text-[13px] font-semibold tracking-tight text-[var(--seller-ink)]">{selectedFeatured?.scenario.name || '标准局生成中'}</div>
-                  <div className="seller-body mt-0.5 line-clamp-1 text-[10px] leading-4">{selectedFeatured?.scenario.presentation.theme}</div>
-                </div>
-                {selectedFeatured && (
-                  <div className="seller-chip px-1.5 py-0.5">
-                    {selectedFeatured.scenario.presentation.maxDay} 天
+                {selectedOption.id === lastDifficulty && (
+                  <div className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${selectedTone.badge}`}>
+                    上次选择
                   </div>
                 )}
               </div>
-              {selectedFeatured && (
-                <div className="mt-2 grid grid-cols-2 gap-1 border-t border-[var(--seller-border)] pt-2">
-                  <div className="seller-fact-row px-1.5 py-1.25">
-                    <div className="seller-label text-[9px]">房源数</div>
-                    <div className="mt-0.5 text-[10px] font-semibold text-[var(--seller-ink)]">{selectedFeatured.scenario.presentation.caseCount} 套</div>
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="text-[34px] font-semibold tracking-[-0.05em] text-white">{selectedOption.label}</h2>
+                {selectedFeatured && (
+                  <div className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${selectedTone.badge}`}>
+                    目标 {selectedFeatured.scenario.presentation.targetScore} 分
                   </div>
-                  <div className="seller-fact-row px-1.5 py-1.25">
-                    <div className="seller-label text-[9px]">Seed</div>
-                    <div className="mt-0.5 text-[10px] font-semibold text-[var(--seller-ink)]">{selectedFeatured.seed}</div>
-                  </div>
-                </div>
-              )}
-              {selectedGoal && (
-                <div className="mt-2 border-t border-[var(--seller-border)] pt-2">
-                  <div className="seller-label mb-1 text-[9px]">这局看什么</div>
-                  <div className="text-[11.5px] font-semibold leading-4 text-[var(--seller-ink)]">{selectedGoal.title}</div>
-                  <p className="seller-body mt-0.5 line-clamp-2 text-[10px] leading-4">{selectedGoal.detail}</p>
-                </div>
-              )}
+                )}
+              </div>
+              <p className="mt-3 max-w-[38rem] text-[15px] font-semibold leading-7 text-white/82">{selectedOption.summary}</p>
+              <p className="mt-2 max-w-[42rem] text-[13px] leading-7 text-white/56">{selectedOption.detail}</p>
             </div>
+          </div>
 
-            <div className="grid grid-cols-2 gap-1">
-              {primaryPreview.map((item) => (
-                <div key={`${selectedOption.id}-${item.label}`} className="seller-fact-row px-1.75 py-1.5">
-                  <div className="seller-label text-[9px]">{item.label}</div>
-                  <div className="mt-0.5 text-[9.5px] font-semibold leading-4 text-[var(--seller-ink)]">{compactPreviewValue(item.value)}</div>
+          {selectedFeatured && (
+            <div className="grid gap-3 md:grid-cols-2">
+              <FactCard label="标准局剧本" value={selectedFeatured.scenario.name} detail={selectedFeatured.scenario.presentation.theme} />
+              <FactCard label="局面设定" value={`${selectedFeatured.scenario.presentation.caseCount} 套 · ${selectedFeatured.scenario.presentation.maxDay} 天`} detail={`Seed ${selectedFeatured.seed}`} />
+            </div>
+          )}
+
+          {selectedGoal && (
+            <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-4">
+              <div className="seller-label text-white/40">这局看什么</div>
+              <div className={`mt-2 text-[18px] font-semibold ${selectedTone.accent}`}>{selectedGoal.title}</div>
+              <p className="mt-2 text-[13px] leading-7 text-white/64">{selectedGoal.detail}</p>
+            </div>
+          )}
+
+          <div className="grid gap-3 md:grid-cols-2">
+            {primaryPreview.map((item) => (
+              <div key={`${selectedOption.id}-${item.label}`}>
+                <FactCard
+                  label={item.label}
+                  value={compactPreviewValue(item.value)}
+                />
+              </div>
+            ))}
+          </div>
+
+          {secondaryPreview.length > 0 && (
+            <div className="overflow-hidden rounded-[20px] border border-white/8 bg-white/[0.02]">
+              {secondaryPreview.map((item, index) => (
+                <div
+                  key={`${selectedOption.id}-${item.label}`}
+                  className={`flex items-center justify-between gap-3 px-4 py-3 ${index === 0 ? '' : 'border-t border-white/8'}`}
+                >
+                  <div className="text-[12px] font-medium text-white/48">{item.label}</div>
+                  <div className="text-right text-[12px] font-semibold text-white/78">{compactPreviewValue(item.value)}</div>
                 </div>
               ))}
             </div>
+          )}
+        </div>
 
-            {secondaryPreview.length > 0 && (
-              <div className="overflow-hidden rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)]">
-                {secondaryPreview.map((item, index) => (
-                  <div
-                    key={`${selectedOption.id}-${item.label}`}
-                    className={`flex items-center justify-between gap-2 px-2 py-1.5 ${index === 0 ? '' : 'border-t border-[var(--seller-border)]'}`}
-                  >
-                    <div className="seller-label text-[9px]">{item.label}</div>
-                    <div className="line-clamp-1 text-right text-[9.5px] font-semibold text-[var(--seller-ink)]">{compactPreviewValue(item.value)}</div>
-                  </div>
-                ))}
-              </div>
-            )}
+        <div className="border-t border-white/8 bg-[#101823] p-4">
+          <div className="grid gap-2">
+            <button
+              type="button"
+              disabled={starting}
+              onClick={() => onStartFeatured(selectedOption.id)}
+              className="rounded-[14px] bg-[#49dd85] px-4 py-3 text-[14px] font-semibold text-[#08110d] transition hover:brightness-105 disabled:cursor-wait disabled:opacity-60"
+            >
+              {starting ? '正在进入...' : `进入${selectedOption.label}`}
+            </button>
+            <button
+              type="button"
+              disabled={starting}
+              onClick={() => onStartRandom(selectedOption.id)}
+              className="rounded-[14px] border border-white/10 bg-white/[0.04] px-4 py-3 text-[14px] font-semibold text-white/88 transition hover:bg-white/[0.07] disabled:cursor-wait disabled:opacity-60"
+            >
+              {starting ? '正在生成...' : '随机开一局'}
+            </button>
           </div>
-
-          <div className="border-t border-[var(--seller-border)] bg-white/72 p-2 backdrop-blur-md">
-            <div className="grid gap-1.5">
-              <button
-                type="button"
-                disabled={starting}
-                onClick={() => onStartFeatured(selectedOption.id)}
-                className="seller-button-primary rounded-[14px] px-4 py-2.5 text-[12px] disabled:cursor-wait disabled:opacity-60"
-              >
-                {starting ? '正在进入...' : `进入${selectedOption.label}`}
-              </button>
-              <button
-                type="button"
-                disabled={starting}
-                onClick={() => onStartRandom(selectedOption.id)}
-                className="seller-button-secondary rounded-[14px] px-4 py-2.5 text-[12px] disabled:cursor-wait disabled:opacity-60"
-              >
-                {starting ? '正在生成...' : '随机开一局'}
-              </button>
-            </div>
-          </div>
-        </aside>
+        </div>
       </div>
+    </div>
+  );
+}
+
+function FactCard({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail?: string;
+}) {
+  return (
+    <div className="rounded-[18px] border border-white/8 bg-white/[0.03] p-4">
+      <div className="seller-label text-white/40">{label}</div>
+      <div className="mt-2 text-[15px] font-semibold leading-6 text-white">{value}</div>
+      {detail ? <div className="mt-1 text-[12px] leading-6 text-white/52">{detail}</div> : null}
     </div>
   );
 }

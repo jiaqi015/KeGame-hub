@@ -73,7 +73,7 @@ const EVENT_LABELS: Partial<Record<DomainEventEntry['kind'], string>> = {
   opportunity_closed: '客户机会结束',
   case_sold: '房源成交',
   case_withdrawn: '房源撤盘',
-  case_lost_to_rival: '被竞品截走',
+  case_lost_to_rival: '被别人先成交',
   window_extended: '业主续窗',
   market_event: '市场事件',
   budget_changed: '推广金变化',
@@ -260,7 +260,7 @@ function satisfactionLabel(state: OwnerSatisfactionState) {
 function defenseLabel(outcome: DefenseOutcome) {
   if (outcome === 'held') return '留在自己手里';
   if (outcome === 'at_risk') return '局末高危';
-  if (outcome === 'lost_to_rival') return '被竞品截走';
+  if (outcome === 'lost_to_rival') return '被别人先成交';
   return '自己撤了';
 }
 
@@ -455,7 +455,7 @@ function buildDefenseAttribution(attribution: AttributionSummary): ScoreAttribut
   const defenseActionCount = countActions(attribution, OWNER_RELATION_ACTION_IDS);
   return {
     headline: attribution.caseLostToRivalCount > 0 || attribution.caseWithdrawnCount > 0
-      ? `${defenseActionCount} 次守盘动作后，仍有 ${attribution.caseLostToRivalCount} 次被竞品截走、${attribution.caseWithdrawnCount} 次撤盘。`
+      ? `${defenseActionCount} 次守盘动作后，仍有 ${attribution.caseLostToRivalCount} 次被别人先成交、${attribution.caseWithdrawnCount} 次撤盘。`
       : `${defenseActionCount} 次守盘动作，${attribution.windowExtendedCount} 次续窗，关键房源留在自己手里。`,
     actions: topActionItems(attribution, OWNER_RELATION_ACTION_IDS),
     events: compactEventItems([
@@ -530,7 +530,7 @@ function buildDefenseDimension(caseResults: CaseFinalResult[], attribution: Attr
     summary: lostCore
       ? '这局最伤的是最重要的房没留在自己手里，这一项被直接拉低了。'
       : attribution.caseLostToRivalCount > 0 || attribution.caseWithdrawnCount > 0
-        ? `本局做了 ${defenseActionCount} 次关键守盘动作，但仍出现 ${attribution.caseLostToRivalCount} 次被竞品截走、${attribution.caseWithdrawnCount} 次撤盘。`
+        ? `本局做了 ${defenseActionCount} 次关键守盘动作，但仍出现 ${attribution.caseLostToRivalCount} 次被别人先成交、${attribution.caseWithdrawnCount} 次撤盘。`
         : attribution.windowExtendedCount > 0
           ? `本局做了 ${defenseActionCount} 次关键守盘动作，并换来了 ${attribution.windowExtendedCount} 次续窗缓冲。`
           : lostCount > 0
@@ -746,7 +746,7 @@ function buildCustomerReview(world: GameState): FinalResult['customerReview'] {
     notes.push(`${mostAtRiskCaseTitle} 挂着最多容易掉线的客户，最后几步最容易掉。`);
   }
   if (rivalPulled > 0) {
-    notes.push(`这局有 ${rivalPulled} 位客户一度被竞品抢走注意力。`);
+    notes.push(`这局有 ${rivalPulled} 位客户一度被同类房抢走注意力。`);
   }
   if (!notes.length) {
     notes.push('这局客户推进不算厚，后面可以更早把首选客户往后几步推。');
