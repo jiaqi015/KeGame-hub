@@ -1,7 +1,9 @@
 import type { GameState } from '../domain/models.js';
+import type { Settlement } from '../domain/actions/templates.js';
 import type { TodayPlanDraft } from './todayPlan.js';
 import { advanceDays, executeAction } from '../domain/engine.js';
 import { getActionAvailability } from '../domain/engine.js';
+import { applyScenarioSettlement } from '../domain/actions/templates.js';
 import {
   buildTodayPlanItem,
   getTodayPlanActionDefinition,
@@ -41,12 +43,16 @@ export function executeGameAction(
   actionId: string,
   caseId: string,
   optionId: string | null = null,
+  settlement: Settlement | null = null,
   onMessage?: (msg: string) => void,
 ) {
   let success = false;
   const nextState = transitionGameState(state, (next) => {
     const currentCase = next.cases.find((entry) => entry.id === caseId);
     if (currentCase) {
+      if (settlement) {
+        applyScenarioSettlement(currentCase, settlement);
+      }
       success = executeAction(next, actionId, currentCase, optionId, onMessage);
       if (success) {
         const plannedItem = next.todayPlan.playerItems.find((entry) => (
@@ -117,7 +123,7 @@ export function addTodayPlanItem(
 
     const remainingEnergy = getTodayPlanRemainingEnergy(next);
     if (remainingEnergy < action.costEnergy) {
-      reason = `今天还能安排的精力不够，先把已排的事做掉一件。`;
+      reason = `今天还能安排的精力不够，先完成一件已排事项。`;
       onMessage?.(reason);
       return;
     }
@@ -214,7 +220,7 @@ export function executeTodayPlanItem(
     };
   }
 
-  const result = executeGameAction(state, action.id, item.linkedCaseId, optionId, onMessage);
+  const result = executeGameAction(state, action.id, item.linkedCaseId, optionId, null, onMessage);
   if (!result.success) {
     return {
       nextState: state,

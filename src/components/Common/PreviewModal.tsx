@@ -45,6 +45,7 @@ export function PreviewModal({ data, onClose }: PreviewModalProps) {
                 </button>
                 <button
                   onClick={onClose}
+                  aria-label="关闭预览"
                   className="p-2 hover:bg-black/5 rounded-full transition-colors"
                 >
                   <X className="w-6 h-6 text-[#86868B]" />
@@ -66,7 +67,7 @@ export function PreviewModal({ data, onClose }: PreviewModalProps) {
                 onClick={onClose}
                 className="px-6 py-2 bg-[#1D1D1F] text-white rounded-full font-bold text-sm hover:bg-black transition-colors"
               >
-                返回
+                关闭预览
               </button>
             </div>
           </motion.div>

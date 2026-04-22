@@ -30,6 +30,7 @@ export interface AuthenticatedUserPayload {
   displayName: string;
   allowedWorkspaces: ActivationWorkspaceId[];
   source?: 'session' | 'activation-key';
+  sessionExpiresAt?: string | null;
 }
 
 export interface AuthStartPayload {
@@ -209,7 +210,10 @@ export async function completeEmailLogin(input: {
     throw new Error(typeof payload?.error === 'string' ? payload.error : '登录失败。');
   }
 
-  return payload.user as AuthenticatedUserPayload;
+  return {
+    ...(payload.user as AuthenticatedUserPayload),
+    sessionExpiresAt: typeof payload?.sessionExpiresAt === 'string' ? payload.sessionExpiresAt : null,
+  };
 }
 
 let authenticatedUserInFlight: Promise<AuthenticatedUserPayload> | null = null;
@@ -223,7 +227,10 @@ export async function fetchAuthenticatedUser(): Promise<AuthenticatedUserPayload
       throw new Error(typeof payload?.error === 'string' ? payload.error : '获取用户信息失败。');
     }
 
-    return payload.user as AuthenticatedUserPayload;
+    return {
+      ...(payload.user as AuthenticatedUserPayload),
+      sessionExpiresAt: typeof payload?.sessionExpiresAt === 'string' ? payload.sessionExpiresAt : null,
+    };
   })().finally(() => {
     authenticatedUserInFlight = null;
   });

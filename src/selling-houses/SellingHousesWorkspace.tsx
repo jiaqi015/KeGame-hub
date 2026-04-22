@@ -237,7 +237,7 @@ export function SellingHousesWorkspace({
 
   const closeTodayScenario = () => setActiveTodayScenario(null);
 
-  const completeTodayScenario = (optionId: string) => {
+  const completeTodayScenario = (optionId: string | null, settlement?: any) => {
     if (!activeTodayScenario || !activeScenarioCase) {
       setActiveTodayScenario(null);
       return;
@@ -247,6 +247,7 @@ export function SellingHousesWorkspace({
       activeTodayScenario.actionId,
       activeScenarioCase,
       optionId,
+      settlement,
       displayMessage,
     );
   };
@@ -259,6 +260,11 @@ export function SellingHousesWorkspace({
     } catch (error) {
       setLeaderboardError(error instanceof Error ? error.message : '排行榜加载失败。');
     }
+  };
+
+  const restartAndReturnToHub = () => {
+    handleReset();
+    onReturnToHub();
   };
 
   const openView = (view: WorkspaceView) => {
@@ -357,9 +363,21 @@ export function SellingHousesWorkspace({
             <div className="flex min-w-0 flex-1">
               <div className="flex min-w-0 flex-1 items-center gap-3">
                 <ConfirmBackButton
-                  onConfirm={onReturnToHub}
-                  title="确认返回？"
-                  description="将离开当前这一局，回到功能入口。当前进度会按系统状态保留。"
+                  actions={[
+                    {
+                      label: '重开并返回',
+                      onClick: restartAndReturnToHub,
+                      tone: 'danger',
+                    },
+                    {
+                      label: '保存进度返回',
+                      onClick: onReturnToHub,
+                      tone: 'primary',
+                    },
+                  ]}
+                  title="返回到 Hub？"
+                  description="你可以保留当前进度回到功能入口，也可以直接清掉这一局后返回。"
+                  buttonLabel="返回 Hub"
                   buttonClassName="seller-button-secondary inline-flex h-9 shrink-0 items-center gap-1.5 px-3"
                 />
 
@@ -527,8 +545,18 @@ export function SellingHousesWorkspace({
       {activeScenarioConfig && (
         <ActionDecisionOverlay
           config={activeScenarioConfig}
-          onChoose={completeTodayScenario}
+          onChoose={(optionId, assistOptionId, choices, feedbacks) => {
+            if (!activeScenarioConfig.isScenario) {
+              completeTodayScenario(optionId || null);
+            }
+          }}
+          onComplete={(result, choices, feedbacks) => {
+            const mainStrategy = choices.length > 0 ? choices[0].main : null;
+            completeTodayScenario(mainStrategy, result);
+          }}
           onClose={closeTodayScenario}
+          state={state}
+          caseItem={activeScenarioCase || undefined}
         />
       )}
       {journalOpen && (
@@ -593,7 +621,7 @@ export function SellingHousesWorkspace({
                   {runShellProjection.selectedCaseDetail.title}
                 </h3>
                 <p className="seller-body mt-2 text-sm">
-                  {runShellProjection.selectedCaseDetail.community} · {runShellProjection.selectedCaseDetail.district} · {runShellProjection.selectedCaseDetail.stageLabel}
+                  {runShellProjection.selectedCaseDetail.community} · {runShellProjection.selectedCaseDetail.district} · {runShellProjection.selectedCaseDetail.projection.listingLifecyclePhase.completionStateLabel || runShellProjection.selectedCaseDetail.projection.listingLifecyclePhase.phaseLabel}
                 </p>
                 <p className="seller-body mt-2 text-sm">
                   {runShellProjection.selectedCaseDetail.story}
@@ -683,7 +711,7 @@ export function SellingHousesWorkspace({
                   </div>
 
                   <div className="seller-panel-soft px-4 py-4">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-chance)]">这说明什么</div>
+                    <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-chance)]">当前状态</div>
                     <p className="mt-3 text-[12px] leading-6 text-[var(--seller-muted)]">
                       {runShellProjection.budgetPanel.note}
                     </p>
@@ -721,7 +749,7 @@ export function SellingHousesWorkspace({
                   ))}
                   {runShellProjection.budgetPanel.entries.length === 0 && (
                     <div className="seller-empty px-4 py-8 text-center text-[12px]">
-                      暂时还没有推广金流水，先做一笔经营动作再回来看看。
+                      暂时还没有推广金流水，做出第一笔经营动作后这里会更新。
                     </div>
                   )}
                 </div>
@@ -751,7 +779,7 @@ export function SellingHousesWorkspace({
 
                 <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div className="seller-panel-soft px-4 py-4">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">规则摘要</div>
+                    <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">当前构成</div>
                     <div className="mt-3 space-y-3 text-[12px] text-[var(--seller-muted)]">
                       {runShellProjection.auxiliaryPanel.rules.map((entry) => (
                         <div key={entry.label} className="flex items-start justify-between gap-3">
@@ -763,7 +791,7 @@ export function SellingHousesWorkspace({
                   </div>
 
                   <div className="seller-panel-soft px-4 py-4">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-chance)]">当前含义</div>
+                    <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-chance)]">当前状态</div>
                     <p className="mt-3 text-[12px] leading-6 text-[var(--seller-muted)]">
                       {runShellProjection.auxiliaryPanel.note}
                     </p>
@@ -831,7 +859,7 @@ export function SellingHousesWorkspace({
 
                 <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div className="seller-panel-soft px-4 py-4">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">规则摘要</div>
+                    <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">当前构成</div>
                     <div className="mt-3 space-y-3 text-[12px] text-[var(--seller-muted)]">
                       {runShellProjection.energyPanel.rules.map((entry) => (
                         <div key={entry.label} className="flex items-start justify-between gap-3">
@@ -896,17 +924,11 @@ function SelectedCaseDetailSheet({
     <div className="space-y-4">
       <div className="seller-panel-strong px-4 py-4">
         <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">当前问题</div>
-        <div className="mt-2 text-[17px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">{projection.mainProblemLabel}</div>
-        <p className="mt-2 text-[12px] leading-6 text-[var(--seller-muted)]">{projection.actionReasons[0]?.detail || projection.ownerSummary.detail}</p>
+        <div className="mt-2 text-[17px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">{projection.listingLifecyclePhase.coreProblemLabel}</div>
+        <p className="mt-2 text-[12px] leading-6 text-[var(--seller-muted)]">{projection.listingLifecyclePhase.phaseRiskHint}</p>
         <div className="mt-3 flex flex-wrap gap-2">
-          {projection.currentRiskTags.slice(0, 3).map((tag) => (
-            <span
-              key={tag}
-              className="seller-chip"
-            >
-              {tag}
-            </span>
-          ))}
+          <span className="seller-chip">{projection.listingLifecyclePhase.phaseLabel}</span>
+          <span className="seller-chip seller-chip-accent">下一步：{projection.listingLifecyclePhase.primaryActionLabel}</span>
         </div>
       </div>
 
@@ -955,8 +977,8 @@ function SelectedCaseDetailSheet({
       <section className="seller-panel-soft p-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">推荐操作</div>
-            <div className="mt-1 text-[15px] font-semibold text-[var(--seller-ink)]">推荐操作</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">主动作</div>
+            <div className="mt-1 text-[15px] font-semibold text-[var(--seller-ink)]">下一步：{projection.listingLifecyclePhase.primaryActionLabel}</div>
           </div>
           <button
             type="button"
@@ -967,22 +989,11 @@ function SelectedCaseDetailSheet({
           </button>
         </div>
         <div className="mt-3 space-y-2.5">
-          {projection.actionReasons.slice(0, 3).map((reason) => (
-            <div
-              key={reason.id}
-              className={`rounded-[18px] border px-3 py-3 ${
-                reason.tone === 'risk'
-                  ? 'border-[color:var(--seller-risk)]/20 bg-[var(--seller-risk-soft)]'
-                  : reason.tone === 'chance'
-                    ? 'border-[color:var(--seller-chance)]/20 bg-[var(--seller-chance-soft)]'
-                    : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)]'
-              }`}
-            >
-              <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">{reason.label}</div>
-              <div className="mt-1 text-[13px] font-semibold text-[var(--seller-ink)]">{reason.title}</div>
-              <p className="mt-1 text-[12px] leading-6 text-[var(--seller-muted)]">{reason.detail}</p>
-            </div>
-          ))}
+          <div className="rounded-[18px] border border-[color:var(--seller-risk)]/20 bg-[var(--seller-risk-soft)] px-3 py-3">
+            <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">{projection.listingLifecyclePhase.phaseLabel}</div>
+            <div className="mt-1 text-[13px] font-semibold text-[var(--seller-ink)]">下一步：{projection.listingLifecyclePhase.primaryActionLabel}</div>
+            <p className="mt-1 text-[12px] leading-6 text-[var(--seller-muted)]">{projection.listingLifecyclePhase.phaseRiskHint}</p>
+          </div>
         </div>
       </section>
     </div>

@@ -25,6 +25,7 @@ export interface AppState {
   currentUserAccountId: string;
   currentUserEmail: string;
   currentUserNickname: string;
+  sessionExpiresAt: string;
   
   // Navigation
   activeWorkspace: WorkspaceId;
@@ -49,7 +50,7 @@ export type AppAction =
   | { type: 'SET_LOGIN_EMAIL'; value: string }
   | { type: 'SET_VERIFICATION_CODE'; value: string }
   | { type: 'SET_ACTIVATION_INPUT'; value: string }
-  | { type: 'COMPLETE_ACTIVATION'; key: string; allowedWorkspaces: ActivationWorkspaceId[]; accountId?: string; email?: string; nickname?: string }
+  | { type: 'COMPLETE_ACTIVATION'; key: string; allowedWorkspaces: ActivationWorkspaceId[]; accountId?: string; email?: string; nickname?: string; sessionExpiresAt?: string | null }
   | { type: 'LOCK_APPLICATION'; message: string; nextInput: string }
   | { type: 'SET_WORKSPACE'; workspace: WorkspaceId }
   | { type: 'SET_CATALOG'; models: AIModel[]; selected: string[] }
@@ -78,6 +79,7 @@ export const initialState: AppState = {
   currentUserAccountId: '',
   currentUserEmail: '',
   currentUserNickname: '',
+  sessionExpiresAt: '',
   activeWorkspace: 'hub',
   previewData: null,
   availableModels: [],
@@ -119,6 +121,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         currentUserAccountId: action.accountId ?? state.currentUserAccountId,
         currentUserEmail: action.email ?? state.currentUserEmail,
         currentUserNickname: action.nickname ?? state.currentUserNickname,
+        sessionExpiresAt: action.sessionExpiresAt ?? state.sessionExpiresAt,
         authError: '',
         authHint: '',
         authStatus: 'authenticated',
@@ -219,6 +222,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         currentUserAccountId: state.currentUserAccountId,
         currentUserEmail: state.currentUserEmail,
         currentUserNickname: state.currentUserNickname,
+        sessionExpiresAt: state.sessionExpiresAt,
       };
       
     default:

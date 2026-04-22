@@ -53,14 +53,14 @@ export function LibraryOverlay({
 
   return (
     <>
-      <div className="open-day-library-backdrop" onClick={onClose} />
+      <div className="open-day-library-backdrop" onClick={onClose} aria-label="关闭方案库" />
       <aside className="open-day-library-drawer">
         <div className="open-day-library-header">
           <h2>
             <History className="text-emerald-700" size={20} />
             档案与方案库
           </h2>
-          <button className="open-day-library-close" onClick={onClose}>
+          <button className="open-day-library-close" onClick={onClose} aria-label="关闭方案库">
             <X size={20} />
           </button>
         </div>

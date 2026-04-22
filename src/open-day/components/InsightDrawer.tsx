@@ -22,7 +22,7 @@ export function InsightDrawer({ row, config, onClose }: InsightDrawerProps) {
             </span>
             {row.name}
           </h2>
-          <button className="open-day-drawer__close" onClick={onClose}>
+          <button className="open-day-drawer__close" onClick={onClose} aria-label="关闭洞察抽屉">
             <X size={20} />
           </button>
         </div>

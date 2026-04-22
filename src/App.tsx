@@ -61,6 +61,7 @@ export default function App() {
     activeWorkspace,
     currentUserEmail,
     currentUserNickname,
+    sessionExpiresAt,
     availableModels,
     selectedModels,
     isComparing,
@@ -176,6 +177,7 @@ export default function App() {
             accountId: user.accountId,
             email: user.email,
             nickname: user.nickname,
+            sessionExpiresAt: user.sessionExpiresAt,
           });
           if (targetWorkspace !== 'hub' && user.allowedWorkspaces.includes(targetWorkspace)) {
             dispatch({ type: 'SET_WORKSPACE', workspace: targetWorkspace });
@@ -212,6 +214,7 @@ export default function App() {
         accountId: user.accountId,
         email: user.email,
         nickname: user.nickname,
+        sessionExpiresAt: user.sessionExpiresAt,
       });
       const targetWorkspace = pendingWorkspaceRef.current;
       if (targetWorkspace !== 'hub' && user.allowedWorkspaces.includes(targetWorkspace)) {
@@ -375,6 +378,12 @@ export default function App() {
     window.history.pushState({}, '', '/');
   };
 
+  const handleLogoutAccount = () => {
+    abortActiveComparisons();
+    abortDifferenceSummary();
+    lockApplication('', '');
+  };
+
   const canAccessWorkspace = (workspace: ActivationWorkspaceId) =>
     allowedWorkspaces.includes(workspace);
 
@@ -411,17 +420,22 @@ export default function App() {
                   onClick={handleReturnToHub}
                   className={`inline-flex items-center gap-2 text-sm font-medium transition ${meta.accentClassName}`}
                 >
-                  返回
+                  返回 Hub
                 </button>
               </div>
 
               <div className="flex items-center gap-3">
-                <UserIdentityBadge nickname={currentUserNickname} email={currentUserEmail} compact />
+                <UserIdentityBadge
+                  nickname={currentUserNickname}
+                  email={currentUserEmail}
+                  sessionExpiresAt={sessionExpiresAt}
+                  compact
+                />
                 <button
-                  onClick={() => lockApplication('', '')}
+                  onClick={handleLogoutAccount}
                   className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#5C5C60] transition hover:border-black/20 hover:text-[#1D1D1F]"
                 >
-                  注销
+                  登出账号
                 </button>
               </div>
             </div>
@@ -442,7 +456,7 @@ export default function App() {
       isSellingHousesActive
         ? 'bg-[var(--seller-bg)] text-[var(--seller-ink)]'
         : authStatus !== 'authenticated'
-          ? 'bg-[#050505]'
+          ? 'bg-black'
           : 'bg-[#FAFAFA] text-[#1D1D1F]'
     }`}>
       {authStatus !== 'authenticated' ? (
@@ -463,10 +477,11 @@ export default function App() {
         <WorkspaceHub
           onSelect={handleSelectWorkspace}
           onPrepareWorkspace={prepareWorkspace}
-          onLogout={() => lockApplication('', '')}
+          onLogout={handleLogoutAccount}
           allowedWorkspaces={allowedWorkspaces}
           currentUserNickname={currentUserNickname}
           currentUserEmail={currentUserEmail}
+          sessionExpiresAt={sessionExpiresAt}
         />
       ) : activeWorkspace === 'sabrina' && canAccessWorkspace('sabrina') ? (
         <ComparisonWorkspace
@@ -483,7 +498,8 @@ export default function App() {
             dispatch({ type: 'RESET_COMPARISON' });
           }}
           onReturnToHub={handleReturnToHub}
-          onLogout={() => lockApplication('', '')}
+          onLogout={handleLogoutAccount}
+          sessionExpiresAt={sessionExpiresAt}
           onPreview={(title, subtitle, content) => dispatch({ type: 'SET_PREVIEW', data: { title, subtitle, content } })}
         />
       ) : activeWorkspace !== 'hub' && canAccessWorkspace(activeWorkspace) ? (
@@ -496,7 +512,7 @@ export default function App() {
                 currentUserNickname: currentUserNickname,
                 currentUserEmail: currentUserEmail,
                 onReturnToHub: handleReturnToHub,
-              onLogout: () => lockApplication('', ''),
+                onLogout: handleLogoutAccount,
             })}
           </Suspense>,
         )
@@ -504,17 +520,18 @@ export default function App() {
         <WorkspaceHub
           onSelect={handleSelectWorkspace}
           onPrepareWorkspace={prepareWorkspace}
-          onLogout={() => lockApplication('', '')}
+          onLogout={handleLogoutAccount}
           allowedWorkspaces={allowedWorkspaces}
           currentUserNickname={currentUserNickname}
           currentUserEmail={currentUserEmail}
+          sessionExpiresAt={sessionExpiresAt}
         />
       )}
 
-      {!isSellingHousesActive && (
-        <footer className="shrink-0 py-3 text-center text-[#86868B] text-[11px] border-t border-black/5 bg-white">
+      {authStatus === 'authenticated' && !isSellingHousesActive && (
+        <footer className="shrink-0 border-t border-black/5 bg-white py-3 text-center text-[11px] text-[#86868B]">
           <div className="flex items-center justify-center gap-2">
-            <Sparkles className="w-3.5 h-3.5" />
+            <Sparkles className="h-3.5 w-3.5" />
             <span>KeGame • 多模型PK + 开放日选址 + 资产顾问 + 商圈经营 + 理性业主</span>
             <span className="text-black/10">|</span>
             <span>© 2026</span>

@@ -70,6 +70,7 @@ export function useAppSession(state: AppState, dispatch: React.Dispatch<AppActio
             accountId: user.accountId,
             email: user.email,
             nickname: user.nickname,
+            sessionExpiresAt: user.sessionExpiresAt,
           });
           dispatch({ type: 'SET_LOGIN_EMAIL', value: user.email });
           if (matchedWorkspace) {

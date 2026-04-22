@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useCallback, useLayoutEffect } from 'react';
 import { motion, useMotionValue, useSpring, useTransform } from 'motion/react';
 import { KeyRound, Loader2, Mail, ShieldCheck } from 'lucide-react';
 import { AuthMode, AuthStatus } from '../../app/appReducer';
@@ -40,70 +40,123 @@ export function AuthOverlay({
       : '完成首登';
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const mouseX = useMotionValue(0.5);
   const mouseY = useMotionValue(0.5);
 
-  // 三层物理特性的弹簧，模拟水滴入墨的效果
-  const smoothX = useSpring(mouseX, { damping: 20, stiffness: 200 }); // 极速响应
-  const smoothY = useSpring(mouseY, { damping: 20, stiffness: 200 });
-  
-  const midX = useSpring(mouseX, { damping: 30, stiffness: 80 });   // 中速律动
-  const midY = useSpring(mouseY, { damping: 30, stiffness: 80 });
-  
-  const outerX = useSpring(mouseX, { damping: 50, stiffness: 30 }); // 慢速涟漪
-  const outerY = useSpring(mouseY, { damping: 50, stiffness: 30 });
+  // 以容器短边为基准的像素幅值，大位移才跟手；内层 1:1 不Spring，中/外略滞后
+  const ampMain = 280;
+  const ampMid = 200;
+  const ampOuter = 150;
 
-  // 映射位移
-  const moveX = useTransform(smoothX, [0, 1], [-80, 80]);
-  const moveY = useTransform(smoothY, [0, 1], [-80, 80]);
-  const midMoveX = useTransform(midX, [0, 1], [-120, 120]);
-  const midMoveY = useTransform(midY, [0, 1], [-120, 120]);
-  const outerMoveX = useTransform(outerX, [0, 1], [-180, 180]);
-  const outerMoveY = useTransform(outerY, [0, 1], [-180, 180]);
+  const followX = useTransform(mouseX, (x) => (x - 0.5) * 2 * ampMain);
+  const followY = useTransform(mouseY, (y) => (y - 0.5) * 2 * ampMain);
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!containerRef.current) return;
-    const { left, top, width, height } = containerRef.current.getBoundingClientRect();
+  const midX = useSpring(mouseX, { mass: 0.15, stiffness: 400, damping: 32, restDelta: 0.001 });
+  const midY = useSpring(mouseY, { mass: 0.15, stiffness: 400, damping: 32, restDelta: 0.001 });
+  const outerX = useSpring(mouseX, { mass: 0.35, stiffness: 120, damping: 28, restDelta: 0.001 });
+  const outerY = useSpring(mouseY, { mass: 0.35, stiffness: 120, damping: 28, restDelta: 0.001 });
+
+  const midMoveX = useTransform(midX, (x) => (x - 0.5) * 2 * ampMid);
+  const midMoveY = useTransform(midY, (y) => (y - 0.5) * 2 * ampMid);
+  const outerMoveX = useTransform(outerX, (x) => (x - 0.5) * 2 * ampOuter);
+  const outerMoveY = useTransform(outerY, (y) => (y - 0.5) * 2 * ampOuter);
+
+  const handlePointerMove: React.PointerEventHandler<HTMLDivElement> = (e) => {
+    const el = containerRef.current;
+    if (!el) return;
+    const { left, top, width, height } = el.getBoundingClientRect();
+    if (width < 1 || height < 1) return;
     mouseX.set((e.clientX - left) / width);
     mouseY.set((e.clientY - top) / height);
+  };
+
+  const [ripples, setRipples] = useState<{ id: number; x: number; y: number }[]>([]);
+  const rippleIdRef = useRef(0);
+
+  useLayoutEffect(() => {
+    const el = formRef.current;
+    if (!el) return;
+    el.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [authStatus, authMode]);
+
+  const addBackgroundRipple = useCallback(
+    (clientX: number, clientY: number) => {
+      const el = containerRef.current;
+      if (!el) return;
+      const { left, top, width, height } = el.getBoundingClientRect();
+      if (width < 1 || height < 1) return;
+      const x = clientX - left;
+      const y = clientY - top;
+      rippleIdRef.current += 1;
+      const id = rippleIdRef.current;
+      setRipples((prev) => [...prev, { id, x, y }]);
+      window.setTimeout(() => {
+        setRipples((prev) => prev.filter((r) => r.id !== id));
+      }, 900);
+      // 点击处同步一帧「闪一下」跟手光，和外围涟漪呼应
+      mouseX.set(x / width);
+      mouseY.set(y / height);
+    },
+    [mouseX, mouseY],
+  );
+
+  const handlePointerDownCapture: React.PointerEventHandler<HTMLDivElement> = (e) => {
+    if (e.button !== 0) return;
+    if (!(e.target instanceof Element)) return;
+    if (e.target.closest('form')) return;
+    addBackgroundRipple(e.clientX, e.clientY);
   };
 
   return (
     <div 
       ref={containerRef}
-      onMouseMove={handleMouseMove}
-      className="relative flex-1 overflow-hidden bg-[#020203] px-6 py-10 text-white"
+      onPointerDownCapture={handlePointerDownCapture}
+      onPointerMove={handlePointerMove}
+      onPointerLeave={() => {
+        mouseX.set(0.5);
+        mouseY.set(0.5);
+      }}
+      className="relative min-h-0 w-full flex-1 overflow-hidden bg-black px-4 py-8 text-white sm:px-6 sm:py-10"
     >
-      {/* 极富水纹律动感的互动背景 */}
+      {/* 极富水纹律动感的互动背景；光晕用外层做居中，避免与 motion 的 x/y 合并 transform 冲突 */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute inset-0 bg-[#020203]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,#0a0a1a_0%,#020203_100%)] opacity-80" />
+        <div className="absolute inset-0 bg-black" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_120%_80%_at_50%_0%,#111111_0%,#000000_55%)]" />
         
-        {/* 背景光晕层 3：慢速长拖尾 */}
-        <motion.div
-          style={{ x: outerMoveX, y: outerMoveY, translateX: '-50%', translateY: '-50%' }}
-          className="absolute left-1/2 top-1/2 h-[110%] w-[110%] rounded-full bg-blue-900/10 blur-[150px]"
-        />
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+          <motion.div
+            style={{ x: outerMoveX, y: outerMoveY, willChange: 'transform' }}
+            className="h-[min(100vw,44rem)] w-[min(100vw,44rem)] rounded-full bg-zinc-600/15 blur-[150px]"
+          />
+        </div>
 
-        {/* 背景光晕层 2：中速波纹 */}
-        <motion.div
-          style={{ x: midMoveX, y: midMoveY, translateX: '-50%', translateY: '-50%' }}
-          className="absolute left-1/2 top-1/2 h-[80%] w-[80%] rounded-full bg-indigo-600/08 blur-[120px]"
-        />
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+          <motion.div
+            style={{ x: midMoveX, y: midMoveY, willChange: 'transform' }}
+            className="h-[min(88vw,38rem)] w-[min(88vw,38rem)] rounded-full bg-white/5 blur-[120px]"
+          />
+        </div>
 
-        {/* 背景光晕层 1：跟随最紧的核心高亮 */}
-        <motion.div
-          style={{ x: moveX, y: moveY, translateX: '-50%', translateY: '-50%' }}
-          className="absolute left-1/2 top-1/2 h-[50%] w-[50%] rounded-full bg-blue-400/15 blur-[90px]"
-        />
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+          <motion.div
+            style={{ x: followX, y: followY, willChange: 'transform' }}
+            className="h-[min(75vw,28rem)] w-[min(75vw,28rem)] rounded-full bg-white/[0.08] blur-[84px]"
+          />
+        </div>
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+          <motion.div
+            style={{ x: followX, y: followY, willChange: 'transform' }}
+            className="h-40 w-40 max-h-[30vmin] max-w-[30vmin] rounded-full bg-white/20 blur-[50px] mix-blend-screen"
+          />
+        </div>
 
-        {/* 线条呼吸层 */}
-        <svg className="absolute inset-0 h-full w-full opacity-[0.08]" xmlns="http://www.w3.org/2000/svg">
+        <svg className="absolute inset-0 h-full w-full opacity-[0.06]" xmlns="http://www.w3.org/2000/svg">
           <motion.path
             d="M-100 400 Q 300 200 700 400 T 1500 400"
             fill="none"
             stroke="white"
-            strokeWidth="0.5"
+            strokeWidth="0.4"
             animate={{
               d: [
                 "M-100 400 Q 300 200 700 400 T 1500 400",
@@ -115,38 +168,55 @@ export function AuthOverlay({
           />
         </svg>
 
-        {/* 噪点质感 */}
-        <div className="absolute inset-0 opacity-[0.05] mix-blend-overlay" 
+        <div className="absolute inset-0 opacity-[0.04] mix-blend-overlay" 
              style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }} 
         />
       </div>
 
-      <motion.form
-        initial={{ opacity: 0, scale: 0.98, y: 10 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+      {/* 点击暗色外围（非表单区）时：水波外扩，并同步一帧光斑位置 */}
+      <div className="pointer-events-none absolute inset-0 z-[5] overflow-hidden">
+        {ripples.map((r) => (
+          <div
+            key={r.id}
+            className="pointer-events-none absolute"
+            style={{ left: r.x, top: r.y, width: 0, height: 0 }}
+          >
+            <motion.div
+              className="absolute h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/40 bg-white/10"
+              initial={{ scale: 0, opacity: 0.7 }}
+              animate={{ scale: 16, opacity: 0 }}
+              transition={{ duration: 0.72, ease: [0.2, 0.85, 0.2, 1] }}
+            />
+            <motion.div
+              className="absolute h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/20"
+              initial={{ scale: 0, opacity: 0.45 }}
+              animate={{ scale: 10, opacity: 0 }}
+              transition={{ duration: 0.88, ease: 'easeOut', delay: 0.05 }}
+            />
+          </div>
+        ))}
+      </div>
+
+      <form
+        ref={formRef}
         onSubmit={onSubmit}
-        className="relative mx-auto flex h-full w-full max-w-[520px] items-center"
+        className="relative z-20 mx-auto box-border flex h-full min-h-0 w-full max-w-[520px] flex-1 flex-col items-stretch overflow-y-auto overflow-x-hidden [overflow-anchor:none] py-2 [scrollbar-gutter:stable] sm:py-4"
       >
-        <div className="group relative w-full overflow-hidden rounded-[42px] border border-white/[0.08] bg-white/[0.02] p-1 shadow-[0_40px_100px_rgba(0,0,0,0.6)] backdrop-blur-3xl">
-          <div className="relative rounded-[38px] border border-white/[0.05] bg-[#0c0c0e]/60 p-8 md:p-11 shadow-inner">
-            <div className="mb-10 flex items-start justify-between gap-6">
-              <div>
-                <motion.div initial={{ x: -10, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.2 }} className="flex items-center gap-3">
-                  <KeGameHubMark size={40} className="drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]" />
-                  <h1 className="bg-gradient-to-br from-white to-white/60 bg-clip-text text-[38px] font-bold tracking-[-0.05em] text-transparent">KeGame</h1>
-                </motion.div>
-                <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="mt-4 max-w-sm text-[15px] font-medium leading-relaxed text-zinc-400">
-                  第一次登录：必须使用 <span className="text-blue-400/90">@ke.com</span> 邮箱，获取验证码后使用分配的激活 Key 完成开通。
-                </motion.p>
+        <div className="group w-full rounded-2xl border border-white/[0.1] bg-zinc-950/80 p-[1px] shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_32px_80px_rgba(0,0,0,0.7)] backdrop-blur-md">
+          <div className="rounded-2xl border border-white/[0.06] bg-[#0a0a0a] px-8 py-8 md:px-10 md:py-10">
+            <div className="mb-1 shrink-0">
+              <div className="mx-auto flex w-full max-w-md flex-col items-center gap-2.5 sm:items-start sm:gap-3">
+                <KeGameHubMark size={56} className="shrink-0" unframed />
+                <p className="w-full text-center text-[11px] font-semibold uppercase leading-none tracking-[0.3em] text-white sm:text-left">
+                  KEGAME
+                </p>
               </div>
-
-              <motion.div whileHover={{ scale: 1.05, rotate: 5 }} className="flex h-15 w-15 shrink-0 items-center justify-center rounded-[22px] bg-white text-[#050505] shadow-[0_20px_40px_rgba(255,255,255,0.12)]">
-                {authStatus === 'checking' || authStatus === 'submitting' ? <Loader2 className="h-6 w-6 animate-spin" /> : <ShieldCheck className="h-6 w-6" />}
-              </motion.div>
             </div>
+            <p className="mt-4 max-w-md text-left text-[14px] font-medium leading-relaxed text-zinc-500">
+              第一次登录：使用 <span className="text-zinc-200">@ke.com</span> 邮箱，验证码 + 首登激活 Key 开通。之后仅需验证码即可登录。
+            </p>
 
-            <div className="grid gap-5">
+            <div className="mt-8 grid gap-5">
               <div className="space-y-2.5">
                 <label className="ml-1 text-[11px] font-bold uppercase tracking-[0.25em] text-zinc-500">企业邮箱</label>
                 <div className="group/input flex items-center gap-4 rounded-[26px] border border-white/[0.06] bg-white/[0.03] px-5 py-4.5 transition-all duration-300 focus-within:border-white/20 focus-within:bg-white/[0.06]">
@@ -205,6 +275,18 @@ export function AuthOverlay({
               </motion.button>
             </div>
 
+            {authHint ? (
+              <div className="mt-5 rounded-[24px] border border-blue-500/25 bg-blue-500/10 px-5 py-4 text-[13px] font-medium leading-relaxed text-blue-200/95">
+                {authHint}
+              </div>
+            ) : null}
+
+            {authError ? (
+              <div className="mt-5 rounded-[24px] border border-red-500/25 bg-red-500/10 px-5 py-4 text-[13px] font-medium leading-relaxed text-red-200/95">
+                {authError}
+              </div>
+            ) : null}
+
             <div className="mt-8 flex items-center justify-center gap-2 text-xs font-medium tracking-wide text-zinc-500">
               <div className="h-1 w-1 rounded-full bg-zinc-600" />
               {authStatus === 'checking' ? '正在恢复已登录状态' : '登录后会记住当前设备'}
@@ -212,7 +294,7 @@ export function AuthOverlay({
             </div>
           </div>
         </div>
-      </motion.form>
+      </form>
     </div>
   );
 }

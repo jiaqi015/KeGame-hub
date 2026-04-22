@@ -1,5 +1,5 @@
 import './_bootstrap.js';
-import { clearSessionCookie, completeEmailLogin, isSessionAuthorizationFailure, setAuthCookie, startEmailLogin, authorizeSession } from '../lib/auth.js';
+import { clearSessionCookie, completeEmailLogin, isSessionAuthorizationFailure, refreshSession, setAuthCookie, startEmailLogin, authorizeSession } from '../lib/auth.js';
 import { validateActivationKey } from '../lib/activation.js';
 import { getQueryValue, parseJsonBody } from './_request.js';
 
@@ -76,6 +76,7 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({
         ok: true,
         user: result.user,
+        sessionExpiresAt: result.expiresAt,
       });
     } catch (error) {
       return res.status(400).json({
@@ -95,6 +96,19 @@ export default async function handler(req: any, res: any) {
       return res.status(authorization.status).json({ error: authorization.error });
     }
 
+    let sessionExpiresAt: string | null = null;
+    if (authorization.source === 'session') {
+      const refreshed = refreshSession({
+        accountId: authorization.accountId,
+        email: authorization.email,
+        nickname: authorization.nickname,
+        displayName: authorization.displayName,
+        allowedWorkspaces: authorization.allowedWorkspaces,
+      });
+      setAuthCookie(res, refreshed.cookie);
+      sessionExpiresAt = refreshed.expiresAt;
+    }
+
     return res.status(200).json({
       ok: true,
       user: {
@@ -105,6 +119,7 @@ export default async function handler(req: any, res: any) {
         allowedWorkspaces: authorization.allowedWorkspaces,
         source: authorization.source,
       },
+      sessionExpiresAt,
     });
   }
 

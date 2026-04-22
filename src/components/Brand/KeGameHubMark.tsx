@@ -3,39 +3,49 @@ import React from 'react';
 interface KeGameHubMarkProps {
   className?: string;
   size?: number;
+  /** 深色/连续背景上只用图，不套外沿黑方角（避免和卡片黑底糊在一起） */
+  unframed?: boolean;
 }
 
-export function KeGameHubMark({ className, size = 28 }: KeGameHubMarkProps) {
-  return (
-    <svg
+/**
+ * 贝壳 + 手柄 组合标识（透明底，资源：/public/kegame-logo.fg.png）
+ */
+export function KeGameHubMark({ className, size = 28, unframed = false }: KeGameHubMarkProps) {
+  const img = (
+    <img
+      src="/kegame-logo.fg.png?v=1"
+      alt=""
+      className="h-full w-full object-contain select-none"
+      draggable={false}
       width={size}
       height={size}
-      viewBox="0 0 64 64"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-      aria-hidden="true"
+    />
+  );
+
+  if (unframed) {
+    return (
+      <span
+        className={`inline-block shrink-0 ${className ?? ''}`}
+        style={{ width: size, height: size }}
+        aria-hidden
+      >
+        {img}
+      </span>
+    );
+  }
+
+  const pad = Math.max(1, Math.floor(size * 0.12));
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#0a0a0a] ${className ?? ''}`}
+      style={{
+        width: size,
+        height: size,
+        padding: pad,
+      }}
+      aria-hidden
     >
-      <rect x="6" y="6" width="52" height="52" rx="18" fill="url(#kegame-hub-bg)" />
-      <rect x="6.5" y="6.5" width="51" height="51" rx="17.5" stroke="rgba(17,17,17,0.08)" />
-      <path
-        d="M20 18H27V28.5L38.5 18H48L35.2 29.4L49 46H39.8L30.1 34L27 36.8V46H20V18Z"
-        fill="#111111"
-      />
-      <circle cx="46.5" cy="18.5" r="4.5" fill="#10B981" />
-      <path
-        d="M42.5 22.5L37 27"
-        stroke="#10B981"
-        strokeWidth="3"
-        strokeLinecap="round"
-      />
-      <defs>
-        <linearGradient id="kegame-hub-bg" x1="12" y1="10" x2="54" y2="56" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#F7F8FB" />
-          <stop offset="0.55" stopColor="#EEF2FF" />
-          <stop offset="1" stopColor="#EAFBF2" />
-        </linearGradient>
-      </defs>
-    </svg>
+      {img}
+    </span>
   );
 }

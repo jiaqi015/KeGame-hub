@@ -1,0 +1,329 @@
+.open-day-upload-stage {
+  display: grid;
+  gap: 32px;
+  justify-items: center;
+  align-content: center;
+  min-height: calc(100vh - 200px);
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.open-day-upload-hero {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.open-day-upload-hero__icon-bg {
+  background: var(--od-primary-light);
+  color: var(--od-primary);
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.open-day-upload-hero h1 {
+  font-size: 32px;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  font-weight: 800;
+  color: var(--od-text-main);
+  margin: 0;
+}
+
+.open-day-upload-hero p {
+  font-size: 14px;
+  color: var(--od-text-muted);
+  max-width: 500px;
+  line-height: 1.5;
+}
+
+.open-day-upload-card {
+  width: 100%;
+  border: 1px solid var(--od-border-color);
+  border-radius: var(--od-radius-xl);
+  background: white;
+  box-shadow: var(--od-shadow-md);
+  overflow: hidden;
+}
+
+.open-day-upload-card__panel {
+  padding: 32px;
+  display: grid;
+  gap: 24px;
+}
+
+.open-day-upload-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  min-height: 200px;
+  text-align: center;
+}
+
+.open-day-spinner-wrapper {
+  color: var(--od-primary);
+  margin-bottom: 8px;
+}
+
+.open-day-upload-loading h3 {
+  font-size: 20px;
+  color: var(--od-text-main);
+  margin: 0;
+}
+
+.open-day-upload-loading p {
+  color: var(--od-text-muted);
+  font-size: 14px;
+}
+
+.open-day-upload-success-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.open-day-upload-success-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--od-secondary-light);
+  color: var(--od-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.open-day-upload-success-header h3 {
+  font-size: 20px;
+  color: var(--od-text-main);
+  margin: 0;
+}
+
+.open-day-upload-success-header p {
+  font-size: 14px;
+  color: var(--od-text-muted);
+  margin-top: 4px;
+}
+
+.open-day-upload-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  padding: 24px 0;
+  border-top: 1px dashed var(--od-border-color);
+  border-bottom: 1px dashed var(--od-border-color);
+}
+
+.open-day-stat-box strong.has-error {
+  color: #dc2626;
+}
+
+.open-day-upload-success-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* Quality Report Styles */
+.open-day-quality-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  border-radius: 16px;
+  background: white;
+  border: 1px solid var(--od-border-color);
+  min-width: 80px;
+}
+
+.open-day-quality-badge__label {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--od-text-dim);
+}
+
+.open-day-quality-badge__value {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.open-day-quality-badge.is-good {
+  border-color: #10b981;
+  color: #10b981;
+}
+
+.open-day-quality-badge.is-warning {
+  border-color: #f59e0b;
+  color: #f59e0b;
+}
+
+.open-day-quality-badge.is-error {
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.open-day-quality-details {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid var(--od-border-color);
+}
+
+.open-day-quality-details__header {
+  margin-bottom: 12px;
+}
+
+.open-day-quality-alert {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 12px;
+  font-size: 14px;
+}
+
+.open-day-quality-alert strong {
+  display: block;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+.open-day-quality-alert p {
+  color: inherit;
+  opacity: 0.8;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.open-day-quality-alert.is-error {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.open-day-quality-alert.is-warning {
+  background: #fffbeb;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.open-day-quality-alert.is-success {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.open-day-upload-drop-area {
+  display: grid;
+  gap: 12px;
+  min-height: 240px;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px dashed var(--od-border-color);
+  background: #fff;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+  cursor: pointer;
+}
+
+.open-day-upload-drop-area:hover {
+  border-color: var(--od-primary);
+  background: #fbfbfb;
+  transform: translateY(-1px);
+}
+
+.open-day-upload-empty {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  margin-top: 18px;
+  text-align: center;
+  color: var(--od-text-muted);
+}
+
+.open-day-upload-empty strong {
+  display: block;
+  font-size: 18px;
+  margin-bottom: 4px;
+  color: var(--od-text-main);
+}
+
+.open-day-upload-empty p {
+  max-width: 360px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.open-day-upload-empty__icon {
+  width: 48px;
+  height: 48px;
+  color: var(--od-text-dim);
+  margin-bottom: 8px;
+}
+
+.open-day-upload-drop-area:not(:has(.open-day-upload-empty)) {
+  min-height: auto;
+  padding: 16px 0;
+  border-style: solid;
+  border-color: rgba(76, 58, 42, 0.08);
+  background: transparent;
+  cursor: default;
+}
+
+.open-day-upload-file {
+  margin-top: 18px;
+  padding: 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(76, 58, 42, 0.08);
+  background: rgba(255, 255, 255, 0.9);
+  text-align: center;
+}
+
+.open-day-upload-file__name {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.open-day-upload-file__meta {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--od-text-muted);
+}
+
+.open-day-upload-file__chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  justify-content: center;
+}
+
+.open-day-upload-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(76, 58, 42, 0.08);
+  text-align: right;
+}
+
+.open-day-upload-footer__hint {
+  margin-right: auto;
+  max-width: 480px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--od-text-muted);
+}

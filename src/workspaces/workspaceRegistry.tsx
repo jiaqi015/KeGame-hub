@@ -15,22 +15,34 @@ export function preloadSellingHousesWorkspace() {
   return import('../selling-houses/SellingHousesWorkspace');
 }
 
+type PlaceholderFuturePlay = { title: string; body: string };
+
 function PlaceholderWorkspace({
   badge,
   title,
   subtitle,
+  heroImageSrc,
+  heroImageAlt,
+  heroTagline,
+  heroSubline,
+  advisorBlock,
+  futurePlays,
   prompts,
   nextSteps,
   tone = 'sky',
-  visual,
 }: {
   badge: string;
   title: string;
   subtitle: string;
+  heroImageSrc: string;
+  heroImageAlt: string;
+  heroTagline: string;
+  heroSubline: string;
+  advisorBlock: { title: string; paragraphs: string[] };
+  futurePlays: { sectionTitle: string; items: PlaceholderFuturePlay[] };
   prompts: string[];
   nextSteps: string[];
   tone?: 'sky' | 'rose';
-  visual: string;
 }) {
   const accentClassName = tone === 'rose'
     ? 'bg-[#B9385D] text-white shadow-[0_18px_34px_rgba(185,56,93,0.18)]'
@@ -39,47 +51,81 @@ function PlaceholderWorkspace({
     ? 'bg-rose-50 text-rose-700'
     : 'bg-sky-50 text-sky-700';
   const sectionClassName = tone === 'rose'
-    ? 'border-rose-100 bg-rose-50/70'
-    : 'border-sky-100 bg-sky-50/70';
+    ? 'border-rose-200/80 bg-gradient-to-b from-rose-50/90 to-rose-50/40'
+    : 'border-sky-200/80 bg-gradient-to-b from-sky-50/90 to-sky-50/40';
+  const pageBg = tone === 'rose'
+    ? 'bg-[radial-gradient(circle_at_15%_10%,rgba(244,63,94,0.1),transparent_40%),radial-gradient(circle_at_90%_0%,rgba(185,56,93,0.08),transparent_45%),linear-gradient(180deg,#fffafb,#ffffff)]'
+    : 'bg-[radial-gradient(circle_at_12%_8%,rgba(14,165,233,0.1),transparent_42%),radial-gradient(circle_at_88%_5%,rgba(15,76,129,0.08),transparent_45%),linear-gradient(180deg,#f8fcff,#ffffff)]';
+  const futureCard = tone === 'rose'
+    ? 'border-rose-100/90 bg-rose-50/40'
+    : 'border-sky-100/90 bg-sky-50/40';
+  const heroFrame = tone === 'rose'
+    ? 'border-rose-100/80 bg-gradient-to-b from-rose-50/80 to-white shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]'
+    : 'border-sky-100/80 bg-gradient-to-b from-sky-50/80 to-white shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]';
 
   return (
-    <div className="flex h-full items-center justify-center bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.08),transparent_32%),linear-gradient(180deg,#fbfdff,#ffffff)] px-8 py-10">
-      <div className="w-full max-w-5xl rounded-[36px] border border-black/5 bg-white/92 p-8 shadow-[0_24px_70px_rgba(20,20,43,0.08)] md:p-10">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-          <div className="max-w-2xl">
+    <div className={`flex h-full items-start justify-center overflow-y-auto ${pageBg} px-4 py-10 sm:px-8`}>
+      <div className="w-full max-w-5xl rounded-[36px] border border-black/5 bg-white/95 p-6 shadow-[0_24px_70px_rgba(20,20,43,0.08)] sm:p-10">
+        <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 flex-1 max-w-2xl">
             <div className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold ${badgeClassName}`}>
               {badge}
             </div>
-            <div className="mt-4 flex items-center gap-4">
-              <div className={`flex h-14 w-14 items-center justify-center rounded-[20px] ${accentClassName}`}>
-                <span className="text-lg font-bold">AI</span>
+            <div className="mt-4 flex items-start gap-4">
+              <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] ${accentClassName}`}>
+                <span className="text-sm font-bold tracking-tight">AI</span>
               </div>
               <div>
-                <h2 className="text-[30px] font-semibold tracking-[-0.04em] text-[#111111]">{title}</h2>
+                <h2 className="text-[28px] font-semibold tracking-[-0.04em] text-[#111111] sm:text-[30px]">{title}</h2>
                 <p className="mt-2 text-[15px] leading-7 text-[#6E6E73]">{subtitle}</p>
               </div>
             </div>
 
-            {/* 视觉图示占位 */}
-            <div className="mt-8 rounded-[28px] border border-black/[0.05] bg-slate-50 p-6 text-center text-slate-500 shadow-inner">
-              <img src="/placeholder-image.svg" alt={visual} className="mx-auto h-48 object-contain" />
-              <p className="mt-4 text-sm font-medium">{visual}</p>
+            <div className={`mt-7 overflow-hidden rounded-[28px] border ${heroFrame} p-3 sm:p-4`}>
+              <img
+                src={heroImageSrc}
+                alt={heroImageAlt}
+                className="h-44 w-full rounded-[20px] object-cover object-center sm:h-52"
+              />
+              <p className="mt-4 text-center text-[16px] font-semibold text-[#111111] sm:text-left">{heroTagline}</p>
+              <p className="mt-1 text-center text-[13px] leading-6 text-[#6E6E73] sm:text-left">{heroSubline}</p>
             </div>
-
           </div>
 
-          <div className={`rounded-[24px] border px-5 py-4 ${sectionClassName} lg:max-w-[300px]`}>
-            <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">当前状态</div>
-            <div className="mt-2 text-[17px] font-semibold text-slate-900">已放开入口，可先用于对齐玩法</div>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              现在先给你一组预设提示，方便团队先讨论“这个游戏应该怎么打、怎么测、怎么做世界观复用”。
-            </p>
+          <div className={`w-full max-w-md shrink-0 rounded-[24px] border px-5 py-5 ${sectionClassName}`}>
+            <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500/90">{advisorBlock.title}</div>
+            <div className="mt-3 space-y-2.5 text-[14px] leading-6 text-slate-700">
+              {advisorBlock.paragraphs.map((p, i) => (
+                <p key={i}>{p}</p>
+              ))}
+            </div>
+            <div className="mt-5 border-t border-black/5 pt-4">
+              <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500/90">当前状态</div>
+              <p className="mt-1.5 text-sm font-medium text-slate-800">已放开入口，可先体验叙事与方向对齐</p>
+            </div>
           </div>
         </div>
 
-        <div className="mt-8 grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+        <section className="mt-10">
+          <h3 className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
+            {futurePlays.sectionTitle}
+          </h3>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {futurePlays.items.map((item) => (
+              <div
+                key={item.title}
+                className={`flex flex-col rounded-[22px] border p-4 ${futureCard} shadow-[0_8px_30px_rgba(15,23,42,0.04)]`}
+              >
+                <div className="text-[15px] font-semibold text-[#111111]">{item.title}</div>
+                <p className="mt-2 flex-1 text-[13px] leading-6 text-slate-600">{item.body}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <div className="mt-10 grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
           <section className="rounded-[28px] border border-black/[0.05] bg-[#FCFCFD] p-6">
-            <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">预设提示</div>
+            <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">预设讨论提示</div>
             <div className="mt-4 space-y-3">
               {prompts.map((prompt) => (
                 <div
@@ -93,7 +139,7 @@ function PlaceholderWorkspace({
           </section>
 
           <section className="rounded-[28px] border border-black/[0.05] bg-white p-6">
-            <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">建议下一步</div>
+            <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">下一步</div>
             <div className="mt-4 space-y-3">
               {nextSteps.map((item, index) => (
                 <div key={item} className="flex gap-3 rounded-[20px] border border-black/[0.05] bg-slate-50/80 px-4 py-4">
@@ -183,7 +229,7 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
     iconContainerClassName: 'bg-[#8B5A2B] text-white shadow-[0_18px_34px_rgba(139,90,43,0.16)]',
     pillClassName: 'bg-[#F6EFE7] text-[#8B5A2B]',
     cardDescription: '开一局房源组合经营，在价格、节奏和沟通之间拿稳分寸，守住关键盘，打出好收尾。',
-    highlights: ['快速看清每套房现在该怎么推', '定价沟通、开放日和议价都要做取舍', '在窗口压力和业主预期之间把局面控住'],
+    highlights: ['快速看清每套房现在该怎么推', '定价沟通、开放日和议价都要做取舍', '在业主预期和推进节奏之间把局面控住'],
     ctaLabel: '开一局',
     sortOrder: 30,
     render: ({ activationKey, currentUserAccountId, currentUserNickname, currentUserEmail, onReturnToHub, onLogout }) => (
@@ -213,18 +259,37 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
     sortOrder: 40,
     render: () => (
       <PlaceholderWorkspace
-        badge="商圈经营占位页"
-        title="经营好商圈"
-        subtitle="这个游戏已经为所有 key 预留入口，当前先提供占位页。后续会接入统一世界模型和商圈经营主循环。"
+        badge="商圈经营"
+        title="从整片商圈做经营"
+        subtitle="为商圈经理准备：一屏看盘面、看资源、看组织节奏。当前为叙事与玩法对齐的占位，后续接入与「王牌资产顾问」同一世界模型的主循环。"
+        heroImageSrc="/hub-district-manager-hero.svg"
+        heroImageAlt="商圈网络与经营中枢示意图"
+        heroTagline="经理最期待：一屏里看清谁该压、谁该保、谁该让"
+        heroSubline="把「重点盘、跨店协同、资源位、总部政策」从口号变成一局的取舍"
+        advisorBlock={{
+          title: '和「王牌资产顾问 / 卖方顾问游戏」',
+          paragraphs: [
+            '两边共用同一套底层对象：商圈、重点盘、竞品、客户、资源位与周节奏；顾问端模拟单盘与多房经营，你端放大到「整片 + 组织」的分配与推进。',
+            '以后上线后，你在商圈里调资源、改节奏，会反向体现在顾问局里的可行动作强度与组织压力；同一场数据的复盘，可以从单盘切到商圈，从商圈沉回单盘。',
+          ],
+        }}
+        futurePlays={{
+          sectionTitle: '未来玩法预测（会陆续落地）',
+          items: [
+            { title: '周目标与资源位主循环', body: '周初投资源、配置重点盘、设定协同动作；周末看「转化、丢盘、满意度」与下周方向是否该转向。' },
+            { title: '组织与跨店协同一屏化', body: '抢客、让盘、并案、外区分流变成局内事件；你要在组织信用与单盘结果之间做选择。' },
+            { title: '总部 / 政策沙盒', body: '用可切换的政策包观察商圈结构怎么变，训练的是预判与排兵布阵，而不是只背管理话术。' },
+          ],
+        }}
         prompts={[
-          '如果你要经营一个商圈，第一周最先盯的是资源分配、重点盘排布，还是团队协同节奏？',
-          '假设同一板块突然新增 3 套强竞品，你会先改“客户获取”、还是先改“重点盘策略”？',
-          '如果总部只给你 2 个核心资源位，你会把它们给高总价盘、快成交盘，还是战略盘？',
+          '如果你要经营一个商圈，这周最先动的是：资源位、人员协同，还是重点盘清单？',
+          '同一板块突然多三套强竞价房源，你优先改获客的打法，还是优先收缩重点盘？',
+          '总部只给两个资源位，你会给高单价盘、高流速盘，还是能守住口碑的战略盘？',
         ]}
         nextSteps={[
-          '先定商圈经营游戏的主循环：周目标、资源位、重点盘、协同动作、复盘口径。',
-          '明确和顾问游戏复用的底层对象：商圈、房源、竞品、客户、资源位、组织压力。',
-          '再决定首个可玩版本只做“资源分配局”，还是直接加入组织协同和竞争演化。',
+          '和团队一起定主循环：周目标、资源位、重点盘、协同动作、复盘五件事谁是一号位。',
+          '列出与顾问游戏要共享的字段，避免两屏各说各话（同一套房源与市场假设）。',
+          '先定 MVP：只做资源分配 + 周复盘一屏，再叠加组织事件与政策包。',
         ]}
         tone="sky"
       />
@@ -240,24 +305,43 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
     icon: Target,
     iconContainerClassName: 'bg-[#B9385D] text-white shadow-[0_18px_34px_rgba(185,56,93,0.18)]',
     pillClassName: 'bg-rose-50 text-rose-700',
-    cardDescription: '站在业主视角做取舍，在价格、时机、经纪人建议和持有成本之间找到最理性的决策。',
+    cardDescription: '站在业主视角做取舍，在价格、时机、经纪人动作和持有成本之间找到最理性的决策。',
     highlights: ['同一世界观下的业主视角玩法', '价格和时机判断会更直接', '后续会接入统一的房源与市场模型'],
     ctaLabel: '进入占位页',
     sortOrder: 50,
     render: () => (
       <PlaceholderWorkspace
-        badge="业主决策占位页"
-        title="做最理性的业主"
-        subtitle="这个游戏已经为所有 key 预留入口，当前先提供占位页。后续会接入统一世界模型和业主决策主循环。"
+        badge="业主决策"
+        title="在情绪里做最理性的主"
+        subtitle="把「要多少钱、什么时候动、信谁的话」从直觉变成一局的取舍。当前是占位，用来和团队、业主试点一起对齐产品叙事，后续与王牌资产顾问同一市场假设。"
+        heroImageSrc="/hub-rational-owner-hero.svg"
+        heroImageAlt="家、确定感与决策象征示意图"
+        heroTagline="业主最期待：少被节奏带着跑，多看清自己真正要什么"
+        heroSubline="价格、时机、信任、持有成本，将来会在同一局里可对比、可复盘。"
+        advisorBlock={{
+          title: '和「王牌资产顾问 / 卖方顾问游戏」',
+          paragraphs: [
+            '顾问那端是「帮你怎么卖」的经营模拟；你这一端是「我作为业主该怎么选」的决策实验——两边绑定同一套房源、市场与谈判过程。',
+            '上线后，你在这里的定价与节奏选择，会反过来影响顾问局里看到的业主信任、耐心与推进压力，形成真正的双视角同世界。',
+          ],
+        }}
+        futurePlays={{
+          sectionTitle: '未来玩法预测（会陆续落地）',
+          items: [
+            { title: '双视角同世界', body: '你改心理底价或时间约束，会体现在顾问那端的可行动作与风险提示里；复盘可以从业主视角再跳回单盘。' },
+            { title: '「后悔值」而不仅是成交价', body: '除了卖高卖低，还会看事后复盘：你愿不愿意再次做同样的选择——训练长期理性而不是单日情绪。' },
+            { title: '全成本与推进剧本', body: '持有成本、机会成本、换顾问成本与开放日 / 议价的掉价感，会叠成一条看得见的总账。' },
+          ],
+        }}
         prompts={[
-          '如果你是业主，面对两个顾问给出的不同建议，你更看“成交速度”、还是更看“价格确定性”？',
-          '当市场转冷时，你会先降价、先换策略，还是先观察 7 天再判断？',
-          '如果顾问建议做开放日，但你担心掉价感知，你会接受、拒绝，还是要求附带明确边界条件？',
+          '两位顾问说法不同：你更看重快速成交的确定性，还是更在意最后落袋的价格？',
+          '市场转冷时，你会先调价、先换推进动作，还是再观察几天？',
+          '顾问提出做开放日，你担心被邻居感知掉价时，会接受、拒绝，还是加前提条件？',
         ]}
         nextSteps={[
-          '先把业主视角最核心的三件事定清：价格、时机、顾问选择。',
-          '明确这款游戏的胜负标准，是“卖得高”“卖得稳”还是“总体决策后悔最少”。',
-          '再和顾问游戏对齐共享世界模型，确保同一套房源在两个视角下能讲得通。',
+          '和试点业主一起定胜负口径：是「少后悔」还是「综合效用最高」。',
+          '定三条共同字段：价格底线、时间底限、可接受的掉价感边界。',
+          '与顾问游戏对表同一套市场参数，避免一街两套逻辑。',
         ]}
         tone="rose"
       />

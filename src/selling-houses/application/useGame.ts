@@ -407,11 +407,11 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
     });
   }, []);
 
-  const handleExecuteAction = useCallback((actionId: string, caseItem: Case, optionId: string | null = null, onMessage?: (msg: string) => void) => {
+  const handleExecuteAction = useCallback((actionId: string, caseItem: Case, optionId: string | null = null, settlement?: any, onMessage?: (msg: string) => void) => {
     let success = false;
     setState((prev) => {
       if (!prev) return null;
-      const result = executeGameAction(prev, actionId, caseItem.id, optionId, onMessage);
+      const result = executeGameAction(prev, actionId, caseItem.id, optionId, settlement || null, onMessage);
       success = result.success;
       return result.success ? result.nextState : prev;
     });

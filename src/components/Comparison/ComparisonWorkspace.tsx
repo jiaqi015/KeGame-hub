@@ -20,6 +20,7 @@ interface ComparisonWorkspaceProps {
   onReset: () => void;
   onReturnToHub: () => void;
   onLogout: () => void;
+  sessionExpiresAt?: string;
   onPreview: (title: string, subtitle: string, content: string) => void;
 }
 
@@ -33,6 +34,7 @@ export function ComparisonWorkspace({
   onReset,
   onReturnToHub,
   onLogout,
+  sessionExpiresAt,
   onPreview,
 }: ComparisonWorkspaceProps) {
   const {
@@ -68,14 +70,14 @@ export function ComparisonWorkspace({
               className="absolute left-0 top-0 inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#5C5C60] transition hover:border-black/20 hover:text-[#1D1D1F]"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
-              返回
+              返回 Hub
             </button>
             <button
               onClick={onLogout}
               className="absolute right-0 top-0 inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#5C5C60] transition hover:border-black/20 hover:text-[#1D1D1F]"
             >
               <LogOut className="h-3.5 w-3.5" />
-              退出登录
+              登出账号
             </button>
             <h1 className="text-2xl font-bold tracking-tight mb-0.5">多模型PK</h1>
             <p className="text-[10px] text-[#86868B] uppercase tracking-widest font-medium">一句提示词，多个模型一起出</p>
@@ -207,6 +209,7 @@ export function ComparisonWorkspace({
                           <span className="text-[11px] font-bold text-[#1D1D1F]">{model.name}</span>
                           <button 
                             onClick={() => onToggleModel(modelId)}
+                            aria-label={`移除模型 ${model.name}`}
                             className="p-0.5 hover:bg-red-100 rounded-full transition-colors"
                           >
                             <X className="w-2.5 h-2.5 text-[#86868B] hover:text-red-500" />
@@ -245,7 +248,7 @@ export function ComparisonWorkspace({
                   className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium mb-2 group text-sm"
                 >
                   <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
-                  返回首页
+                  返回上一层
                 </button>
                 <h2 className="text-2xl font-bold tracking-tight">对比结果</h2>
               </div>
@@ -266,7 +269,7 @@ export function ComparisonWorkspace({
                   className="inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[#5C5C60] transition hover:border-black/20 hover:text-[#1D1D1F]"
                 >
                   <LogOut className="h-3.5 w-3.5" />
-                  退出登录
+                  登出账号
                 </button>
               </div>
             </div>

@@ -171,7 +171,7 @@ export function AnalysisTable({
               }}
             />
             {searchTerm && (
-              <button className="open-day-search-clear" onClick={() => onSearchChange('')}>
+              <button className="open-day-search-clear" onClick={() => onSearchChange('')} aria-label="清空搜索">
                 <X size={14} />
               </button>
             )}

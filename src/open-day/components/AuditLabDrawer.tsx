@@ -44,7 +44,7 @@ export function AuditLabDrawer({ row, config, onClose }: AuditLabDrawerProps) {
               <p>{row.name}</p>
             </div>
           </div>
-          <button className="open-day-audit-close" onClick={onClose}>
+          <button className="open-day-audit-close" onClick={onClose} aria-label="关闭实验室抽屉">
             <X size={20} />
           </button>
         </div>

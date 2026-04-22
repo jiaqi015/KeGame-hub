@@ -13,6 +13,7 @@ interface WorkspaceHubProps {
   allowedWorkspaces: ActivationWorkspaceId[];
   currentUserNickname?: string;
   currentUserEmail?: string;
+  sessionExpiresAt?: string;
 }
 
 export function WorkspaceHub({
@@ -22,6 +23,7 @@ export function WorkspaceHub({
   allowedWorkspaces,
   currentUserNickname,
   currentUserEmail,
+  sessionExpiresAt,
 }: WorkspaceHubProps) {
   const visibleWorkspaces = WORKSPACE_REGISTRY
     .filter((workspace) => allowedWorkspaces.includes(workspace.id))
@@ -48,7 +50,7 @@ export function WorkspaceHub({
               </div>
             </div>
             <div className="mt-5">
-              <UserIdentityBadge nickname={currentUserNickname} email={currentUserEmail} />
+              <UserIdentityBadge nickname={currentUserNickname} email={currentUserEmail} sessionExpiresAt={sessionExpiresAt} />
             </div>
           </div>
 
@@ -57,7 +59,7 @@ export function WorkspaceHub({
             className="inline-flex items-center gap-2 self-start rounded-full border border-black/10 bg-white px-5 py-2.5 text-[11px] font-bold uppercase tracking-[0.18em] text-[#5C5C60] transition-all hover:border-black/20 hover:bg-[#F5F5F7] hover:text-[#1D1D1F] active:scale-95 md:self-auto"
           >
             <LogOut className="h-3.5 w-3.5" />
-            退出
+            登出账号
           </button>
         </div>
 

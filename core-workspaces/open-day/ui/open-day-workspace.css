@@ -1,0 +1,716 @@
+:root {
+  /* Colors - Modern Simple SaaS Palette (Indigo/Slate) */
+  --od-primary: #4f46e5;
+  --od-primary-light: rgba(79, 70, 229, 0.08);
+  --od-primary-hover: #4338ca;
+  --od-secondary: #0d9488;
+  --od-secondary-light: rgba(13, 148, 136, 0.08);
+  
+  --od-text-main: #0f172a;
+  --od-text-muted: #64748b;
+  --od-text-dim: #94a3b8;
+  --od-text-label: #334155;
+  
+  --od-bg-base: #ffffff;
+  --od-bg-gradient: none;
+  --od-bg-card: #ffffff;
+  --od-border-color: #e5e7eb;
+  
+  --od-shadow-sm: 0 4px 12px rgba(15, 23, 42, 0.04);
+  --od-shadow-md: 0 12px 30px rgba(15, 23, 42, 0.08);
+  --od-shadow-premium: 0 20px 50px rgba(15, 23, 42, 0.12);
+  
+  --od-radius-lg: 14px;
+  --od-radius-xl: 18px;
+  --od-transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* =========================================
+   Base & Typography
+   ========================================= */
+.open-day-workspace {
+  height: 100%;
+  overflow-y: auto;
+  background: var(--od-bg-base);
+  color: var(--od-text-main);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.open-day-workspace__shell {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 24px 24px 80px;
+}
+
+.open-day-workspace h2,
+.open-day-workspace h3,
+.open-day-workspace h4,
+.open-day-workspace p {
+  margin: 0;
+}
+
+/* =========================================
+   Common Form Elements
+   ========================================= */
+.open-day-workspace label {
+  display: grid;
+  gap: 8px;
+}
+
+.open-day-workspace label span {
+  font-size: 13px;
+  color: var(--od-text-label);
+}
+
+.open-day-workspace input,
+.open-day-workspace select {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--od-border-color);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--od-text-main);
+  font-size: 14px;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+  box-sizing: border-box;
+}
+
+.open-day-workspace input::placeholder {
+  color: var(--od-text-dim);
+}
+
+.open-day-workspace input:focus-visible,
+.open-day-workspace select:focus-visible {
+  outline: none;
+  border-color: rgba(37, 86, 72, 0.28);
+  box-shadow: 0 0 0 4px rgba(37, 86, 72, 0.08);
+  background: rgba(255, 255, 255, 0.98);
+}
+
+/* =========================================
+   Universal Button System
+   ========================================= */
+.open-day-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 160ms ease;
+  user-select: none;
+}
+
+.open-day-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.open-day-button--primary {
+  background: var(--od-primary);
+  color: #fff;
+}
+
+.open-day-button--primary:hover:not(:disabled) {
+  background: var(--od-primary-hover);
+}
+
+.open-day-button--secondary {
+  background: #f1f5f9;
+  color: var(--od-text-main);
+  border: 1px solid var(--od-border-color);
+}
+
+.open-day-button--secondary:hover:not(:disabled) {
+  background: #e2e8f0;
+}
+
+.open-day-button--ghost {
+  background: transparent;
+  color: var(--od-text-muted);
+}
+
+.open-day-button--ghost:hover:not(:disabled) {
+  background: #f8fafc;
+}
+
+.open-day-button--file {
+  position: relative;
+  overflow: hidden;
+}
+
+.open-day-button__icon {
+  width: 16px;
+  height: 16px;
+}
+
+.open-day-hidden-file-input {
+  display: none !important;
+}
+
+/* =========================================
+   Upload Page Layout
+   ========================================= */
+.open-day-upload-stage {
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+.open-day-upload-card {
+  margin-top: 16px;
+  padding: 24px;
+  border-radius: var(--od-radius-xl);
+  background: var(--od-bg-card);
+  box-shadow: var(--od-shadow-md);
+  border: 1px solid var(--od-border-color);
+}
+
+.open-day-upload-drop-area {
+  border: 2px dashed #cbd5e1;
+  border-radius: var(--od-radius-lg);
+  background: #f8fafc;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 160ms ease;
+}
+
+.open-day-upload-drop-area:hover {
+  border-color: var(--od-primary);
+  background: var(--od-primary-light);
+}
+
+.open-day-upload-empty {
+  text-align: center;
+}
+
+.open-day-upload-empty strong {
+  display: block;
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.open-day-upload-empty p {
+  font-size: 14px;
+  color: var(--od-text-muted);
+}
+
+.open-day-upload-actions {
+  margin-top: 16px;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* =========================================
+   Upload Stats & Mapping
+   ========================================= */
+.open-day-upload-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.open-day-upload-stats div {
+  padding: 14px;
+  border-radius: var(--od-radius-lg);
+  background: #f8fafc;
+  border: 1px solid var(--od-border-color);
+  text-align: center;
+}
+
+.open-day-upload-stats span {
+  display: block;
+  font-size: 12px;
+  color: var(--od-text-muted);
+  margin-bottom: 4px;
+}
+
+.open-day-upload-stats strong {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--od-text-main);
+}
+
+.open-day-upload-mapping {
+  margin-top: 20px;
+}
+
+.open-day-upload-mapping h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.open-day-mapping-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.open-day-upload-footer {
+  margin-top: 24px;
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 16px;
+  border-top: 1px solid var(--od-border-color);
+}
+
+/* =========================================
+   Upload Success State
+   ========================================= */
+.open-day-upload-success {
+  text-align: center;
+  padding: 24px;
+}
+
+.open-day-upload-success h2 {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.open-day-upload-success p {
+  font-size: 14px;
+  color: var(--od-text-muted);
+}
+
+.open-day-upload-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 24px 0;
+}
+
+.open-day-stat-box {
+  padding: 16px;
+  border-radius: var(--od-radius-lg);
+  background: #f8fafc;
+  border: 1px solid var(--od-border-color);
+  text-align: center;
+}
+
+.open-day-stat-box span {
+  display: block;
+  font-size: 12px;
+  color: var(--od-text-muted);
+  margin-bottom: 4px;
+}
+
+.open-day-stat-box strong {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--od-text-main);
+}
+
+.open-day-upload-success-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+/* =========================================
+   Workspace Header
+   ========================================= */
+.open-day-workspace-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 0;
+  margin-bottom: 20px;
+}
+
+.open-day-workspace-header__main {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.open-day-workspace-header__main h2 {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.open-day-workspace-header__main p {
+  font-size: 13px;
+  color: var(--od-text-muted);
+  margin-top: 2px;
+}
+
+.open-day-workspace-header__actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+/* =========================================
+   Formula Bar (Engine Core)
+   ========================================= */
+.open-day-formula-bar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 16px 24px;
+  background: #1e293b;
+  border-radius: var(--od-radius-xl);
+  color: #f8fafc;
+  margin-bottom: 20px;
+  box-shadow: var(--od-shadow-md);
+}
+
+.open-day-formula-bar__select {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.open-day-formula-bar__select label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #94a3b8;
+  display: inline;
+}
+
+.open-day-formula-bar__select select {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: 13px;
+  outline: none;
+  min-width: 160px;
+}
+
+.open-day-formula-bar__select select option {
+  background: #1e293b;
+  color: #fff;
+}
+
+.open-day-formula-bar__math {
+  flex: 1;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 13px;
+  color: #e2e8f0;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+/* =========================================
+   Workspace Layout
+   ========================================= */
+.open-day-workspace-layout {
+  display: grid;
+  grid-template-columns: 380px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+/* =========================================
+   Sidebar Card
+   ========================================= */
+.open-day-sidebar-card {
+  padding: 20px;
+  border-radius: var(--od-radius-xl);
+  background: var(--od-bg-card);
+  box-shadow: var(--od-shadow-sm);
+  border: 1px solid var(--od-border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.open-day-sidebar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.open-day-sidebar-section h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--od-text-main);
+  border-bottom: 1px solid var(--od-border-color);
+  padding-bottom: 8px;
+}
+
+/* =========================================
+   Preset Grid
+   ========================================= */
+.open-day-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.open-day-preset-card {
+  padding: 14px;
+  border-radius: var(--od-radius-lg);
+  border: 1px solid var(--od-border-color);
+  background: #f8fafc;
+  cursor: pointer;
+  transition: all 160ms ease;
+  text-align: center;
+}
+
+.open-day-preset-card:hover {
+  border-color: var(--od-primary);
+  background: var(--od-primary-light);
+}
+
+.open-day-preset-card.is-active {
+  border-color: var(--od-primary);
+  background: var(--od-primary-light);
+  box-shadow: 0 0 0 2px var(--od-primary);
+}
+
+.open-day-preset-card strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.open-day-preset-card span {
+  font-size: 12px;
+  color: var(--od-text-muted);
+}
+
+/* =========================================
+   Parameters Grid
+   ========================================= */
+.open-day-params-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.open-day-filter-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+/* =========================================
+   Waterline Table
+   ========================================= */
+.open-day-waterline-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.open-day-waterline-table th {
+  text-align: left;
+  padding: 10px 8px;
+  color: var(--od-text-muted);
+  font-weight: 500;
+  border-bottom: 2px solid var(--od-border-color);
+}
+
+.open-day-waterline-table td {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--od-border-color);
+}
+
+.open-day-waterline-table td:first-child {
+  font-weight: 500;
+  color: var(--od-text-main);
+}
+
+.open-day-waterline-table input {
+  font-size: 13px;
+}
+
+.open-day-waterline-table input:disabled {
+  background: #f1f5f9;
+  color: var(--od-text-dim);
+  border-color: var(--od-border-color);
+  cursor: not-allowed;
+}
+
+/* =========================================
+   Main Content - Results
+   ========================================= */
+.open-day-main-card {
+  width: 100%;
+  padding: 20px;
+  border-radius: var(--od-radius-xl);
+  background: var(--od-bg-card);
+  box-shadow: var(--od-shadow-sm);
+  border: 1px solid var(--od-border-color);
+}
+
+.open-day-hero-card__stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.open-day-hero-card__stats div {
+  padding: 14px;
+  border-radius: var(--od-radius-lg);
+  background: #f8fafc;
+  border: 1px solid var(--od-border-color);
+  text-align: center;
+}
+
+.open-day-hero-card__stats span {
+  display: block;
+  font-size: 12px;
+  color: var(--od-text-muted);
+  margin-bottom: 4px;
+}
+
+.open-day-hero-card__stats strong {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--od-text-main);
+}
+
+/* =========================================
+   Status Message
+   ========================================= */
+.open-day-status-card {
+  padding: 12px 16px;
+  border-radius: var(--od-radius-lg);
+  background: #fef3c7;
+  color: #92400e;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+.open-day-status-card.is-loading {
+  background: var(--od-primary-light);
+  color: var(--od-primary);
+}
+
+/* =========================================
+   Table
+   ========================================= */
+.open-day-table-wrap {
+  overflow-x: auto;
+}
+
+.open-day-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.open-day-table th {
+  padding: 10px 8px;
+  text-align: left;
+  color: var(--od-text-muted);
+  font-weight: 600;
+  border-bottom: 2px solid var(--od-border-color);
+  background: #f8fafc;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.open-day-table td {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--od-border-color);
+}
+
+.open-day-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.open-day-table__empty {
+  padding: 40px !important;
+  text-align: center;
+  color: var(--od-text-muted);
+}
+
+/* =========================================
+   Utility
+   ========================================= */
+.open-day-inline-error {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #dc2626;
+  font-size: 13px;
+  margin-top: 12px;
+}
+
+.open-day-inline-success {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f0fdf4;
+  color: #166534;
+  font-size: 13px;
+  margin-top: 12px;
+}
+
+.open-day-inline-warning {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 13px;
+  margin-top: 12px;
+}
+
+/* =========================================
+   Loading Spinner
+   ========================================= */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+  animation: spin 0.8s linear infinite;
+}
+
+/* =========================================
+   Responsive
+   ========================================= */
+@media (max-width: 1024px) {
+  .open-day-workspace-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .open-day-sidebar {
+    position: static;
+  }
+}
+
+@media (max-width: 768px) {
+  .open-day-workspace__shell {
+    padding: 16px;
+  }
+
+  .open-day-mapping-grid,
+  .open-day-params-grid,
+  .open-day-filter-row {
+    grid-template-columns: 1fr;
+  }
+
+  .open-day-hero-card__stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

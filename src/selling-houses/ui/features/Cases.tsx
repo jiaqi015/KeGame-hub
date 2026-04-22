@@ -7,12 +7,12 @@ import { getActiveOpportunities, getActionAvailability } from '../../domain/engi
 import { PERSONALITIES } from '../../domain/constants';
 import { Star } from 'lucide-react';
 import { buildOpportunityViewModels, type OpportunityViewModel } from './caseOpportunityViewModel';
-import { ActionDecisionOverlay, buildActionDecisionConfig, type ActionDecisionConfig } from './ActionDecisionOverlay';
+import { ActionDecisionOverlay, buildActionDecisionConfig, type ActionDecisionConfig, type ScenarioResult, type ScenarioChoice, type ScenarioFeedback } from './ActionDecisionOverlay';
 
 interface CasesProps {
   state: GameState;
   onSelectCase: (id: string) => void;
-  onExecuteAction: (actionId: string, caseItem: any, optionId?: string | null) => boolean;
+  onExecuteAction: (actionId: string, caseItem: any, optionId?: string | null, result?: unknown) => boolean;
 }
 
 type ActionCategoryTab = 'feedback' | 'marketing' | 'pricing' | 'negotiation';
@@ -22,22 +22,23 @@ type ActionWorkspaceCard = {
   availability: ReturnType<typeof getActionAvailability>;
   hint: string;
 };
-type CaseStageFilter = 'all' | 'pre-visit' | 'operating' | 'pricing' | 'negotiating' | 'closed';
+type CaseStageFilter = 'all' | 'pre_visit' | 'packaging' | 'showing' | 'feedback_offer' | 'negotiation' | 'closed';
 type CaseQuickFilter = 'focused' | 'urgent' | 'price' | 'late-stage';
 const CASE_STAGE_FILTERS: Array<{ id: CaseStageFilter; label: string }> = [
   { id: 'all', label: '全部' },
-  { id: 'pre-visit', label: '待面访' },
-  { id: 'operating', label: '跟进中' },
-  { id: 'pricing', label: '定价中' },
-  { id: 'negotiating', label: '谈判中' },
-  { id: 'closed', label: '已结算' },
+  { id: 'pre_visit', label: '待面访分型' },
+  { id: 'packaging', label: '需包装曝光' },
+  { id: 'showing', label: '需提升带看' },
+  { id: 'feedback_offer', label: '促进反馈出价' },
+  { id: 'negotiation', label: '推进谈判成交' },
+  { id: 'closed', label: '已结束' },
 ];
 
 const CASE_QUICK_FILTERS: Array<{ id: CaseQuickFilter; label: string }> = [
   { id: 'focused', label: '本周聚焦' },
-  { id: 'urgent', label: '窗口短' },
-  { id: 'price', label: '价格偏硬' },
-  { id: 'late-stage', label: '后段机会' },
+  { id: 'urgent', label: '拖久会丢' },
+  { id: 'price', label: '价格卡壳' },
+  { id: 'late-stage', label: '接近成交' },
 ];
 
 export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
@@ -45,7 +46,13 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
   const [stageFilter, setStageFilter] = useState<CaseStageFilter>('all');
   const [quickFilter, setQuickFilter] = useState<CaseQuickFilter | null>(null);
   const sortedCases = [...cases].sort((a, b) => deriveCaseListPriority(state, b) - deriveCaseListPriority(state, a));
-  const visibleCases = sortedCases.filter((entry) => matchStageFilter(entry, stageFilter)).filter((entry) => matchQuickFilter(state, entry, quickFilter));
+  const caseProjectionById = useMemo(
+    () => new Map(sortedCases.map((entry) => [entry.id, buildCaseDetailProjection(state, entry)])),
+    [sortedCases, state],
+  );
+  const visibleCases = sortedCases
+    .filter((entry) => matchStageFilter(entry, caseProjectionById.get(entry.id) || null, stageFilter))
+    .filter((entry) => matchQuickFilter(state, entry, caseProjectionById.get(entry.id) || null, quickFilter));
   const selectedCase = sortedCases.find((entry) => entry.id === selectedCaseId) || visibleCases[0] || sortedCases[0];
   const selectionHiddenByFilter = Boolean(selectedCase && !visibleCases.some((entry) => entry.id === selectedCase.id));
   const activeOpportunities = selectedCase ? getActiveOpportunities(state, selectedCase.id) : [];
@@ -54,7 +61,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
   const [activeActionTab, setActiveActionTab] = useState<ActionCategoryTab>('feedback');
   const [activeDetailTab, setActiveDetailTab] = useState<CaseDetailTab>('overview');
 
-  const caseProjection = selectedCase ? buildCaseDetailProjection(state, selectedCase) : null;
+  const caseProjection = selectedCase ? caseProjectionById.get(selectedCase.id) || null : null;
   const latestScoreSnapshot = selectedCase?.competitivenessSnapshots?.[0];
   const opportunityModels = useMemo(
     () => buildOpportunityViewModels(state, activeOpportunities),
@@ -135,12 +142,12 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
         <div className="z-10 space-y-3 border-b border-[var(--seller-border)] bg-[rgba(15,23,32,0.94)] px-3 pb-3 pt-3 backdrop-blur">
           <div>
             <div className="seller-label">房源筛选</div>
-            <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1">
+            <div className="mt-2 flex flex-wrap gap-1.5">
               {CASE_STAGE_FILTERS.map((filter) => (
                 <button
                   key={filter.id}
                   onClick={() => setStageFilter(filter.id)}
-                  className={`whitespace-nowrap rounded-full px-2 py-1 text-[10px] font-semibold ${
+                  className={`whitespace-nowrap rounded-full px-2 py-[3px] text-[9px] font-semibold leading-4 ${
                     stageFilter === filter.id ? 'bg-[var(--seller-ink)] text-[var(--seller-bg)]' : 'bg-[rgba(255,255,255,0.05)] text-[var(--seller-muted)]'
                   }`}
                 >
@@ -156,7 +163,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                 <button
                   key={filter.id}
                   onClick={() => setQuickFilter((current) => current === filter.id ? null : filter.id)}
-                  className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+                  className={`rounded-full px-2 py-[3px] text-[9px] font-semibold leading-4 ${
                     quickFilter === filter.id ? 'seller-chip-chance' : 'bg-[rgba(255,255,255,0.05)] text-[var(--seller-muted)]'
                   }`}
                 >
@@ -167,7 +174,9 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
           </div>
         </div>
         <div className="flex-1 space-y-1.5 overflow-y-auto p-2.5">
-        {visibleCases.map(c => (
+        {visibleCases.map(c => {
+          const cardProjection = caseProjectionById.get(c.id) || null;
+          return (
           <div
             key={c.id}
             onClick={() => onSelectCase(c.id)}
@@ -186,7 +195,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
               <span className={`rounded-full px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.12em] ${
                 c.isFocused ? 'bg-[var(--seller-accent-soft)] text-[var(--seller-accent)]' : 'bg-[rgba(255,255,255,0.06)] text-[var(--seller-subtle)]'
               }`}>
-                {c.isFocused ? '本周聚焦' : c.stageLabel}
+                {c.isFocused ? '本周聚焦' : cardProjection?.listingLifecyclePhase.completionStateLabel || cardProjection?.listingLifecyclePhase.phaseLabel || c.stageLabel}
               </span>
               <small className="pt-0.5 text-[9px] font-medium text-[var(--seller-subtle)]">{c.district}</small>
             </div>
@@ -199,11 +208,11 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
             <div className="mt-2 flex flex-wrap gap-1">
               <CompactTag label="剩余" value={deriveListingAgeLabel(c)} tone="amber" />
               <CompactTag
-                label="状态"
-                value={deriveShortCaseState(c, getActiveOpportunities(state, c.id))}
+                label="阶段"
+                value={cardProjection?.listingLifecyclePhase.phaseLabel || deriveShortCaseState(c, getActiveOpportunities(state, c.id))}
                 tone={deriveHouseScoreTone(c.competitiveness)}
               />
-              <CompactTag label="窗口" value={deriveWindowLabel(c, getActiveOpportunities(state, c.id))} tone="rose" />
+              <CompactTag label="后果" value={cardProjection?.listingLifecyclePhase.phaseRiskHint || deriveWindowLabel(c, getActiveOpportunities(state, c.id))} tone="rose" />
             </div>
             <div className="mt-2 flex items-center gap-2">
               <CompactMetric label="信" val={c.trust} />
@@ -216,7 +225,8 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                 </span>
               </div>
             </div>
-          ))}
+          );
+        })}
           {visibleCases.length === 0 && (
             <div className="seller-empty px-4 py-6 text-sm">
               当前筛选下没有房源，换个阶段或取消快速筛选看看。
@@ -240,7 +250,9 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                     <div className="seller-label">当前对象</div>
                     <div className="mt-2 flex flex-wrap items-center gap-1.5">
                       <h2 className="seller-title text-[17px] leading-5">{selectedCase.title}</h2>
-                      <span className="seller-chip bg-[var(--seller-ink)] text-[var(--seller-bg)]">{selectedCase.stageLabel}</span>
+                      <span className="seller-chip bg-[var(--seller-ink)] text-[var(--seller-bg)]">
+                        {caseProjection?.listingLifecyclePhase.completionStateLabel || caseProjection?.listingLifecyclePhase.phaseLabel || selectedCase.stageLabel}
+                      </span>
                       {selectedCase.isFocused && (
                         <span className="seller-chip seller-chip-accent flex items-center gap-1">
                           <Star size={11} fill="currentColor" />
@@ -264,19 +276,15 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                     <div className="mt-3">
                       <div className="seller-label">当前问题</div>
                       <div className="mt-1 text-[15px] font-semibold leading-5 text-[var(--seller-ink)]">
-                        {caseProjection?.mainProblemLabel || deriveManagerTake(selectedCase, activeOpportunities)}
+                        {caseProjection?.listingLifecyclePhase.coreProblemLabel || deriveManagerTake(selectedCase, activeOpportunities)}
                       </div>
                     </div>
                     <p className="seller-body mt-2 max-w-[72ch] text-[11px] leading-5">
-                      {caseProjection?.headline || deriveManagerTake(selectedCase, activeOpportunities)}
+                      {caseProjection?.listingLifecyclePhase.phaseRiskHint || deriveManagerTake(selectedCase, activeOpportunities)}
                     </p>
-                    {caseProjection?.currentRiskTags && caseProjection.currentRiskTags.length > 0 && (
+                    {caseProjection?.listingLifecyclePhase?.phaseLabel && (
                       <div className="mt-2 flex flex-wrap gap-1.5">
-                        {caseProjection.currentRiskTags.slice(0, 3).map((tag) => (
-                          <span key={tag} className="seller-chip seller-chip-risk">
-                            {tag}
-                          </span>
-                        ))}
+                        <span className="seller-chip">{caseProjection.listingLifecyclePhase.phaseLabel}</span>
                       </div>
                     )}
                   </div>
@@ -293,30 +301,30 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                     <div className="seller-label">当前判断</div>
                     <div className="mt-2 grid gap-2">
                       <DiagnosisCard
-                        label="客户承接"
-                        value={caseProjection?.customerPoolSummary.title || deriveHeatLabel(selectedCase.heat)}
-                        detail={caseProjection?.customerPoolSummary.detail || '客户是否已经接上。'}
-                        tone={deriveHeatTone(selectedCase.heat)}
+                        label="主阶段"
+                        value={caseProjection?.listingLifecyclePhase.phaseLabel || selectedCase.stageLabel}
+                        detail={caseProjection?.listingLifecyclePhase.coreProblemLabel || '先看这套房卡在哪。'}
+                        tone={caseProjection?.listingLifecyclePhase.phaseDelayLevel === 'late' ? 'rose' : 'slate'}
                         metrics={[
                           { label: '已接上', value: `${caseProjection?.customerPoolSummary.metCount ?? customerStatesForSelectedCase.length} 位` },
+                          { label: '带看', value: `${selectedCase.viewings} 次` },
+                        ]}
+                      />
+                      <DiagnosisCard
+                        label="下一步"
+                        value={caseProjection?.listingLifecyclePhase.primaryActionLabel || deriveNextFix(selectedCase, activeOpportunities)}
+                        detail={caseProjection?.nextStepLine || '把最关键的一步推进掉。'}
+                        tone="amber"
+                        metrics={[
+                          { label: '报价', value: `${selectedCase.offers} 次` },
                           { label: '比较中', value: `${caseProjection?.customerPoolSummary.comparingCount ?? comparingCustomers.length} 位` },
                         ]}
                       />
                       <DiagnosisCard
-                        label="价格站位"
-                        value={caseProjection?.priceSummary.title || derivePricePosition(selectedCase)}
-                        detail={caseProjection?.priceSummary.detail || '价格是否拦住成交。'}
-                        tone={selectedCase.askPrice <= selectedCase.marketPrice ? 'emerald' : 'rose'}
-                        metrics={[
-                          { label: '价差', value: `${selectedCase.askPrice - selectedCase.marketPrice >= 0 ? '+' : ''}${selectedCase.askPrice - selectedCase.marketPrice} 万` },
-                          { label: '窗口', value: describeWindowDays(selectedCase.windowDays) },
-                        ]}
-                      />
-                      <DiagnosisCard
-                        label="竞争与窗口"
-                        value={caseProjection?.competitionSummary.title || deriveWindowLabel(selectedCase, activeOpportunities)}
-                        detail={caseProjection?.competitionSummary.detail || '同类房是否拖住推进。'}
-                        tone={caseProjection && caseProjection.competitionSummary.pressure >= 68 ? 'rose' : 'amber'}
+                        label="再拖会怎样"
+                        value={caseProjection?.listingLifecyclePhase.phaseRiskHint || deriveWindowLabel(selectedCase, activeOpportunities)}
+                        detail={caseProjection?.competitionSummary.detail || '外部压力会继续往这套房上叠。'}
+                        tone={caseProjection?.listingLifecyclePhase.phaseDelayLevel === 'late' ? 'rose' : 'amber'}
                         metrics={[
                           { label: '同类房', value: `${caseProjection?.competitionSummary.rivalCount ?? 0} 套` },
                           { label: '压力', value: `${caseProjection?.competitionSummary.pressure ?? 0}` },
@@ -328,9 +336,9 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                   <section className="seller-panel-soft px-3 py-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="seller-label">推荐操作</div>
+                        <div className="seller-label">可做动作</div>
                         <div className="mt-1 text-[14px] font-semibold leading-5 text-[var(--seller-ink)]">
-                          {caseProjection?.nextStepLine || '先补最关键的一步。'}
+                          {caseProjection?.listingLifecyclePhase.primaryActionLabel || '先补最关键的一步。'}
                         </div>
                       </div>
                       <span className="seller-chip seller-chip-accent">
@@ -339,12 +347,16 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                     </div>
 
                     <div className="mt-3 space-y-2">
-                      {actionCards.filter(({ availability }) => availability.enabled).slice(0, 3).map((card, index) => (
-                        <div key={card.action.id}>
-                          <CompactActionButton card={card} onExecute={handleAction} index={index} />
-                        </div>
-                      ))}
-                      {actionCards.filter(({ availability }) => availability.enabled).length === 0 && (
+                      {(actionCards.find((card) => card.action.id === caseProjection?.listingLifecyclePhase.primaryActionId)
+                        || actionCards.find(({ availability }) => availability.enabled)
+                        || null) ? (
+                        <CompactActionButton
+                          card={(actionCards.find((card) => card.action.id === caseProjection?.listingLifecyclePhase.primaryActionId)
+                            || actionCards.find(({ availability }) => availability.enabled))!}
+                          onExecute={handleAction}
+                          index={0}
+                        />
+                      ) : (
                         <div className="seller-empty px-3 py-4 text-[12px]">这套房眼下还没有能直接执行的动作。</div>
                       )}
                     </div>
@@ -506,17 +518,17 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
               <section className="seller-panel-muted px-3.5 py-3">
                 <div className="seller-label">这套房卡在哪</div>
                 <div className="mt-2 text-[15px] font-semibold leading-5 text-[var(--seller-ink)]">
-                  {caseProjection?.mainProblemLabel || '继续推进'}
+                  {caseProjection?.listingLifecyclePhase.coreProblemLabel || '继续推进'}
                 </div>
                 <p className="seller-body mt-1 text-[11px] leading-5">
-                  {caseProjection?.actionReasons[0]?.detail || caseProjection?.nextStepLine || '先把今天能落地的一步做下去。'}
+                  {caseProjection?.listingLifecyclePhase.phaseRiskHint || caseProjection?.nextStepLine || '别让这套房继续停住。'}
                 </p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
-                  {caseProjection?.actionReasons.slice(0, 2).map((reason) => (
-                    <span key={reason.id} className={reason.tone === 'risk' ? 'seller-chip seller-chip-risk' : reason.tone === 'chance' ? 'seller-chip seller-chip-chance' : 'seller-chip'}>
-                      {reason.title}
+                  {caseProjection?.listingLifecyclePhase && (
+                    <span className="seller-chip seller-chip-accent">
+                      下一步：{caseProjection.listingLifecyclePhase.primaryActionLabel}
                     </span>
-                  ))}
+                  )}
                   {latestScoreSnapshot ? (
                     <span className={latestScoreSnapshot.delta >= 0 ? 'seller-chip seller-chip-chance' : 'seller-chip seller-chip-risk'}>
                       {latestScoreSnapshot.delta >= 0 ? '+' : ''}{Math.round(latestScoreSnapshot.delta * 10) / 10} 分
@@ -581,11 +593,20 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
       {decisionConfig && (
         <ActionDecisionOverlay
           config={decisionConfig}
-          onChoose={(optionId) => {
-            onExecuteAction(decisionConfig.actionId, selectedCase, optionId);
+          onChoose={(optionId, assistOptionId, choices, feedbacks) => {
+            if (!decisionConfig.isScenario) {
+              onExecuteAction(decisionConfig.actionId, selectedCase, optionId);
+              setDecisionConfig(null);
+            }
+          }}
+          onComplete={(result, choices, feedbacks) => {
+            const mainStrategy = choices.length > 0 ? choices[0].main : null;
+            onExecuteAction(decisionConfig.actionId, selectedCase, mainStrategy, result);
             setDecisionConfig(null);
           }}
           onClose={() => setDecisionConfig(null)}
+          state={state}
+          caseItem={selectedCase || undefined}
         />
       )}
     </div>
@@ -982,23 +1003,39 @@ function deriveCaseListPriority(state: GameState, caseItem: Case) {
   return score;
 }
 
-function matchStageFilter(caseItem: Case, filter: CaseStageFilter) {
+function matchStageFilter(
+  caseItem: Case,
+  projection: ReturnType<typeof buildCaseDetailProjection> | null,
+  filter: CaseStageFilter,
+) {
   if (filter === 'all') return true;
-  if (filter === 'pre-visit') return !caseItem.hasCompletedFirstVisit && caseItem.status === 'active';
-  if (filter === 'operating') return caseItem.hasCompletedFirstVisit && caseItem.status === 'active' && caseItem.stageIndex <= 2;
-  if (filter === 'pricing') return caseItem.status === 'active' && (caseItem.askPrice > caseItem.marketPrice * 1.03 || caseItem.d3 < 62);
-  if (filter === 'negotiating') return caseItem.status === 'active' && caseItem.stageIndex >= 3;
-  return caseItem.status === 'sold' || caseItem.status === 'withdrawn' || caseItem.status === 'lost_to_rival';
+  const phaseCode = projection?.listingLifecyclePhase.phaseCode;
+  if (filter === 'closed') {
+    return phaseCode === 'sold' || phaseCode === 'written_off' || phaseCode === 'sold_elsewhere';
+  }
+  return phaseCode === filter;
 }
 
-function matchQuickFilter(state: GameState, caseItem: Case, filter: CaseQuickFilter | null) {
+function matchQuickFilter(
+  state: GameState,
+  caseItem: Case,
+  projection: ReturnType<typeof buildCaseDetailProjection> | null,
+  filter: CaseQuickFilter | null,
+) {
   if (!filter) return true;
   const opportunities = getActiveOpportunities(state, caseItem.id);
+  const lifecycle = projection?.listingLifecyclePhase;
 
   if (filter === 'focused') return Boolean(caseItem.isFocused);
-  if (filter === 'urgent') return caseItem.windowDays <= 5;
-  if (filter === 'price') return caseItem.askPrice > caseItem.marketPrice * 1.04;
-  return opportunities.some((entry) => entry.visibility !== 'shadow' && entry.stageIndex >= 3);
+  if (filter === 'urgent') return lifecycle?.phaseDelayLevel === 'late' || caseItem.windowDays <= 5;
+  if (filter === 'price') {
+    return lifecycle?.primaryActionId === 'adjust-listing-price'
+      || lifecycle?.primaryActionId === 'pricing-advice'
+      || caseItem.askPrice > caseItem.marketPrice * 1.04;
+  }
+  return lifecycle?.phaseCode === 'feedback_offer'
+    || lifecycle?.phaseCode === 'negotiation'
+    || opportunities.some((entry) => entry.visibility !== 'shadow' && entry.stageIndex >= 3);
 }
 
 function derivePricePosition(caseItem: Case) {
@@ -1008,15 +1045,15 @@ function derivePricePosition(caseItem: Case) {
 }
 
 function deriveWindowLabel(caseItem: Case, opportunities: any[]) {
-  if (caseItem.windowDays <= 5) return '窗口偏紧';
+  if (caseItem.windowDays <= 5) return '再拖容易失手';
   if (opportunities.some(o => o.daysLeft <= 2 && o.visibility !== 'shadow')) return '已有客户在掉线边缘';
   if (opportunities.some(o => o.visibility === 'shadow')) return '还有客户没核实';
-  return '窗口还稳';
+  return '还要继续往前推';
 }
 
 function deriveManagerTake(caseItem: Case, opportunities: any[]) {
-  if (caseItem.status === 'lost_to_rival') return '这套房已经被别人抢走了';
-  if (caseItem.status === 'withdrawn') return '这套房已经撤盘了';
+  if (caseItem.status === 'lost_to_rival') return '这套房已经在别处成交';
+  if (caseItem.status === 'withdrawn') return '这套房已经核销';
   if (caseItem.riskFlags?.includes('要价偏高')) return '现在最大问题是价格偏高';
   if (opportunities.some(o => o.visibility === 'shadow')) return '还有客户没核实清楚';
   if (opportunities.some(o => o.stageIndex >= 3)) return '已经有客户快谈到成交了';
@@ -1052,16 +1089,16 @@ function deriveWeakPoint(caseItem: Case) {
 }
 
 function deriveNextFix(caseItem: Case, opportunities: any[]) {
-  if (opportunities.length === 0) return '先补客户';
-  if (opportunities.some(o => o.visibility === 'shadow')) return '先核实客户';
-  if (caseItem.askPrice > caseItem.marketPrice * 1.05) return '先跟业主谈价格';
-  return '先把带看往后推';
+  if (opportunities.length === 0) return '去补客户';
+  if (opportunities.some(o => o.visibility === 'shadow')) return '去核实客户';
+  if (caseItem.askPrice > caseItem.marketPrice * 1.05) return '去谈价格';
+  return '去推进带看';
 }
 
 function deriveShortCaseState(caseItem: Case, opportunities: any[]) {
   if (caseItem.status === 'sold') return '已成交';
-  if (caseItem.status === 'lost_to_rival') return '被截走';
-  if (caseItem.status === 'withdrawn') return '已撤盘';
+  if (caseItem.status === 'lost_to_rival') return '他处成交';
+  if (caseItem.status === 'withdrawn') return '已核销';
   if (caseItem.windowDays <= 3 || caseItem.trust < 50) return '有丢盘风险';
   if (opportunities.some(o => o.visibility !== 'shadow' && o.stageIndex >= 3)) return '快成交';
   if (opportunities.length === 0) return '缺客户';
@@ -1072,15 +1109,15 @@ function deriveShortCaseState(caseItem: Case, opportunities: any[]) {
 
 function describeWindowDays(days: number) {
   if (days <= 3) return `${days} 天内`;
-  if (days <= 7) return `${days} 天窗口`;
-  return `${days} 天可操作`;
+  if (days <= 7) return `${days} 天内要推进`;
+  return `${days} 天观察期`;
 }
 
 function buildExecutionChecklist(caseItem: Case, projection: NonNullable<ReturnType<typeof buildCaseDetailProjection>>, activeOpportunityCount: number) {
   const checklist = projection.actionReasons.map((entry) => ({
     title: entry.title,
     detail: entry.detail,
-    badge: entry.tone === 'risk' ? '先处理' : entry.tone === 'chance' ? '可推进' : '待执行',
+    badge: entry.tone === 'risk' ? '优先处理' : entry.tone === 'chance' ? '可推进' : '待执行',
     tone: entry.tone === 'risk' ? 'rose' : entry.tone === 'chance' ? 'emerald' : 'amber',
   }));
 
@@ -1095,7 +1132,7 @@ function buildExecutionChecklist(caseItem: Case, projection: NonNullable<ReturnT
 
   if (activeOpportunityCount === 0) {
     checklist.push({
-      title: '先把第一批客户接出来',
+      title: '把第一批客户接出来',
       detail: '现在还没人真正接上，这套房的第一步是补到访和补接触。',
       badge: '补客户',
       tone: 'amber',
@@ -1173,14 +1210,14 @@ function deriveHeatTone(value: number): 'slate' | 'amber' | 'emerald' | 'rose' {
 
 function deriveSignalStrengthLabel(value: number) {
   if (value >= 80) return '信号强，值得尽快接触';
-  if (value >= 60) return '信号中，先做低成本承接';
+  if (value >= 60) return '信号中，适合低成本承接';
   return '信号偏弱，先观察';
 }
 
 function deriveListingAgeLabel(caseItem: Case) {
   if (caseItem.status === 'sold') return '已成交';
-  if (caseItem.defenseOutcome === 'lost_to_rival') return '已被抢走';
-  if (caseItem.status === 'withdrawn') return '已撤盘';
+  if (caseItem.defenseOutcome === 'lost_to_rival') return '他处成交';
+  if (caseItem.status === 'withdrawn') return '已核销';
   return `${Math.max(0, caseItem.windowDays)}天`;
 }
 

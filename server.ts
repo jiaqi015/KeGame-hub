@@ -10,6 +10,7 @@ import {
   clearSessionCookie,
   completeEmailLogin,
   isSessionAuthorizationFailure,
+  refreshSession,
   setAuthCookie,
   startEmailLogin,
 } from "./lib/auth.js";
@@ -165,7 +166,7 @@ async function startServer() {
         activationKey: typeof req.body?.activationKey === "string" ? req.body.activationKey : "",
       });
       setAuthCookie(res, result.cookie);
-      return res.json({ ok: true, user: result.user });
+      return res.json({ ok: true, user: result.user, sessionExpiresAt: result.expiresAt });
     } catch (error) {
       return res.status(400).json({ error: error instanceof Error ? error.message : "登录失败。" });
     }
@@ -183,7 +184,7 @@ async function startServer() {
         activationKey: typeof req.body?.activationKey === "string" ? req.body.activationKey : "",
       });
       setAuthCookie(res, result.cookie);
-      return res.json({ ok: true, user: result.user });
+      return res.json({ ok: true, user: result.user, sessionExpiresAt: result.expiresAt });
     } catch (error) {
       return res.status(400).json({ error: error instanceof Error ? error.message : "登录失败。" });
     }
@@ -193,6 +194,19 @@ async function startServer() {
     const authorization = authorizeSession(req);
     if (isSessionAuthorizationFailure(authorization)) {
       return res.status(authorization.status).json({ error: authorization.error });
+    }
+
+    let sessionExpiresAt: string | null = null;
+    if (authorization.source === "session") {
+      const refreshed = refreshSession({
+        accountId: authorization.accountId,
+        email: authorization.email,
+        nickname: authorization.nickname,
+        displayName: authorization.displayName,
+        allowedWorkspaces: authorization.allowedWorkspaces,
+      });
+      setAuthCookie(res, refreshed.cookie);
+      sessionExpiresAt = refreshed.expiresAt;
     }
 
     return res.json({
@@ -205,6 +219,7 @@ async function startServer() {
         allowedWorkspaces: authorization.allowedWorkspaces,
         source: authorization.source,
       },
+      sessionExpiresAt,
     });
   });
 
@@ -218,6 +233,19 @@ async function startServer() {
       return res.status(authorization.status).json({ error: authorization.error });
     }
 
+    let sessionExpiresAt: string | null = null;
+    if (authorization.source === "session") {
+      const refreshed = refreshSession({
+        accountId: authorization.accountId,
+        email: authorization.email,
+        nickname: authorization.nickname,
+        displayName: authorization.displayName,
+        allowedWorkspaces: authorization.allowedWorkspaces,
+      });
+      setAuthCookie(res, refreshed.cookie);
+      sessionExpiresAt = refreshed.expiresAt;
+    }
+
     return res.json({
       ok: true,
       user: {
@@ -228,6 +256,7 @@ async function startServer() {
         allowedWorkspaces: authorization.allowedWorkspaces,
         source: authorization.source,
       },
+      sessionExpiresAt,
     });
   });
 
