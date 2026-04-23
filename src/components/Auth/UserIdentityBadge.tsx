@@ -12,22 +12,16 @@ export function UserIdentityBadge({ nickname, email, compact = false, sessionExp
 
   const primaryLabel = nickname || email || '';
   const avatarLabel = primaryLabel.slice(0, 2).toUpperCase();
+  const rootClassName = compact
+    ? 'inline-flex items-center gap-2 rounded-full border border-black/5 bg-white px-3 py-2 shadow-[0_8px_24px_rgba(15,23,42,0.05)]'
+    : 'inline-flex items-center gap-2.5 rounded-full border border-black/5 bg-white px-3 py-2 shadow-[0_8px_24px_rgba(15,23,42,0.05)]';
 
   return (
-    <div
-      className={
-        compact
-          ? 'inline-flex items-center gap-2 rounded-full border border-black/5 bg-white px-3 py-2 shadow-[0_8px_24px_rgba(15,23,42,0.05)]'
-          : 'inline-flex items-center gap-3 rounded-[20px] border border-black/5 bg-white px-4 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.05)]'
-      }
-    >
-      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#111111] text-sm font-bold uppercase tracking-[0.08em] text-white">
+    <div className={rootClassName}>
+      <div className={`${compact ? 'h-8 w-8 text-xs' : 'h-9 w-9 text-xs'} flex shrink-0 items-center justify-center rounded-full bg-[#111111] font-bold uppercase tracking-[0.08em] text-white`}>
         {avatarLabel}
       </div>
-      <div className="min-w-0">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8E8E93]">
-          当前账号
-        </div>
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
         <div className="truncate text-sm font-semibold text-[#111111]">
           {primaryLabel}
         </div>

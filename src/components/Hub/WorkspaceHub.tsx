@@ -34,33 +34,33 @@ export function WorkspaceHub({
     <motion.div
       initial={{ opacity: 0, y: 18 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex-1 overflow-auto px-6 py-12 bg-[#FBFBFD]"
+      className="flex-1 overflow-auto bg-[#FBFBFD] px-6 py-7"
     >
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-10">
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div className="max-w-3xl">
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-black/5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-[#8E8E93]">
-              <KeGameHubMark size={16} />
-              KeGame
-            </div>
-            <div className="flex items-center gap-3">
-              <KeGameHubMark size={34} />
-              <div>
-                <h1 className="text-[32px] font-semibold tracking-[-0.05em] text-[#111111]">KeGame</h1>
-              </div>
-            </div>
-            <div className="mt-5">
-              <UserIdentityBadge nickname={currentUserNickname} email={currentUserEmail} sessionExpiresAt={sessionExpiresAt} />
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-7">
+        <div className="flex flex-col gap-4 rounded-[28px] border border-black/5 bg-white/70 px-5 py-4 shadow-[0_16px_45px_rgba(15,23,42,0.04)] backdrop-blur-xl md:flex-row md:items-center md:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
+            <KeGameHubMark size={34} />
+            <div className="min-w-0">
+              <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#8E8E93]">KeGame</div>
+              <h1 className="truncate text-[26px] font-semibold tracking-[-0.05em] text-[#111111]">功能入口</h1>
             </div>
           </div>
 
-          <button
-            onClick={onLogout}
-            className="inline-flex items-center gap-2 self-start rounded-full border border-black/10 bg-white px-5 py-2.5 text-[11px] font-bold uppercase tracking-[0.18em] text-[#5C5C60] transition-all hover:border-black/20 hover:bg-[#F5F5F7] hover:text-[#1D1D1F] active:scale-95 md:self-auto"
-          >
-            <LogOut className="h-3.5 w-3.5" />
-            登出账号
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+            <UserIdentityBadge
+              nickname={currentUserNickname}
+              email={currentUserEmail}
+              sessionExpiresAt={sessionExpiresAt}
+              compact
+            />
+            <button
+              onClick={onLogout}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-black/10 bg-white px-4 text-[11px] font-bold uppercase tracking-[0.14em] text-[#5C5C60] transition-all hover:border-black/20 hover:bg-[#F5F5F7] hover:text-[#1D1D1F] active:scale-95"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              登出
+            </button>
+          </div>
         </div>
 
         <div className="grid gap-6 xl:grid-cols-3">
