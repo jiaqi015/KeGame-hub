@@ -248,7 +248,7 @@ export function Cases({ state, onSelectCase, onExecuteAction, onExecuteScenarioA
               <section className="seller-workbench overflow-hidden">
                 <div className="grid gap-3 border-b border-[var(--seller-border)] px-3.5 py-3 xl:grid-cols-[minmax(0,1fr)_228px]">
                   <div className="min-w-0">
-                    <div className="seller-label">当前对象</div>
+                    <div className="seller-label">当前房源</div>
                     <div className="mt-2 flex flex-wrap items-center gap-1.5">
                       <h2 className="seller-title text-[17px] leading-5">{selectedCase.title}</h2>
                       <span className="seller-chip bg-[var(--seller-ink)] text-[var(--seller-bg)]">
@@ -299,7 +299,7 @@ export function Cases({ state, onSelectCase, onExecuteAction, onExecuteScenarioA
 
                 <div className="grid gap-3 px-3.5 py-3 lg:grid-cols-[minmax(0,0.96fr)_minmax(0,1.04fr)]">
                   <section className="seller-panel-soft px-3 py-3">
-                    <div className="seller-label">当前判断</div>
+                    <div className="seller-label">当前问题</div>
                     <div className="mt-2 grid gap-2">
                       <DiagnosisCard
                         label="主阶段"
@@ -337,7 +337,7 @@ export function Cases({ state, onSelectCase, onExecuteAction, onExecuteScenarioA
                   <section className="seller-panel-soft px-3 py-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="seller-label">可做动作</div>
+                        <div className="seller-label">当前动作</div>
                         <div className="mt-1 text-[14px] font-semibold leading-5 text-[var(--seller-ink)]">
                           {caseProjection?.listingLifecyclePhase.primaryActionLabel || '主动作'}
                         </div>
@@ -367,7 +367,7 @@ export function Cases({ state, onSelectCase, onExecuteAction, onExecuteScenarioA
 
               <section className="seller-panel overflow-hidden">
                 <div className="flex flex-col gap-3 border-b border-[var(--seller-border)] px-3.5 py-3 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="seller-label">更多信息</div>
+                  <div className="seller-label">明细</div>
                   <div className="seller-tabbar">
                     <button
                       type="button"
@@ -431,7 +431,7 @@ export function Cases({ state, onSelectCase, onExecuteAction, onExecuteScenarioA
                         </div>
                         <div className="mt-2 grid gap-2 sm:grid-cols-2">
                           <InfoStrip label="沟通方式" value={deriveCommunicationMode(selectedCase)} />
-                          <InfoStrip label="优先处理" value={deriveNextFix(selectedCase, activeOpportunities)} />
+                          <InfoStrip label="当前动作" value={deriveNextFix(selectedCase, activeOpportunities)} />
                         </div>
                       </DeskSection>
                     </div>
@@ -527,7 +527,7 @@ export function Cases({ state, onSelectCase, onExecuteAction, onExecuteScenarioA
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {caseProjection?.listingLifecyclePhase && (
                     <span className="seller-chip seller-chip-accent">
-                      下一步：{caseProjection.listingLifecyclePhase.primaryActionLabel}
+                      当前动作：{caseProjection.listingLifecyclePhase.primaryActionLabel}
                     </span>
                   )}
                   {latestScoreSnapshot ? (
@@ -538,7 +538,7 @@ export function Cases({ state, onSelectCase, onExecuteAction, onExecuteScenarioA
                 </div>
               </section>
 
-              <DeskSection title="受阻动作" count={`${activeActionCategory?.blockedCards.length || 0} 项`}>
+              <DeskSection title="暂不可做" count={`${activeActionCategory?.blockedCards.length || 0} 项`}>
                 <div className="flex gap-1.5 overflow-x-auto pb-1">
                   {actionCardsByCategory.map(({ category, availableCards }) => (
                     <button
@@ -833,7 +833,7 @@ function FactLine({
         <div className="min-w-0">
           <div className="text-[12px] font-semibold text-[var(--seller-ink)]">{fact.title}</div>
           <p className="seller-body mt-0.5 text-[11px] leading-5">{fact.fact}</p>
-          <p className="mt-1 text-[11px] font-semibold leading-5 text-[var(--seller-ink)]">下一步：{fact.nextStep}</p>
+          <p className="mt-1 text-[11px] font-semibold leading-5 text-[var(--seller-ink)]">当前动作：{fact.nextStep}</p>
         </div>
         <span className={toneClass}>
           {fact.tone === 'risk' ? '风险' : fact.tone === 'chance' ? '机会' : '平稳'}
@@ -961,7 +961,7 @@ function BlockedActionLine({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[12px] font-semibold text-[var(--seller-muted)]">{card.action.name}</div>
-          <p className="seller-body mt-0.5 text-[11px] leading-5">{card.availability.reason || '当前还不满足执行条件。'}</p>
+          <p className="seller-body mt-0.5 text-[11px] leading-5">{card.availability.reason || '条件不足。'}</p>
         </div>
         <span className="seller-chip seller-chip-risk">暂缓</span>
       </div>
@@ -1122,7 +1122,7 @@ function buildExecutionChecklist(caseItem: Case, projection: NonNullable<ReturnT
   const checklist = projection.actionReasons.map((entry) => ({
     title: entry.title,
     detail: entry.detail,
-    badge: entry.tone === 'risk' ? '优先处理' : entry.tone === 'chance' ? '可推进' : '待执行',
+    badge: entry.tone === 'risk' ? '当前问题' : entry.tone === 'chance' ? '可推进' : '待执行',
     tone: entry.tone === 'risk' ? 'rose' : entry.tone === 'chance' ? 'emerald' : 'amber',
   }));
 

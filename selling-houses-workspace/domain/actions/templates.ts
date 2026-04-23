@@ -105,8 +105,8 @@ export const SCENARIO_ACTION_TEMPLATES: Record<string, ScenarioActionTemplate> =
     getContextBullets: (state, caseItem) => {
       const { engaged } = summarizeOpportunities(state, caseItem);
       return [
-        `当前挂牌价 ${caseItem.askPrice} 万，市场常见成交价 ${caseItem.marketPrice} 万`,
-        `当前已有 ${engaged} 位接洽客户`,
+        `挂牌价 ${caseItem.askPrice} 万，市场常见成交价 ${caseItem.marketPrice} 万`,
+        `已接洽 ${engaged} 位客户`,
         `当前还可推进 ${caseItem.windowDays} 天`,
       ];
     },
@@ -263,7 +263,7 @@ export const SCENARIO_ACTION_TEMPLATES: Record<string, ScenarioActionTemplate> =
     },
     buildBody: (state, caseItem, action) => {
       const { predicted, engaged } = summarizeOpportunities(state, caseItem);
-      return `${caseItem.ownerName} 当前状态：${caseItem.ownerMood || '平稳'}。这次面访要把房源现状、客户情况和后续经营路径讲清楚。当前已有 ${engaged} 位接洽中的客户，另有 ${predicted} 位待确认客户。`;
+      return `${caseItem.ownerName} 状态：${caseItem.ownerMood || '平稳'}。已接洽 ${engaged} 位，待确认 ${predicted} 位。`;
     },
     getStrategies: () => [
       { id: 'rapport-first', title: '先聊目标和顾虑', note: '先建立情绪信任，适合关系还没真正建立的时候。' },
@@ -285,7 +285,7 @@ export const SCENARIO_ACTION_TEMPLATES: Record<string, ScenarioActionTemplate> =
       return [
         `本周累计热度 ${Math.round(caseItem.heat)}`,
         `当前好房分 ${Math.round(caseItem.competitiveness)}`,
-        `当前有 ${engaged} 位客户已进入接洽`,
+        `已接洽 ${engaged} 位客户`,
       ];
     },
     rounds: [
@@ -458,7 +458,7 @@ export const SCENARIO_ACTION_TEMPLATES: Record<string, ScenarioActionTemplate> =
     },
     buildBody: (state, caseItem) => {
       const { engaged } = summarizeOpportunities(state, caseItem);
-      return `${caseItem.title} 本周累计热度 ${Math.round(caseItem.heat)}，当前好房分 ${Math.round(caseItem.competitiveness)}。你需要决定这次周反馈更强调进展、风险还是执行安排。当前有 ${engaged} 位客户已进入接洽。`;
+      return `${caseItem.title} 本周累计热度 ${Math.round(caseItem.heat)}，好房分 ${Math.round(caseItem.competitiveness)}。已接洽 ${engaged} 位。`;
     },
     getStrategies: () => [
       { id: 'show-progress', title: '突出本周进展', note: '更容易稳住情绪，但会弱化当前风险。' },
@@ -478,7 +478,7 @@ export const SCENARIO_ACTION_TEMPLATES: Record<string, ScenarioActionTemplate> =
     getContextBullets: (state, caseItem) => {
       const { engaged } = summarizeOpportunities(state, caseItem);
       return [
-        `当前挂牌价 ${caseItem.askPrice} 万，市场常见成交价 ${caseItem.marketPrice} 万`,
+        `挂牌价 ${caseItem.askPrice} 万，市场常见成交价 ${caseItem.marketPrice} 万`,
         `当前带看热度 ${Math.round(caseItem.heat)}，好房分 ${Math.round(caseItem.competitiveness)}`,
         `业主信任度 ${Math.round(caseItem.trust)}`,
         `当前接洽客户 ${engaged} 位`,
@@ -736,7 +736,7 @@ export const SCENARIO_ACTION_TEMPLATES: Record<string, ScenarioActionTemplate> =
       };
     },
     buildBody: (state, caseItem, action) => {
-      return `${caseItem.title} 当前挂牌价 ${caseItem.askPrice} 万，市场常见成交价 ${caseItem.marketPrice} 万。你要决定是守价、小调，还是直接换成快卖打法。`;
+      return `${caseItem.title} 挂牌价 ${caseItem.askPrice} 万，市场常见成交价 ${caseItem.marketPrice} 万。`;
     },
     getStrategies: () => [
       { id: 'hold-story', title: '守价换讲法', note: '先不动价格，靠表达和包装争取继续推进。' },
@@ -967,7 +967,7 @@ export const SCENARIO_ACTION_TEMPLATES: Record<string, ScenarioActionTemplate> =
     },
     buildBody: (state, caseItem, action) => {
       const { engaged } = summarizeOpportunities(state, caseItem);
-      return `${caseItem.title} 现在已经到了快成交阶段。你需要决定这次谈判更偏保价、平衡，还是优先成交。当前接洽客户 ${engaged} 位。`;
+      return `${caseItem.title} 快成交阶段。已接洽客户 ${engaged} 位。`;
     },
     getStrategies: () => [
       { id: 'hold', title: '守价硬谈', note: '价格最好，但谈崩风险也最大。' },
@@ -987,7 +987,7 @@ export const ACTION_TEMPLATES: Record<string, ActionBattleTemplate> = {
     metricFocus: ['trust', 'd3', 'competitiveness', 'intent'],
     buildBody: (state, caseItem) => {
       const { predicted, engaged } = summarizeOpportunities(state, caseItem);
-      return `${caseItem.title} 当前价格 ${caseItem.askPrice} 万，市场常见成交价 ${caseItem.marketPrice} 万。现在已经卡住了，这次诊断需要讲清楚：问题到底来自价格、讲法，还是客户匹配。当前 ${predicted} 位待确认客户、${engaged} 位接洽客户。`;
+      return `${caseItem.title} 挂牌 ${caseItem.askPrice} 万，市场常见成交价 ${caseItem.marketPrice} 万。待确认 ${predicted} 位，已接洽 ${engaged} 位。`;
     },
     getStrategies: () => [
       { id: 'market-dive', title: '从竞品切入', note: '更像专业顾问视角，适合务实型业主。' },
@@ -1014,11 +1014,11 @@ export const ACTION_TEMPLATES: Record<string, ActionBattleTemplate> = {
     id: 'marketing-xiaohongshu',
     actor: 'market',
     title: '小红书推广',
-    summary: '决定这轮公开内容是要量、要准，还是要口碑。',
+    summary: '确定本轮公开内容方向。',
     metricFocus: ['heat', 'd1', 'competitiveness'],
     buildBody: (state, caseItem) => {
       const { predicted, engaged } = summarizeOpportunities(state, caseItem);
-      return `${caseItem.title} 当前热度 ${Math.round(caseItem.heat)}。小红书推广会直接影响公开客户进入速度，但也可能引来更多需要筛选的人。当前待确认客户 ${predicted} 位，接洽客户 ${engaged} 位。`;
+      return `${caseItem.title} 热度 ${Math.round(caseItem.heat)}。待确认 ${predicted} 位，已接洽 ${engaged} 位。`;
     },
     getStrategies: () => [
       { id: 'traffic-push', title: '冲流量', note: '更容易补量，但线索质量更参差。' },
@@ -1030,11 +1030,11 @@ export const ACTION_TEMPLATES: Record<string, ActionBattleTemplate> = {
     id: 'marketing-broker',
     actor: 'market',
     title: '经纪人投放',
-    summary: '决定这轮经纪人网络是广撒，还是精投。',
+    summary: '确定本轮经纪人投放方式。',
     metricFocus: ['heat', 'd1', 'competitiveness'],
     buildBody: (state, caseItem) => {
       const { predicted } = summarizeOpportunities(state, caseItem);
-      return `${caseItem.title} 当前已有 ${predicted} 位待确认客户。你要决定这轮经纪人投放是补覆盖、补质量，还是找少数核心经纪人深推。`;
+      return `${caseItem.title} 待确认客户 ${predicted} 位。`;
     },
     getStrategies: () => [
       { id: 'wide-network', title: '广撒网络', note: '更容易补量，但后续要花时间消化。' },
@@ -1049,7 +1049,7 @@ export const ACTION_TEMPLATES: Record<string, ActionBattleTemplate> = {
     summary: '用熟人关系链换更稳定的客户质量。',
     metricFocus: ['trust', 'heat', 'd1'],
     buildBody: (_state, caseItem) => {
-      return `${caseItem.title} 当前业主信任 ${Math.round(caseItem.trust)}。私域转介绍更看关系基础和说法是否顺，适合想要更稳、更准客户的时候。`;
+      return `${caseItem.title} 业主信任 ${Math.round(caseItem.trust)}。`;
     },
     getStrategies: () => [
       { id: 'owner-circle', title: '走业主关系圈', note: '更看业主配合，容易换来确定感。' },
@@ -1061,11 +1061,11 @@ export const ACTION_TEMPLATES: Record<string, ActionBattleTemplate> = {
     id: 'marketing-open-day',
     actor: 'market',
     title: '开放日',
-    summary: '决定这次开放日是拼热度、拼质量，还是拼转化。',
+    summary: '确定这次开放日目标。',
     metricFocus: ['heat', 'd1', 'trust', 'windowDays'],
     buildBody: (state, caseItem) => {
       const { engaged } = summarizeOpportunities(state, caseItem);
-      return `${caseItem.title} 当前热度 ${Math.round(caseItem.heat)}，还可推进 ${caseItem.windowDays} 天。开放日成本较高，但如果组织得好，能快速带来一波看房和转化机会。当前已有 ${engaged} 位接洽客户。`;
+      return `${caseItem.title} 热度 ${Math.round(caseItem.heat)}，可推进 ${caseItem.windowDays} 天，已接洽 ${engaged} 位。`;
     },
     getStrategies: () => [
       { id: 'heat-open-day', title: '先冲场面和热度', note: '更容易把关注度拉起来，但客群质量不一定最优。' },
@@ -1077,11 +1077,11 @@ export const ACTION_TEMPLATES: Record<string, ActionBattleTemplate> = {
     id: 'marketing-showing',
     actor: 'customer',
     title: '安排带看',
-    summary: '决定这次带看是走效率、走体验，还是走成交线。',
+    summary: '确定这次带看打法。',
     metricFocus: ['intent', 'confidence', 'heat', 'd1'],
     buildBody: (state, caseItem) => {
       const { engaged } = summarizeOpportunities(state, caseItem);
-      return `${caseItem.title} 当前有 ${engaged} 位接洽客户。带看不仅影响客户是否愿意继续推进，也会反过来影响业主对经营节奏的判断。`;
+      return `${caseItem.title} 已接洽客户 ${engaged} 位。`;
     },
     getStrategies: () => [
       { id: 'efficiency-showing', title: '效率型带看', note: '更快，但体验会稍弱。' },
@@ -1093,10 +1093,10 @@ export const ACTION_TEMPLATES: Record<string, ActionBattleTemplate> = {
     id: 'pricing-advice',
     actor: 'owner',
     title: '价格沟通',
-    summary: '先帮业主看清价格站位和为什么现在该谈。',
+    summary: '看清价格站位，准备价格沟通。',
     metricFocus: ['trust', 'd3', 'competitiveness', 'askPrice'],
     buildBody: (_state, caseItem) => {
-      return `${caseItem.ownerName} 当前对价格的接受度，决定了后面是继续保价、小调，还是直接走快卖路线。当前挂牌价 ${caseItem.askPrice} 万，市场常见成交价 ${caseItem.marketPrice} 万。`;
+      return `${caseItem.ownerName} 挂牌价 ${caseItem.askPrice} 万，市场常见成交价 ${caseItem.marketPrice} 万。`;
     },
     getStrategies: () => [
       { id: 'compete-view', title: '先讲同类房压力', note: '更理性，但容易让业主觉得你在压价。' },
@@ -1108,7 +1108,7 @@ export const ACTION_TEMPLATES: Record<string, ActionBattleTemplate> = {
     id: 'pricing-anchor',
     actor: 'owner',
     title: '询问心理价',
-    summary: '先摸清业主真实想法，再决定后续怎么谈价。',
+    summary: '摸清业主心理价。',
     metricFocus: ['trust', 'd3', 'askPrice'],
     buildBody: (_state, caseItem) => {
       return `${caseItem.title} 现在最大的定价不确定性，未必是市场，而可能是业主真实底线还没被你摸清。这一步更像是先打开价格沟通。`;
@@ -1127,7 +1127,7 @@ export const ACTION_TEMPLATES: Record<string, ActionBattleTemplate> = {
     metricFocus: ['intent', 'confidence', 'askPrice', 'trust'],
     buildBody: (state, caseItem) => {
       const { engaged } = summarizeOpportunities(state, caseItem);
-      return `${caseItem.title} 当前已有 ${engaged} 位接洽客户。参与诚意卖会提高快成交阶段的推进效率，但也会让价格预期更快摊开。`;
+      return `${caseItem.title} 已接洽客户 ${engaged} 位。`;
     },
     getStrategies: () => [
       { id: 'strict-sincerity', title: '高门槛诚意卖', note: '更能保价，但可能把部分客户挡在外面。' },

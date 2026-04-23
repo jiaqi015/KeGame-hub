@@ -7,12 +7,13 @@ import { getActiveOpportunities, getActionAvailability } from '../../domain/engi
 import { PERSONALITIES } from '../../domain/constants';
 import { Star } from 'lucide-react';
 import { buildOpportunityViewModels, type OpportunityViewModel } from './caseOpportunityViewModel';
-import { ActionDecisionOverlay, buildActionDecisionConfig, type ActionDecisionConfig, type ScenarioResult, type ScenarioChoice, type ScenarioFeedback } from './ActionDecisionOverlay';
+import { ActionDecisionOverlay, buildActionDecisionConfig, type ActionDecisionConfig, type ScenarioResult } from './ActionDecisionOverlay';
 
 interface CasesProps {
   state: GameState;
   onSelectCase: (id: string) => void;
-  onExecuteAction: (actionId: string, caseItem: any, optionId?: string | null, result?: unknown) => boolean;
+  onExecuteAction: (actionId: string, caseItem: any, optionId?: string | null) => boolean;
+  onExecuteScenarioAction: (actionId: string, caseItem: any, settlement: ScenarioResult) => boolean;
 }
 
 type ActionCategoryTab = 'feedback' | 'marketing' | 'pricing' | 'negotiation';
@@ -41,7 +42,7 @@ const CASE_QUICK_FILTERS: Array<{ id: CaseQuickFilter; label: string }> = [
   { id: 'late-stage', label: '接近成交' },
 ];
 
-export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
+export function Cases({ state, onSelectCase, onExecuteAction, onExecuteScenarioAction }: CasesProps) {
   const { cases, selectedCaseId } = state;
   const [stageFilter, setStageFilter] = useState<CaseStageFilter>('all');
   const [quickFilter, setQuickFilter] = useState<CaseQuickFilter | null>(null);
@@ -229,12 +230,12 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
         })}
           {visibleCases.length === 0 && (
             <div className="seller-empty px-4 py-6 text-sm">
-              当前筛选下没有房源，换个阶段或取消快速筛选看看。
+              该筛选下暂无房源。
             </div>
           )}
           {selectionHiddenByFilter && selectedCase && (
             <div className="rounded-[16px] border border-[color:var(--seller-chance)]/22 bg-[var(--seller-chance-soft)] px-4 py-4 text-[12px] text-[var(--seller-chance)]">
-              当前正在看 <strong>{selectedCase.title}</strong>，但它不在这组筛选里。
+              正在查看 <strong>{selectedCase.title}</strong>，不在当前筛选内。
             </div>
           )}
         </div>
@@ -247,7 +248,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
               <section className="seller-workbench overflow-hidden">
                 <div className="grid gap-3 border-b border-[var(--seller-border)] px-3.5 py-3 xl:grid-cols-[minmax(0,1fr)_228px]">
                   <div className="min-w-0">
-                    <div className="seller-label">当前对象</div>
+                    <div className="seller-label">当前房源</div>
                     <div className="mt-2 flex flex-wrap items-center gap-1.5">
                       <h2 className="seller-title text-[17px] leading-5">{selectedCase.title}</h2>
                       <span className="seller-chip bg-[var(--seller-ink)] text-[var(--seller-bg)]">
@@ -298,12 +299,12 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
 
                 <div className="grid gap-3 px-3.5 py-3 lg:grid-cols-[minmax(0,0.96fr)_minmax(0,1.04fr)]">
                   <section className="seller-panel-soft px-3 py-3">
-                    <div className="seller-label">当前判断</div>
+                    <div className="seller-label">当前问题</div>
                     <div className="mt-2 grid gap-2">
                       <DiagnosisCard
                         label="主阶段"
                         value={caseProjection?.listingLifecyclePhase.phaseLabel || selectedCase.stageLabel}
-                        detail={caseProjection?.listingLifecyclePhase.coreProblemLabel || '先看这套房卡在哪。'}
+                        detail={caseProjection?.listingLifecyclePhase.coreProblemLabel || '看这套房卡点。'}
                         tone={caseProjection?.listingLifecyclePhase.phaseDelayLevel === 'late' ? 'rose' : 'slate'}
                         metrics={[
                           { label: '已接上', value: `${caseProjection?.customerPoolSummary.metCount ?? customerStatesForSelectedCase.length} 位` },
@@ -311,9 +312,9 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                         ]}
                       />
                       <DiagnosisCard
-                        label="下一步"
+                        label="当前动作"
                         value={caseProjection?.listingLifecyclePhase.primaryActionLabel || deriveNextFix(selectedCase, activeOpportunities)}
-                        detail={caseProjection?.nextStepLine || '把最关键的一步推进掉。'}
+                        detail={caseProjection?.nextStepLine || '推进最关键一步。'}
                         tone="amber"
                         metrics={[
                           { label: '报价', value: `${selectedCase.offers} 次` },
@@ -321,9 +322,9 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                         ]}
                       />
                       <DiagnosisCard
-                        label="再拖会怎样"
+                        label="当前风险"
                         value={caseProjection?.listingLifecyclePhase.phaseRiskHint || deriveWindowLabel(selectedCase, activeOpportunities)}
-                        detail={caseProjection?.competitionSummary.detail || '外部压力会继续往这套房上叠。'}
+                        detail={caseProjection?.competitionSummary.detail || '外部压力会继续叠加。'}
                         tone={caseProjection?.listingLifecyclePhase.phaseDelayLevel === 'late' ? 'rose' : 'amber'}
                         metrics={[
                           { label: '同类房', value: `${caseProjection?.competitionSummary.rivalCount ?? 0} 套` },
@@ -336,9 +337,9 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                   <section className="seller-panel-soft px-3 py-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="seller-label">可做动作</div>
+                        <div className="seller-label">当前动作</div>
                         <div className="mt-1 text-[14px] font-semibold leading-5 text-[var(--seller-ink)]">
-                          {caseProjection?.listingLifecyclePhase.primaryActionLabel || '先补最关键的一步。'}
+                          {caseProjection?.listingLifecyclePhase.primaryActionLabel || '补关键一步。'}
                         </div>
                       </div>
                       <span className="seller-chip seller-chip-accent">
@@ -366,7 +367,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
 
               <section className="seller-panel overflow-hidden">
                 <div className="flex flex-col gap-3 border-b border-[var(--seller-border)] px-3.5 py-3 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="seller-label">更多信息</div>
+                  <div className="seller-label">明细</div>
                   <div className="seller-tabbar">
                     <button
                       type="button"
@@ -430,7 +431,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                         </div>
                         <div className="mt-2 grid gap-2 sm:grid-cols-2">
                           <InfoStrip label="沟通方式" value={deriveCommunicationMode(selectedCase)} />
-                          <InfoStrip label="优先处理" value={deriveNextFix(selectedCase, activeOpportunities)} />
+                          <InfoStrip label="当前动作" value={deriveNextFix(selectedCase, activeOpportunities)} />
                         </div>
                       </DeskSection>
                     </div>
@@ -496,7 +497,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
 
                   {activeDetailTab === 'evidence' && (
                     <div className="grid gap-3 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
-                      <DeskSection title="判断依据" count={`${caseProjection?.factChain.length || 0} 条`}>
+                      <DeskSection title="依据" count={`${caseProjection?.factChain.length || 0} 条`}>
                         <div className="space-y-1.5">
                           {caseProjection?.factChain.slice(0, 6).map((fact) => (
                             <div key={fact.id}>
@@ -516,7 +517,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
 
             <aside className="flex min-h-0 flex-col gap-3">
               <section className="seller-panel-muted px-3.5 py-3">
-                <div className="seller-label">这套房卡在哪</div>
+                <div className="seller-label">当前问题</div>
                 <div className="mt-2 text-[15px] font-semibold leading-5 text-[var(--seller-ink)]">
                   {caseProjection?.listingLifecyclePhase.coreProblemLabel || '继续推进'}
                 </div>
@@ -526,7 +527,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {caseProjection?.listingLifecyclePhase && (
                     <span className="seller-chip seller-chip-accent">
-                      下一步：{caseProjection.listingLifecyclePhase.primaryActionLabel}
+                      当前动作：{caseProjection.listingLifecyclePhase.primaryActionLabel}
                     </span>
                   )}
                   {latestScoreSnapshot ? (
@@ -537,7 +538,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
                 </div>
               </section>
 
-              <DeskSection title="受阻动作" count={`${activeActionCategory?.blockedCards.length || 0} 项`}>
+              <DeskSection title="暂不可做" count={`${activeActionCategory?.blockedCards.length || 0} 项`}>
                 <div className="flex gap-1.5 overflow-x-auto pb-1">
                   {actionCardsByCategory.map(({ category, availableCards }) => (
                     <button
@@ -593,14 +594,14 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
       {decisionConfig && (
         <ActionDecisionOverlay
           config={decisionConfig}
-          onChoose={(optionId, assistOptionId, choices, feedbacks) => {
+          onChoose={(optionId) => {
             if (!decisionConfig.isScenario) {
               onExecuteAction(decisionConfig.actionId, selectedCase, optionId);
               setDecisionConfig(null);
             }
           }}
-          onComplete={(result, choices, feedbacks) => {
-            onExecuteAction(decisionConfig.actionId, selectedCase, result.finalOptionId, result);
+          onComplete={(result) => {
+            onExecuteScenarioAction(decisionConfig.actionId, selectedCase, result);
             setDecisionConfig(null);
           }}
           onClose={() => setDecisionConfig(null)}
@@ -827,7 +828,7 @@ function FactLine({
         <div className="min-w-0">
           <div className="text-[12px] font-semibold text-[var(--seller-ink)]">{fact.title}</div>
           <p className="seller-body mt-0.5 text-[11px] leading-5">{fact.fact}</p>
-          <p className="mt-1 text-[11px] font-semibold leading-5 text-[var(--seller-ink)]">下一步：{fact.nextStep}</p>
+          <p className="mt-1 text-[11px] font-semibold leading-5 text-[var(--seller-ink)]">当前动作：{fact.nextStep}</p>
         </div>
         <span className={toneClass}>
           {fact.tone === 'risk' ? '风险' : fact.tone === 'chance' ? '机会' : '平稳'}
@@ -955,7 +956,7 @@ function BlockedActionLine({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[12px] font-semibold text-[var(--seller-muted)]">{card.action.name}</div>
-          <p className="seller-body mt-0.5 text-[11px] leading-5">{card.availability.reason || '当前还不满足执行条件。'}</p>
+          <p className="seller-body mt-0.5 text-[11px] leading-5">{card.availability.reason || '条件不足。'}</p>
         </div>
         <span className="seller-chip seller-chip-risk">暂缓</span>
       </div>
@@ -964,7 +965,7 @@ function BlockedActionLine({
 }
 
 function deriveActionHint(actionId: string, caseItem: Case, opportunities: any[]) {
-  if (actionId === 'first-visit') return !caseItem.hasCompletedFirstVisit ? '当前还没完成首次面访。' : '首次面访已经完成。';
+  if (actionId === 'first-visit') return !caseItem.hasCompletedFirstVisit ? '未完成首次面访。' : '首次面访已完成。';
   if (actionId === 'weekly-feedback') return caseItem.trust < 60 ? '业主关系已经有点发紧。'
     : '业主关系还稳。';
   if (actionId === 'deep-diagnosis') return opportunities.some(o => o.visibility === 'shadow') ? `还有 ${opportunities.filter(o => o.visibility === 'shadow').length} 位客户没核实。`
@@ -972,20 +973,20 @@ function deriveActionHint(actionId: string, caseItem: Case, opportunities: any[]
   if (actionId === 'story') return caseItem.d2 < 70 ? '房子卖点还没讲透。'
     : '房子卖点基础不错。';
   if (actionId === 'pricing-advice') return `挂牌 ${caseItem.askPrice} 万，对比市场常见成交价 ${caseItem.marketPrice} 万。`;
-  if (actionId === 'ask-psychological-price') return `当前底价 ${caseItem.bottomPrice} 万，业主心里真正能接受的价格还没完全说出来。`;
-  if (actionId === 'adjust-listing-price') return caseItem.askPrice > caseItem.marketPrice * 1.03 ? '当前挂牌价明显高于市场常见成交价。'
-    : '当前挂牌价和市场常见成交价差距较小。';
+  if (actionId === 'ask-psychological-price') return `底价 ${caseItem.bottomPrice} 万，业主心理价还没说透。`;
+  if (actionId === 'adjust-listing-price') return caseItem.askPrice > caseItem.marketPrice * 1.03 ? '挂牌价明显高于市场常见成交价。'
+    : '挂牌价和市场常见成交价差距较小。';
   if (actionId === 'xiaohongshu-boost') return opportunities.length > 0 ? '现在有客户在看，投放能继续放大热度。': '现在客户少，更需要拉新客。';
   if (actionId === 'broker-broadcast') return opportunities.filter(o => o.visibility === 'shadow').length > 0 ? '还有客户没核实，发合作经纪人更容易补线索。': '可以再补一波外部客源。';
   if (actionId === 'private-referral') return caseItem.trust >= 60 ? '业主关系还行，适合走熟人介绍。': '业主关系偏弱，先别急着做熟人介绍。';
   if (actionId === 'open-day') return caseItem.heat >= 55 ? '现在热度还可以，开放日有机会放大到访。': '现在热度一般，开放日更偏拉新。';
-  if (actionId === 'showing') return opportunities.some(o => o.stageIndex >= 1 && o.visibility !== 'shadow') ? '当前已有客户进入可带看阶段。'
-    : '当前还没有客户进入可带看阶段。';
-  if (actionId === 'sincerity-sale') return opportunities.some(o => o.stageIndex >= 2 && o.visibility !== 'shadow') ? '当前已有客户开始接近成交阶段。'
-    : '当前客户阶段还不足以触发诚意卖。';
-  if (actionId === 'invite-customer-negotiation') return opportunities.some(o => o.stageIndex >= 3 && o.visibility !== 'shadow') ? '当前已有客户接近报价或议价阶段。'
-    : '当前还没有客户进入谈判区。';
-  return '结合当前情况查看。';
+  if (actionId === 'showing') return opportunities.some(o => o.stageIndex >= 1 && o.visibility !== 'shadow') ? '已有客户进入可带看阶段。'
+    : '暂无客户进入可带看阶段。';
+  if (actionId === 'sincerity-sale') return opportunities.some(o => o.stageIndex >= 2 && o.visibility !== 'shadow') ? '已有客户接近成交阶段。'
+    : '客户阶段不足以触发诚意卖。';
+  if (actionId === 'invite-customer-negotiation') return opportunities.some(o => o.stageIndex >= 3 && o.visibility !== 'shadow') ? '已有客户接近报价或议价阶段。'
+    : '暂无客户进入谈判区。';
+  return '查看房源情况。';
 }
 
 function deriveCaseListPriority(state: GameState, caseItem: Case) {
@@ -1116,14 +1117,14 @@ function buildExecutionChecklist(caseItem: Case, projection: NonNullable<ReturnT
   const checklist = projection.actionReasons.map((entry) => ({
     title: entry.title,
     detail: entry.detail,
-    badge: entry.tone === 'risk' ? '优先处理' : entry.tone === 'chance' ? '可推进' : '待执行',
+    badge: entry.tone === 'risk' ? '当前问题' : entry.tone === 'chance' ? '可推进' : '待执行',
     tone: entry.tone === 'risk' ? 'rose' : entry.tone === 'chance' ? 'emerald' : 'amber',
   }));
 
   if (projection.currentRiskTags.length > 0) {
     checklist.unshift({
       title: projection.currentRiskTags[0],
-      detail: `${caseItem.title} 当前最容易掉在这个点上。`,
+      detail: `${caseItem.title} 最容易掉在这个点。`,
       badge: '风险点',
       tone: 'rose',
     });

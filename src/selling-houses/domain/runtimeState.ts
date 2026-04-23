@@ -200,7 +200,46 @@ function deriveSchedule(world: GameState) {
       });
     });
 
+  world.productRuns
+    .filter((run) => run.status === 'running')
+    .forEach((run) => {
+      const targetCaseId = run.targetIds.find((targetId) => world.cases.some((caseItem) => caseItem.id === targetId));
+      if (!targetCaseId) {
+        return;
+      }
+      const targetCase = world.cases.find((entry) => entry.id === targetCaseId);
+      const milestone = (run.milestones || []).find((entry) => entry.id === run.nextMilestone) || null;
+      if (!milestone) {
+        return;
+      }
+
+      items.push({
+        key: `${run.id}-${milestone.id}`,
+        caseId: targetCaseId,
+        title: milestone.title,
+        badge: productRunMilestoneBadge(milestone.kind),
+        note: `${targetCase?.title || '当前房源'} · ${milestone.summary}`,
+        urgency: productRunMilestoneUrgency(milestone.kind, world.day, milestone.day),
+      });
+    });
+
   return items.sort((left, right) => right.urgency - left.urgency).slice(0, 10);
+}
+
+function productRunMilestoneBadge(kind: 'event' | 'light_scene' | 'heavy_scene') {
+  if (kind === 'heavy_scene') return '重场景';
+  if (kind === 'light_scene') return '轻场景';
+  return '普通事件';
+}
+
+function productRunMilestoneUrgency(
+  kind: 'event' | 'light_scene' | 'heavy_scene',
+  currentDay: number,
+  milestoneDay: number,
+) {
+  const dayGap = Math.abs(currentDay - milestoneDay);
+  const base = kind === 'heavy_scene' ? 95 : kind === 'light_scene' ? 90 : 84;
+  return Math.max(72, base - dayGap * 6);
 }
 
 function derivePriorities(world: GameState) {

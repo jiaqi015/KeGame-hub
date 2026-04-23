@@ -84,8 +84,10 @@ export function Dashboard({
   const [activeSidePanel, setActiveSidePanel] = useState<DashboardSidePanel>('case');
 
   useEffect(() => {
-    setSelectedDay(state.day);
-  }, [state.day]);
+    if (!calendarRail.some((entry) => entry.day === selectedDay)) {
+      setSelectedDay(state.day);
+    }
+  }, [calendarRail, selectedDay, state.day]);
 
   const routine = getRoutine(state.day, WEEKLY_ROUTINE);
   const activeCases = state.cases.filter((caseItem) => caseItem.status === 'active');
@@ -140,6 +142,12 @@ export function Dashboard({
     }
   };
 
+  useEffect(() => {
+    if (calendarMode === 'today' && leadCaseId) {
+      setActiveSidePanel('case');
+    }
+  }, [calendarMode, leadCaseId]);
+
   return (
     <div className="space-y-4" data-selling-houses-page="overview">
       <section className="seller-workbench-dark overflow-hidden px-5 py-4">
@@ -150,16 +158,16 @@ export function Dashboard({
               className="mt-2 text-[28px] font-semibold leading-[1.04] tracking-[-0.04em] text-[var(--seller-ink)] md:text-[30px]"
               style={{ fontFamily: 'var(--font-display)' }}
             >
-              {calendarMode === 'today' ? '今天先去哪' : calendarMode === 'past' ? '回看那天' : '后面几天先怎么排'}
+              {calendarMode === 'today' ? '今日重点' : calendarMode === 'past' ? '当日回看' : '后续安排'}
             </h1>
             <p className="mt-2 max-w-[72ch] text-[12px] leading-6 text-[var(--seller-muted)]">
               {calendarMode === 'today'
-                ? `当前在场 ${dashboard.resourceSnapshot.activeCases} 套房，活跃客户线 ${dashboard.resourceSnapshot.activeOpportunities} 条。${leadCase
-                  ? ` ${leadCase.title} 排在前面，先处理这条线。`
-                  : ' 先处理最影响今天顺序的一件事。'}`
+                ? `在场 ${dashboard.resourceSnapshot.activeCases} 套，活跃客户线 ${dashboard.resourceSnapshot.activeOpportunities} 条。${leadCase
+                  ? ` ${leadCase.title} 在前。`
+                  : ' 处理最关键一件。'}`
                 : calendarMode === 'past'
-                  ? `${selectedDateLabel} 看那天留下的动作、记录和影响。`
-                  : `${selectedDateLabel} 先看安排和准备，不展开今天的处理区。`}
+                  ? `${selectedDateLabel} 看记录与影响。`
+                  : `${selectedDateLabel} 看安排。`}
             </p>
           </div>
 
@@ -176,7 +184,7 @@ export function Dashboard({
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="seller-label flex items-center gap-2">
               <Calendar size={13} />
-              本周节奏
+              周节奏
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
@@ -246,7 +254,7 @@ export function Dashboard({
             <div className="space-y-3">
               <section className="seller-panel overflow-hidden">
                 <div className="flex items-center justify-between gap-3 border-b border-[var(--seller-border)] px-4 py-3">
-                  <div className="seller-label">更多</div>
+          <div className="seller-label">视图</div>
                   <div className="seller-tabbar">
                     <button
                       type="button"
@@ -336,6 +344,16 @@ function AgendaPanel({
   onUseTool: (tool: AgendaTool, caseId?: string) => void;
 }) {
   const slots: TodayArrangementSlot[] = ['am', 'pm'];
+  const [collapsedBlocks, setCollapsedBlocks] = useState<Record<string, boolean>>({
+    'am:fixed': true,
+    'pm:fixed': true,
+    'am:completed': true,
+    'pm:completed': true,
+  });
+  const toggleBlock = (slot: TodayArrangementSlot, block: 'fixed' | 'planned' | 'candidate' | 'completed') => {
+    const key = `${slot}:${block}`;
+    setCollapsedBlocks((current) => ({ ...current, [key]: !current[key] }));
+  };
   return (
     <section className="seller-panel overflow-hidden">
       <div className="border-b border-[var(--seller-border)] px-4 py-4">
@@ -381,6 +399,8 @@ function AgendaPanel({
               <HalfDayAgendaSection
                 slot={slot}
                 arrangement={arrangement.slots[slot]}
+                collapsedBlocks={collapsedBlocks}
+                onToggleBlock={toggleBlock}
                 onOpenCase={onOpenCase}
                 onExecuteAction={onExecuteAction}
                 onAddToToday={onAddToToday}
@@ -440,6 +460,8 @@ function FixedArrangementCard({
 function HalfDayAgendaSection({
   slot,
   arrangement,
+  collapsedBlocks,
+  onToggleBlock,
   onOpenCase,
   onExecuteAction,
   onAddToToday,
@@ -449,6 +471,8 @@ function HalfDayAgendaSection({
 }: {
   slot: TodayArrangementSlot;
   arrangement: ArrangementProjection['slots'][TodayArrangementSlot];
+  collapsedBlocks: Record<string, boolean>;
+  onToggleBlock: (slot: TodayArrangementSlot, block: 'fixed' | 'planned' | 'candidate' | 'completed') => void;
   onOpenCase: (caseId?: string) => void;
   onExecuteAction: (actionId: string, caseId: string) => boolean;
   onAddToToday: (item: ArrangementItemProjection, slot: TodayArrangementSlot) => boolean;
@@ -471,7 +495,12 @@ function HalfDayAgendaSection({
       </div>
 
       <div className="mt-3 space-y-4">
-        <HalfDayAgendaBlock title="固定安排" emptyText={`${arrangement.label}没有固定安排。`}>
+        <HalfDayAgendaBlock
+          title="固定安排"
+          emptyText={`${arrangement.label}没有固定安排。`}
+          collapsed={Boolean(collapsedBlocks[`${slot}:fixed`])}
+          onToggle={() => onToggleBlock(slot, 'fixed')}
+        >
           {arrangement.fixedItems.map((item) => (
             <React.Fragment key={item.id}>
               <FixedArrangementCard
@@ -483,7 +512,12 @@ function HalfDayAgendaSection({
           ))}
         </HalfDayAgendaBlock>
 
-        <HalfDayAgendaBlock title="我今天安排的" emptyText={`把${arrangement.label}要做的事排进去。`}>
+        <HalfDayAgendaBlock
+          title="我今天安排的"
+          emptyText={`把${arrangement.label}要做的事排进去。`}
+          collapsed={Boolean(collapsedBlocks[`${slot}:planned`])}
+          onToggle={() => onToggleBlock(slot, 'planned')}
+        >
           {arrangement.plannedItems.map((item, index) => (
             <React.Fragment key={item.id}>
               <PlannedArrangementCard
@@ -497,7 +531,12 @@ function HalfDayAgendaSection({
           ))}
         </HalfDayAgendaBlock>
 
-        <HalfDayAgendaBlock title="候选事项" emptyText={`${arrangement.label}暂时没有新的候选事项。`}>
+        <HalfDayAgendaBlock
+          title="候选事项"
+          emptyText={`${arrangement.label}暂时没有新的候选事项。`}
+          collapsed={Boolean(collapsedBlocks[`${slot}:candidate`])}
+          onToggle={() => onToggleBlock(slot, 'candidate')}
+        >
           {arrangement.candidateItems.map((item, index) => (
             <React.Fragment key={item.id}>
               <AgendaItemRow
@@ -512,7 +551,12 @@ function HalfDayAgendaSection({
           ))}
         </HalfDayAgendaBlock>
 
-        <HalfDayAgendaBlock title="已完成" emptyText={`${arrangement.label}还没有完成事项。`}>
+        <HalfDayAgendaBlock
+          title="已完成"
+          emptyText={`${arrangement.label}还没有完成事项。`}
+          collapsed={Boolean(collapsedBlocks[`${slot}:completed`])}
+          onToggle={() => onToggleBlock(slot, 'completed')}
+        >
           {arrangement.completedItems.map((item) => (
             <React.Fragment key={item.id}>
               <CompletedArrangementCard item={item} onOpenCase={onOpenCase} />
@@ -527,20 +571,40 @@ function HalfDayAgendaSection({
 function HalfDayAgendaBlock({
   title,
   emptyText,
+  collapsed,
+  onToggle,
   children,
 }: {
   title: string;
   emptyText: string;
+  collapsed: boolean;
+  onToggle: () => void;
   children: React.ReactNode;
 }) {
   const items = React.Children.toArray(children);
   return (
     <div>
       <div className="flex items-center justify-between gap-2">
-        <div className="seller-label">{title}</div>
-        <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">{items.length} 件</span>
+        <button
+          type="button"
+          onClick={onToggle}
+          className="seller-label rounded-full px-2 py-1 text-left transition hover:bg-[rgba(255,255,255,0.05)]"
+        >
+          {title}
+        </button>
+        <button
+          type="button"
+          onClick={onToggle}
+          className="text-[10px] font-semibold text-[var(--seller-subtle)]"
+        >
+          {items.length} 件 · {collapsed ? '展开' : '收起'}
+        </button>
       </div>
-      {items.length > 0 ? (
+      {collapsed ? (
+        <div className="mt-3 rounded-[10px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.02)] px-3 py-2 text-[11px] text-[var(--seller-subtle)]">
+          已收起，点击展开查看明细。
+        </div>
+      ) : items.length > 0 ? (
         <div className="mt-3 space-y-3">{items}</div>
       ) : (
         <div className="seller-empty mt-3 px-4 py-4 text-center text-[12px]">
@@ -642,6 +706,11 @@ function AgendaItemRow({
             打开房源
             <ArrowRight size={12} />
           </button>
+          {item.isDisabled && item.disabledReason ? (
+            <p className="max-w-[220px] text-[11px] leading-5 text-[var(--seller-risk)]">
+              {item.disabledReason}
+            </p>
+          ) : null}
         </div>
       </div>
     </article>
@@ -762,10 +831,10 @@ function PinnedCasePanel({
       <section className="seller-panel px-4 py-4">
         <div className="seller-label flex items-center gap-2">
           <Target size={13} />
-          当前主房源
+          主房源
         </div>
         <div className="seller-empty mt-3 px-4 py-6 text-[12px]">
-          当前没有需要单独抬出来看的房源。
+          暂无主房源。
         </div>
       </section>
     );
@@ -778,7 +847,7 @@ function PinnedCasePanel({
           <div>
             <div className="seller-label flex items-center gap-2">
               <Target size={13} />
-              当前主房源
+              主房源
             </div>
             <h2 className="mt-2 text-[16px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">
               {caseItem.title}
@@ -793,12 +862,12 @@ function PinnedCasePanel({
 
       <div className="px-4 py-4">
         <div className="seller-fact-row px-3.5 py-3.5">
-          <div className="seller-label">当前重点</div>
+          <div className="seller-label">当前问题</div>
           <div className="mt-2 text-[13px] font-semibold text-[var(--seller-ink)]">
             {projection.listingLifecyclePhase.coreProblemLabel}
           </div>
           <div className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">
-            {`下一步：${projection.listingLifecyclePhase.primaryActionLabel}。${projection.listingLifecyclePhase.phaseRiskHint}`}
+            {`当前动作：${projection.listingLifecyclePhase.primaryActionLabel}。${projection.listingLifecyclePhase.phaseRiskHint}`}
           </div>
 
           {impactedItem && (
@@ -959,17 +1028,17 @@ function TriageSummaryPanel({
         <div className="flex items-center justify-between gap-3">
           <div className="seller-label flex items-center gap-2">
             <Target size={13} />
-            快速导航
+            去向
           </div>
-          <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">只做快速导航，不重复页面内容</span>
+          <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">{cards.length} 个入口</span>
         </div>
       </div>
 
       <div className="grid divide-y divide-[var(--seller-border)]">
         <section className="px-4 py-4">
           <div className="mb-3 flex items-center justify-between gap-3">
-            <div className="text-[11px] font-semibold text-[var(--seller-ink)]">页面边界</div>
-            <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">{cards.length} 个入口</span>
+            <div className="text-[11px] font-semibold text-[var(--seller-ink)]">入口</div>
+            <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">{cards.length}</span>
           </div>
           <div className="space-y-3">
             {cards.map((card) => (
@@ -1024,6 +1093,7 @@ function CalendarCell({
   active,
   onClick,
 }: {
+  key?: React.Key;
   entry: CalendarRailEntry;
   active: boolean;
   onClick: () => void;
@@ -1109,10 +1179,10 @@ function SelectedDayPanel({
             ))}
           </div>
           <div className="rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-3">
-            <div className="seller-label">今天提示</div>
+            <div className="seller-label">记录</div>
             <div className="mt-3 space-y-2 text-[11px] leading-5 text-[var(--seller-muted)]">
-              <p>先按上午、下午回看今天已经留下的变化。</p>
-              <p>看完就回到下面继续安排和推进。</p>
+              <p>按上午、下午查看记录。</p>
+              <p>看完回到安排区。</p>
             </div>
           </div>
         </div>
@@ -1126,7 +1196,7 @@ function SelectedDayPanel({
         <div className="border-b border-[var(--seller-border)] px-4 py-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <div className="seller-label text-[var(--seller-accent)]">后面几天</div>
+              <div className="seller-label text-[var(--seller-accent)]">后续</div>
               <h3 className="mt-2 text-[15px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">
                 DAY {entry.day} · {entry.title}
               </h3>
@@ -1210,10 +1280,10 @@ function SelectedDayPanel({
           ))}
         </div>
         <div className="rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-3">
-          <div className="seller-label">回看重点</div>
+          <div className="seller-label">回看</div>
           <div className="mt-3 space-y-2 text-[11px] leading-5 text-[var(--seller-muted)]">
-            <p>{events.length > 0 ? `这天留下了 ${events.length} 条关键变化。` : '这天没有留下会继续影响判断的关键变化。'}</p>
-            <p>先按上午、下午回看那天发生了什么。</p>
+            <p>{events.length > 0 ? `这天有 ${events.length} 条记录。` : '这天无关键记录。'}</p>
+            <p>按上午、下午查看。</p>
           </div>
         </div>
       </div>
@@ -1354,15 +1424,15 @@ function buildFutureSlotCards(entry: CalendarRailEntry) {
   return [
     {
       slot: 'am' as const,
-      badge: '先看已有安排',
+      badge: '已排',
       title: entry.title,
       detail: entry.meta,
       pills: pills.slice(0, 2),
     },
     {
       slot: 'pm' as const,
-      badge: '再看准备动作',
-      title: futureSignal(entry) === '轻排' ? '下午先留机动' : '下午继续推进',
+      badge: '候选',
+      title: futureSignal(entry) === '轻排' ? '下午留机动' : '下午推进',
       detail: entry.detail,
       pills: pills.slice(2),
     },

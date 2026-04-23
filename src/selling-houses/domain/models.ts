@@ -1000,6 +1000,33 @@ export type TodayArrangementStatus = 'planned' | 'completed';
 export type TodayArrangementExecutionMode = 'direct' | 'scenario';
 export type TodayArrangementSlot = 'am' | 'pm';
 
+export type ProductType = 'open-day' | 'sincere-sale';
+export type ProductRunScope = 'community' | 'listing';
+export type ProductRunStatus = 'running' | 'completed' | 'cancelled';
+export type ProductRunMilestoneKind = 'event' | 'light_scene' | 'heavy_scene';
+
+export interface ProductRunMilestone {
+  id: string;
+  title: string;
+  summary: string;
+  day: number;
+  kind: ProductRunMilestoneKind;
+  settlementHint: string;
+}
+
+export interface ProductRun {
+  id: string;
+  productType: ProductType;
+  scope: ProductRunScope;
+  status: ProductRunStatus;
+  startDay: number;
+  endDay?: number;
+  targetIds: string[];
+  nextMilestone: string;
+  linkedEventIds?: string[];
+  milestones?: ProductRunMilestone[];
+}
+
 export interface TodayArrangementItem {
   id: string;
   day: number;
@@ -1068,6 +1095,7 @@ export interface GameState {
   priorities: PriorityEntry[];
   matters: MatterEntry[];
   todayPlan: TodayPlanState;
+  productRuns: ProductRun[];
   closedDeals: ClosedDealRecord[];
   metrics: DerivedMetrics;
   currentReport: DailyReport | null;

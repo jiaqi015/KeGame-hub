@@ -568,7 +568,7 @@ function buildCandidateArrangementItems(
       slot,
       label: item.label,
       title: action ? action.name : item.title,
-      detail: action ? `下一步：${action.name}` : item.detail,
+      detail: action ? action.name : item.detail,
       tone: item.tone,
       caseId: item.caseId,
       matterId: linkedMatter?.id,
@@ -993,13 +993,13 @@ export function buildCaseDetailProjection(state: GameState, caseItem: Case): Cas
     actionReasons: primaryAction ? [{
       id: `${caseItem.id}-primary-action`,
       label: listingLifecyclePhase.phaseLabel,
-      title: `下一步：${listingLifecyclePhase.primaryActionLabel}`,
+      title: `当前动作：${listingLifecyclePhase.primaryActionLabel}`,
       detail: listingLifecyclePhase.phaseRiskHint,
       tone: listingLifecyclePhase.phaseDelayLevel === 'late' ? 'risk' : 'neutral',
       caseId: caseItem.id,
     }] : [],
     factChain,
-    nextStepLine: `下一步：${listingLifecyclePhase.primaryActionLabel}`,
+    nextStepLine: `当前动作：${listingLifecyclePhase.primaryActionLabel}`,
     recentChanges,
     ownerSummary: {
       title: deriveOwnerTitle(caseItem),
@@ -1134,7 +1134,7 @@ function buildCaseFactChain(
       ? '同类房在抢客户，再慢一步就容易失手。'
       : '外部压力还在，但这套房还有空间往前推。',
     nextStep: competitionPressure >= 68 || caseItem.windowDays <= 3
-      ? '今天先推进最影响结果的一步。'
+      ? '今天推进关键一步。'
       : '保持推进，别让这套房停住。',
     tone: competitionPressure >= 68 || caseItem.windowDays <= 3 ? 'risk' : 'neutral',
   });
@@ -1353,10 +1353,10 @@ function buildDashboardTriageCards(
         ? `${closingLead.caseTitle} 这条客户线更接近成交`
         : activeOpportunityCount > 0
           ? '客户池里还有活跃关系可推进'
-          : '当前客户线比较薄，需要先回看承接情况',
+          : '客户线偏薄',
       detail: closingLead?.reason || (activeOpportunityCount > 0
         ? `当前有 ${activeOpportunityCount} 条活跃机会。`
-        : '当前客户线比较薄。'),
+        : '客户线偏薄。'),
       countLabel: `${activeOpportunityCount} 条活跃线`,
       tone: closingLead?.tone || (activeOpportunityCount > 0 ? 'chance' : 'neutral'),
       targetView: 'customers',
@@ -1444,7 +1444,7 @@ function buildTodayPriority(
       id: `case-priority-${entry.caseId}`,
       label: entry.listingLifecyclePhase.phaseLabel,
       title: `${state.cases.find((caseItem) => caseItem.id === entry.caseId)?.title || '房源'} · ${entry.listingLifecyclePhase.coreProblemLabel}`,
-      detail: `下一步：${entry.listingLifecyclePhase.primaryActionLabel}`,
+      detail: `当前动作：${entry.listingLifecyclePhase.primaryActionLabel}`,
       tone: entry.listingLifecyclePhase.phaseDelayLevel === 'late' ? 'risk' as const : 'neutral' as const,
       caseId: entry.caseId,
     }));

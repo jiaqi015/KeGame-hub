@@ -250,6 +250,7 @@ export function SellingHousesWorkspace({
         activeScenarioCase,
         settlement,
         displayMessage,
+        activeTodayScenario.todayPlanItemId,
       );
     } else {
       handleExecuteAction(
@@ -257,6 +258,7 @@ export function SellingHousesWorkspace({
         activeScenarioCase,
         optionId,
         displayMessage,
+        activeTodayScenario.todayPlanItemId,
       );
     }
   };
@@ -555,12 +557,12 @@ export function SellingHousesWorkspace({
       {activeScenarioConfig && (
         <ActionDecisionOverlay
           config={activeScenarioConfig}
-          onChoose={(optionId, assistOptionId, choices, feedbacks) => {
+          onChoose={(optionId) => {
             if (!activeScenarioConfig.isScenario) {
               completeTodayScenario(optionId || null);
             }
           }}
-          onComplete={(result, choices, feedbacks) => {
+          onComplete={(result) => {
             completeTodayScenario(null, result);
           }}
           onClose={closeTodayScenario}

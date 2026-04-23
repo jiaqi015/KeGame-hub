@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Home, Target, Calendar, TrendingUp, Users, MessageSquare } from 'lucide-react';
 
+/**
+ * Parallel/reference seller shell only.
+ * Current runtime source of truth is src/selling-houses/* via src/workspaces/workspaceRegistry.tsx.
+ * Do not treat this file as the default target for bug fixes or feature work.
+ */
 export function SellingHousesWorkspace({
   activationKey,
   currentUserAccountId,

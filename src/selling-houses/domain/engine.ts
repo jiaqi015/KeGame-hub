@@ -17,6 +17,11 @@ import { applyRivalPressure, tickRivalListings } from './rivals/rivalListingEngi
 import { tickRivalStores } from './rivals/rivalStoreEngine.js';
 import { applyCustomerFeedbackToCases, applyRivalPullOnCustomers, progressCustomerDemand, touchCustomersForCase } from './engine/customerEngine.js';
 import {
+  advanceProductRunsForDay,
+  describeRunMilestone,
+  findMilestoneById,
+} from './productRuns.js';
+import {
   adjustCaseOpportunities,
   closeOpportunity,
   computeCustomerFit,
@@ -289,6 +294,41 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
 
   state.day += 1;
   state.currentDate = addDays(state.currentDate, 1);
+  const runTransitions = advanceProductRunsForDay(state);
+  runTransitions.forEach((transition) => {
+    const run = state.productRuns.find((entry) => entry.id === transition.runId);
+    if (!run) {
+      return;
+    }
+    const title = transition.completed
+      ? `${run.productType === 'open-day' ? '开放日' : '诚意卖'} run 完成`
+      : `${run.productType === 'open-day' ? '开放日' : '诚意卖'} run 进入下一节点`;
+    const detail = transition.completed
+      ? describeRunMilestone(run, null)
+      : describeRunMilestone(run, transition.toMilestone);
+    const milestone = transition.toMilestone ? findMilestoneById(run, transition.toMilestone) : null;
+    const event = recordDomainEvent(state, {
+      kind: 'journal',
+      actor: run.productType === 'open-day' ? '开放日产品链路' : '诚意卖产品链路',
+      title,
+      detail,
+      caseId: run.targetIds[0],
+      tone: transition.completed ? 'accent' : 'success',
+      payload: {
+        runId: run.id,
+        productType: run.productType,
+        fromMilestone: transition.fromMilestone,
+        toMilestone: transition.toMilestone,
+        completed: transition.completed,
+        sceneKind: milestone?.kind,
+      },
+    });
+    if (!run.linkedEventIds) {
+      run.linkedEventIds = [];
+    }
+    run.linkedEventIds.push(event.id);
+    logEvent(state, run.productType === 'open-day' ? '开放日' : '诚意卖', detail, transition.completed ? 'accent' : 'success');
+  });
   state.todayPlan = {
     day: state.day,
     playerItems: [],

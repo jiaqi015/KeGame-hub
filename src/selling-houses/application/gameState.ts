@@ -14,6 +14,8 @@ import {
   type CompetitionGroup,
   type CustomerProfile,
   type ClosedDealRecord,
+  type ProductRun,
+  type ProductRunMilestoneKind,
   type GameState,
   type GameRuleOverrides,
   type ScenarioSnapshot,
@@ -42,6 +44,7 @@ import {
 } from '../domain/runtimeStats.js';
 import { deriveDefaultGoalTier, seedCase, updateDerivedState as updateDomainDerivedState } from '../domain/runtimeState.js';
 import { initializeCustomerStates } from '../domain/engine/customerEngine.js';
+import { buildProductRunMilestones } from '../domain/productRuns.js';
 
 function isBrowser() {
   return typeof window !== 'undefined' && Boolean(window.localStorage);
@@ -347,6 +350,7 @@ export function createInitialState(snapshot: ScenarioSnapshot, seedInput: RunSee
       day: 1,
       playerItems: [],
     },
+    productRuns: [],
     closedDeals: [],
     metrics: {
       activeCaseCount: generatedCases.filter((entry) => entry.status === 'active').length,
@@ -616,6 +620,60 @@ function normalizeTodayPlan(input: unknown, currentDay: number): TodayPlanState 
   };
 }
 
+function normalizeProductRunMilestoneKind(value: unknown): ProductRunMilestoneKind {
+  if (value === 'light_scene') return 'light_scene';
+  if (value === 'heavy_scene') return 'heavy_scene';
+  return 'event';
+}
+
+function normalizeProductRun(entry: any, index: number, currentDay: number): ProductRun | null {
+  const productType = entry?.productType === 'open-day' || entry?.productType === 'sincere-sale'
+    ? entry.productType
+    : null;
+  if (!productType) {
+    return null;
+  }
+
+  const startDay = Math.max(1, Number(entry?.startDay) || currentDay);
+  const milestones = Array.isArray(entry?.milestones) && entry.milestones.length > 0
+    ? entry.milestones.map((milestone: any, milestoneIndex: number) => ({
+        id: String(milestone?.id || `milestone-${milestoneIndex + 1}`),
+        title: String(milestone?.title || '节点'),
+        summary: String(milestone?.summary || ''),
+        day: Math.max(startDay, Number(milestone?.day) || startDay),
+        kind: normalizeProductRunMilestoneKind(milestone?.kind),
+        settlementHint: String(milestone?.settlementHint || ''),
+      }))
+    : buildProductRunMilestones(productType, startDay);
+
+  const fallbackMilestone = milestones.find((milestone) => milestone.day >= currentDay) || milestones[milestones.length - 1];
+
+  return {
+    id: String(entry?.id || `product-run-${productType}-${startDay}-${index + 1}`),
+    productType,
+    scope: entry?.scope === 'community' ? 'community' : 'listing',
+    status: entry?.status === 'completed' || entry?.status === 'cancelled' ? entry.status : 'running',
+    startDay,
+    endDay: Number.isFinite(entry?.endDay) ? Number(entry.endDay) : undefined,
+    targetIds: Array.isArray(entry?.targetIds) ? entry.targetIds.map(String).filter(Boolean) : [],
+    nextMilestone: typeof entry?.nextMilestone === 'string' && entry.nextMilestone.trim()
+      ? entry.nextMilestone
+      : fallbackMilestone?.id || 'completed',
+    linkedEventIds: Array.isArray(entry?.linkedEventIds) ? entry.linkedEventIds.map(String).filter(Boolean) : [],
+    milestones,
+  };
+}
+
+function normalizeProductRuns(input: unknown, currentDay: number): ProductRun[] {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+
+  return input
+    .map((entry, index) => normalizeProductRun(entry, index, currentDay))
+    .filter((entry): entry is ProductRun => Boolean(entry));
+}
+
 function resolveParsedAuxiliaryStats(parsed: any) {
   return buildRuntimeAuxiliaryStats({
     cash: Number(parsed?.cash) || 0,
@@ -760,6 +818,7 @@ export function normalizeLoadedState(parsed: any): GameState | null {
         }))
       : [],
     todayPlan: normalizeTodayPlan(parsed?.todayPlan, currentDay),
+    productRuns: normalizeProductRuns(parsed?.productRuns, currentDay),
     budgetLedger: normalizeBudgetLedger(parsed?.budgetLedger, Number(parsed?.cash) || 0),
     currentReport: parsed?.currentReport || null,
     lastDailyTickResult: parsed?.lastDailyTickResult || null,

@@ -3,10 +3,18 @@ import type { Settlement } from '../domain/actions/templates.js';
 import type { TodayPlanDraft } from './todayPlan.js';
 import { advanceDays, executeAction, spendResources, resolveActionDefinition } from '../domain/engine.js';
 import { getActionAvailability, recordDomainEvent } from '../domain/engine.js';
+import { updateDerivedState } from '../domain/runtimeState.js';
+import {
+  createProductRun,
+  describeRunMilestone,
+  findMilestoneById,
+  hasActiveProductRunForTargets,
+} from '../domain/productRuns.js';
 import {
   buildTodayPlanItem,
   getTodayPlanActionDefinition,
   getTodayPlanRemainingEnergy,
+  getSlotRemainingCapacity,
   hasTodayPlanDuplicate,
   markTodayPlanItemCompletedMutable,
   resolveTodayPlanExecutionMode,
@@ -42,7 +50,7 @@ export function executeGameAction(
   actionId: string,
   caseId: string,
   optionId: string | null = null,
-  settlement: Settlement | null = null,
+  todayPlanItemId: string | null = null,
   onMessage?: (msg: string) => void,
 ) {
   let success = false;
@@ -51,14 +59,18 @@ export function executeGameAction(
     if (currentCase) {
       success = executeAction(next, actionId, currentCase, optionId, onMessage);
       if (success) {
-        const plannedItem = next.todayPlan.playerItems.find((entry) => (
-          entry.day === next.day
-          && entry.status === 'planned'
-          && entry.linkedActionId === actionId
-          && entry.linkedCaseId === caseId
-        ));
-        if (plannedItem) {
-          plannedItem.status = 'completed';
+        if (todayPlanItemId) {
+          markTodayPlanItemCompletedMutable(next, todayPlanItemId);
+        } else {
+          const plannedItem = next.todayPlan.playerItems.find((entry) => (
+            entry.day === next.day
+            && entry.status === 'planned'
+            && entry.linkedActionId === actionId
+            && entry.linkedCaseId === caseId
+          ));
+          if (plannedItem) {
+            plannedItem.status = 'completed';
+          }
         }
       }
     }
@@ -76,6 +88,7 @@ export function executeScenarioAction(
   actionId: string,
   caseId: string,
   settlement: Settlement,
+  todayPlanItemId: string | null = null,
   onMessage?: (msg: string) => void,
 ) {
   let success = false;
@@ -99,23 +112,7 @@ export function executeScenarioAction(
     spendResources(next, action);
 
     settlement.stateDeltas.forEach((delta) => {
-      if (delta.field === 'trust') {
-        currentCase.trust = Math.max(0, Math.min(100, currentCase.trust + delta.value));
-      } else if (delta.field === 'patience') {
-        currentCase.patience = Math.max(0, Math.min(100, currentCase.patience + delta.value));
-      } else if (delta.field === 'd1') {
-        currentCase.d1 = Math.max(0, Math.min(100, currentCase.d1 + delta.value));
-      } else if (delta.field === 'd2') {
-        currentCase.d2 = Math.max(0, Math.min(100, currentCase.d2 + delta.value));
-      } else if (delta.field === 'd3') {
-        currentCase.d3 = Math.max(0, Math.min(100, currentCase.d3 + delta.value));
-      } else if (delta.field === 'heat') {
-        currentCase.heat = Math.max(0, Math.min(100, currentCase.heat + delta.value));
-      } else if (delta.field === 'urgency') {
-        currentCase.urgency = Math.max(0, Math.min(100, currentCase.urgency + delta.value));
-      } else if (delta.field === 'askPrice') {
-        currentCase.askPrice += delta.value;
-      }
+      applyScenarioDelta(next, currentCase, delta, actionId);
     });
 
     recordDomainEvent(next, {
@@ -133,16 +130,49 @@ export function executeScenarioAction(
       },
     });
 
-    const plannedItem = next.todayPlan.playerItems.find((entry) => (
-      entry.day === next.day
-      && entry.status === 'planned'
-      && entry.linkedActionId === actionId
-      && entry.linkedCaseId === caseId
-    ));
-    if (plannedItem) {
-      plannedItem.status = 'completed';
+    if (action.id === 'open-day') {
+      const targetIds = next.cases
+        .filter((entry) => entry.status === 'active' && entry.community === currentCase.community)
+        .map((entry) => entry.id);
+      const normalizedTargets = targetIds.length > 0 ? targetIds : [currentCase.id];
+      if (!hasActiveProductRunForTargets(next, 'open-day', normalizedTargets)) {
+        const run = createProductRun(next, 'open-day', normalizedTargets);
+        next.productRuns.unshift(run);
+        const milestone = findMilestoneById(run, run.nextMilestone);
+        const runEvent = recordDomainEvent(next, {
+          kind: 'journal',
+          actor: '开放日产品链路',
+          title: '启动开放日跨天 run',
+          detail: describeRunMilestone(run, milestone?.id || run.nextMilestone),
+          caseId: currentCase.id,
+          tone: 'success',
+          payload: {
+            runId: run.id,
+            productType: run.productType,
+            scope: run.scope,
+            targetIds: run.targetIds,
+            nextMilestone: run.nextMilestone,
+          },
+        });
+        run.linkedEventIds = [...(run.linkedEventIds || []), runEvent.id];
+      }
     }
 
+    if (todayPlanItemId) {
+      markTodayPlanItemCompletedMutable(next, todayPlanItemId);
+    } else {
+      const plannedItem = next.todayPlan.playerItems.find((entry) => (
+        entry.day === next.day
+        && entry.status === 'planned'
+        && entry.linkedActionId === actionId
+        && entry.linkedCaseId === caseId
+      ));
+      if (plannedItem) {
+        plannedItem.status = 'completed';
+      }
+    }
+
+    updateDerivedState(next);
     success = true;
     syncTodayPlanForCurrentDayMutable(next);
   });
@@ -195,6 +225,13 @@ export function addTodayPlanItem(
     const availability = getActionAvailability(next, caseItem, action.id);
     if (!availability.enabled) {
       reason = availability.reason;
+      onMessage?.(reason);
+      return;
+    }
+
+    const targetSlot = draft.slot === 'pm' ? 'pm' : 'am';
+    if (getSlotRemainingCapacity(next, targetSlot) < action.costEnergy) {
+      reason = `${targetSlot === 'am' ? '上午' : '下午'}时段容量不足，先完成已排事项或改到另一个时段。`;
       onMessage?.(reason);
       return;
     }
@@ -298,7 +335,7 @@ export function executeTodayPlanItem(
     };
   }
 
-  const result = executeGameAction(state, action.id, item.linkedCaseId, optionId, null, onMessage);
+  const result = executeGameAction(state, action.id, item.linkedCaseId, optionId, itemId, onMessage);
   if (!result.success) {
     return {
       nextState: state,
@@ -309,16 +346,87 @@ export function executeTodayPlanItem(
     };
   }
 
-  const completedState = transitionGameState(result.nextState, (next) => {
-    markTodayPlanItemCompletedMutable(next, itemId);
-    syncTodayPlanForCurrentDayMutable(next);
-  });
-
   return {
-    nextState: completedState,
+    nextState: result.nextState,
     success: true,
     reason: '',
     outcome: 'executed' as const,
     executionMode,
   };
+}
+
+function clamp01to100(value: number) {
+  return Math.max(0, Math.min(100, value));
+}
+
+function applyScenarioDelta(
+  state: GameState,
+  currentCase: GameState['cases'][number],
+  delta: Settlement['stateDeltas'][number],
+  actionId: string,
+) {
+  if (delta.field === 'trust') {
+    currentCase.trust = clamp01to100(currentCase.trust + delta.value);
+    return;
+  }
+  if (delta.field === 'patience') {
+    currentCase.patience = clamp01to100(currentCase.patience + delta.value);
+    return;
+  }
+  if (delta.field === 'd1') {
+    currentCase.d1 = clamp01to100(currentCase.d1 + delta.value);
+    return;
+  }
+  if (delta.field === 'd2') {
+    currentCase.d2 = clamp01to100(currentCase.d2 + delta.value);
+    return;
+  }
+  if (delta.field === 'd3') {
+    currentCase.d3 = clamp01to100(currentCase.d3 + delta.value);
+    return;
+  }
+  if (delta.field === 'heat') {
+    currentCase.heat = clamp01to100(currentCase.heat + delta.value);
+    return;
+  }
+  if (delta.field === 'urgency') {
+    currentCase.urgency = clamp01to100(currentCase.urgency + delta.value);
+    return;
+  }
+  if (delta.field === 'askPrice') {
+    currentCase.askPrice += delta.value;
+    return;
+  }
+  if (delta.field === 'intent' || delta.field === 'confidence') {
+    const targetOpportunity = state.opportunities
+      .filter((entry) => entry.caseId === currentCase.id && entry.status === 'active')
+      .sort((left, right) => (right.stageIndex + right.intent / 100) - (left.stageIndex + left.intent / 100))[0];
+    if (!targetOpportunity) {
+      recordDomainEvent(state, {
+        kind: 'journal',
+        actor: '场景动作',
+        title: '结算字段未写回',
+        detail: `${actionId} 结算包含 ${delta.field}，但当前没有可写回的活跃客户线。`,
+        caseId: currentCase.id,
+        tone: 'danger',
+        payload: { field: delta.field, value: delta.value },
+      });
+      return;
+    }
+    if (delta.field === 'intent') {
+      targetOpportunity.intent = clamp01to100(targetOpportunity.intent + delta.value);
+    } else {
+      targetOpportunity.confidence = clamp01to100(targetOpportunity.confidence + delta.value);
+    }
+    return;
+  }
+  recordDomainEvent(state, {
+    kind: 'journal',
+    actor: '场景动作',
+    title: '结算字段未支持',
+    detail: `${actionId} 结算字段 ${delta.field} 暂未支持写回，已忽略。`,
+    caseId: currentCase.id,
+    tone: 'danger',
+    payload: { field: delta.field, value: delta.value },
+  });
 }

@@ -773,7 +773,7 @@ function PinnedCasePanel({
       <section className="seller-panel px-4 py-4">
         <div className="seller-label flex items-center gap-2">
           <Target size={13} />
-          当前主房源
+          主房源
         </div>
         <div className="seller-empty mt-3 px-4 py-6 text-[12px]">
           当前没有需要单独抬出来看的房源。
@@ -789,7 +789,7 @@ function PinnedCasePanel({
           <div>
             <div className="seller-label flex items-center gap-2">
               <Target size={13} />
-              当前主房源
+              主房源
             </div>
             <h2 className="mt-2 text-[16px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">
               {caseItem.title}
@@ -809,7 +809,7 @@ function PinnedCasePanel({
             {projection.listingLifecyclePhase.coreProblemLabel}
           </div>
           <div className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">
-            {`下一步：${projection.listingLifecyclePhase.primaryActionLabel}。${projection.listingLifecyclePhase.phaseRiskHint}`}
+            {`当前动作：${projection.listingLifecyclePhase.primaryActionLabel}。${projection.listingLifecyclePhase.phaseRiskHint}`}
           </div>
 
           {impactedItem && (
@@ -970,17 +970,17 @@ function TriageSummaryPanel({
         <div className="flex items-center justify-between gap-3">
           <div className="seller-label flex items-center gap-2">
             <Target size={13} />
-            快速导航
+            去向
           </div>
-          <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">只做快速导航，不重复页面内容</span>
+          <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">{cards.length} 个入口</span>
         </div>
       </div>
 
       <div className="grid divide-y divide-[var(--seller-border)]">
         <section className="px-4 py-4">
           <div className="mb-3 flex items-center justify-between gap-3">
-            <div className="text-[11px] font-semibold text-[var(--seller-ink)]">页面边界</div>
-            <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">{cards.length} 个入口</span>
+            <div className="text-[11px] font-semibold text-[var(--seller-ink)]">入口</div>
+            <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">{cards.length}</span>
           </div>
           <div className="space-y-3">
             {cards.map((card) => (
@@ -1137,7 +1137,7 @@ function SelectedDayPanel({
         <div className="border-b border-[var(--seller-border)] px-4 py-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <div className="seller-label text-[var(--seller-accent)]">后面几天</div>
+              <div className="seller-label text-[var(--seller-accent)]">后续</div>
               <h3 className="mt-2 text-[15px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">
                 DAY {entry.day} · {entry.title}
               </h3>
@@ -1365,7 +1365,7 @@ function buildFutureSlotCards(entry: CalendarRailEntry) {
   return [
     {
       slot: 'am' as const,
-      badge: '先看已有安排',
+      badge: '已排',
       title: entry.title,
       detail: entry.meta,
       pills: pills.slice(0, 2),

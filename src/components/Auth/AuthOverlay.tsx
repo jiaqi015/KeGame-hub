@@ -4,6 +4,21 @@ import { KeyRound, Loader2, Mail, ShieldCheck } from 'lucide-react';
 import { AuthMode, AuthStatus } from '../../app/appReducer';
 import { KeGameHubMark } from '../Brand/KeGameHubMark';
 
+const PARTICLES = Array.from({ length: 45 }).map((_, i) => {
+  const xOffset1 = Math.random() * 120 - 60;
+  const xOffset2 = Math.random() * 120 - 60;
+  return {
+    id: i,
+    size: Math.random() * 3 + 1,
+    left: `${Math.random() * 100}%`,
+    top: `${Math.random() * 100}%`,
+    duration: Math.random() * 15 + 15,
+    delay: Math.random() * -20, // Negative delay to start immediately at different points
+    xOffset1,
+    xOffset2,
+  };
+});
+
 interface AuthOverlayProps {
   loginEmail: string;
   verificationCode: string;
@@ -43,6 +58,8 @@ export function AuthOverlay({
   const formRef = useRef<HTMLFormElement>(null);
   const mouseX = useMotionValue(0.5);
   const mouseY = useMotionValue(0.5);
+  const rawX = useMotionValue(-1000);
+  const rawY = useMotionValue(-1000);
 
   // 以容器短边为基准的像素幅值，大位移才跟手；内层 1:1 不Spring，中/外略滞后
   const ampMain = 280;
@@ -57,6 +74,12 @@ export function AuthOverlay({
   const outerX = useSpring(mouseX, { mass: 0.35, stiffness: 120, damping: 28, restDelta: 0.001 });
   const outerY = useSpring(mouseY, { mass: 0.35, stiffness: 120, damping: 28, restDelta: 0.001 });
 
+  // 精确跟手的多层次华丽光晕
+  const exactX = useSpring(rawX, { mass: 0.1, stiffness: 800, damping: 35 });
+  const exactY = useSpring(rawY, { mass: 0.1, stiffness: 800, damping: 35 });
+  const slowX = useSpring(rawX, { mass: 0.6, stiffness: 100, damping: 25 });
+  const slowY = useSpring(rawY, { mass: 0.6, stiffness: 100, damping: 25 });
+
   const midMoveX = useTransform(midX, (x) => (x - 0.5) * 2 * ampMid);
   const midMoveY = useTransform(midY, (y) => (y - 0.5) * 2 * ampMid);
   const outerMoveX = useTransform(outerX, (x) => (x - 0.5) * 2 * ampOuter);
@@ -69,6 +92,8 @@ export function AuthOverlay({
     if (width < 1 || height < 1) return;
     mouseX.set((e.clientX - left) / width);
     mouseY.set((e.clientY - top) / height);
+    rawX.set(e.clientX - left);
+    rawY.set(e.clientY - top);
   };
 
   const [ripples, setRipples] = useState<{ id: number; x: number; y: number }[]>([]);
@@ -97,8 +122,10 @@ export function AuthOverlay({
       // 点击处同步一帧「闪一下」跟手光，和外围涟漪呼应
       mouseX.set(x / width);
       mouseY.set(y / height);
+      rawX.set(x);
+      rawY.set(y);
     },
-    [mouseX, mouseY],
+    [mouseX, mouseY, rawX, rawY],
   );
 
   const handlePointerDownCapture: React.PointerEventHandler<HTMLDivElement> = (e) => {
@@ -134,29 +161,43 @@ export function AuthOverlay({
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
           <motion.div
             style={{ x: midMoveX, y: midMoveY, willChange: 'transform' }}
-            className="h-[min(88vw,38rem)] w-[min(88vw,38rem)] rounded-full bg-white/5 blur-[120px]"
+            className="h-[min(88vw,38rem)] w-[min(88vw,38rem)] rounded-full bg-white/10 blur-[120px]"
           />
         </div>
 
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
           <motion.div
             style={{ x: followX, y: followY, willChange: 'transform' }}
-            className="h-[min(75vw,28rem)] w-[min(75vw,28rem)] rounded-full bg-white/[0.08] blur-[84px]"
+            className="h-[min(75vw,28rem)] w-[min(75vw,28rem)] rounded-full bg-white/[0.12] blur-[80px]"
           />
         </div>
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
           <motion.div
             style={{ x: followX, y: followY, willChange: 'transform' }}
-            className="h-40 w-40 max-h-[30vmin] max-w-[30vmin] rounded-full bg-white/20 blur-[50px] mix-blend-screen"
+            className="h-40 w-40 max-h-[30vmin] max-w-[30vmin] rounded-full bg-white/30 blur-[50px] mix-blend-screen"
           />
         </div>
 
-        <svg className="absolute inset-0 h-full w-full opacity-[0.06]" xmlns="http://www.w3.org/2000/svg">
+        {/* 新增：高亮且细腻的鼠标直随光晕 */}
+        <motion.div
+          className="absolute left-0 top-0 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.06)_0%,rgba(255,255,255,0)_60%)] mix-blend-screen blur-[40px]"
+          style={{ x: slowX, y: slowY, willChange: 'transform' }}
+        />
+        <motion.div
+          className="absolute left-0 top-0 h-[300px] w-[300px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.15)_0%,rgba(255,255,255,0)_50%)] mix-blend-screen blur-[20px]"
+          style={{ x: exactX, y: exactY, willChange: 'transform' }}
+        />
+        <motion.div
+          className="absolute left-0 top-0 h-[120px] w-[120px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.4)_0%,rgba(255,255,255,0)_40%)] mix-blend-screen blur-[8px]"
+          style={{ x: exactX, y: exactY, willChange: 'transform' }}
+        />
+
+        <svg className="absolute inset-0 h-full w-full opacity-[0.08]" xmlns="http://www.w3.org/2000/svg">
           <motion.path
             d="M-100 400 Q 300 200 700 400 T 1500 400"
             fill="none"
             stroke="white"
-            strokeWidth="0.4"
+            strokeWidth="0.5"
             animate={{
               d: [
                 "M-100 400 Q 300 200 700 400 T 1500 400",
@@ -166,7 +207,63 @@ export function AuthOverlay({
             }}
             transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
           />
+          <motion.path
+            d="M-100 500 Q 400 300 900 500 T 1800 500"
+            fill="none"
+            stroke="white"
+            strokeWidth="0.3"
+            animate={{
+              d: [
+                "M-100 500 Q 400 300 900 500 T 1800 500",
+                "M-100 400 Q 450 350 950 400 T 1800 400",
+                "M-100 500 Q 400 300 900 500 T 1800 500"
+              ]
+            }}
+            transition={{ duration: 20, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+          />
+          <motion.path
+            d="M-200 200 Q 200 400 600 200 T 1400 200"
+            fill="none"
+            stroke="white"
+            strokeWidth="0.2"
+            animate={{
+              d: [
+                "M-200 200 Q 200 400 600 200 T 1400 200",
+                "M-200 250 Q 250 450 650 250 T 1400 250",
+                "M-200 200 Q 200 400 600 200 T 1400 200"
+              ]
+            }}
+            transition={{ duration: 12, repeat: Infinity, ease: "easeInOut", delay: 5 }}
+          />
         </svg>
+
+        {/* 漂浮的星尘粒子 */}
+        <div className="absolute inset-0 overflow-hidden mix-blend-screen pointer-events-none opacity-80">
+          {PARTICLES.map((p) => (
+            <motion.div
+              key={p.id}
+              className="absolute rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.8)]"
+              style={{
+                width: p.size,
+                height: p.size,
+                left: p.left,
+                top: p.top,
+              }}
+              animate={{
+                y: [0, -150, -300],
+                x: [0, p.xOffset1, p.xOffset2],
+                opacity: [0, 1, 0],
+                scale: [0, 1.2, 0],
+              }}
+              transition={{
+                duration: p.duration,
+                repeat: Infinity,
+                delay: p.delay,
+                ease: 'linear',
+              }}
+            />
+          ))}
+        </div>
 
         <div className="absolute inset-0 opacity-[0.04] mix-blend-overlay" 
              style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }} 

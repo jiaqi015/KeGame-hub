@@ -11,7 +11,7 @@ import { isScenarioAction } from '../../domain/actions/templates.js';
 import { getActionAvailability } from '../../domain/engine.js';
 import { getActiveOpportunities } from '../../domain/engine/opportunityEngine.js';
 import { getDayOfWeek, getRoutine } from '../../domain/utils.js';
-import { getSlotRemainingCapacity } from '../todayPlan.js';
+import { getSlotRemainingCapacity, getTodayPlanRemainingEnergy } from '../todayPlan.js';
 import { buildFollowUpPriorityProjection } from '../../ui/features/followUpPriority.js';
 import {
   buildMarketBoardDetail,
@@ -357,10 +357,10 @@ export function buildDashboardProjection(
 
   return {
     todayHeadline: topPriorityCase
-      ? `今天先盯 ${state.cases.find((caseItem) => caseItem.id === topPriorityCase.caseId)?.title || '重点房源'}`
+      ? `今日重点：${state.cases.find((caseItem) => caseItem.id === topPriorityCase.caseId)?.title || '重点房源'}`
       : activeCaseCount > 0
-        ? `今天有 ${activeCaseCount} 套房在场，先按优先级处理。`
-        : '这一局当前没有在场房源。',
+        ? `${activeCaseCount} 套在场，按优先级处理。`
+        : '暂无在场房源。',
     todayPriority,
     yesterdayIntel,
     weekCalendar: buildWeekCalendar(state),
@@ -402,9 +402,8 @@ function buildArrangementProjection(
     : { day: state.day, playerItems: [] };
   const plannedItems = buildPlannedArrangementItems(state, caseDetails, todayPlan.playerItems);
   const completedItems = buildCompletedArrangementItems(state, caseDetails, todayPlan.playerItems);
-  const reservedEnergy = plannedItems.reduce((sum, item) => sum + item.energyCost, 0);
-  const remainingEnergy = Math.max(0, state.energy - reservedEnergy);
-  const candidateItems = buildCandidateArrangementItems(state, caseDetails, todayPriority, todayPlan.playerItems, remainingEnergy);
+  const remainingEnergy = getTodayPlanRemainingEnergy(state);
+  const candidateItems = buildCandidateArrangementItems(state, caseDetails, todayPriority, todayPlan.playerItems);
   const weekFocus = buildWeekCalendar(state)
     .slice(0, 7)
     .sort((left, right) => right.energy - left.energy)[0];
@@ -412,19 +411,19 @@ function buildArrangementProjection(
 
   return {
     headline: plannedItems[0]
-      ? `今天先处理 ${plannedItems[0].title}`
+      ? `今日重点：${plannedItems[0].title}`
       : fixedItems[0]
-        ? `今天先处理 ${fixedItems[0].title}`
+        ? `今日重点：${fixedItems[0].title}`
         : candidateItems[0]
-        ? `今天先排 ${candidateItems[0].title}`
-        : '今天先处理最影响顺序的一件事',
+        ? `今日重点：${candidateItems[0].title}`
+        : '今日重点：选一件推进',
     summary: plannedItems.length > 0
-      ? `你已经给今天排了 ${plannedItems.length} 件事，把它们一件件做完。`
+      ? `已排 ${plannedItems.length} 件。`
       : fixedItems.length > 0
-        ? `今天有 ${fixedItems.length} 件固定安排，把硬事项顶住，再决定要不要加单。`
+        ? `固定安排 ${fixedItems.length} 件。`
       : candidateItems.length > 0
-        ? '今天先排能真正推进结果的一件事。'
-        : '今天先从房源页挑一套最紧的盘开始。',
+        ? '候选可排。'
+        : '从房源页选一件。',
     remainingEnergy,
     remainingEnergyLabel: `剩余 ${remainingEnergy}/${state.maxEnergy} 精力`,
     fixedItems,
@@ -477,13 +476,16 @@ function buildArrangementSlotProjection(
 }
 
 function buildFixedArrangementItems(state: GameState): ArrangementItemProjection[] {
-  const scheduleItems = state.schedule.slice(0, 2).map<ArrangementItemProjection>((entry) => ({
-    id: `fixed-schedule-${entry.key}`,
-    source: 'fixed',
-    slot: scheduleEntrySlot(entry.title),
-    label: '固定安排',
-    title: presentScheduleTitle(entry.title),
-    detail: presentScheduleDetail(entry.note),
+  const scheduleItems = state.schedule.slice(0, 2).map<ArrangementItemProjection>((entry) => {
+    const linkedCase = entry.caseId ? state.cases.find((item) => item.id === entry.caseId) || null : null;
+    const scheduleTitle = presentScheduleTitle(entry.title);
+    return {
+      id: `fixed-schedule-${entry.key}`,
+      source: 'fixed',
+      slot: scheduleEntrySlot(entry.title),
+      label: '固定安排',
+      title: linkedCase ? `${linkedCase.title} · ${scheduleTitle}` : scheduleTitle,
+      detail: presentScheduleDetail(entry.note),
       tone: entry.urgency >= 82 ? 'risk' : 'neutral',
       caseId: entry.caseId,
       energyCost: entry.urgency >= 92 ? 2 : 1,
@@ -492,17 +494,20 @@ function buildFixedArrangementItems(state: GameState): ArrangementItemProjection
       executionMode: 'navigate',
       ctaLabel: '打开房源',
       secondaryLabel: '看客户线',
-  }));
+    };
+  });
 
   const negotiationItems = state.matters
     .filter((entry) => entry.stage === 'pending' && entry.kind === 'opportunity')
     .slice(0, 1)
-    .map<ArrangementItemProjection>((entry) => ({
+    .map<ArrangementItemProjection>((entry) => {
+      const linkedCase = state.cases.find((item) => item.id === entry.caseId) || null;
+      return {
       id: `fixed-matter-${entry.id}`,
       source: 'fixed',
       slot: 'pm',
       label: '固定安排',
-      title: entry.title,
+      title: linkedCase ? `${linkedCase.title} · ${entry.title}` : entry.title,
       detail: entry.detail,
       tone: 'chance',
       caseId: entry.caseId,
@@ -514,7 +519,8 @@ function buildFixedArrangementItems(state: GameState): ArrangementItemProjection
       executionMode: 'direct',
       ctaLabel: '直接推进',
       secondaryLabel: '打开房源',
-    }));
+    };
+    });
 
   return [...scheduleItems, ...negotiationItems].slice(0, 3);
 }
@@ -524,7 +530,6 @@ function buildCandidateArrangementItems(
   caseDetails: CaseDetailProjection[],
   todayPriority: ProjectionBrief[],
   playerItems: GameState['todayPlan']['playerItems'],
-  remainingEnergy: number,
 ): ArrangementItemProjection[] {
   const seenCaseIds = new Set<string>();
   const reservedKeys = new Set(
@@ -534,6 +539,7 @@ function buildCandidateArrangementItems(
   );
   const candidates: ArrangementItemProjection[] = [];
   const reservedSlots = { am: 0, pm: 0 };
+  let simulatedRemainingEnergy = getTodayPlanRemainingEnergy(state);
 
   for (const item of todayPriority) {
     if (!item.caseId || seenCaseIds.has(item.caseId)) {
@@ -552,38 +558,50 @@ function buildCandidateArrangementItems(
     const linkedMatter = state.matters.find((entry) => entry.caseId === item.caseId && entry.stage === 'pending') || null;
     const candidateKey = buildTodayPlanKey(action?.id, item.caseId, linkedMatter?.id);
     const isAlreadyPlanned = reservedKeys.has(candidateKey);
-    const isEnergyBlocked = Boolean(action && action.costEnergy > remainingEnergy);
+    const isEnergyBlocked = Boolean(action && action.costEnergy > simulatedRemainingEnergy);
     const actionCost = action?.costEnergy ?? 1;
 
     if (isAlreadyPlanned) {
       continue;
     }
 
-    const slot = suggestedCandidateSlot(state, actionCost, reservedSlots);
-    reservedSlots[slot] += actionCost;
+    const slotSelection = suggestedCandidateSlot(state, actionCost, reservedSlots);
+    const isSlotBlocked = Boolean(action && !slotSelection.canFit);
+    const slot = slotSelection.slot;
+    if (action && !isEnergyBlocked && !isSlotBlocked) {
+      reservedSlots[slot] += actionCost;
+      simulatedRemainingEnergy = Math.max(0, simulatedRemainingEnergy - actionCost);
+    }
+    const disabledReason = isEnergyBlocked
+      ? '精力不足，先完成已排。'
+      : isSlotBlocked
+        ? `${slot === 'am' ? '上午' : '下午'}时段容量不足。`
+        : undefined;
 
     candidates.push({
       id: `candidate-${item.id}`,
       source: 'candidate',
       slot,
       label: item.label,
-      title: action ? action.name : item.title,
-      detail: action ? `下一步：${action.name}` : item.detail,
+      title: action ? `${caseItem.title} · ${action.name}` : `${caseItem.title} · ${item.title}`,
+      detail: action ? `${caseItem.community} · ${action.name}` : item.detail,
       tone: item.tone,
       caseId: item.caseId,
       matterId: linkedMatter?.id,
       energyCost: actionCost,
       statusLabel: action
         ? isEnergyBlocked
-          ? '精力不够，先完成已排事项'
-          : '可加入今天'
-        : '先去房源判断',
+          ? '精力不足'
+          : isSlotBlocked
+            ? '时段容量不足'
+          : '可加入'
+        : '待判断',
       actionId: action?.id,
       executionMode: isScenarioAction(action?.id || '') ? 'scenario' : action ? 'direct' : 'navigate',
       ctaLabel: action ? '加入今天' : '打开房源',
       secondaryLabel: action ? '看房源' : '看客户线',
-      isDisabled: isEnergyBlocked,
-      disabledReason: isEnergyBlocked ? '当前剩余精力不足，先完成已安排事项。' : undefined,
+      isDisabled: isEnergyBlocked || isSlotBlocked,
+      disabledReason,
     });
   }
 
@@ -632,14 +650,17 @@ function buildTodayPlanArrangementItem(
     ? getActionAvailability(state, caseItem, action.id)
     : null;
 
+  const objectTitle = caseItem
+    ? `${caseItem.title} · ${action?.name || matter?.title || caseProjection?.headline || '今日事项'}`
+    : action?.name || matter?.title || caseProjection?.headline || '今日事项';
   return {
     id: `${source}-${entry.id}`,
     todayPlanItemId: entry.id,
     source,
     slot: entry.slot,
     label: source === 'planned' ? '我今天安排的' : '已完成',
-    title: action?.name || matter?.title || caseProjection?.headline || '今日事项',
-    detail: matter?.detail || caseProjection?.nextStepLine || action?.description || '今天安排的一件事。',
+    title: objectTitle,
+    detail: matter?.detail || `${caseItem?.community || '该房源'} · ${caseProjection?.nextStepLine || action?.description || '今天安排的一件事。'}`,
     tone: source === 'completed'
       ? 'chance'
       : caseProjection?.mainProblem === 'owner' || caseProjection?.mainProblem === 'competition'
@@ -690,20 +711,20 @@ function suggestedCandidateSlot(
   state: GameState,
   actionCost: number,
   reservedSlots: { am: number; pm: number },
-): TodayArrangementSlot {
+): { slot: TodayArrangementSlot; canFit: boolean } {
   const amRemaining = getSlotRemainingCapacity(state, 'am') - reservedSlots.am;
   const pmRemaining = getSlotRemainingCapacity(state, 'pm') - reservedSlots.pm;
 
   if (amRemaining >= actionCost && pmRemaining >= actionCost) {
-    return amRemaining >= pmRemaining ? 'am' : 'pm';
+    return { slot: amRemaining >= pmRemaining ? 'am' : 'pm', canFit: true };
   }
   if (amRemaining >= actionCost) {
-    return 'am';
+    return { slot: 'am', canFit: true };
   }
   if (pmRemaining >= actionCost) {
-    return 'pm';
+    return { slot: 'pm', canFit: true };
   }
-  return amRemaining > pmRemaining ? 'am' : 'pm';
+  return { slot: amRemaining >= pmRemaining ? 'am' : 'pm', canFit: false };
 }
 
 function buildTodayPlanKey(actionId?: string, caseId?: string, matterId?: string) {
@@ -788,7 +809,7 @@ function buildListingLifecyclePhaseProjection(
     phaseCode = 'showing';
   }
 
-  const phaseAgeDays = resolvePhaseAgeDays(caseItem, phaseCode, viewedCount);
+  const phaseAgeDays = resolvePhaseAgeDays(state.day, caseItem, phaseCode, viewedCount);
   const phaseDelayLevel = resolvePhaseDelayLevel(phaseCode, phaseAgeDays, caseItem, metCount, closingCount);
   const primaryActionId = resolvePrimaryActionId(state, caseItem, phaseCode);
 
@@ -814,23 +835,26 @@ function resolvePrimaryActionId(
 }
 
 function resolvePhaseAgeDays(
+  currentDay: number,
   caseItem: Case,
   phaseCode: Exclude<ListingLifecyclePhaseCode, 'sold' | 'written_off' | 'sold_elsewhere'>,
   viewedCount: number,
 ) {
+  const daysSinceOwnerTouched = elapsedDays(currentDay, caseItem.lastOwnerTouchedDay);
+  const daysSinceTouched = elapsedDays(currentDay, caseItem.lastTouchedDay);
   if (phaseCode === 'pre_visit') {
-    return Math.max(1, caseItem.lastOwnerTouchedDay || 1);
+    return daysSinceOwnerTouched;
   }
   if (phaseCode === 'packaging') {
-    return Math.max(1, caseItem.lastOwnerTouchedDay || 1);
+    return daysSinceOwnerTouched;
   }
   if (phaseCode === 'showing') {
-    return Math.max(1, viewedCount > 0 ? caseItem.lastTouchedDay || 1 : caseItem.lastOwnerTouchedDay || 1);
+    return viewedCount > 0 ? daysSinceTouched : daysSinceOwnerTouched;
   }
   if (phaseCode === 'feedback_offer') {
-    return Math.max(1, caseItem.lastTouchedDay || 1);
+    return daysSinceTouched;
   }
-  return Math.max(1, caseItem.lastTouchedDay || 1);
+  return daysSinceTouched;
 }
 
 function resolvePhaseDelayLevel(
@@ -971,8 +995,8 @@ export function buildCaseDetailProjection(state: GameState, caseItem: Case): Cas
     ),
   );
   const listingLifecyclePhase = buildListingLifecyclePhaseProjection(state, caseItem, opportunities, customerLinks, competitionPressure);
-  const mainProblem = deriveMainProblem(caseItem, opportunities, customerLinks, competitionPressure);
-  const factChain = buildCaseFactChain(caseItem, opportunities, customerLinks, competitionPressure, mainProblem);
+  const mainProblem = deriveMainProblem(state.day, caseItem, opportunities, customerLinks, competitionPressure);
+  const factChain = buildCaseFactChain(state.day, caseItem, opportunities, customerLinks, competitionPressure, mainProblem);
   const recentChanges = buildCaseRecentChanges(state, caseItem, opportunities);
   const primaryRiskTag = buildRiskTags(caseItem, opportunities, competitionPressure, atRiskCount)[0] || listingLifecyclePhase.phaseRiskHint;
   const primaryAction = listingLifecyclePhase.primaryActionId
@@ -989,17 +1013,17 @@ export function buildCaseDetailProjection(state: GameState, caseItem: Case): Cas
     actionReasons: primaryAction ? [{
       id: `${caseItem.id}-primary-action`,
       label: listingLifecyclePhase.phaseLabel,
-      title: `下一步：${listingLifecyclePhase.primaryActionLabel}`,
+      title: `当前动作：${listingLifecyclePhase.primaryActionLabel}`,
       detail: listingLifecyclePhase.phaseRiskHint,
       tone: listingLifecyclePhase.phaseDelayLevel === 'late' ? 'risk' : 'neutral',
       caseId: caseItem.id,
     }] : [],
     factChain,
-    nextStepLine: `下一步：${listingLifecyclePhase.primaryActionLabel}`,
+    nextStepLine: `当前动作：${listingLifecyclePhase.primaryActionLabel}`,
     recentChanges,
     ownerSummary: {
       title: deriveOwnerTitle(caseItem),
-      detail: deriveOwnerDetail(caseItem),
+      detail: deriveOwnerDetail(state.day, caseItem),
       trust: Math.round(caseItem.trust),
       patience: Math.round(caseItem.patience),
       urgency: Math.round(caseItem.urgency),
@@ -1066,6 +1090,7 @@ export function buildOpportunityListProjection(state: GameState): OpportunityLis
 }
 
 function buildCaseFactChain(
+  currentDay: number,
   caseItem: Case,
   opportunities: Opportunity[],
   customerLinks: CustomerRuntimeState[],
@@ -1079,17 +1104,18 @@ function buildCaseFactChain(
   const priceGap = caseItem.askPrice - caseItem.marketPrice;
   const facts: CaseFactChainProjection[] = [];
 
+  const daysSinceOwnerTouched = elapsedDays(currentDay, caseItem.lastOwnerTouchedDay);
   facts.push({
     id: `${caseItem.id}-owner`,
     lane: 'owner',
     title: '业主关系',
-    fact: caseItem.lastOwnerTouchedDay >= 4
-      ? `${caseItem.lastOwnerTouchedDay} 天没做业主反馈，信任和耐心都在下滑边缘。`
+    fact: daysSinceOwnerTouched >= 4
+      ? `${daysSinceOwnerTouched} 天没做业主反馈，信任和耐心都在下滑边缘。`
       : `当前信任 ${Math.round(caseItem.trust)}，耐心 ${Math.round(caseItem.patience)}，业主还在等明确反馈。`,
-    nextStep: caseItem.lastOwnerTouchedDay >= 4
+    nextStep: daysSinceOwnerTouched >= 4
         ? '补一次带事实的业主反馈。'
         : '保持固定频率反馈。',
-    tone: caseItem.lastOwnerTouchedDay >= 4 || caseItem.trust < 52 || caseItem.patience < 42 ? 'risk' : 'neutral',
+    tone: daysSinceOwnerTouched >= 4 || caseItem.trust < 52 || caseItem.patience < 42 ? 'risk' : 'neutral',
   });
 
   facts.push({
@@ -1128,7 +1154,7 @@ function buildCaseFactChain(
       ? '同类房在抢客户，再慢一步就容易失手。'
       : '外部压力还在，但这套房还有空间往前推。',
     nextStep: competitionPressure >= 68 || caseItem.windowDays <= 3
-      ? '今天先推进最影响结果的一步。'
+      ? '今天推进关键一步。'
       : '保持推进，别让这套房停住。',
     tone: competitionPressure >= 68 || caseItem.windowDays <= 3 ? 'risk' : 'neutral',
   });
@@ -1347,10 +1373,10 @@ function buildDashboardTriageCards(
         ? `${closingLead.caseTitle} 这条客户线更接近成交`
         : activeOpportunityCount > 0
           ? '客户池里还有活跃关系可推进'
-          : '当前客户线比较薄，需要先回看承接情况',
+          : '客户线偏薄',
       detail: closingLead?.reason || (activeOpportunityCount > 0
-        ? `当前有 ${activeOpportunityCount} 条活跃机会。`
-        : '当前客户线比较薄。'),
+        ? `${activeOpportunityCount} 条活跃机会。`
+        : '客户线偏薄。'),
       countLabel: `${activeOpportunityCount} 条活跃线`,
       tone: closingLead?.tone || (activeOpportunityCount > 0 ? 'chance' : 'neutral'),
       targetView: 'customers',
@@ -1438,7 +1464,7 @@ function buildTodayPriority(
       id: `case-priority-${entry.caseId}`,
       label: entry.listingLifecyclePhase.phaseLabel,
       title: `${state.cases.find((caseItem) => caseItem.id === entry.caseId)?.title || '房源'} · ${entry.listingLifecyclePhase.coreProblemLabel}`,
-      detail: `下一步：${entry.listingLifecyclePhase.primaryActionLabel}`,
+      detail: `当前动作：${entry.listingLifecyclePhase.primaryActionLabel}`,
       tone: entry.listingLifecyclePhase.phaseDelayLevel === 'late' ? 'risk' as const : 'neutral' as const,
       caseId: entry.caseId,
     }));
@@ -1531,12 +1557,13 @@ function buildRiskReminders(
 }
 
 function deriveMainProblem(
+  currentDay: number,
   caseItem: Case,
   opportunities: Opportunity[],
   customerLinks: CustomerRuntimeState[],
   competitionPressure: number,
 ): CaseMainProblem {
-  if (caseItem.trust < 52 || caseItem.patience < 42 || caseItem.lastOwnerTouchedDay >= 4) return 'owner';
+  if (caseItem.trust < 52 || caseItem.patience < 42 || elapsedDays(currentDay, caseItem.lastOwnerTouchedDay) >= 4) return 'owner';
   if (caseItem.askPrice > caseItem.marketPrice * 1.04) return 'price';
   if (competitionPressure >= 68 || caseItem.windowDays <= 3) return 'competition';
   if (opportunities.filter((opportunity) => opportunity.visibility !== 'shadow').length === 0 && customerLinks.length < 2) return 'customer-pool';
@@ -1684,8 +1711,9 @@ function deriveOwnerTitle(caseItem: Case) {
   return '业主还能配合';
 }
 
-function deriveOwnerDetail(caseItem: Case) {
-  if (caseItem.lastOwnerTouchedDay >= 4) return `${caseItem.lastOwnerTouchedDay} 天没做业主反馈，今天要补事实。`;
+function deriveOwnerDetail(currentDay: number, caseItem: Case) {
+  const daysSinceOwnerTouched = elapsedDays(currentDay, caseItem.lastOwnerTouchedDay);
+  if (daysSinceOwnerTouched >= 4) return `${daysSinceOwnerTouched} 天没做业主反馈，今天要补事实。`;
   if (caseItem.trust < 52) return '反馈不能只说“在推”，要拿客户、带看、同类房和价格讲清楚。';
   if (caseItem.patience < 42) return '沟通要更直接，别绕太久。';
   return caseItem.ownerMood ? sanitizeFrontstageText(caseItem.ownerMood) : '当前业主状态相对稳定。';
@@ -1736,8 +1764,15 @@ function deriveCalendarDetail(dayOfWeek: number, theme: string) {
   if (dayOfWeek === 7) return '适合追开放日和周末带看反馈。';
   if (theme.includes('业主')) return '把客户、带看、同类房和价格整理成事实再沟通。';
   if (theme.includes('获客')) return '重点补客户池，不要只等自然进线。';
-  if (theme.includes('聚焦')) return '确定资源位，别让好房被同类盘分走。';
+  if (dayOfWeek === 4) return '确定资源位，别让好房被同类盘分走。';
   return '按当天资源处理最关键事项。';
+}
+
+function elapsedDays(currentDay: number, lastTouchedDay: number) {
+  if (!lastTouchedDay || lastTouchedDay <= 0) {
+    return Math.max(1, currentDay);
+  }
+  return Math.max(1, currentDay - lastTouchedDay);
 }
 
 function deriveMarketHeadline(state: GameState, rivalCount: number) {

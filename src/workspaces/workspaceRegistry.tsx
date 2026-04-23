@@ -7,6 +7,9 @@ import { getWorkspaceLabel, getWorkspaceSlug, resolveWorkspaceBySlug } from '../
 const OpenDayWorkspace = lazy(() =>
   import('../open-day/OpenDayWorkspace').then((module) => ({ default: module.OpenDayWorkspace })),
 );
+// Seller runtime source of truth:
+// The production workspace registry only loads from src/selling-houses/*.
+// Do not switch this to selling-houses-workspace/* without an explicit migration.
 const SellingHousesWorkspace = lazy(() =>
   import('../selling-houses/SellingHousesWorkspace').then((module) => ({ default: module.SellingHousesWorkspace })),
 );
@@ -100,8 +103,8 @@ function PlaceholderWorkspace({
               ))}
             </div>
             <div className="mt-5 border-t border-black/5 pt-4">
-              <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500/90">当前状态</div>
-              <p className="mt-1.5 text-sm font-medium text-slate-800">已放开入口，可先体验叙事与方向对齐</p>
+              <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500/90">状态</div>
+              <p className="mt-1.5 text-sm font-medium text-slate-800">已开放体验</p>
             </div>
           </div>
         </div>
@@ -125,7 +128,7 @@ function PlaceholderWorkspace({
 
         <div className="mt-10 grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
           <section className="rounded-[28px] border border-black/[0.05] bg-[#FCFCFD] p-6">
-            <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">预设讨论提示</div>
+            <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">讨论</div>
             <div className="mt-4 space-y-3">
               {prompts.map((prompt) => (
                 <div
@@ -139,7 +142,7 @@ function PlaceholderWorkspace({
           </section>
 
           <section className="rounded-[28px] border border-black/[0.05] bg-white p-6">
-            <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">下一步</div>
+            <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">待办</div>
             <div className="mt-4 space-y-3">
               {nextSteps.map((item, index) => (
                 <div key={item} className="flex gap-3 rounded-[20px] border border-black/[0.05] bg-slate-50/80 px-4 py-4">
@@ -254,14 +257,14 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
     iconContainerClassName: 'bg-[#0F4C81] text-white shadow-[0_18px_34px_rgba(15,76,129,0.18)]',
     pillClassName: 'bg-sky-50 text-sky-700',
     cardDescription: '从商圈资源、重点盘分配到协同节奏，打一局商圈经营的整体判断。',
-    highlights: ['资源分配和节奏管理会更立体', '从单盘视角上升到商圈视角', '后续会接入统一世界模型'],
-    ctaLabel: '进入占位页',
+    highlights: ['资源分配和节奏管理更立体', '从单盘视角上升到商圈视角', '聚焦商圈经营决策'],
+    ctaLabel: '进入',
     sortOrder: 40,
     render: () => (
       <PlaceholderWorkspace
         badge="商圈经营"
         title="从整片商圈做经营"
-        subtitle="为商圈经理准备：一屏看盘面、看资源、看组织节奏。当前为叙事与玩法对齐的占位，后续接入与「王牌资产顾问」同一世界模型的主循环。"
+        subtitle="面向商圈经理：一屏看盘面、看资源、看组织节奏。"
         heroImageSrc="/hub-district-manager-hero.svg"
         heroImageAlt="商圈网络与经营中枢示意图"
         heroTagline="经理最期待：一屏里看清谁该压、谁该保、谁该让"
@@ -274,7 +277,7 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
           ],
         }}
         futurePlays={{
-          sectionTitle: '未来玩法预测（会陆续落地）',
+          sectionTitle: '后续规划',
           items: [
             { title: '周目标与资源位主循环', body: '周初投资源、配置重点盘、设定协同动作；周末看「转化、丢盘、满意度」与下周方向是否该转向。' },
             { title: '组织与跨店协同一屏化', body: '抢客、让盘、并案、外区分流变成局内事件；你要在组织信用与单盘结果之间做选择。' },
@@ -306,14 +309,14 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
     iconContainerClassName: 'bg-[#B9385D] text-white shadow-[0_18px_34px_rgba(185,56,93,0.18)]',
     pillClassName: 'bg-rose-50 text-rose-700',
     cardDescription: '站在业主视角做取舍，在价格、时机、经纪人动作和持有成本之间找到最理性的决策。',
-    highlights: ['同一世界观下的业主视角玩法', '价格和时机判断会更直接', '后续会接入统一的房源与市场模型'],
-    ctaLabel: '进入占位页',
+    highlights: ['业主视角玩法', '价格和时机判断更直接', '聚焦卖房取舍'],
+    ctaLabel: '进入',
     sortOrder: 50,
     render: () => (
       <PlaceholderWorkspace
         badge="业主决策"
         title="在情绪里做最理性的主"
-        subtitle="把「要多少钱、什么时候动、信谁的话」从直觉变成一局的取舍。当前是占位，用来和团队、业主试点一起对齐产品叙事，后续与王牌资产顾问同一市场假设。"
+        subtitle="把「要多少钱、什么时候动、信谁的话」变成一局的取舍。"
         heroImageSrc="/hub-rational-owner-hero.svg"
         heroImageAlt="家、确定感与决策象征示意图"
         heroTagline="业主最期待：少被节奏带着跑，多看清自己真正要什么"
@@ -326,7 +329,7 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
           ],
         }}
         futurePlays={{
-          sectionTitle: '未来玩法预测（会陆续落地）',
+          sectionTitle: '后续规划',
           items: [
             { title: '双视角同世界', body: '你改心理底价或时间约束，会体现在顾问那端的可行动作与风险提示里；复盘可以从业主视角再跳回单盘。' },
             { title: '「后悔值」而不仅是成交价', body: '除了卖高卖低，还会看事后复盘：你愿不愿意再次做同样的选择——训练长期理性而不是单日情绪。' },

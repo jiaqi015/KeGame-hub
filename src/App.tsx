@@ -551,7 +551,7 @@ function WorkspaceShellSkeleton() {
   return (
     <LoadingScene
       title="正在进入工作台"
-      subtitle="先载入工作区骨架，业务进度进入页面后再按本地优先恢复。"
+      subtitle="正在进入工作台。"
     />
   );
 }

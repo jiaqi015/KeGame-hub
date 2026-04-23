@@ -2,6 +2,9 @@ import React, { lazy } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { Building2, Layers, Sparkles, Target, UserRound } from 'lucide-react';
 
+// NOTE: This registry belongs to hub-shell parallel surface, not the main app runtime.
+// Main runtime source of truth is src/workspaces/workspaceRegistry.tsx.
+
 const OpenDayWorkspace = lazy(() =>
   import('../../core-workspaces/open-day/ui/OpenDayWorkspace')
     .then(module => ({ default: module.OpenDayWorkspace })),
@@ -108,7 +111,7 @@ function PlaceholderWorkspace({
               ))}
             </div>
             <div className="mt-5 border-t border-black/5 pt-4">
-              <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500/90">当前状态</div>
+              <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500/90">状态</div>
               <p className="mt-1.5 text-sm font-medium text-slate-800">已放开入口，可先体验叙事与方向对齐</p>
             </div>
           </div>
@@ -133,7 +136,7 @@ function PlaceholderWorkspace({
 
         <div className="mt-10 grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
           <section className="rounded-[28px] border border-black/[0.05] bg-[#FCFCFD] p-6">
-            <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">预设讨论提示</div>
+            <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">讨论</div>
             <div className="mt-4 space-y-3">
               {prompts.map((prompt) => (
                 <div
@@ -147,7 +150,7 @@ function PlaceholderWorkspace({
           </section>
 
           <section className="rounded-[28px] border border-black/[0.05] bg-white p-6">
-            <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">下一步</div>
+            <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">待办</div>
             <div className="mt-4 space-y-3">
               {nextSteps.map((item, index) => (
                 <div key={item} className="flex gap-3 rounded-[20px] border border-black/[0.05] bg-slate-50/80 px-4 py-4">
@@ -260,8 +263,8 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
     iconContainerClassName: 'bg-[#0F4C81] text-white shadow-[0_18px_34px_rgba(15,76,129,0.18)]',
     pillClassName: 'bg-sky-50 text-sky-700',
     cardDescription: '从商圈资源、重点盘分配到协同节奏，打一局商圈经营的整体判断。',
-    highlights: ['资源分配和节奏管理会更立体', '从单盘视角上升到商圈视角', '后续会接入统一世界模型'],
-    ctaLabel: '进入占位页',
+    highlights: ['资源分配和节奏管理更立体', '从单盘视角上升到商圈视角', '聚焦商圈经营决策'],
+    ctaLabel: '进入',
     sortOrder: 40,
     render: () => <MarketManagementWorkspace />,
   },
@@ -276,8 +279,8 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
     iconContainerClassName: 'bg-[#B9385D] text-white shadow-[0_18px_34px_rgba(185,56,93,0.18)]',
     pillClassName: 'bg-rose-50 text-rose-700',
     cardDescription: '站在业主视角做取舍，在价格、时机、经纪人动作和持有成本之间找到最理性的决策。',
-    highlights: ['同一世界观下的业主视角玩法', '价格和时机判断会更直接', '后续会接入统一的房源与市场模型'],
-    ctaLabel: '进入占位页',
+    highlights: ['业主视角玩法', '价格和时机判断更直接', '聚焦卖房取舍'],
+    ctaLabel: '进入',
     sortOrder: 50,
     render: () => <RationalOwnerWorkspace />,
   },

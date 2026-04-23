@@ -8,10 +8,10 @@ interface LoadingSceneProps {
 }
 
 export function LoadingScene({
-  title = '正在初始化',
-  subtitle = '先打开本地工作台，再在后台检查云端进度。',
+  title = '正在加载',
+  subtitle = '请稍候',
   compact = false,
-  steps = ['读取本地进度', '装配页面骨架', '后台检查云端更新'],
+  steps = ['读取进度', '装配页面', '检查更新'],
 }: LoadingSceneProps) {
   return (
     <div className="selling-houses-shell relative flex h-full w-full items-center justify-center overflow-hidden px-5">
@@ -31,9 +31,7 @@ export function LoadingScene({
                 <div className={`seller-title ${compact ? 'text-[17px]' : 'text-[20px]'}`}>
                   {title}
                 </div>
-                <span className="seller-chip">
-                  本地优先
-                </span>
+                <span className="seller-chip">加载中</span>
               </div>
               <div className="seller-body mt-1 text-[12px] leading-5">
                 {subtitle}
@@ -60,7 +58,7 @@ export function LoadingScene({
           </div>
 
           <div className="mt-4 rounded-[16px] border border-[var(--seller-border)] bg-[rgba(15,23,32,0.86)] px-3 py-2 text-[11px] leading-5 text-[var(--seller-muted)]">
-            减少首屏阻塞：先打开本地进度；云端更新和续局检查会在后台完成，不需要盯着加载页等。
+            正在准备工作台。
           </div>
         </div>
       </div>

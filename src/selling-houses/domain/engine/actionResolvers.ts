@@ -13,6 +13,12 @@ import type {
   Opportunity,
 } from '../models.js';
 import {
+  createProductRun,
+  describeRunMilestone,
+  findMilestoneById,
+  hasActiveProductRunForTargets,
+} from '../productRuns.js';
+import {
   adjustCaseOpportunities,
   closeOpportunity,
   createOpportunity,
@@ -76,6 +82,34 @@ function touchCaseForAction(caseItem: Case, actionId: string, currentDay: number
   if (touchOwner) {
     caseItem.touchedOwnerToday = true;
   }
+}
+
+function appendRunEventId(run: GameState['productRuns'][number], eventId: string) {
+  if (!run.linkedEventIds) {
+    run.linkedEventIds = [];
+  }
+  run.linkedEventIds.push(eventId);
+}
+
+function startProductRunIfNeeded(
+  state: GameState,
+  actionCase: Case,
+  productType: 'open-day' | 'sincere-sale',
+) {
+  const targetIds = productType === 'open-day'
+    ? state.cases
+        .filter((entry) => entry.status === 'active' && entry.community === actionCase.community)
+        .map((entry) => entry.id)
+    : [actionCase.id];
+  const normalizedTargets = targetIds.length > 0 ? targetIds : [actionCase.id];
+
+  if (hasActiveProductRunForTargets(state, productType, normalizedTargets)) {
+    return null;
+  }
+
+  const run = createProductRun(state, productType, normalizedTargets);
+  state.productRuns.unshift(run);
+  return run;
 }
 
 const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
@@ -244,6 +278,26 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
       stageAdvance: 1,
       note: '开放日推动客户从关注走向看房',
     });
+    const createdRun = startProductRunIfNeeded(state, caseItem, 'open-day');
+    if (createdRun) {
+      const milestone = findMilestoneById(createdRun, createdRun.nextMilestone);
+      const runEvent = recordDomainEvent(state, {
+        kind: 'journal',
+        actor: '开放日产品链路',
+        title: '启动开放日跨天 run',
+        detail: describeRunMilestone(createdRun, milestone?.id || createdRun.nextMilestone),
+        caseId: caseItem.id,
+        tone: 'success',
+        payload: {
+          runId: createdRun.id,
+          productType: createdRun.productType,
+          scope: createdRun.scope,
+          targetIds: createdRun.targetIds,
+          nextMilestone: createdRun.nextMilestone,
+        },
+      });
+      appendRunEventId(createdRun, runEvent.id);
+    }
     logEvent(state, '开放日', `${caseItem.title} 完成一次开放日，关注度被集中拉了起来。`, 'success');
     onMessage?.(`${caseItem.title} 的开放日结束，接下来适合追带看。`);
     return true;
@@ -405,6 +459,26 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
       stageAdvance: 1,
       note: '诚意卖把客户推向报价与谈判',
     });
+    const createdRun = startProductRunIfNeeded(state, caseItem, 'sincere-sale');
+    if (createdRun) {
+      const milestone = findMilestoneById(createdRun, createdRun.nextMilestone);
+      const runEvent = recordDomainEvent(state, {
+        kind: 'journal',
+        actor: '诚意卖产品链路',
+        title: '启动诚意卖跨天 run',
+        detail: describeRunMilestone(createdRun, milestone?.id || createdRun.nextMilestone),
+        caseId: caseItem.id,
+        tone: 'success',
+        payload: {
+          runId: createdRun.id,
+          productType: createdRun.productType,
+          scope: createdRun.scope,
+          targetIds: createdRun.targetIds,
+          nextMilestone: createdRun.nextMilestone,
+        },
+      });
+      appendRunEventId(createdRun, runEvent.id);
+    }
     refreshOpportunityLabel(opportunity);
     logEvent(state, caseItem.ownerName, `${caseItem.title} 进入诚意卖讨论，交易桌上的确定性开始抬升。`, 'success');
     onMessage?.(`${caseItem.title} 已推进到诚意卖讨论。`);

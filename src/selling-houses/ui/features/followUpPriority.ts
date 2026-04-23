@@ -46,12 +46,12 @@ export interface FollowUpPriorityProjection {
 
 export function deriveCaseFollowUpPriority(state: GameState, caseItem: Case): FollowUpPrioritySummary {
   const opportunities = getActiveOpportunities(state, caseItem.id);
-  const ownerRisk = scoreOwnerRisk(caseItem);
+  const ownerRisk = scoreOwnerRisk(state.day, caseItem);
   const competitionRisk = scoreCompetitionRisk(caseItem, opportunities);
   const closingOpportunity = scoreClosingOpportunity(caseItem, opportunities);
 
   const ranking: FollowUpPrioritySummary[] = [
-    buildOwnerRiskSummary(caseItem, ownerRisk),
+    buildOwnerRiskSummary(state.day, caseItem, ownerRisk),
     buildCompetitionRiskSummary(caseItem, opportunities, competitionRisk),
     buildClosingOpportunitySummary(caseItem, opportunities, closingOpportunity),
   ];
@@ -175,14 +175,15 @@ function derivePriorityTone(type: FollowUpPriorityType): FollowUpPriorityTone {
   return 'neutral';
 }
 
-function scoreOwnerRisk(caseItem: Case) {
+function scoreOwnerRisk(currentDay: number, caseItem: Case) {
+  const daysSinceOwnerTouched = elapsedDays(currentDay, caseItem.lastOwnerTouchedDay);
   let score = 0;
   if (caseItem.trust <= 45) score += 95;
   else if (caseItem.trust <= 55) score += 70;
   else if (caseItem.trust <= 62) score += 45;
 
   if (caseItem.patience <= 45) score += 30;
-  if (caseItem.lastOwnerTouchedDay >= 3) score += 28;
+  if (daysSinceOwnerTouched >= 3) score += 28;
   if (caseItem.ownerMood?.includes('急') || caseItem.ownerMood?.includes('不满') || caseItem.ownerMood?.includes('焦')) score += 18;
   return score;
 }
@@ -217,7 +218,8 @@ function scoreClosingOpportunity(caseItem: Case, opportunities: Opportunity[]) {
   return score;
 }
 
-function buildOwnerRiskSummary(caseItem: Case, score: number): FollowUpPrioritySummary {
+function buildOwnerRiskSummary(currentDay: number, caseItem: Case, score: number): FollowUpPrioritySummary {
+  const daysSinceOwnerTouched = elapsedDays(currentDay, caseItem.lastOwnerTouchedDay);
   if (caseItem.trust <= 45) {
     return {
       type: 'owner-risk',
@@ -229,13 +231,13 @@ function buildOwnerRiskSummary(caseItem: Case, score: number): FollowUpPriorityS
     };
   }
 
-  if (caseItem.lastOwnerTouchedDay >= 3) {
+  if (daysSinceOwnerTouched >= 3) {
     return {
       type: 'owner-risk',
       label: '业主关系风险',
       score,
-      reason: `${caseItem.title} 已经 ${caseItem.lastOwnerTouchedDay} 天没给业主反馈，再拖就要问责了。`,
-      shortReason: `${caseItem.lastOwnerTouchedDay} 天没反馈`,
+      reason: `${caseItem.title} 已经 ${daysSinceOwnerTouched} 天没给业主反馈，再拖就要问责了。`,
+      shortReason: `${daysSinceOwnerTouched} 天没反馈`,
       metric: '关系在变冷',
     };
   }
@@ -248,6 +250,13 @@ function buildOwnerRiskSummary(caseItem: Case, score: number): FollowUpPriorityS
     shortReason: '业主耐心在掉',
     metric: caseItem.patience <= 45 ? '今天要稳住业主' : '尽快补一次反馈',
   };
+}
+
+function elapsedDays(currentDay: number, lastTouchedDay: number) {
+  if (!lastTouchedDay || lastTouchedDay <= 0) {
+    return Math.max(1, currentDay);
+  }
+  return Math.max(1, currentDay - lastTouchedDay);
 }
 
 function buildCompetitionRiskSummary(caseItem: Case, opportunities: Opportunity[], score: number): FollowUpPrioritySummary {

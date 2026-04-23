@@ -131,6 +131,8 @@ http://localhost:3000
 ### Selling Houses
 
 - 主模块：`src/selling-houses/`
+- 运行真相入口：`index.html` -> `src/main.tsx` -> `src/App.tsx` -> `src/workspaces/workspaceRegistry.tsx` -> `src/selling-houses/SellingHousesWorkspace.tsx`
+- `selling-houses-workspace/` 当前为并行/迁移参考目录，默认不作为功能改动落点
 - 已有方向：
   - 本地玩法状态与规则引擎
   - 云同步状态与客户端

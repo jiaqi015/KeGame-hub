@@ -408,22 +408,34 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
     });
   }, []);
 
-  const handleExecuteAction = useCallback((actionId: string, caseItem: Case, optionId: string | null = null, settlement?: any, onMessage?: (msg: string) => void) => {
+  const handleExecuteAction = useCallback((
+    actionId: string,
+    caseItem: Case,
+    optionId: string | null = null,
+    onMessage?: (msg: string) => void,
+    todayPlanItemId: string | null = null,
+  ) => {
     let success = false;
     setState((prev) => {
       if (!prev) return null;
-      const result = executeGameAction(prev, actionId, caseItem.id, optionId, settlement || null, onMessage);
+      const result = executeGameAction(prev, actionId, caseItem.id, optionId, todayPlanItemId, onMessage);
       success = result.success;
       return result.success ? result.nextState : prev;
     });
     return success;
   }, []);
 
-  const handleExecuteScenarioAction = useCallback((actionId: string, caseItem: Case, settlement: any, onMessage?: (msg: string) => void) => {
+  const handleExecuteScenarioAction = useCallback((
+    actionId: string,
+    caseItem: Case,
+    settlement: any,
+    onMessage?: (msg: string) => void,
+    todayPlanItemId: string | null = null,
+  ) => {
     let success = false;
     setState((prev) => {
       if (!prev) return null;
-      const result = executeScenarioAction(prev, actionId, caseItem.id, settlement, onMessage);
+      const result = executeScenarioAction(prev, actionId, caseItem.id, settlement, todayPlanItemId, onMessage);
       success = result.success;
       return result.success ? result.nextState : prev;
     });
