@@ -96,6 +96,7 @@ export function SellingHousesWorkspace({
     handleSelectCase,
     handleAdvanceDays,
     handleExecuteAction,
+    handleExecuteScenarioAction,
     handleAddTodayPlanItem,
     handleRemoveTodayPlanItem,
     handleExecuteTodayPlanItem,
@@ -243,13 +244,21 @@ export function SellingHousesWorkspace({
       return;
     }
 
-    handleExecuteAction(
-      activeTodayScenario.actionId,
-      activeScenarioCase,
-      optionId,
-      settlement,
-      displayMessage,
-    );
+    if (settlement) {
+      handleExecuteScenarioAction(
+        activeTodayScenario.actionId,
+        activeScenarioCase,
+        settlement,
+        displayMessage,
+      );
+    } else {
+      handleExecuteAction(
+        activeTodayScenario.actionId,
+        activeScenarioCase,
+        optionId,
+        displayMessage,
+      );
+    }
   };
 
   const openLeaderboard = async () => {
@@ -322,6 +331,7 @@ export function SellingHousesWorkspace({
             state={state}
             onSelectCase={handleSelectCase}
             onExecuteAction={(id, item, opt) => handleExecuteAction(id, item, opt, displayMessage)}
+            onExecuteScenarioAction={(actionId, caseItem, settlement) => handleExecuteScenarioAction(actionId, caseItem, settlement, displayMessage)}
           />
         );
       case 'customers':
@@ -551,8 +561,7 @@ export function SellingHousesWorkspace({
             }
           }}
           onComplete={(result, choices, feedbacks) => {
-            const mainStrategy = choices.length > 0 ? choices[0].main : null;
-            completeTodayScenario(mainStrategy, result);
+            completeTodayScenario(null, result);
           }}
           onClose={closeTodayScenario}
           state={state}

@@ -1,9 +1,8 @@
 import type { GameState } from '../domain/models.js';
 import type { Settlement } from '../domain/actions/templates.js';
 import type { TodayPlanDraft } from './todayPlan.js';
-import { advanceDays, executeAction } from '../domain/engine.js';
-import { getActionAvailability } from '../domain/engine.js';
-import { applyScenarioSettlement } from '../domain/actions/templates.js';
+import { advanceDays, executeAction, spendResources, resolveActionDefinition } from '../domain/engine.js';
+import { getActionAvailability, recordDomainEvent } from '../domain/engine.js';
 import {
   buildTodayPlanItem,
   getTodayPlanActionDefinition,
@@ -50,9 +49,6 @@ export function executeGameAction(
   const nextState = transitionGameState(state, (next) => {
     const currentCase = next.cases.find((entry) => entry.id === caseId);
     if (currentCase) {
-      if (settlement) {
-        applyScenarioSettlement(currentCase, settlement);
-      }
       success = executeAction(next, actionId, currentCase, optionId, onMessage);
       if (success) {
         const plannedItem = next.todayPlan.playerItems.find((entry) => (
@@ -66,6 +62,88 @@ export function executeGameAction(
         }
       }
     }
+    syncTodayPlanForCurrentDayMutable(next);
+  });
+
+  return {
+    nextState,
+    success,
+  };
+}
+
+export function executeScenarioAction(
+  state: GameState,
+  actionId: string,
+  caseId: string,
+  settlement: Settlement,
+  onMessage?: (msg: string) => void,
+) {
+  let success = false;
+  const nextState = transitionGameState(state, (next) => {
+    const currentCase = next.cases.find((entry) => entry.id === caseId);
+    if (!currentCase || currentCase.status !== 'active') {
+      return;
+    }
+
+    const action = resolveActionDefinition(actionId);
+    if (!action) {
+      return;
+    }
+
+    const availability = getActionAvailability(next, currentCase, actionId);
+    if (!availability.enabled) {
+      onMessage?.(availability.reason);
+      return;
+    }
+
+    spendResources(next, action);
+
+    settlement.stateDeltas.forEach((delta) => {
+      if (delta.field === 'trust') {
+        currentCase.trust = Math.max(0, Math.min(100, currentCase.trust + delta.value));
+      } else if (delta.field === 'patience') {
+        currentCase.patience = Math.max(0, Math.min(100, currentCase.patience + delta.value));
+      } else if (delta.field === 'd1') {
+        currentCase.d1 = Math.max(0, Math.min(100, currentCase.d1 + delta.value));
+      } else if (delta.field === 'd2') {
+        currentCase.d2 = Math.max(0, Math.min(100, currentCase.d2 + delta.value));
+      } else if (delta.field === 'd3') {
+        currentCase.d3 = Math.max(0, Math.min(100, currentCase.d3 + delta.value));
+      } else if (delta.field === 'heat') {
+        currentCase.heat = Math.max(0, Math.min(100, currentCase.heat + delta.value));
+      } else if (delta.field === 'urgency') {
+        currentCase.urgency = Math.max(0, Math.min(100, currentCase.urgency + delta.value));
+      } else if (delta.field === 'askPrice') {
+        currentCase.askPrice += delta.value;
+      }
+    });
+
+    recordDomainEvent(next, {
+      kind: 'action_executed',
+      actor: '场景动作',
+      title: `执行 ${actionId}`,
+      detail: settlement.title,
+      caseId,
+      tone: 'accent',
+      payload: {
+        actionId,
+        settlementOutcome: settlement.outcome,
+        settlementTitle: settlement.title,
+        stateDeltas: settlement.stateDeltas,
+      },
+    });
+
+    const plannedItem = next.todayPlan.playerItems.find((entry) => (
+      entry.day === next.day
+      && entry.status === 'planned'
+      && entry.linkedActionId === actionId
+      && entry.linkedCaseId === caseId
+    ));
+    if (plannedItem) {
+      plannedItem.status = 'completed';
+    }
+
+    success = true;
     syncTodayPlanForCurrentDayMutable(next);
   });
 

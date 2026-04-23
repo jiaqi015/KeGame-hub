@@ -11,6 +11,7 @@ import { isScenarioAction } from '../../domain/actions/templates.js';
 import { getActionAvailability } from '../../domain/engine.js';
 import { getActiveOpportunities } from '../../domain/engine/opportunityEngine.js';
 import { getDayOfWeek, getRoutine } from '../../domain/utils.js';
+import { getSlotRemainingCapacity } from '../todayPlan.js';
 import { buildFollowUpPriorityProjection } from '../../ui/features/followUpPriority.js';
 import {
   buildMarketBoardDetail,
@@ -532,6 +533,7 @@ function buildCandidateArrangementItems(
       .map((entry) => buildTodayPlanKey(entry.linkedActionId, entry.linkedCaseId, entry.sourceMatterId)),
   );
   const candidates: ArrangementItemProjection[] = [];
+  const reservedSlots = { am: 0, pm: 0 };
 
   for (const item of todayPriority) {
     if (!item.caseId || seenCaseIds.has(item.caseId)) {
@@ -551,22 +553,26 @@ function buildCandidateArrangementItems(
     const candidateKey = buildTodayPlanKey(action?.id, item.caseId, linkedMatter?.id);
     const isAlreadyPlanned = reservedKeys.has(candidateKey);
     const isEnergyBlocked = Boolean(action && action.costEnergy > remainingEnergy);
+    const actionCost = action?.costEnergy ?? 1;
 
     if (isAlreadyPlanned) {
       continue;
     }
 
+    const slot = suggestedCandidateSlot(state, actionCost, reservedSlots);
+    reservedSlots[slot] += actionCost;
+
     candidates.push({
       id: `candidate-${item.id}`,
       source: 'candidate',
-      slot: suggestedCandidateSlot(candidates.length),
+      slot,
       label: item.label,
       title: action ? action.name : item.title,
       detail: action ? `下一步：${action.name}` : item.detail,
       tone: item.tone,
       caseId: item.caseId,
       matterId: linkedMatter?.id,
-      energyCost: action?.costEnergy ?? 1,
+      energyCost: actionCost,
       statusLabel: action
         ? isEnergyBlocked
           ? '精力不足'
@@ -680,8 +686,24 @@ function presentScheduleDetail(detail: string) {
     .replace(/剩余窗.?已经不多/g, '再拖就容易失手'));
 }
 
-function suggestedCandidateSlot(index: number): TodayArrangementSlot {
-  return index % 2 === 0 ? 'am' : 'pm';
+function suggestedCandidateSlot(
+  state: GameState,
+  actionCost: number,
+  reservedSlots: { am: number; pm: number },
+): TodayArrangementSlot {
+  const amRemaining = getSlotRemainingCapacity(state, 'am') - reservedSlots.am;
+  const pmRemaining = getSlotRemainingCapacity(state, 'pm') - reservedSlots.pm;
+
+  if (amRemaining >= actionCost && pmRemaining >= actionCost) {
+    return amRemaining >= pmRemaining ? 'am' : 'pm';
+  }
+  if (amRemaining >= actionCost) {
+    return 'am';
+  }
+  if (pmRemaining >= actionCost) {
+    return 'pm';
+  }
+  return amRemaining > pmRemaining ? 'am' : 'pm';
 }
 
 function buildTodayPlanKey(actionId?: string, caseId?: string, matterId?: string) {
@@ -855,23 +877,23 @@ function phaseProblemLabel(
   viewedCount: number,
   closingCount: number,
 ) {
-  if (phaseCode === 'pre_visit') return '还没把业主和房子摸透';
-  if (phaseCode === 'packaging') return metCount > 0 ? '房子推出去了，但还没起量' : '房子还没形成有效曝光';
-  if (phaseCode === 'showing') return viewedCount > 0 ? '看房还没形成连续推进' : '房子推出去了，但还没带来看房';
-  if (phaseCode === 'feedback_offer') return closingCount > 0 ? '客户有兴趣，但迟迟拿不出报价' : '看了房，但没沉淀出有效反馈';
-  return caseItem.offers > 0 ? '已经谈价了，但还没收下来' : '客户接近出价，但还没坐到谈判桌';
+  if (phaseCode === 'pre_visit') return '待面访分型';
+  if (phaseCode === 'packaging') return metCount > 0 ? '曝光有了，但起量不足' : '待包装曝光';
+  if (phaseCode === 'showing') return viewedCount > 0 ? '带看待连续推进' : '待产生带看';
+  if (phaseCode === 'feedback_offer') return closingCount > 0 ? '待客户出价' : '待沉淀带看反馈';
+  return caseItem.offers > 0 ? '谈价中待收口' : '待推进谈判区';
 }
 
 function phaseActionLabel(
   phaseCode: Exclude<ListingLifecyclePhaseCode, 'sold' | 'written_off' | 'sold_elsewhere'>,
   primaryActionId?: string,
 ) {
-  const actionName = ACTIONS.find((item) => item.id === primaryActionId)?.name || '补一个动作';
-  if (phaseCode === 'pre_visit') return `去做${actionName}`;
-  if (phaseCode === 'packaging') return `把房子包装并推出去`;
-  if (phaseCode === 'showing') return primaryActionId === 'open-day' ? '组织一次开放日' : '组织一次带看并拿反馈';
-  if (phaseCode === 'feedback_offer') return primaryActionId === 'adjust-listing-price' ? '推进价格沟通' : '推进客户出价';
-  return '推进谈判收口';
+  const actionName = ACTIONS.find((item) => item.id === primaryActionId)?.name || '补动作';
+  if (phaseCode === 'pre_visit') return actionName;
+  if (phaseCode === 'packaging') return `包装曝光`;
+  if (phaseCode === 'showing') return primaryActionId === 'open-day' ? '开放日' : '带看反馈';
+  if (phaseCode === 'feedback_offer') return primaryActionId === 'adjust-listing-price' ? '价格沟通' : '客户出价';
+  return '谈判收口';
 }
 
 function phaseRiskHint(
@@ -881,21 +903,21 @@ function phaseRiskHint(
   competitionPressure: number,
 ) {
   if (phaseCode === 'pre_visit') {
-    return delayLevel === 'late' ? '业主开始怀疑你有没有真正理解这套房' : '别再拖，尽快把业主和房子摸透';
+    return delayLevel === 'late' ? '业主信任低' : '待面访';
   }
   if (phaseCode === 'packaging') {
-    return delayLevel === 'late' ? '房子还没真正起量' : '再拖，这套房还起不来量';
+    return delayLevel === 'late' ? '起量不足' : '待曝光';
   }
   if (phaseCode === 'showing') {
-    return delayLevel === 'late' ? '看房机会在变冷' : '再拖，带看会继续起不来';
+    return delayLevel === 'late' ? '带看偏冷' : '待提升带看';
   }
   if (phaseCode === 'feedback_offer') {
-    return delayLevel === 'late' ? '客户热度会掉' : '再拖，反馈很难沉淀成报价';
+    return delayLevel === 'late' ? '客户热度掉' : '待沉淀反馈';
   }
   if (caseItem.windowDays <= 3 || competitionPressure >= 70) {
-    return '再拖，这套房可能在他处成交';
+    return '有他处成交风险';
   }
-  return '再拖，这套房容易核销';
+  return '需持续推进';
 }
 
 function phaseToMainProblem(phaseCode: ListingLifecyclePhaseCode): CaseMainProblem {
@@ -981,7 +1003,7 @@ export function buildCaseDetailProjection(state: GameState, caseItem: Case): Cas
     recentChanges,
     ownerSummary: {
       title: deriveOwnerTitle(caseItem),
-      detail: deriveOwnerDetail(caseItem),
+      detail: deriveOwnerDetail(state, caseItem),
       trust: Math.round(caseItem.trust),
       patience: Math.round(caseItem.patience),
       urgency: Math.round(caseItem.urgency),
@@ -1670,8 +1692,9 @@ function deriveOwnerTitle(caseItem: Case) {
   return '业主还能配合';
 }
 
-function deriveOwnerDetail(caseItem: Case) {
-  if (caseItem.lastOwnerTouchedDay >= 4) return `${caseItem.lastOwnerTouchedDay} 天没做业主反馈，今天要补事实。`;
+function deriveOwnerDetail(state: GameState, caseItem: Case) {
+  const daysSinceOwnerTouched = caseItem.lastOwnerTouchedDay ? state.day - caseItem.lastOwnerTouchedDay : state.day;
+  if (daysSinceOwnerTouched >= 4) return `${daysSinceOwnerTouched} 天没做业主反馈，今天要补事实。`;
   if (caseItem.trust < 52) return '反馈不能只说“在推”，要拿客户、带看、同类房和价格讲清楚。';
   if (caseItem.patience < 42) return '沟通要更直接，别绕太久。';
   return caseItem.ownerMood ? sanitizeFrontstageText(caseItem.ownerMood) : '当前业主状态相对稳定。';

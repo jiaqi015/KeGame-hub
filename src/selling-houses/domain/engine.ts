@@ -4,9 +4,9 @@ import { settlePendingDealClosings } from './dealClosing.js';
 import type { DailyTickResult, DirtyScopeSet, GameState, TickInvariantAlert, Tone } from './models.js';
 import { addDays, average, clamp, getDayOfWeek, getRoutine } from './utils.js';
 import { evaluateFinalResult } from './resultEvaluation.js';
-import { logEvent, updateDerivedState } from './runtimeState.js';
+import { logEvent, recordDomainEvent, updateDerivedState } from './runtimeState.js';
 import { getPromotionBudget } from './runtimeStats.js';
-import { executeAction, getActionAvailability } from './engine/actionResolvers.js';
+import { executeAction, getActionAvailability, spendResources, resolveActionDefinition, refundResources } from './engine/actionResolvers.js';
 import { tickCompetition } from './engine/competitionEngine.js';
 import { fireScheduledEvents, triggerRandomEvent } from './engine/eventEngine.js';
 import { createWeeklyReview, tickCases, tickSeasonality, updateCustomers, updateMarkets } from './engine/marketEngine.js';
@@ -46,6 +46,9 @@ export {
   getRandomChannel,
   preferredChannel,
   refreshOpportunityLabel,
+  refundResources,
+  resolveActionDefinition,
+  spendResources,
   seedInitialOpportunities,
   spawnPassiveLeads,
   tickCompetition,
@@ -56,6 +59,7 @@ export {
   applyRivalPullOnCustomers,
   rollDailyMarketEvent,
   progressCustomerDemand,
+  recordDomainEvent,
   settleMarketSignals,
   tickCompanyPressure,
   tickOpportunities,

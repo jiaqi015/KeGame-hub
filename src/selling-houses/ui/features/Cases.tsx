@@ -600,8 +600,7 @@ export function Cases({ state, onSelectCase, onExecuteAction }: CasesProps) {
             }
           }}
           onComplete={(result, choices, feedbacks) => {
-            const mainStrategy = choices.length > 0 ? choices[0].main : null;
-            onExecuteAction(decisionConfig.actionId, selectedCase, mainStrategy, result);
+            onExecuteAction(decisionConfig.actionId, selectedCase, result.finalOptionId, result);
             setDecisionConfig(null);
           }}
           onClose={() => setDecisionConfig(null)}

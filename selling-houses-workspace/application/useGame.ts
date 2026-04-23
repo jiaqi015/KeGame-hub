@@ -48,10 +48,12 @@ import {
   addTodayPlanItem,
   advanceGameDays,
   executeTodayPlanItem,
-  executeGameAction,
   removeTodayPlanItem,
   syncTodayPlanForCurrentDay,
+  executeGameAction,
+  executeScenarioAction,
 } from './gameTransitions.js';
+import type { Settlement } from '../domain/actions/templates.js';
 import type { TodayPlanDraft } from './todayPlan.js';
 
 const cloudHydrationInFlight = new Map<
@@ -418,6 +420,17 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
     return success;
   }, []);
 
+  const handleExecuteScenarioAction = useCallback((actionId: string, caseItem: Case, settlement: Settlement, onMessage?: (msg: string) => void) => {
+    let success = false;
+    setState((prev) => {
+      if (!prev) return null;
+      const result = executeScenarioAction(prev, actionId, caseItem.id, settlement, onMessage);
+      success = result.success;
+      return result.success ? result.nextState : prev;
+    });
+    return success;
+  }, []);
+
   const handleSyncTodayPlan = useCallback(() => {
     setState((prev) => {
       if (!prev) return null;
@@ -499,6 +512,7 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
     handleSelectCase,
     handleAdvanceDays,
     handleExecuteAction,
+    handleExecuteScenarioAction,
     handleSyncTodayPlan,
     handleAddTodayPlanItem,
     handleRemoveTodayPlanItem,

@@ -60,8 +60,6 @@ type AgendaTool = {
   marketLayer?: IntelLayerTab;
 };
 
-type DashboardSidePanel = 'case' | 'scope';
-
 export function Dashboard({
   state,
   onSelectCase,
@@ -81,7 +79,6 @@ export function Dashboard({
   );
   const [selectedDay, setSelectedDay] = useState(state.day);
   const [showTimelineDetail, setShowTimelineDetail] = useState(false);
-  const [activeSidePanel, setActiveSidePanel] = useState<DashboardSidePanel>('case');
 
   useEffect(() => {
     setSelectedDay(state.day);
@@ -150,16 +147,14 @@ export function Dashboard({
               className="mt-2 text-[28px] font-semibold leading-[1.04] tracking-[-0.04em] text-[var(--seller-ink)] md:text-[30px]"
               style={{ fontFamily: 'var(--font-display)' }}
             >
-              {calendarMode === 'today' ? '今天先去哪' : calendarMode === 'past' ? '回看那天' : '后面几天先怎么排'}
+              {calendarMode === 'today' ? '今日概览' : calendarMode === 'past' ? '历史回看' : '日程安排'}
             </h1>
             <p className="mt-2 max-w-[72ch] text-[12px] leading-6 text-[var(--seller-muted)]">
               {calendarMode === 'today'
-                ? `当前在场 ${dashboard.resourceSnapshot.activeCases} 套房，活跃客户线 ${dashboard.resourceSnapshot.activeOpportunities} 条。${leadCase
-                  ? ` ${leadCase.title} 排在前面，先处理这条线。`
-                  : ' 先处理最影响今天顺序的一件事。'}`
+                ? `在场 ${dashboard.resourceSnapshot.activeCases} 套房，活跃客户线 ${dashboard.resourceSnapshot.activeOpportunities} 条。`
                 : calendarMode === 'past'
-                  ? `${selectedDateLabel} 看那天留下的动作、记录和影响。`
-                  : `${selectedDateLabel} 先看安排和准备，不展开今天的处理区。`}
+                  ? `${selectedDateLabel}`
+                  : `${selectedDateLabel}`}
             </p>
           </div>
 
@@ -266,58 +261,17 @@ export function Dashboard({
             />
 
             <div className="space-y-3">
-              <section className="seller-panel overflow-hidden">
-                <div className="flex items-center justify-between gap-3 border-b border-[var(--seller-border)] px-4 py-3">
-                  <div className="seller-label">更多</div>
-                  <div className="seller-tabbar">
-                    <button
-                      type="button"
-                      onClick={() => setActiveSidePanel('case')}
-                      className={`seller-tab ${activeSidePanel === 'case' ? 'seller-tab-active' : ''}`}
-                    >
-                      主房源
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setActiveSidePanel('scope')}
-                      className={`seller-tab ${activeSidePanel === 'scope' ? 'seller-tab-active' : ''}`}
-                    >
-                      去向
-                    </button>
-                  </div>
-                </div>
-              </section>
+              <TodayNewsSummary
+                market={operatingProjection.market}
+                dashboard={dashboard}
+                onOpenMarket={onOpenMarket}
+              />
 
-              {activeSidePanel === 'case' ? (
-                <PinnedCasePanel
-                  caseItem={leadCase}
-                  projection={leadCaseProjection}
-                  impactedItem={leadCaseImpact ? {
-                    caseId: leadCaseImpact.caseId || '',
-                    title: leadCaseImpact.title,
-                    count: 1,
-                    reason: leadCaseImpact.detail,
-                    tone: leadCaseImpact.tone,
-                    layer: 'listing',
-                  } : null}
-                  onOpenCase={() => openCase(leadCase?.id)}
-                  onOpenMarket={onOpenMarket}
-                />
-              ) : (
-                <TriageSummaryPanel
-                  cards={dashboard.triageCards}
-                  onOpen={(targetView, caseId, marketLayer) => {
-                    if (caseId) {
-                      onSelectCase(caseId);
-                    }
-                    if (targetView === 'market') {
-                      onOpenMarket(marketLayer || 'macro');
-                      return;
-                    }
-                    onSetView(targetView);
-                  }}
-                />
-              )}
+              <RecommendedCases
+                state={state}
+                cases={operatingProjection.cases}
+                onSelectCase={onSelectCase}
+              />
             </div>
           </div>
         </>
@@ -1530,4 +1484,172 @@ function shiftDate(currentDate: string, offset: number) {
   const date = new Date(currentDate);
   date.setDate(date.getDate() + offset);
   return date.toISOString().split('T')[0];
+}
+
+function TodayNewsSummary({
+  market,
+  dashboard,
+  onOpenMarket,
+}: {
+  market: ReturnType<typeof buildOperatingProjection>['market'];
+  dashboard: DashboardProjection;
+  onOpenMarket: (layer?: IntelLayerTab) => void;
+}) {
+  const newsItems = [
+    ...dashboard.marketBrief.briefs.map((item) => ({
+      id: item.id,
+      title: item.title,
+      detail: item.detail,
+      tone: item.tone,
+      layer: 'district' as IntelLayerTab,
+    })),
+    ...market.signalFeed.slice(0, 3).map((item) => ({
+      id: item.id,
+      title: item.title,
+      detail: item.summary,
+      tone: item.tone,
+      layer: item.layer,
+    })),
+  ].slice(0, 3);
+
+  return (
+    <section className="seller-panel overflow-hidden">
+      <div className="border-b border-[var(--seller-border)] px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="seller-label">今日新闻摘要</div>
+          <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">
+            {dashboard.marketBrief.todayCount} 条外部变化
+          </span>
+        </div>
+      </div>
+
+      <div className="px-4 py-4">
+        {newsItems.length > 0 ? (
+          <div className="space-y-3">
+            {newsItems.map((item) => (
+              <div
+                key={item.id}
+                className="rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-3"
+              >
+                <div className="flex items-center gap-2">
+                  <span className={`h-1.5 w-1.5 rounded-full ${toneDotClass(item.tone)}`} />
+                  <span className="text-[12px] font-semibold text-[var(--seller-ink)]">{item.title}</span>
+                </div>
+                <div className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">{item.detail}</div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="seller-empty px-4 py-6 text-[12px]">
+            今天没有值得特别关注的外部变化。
+          </div>
+        )}
+
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={() => onOpenMarket('macro')}
+            className="seller-button-secondary flex w-full items-center justify-center gap-1 rounded-[10px] px-3 py-2 text-[11px]"
+          >
+            去市场
+            <ArrowRight size={12} />
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function RecommendedCases({
+  state,
+  cases,
+  onSelectCase,
+}: {
+  state: GameState;
+  cases: ReturnType<typeof buildOperatingProjection>['cases'];
+  onSelectCase: (id: string) => void;
+}) {
+  const activeCases = cases.filter((projection) => {
+    const caseItem = state.cases.find((c) => c.id === projection.caseId);
+    return caseItem?.status === 'active';
+  });
+
+  const rankedCases = activeCases
+    .map((projection) => {
+      const caseItem = state.cases.find((c) => c.id === projection.caseId)!;
+      const score = scoreCaseWeight(caseItem);
+      return { projection, caseItem, score };
+    })
+    .sort((left, right) => right.score - left.score)
+    .slice(0, 3);
+
+  return (
+    <section className="seller-panel overflow-hidden">
+      <div className="border-b border-[var(--seller-border)] px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="seller-label">推荐跟进房源</div>
+          <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">
+            共 {activeCases.length} 套在场
+          </span>
+        </div>
+      </div>
+
+      <div className="px-4 py-4">
+        {rankedCases.length > 0 ? (
+          <div className="space-y-3">
+            {rankedCases.map(({ projection, caseItem }) => (
+              <button
+                key={projection.caseId}
+                type="button"
+                onClick={() => onSelectCase(caseItem.id)}
+                className="w-full rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-3 text-left transition hover:border-[var(--seller-border-strong)]"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${toneChipClass(projection.listingLifecyclePhase.phaseDelayLevel === 'late' ? 'risk' : projection.listingLifecyclePhase.phaseDelayLevel === 'watch' ? 'neutral' : 'chance')}`}>
+                    {projection.listingLifecyclePhase.phaseLabel}
+                  </span>
+                </div>
+                <div className="mt-2 text-[13px] font-semibold text-[var(--seller-ink)]">{caseItem.title}</div>
+                <div className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">
+                  {projection.listingLifecyclePhase.coreProblemLabel}
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-2">
+                  <span className="text-[11px] leading-5 text-[var(--seller-muted)]">
+                    {deriveRecommendationReason(projection, caseItem)}
+                  </span>
+                  <span className="text-[11px] font-semibold text-[var(--seller-accent)]">打开房源 →</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="seller-empty px-4 py-6 text-[12px]">
+            当前没有在场房源。
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function deriveRecommendationReason(
+  projection: ReturnType<typeof buildOperatingProjection>['cases'][number],
+  caseItem: GameState['cases'][number],
+) {
+  if (caseItem.trust < 55 || caseItem.patience < 45) {
+    return '业主关系需要维护，建议先补反馈';
+  }
+  if (projection.customerPoolSummary.metCount === 0) {
+    return '缺客户线索，需要补获客动作';
+  }
+  if (projection.customerPoolSummary.closingCount > 0) {
+    return '已有客户接近报价，适合推进谈判';
+  }
+  if (projection.listingLifecyclePhase.phaseDelayLevel === 'late') {
+    return '推进节奏偏慢，需要加速带看或反馈';
+  }
+  if (caseItem.windowDays <= 4) {
+    return '剩余时间不多，需要集中推进';
+  }
+  return '可继续按当前节奏推进';
 }

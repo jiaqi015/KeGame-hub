@@ -62,6 +62,43 @@ export function getTodayPlanRemainingEnergy(state: GameState) {
   return Math.max(0, state.energy - estimateFixedTodayPlanEnergyReserve(state) - getTodayPlanCommittedEnergy(state, 'planned'));
 }
 
+export const SLOT_CAPACITY = {
+  am: 2,
+  pm: 4,
+} as const;
+
+export function getSlotCommittedEnergy(
+  state: GameState,
+  slot: 'am' | 'pm',
+  status: TodayArrangementItem['status'] = 'planned',
+) {
+  return state.todayPlan.playerItems
+    .filter((entry) => entry.day === state.day && entry.status === status && entry.slot === slot)
+    .reduce((sum, entry) => sum + (resolveActionDefinition(entry.linkedActionId)?.costEnergy || 0), 0);
+}
+
+export function getSlotRemainingCapacity(
+  state: GameState,
+  slot: 'am' | 'pm',
+) {
+  const fixedItemsEnergy = (state.schedule.slice(0, 2).reduce((sum, entry) => {
+    const entrySlot = /下午|晚|收尾/.test(entry.title) ? 'pm' : 'am';
+    return entrySlot === slot ? sum + (entry.urgency >= 92 ? 2 : 1) : sum;
+  }, 0)) + (slot === 'pm' && state.matters.some((entry) => entry.stage === 'pending' && entry.kind === 'opportunity') ? 1 : 0);
+
+  const committedEnergy = getSlotCommittedEnergy(state, slot, 'planned');
+  return Math.max(0, SLOT_CAPACITY[slot] - fixedItemsEnergy - committedEnergy);
+}
+
+export function canCandidateFitSlot(
+  state: GameState,
+  slot: 'am' | 'pm',
+  actionCost: number,
+  reservedEnergy: number = 0,
+) {
+  return getSlotRemainingCapacity(state, slot) - reservedEnergy >= actionCost;
+}
+
 export function syncTodayPlanForCurrentDayMutable(state: GameState) {
   const currentDay = state.day;
   const currentPlan = state.todayPlan && typeof state.todayPlan === 'object'

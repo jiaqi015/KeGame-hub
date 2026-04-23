@@ -21,7 +21,7 @@ import {
 } from './opportunityEngine.js';
 import { touchCustomersForCase } from './customerEngine.js';
 
-function spendResources(state: GameState, action: ActionDefinition) {
+export function spendResources(state: GameState, action: ActionDefinition) {
   state.energy = clamp(state.energy - action.costEnergy, 0, state.maxEnergy);
   if (action.costPromotionBudget > 0) {
     recordBudgetChange(state, {
@@ -33,7 +33,7 @@ function spendResources(state: GameState, action: ActionDefinition) {
   }
 }
 
-function refundResources(state: GameState, action: ActionDefinition, reason: string) {
+export function refundResources(state: GameState, action: ActionDefinition, reason: string) {
   state.energy = clamp(state.energy + action.costEnergy, 0, state.maxEnergy);
   if (action.costPromotionBudget > 0) {
     recordBudgetChange(state, {
@@ -55,7 +55,7 @@ type ActionExecutionContext = {
 
 type ActionExecutor = (ctx: ActionExecutionContext) => boolean;
 
-function resolveActionDefinition(actionId: string) {
+export function resolveActionDefinition(actionId: string) {
   return ACTIONS.find((entry) => entry.id === actionId || entry.executorId === actionId);
 }
 

@@ -17,6 +17,7 @@ export type Settlement = {
   details: string[];
   stateDeltas: Array<{ field: string; value: number; label: string }>;
   nextActionHint: string;
+  finalOptionId: string | null;
 };
 
 export type ScenarioResult = Settlement;
@@ -174,6 +175,7 @@ export function ActionDecisionOverlay({
       if (template && (template as any).resolveOutcome) {
         outcomeResult = (template as any).resolveOutcome(choices, feedbacks, state, caseItem);
       } else {
+        const lastChoiceMain = choices.length > 0 ? choices[choices.length - 1].main : null;
         outcomeResult = {
           outcome: 'progress',
           title: '动作执行完成',
@@ -181,6 +183,7 @@ export function ActionDecisionOverlay({
           details: ['本次操作完成', '结果已记录'],
           stateDeltas: feedbacks.flatMap((f) => f.metricChanges.map((m) => ({ field: m.label, value: m.change, label: m.label }))),
           nextActionHint: '回到房源详情查看状态变化。',
+          finalOptionId: lastChoiceMain,
         };
       }
 

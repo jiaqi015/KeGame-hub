@@ -11,6 +11,7 @@ import { isScenarioAction } from '../../domain/actions/templates.js';
 import { getActionAvailability } from '../../domain/engine.js';
 import { getActiveOpportunities } from '../../domain/engine/opportunityEngine.js';
 import { getDayOfWeek, getRoutine } from '../../domain/utils.js';
+import { getSlotRemainingCapacity } from '../todayPlan.js';
 import { buildFollowUpPriorityProjection } from '../../ui/features/followUpPriority.js';
 import {
   buildMarketBoardDetail,
@@ -532,6 +533,7 @@ function buildCandidateArrangementItems(
       .map((entry) => buildTodayPlanKey(entry.linkedActionId, entry.linkedCaseId, entry.sourceMatterId)),
   );
   const candidates: ArrangementItemProjection[] = [];
+  const reservedSlots = { am: 0, pm: 0 };
 
   for (const item of todayPriority) {
     if (!item.caseId || seenCaseIds.has(item.caseId)) {
@@ -551,22 +553,26 @@ function buildCandidateArrangementItems(
     const candidateKey = buildTodayPlanKey(action?.id, item.caseId, linkedMatter?.id);
     const isAlreadyPlanned = reservedKeys.has(candidateKey);
     const isEnergyBlocked = Boolean(action && action.costEnergy > remainingEnergy);
+    const actionCost = action?.costEnergy ?? 1;
 
     if (isAlreadyPlanned) {
       continue;
     }
 
+    const slot = suggestedCandidateSlot(state, actionCost, reservedSlots);
+    reservedSlots[slot] += actionCost;
+
     candidates.push({
       id: `candidate-${item.id}`,
       source: 'candidate',
-      slot: suggestedCandidateSlot(candidates.length),
+      slot,
       label: item.label,
       title: action ? action.name : item.title,
       detail: action ? `下一步：${action.name}` : item.detail,
       tone: item.tone,
       caseId: item.caseId,
       matterId: linkedMatter?.id,
-      energyCost: action?.costEnergy ?? 1,
+      energyCost: actionCost,
       statusLabel: action
         ? isEnergyBlocked
           ? '精力不够，先完成已排事项'
@@ -680,8 +686,24 @@ function presentScheduleDetail(detail: string) {
     .replace(/剩余窗.?已经不多/g, '再拖就容易失手'));
 }
 
-function suggestedCandidateSlot(index: number): TodayArrangementSlot {
-  return index % 2 === 0 ? 'am' : 'pm';
+function suggestedCandidateSlot(
+  state: GameState,
+  actionCost: number,
+  reservedSlots: { am: number; pm: number },
+): TodayArrangementSlot {
+  const amRemaining = getSlotRemainingCapacity(state, 'am') - reservedSlots.am;
+  const pmRemaining = getSlotRemainingCapacity(state, 'pm') - reservedSlots.pm;
+
+  if (amRemaining >= actionCost && pmRemaining >= actionCost) {
+    return amRemaining >= pmRemaining ? 'am' : 'pm';
+  }
+  if (amRemaining >= actionCost) {
+    return 'am';
+  }
+  if (pmRemaining >= actionCost) {
+    return 'pm';
+  }
+  return amRemaining > pmRemaining ? 'am' : 'pm';
 }
 
 function buildTodayPlanKey(actionId?: string, caseId?: string, matterId?: string) {

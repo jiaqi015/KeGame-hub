@@ -416,6 +416,10 @@ export const SCENARIO_ACTION_TEMPLATES: Record<string, ScenarioActionTemplate> =
       }, 0);
 
       const choiceSummary = choices.map((c) => c.main).join(' + ');
+      const finalChoice = choices[choices.length - 1]?.main || choices[0]?.main || 'show-plan';
+      const finalOptionId = finalChoice === 'show-progress' ? 'show-progress' 
+        : finalChoice === 'show-risk' ? 'show-risk' 
+        : 'show-plan';
 
       if (totalTrustDelta >= 3) {
         return {
@@ -431,6 +435,7 @@ export const SCENARIO_ACTION_TEMPLATES: Record<string, ScenarioActionTemplate> =
             { field: 'trust', value: totalTrustDelta, label: '信任' },
           ],
           nextActionHint: '可以继续推进深度诊断或价格沟通。',
+          finalOptionId,
         };
       }
       if (totalTrustDelta >= 1) {
@@ -447,6 +452,7 @@ export const SCENARIO_ACTION_TEMPLATES: Record<string, ScenarioActionTemplate> =
             { field: 'trust', value: totalTrustDelta, label: '信任' },
           ],
           nextActionHint: '接下来要有具体客户或带看进展来支撑。',
+          finalOptionId,
         };
       }
       return {
@@ -462,6 +468,7 @@ export const SCENARIO_ACTION_TEMPLATES: Record<string, ScenarioActionTemplate> =
           { field: 'trust', value: totalTrustDelta, label: '信任' },
         ],
         nextActionHint: '尽快安排带看或营销动作来提升热度。',
+        finalOptionId,
       };
     },
     buildBody: (state, caseItem) => {
@@ -678,6 +685,14 @@ export const SCENARIO_ACTION_TEMPLATES: Record<string, ScenarioActionTemplate> =
 
       const choiceSummary = choices.map((c) => `第${c.round}轮: ${c.main}`).join(' → ');
       const finalChoice = choices[choices.length - 1]?.main;
+      let finalOptionId: string;
+      if (priceFlexDelta >= 8 && finalChoice === 'confirm-adjustment') {
+        finalOptionId = 'deep-cut';
+      } else if (priceFlexDelta >= 4 && (finalChoice === 'confirm-adjustment' || finalChoice === 'confirm-small-adjustment')) {
+        finalOptionId = 'small-cut';
+      } else {
+        finalOptionId = 'hold-story';
+      }
 
       if (priceFlexDelta >= 8 && (finalChoice === 'confirm-adjustment' || finalChoice === 'confirm-small-adjustment')) {
         return {
@@ -694,6 +709,7 @@ export const SCENARIO_ACTION_TEMPLATES: Record<string, ScenarioActionTemplate> =
             { field: 'askPrice', value: -Math.round(caseItem.askPrice * 0.02), label: '挂牌价' },
           ],
           nextActionHint: '尽快更新挂牌价，同步给所有合作经纪人。',
+          finalOptionId,
         };
       }
       if (priceFlexDelta >= 4) {
@@ -710,6 +726,7 @@ export const SCENARIO_ACTION_TEMPLATES: Record<string, ScenarioActionTemplate> =
             { field: 'trust', value: totalTrustDelta, label: '信任' },
           ],
           nextActionHint: '下次沟通带上更多带看和客户反馈，继续小步推进。',
+          finalOptionId,
         };
       }
       if (totalTrustDelta >= 0) {
@@ -726,6 +743,7 @@ export const SCENARIO_ACTION_TEMPLATES: Record<string, ScenarioActionTemplate> =
             { field: 'trust', value: totalTrustDelta, label: '信任' },
           ],
           nextActionHint: '先放一放，用实际带看和客户数据慢慢磨。',
+          finalOptionId,
         };
       }
       return {
@@ -741,6 +759,7 @@ export const SCENARIO_ACTION_TEMPLATES: Record<string, ScenarioActionTemplate> =
           { field: 'trust', value: totalTrustDelta, label: '信任' },
         ],
         nextActionHint: '近期不要再提价格，先通过周反馈和带看重建信任。',
+        finalOptionId,
       };
     },
     buildBody: (state, caseItem, action) => {
@@ -925,6 +944,14 @@ export const SCENARIO_ACTION_TEMPLATES: Record<string, ScenarioActionTemplate> =
       const finalMood = feedbacks[feedbacks.length - 1]?.mood || 'neutral';
       const choiceSummary = choices.map((c) => `第${c.round}轮: ${c.main}`).join(' → ');
       const finalChoice = choices[choices.length - 1]?.main;
+      let finalOptionId: string;
+      if (finalMood === 'positive' && (finalChoice === 'schedule-negotiation' || finalChoice === 'push-for-offer')) {
+        finalOptionId = 'close';
+      } else if (finalMood === 'positive' || finalChoice === 'lock-next-step') {
+        finalOptionId = 'balanced';
+      } else {
+        finalOptionId = 'hold';
+      }
 
       if (finalMood === 'positive' && (finalChoice === 'schedule-second-showing' || finalChoice === 'schedule-negotiation')) {
         return {
@@ -941,6 +968,7 @@ export const SCENARIO_ACTION_TEMPLATES: Record<string, ScenarioActionTemplate> =
             { field: 'confidence', value: 8, label: '成交把握' },
           ],
           nextActionHint: '按约定时间跟进，提前准备好谈判材料。',
+          finalOptionId,
         };
       }
       if (finalMood !== 'negative') {
@@ -958,6 +986,7 @@ export const SCENARIO_ACTION_TEMPLATES: Record<string, ScenarioActionTemplate> =
             { field: 'confidence', value: 2, label: '成交把握' },
           ],
           nextActionHint: '过两天再跟进一次，别逼太紧。',
+          finalOptionId,
         };
       }
       return {
@@ -971,6 +1000,7 @@ export const SCENARIO_ACTION_TEMPLATES: Record<string, ScenarioActionTemplate> =
         ],
         stateDeltas: [],
         nextActionHint: '先放一放，等有新的带看或客户反馈时再联系。',
+        finalOptionId,
       };
     },
     buildBody: (state, caseItem, action) => {
