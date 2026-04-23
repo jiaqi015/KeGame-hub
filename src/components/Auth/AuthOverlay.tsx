@@ -144,7 +144,7 @@ export function AuthOverlay({
         mouseX.set(0.5);
         mouseY.set(0.5);
       }}
-      className="relative min-h-0 w-full flex-1 overflow-hidden bg-black px-4 py-8 text-white sm:px-6 sm:py-10"
+      className="relative flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden bg-black px-4 py-8 text-white sm:px-6 sm:py-10"
     >
       {/* 极富水纹律动感的互动背景；光晕用外层做居中，避免与 motion 的 x/y 合并 transform 冲突 */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -297,17 +297,18 @@ export function AuthOverlay({
       <form
         ref={formRef}
         onSubmit={onSubmit}
-        className="relative z-20 mx-auto box-border flex h-full min-h-0 w-full max-w-[520px] flex-1 flex-col items-stretch overflow-y-auto overflow-x-hidden [overflow-anchor:none] py-2 [scrollbar-gutter:stable] sm:py-4"
+        className="relative z-20 mx-auto box-border flex w-full max-w-[520px] flex-col items-stretch overflow-y-auto overflow-x-hidden [overflow-anchor:none] py-2 [scrollbar-gutter:stable] sm:py-4"
       >
         <div className="group w-full rounded-2xl border border-white/[0.1] bg-zinc-950/80 p-[1px] shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_32px_80px_rgba(0,0,0,0.7)] backdrop-blur-md">
           <div className="rounded-2xl border border-white/[0.06] bg-[#0a0a0a] px-8 py-8 md:px-10 md:py-10">
-            <div className="mb-1 shrink-0">
-              <div className="mx-auto flex w-full max-w-md flex-col items-center gap-2.5 sm:items-start sm:gap-3">
-                <KeGameHubMark size={56} className="shrink-0" unframed />
-                <p className="w-full text-center text-[11px] font-semibold uppercase leading-none tracking-[0.3em] text-white sm:text-left">
-                  KEGAME
-                </p>
+            <div className="mb-12 flex items-center justify-start gap-6 px-1">
+              <div className="relative shrink-0">
+                <KeGameHubMark size={64} className="relative z-10" unframed />
+                <div className="absolute inset-0 bg-white/5 blur-2xl rounded-full" />
               </div>
+              <h1 className="text-[48px] font-[900] italic leading-none tracking-[-0.05em] text-white select-none">
+                KeGame
+              </h1>
             </div>
             <p className="mt-4 max-w-md text-left text-[14px] font-medium leading-relaxed text-zinc-500">
               第一次登录：使用 <span className="text-zinc-200">@ke.com</span> 邮箱，验证码 + 首登激活 Key 开通。之后仅需验证码即可登录。
