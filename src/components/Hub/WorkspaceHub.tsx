@@ -41,8 +41,7 @@ export function WorkspaceHub({
           <div className="flex min-w-0 items-center gap-3">
             <KeGameHubMark size={34} />
             <div className="min-w-0">
-              <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#8E8E93]">KeGame</div>
-              <h1 className="truncate text-[26px] font-semibold tracking-[-0.05em] text-[#111111]">功能入口</h1>
+              <div className="text-[13px] font-bold uppercase tracking-[0.22em] text-[#5C5C60]">KeGame</div>
             </div>
           </div>
 

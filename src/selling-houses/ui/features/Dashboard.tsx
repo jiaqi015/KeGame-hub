@@ -171,70 +171,48 @@ export function Dashboard({
         </div>
       </section>
 
-      {calendarMode === 'today' && (
-        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {dashboard.triageCards.map((card) => (
-            <React.Fragment key={card.id}>
-              <TriageRouteCard
-                card={card}
-                onOpen={(targetView, caseId, marketLayer) => {
-                  if (caseId) {
-                    onSelectCase(caseId);
-                  }
-                  if (targetView === 'market') {
-                    onOpenMarket(marketLayer || 'macro');
-                    return;
-                  }
-                  onSetView(targetView);
-                }}
-              />
-            </React.Fragment>
-          ))}
-        </section>
-      )}
-
       <section className="seller-panel overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-[var(--seller-border)] px-4 py-3 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
+        <div className="border-b border-[var(--seller-border)] px-4 py-3">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="seller-label flex items-center gap-2">
               <Calendar size={13} />
               本周节奏
             </div>
-            <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
-              {calendarRail.map((entry) => (
-                <div key={entry.day}>
-                  <CalendarCell
-                    entry={entry}
-                    active={entry.day === selectedDay}
-                    onClick={() => {
-                      if (entry.day !== state.day) {
-                        setShowTimelineDetail(false);
-                      }
-                      setSelectedDay(entry.day);
-                    }}
-                  />
-                </div>
-              ))}
+
+            <div className="flex shrink-0 items-center gap-2">
+              <div className="text-[11px] font-medium text-[var(--seller-subtle)]">
+                DAY {state.day.toString().padStart(2, '0')} / {state.maxDay}　剩 {daysRemaining} 天　{routine.label} · {routine.theme}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (calendarMode !== 'today') {
+                    setSelectedDay(state.day);
+                    return;
+                  }
+                  setShowTimelineDetail((current) => !current);
+                }}
+                className="seller-button-secondary rounded-full px-3 py-1 text-[10px]"
+              >
+                {calendarMode === 'today' ? (showTimelineDetail ? '收起明细' : '看明细') : '回到今天'}
+              </button>
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2">
-            <div className="text-[11px] font-medium text-[var(--seller-subtle)]">
-              DAY {state.day.toString().padStart(2, '0')} / {state.maxDay}　剩 {daysRemaining} 天　{routine.label} · {routine.theme}
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                if (calendarMode !== 'today') {
-                  setSelectedDay(state.day);
-                  return;
-                }
-                setShowTimelineDetail((current) => !current);
-              }}
-              className="seller-button-secondary rounded-full px-3 py-1 text-[10px]"
-            >
-              {calendarMode === 'today' ? (showTimelineDetail ? '收起明细' : '看明细') : '回到今天'}
-            </button>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-7">
+            {calendarRail.map((entry) => (
+              <CalendarCell
+                key={entry.day}
+                entry={entry}
+                active={entry.day === selectedDay}
+                onClick={() => {
+                  if (entry.day !== state.day) {
+                    setShowTimelineDetail(false);
+                  }
+                  setSelectedDay(entry.day);
+                }}
+              />
+            ))}
           </div>
         </div>
       </section>
@@ -331,41 +309,6 @@ export function Dashboard({
         />
       ) : null}
     </div>
-  );
-}
-
-function TriageRouteCard({
-  card,
-  onOpen,
-}: {
-  card: DashboardProjection['triageCards'][number];
-  onOpen: (targetView: string, caseId?: string, marketLayer?: IntelLayerTab) => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => onOpen(card.targetView, card.caseId, card.marketLayer)}
-      className={`seller-panel overflow-hidden px-4 py-4 text-left transition hover:border-[var(--seller-border-strong)] ${card.tone === 'risk'
-        ? 'seller-tone-risk'
-        : card.tone === 'chance'
-          ? 'seller-tone-chance'
-          : ''}`}
-    >
-      <div className="flex items-center justify-between gap-3">
-        <span className="seller-chip">{card.label}</span>
-        <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">{card.countLabel}</span>
-      </div>
-      <div className="mt-3 text-[15px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">
-        {card.title}
-      </div>
-      <p className="mt-2 text-[12px] leading-6 text-[var(--seller-muted)]">
-        {card.detail}
-      </p>
-      <div className="mt-4 inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--seller-ink)]">
-        {card.label}
-        <ArrowRight size={12} />
-      </div>
-    </button>
   );
 }
 
@@ -1090,7 +1033,7 @@ function CalendarCell({
     <button
       type="button"
       onClick={onClick}
-      className={`relative min-w-[110px] rounded-[12px] border px-3 py-3 text-left transition ${
+      className={`relative w-full rounded-[12px] border px-3 py-3 text-left transition ${
         active
           ? 'border-[var(--seller-accent)] bg-[var(--seller-panel-alt)] text-[var(--seller-ink)]'
           : isToday

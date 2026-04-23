@@ -29,6 +29,7 @@ export type Settlement = {
   details: string[];
   stateDeltas: Array<{ field: string; value: number; label: string }>;
   nextActionHint: string;
+  finalOptionId: string | null;
 };
 
 export type ScenarioResult = {
@@ -212,6 +213,10 @@ export const SCENARIO_ACTION_TEMPLATES: Record<string, ScenarioActionTemplate> =
       }, 0);
 
       const choiceSummary = choices.map((c) => c.main).join(' + ');
+      const finalChoice = choices[choices.length - 1]?.main || choices[0]?.main || 'plan-first';
+      const finalOptionId = finalChoice === 'rapport-first' ? 'rapport-first' 
+        : finalChoice === 'data-first' ? 'data-first' 
+        : 'plan-first';
 
       if (totalTrustDelta >= 4) {
         return {
@@ -228,6 +233,7 @@ export const SCENARIO_ACTION_TEMPLATES: Record<string, ScenarioActionTemplate> =
             { field: 'patience', value: 1, label: '耐心' },
           ],
           nextActionHint: '接下来可以继续推进周度反馈或营销动作。',
+          finalOptionId,
         };
       }
       if (totalTrustDelta >= 2) {
@@ -244,6 +250,7 @@ export const SCENARIO_ACTION_TEMPLATES: Record<string, ScenarioActionTemplate> =
             { field: 'trust', value: totalTrustDelta, label: '信任' },
           ],
           nextActionHint: '下周周度反馈是巩固关系的好机会。',
+          finalOptionId,
         };
       }
       return {
@@ -259,6 +266,7 @@ export const SCENARIO_ACTION_TEMPLATES: Record<string, ScenarioActionTemplate> =
           { field: 'trust', value: totalTrustDelta, label: '信任' },
         ],
           nextActionHint: '下次沟通多带市场和客户数据。',
+          finalOptionId,
       };
     },
     buildBody: (state, caseItem, action) => {

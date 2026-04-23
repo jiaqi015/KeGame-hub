@@ -356,10 +356,10 @@ export function buildDashboardProjection(
 
   return {
     todayHeadline: topPriorityCase
-      ? `今天先盯 ${state.cases.find((caseItem) => caseItem.id === topPriorityCase.caseId)?.title || '重点房源'}`
+      ? `${state.cases.find((caseItem) => caseItem.id === topPriorityCase.caseId)?.title || '重点房源'}`
       : activeCaseCount > 0
-        ? `今天有 ${activeCaseCount} 套房在场，先按优先级处理。`
-        : '这一局当前没有在场房源。',
+        ? `${activeCaseCount} 套房在场`
+        : '没有在场房源',
     todayPriority,
     yesterdayIntel,
     weekCalendar: buildWeekCalendar(state),
@@ -411,19 +411,19 @@ function buildArrangementProjection(
 
   return {
     headline: plannedItems[0]
-      ? `今天先处理 ${plannedItems[0].title}`
+      ? plannedItems[0].title
       : fixedItems[0]
-        ? `今天先处理 ${fixedItems[0].title}`
+        ? fixedItems[0].title
         : candidateItems[0]
-        ? `今天先排 ${candidateItems[0].title}`
-        : '今天先处理最影响顺序的一件事',
+        ? candidateItems[0].title
+        : '今日安排',
     summary: plannedItems.length > 0
-      ? `你已经给今天排了 ${plannedItems.length} 件事，把它们一件件做完。`
+      ? `已排 ${plannedItems.length} 件事`
       : fixedItems.length > 0
-        ? `今天有 ${fixedItems.length} 件固定安排，把硬事项顶住，再决定要不要加单。`
+        ? `${fixedItems.length} 件固定安排`
       : candidateItems.length > 0
-        ? '今天先排能真正推进结果的一件事。'
-        : '今天先从房源页挑一套最紧的盘开始。',
+        ? '待排事项'
+        : '从房源开始',
     remainingEnergy,
     remainingEnergyLabel: `剩余 ${remainingEnergy}/${state.maxEnergy} 精力`,
     fixedItems,
@@ -569,15 +569,15 @@ function buildCandidateArrangementItems(
       energyCost: action?.costEnergy ?? 1,
       statusLabel: action
         ? isEnergyBlocked
-          ? '精力不够，先完成已排事项'
-          : '可加入今天'
-        : '先去房源判断',
+          ? '精力不足'
+          : '可加入'
+        : '去房源判断',
       actionId: action?.id,
       executionMode: isScenarioAction(action?.id || '') ? 'scenario' : action ? 'direct' : 'navigate',
       ctaLabel: action ? '加入今天' : '打开房源',
       secondaryLabel: action ? '看房源' : '看客户线',
       isDisabled: isEnergyBlocked,
-      disabledReason: isEnergyBlocked ? '当前剩余精力不足，先完成已安排事项。' : undefined,
+      disabledReason: isEnergyBlocked ? '精力不足' : undefined,
     });
   }
 
@@ -633,7 +633,7 @@ function buildTodayPlanArrangementItem(
     slot: entry.slot,
     label: source === 'planned' ? '我今天安排的' : '已完成',
     title: action?.name || matter?.title || caseProjection?.headline || '今日事项',
-    detail: matter?.detail || caseProjection?.nextStepLine || action?.description || '今天安排的一件事。',
+    detail: matter?.detail || caseProjection?.nextStepLine || action?.description || '今日事项',
     tone: source === 'completed'
       ? 'chance'
       : caseProjection?.mainProblem === 'owner' || caseProjection?.mainProblem === 'competition'
@@ -644,10 +644,10 @@ function buildTodayPlanArrangementItem(
     customerId: entry.linkedCustomerId,
     energyCost: action?.costEnergy ?? 1,
     statusLabel: source === 'completed'
-      ? '今天已完成'
+      ? '已完成'
       : availability?.enabled === false
-        ? '当前不可执行'
-        : '已排进今天',
+        ? '不可执行'
+        : '已排',
     actionId: action?.id,
     executionMode: entry.executionMode,
     ctaLabel: entry.executionMode === 'scenario' ? '进入情境' : '开始执行',
@@ -766,7 +766,7 @@ function buildListingLifecyclePhaseProjection(
     phaseCode = 'showing';
   }
 
-  const phaseAgeDays = resolvePhaseAgeDays(caseItem, phaseCode, viewedCount);
+  const phaseAgeDays = resolvePhaseAgeDays(state, caseItem, phaseCode, viewedCount);
   const phaseDelayLevel = resolvePhaseDelayLevel(phaseCode, phaseAgeDays, caseItem, metCount, closingCount);
   const primaryActionId = resolvePrimaryActionId(state, caseItem, phaseCode);
 
@@ -792,23 +792,27 @@ function resolvePrimaryActionId(
 }
 
 function resolvePhaseAgeDays(
+  state: GameState,
   caseItem: Case,
   phaseCode: Exclude<ListingLifecyclePhaseCode, 'sold' | 'written_off' | 'sold_elsewhere'>,
   viewedCount: number,
 ) {
+  const daysSinceOwnerTouched = caseItem.lastOwnerTouchedDay ? state.day - caseItem.lastOwnerTouchedDay : state.day;
+  const daysSinceTouched = caseItem.lastTouchedDay ? state.day - caseItem.lastTouchedDay : state.day;
+
   if (phaseCode === 'pre_visit') {
-    return Math.max(1, caseItem.lastOwnerTouchedDay || 1);
+    return Math.max(1, daysSinceOwnerTouched);
   }
   if (phaseCode === 'packaging') {
-    return Math.max(1, caseItem.lastOwnerTouchedDay || 1);
+    return Math.max(1, daysSinceOwnerTouched);
   }
   if (phaseCode === 'showing') {
-    return Math.max(1, viewedCount > 0 ? caseItem.lastTouchedDay || 1 : caseItem.lastOwnerTouchedDay || 1);
+    return Math.max(1, viewedCount > 0 ? daysSinceTouched : daysSinceOwnerTouched);
   }
   if (phaseCode === 'feedback_offer') {
-    return Math.max(1, caseItem.lastTouchedDay || 1);
+    return Math.max(1, daysSinceTouched);
   }
-  return Math.max(1, caseItem.lastTouchedDay || 1);
+  return Math.max(1, daysSinceTouched);
 }
 
 function resolvePhaseDelayLevel(
@@ -949,8 +953,8 @@ export function buildCaseDetailProjection(state: GameState, caseItem: Case): Cas
     ),
   );
   const listingLifecyclePhase = buildListingLifecyclePhaseProjection(state, caseItem, opportunities, customerLinks, competitionPressure);
-  const mainProblem = deriveMainProblem(caseItem, opportunities, customerLinks, competitionPressure);
-  const factChain = buildCaseFactChain(caseItem, opportunities, customerLinks, competitionPressure, mainProblem);
+  const mainProblem = deriveMainProblem(state, caseItem, opportunities, customerLinks, competitionPressure);
+  const factChain = buildCaseFactChain(state, caseItem, opportunities, customerLinks, competitionPressure, mainProblem);
   const recentChanges = buildCaseRecentChanges(state, caseItem, opportunities);
   const primaryRiskTag = buildRiskTags(caseItem, opportunities, competitionPressure, atRiskCount)[0] || listingLifecyclePhase.phaseRiskHint;
   const primaryAction = listingLifecyclePhase.primaryActionId
@@ -1044,6 +1048,7 @@ export function buildOpportunityListProjection(state: GameState): OpportunityLis
 }
 
 function buildCaseFactChain(
+  state: GameState,
   caseItem: Case,
   opportunities: Opportunity[],
   customerLinks: CustomerRuntimeState[],
@@ -1055,19 +1060,20 @@ function buildCaseFactChain(
   const closingCount = opportunities.filter((opportunity) => opportunity.visibility !== 'shadow' && opportunity.stageIndex >= 4).length;
   const atRiskCount = opportunities.filter((opportunity) => opportunity.daysLeft <= 2 || opportunity.intent < 45).length;
   const priceGap = caseItem.askPrice - caseItem.marketPrice;
+  const daysSinceOwnerTouched = caseItem.lastOwnerTouchedDay ? state.day - caseItem.lastOwnerTouchedDay : state.day;
   const facts: CaseFactChainProjection[] = [];
 
   facts.push({
     id: `${caseItem.id}-owner`,
     lane: 'owner',
     title: '业主关系',
-    fact: caseItem.lastOwnerTouchedDay >= 4
-      ? `${caseItem.lastOwnerTouchedDay} 天没做业主反馈，信任和耐心都在下滑边缘。`
+    fact: daysSinceOwnerTouched >= 4
+      ? `${daysSinceOwnerTouched} 天没做业主反馈，信任和耐心都在下滑边缘。`
       : `当前信任 ${Math.round(caseItem.trust)}，耐心 ${Math.round(caseItem.patience)}，业主还在等明确反馈。`,
-    nextStep: caseItem.lastOwnerTouchedDay >= 4
+    nextStep: daysSinceOwnerTouched >= 4
         ? '补一次带事实的业主反馈。'
         : '保持固定频率反馈。',
-    tone: caseItem.lastOwnerTouchedDay >= 4 || caseItem.trust < 52 || caseItem.patience < 42 ? 'risk' : 'neutral',
+    tone: daysSinceOwnerTouched >= 4 || caseItem.trust < 52 || caseItem.patience < 42 ? 'risk' : 'neutral',
   });
 
   facts.push({
@@ -1509,12 +1515,14 @@ function buildRiskReminders(
 }
 
 function deriveMainProblem(
+  state: GameState,
   caseItem: Case,
   opportunities: Opportunity[],
   customerLinks: CustomerRuntimeState[],
   competitionPressure: number,
 ): CaseMainProblem {
-  if (caseItem.trust < 52 || caseItem.patience < 42 || caseItem.lastOwnerTouchedDay >= 4) return 'owner';
+  const daysSinceOwnerTouched = caseItem.lastOwnerTouchedDay ? state.day - caseItem.lastOwnerTouchedDay : state.day;
+  if (caseItem.trust < 52 || caseItem.patience < 42 || daysSinceOwnerTouched >= 4) return 'owner';
   if (caseItem.askPrice > caseItem.marketPrice * 1.04) return 'price';
   if (competitionPressure >= 68 || caseItem.windowDays <= 3) return 'competition';
   if (opportunities.filter((opportunity) => opportunity.visibility !== 'shadow').length === 0 && customerLinks.length < 2) return 'customer-pool';
