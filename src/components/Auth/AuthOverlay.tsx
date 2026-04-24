@@ -306,7 +306,7 @@ export function AuthOverlay({
                 <KeGameHubMark size={64} className="relative z-10" unframed />
                 <div className="absolute inset-0 bg-white/5 blur-2xl rounded-full" />
               </div>
-              <h1 className="text-[48px] font-[900] italic leading-none tracking-[-0.05em] text-white select-none">
+              <h1 className="text-[48px] font-[900] italic leading-none tracking-[-0.05em] text-white select-none translate-y-[2px]">
                 KeGame
               </h1>
             </div>
