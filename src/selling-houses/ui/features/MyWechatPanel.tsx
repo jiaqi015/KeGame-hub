@@ -54,6 +54,14 @@ export function MyWechatPanel({
     setLocalReadIds((current) => new Set([...current].filter((id) => visibleIds.has(id))));
   }, [readIds, visibleIds]);
 
+  const sortedMessages = useMemo(
+    () => sortUnreadFirst(projection.messages, effectiveReadIds),
+    [projection.messages, effectiveReadIds],
+  );
+  const sortedOfficialAccounts = useMemo(
+    () => sortUnreadFirst(projection.officialAccounts, effectiveReadIds),
+    [projection.officialAccounts, effectiveReadIds],
+  );
   const unreadCount = projection.messages.filter((message) => !effectiveReadIds.has(message.id)).length;
 
   const markRead = (id: string) => {
@@ -126,8 +134,8 @@ export function MyWechatPanel({
 
       <div className="space-y-2 px-3 py-3">
         {activeTab === 'messages' ? (
-          projection.messages.length > 0 ? (
-            projection.messages.map((message) => (
+          sortedMessages.length > 0 ? (
+            sortedMessages.map((message) => (
               <WechatMessageRow
                 key={message.id}
                 message={message}
@@ -139,8 +147,8 @@ export function MyWechatPanel({
           ) : (
             <WechatEmptyState title={projection.emptyState?.title || '今天没有新的微信消息'} description={projection.emptyState?.description || '先按今日安排推进。'} />
           )
-        ) : projection.officialAccounts.length > 0 ? (
-          projection.officialAccounts.map((article) => (
+        ) : sortedOfficialAccounts.length > 0 ? (
+          sortedOfficialAccounts.map((article) => (
             <OfficialArticleRow key={article.id} article={article} read={effectiveReadIds.has(article.id)} onClick={() => openArticle(article)} />
           ))
         ) : (
@@ -149,6 +157,16 @@ export function MyWechatPanel({
       </div>
     </section>
   );
+}
+
+function sortUnreadFirst<T extends { id: string }>(items: T[], readIds: Set<string>) {
+  return items
+    .map((item, index) => ({ item, index, read: readIds.has(item.id) }))
+    .sort((left, right) => {
+      if (left.read !== right.read) return left.read ? 1 : -1;
+      return left.index - right.index;
+    })
+    .map(({ item }) => item);
 }
 
 function WechatLogoIcon() {

@@ -33,14 +33,7 @@ export function LeaderboardOverlay({ loading, detail, error, onClose }: Leaderbo
         className="relative h-full w-full max-w-[620px] overflow-y-auto rounded-[28px] border border-white/8 bg-[linear-gradient(180deg,#111923_0%,#0b1118_100%)] p-4 shadow-[0_30px_90px_rgba(0,0,0,0.5)] sm:p-6"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="mb-5 flex items-start justify-between gap-4">
-          <div className="max-w-[440px]">
-            <div className="seller-label flex items-center gap-2 text-[11px] text-white/55">
-              <Trophy size={13} />
-              游戏排行榜
-            </div>
-            <h3 className="mt-2 text-[38px] font-semibold tracking-[-0.04em] text-white">{projection.heroTitle}</h3>
-          </div>
+        <div className="mb-5 flex items-start justify-end gap-4">
           <button
             type="button"
             onClick={onClose}

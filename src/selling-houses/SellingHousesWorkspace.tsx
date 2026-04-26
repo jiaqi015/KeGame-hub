@@ -669,11 +669,11 @@ export function SellingHousesWorkspace({
 
           <div className="seller-panel-muted flex flex-wrap items-center justify-between gap-2 p-1.5">
             <nav className="flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-[15px] bg-[rgba(255,255,255,0.03)] p-1">
-              <NavItem active={activeView === 'overview'} onClick={() => openView('overview')} icon={<LayoutDashboard size={16} />} label="经营概览" />
-              <NavItem active={activeView === 'cases'} onClick={() => openView('cases')} icon={<Home size={16} />} label="房源" />
-              <NavItem active={activeView === 'customers'} onClick={() => openView('customers')} icon={<Users size={16} />} label="客户" />
-              <NavItem active={activeView === 'market'} onClick={() => openMarketView('macro')} icon={<LineChart size={16} />} label="市场" />
-              <NavItem active={activeView === 'profile'} onClick={() => openView('profile')} icon={<SquareUserRound size={16} />} label="我" />
+              <NavItem active={activeView === 'overview'} onClick={() => openView('overview')} icon={<LayoutDashboard size={16} />} label="工作台" />
+              <NavItem active={activeView === 'cases'} onClick={() => openView('cases')} icon={<Home size={16} />} label="我的房源" />
+              <NavItem active={activeView === 'customers'} onClick={() => openView('customers')} icon={<Users size={16} />} label="我的客户" />
+              <NavItem active={activeView === 'market'} onClick={() => openMarketView('macro')} icon={<LineChart size={16} />} label="市场雷达" />
+              <NavItem active={activeView === 'profile'} onClick={() => openView('profile')} icon={<SquareUserRound size={16} />} label="玩家中心" />
             </nav>
 
             <div className="seller-separator hidden h-8 w-px xl:block" />
@@ -1211,7 +1211,7 @@ function SelectedCaseDetailSheet({
           chips={[
             `已接 ${projection.customerPoolSummary.metCount}`,
             `潜力 ${projection.customerPoolSummary.potentialCount}`,
-            `快到报价 ${projection.customerPoolSummary.closingCount}`,
+            `报价/签约 ${projection.customerPoolSummary.closingCount}`,
           ]}
         />
         <DetailMetricCard

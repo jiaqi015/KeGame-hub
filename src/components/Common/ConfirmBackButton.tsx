@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ArrowLeft } from 'lucide-react';
 
 type ConfirmBackAction = {
@@ -31,6 +32,48 @@ export function ConfirmBackButton({
     : onConfirm
       ? [{ label: '确认返回', onClick: onConfirm, tone: 'primary' as const }]
       : [];
+  const overlay = open && typeof document !== 'undefined' ? createPortal(
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[rgba(3,7,12,0.68)] p-6 backdrop-blur-md">
+      <div
+        ref={panelRef}
+        className="w-full max-w-[460px] rounded-[24px] border border-[var(--seller-border-strong)] bg-[var(--seller-paper)] p-5 shadow-[var(--seller-shadow-lg)]"
+      >
+        <div className="text-[16px] font-semibold text-[var(--seller-ink)]">{title}</div>
+        <p className="mt-2 text-[13px] leading-6 text-[var(--seller-muted)]">
+          {description}
+        </p>
+        <div className="mt-5 grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="whitespace-nowrap rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-2 text-[12px] font-semibold text-[var(--seller-muted)] transition hover:border-[var(--seller-border-strong)] hover:bg-[rgba(255,255,255,0.07)] hover:text-[var(--seller-ink)]"
+          >
+            取消
+          </button>
+          {resolvedActions.map((action) => (
+            <button
+              key={action.label}
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                action.onClick();
+              }}
+              className={`whitespace-nowrap rounded-full px-3 py-2 text-[12px] font-semibold transition ${
+                action.tone === 'danger'
+                  ? 'border border-[color-mix(in_srgb,var(--seller-risk)_42%,var(--seller-border)_58%)] bg-[var(--seller-risk-soft)] text-[var(--seller-risk)] hover:bg-[rgba(240,107,107,0.18)]'
+                  : action.tone === 'secondary'
+                    ? 'border border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] text-[var(--seller-ink)] hover:bg-[rgba(255,255,255,0.08)]'
+                    : 'border border-[color-mix(in_srgb,var(--seller-accent)_50%,var(--seller-border)_50%)] bg-[var(--seller-accent)] text-[var(--seller-bg)] hover:bg-[color-mix(in_srgb,var(--seller-accent)_88%,white_12%)]'
+              }`}
+            >
+              {action.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  ) : null;
 
   useEffect(() => {
     if (!open) {
@@ -68,47 +111,7 @@ export function ConfirmBackButton({
         {buttonLabel}
       </button>
 
-      {open ? (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 p-6 backdrop-blur-sm">
-          <div
-            ref={panelRef}
-            className="w-full max-w-[360px] rounded-[24px] border border-black/8 bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.22)]"
-          >
-            <div className="text-[16px] font-semibold text-slate-900">{title}</div>
-            <p className="mt-2 text-[13px] leading-6 text-slate-500">
-              {description}
-            </p>
-            <div className="mt-5 flex flex-wrap items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="rounded-full border border-black/8 px-4 py-2 text-[12px] font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-slate-900"
-              >
-                取消
-              </button>
-              {resolvedActions.map((action) => (
-                <button
-                  key={action.label}
-                  type="button"
-                  onClick={() => {
-                    setOpen(false);
-                    action.onClick();
-                  }}
-                  className={`rounded-full px-4 py-2 text-[12px] font-semibold transition ${
-                    action.tone === 'danger'
-                      ? 'bg-rose-600 text-white hover:bg-rose-700'
-                      : action.tone === 'secondary'
-                        ? 'border border-black/8 bg-white text-slate-700 hover:bg-slate-50'
-                        : 'bg-slate-900 text-white hover:bg-slate-800'
-                  }`}
-                >
-                  {action.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : null}
+      {overlay}
     </>
   );
 }

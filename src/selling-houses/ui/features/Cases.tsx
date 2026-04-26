@@ -5,10 +5,10 @@ import {
   buildOperatingProjection,
   type ProductOpportunityProjection,
 } from '../../application/projections/operatingProjection.js';
+import { buildOwnerPersonaProfile, type OwnerPersonaProfile } from '../../application/projections/ownerPersonaProfile.js';
 import { ACTIONS, ACTION_CATEGORIES } from '../../domain/constants';
 import { costText, caseSortValue } from '../../domain/utils';
 import { getActiveOpportunities, getActionAvailability } from '../../domain/engine';
-import { PERSONALITIES } from '../../domain/constants';
 import { Star } from 'lucide-react';
 import { buildOpportunityViewModels, type OpportunityViewModel } from './caseOpportunityViewModel';
 import {
@@ -109,6 +109,7 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
     .filter((entry) => matchQuickFilter(state, entry, caseProjectionById.get(entry.id) || null, quickFilter));
   const effectiveSelectedCaseId = selectedCaseIdOverride || selectedCaseId;
   const selectedCase = sortedCases.find((entry) => entry.id === effectiveSelectedCaseId) || visibleCases[0] || sortedCases[0];
+  const selectedOwnerProfile = selectedCase ? buildOwnerPersonaProfile(selectedCase) : null;
   const selectionHiddenByFilter = Boolean(selectedCase && !visibleCases.some((entry) => entry.id === selectedCase.id));
   const activeOpportunities = selectedCase ? getActiveOpportunities(state, selectedCase.id) : [];
 
@@ -236,6 +237,7 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
           const cardProjection = caseProjectionById.get(c.id) || null;
           const listingOpportunity = listingOpportunityByCaseId.get(c.id);
           const communityOpportunity = communityOpportunityByCommunity.get(c.community);
+          const ownerProfile = buildOwnerPersonaProfile(c);
           return (
           <div
             key={c.id}
@@ -291,14 +293,9 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
               )}
             </div>
             <div className="mt-2.5 flex items-center gap-2">
-              <CompactMetric label="信" val={c.trust} />
-              <CompactMetric label="热" val={c.heat} />
-              <span className={`ml-auto rounded-full px-2 py-0.5 text-[8px] font-bold ${
-                c.personality === 'pragmatic' ? 'bg-[var(--seller-accent-soft)] text-[var(--seller-accent)]' :
-                c.personality === 'emotional' ? 'bg-[rgba(102,209,224,0.12)] text-[var(--seller-chance)]' : 'bg-[var(--seller-risk-soft)] text-[var(--seller-risk)]'
-              }`}>
-                {PERSONALITIES[c.personality as keyof typeof PERSONALITIES]?.label}
-                </span>
+              <CompactMetric label="业主信任度" val={c.trust} />
+              <CompactMetric label="好房分" val={c.competitiveness} />
+              <OwnerPersonaPill profile={ownerProfile} />
               </div>
             </div>
           );
@@ -342,10 +339,10 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
                       <span>{selectedCase.district}</span>
                       <span className="text-[var(--seller-border-strong)]">/</span>
                       <span>{selectedCase.layout} · {selectedCase.area}㎡</span>
-                      {selectedCase.personality && (
+                      {selectedOwnerProfile && (
                         <>
                           <span className="text-[var(--seller-border-strong)]">/</span>
-                          <span>{PERSONALITIES[selectedCase.personality as keyof typeof PERSONALITIES]?.label}业主</span>
+                          <span>{selectedOwnerProfile.label}</span>
                         </>
                       )}
                     </div>
@@ -516,12 +513,12 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
                         </div>
                       </DeskSection>
 
-                      <DeskSection title="业主状态" count={PERSONALITIES[selectedCase.personality as keyof typeof PERSONALITIES]?.label || '业主'}>
+                      <DeskSection title="业主状态" count={selectedOwnerProfile?.label || '业主'}>
                         <SummaryPanel
                           title={caseProjection?.ownerSummary.title || '业主状态稳定'}
                           detail={caseProjection?.ownerSummary.detail || deriveSellerGuidance(selectedCase)}
                           points={[
-                            `信任 ${caseProjection?.ownerSummary.trust ?? Math.round(selectedCase.trust)}`,
+                            `业主信任度 ${caseProjection?.ownerSummary.trust ?? Math.round(selectedCase.trust)}`,
                             `耐心 ${caseProjection?.ownerSummary.patience ?? Math.round(selectedCase.patience)}`,
                             `紧迫 ${caseProjection?.ownerSummary.urgency ?? Math.round(selectedCase.urgency)}`,
                           ]}
@@ -532,7 +529,7 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
                           <ProgressRail label="紧迫" value={caseProjection?.ownerSummary.urgency ?? selectedCase.urgency} tone="risk" />
                         </div>
                         <div className="mt-2">
-                          <InfoStrip label="沟通方式" value={deriveCommunicationMode(selectedCase)} />
+                          <InfoStrip label="沟通方式" value={selectedOwnerProfile?.communicationLabel || deriveCommunicationMode(selectedCase)} />
                         </div>
                       </DeskSection>
                     </div>
@@ -698,7 +695,7 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
 function CompactMetric({ label, val }: { label: string; val: number }) {
   return (
     <div className="min-w-0 flex-1">
-      <div className="mb-1 flex justify-between text-[9px] font-bold uppercase tracking-[0.12em] text-[var(--seller-subtle)]">
+      <div className="mb-1 flex justify-between text-[9px] font-bold tracking-[0.04em] text-[var(--seller-subtle)]">
         <span>{label}</span>
         <span>{Math.round(val)}</span>
       </div>
@@ -707,6 +704,21 @@ function CompactMetric({ label, val }: { label: string; val: number }) {
       </div>
     </div>
   );
+}
+
+function OwnerPersonaPill({ profile }: { profile: OwnerPersonaProfile }) {
+  return (
+    <span className={`ml-auto shrink-0 rounded-full px-2 py-0.5 text-[8px] font-bold ${ownerPersonaToneClass(profile.tone)}`}>
+      {profile.label}
+    </span>
+  );
+}
+
+function ownerPersonaToneClass(tone: OwnerPersonaProfile['tone']) {
+  if (tone === 'risk') return 'bg-[var(--seller-risk-soft)] text-[var(--seller-risk)]';
+  if (tone === 'chance') return 'bg-[rgba(102,209,224,0.12)] text-[var(--seller-chance)]';
+  if (tone === 'accent') return 'bg-[var(--seller-accent-soft)] text-[var(--seller-accent)]';
+  return 'bg-[rgba(255,255,255,0.06)] text-[var(--seller-muted)]';
 }
 
 function DiagnosisCard({

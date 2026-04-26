@@ -10,7 +10,11 @@ import {
   Sparkles,
   Users,
 } from 'lucide-react';
-import { buildOpportunityListProjection } from '../../application/projections/operatingProjection.js';
+import {
+  buildOpportunityListProjection,
+  type OpportunityBucketId,
+} from '../../application/projections/operatingProjection.js';
+import { buildOwnerPersonaProfile } from '../../application/projections/ownerPersonaProfile.js';
 import { buildOpportunityViewModels, formatOpportunityDaysLeft, type OpportunityViewModel } from './caseOpportunityViewModel';
 
 interface OpportunitiesProps {
@@ -33,10 +37,20 @@ type PotentialPoolGroup = {
 };
 
 type OpportunityTab = 'active' | 'closing' | 'risk' | 'potential';
+type ActiveCustomerFilter = 'all' | 'viewed' | 'contacted' | 'comparing' | 'negotiating';
+
+const BUCKET_TAB_MAP: Record<OpportunityBucketId, OpportunityTab> = {
+  met: 'active',
+  potential: 'potential',
+  closing: 'closing',
+  'at-risk': 'risk',
+};
 
 export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesProps) {
   const projection = useMemo(() => buildOpportunityListProjection(state), [state]);
   const [activeTab, setActiveTab] = useState<OpportunityTab>('active');
+  const [activeCustomerFilter, setActiveCustomerFilter] = useState<ActiveCustomerFilter>('all');
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const metModels = useMemo(() => buildOpportunityViewModels(state, projection.met), [projection.met, state]);
   const potentialModels = useMemo(() => buildOpportunityViewModels(state, projection.potential), [projection.potential, state]);
   const closingModels = useMemo(() => buildOpportunityViewModels(state, projection.closing), [projection.closing, state]);
@@ -45,14 +59,40 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
 
   const viewedModels = metModels.filter((model) => model.hasViewed);
   const contactedModels = metModels.filter((model) => !model.hasViewed);
+  const comparingModels = metModels.filter((model) => model.customerState?.status === 'comparing');
+  const negotiatingModels = metModels.filter((model) => model.customerState?.status === 'negotiating' || model.opportunity.stageIndex >= 4);
+  const displayedMetModels = filterMetModels(metModels, activeCustomerFilter);
+  const showActiveTab = (filter: ActiveCustomerFilter = 'all') => {
+    setActiveTab('active');
+    setActiveCustomerFilter(filter);
+  };
+  const showBucketTab = (bucketId: OpportunityBucketId) => {
+    setActiveCustomerFilter('all');
+    setActiveTab(BUCKET_TAB_MAP[bucketId]);
+  };
+  const selectedCustomerModels = selectedCustomerId
+    ? metModels.filter((model) => model.opportunity.customerId === selectedCustomerId)
+    : [];
+  const selectedCustomerModel = selectedCustomerModels[0] || null;
+
+  if (selectedCustomerModel) {
+    return (
+      <CustomerDetailPage
+        model={selectedCustomerModel}
+        relatedModels={selectedCustomerModels}
+        onBack={() => setSelectedCustomerId(null)}
+        onOpenCase={(caseId) => openCase(caseId, onSelectCase, onSetView)}
+      />
+    );
+  }
 
   return (
     <div className="space-y-4" data-selling-houses-page="customers">
       <section className="seller-panel p-4 lg:p-5">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-3xl">
-            <div className="seller-label">客户</div>
-            <h2 className="seller-title mt-2 text-[20px]">客户</h2>
+            <div className="seller-label">我的客户</div>
+            <h2 className="seller-title mt-2 text-[20px]">我的客户</h2>
           </div>
 
           <div className="grid min-w-[280px] grid-cols-2 gap-2 md:grid-cols-4">
@@ -63,6 +103,8 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
                   value={bucket.count}
                   summary={bucket.summary}
                   tone={bucket.id === 'closing' ? 'emerald' : bucket.id === 'at-risk' ? 'rose' : bucket.id === 'potential' ? 'amber' : 'slate'}
+                  active={activeTab === BUCKET_TAB_MAP[bucket.id] && activeCustomerFilter === 'all'}
+                  onClick={() => showBucketTab(bucket.id)}
                 />
               </div>
             ))}
@@ -74,10 +116,10 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
         <div className="flex flex-col gap-3 border-b border-[var(--seller-border)] pb-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="seller-label">分区</div>
           <div className="seller-tabbar">
-            <button type="button" onClick={() => setActiveTab('active')} className={`seller-tab ${activeTab === 'active' ? 'seller-tab-active' : ''}`}>已接上</button>
-            <button type="button" onClick={() => setActiveTab('closing')} className={`seller-tab ${activeTab === 'closing' ? 'seller-tab-active' : ''}`}>快成交</button>
-            <button type="button" onClick={() => setActiveTab('risk')} className={`seller-tab ${activeTab === 'risk' ? 'seller-tab-active' : ''}`}>掉线</button>
-            <button type="button" onClick={() => setActiveTab('potential')} className={`seller-tab ${activeTab === 'potential' ? 'seller-tab-active' : ''}`}>潜在</button>
+            <button type="button" onClick={() => showActiveTab()} className={`seller-tab ${activeTab === 'active' ? 'seller-tab-active' : ''}`}>已接上</button>
+            <button type="button" onClick={() => { setActiveCustomerFilter('all'); setActiveTab('closing'); }} className={`seller-tab ${activeTab === 'closing' ? 'seller-tab-active' : ''}`}>快成交</button>
+            <button type="button" onClick={() => { setActiveCustomerFilter('all'); setActiveTab('risk'); }} className={`seller-tab ${activeTab === 'risk' ? 'seller-tab-active' : ''}`}>掉线</button>
+            <button type="button" onClick={() => { setActiveCustomerFilter('all'); setActiveTab('potential'); }} className={`seller-tab ${activeTab === 'potential' ? 'seller-tab-active' : ''}`}>潜在</button>
           </div>
         </div>
 
@@ -89,46 +131,58 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
                 count={viewedModels.length}
                 detail="重点盯复看、报价和家人决策。"
                 tone="emerald"
+                active={activeCustomerFilter === 'viewed'}
+                onClick={() => showActiveTab('viewed')}
               />
               <StageOverviewCard
                 title="只接上话"
                 count={contactedModels.length}
                 detail="重点推进到带看。"
                 tone="slate"
+                active={activeCustomerFilter === 'contacted'}
+                onClick={() => showActiveTab('contacted')}
               />
             </div>
             <div className="seller-note p-3.5">
               <div className="grid grid-cols-2 gap-3 text-[11px] text-[var(--seller-muted)] md:grid-cols-4">
-                <div>
-                  <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">已接上</div>
-                  <div className="mt-1 text-[15px] font-semibold text-[var(--seller-ink)]">{projection.realCustomerSummary.contactedCount}</div>
-                </div>
-                <div>
-                  <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">比较中</div>
-                  <div className="mt-1 text-[15px] font-semibold text-[var(--seller-ink)]">{projection.realCustomerSummary.comparingCount}</div>
-                </div>
-                <div>
-                  <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">谈价中</div>
-                  <div className="mt-1 text-[15px] font-semibold text-[var(--seller-ink)]">{projection.realCustomerSummary.negotiatingCount}</div>
-                </div>
-                <div>
-                  <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">看过房</div>
-                  <div className="mt-1 text-[15px] font-semibold text-[var(--seller-ink)]">{projection.realCustomerSummary.viewedCount}</div>
-                </div>
+                <CustomerMetricButton
+                  label="已接上"
+                  value={metModels.length}
+                  active={activeCustomerFilter === 'all'}
+                  onClick={() => showActiveTab()}
+                />
+                <CustomerMetricButton
+                  label="比较中"
+                  value={comparingModels.length}
+                  active={activeCustomerFilter === 'comparing'}
+                  onClick={() => showActiveTab('comparing')}
+                />
+                <CustomerMetricButton
+                  label="谈价中"
+                  value={negotiatingModels.length}
+                  active={activeCustomerFilter === 'negotiating'}
+                  onClick={() => showActiveTab('negotiating')}
+                />
+                <CustomerMetricButton
+                  label="看过房"
+                  value={viewedModels.length}
+                  active={activeCustomerFilter === 'viewed'}
+                  onClick={() => showActiveTab('viewed')}
+                />
               </div>
             </div>
-            <div className="space-y-3">
-              {metModels.length > 0 ? metModels.map((model) => (
+            <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+              {displayedMetModels.length > 0 ? displayedMetModels.map((model) => (
                 <React.Fragment key={model.opportunity.id}>
                   <CustomerOpportunityCard
                     model={model}
-                    onOpenCase={() => openCase(model.opportunity.caseId, onSelectCase, onSetView)}
+                    onOpenDetail={() => setSelectedCustomerId(model.opportunity.customerId)}
                   />
                 </React.Fragment>
               )) : (
                 <EmptyState
-                  title="还没有稳定接上的客户"
-                  detail="先从房源页接出第一批真人客户。"
+                  title={activeCustomerFilter === 'all' ? '还没有稳定接上的客户' : '这个分组暂时为空'}
+                  detail={activeCustomerFilter === 'all' ? '先从房源页接出第一批真人客户。' : '可以切回已接上看全部客户。'}
                 />
               )}
             </div>
@@ -143,7 +197,7 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
                   model={model}
                   accent="emerald"
                   titleSuffix="已进入报价或谈判"
-                  onOpenCase={() => openCase(model.opportunity.caseId, onSelectCase, onSetView)}
+                  onOpenDetail={() => setSelectedCustomerId(model.opportunity.customerId)}
                 />
               </React.Fragment>
             )) : (
@@ -164,7 +218,7 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
                   model={model}
                   accent="rose"
                   titleSuffix={model.urgencyLabel}
-                  onOpenCase={() => openCase(model.opportunity.caseId, onSelectCase, onSetView)}
+                  onOpenDetail={() => setSelectedCustomerId(model.opportunity.customerId)}
                 />
               </React.Fragment>
             )) : (
@@ -224,6 +278,14 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
 function openCase(caseId: string, onSelectCase: (id: string) => void, onSetView: (view: string) => void) {
   onSelectCase(caseId);
   onSetView('cases');
+}
+
+function filterMetModels(models: OpportunityViewModel[], filter: ActiveCustomerFilter) {
+  if (filter === 'viewed') return models.filter((model) => model.hasViewed);
+  if (filter === 'contacted') return models.filter((model) => !model.hasViewed);
+  if (filter === 'comparing') return models.filter((model) => model.customerState?.status === 'comparing');
+  if (filter === 'negotiating') return models.filter((model) => model.customerState?.status === 'negotiating' || model.opportunity.stageIndex >= 4);
+  return models;
 }
 
 function groupPotentialPools(models: OpportunityViewModel[]): PotentialPoolGroup[] {
@@ -292,11 +354,15 @@ function BucketStat({
   value,
   summary,
   tone,
+  active,
+  onClick,
 }: {
   label: string;
   value: number;
   summary: string;
   tone: 'slate' | 'amber' | 'emerald' | 'rose';
+  active: boolean;
+  onClick: () => void;
 }) {
   const toneClass = tone === 'emerald'
     ? 'border-[color:var(--seller-chance)]/22 bg-[var(--seller-chance-soft)] text-[var(--seller-chance)]'
@@ -307,11 +373,15 @@ function BucketStat({
         : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] text-[var(--seller-ink)]';
 
   return (
-    <div className={`rounded-2xl border px-4 py-3 ${toneClass}`}>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full rounded-2xl border px-4 py-3 text-left transition hover:border-[var(--seller-border-strong)] ${toneClass} ${active ? 'ring-1 ring-[var(--seller-accent)]' : ''}`}
+    >
       <div className="text-[10px] font-bold uppercase tracking-[0.16em] opacity-70">{label}</div>
       <div className="mt-1 text-[20px] font-bold">{value}</div>
       <div className="mt-1 text-[11px] leading-5 opacity-70">{summary}</div>
-    </div>
+    </button>
   );
 }
 
@@ -320,33 +390,176 @@ function StageOverviewCard({
   count,
   detail,
   tone,
+  active,
+  onClick,
 }: {
   title: string;
   count: number;
   detail: string;
   tone: 'slate' | 'emerald';
+  active: boolean;
+  onClick: () => void;
 }) {
   const toneClass = tone === 'emerald'
     ? 'border-[color:var(--seller-chance)]/22 bg-[var(--seller-chance-soft)]'
     : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)]';
 
   return (
-    <div className={`rounded-[20px] border px-4 py-4 ${toneClass}`}>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full rounded-[20px] border px-4 py-4 text-left transition hover:border-[var(--seller-border-strong)] ${toneClass} ${active ? 'ring-1 ring-[var(--seller-accent)]' : ''}`}
+    >
       <div className="flex items-center justify-between gap-3">
         <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--seller-subtle)]">{title}</div>
         <div className="text-[22px] font-bold text-[var(--seller-ink)]">{count}</div>
       </div>
       <p className="mt-2 text-[12px] leading-6 text-[var(--seller-muted)]">{detail}</p>
+    </button>
+  );
+}
+
+function CustomerMetricButton({
+  label,
+  value,
+  active,
+  onClick,
+}: {
+  label: string;
+  value: number;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-[12px] px-3 py-2 text-left transition hover:bg-[rgba(255,255,255,0.06)] ${active ? 'bg-[rgba(255,255,255,0.06)] ring-1 ring-[var(--seller-accent)]' : ''}`}
+    >
+      <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">{label}</div>
+      <div className="mt-1 text-[15px] font-semibold text-[var(--seller-ink)]">{value}</div>
+    </button>
+  );
+}
+
+function CustomerDetailPage({
+  model,
+  relatedModels,
+  onBack,
+  onOpenCase,
+}: {
+  model: OpportunityViewModel;
+  relatedModels: OpportunityViewModel[];
+  onBack: () => void;
+  onOpenCase: (caseId: string) => void;
+}) {
+  const customer = model.customer;
+  const preferences = customer?.preferences?.length ? customer.preferences.join('、') : '偏好还在确认';
+  const layouts = customer?.layouts?.length ? customer.layouts.join(' / ') : '户型待确认';
+  const budgetLine = customer ? `${customer.budgetMin}-${customer.budgetMax} 万` : `上限约 ${model.opportunity.budgetMax} 万`;
+  const districtLine = customer?.targetDistrict || model.caseItem?.district || '片区待确认';
+
+  return (
+    <div className="space-y-4" data-selling-houses-page="customers">
+      <section className="seller-panel p-4 lg:p-5">
+        <button
+          type="button"
+          onClick={onBack}
+          className="seller-button-secondary rounded-[10px] px-3 py-2 text-[11px]"
+        >
+          返回我的客户
+        </button>
+        <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <div className="seller-label">客户详情</div>
+            <h2 className="seller-title mt-2 text-[24px]">{model.opportunity.customerName}</h2>
+            <p className="mt-2 text-[12px] leading-6 text-[var(--seller-muted)]">
+              {model.opportunityStatusLabel} · {model.opportunity.channelName}
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-right lg:min-w-[280px]">
+            <MetricPill label="意向" value={`${Math.round(model.opportunity.intent)}`} tone="slate" />
+            <MetricPill label="把握" value={`${Math.round(model.opportunity.confidence)}`} tone="slate" />
+            <MetricPill label="剩余" value={formatOpportunityDaysLeft(model.opportunity.daysLeft)} tone={model.opportunity.daysLeft <= 2 ? 'rose' : 'amber'} />
+          </div>
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+        <StatusPanel
+          icon={<Sparkles size={14} />}
+          label="信息"
+          title={`${budgetLine} · ${districtLine}`}
+          detail={layouts}
+          tone="slate"
+        />
+        <StatusPanel
+          icon={<Users size={14} />}
+          label="画像"
+          title={model.profileDetail}
+          detail={preferences}
+          tone="amber"
+        />
+        <StatusPanel
+          icon={<MessagesSquare size={14} />}
+          label="需求"
+          title={model.customerStatusLabel}
+          detail={model.customerStatusDetail}
+          tone={model.customerState?.status === 'negotiating' ? 'emerald' : 'slate'}
+        />
+      </section>
+
+      <section className="seller-panel p-4 lg:p-5">
+        <div className="flex flex-col gap-1 border-b border-[var(--seller-border)] pb-3">
+          <div className="seller-label">关注房源</div>
+          <p className="text-[12px] leading-6 text-[var(--seller-muted)]">
+            {relatedModels.length} 套正在跟进。
+          </p>
+        </div>
+        <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-2">
+          {relatedModels.map((item) => {
+            const ownerProfile = item.caseItem ? buildOwnerPersonaProfile(item.caseItem) : null;
+            return (
+              <button
+                key={item.opportunity.id}
+                type="button"
+                onClick={() => onOpenCase(item.opportunity.caseId)}
+                className="rounded-[18px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] p-3.5 text-left transition hover:border-[var(--seller-border-strong)] hover:bg-[rgba(255,255,255,0.05)]"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="truncate text-[14px] font-semibold text-[var(--seller-ink)]">{item.caseItem?.title || '未知房源'}</h3>
+                    <p className="mt-1 text-[11px] leading-5 text-[var(--seller-subtle)]">{item.caseItem?.district || '片区待确认'} · {item.opportunity.channelName}</p>
+                    {ownerProfile && (
+                      <span className="mt-2 inline-flex rounded-full bg-[rgba(255,255,255,0.06)] px-2 py-0.5 text-[10px] font-bold text-[var(--seller-muted)]">
+                        {ownerProfile.label}
+                      </span>
+                    )}
+                  </div>
+                  <span className="rounded-full bg-[rgba(255,255,255,0.06)] px-2 py-0.5 text-[10px] font-bold text-[var(--seller-subtle)]">
+                    {formatOpportunityDaysLeft(item.opportunity.daysLeft)}
+                  </span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <MetricPill label="意向" value={`${Math.round(item.opportunity.intent)}`} tone="slate" />
+                  <MetricPill label="把握" value={`${Math.round(item.opportunity.confidence)}`} tone="slate" />
+                </div>
+                <p className="mt-3 text-[11px] leading-5 text-[var(--seller-muted)]">{item.nextStep}</p>
+              </button>
+            );
+          })}
+        </div>
+      </section>
     </div>
   );
 }
 
 function CustomerOpportunityCard({
   model,
-  onOpenCase,
+  onOpenDetail,
 }: {
   model: OpportunityViewModel;
-  onOpenCase: () => void;
+  onOpenDetail: () => void;
 }) {
   const comparing = model.customerState?.status === 'comparing';
   const atRisk = (model.customerState?.churnRisk || 0) >= 60 || model.opportunity.daysLeft <= 2;
@@ -354,74 +567,26 @@ function CustomerOpportunityCard({
   return (
     <button
       type="button"
-      onClick={onOpenCase}
-      className="w-full rounded-[22px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-4 py-4 text-left transition hover:border-[var(--seller-border-strong)] hover:bg-[rgba(255,255,255,0.05)]"
+      onClick={onOpenDetail}
+      className="w-full rounded-[18px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3.5 py-3 text-left transition hover:border-[var(--seller-border-strong)] hover:bg-[rgba(255,255,255,0.05)]"
     >
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-                <strong className="text-[15px] font-semibold text-[var(--seller-ink)]">{model.opportunity.customerName}</strong>
-                <span className="rounded-full bg-[rgba(255,255,255,0.05)] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">
-                  {model.opportunityStatusLabel}
-                </span>
-                {comparing && (
-                  <span className="rounded-full bg-[var(--seller-accent-soft)] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-accent)]">
-                    比较中
-                  </span>
-                )}
-                {atRisk && (
-                  <span className="rounded-full bg-[var(--seller-risk-soft)] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-risk)]">
-                    掉线风险
-                  </span>
-                )}
-              </div>
-            <p className="mt-1 text-[12px] leading-6 text-[var(--seller-subtle)]">{model.caseItem?.title || '未知房源'} · {model.opportunity.channelName}</p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <strong className="text-[14px] font-semibold text-[var(--seller-ink)]">{model.opportunity.customerName}</strong>
+            <span className="rounded-full bg-[rgba(255,255,255,0.05)] px-2 py-0.5 text-[10px] font-bold text-[var(--seller-subtle)]">
+              {model.opportunityStatusLabel}
+            </span>
+            {comparing && <span className="rounded-full bg-[var(--seller-accent-soft)] px-2 py-0.5 text-[10px] font-bold text-[var(--seller-accent)]">比较中</span>}
+            {atRisk && <span className="rounded-full bg-[var(--seller-risk-soft)] px-2 py-0.5 text-[10px] font-bold text-[var(--seller-risk)]">掉线风险</span>}
           </div>
-
-          <div className="grid grid-cols-3 gap-2 text-right lg:min-w-[240px]">
-            <MetricPill label="意向" value={`${Math.round(model.opportunity.intent)}`} tone="slate" />
-            <MetricPill label="把握" value={`${Math.round(model.opportunity.confidence)}`} tone="slate" />
-            <MetricPill label="剩余" value={formatOpportunityDaysLeft(model.opportunity.daysLeft)} tone={atRisk ? 'rose' : 'amber'} />
-          </div>
+          <p className="mt-1 truncate text-[11px] leading-5 text-[var(--seller-subtle)]">{model.caseItem?.title || '未知房源'} · {model.opportunity.channelName}</p>
+          <p className="mt-2 line-clamp-2 text-[11px] leading-5 text-[var(--seller-muted)]">{model.nextStep}</p>
         </div>
-
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
-          <StatusPanel
-            icon={<Sparkles size={14} />}
-            label="客户情况"
-            title={model.profileLine}
-            detail={model.relationshipFact}
-            tone="slate"
-          />
-          <StatusPanel
-            icon={<Users size={14} />}
-            label="客户状态"
-            title={model.customerStatusLabel}
-            detail={model.customerStatusDetail}
-            tone={atRisk ? 'rose' : comparing ? 'amber' : 'slate'}
-          />
-          <StatusPanel
-            icon={model.hasViewed ? <MessagesSquare size={14} /> : <ArrowRight size={14} />}
-            label="这套房现在走到哪"
-            title={model.opportunityStatusLabel}
-            detail={model.opportunityStatusDetail}
-            tone={model.hasViewed ? 'emerald' : 'slate'}
-          />
-        </div>
-
-        <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
-          <InlineFlag label="当前要盯" value={model.urgencyLabel} tone={atRisk ? 'rose' : 'amber'} />
-          <InlineFlag label="下一步" value={model.nextStep} tone="slate" />
-          {model.competitorSummary && (
-            <InlineFlag label="还在比" value={model.competitorSummary} tone="amber" />
-          )}
-          {model.runtime?.selected && (
-            <InlineFlag label="房源站位" value="这套房更靠前" tone="emerald" />
-          )}
-          {!model.runtime?.selected && (
-            <InlineFlag label="阶段轨迹" value={model.stageTrail} tone="slate" />
-          )}
+        <div className="grid w-[168px] shrink-0 grid-cols-3 gap-1.5 text-right">
+          <MetricPill label="意向" value={`${Math.round(model.opportunity.intent)}`} tone="slate" />
+          <MetricPill label="把握" value={`${Math.round(model.opportunity.confidence)}`} tone="slate" />
+          <MetricPill label="剩余" value={formatOpportunityDaysLeft(model.opportunity.daysLeft)} tone={atRisk ? 'rose' : 'amber'} />
         </div>
       </div>
     </button>
@@ -432,12 +597,12 @@ function CompactOpportunityCard({
   model,
   accent,
   titleSuffix,
-  onOpenCase,
+  onOpenDetail,
 }: {
   model: OpportunityViewModel;
   accent: 'emerald' | 'rose';
   titleSuffix: string;
-  onOpenCase: () => void;
+  onOpenDetail: () => void;
 }) {
   const cardClass = accent === 'emerald'
     ? 'border-[color:var(--seller-chance)]/22 bg-[var(--seller-chance-soft)]'
@@ -446,7 +611,7 @@ function CompactOpportunityCard({
   return (
     <button
       type="button"
-      onClick={onOpenCase}
+      onClick={onOpenDetail}
       className={`w-full rounded-2xl border px-4 py-3 text-left transition hover:bg-[rgba(255,255,255,0.05)] ${cardClass}`}
     >
       <div className="flex items-start justify-between gap-3">

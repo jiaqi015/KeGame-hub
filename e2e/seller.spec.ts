@@ -59,6 +59,19 @@ function defaultSaveFingerprint(keys: string[]) {
   return defaultSaveKeys(keys).join('\n');
 }
 
+async function expectUnreadRowsPinned(page: Page, selector: string) {
+  const readOrder = await page.locator(selector).evaluateAll((rows) =>
+    rows.map((row) => row.getAttribute('data-my-wechat-read')),
+  );
+  expect(readOrder.length).toBeGreaterThan(0);
+  expect(readOrder).toContain('true');
+  const firstReadIndex = readOrder.indexOf('true');
+  const lastUnreadIndex = readOrder.lastIndexOf('false');
+  if (firstReadIndex >= 0 && lastUnreadIndex >= 0) {
+    expect(lastUnreadIndex).toBeLessThan(firstReadIndex);
+  }
+}
+
 function isKnownConsoleNoise(message: ConsoleMessage) {
   const text = message.text();
   return text.includes('Failed to load resource: the server responded with a status of 401');
@@ -118,7 +131,7 @@ test('selling-houses e2e profile advances safely without touching default save',
 
   await page.getByRole('button', { name: '经营概览' }).click();
   await expect(page.locator('[data-my-wechat-panel="true"]')).toBeVisible();
-  await expect(page.locator('[data-my-wechat-message-row="true"]').first()).toHaveAttribute('data-my-wechat-read', 'true');
+  await expectUnreadRowsPinned(page, '[data-my-wechat-message-row="true"]');
   await page.locator('[data-my-wechat-tab="公众号"]').click();
   await expect(page.locator('[data-my-wechat-official-row="true"]').first()).toBeVisible();
   await page.locator('[data-my-wechat-official-row="true"]').first().click();
@@ -127,6 +140,8 @@ test('selling-houses e2e profile advances safely without touching default save',
   expect(defaultSaveFingerprint(await sellerSaveKeys(page))).toBe(defaultKeysBeforeE2e);
 
   await page.getByRole('button', { name: '经营概览' }).click();
+  await page.locator('[data-my-wechat-tab="公众号"]').click();
+  await expectUnreadRowsPinned(page, '[data-my-wechat-official-row="true"]');
 
   await page.getByRole('button', { name: '结束今日' }).click();
   await expect(page.getByText(/第 1 天经营简报/)).toBeVisible();

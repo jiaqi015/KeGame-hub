@@ -1919,7 +1919,7 @@ function buildOpportunityBuckets(
   return [
     {
       id: 'met',
-      label: '见过面 / 接上话',
+      label: '见面准客',
       count: met.length,
       summary: met.length > 0 ? '可以做阶段管理。' : '还没有稳定接上的客户。',
     },
@@ -1931,7 +1931,7 @@ function buildOpportunityBuckets(
     },
     {
       id: 'closing',
-      label: '快到报价',
+      label: '报价/签约',
       count: closingCount,
       summary: closingCount > 0 ? '已经进入报价或谈判区。' : '暂时没有走到成交桌的客户。',
     },

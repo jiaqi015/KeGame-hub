@@ -29,6 +29,8 @@ type MarketStory = {
   body: string;
   tags?: Array<{ label: string; caseId?: string }>;
   score?: number;
+  detailLines?: string[];
+  metrics?: Array<{ label: string; value: string; tone?: ProjectionTone | 'warm' }>;
 };
 
 type WireStory = {
@@ -37,6 +39,7 @@ type WireStory = {
   section: string;
   time: string;
   text: string;
+  detailStory?: MarketStory;
 };
 
 type TickerItem = {
@@ -70,6 +73,7 @@ export function Market({
 }: MarketProps) {
   const initialSection = layerToSection(initialLayer);
   const [activeSection, setActiveSection] = useState<SectionTab>(initialSection);
+  const [selectedStory, setSelectedStory] = useState<MarketStory | null>(null);
   const projection = useMemo(() => buildMarketProjection(state), [state]);
   const caseTitleById = useMemo(() => new Map(state.cases.map((item) => [item.id, item.title])), [state.cases]);
   const stories = useMemo(() => buildStories(state, projection, caseTitleById), [caseTitleById, projection, state]);
@@ -171,7 +175,7 @@ export function Market({
 
       <section className="mx-auto grid w-full max-w-[1300px] grid-cols-1 px-7 pb-10 xl:grid-cols-[minmax(0,1fr)_220px]">
         <main className="pt-6 xl:border-r xl:border-[var(--market-border)] xl:pr-7">
-          <LeadStory story={leadStory} projection={projection} onOpenCase={openCase} />
+          <LeadStory story={leadStory} projection={projection} onOpenCase={openCase} onOpenStory={setSelectedStory} />
 
           <section className="mb-6">
             <Rule />
@@ -182,7 +186,7 @@ export function Market({
                   className={`${index > 0 ? 'lg:border-l lg:border-[var(--market-border)] lg:pl-5' : ''} flex flex-col gap-[18px]`}
                 >
                   {column.length > 0 ? column.map((story) => (
-                    <StoryCard key={story.id} story={story} onOpenCase={openCase} size="big" />
+                    <StoryCard key={story.id} story={story} onOpenCase={openCase} onOpenStory={setSelectedStory} size="big" />
                   )) : (
                     <EmptyColumn activeSection={activeSection} />
                   )}
@@ -194,7 +198,7 @@ export function Market({
           <section>
             <SectionHead label="简讯" count={wireList.length} />
             {wireList.length > 0 ? wireList.map((story) => (
-              <WireRow key={story.id} story={story} />
+              <WireRow key={story.id} story={story} onOpenStory={setSelectedStory} />
             )) : (
               <div className="rounded-[12px] border border-dashed border-[var(--market-border-strong)] bg-[rgba(15,23,32,0.72)] px-4 py-5 text-[12px] text-[var(--market-muted)]">
                 {sectionCounts[activeSection] === 0 ? '这个分类今天没有新情报。' : '暂无更多简讯。'}
@@ -239,6 +243,14 @@ export function Market({
           </div>
         </aside>
       </section>
+      {selectedStory && (
+        <MarketStoryModal
+          story={selectedStory}
+          projection={projection}
+          onClose={() => setSelectedStory(null)}
+          onOpenCase={openCase}
+        />
+      )}
     </div>
   );
 }
@@ -301,17 +313,26 @@ function LeadStory({
   story,
   projection,
   onOpenCase,
+  onOpenStory,
 }: {
   story: MarketStory;
   projection: ReturnType<typeof buildMarketProjection>;
   onOpenCase: (caseId?: string) => void;
+  onOpenStory: (story: MarketStory) => void;
 }) {
   const evidenceLine = buildLeadEvidence(projection, story.tone);
 
   return (
     <article className="mb-6">
       <Rule color={TONE_COLOR[story.tone]} />
-      <div className="pt-2.5">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => onOpenStory(story)}
+        onKeyDown={(event) => openStoryFromKeyboard(event, story, onOpenStory)}
+        className="cursor-pointer rounded-[14px] pt-2.5 transition hover:bg-[rgba(255,255,255,0.025)] focus:outline-none focus:ring-2 focus:ring-[color:var(--market-green)]/45"
+        aria-label={`打开市场情报：${story.headline}`}
+      >
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <span
             className="rounded-[3px] border px-2 py-1 text-[10px] font-bold uppercase tracking-[0.14em]"
@@ -349,7 +370,10 @@ function LeadStory({
                 key={`${tag.label}-${tag.caseId || 'none'}`}
                 type="button"
                 disabled={!tag.caseId}
-                onClick={() => onOpenCase(tag.caseId)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onOpenCase(tag.caseId);
+                }}
                 className="rounded-[4px] border px-3 py-1 text-[11px] font-semibold disabled:cursor-default"
                 style={{
                   color: TONE_COLOR[story.tone],
@@ -362,6 +386,7 @@ function LeadStory({
             ))}
           </div>
         ) : null}
+        <div className="mt-4 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--market-subtle)]">点击看详情</div>
       </div>
     </article>
   );
@@ -370,16 +395,25 @@ function LeadStory({
 function StoryCard({
   story,
   onOpenCase,
+  onOpenStory,
   size,
 }: {
   key?: React.Key;
   story: MarketStory;
   onOpenCase: (caseId?: string) => void;
+  onOpenStory: (story: MarketStory) => void;
   size?: 'big';
 }) {
   const big = size === 'big';
   return (
-    <article className="pb-1">
+    <article
+      role="button"
+      tabIndex={0}
+      onClick={() => onOpenStory(story)}
+      onKeyDown={(event) => openStoryFromKeyboard(event, story, onOpenStory)}
+      className="cursor-pointer rounded-[12px] pb-1 transition hover:bg-[rgba(255,255,255,0.025)] focus:outline-none focus:ring-2 focus:ring-[color:var(--market-green)]/40"
+      aria-label={`打开市场情报：${story.headline}`}
+    >
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <span className="text-[10px] font-bold uppercase tracking-[0.10em] text-[var(--market-subtle)]">
           {story.section}
@@ -405,7 +439,10 @@ function StoryCard({
               key={`${story.id}-${tag.label}`}
               type="button"
               disabled={!tag.caseId}
-              onClick={() => onOpenCase(tag.caseId)}
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpenCase(tag.caseId);
+              }}
             className="rounded-[4px] border px-2.5 py-0.5 text-[10px] font-semibold disabled:cursor-default"
             style={{
               color: TONE_COLOR[story.tone],
@@ -418,13 +455,22 @@ function StoryCard({
           ))}
         </div>
       ) : null}
+      <div className="mt-2 text-[9px] font-bold uppercase tracking-[0.12em] text-[var(--market-subtle)]">详情</div>
     </article>
   );
 }
 
-function WireRow({ story }: { key?: React.Key; story: WireStory }) {
-  return (
-    <div className="flex items-baseline gap-2.5 border-b border-[rgba(255,255,255,0.05)] py-2">
+function WireRow({
+  story,
+  onOpenStory,
+}: {
+  key?: React.Key;
+  story: WireStory;
+  onOpenStory: (story: MarketStory) => void;
+}) {
+  const clickable = Boolean(story.detailStory);
+  const content = (
+    <>
       <div
         className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full"
         style={{ background: TONE_COLOR[story.tone] }}
@@ -436,6 +482,163 @@ function WireRow({ story }: { key?: React.Key; story: WireStory }) {
         {story.text}
       </span>
       <span className="shrink-0 text-[10px] text-[var(--market-subtle)]">{story.time}</span>
+    </>
+  );
+
+  if (clickable && story.detailStory) {
+    return (
+      <button
+        type="button"
+        onClick={() => onOpenStory(story.detailStory as MarketStory)}
+        className="flex w-full items-baseline gap-2.5 border-b border-[rgba(255,255,255,0.05)] py-2 text-left transition hover:bg-[rgba(255,255,255,0.025)]"
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex items-baseline gap-2.5 border-b border-[rgba(255,255,255,0.05)] py-2">
+      {content}
+    </div>
+  );
+}
+
+function MarketStoryModal({
+  story,
+  projection,
+  onClose,
+  onOpenCase,
+}: {
+  story: MarketStory;
+  projection: ReturnType<typeof buildMarketProjection>;
+  onClose: () => void;
+  onOpenCase: (caseId?: string) => void;
+}) {
+  const detailLines = buildStoryDetailLines(story, projection);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[120] flex items-center justify-center bg-[rgba(5,8,12,0.66)] p-4 backdrop-blur-md"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`市场情报详情：${story.headline}`}
+      onMouseDown={onClose}
+    >
+      <div
+        className="max-h-[86vh] w-full max-w-[760px] overflow-y-auto rounded-[24px] border border-[var(--market-border-strong)] bg-[var(--market-paper)] shadow-[0_28px_90px_rgba(0,0,0,0.42)]"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="border-b border-[var(--market-border)] px-5 py-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <span
+                  className="rounded-[3px] border px-2 py-1 text-[10px] font-bold uppercase tracking-[0.14em]"
+                  style={{
+                    color: TONE_COLOR[story.tone],
+                    background: TONE_BG[story.tone],
+                    borderColor: colorMix(TONE_COLOR[story.tone], 0.35),
+                  }}
+                >
+                  {story.section}
+                </span>
+                <ToneTag tone={story.tone} />
+                <span className="text-[10px] text-[var(--market-subtle)]">{story.time}</span>
+              </div>
+              <h2 className="text-[24px] font-bold leading-[1.25] tracking-[-0.03em] text-[var(--market-ink)]">
+                {story.headline}
+              </h2>
+              {story.deck ? (
+                <p className="mt-3 text-[14px] font-semibold leading-6" style={{ color: TONE_COLOR[story.tone] }}>
+                  {story.deck}
+                </p>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="shrink-0 rounded-full border border-[var(--market-border)] px-3 py-1.5 text-[11px] font-bold text-[var(--market-muted)] transition hover:border-[var(--market-border-strong)] hover:text-[var(--market-ink)]"
+            >
+              关闭
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-5 px-5 py-5">
+          <div className="rounded-[18px] border border-[var(--market-border)] bg-[rgba(255,255,255,0.025)] px-4 py-3">
+            <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--market-subtle)]">情报内容</div>
+            <p className="mt-2 text-[13px] leading-7 text-[var(--market-muted)]">{story.body}</p>
+          </div>
+
+          {story.metrics && story.metrics.length > 0 ? (
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+              {story.metrics.map((metric) => (
+                <div
+                  key={`${metric.label}-${metric.value}`}
+                  className="rounded-[14px] border border-[var(--market-border)] bg-[rgba(255,255,255,0.025)] px-3 py-3"
+                >
+                  <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-[var(--market-subtle)]">{metric.label}</div>
+                  <div className="mt-1 text-[14px] font-bold tabular-nums" style={{ color: TONE_COLOR[metric.tone || story.tone] }}>
+                    {metric.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          <div>
+            <div className="mb-3 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--market-subtle)]">展开内容</div>
+            <div className="space-y-2">
+              {detailLines.map((line) => (
+                <div
+                  key={line}
+                  className="rounded-[14px] border border-[var(--market-border)] bg-[rgba(255,255,255,0.02)] px-3 py-2.5 text-[12px] leading-6 text-[var(--market-muted)]"
+                >
+                  {line}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {story.tags && story.tags.length > 0 ? (
+            <div>
+              <div className="mb-3 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--market-subtle)]">相关房源</div>
+              <div className="flex flex-wrap gap-2">
+                {story.tags.map((tag) => (
+                  <button
+                    key={`${story.id}-modal-${tag.label}-${tag.caseId || 'none'}`}
+                    type="button"
+                    disabled={!tag.caseId}
+                    onClick={() => {
+                      onOpenCase(tag.caseId);
+                      onClose();
+                    }}
+                    className="rounded-[8px] border px-3 py-1.5 text-[11px] font-semibold disabled:cursor-default"
+                    style={{
+                      color: TONE_COLOR[story.tone],
+                      background: TONE_BG[story.tone],
+                      borderColor: colorMix(TONE_COLOR[story.tone], 0.28),
+                    }}
+                  >
+                    {tag.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }
@@ -571,6 +774,62 @@ function EmptyColumn({ activeSection }: { activeSection: SectionTab }) {
   );
 }
 
+function openStoryFromKeyboard(
+  event: React.KeyboardEvent,
+  story: MarketStory,
+  onOpenStory: (story: MarketStory) => void,
+) {
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  event.preventDefault();
+  onOpenStory(story);
+}
+
+function buildStoryDetailLines(
+  story: MarketStory,
+  projection: ReturnType<typeof buildMarketProjection>,
+) {
+  const radarLine = buildStoryRadarLine(story, projection);
+  return compactStoryLines([
+    ...(story.detailLines || []),
+    radarLine,
+    story.tags && story.tags.length > 0 ? `相关房源：${story.tags.map((tag) => tag.label).join('、')}` : '',
+  ]);
+}
+
+function buildStoryRadarLine(
+  story: MarketStory,
+  projection: ReturnType<typeof buildMarketProjection>,
+) {
+  const cards = projection.radarCards
+    .filter((card) => card.tone === story.tone || story.headline.includes(card.label) || story.body.includes(card.label))
+    .slice(0, 2);
+  if (cards.length === 0) return '';
+  return cards.map((card) => `${card.label} ${card.value}`).join('，');
+}
+
+function buildBoardDetailLine(board: ReturnType<typeof buildMarketProjection>['districtBoards'][number]) {
+  if (board.tone === 'chance') {
+    return `客户热度 ${board.demandHeat}，市场情绪 ${board.sentiment}，板块今天偏活跃。`;
+  }
+  if (board.tone === 'risk') {
+    return `在售供给 ${board.supplyPressure}，竞争压力 ${board.competitivePressure}，同板块抢客更明显。`;
+  }
+  return `客户热度 ${board.demandHeat}，竞争压力 ${board.competitivePressure}，板块今天偏平稳。`;
+}
+
+function compactStoryLines(lines: Array<string | null | undefined>) {
+  const seen = new Set<string>();
+  return lines
+    .map((line) => (line || '').trim())
+    .filter((line) => line.length > 0)
+    .filter((line) => {
+      if (seen.has(line)) return false;
+      seen.add(line);
+      return true;
+    })
+    .slice(0, 5);
+}
+
 function buildStories(
   state: GameState,
   projection: ReturnType<typeof buildMarketProjection>,
@@ -589,6 +848,19 @@ function buildStories(
       .map((caseId) => ({ label: caseTitleById.get(caseId) || caseId, caseId }))
       .slice(0, 4),
     score: scoreSignalItem(item),
+    detailLines: compactStoryLines([
+      item.detail,
+      item.summary,
+      item.affectedCaseIds.length > 0
+        ? `影响房源：${item.affectedCaseIds.map((caseId) => caseTitleById.get(caseId) || caseId).join('、')}`
+        : '',
+    ]),
+    metrics: [
+      { label: '类型', value: item.badge, tone: item.tone },
+      { label: '层级', value: buildStorySection(item), tone: 'neutral' },
+      { label: '影响房源', value: `${item.affectedCaseIds.length} 套`, tone: item.affectedCaseIds.length > 0 ? 'warm' : 'neutral' },
+      { label: '日期', value: item.day === state.day ? '今天' : `第 ${item.day} 天`, tone: 'neutral' },
+    ],
   }));
 
   const boardStories = projection.districtBoards.map((board): MarketStory => ({
@@ -605,6 +877,17 @@ function buildStories(
       .slice(0, 4)
       .map((caseItem) => ({ label: caseItem.title, caseId: caseItem.id })),
     score: scoreBoard(board),
+    detailLines: compactStoryLines([
+      board.summary,
+      buildBoardDetailLine(board),
+      `覆盖房源：${state.cases.filter((caseItem) => caseItem.marketCellId === board.marketId).map((caseItem) => caseItem.title).slice(0, 4).join('、')}`,
+    ]),
+    metrics: [
+      { label: '客户热度', value: `${board.demandHeat}`, tone: board.tone },
+      { label: '在售供给', value: `${board.supplyPressure}`, tone: board.supplyPressure >= 65 ? 'risk' : 'neutral' },
+      { label: '竞争压力', value: `${board.competitivePressure}`, tone: board.competitivePressure >= 65 ? 'risk' : 'neutral' },
+      { label: '市场情绪', value: `${board.sentiment}`, tone: board.sentiment >= 65 ? 'chance' : 'neutral' },
+    ],
   }));
 
   const competitionStories = [
@@ -622,6 +905,14 @@ function buildStories(
     body: item.detail,
     tags: item.caseId ? [{ label: caseTitleById.get(item.caseId) || item.title, caseId: item.caseId }] : [],
     score: item.caseId ? 54 : item.tone === 'risk' ? 42 : 30,
+    detailLines: compactStoryLines([
+      item.detail,
+      item.caseId ? `关联房源：${caseTitleById.get(item.caseId) || item.title}` : item.label,
+    ]),
+    metrics: [
+      { label: '来源', value: item.label, tone: item.tone },
+      { label: '强度', value: item.tone === 'risk' ? '高' : item.tone === 'chance' ? '明显' : '一般', tone: item.tone },
+    ],
   }));
 
   const affectedStories = projection.affectedCases.map((item): MarketStory => ({
@@ -635,6 +926,14 @@ function buildStories(
     body: item.detail,
     tags: item.caseId ? [{ label: caseTitleById.get(item.caseId) || item.title, caseId: item.caseId }] : [],
     score: 70,
+    detailLines: compactStoryLines([
+      item.detail,
+      item.caseId ? `关联房源：${caseTitleById.get(item.caseId) || item.title}` : item.label,
+    ]),
+    metrics: [
+      { label: '影响', value: item.label, tone: item.tone },
+      { label: '范围', value: item.caseId ? '单套房源' : '房源组', tone: 'neutral' },
+    ],
   }));
 
   return dedupeStories([
@@ -847,6 +1146,7 @@ function buildWireStories(
       section: story.section,
       time: story.time,
       text: story.headline,
+      detailStory: story,
     }));
 
   const radarStories = projection.radarCards.map((card) => ({
