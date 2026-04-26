@@ -1,4 +1,4 @@
-import type { GameState } from '../domain/models.js';
+import type { DailyTickResult, GameState } from '../domain/models.js';
 import type { Settlement } from '../domain/actions/templates.js';
 import type { TodayPlanDraft } from './todayPlan.js';
 import { advanceDays, executeAction, spendResources, resolveActionDefinition } from '../domain/engine.js';
@@ -17,6 +17,7 @@ import {
   getSlotRemainingCapacity,
   hasTodayPlanDuplicate,
   markTodayPlanItemCompletedMutable,
+  resolveActionDurationHours,
   resolveTodayPlanExecutionMode,
   syncTodayPlanForCurrentDayMutable,
 } from './todayPlan.js';
@@ -34,15 +35,47 @@ export function transitionGameState(
   return next;
 }
 
+export interface AdvanceGameDaysSummary {
+  nextState: GameState;
+  requestedDays: number;
+  settledDays: number;
+  beforeDay: number;
+  afterDay: number;
+  gameOver: boolean;
+  lastResult: DailyTickResult | null;
+  settledResults: DailyTickResult[];
+}
+
+export function advanceGameDaysWithSummary(
+  state: GameState,
+  count: number,
+  onMessage?: (msg: string) => void,
+): AdvanceGameDaysSummary {
+  const beforeDay = state.day;
+  let settledResults: DailyTickResult[] = [];
+  const nextState = transitionGameState(state, (next) => {
+    settledResults = advanceDays(next, count, onMessage);
+    syncTodayPlanForCurrentDayMutable(next);
+  });
+
+  return {
+    nextState,
+    requestedDays: count,
+    settledDays: settledResults.length,
+    beforeDay,
+    afterDay: nextState.day,
+    gameOver: nextState.gameOver,
+    lastResult: settledResults[settledResults.length - 1] || null,
+    settledResults,
+  };
+}
+
 export function advanceGameDays(
   state: GameState,
   count: number,
   onMessage?: (msg: string) => void,
 ): GameState {
-  return transitionGameState(state, (next) => {
-    advanceDays(next, count, onMessage);
-    syncTodayPlanForCurrentDayMutable(next);
-  });
+  return advanceGameDaysWithSummary(state, count, onMessage).nextState;
 }
 
 export function executeGameAction(
@@ -88,6 +121,10 @@ export function executeScenarioAction(
   actionId: string,
   caseId: string,
   settlement: Settlement,
+  scenarioContext?: {
+    choices?: Array<{ round: number; main: string; assist: string }>;
+    feedbacks?: Array<{ actor: string; mood: string; message: string }>;
+  },
   todayPlanItemId: string | null = null,
   onMessage?: (msg: string) => void,
 ) {
@@ -111,9 +148,20 @@ export function executeScenarioAction(
 
     spendResources(next, action);
 
+    const todayPlanItem = todayPlanItemId
+      ? next.todayPlan.playerItems.find((entry) => entry.id === todayPlanItemId && entry.day === next.day)
+      : null;
+    const deltaTarget = {
+      linkedCustomerId: todayPlanItem?.linkedCustomerId,
+      linkedOpportunityId: todayPlanItem?.linkedOpportunityId,
+    };
     settlement.stateDeltas.forEach((delta) => {
-      applyScenarioDelta(next, currentCase, delta, actionId);
+      applyScenarioDelta(next, currentCase, delta, actionId, deltaTarget);
     });
+    currentCase.actionsToday += 1;
+    currentCase.touchedToday = true;
+    currentCase.lastTouchedDay = next.day;
+    currentCase.lastAction = action.executorId || action.id;
 
     recordDomainEvent(next, {
       kind: 'action_executed',
@@ -124,9 +172,12 @@ export function executeScenarioAction(
       tone: 'accent',
       payload: {
         actionId,
+        finalOptionId: settlement.finalOptionId ?? scenarioContext?.choices?.[scenarioContext.choices.length - 1]?.main ?? null,
         settlementOutcome: settlement.outcome,
         settlementTitle: settlement.title,
         stateDeltas: settlement.stateDeltas,
+        choices: scenarioContext?.choices || [],
+        feedbacks: scenarioContext?.feedbacks || [],
       },
     });
 
@@ -230,7 +281,8 @@ export function addTodayPlanItem(
     }
 
     const targetSlot = draft.slot === 'pm' ? 'pm' : 'am';
-    if (getSlotRemainingCapacity(next, targetSlot) < action.costEnergy) {
+    const actionDurationHours = resolveActionDurationHours(action.id);
+    if (getSlotRemainingCapacity(next, targetSlot) < actionDurationHours) {
       reason = `${targetSlot === 'am' ? '上午' : '下午'}时段容量不足，先完成已排事项或改到另一个时段。`;
       onMessage?.(reason);
       return;
@@ -364,6 +416,10 @@ function applyScenarioDelta(
   currentCase: GameState['cases'][number],
   delta: Settlement['stateDeltas'][number],
   actionId: string,
+  target?: {
+    linkedCustomerId?: string;
+    linkedOpportunityId?: string;
+  },
 ) {
   if (delta.field === 'trust') {
     currentCase.trust = clamp01to100(currentCase.trust + delta.value);
@@ -398,9 +454,17 @@ function applyScenarioDelta(
     return;
   }
   if (delta.field === 'intent' || delta.field === 'confidence') {
-    const targetOpportunity = state.opportunities
-      .filter((entry) => entry.caseId === currentCase.id && entry.status === 'active')
+    const activeOpportunities = state.opportunities
+      .filter((entry) => entry.caseId === currentCase.id && entry.status === 'active');
+    const explicitOpportunity = target?.linkedOpportunityId
+      ? activeOpportunities.find((entry) => entry.id === target.linkedOpportunityId)
+      : null;
+    const customerOpportunity = !explicitOpportunity && target?.linkedCustomerId
+      ? activeOpportunities.find((entry) => entry.customerId === target.linkedCustomerId)
+      : null;
+    const fallbackOpportunity = [...activeOpportunities]
       .sort((left, right) => (right.stageIndex + right.intent / 100) - (left.stageIndex + left.intent / 100))[0];
+    const targetOpportunity = explicitOpportunity || customerOpportunity || fallbackOpportunity;
     if (!targetOpportunity) {
       recordDomainEvent(state, {
         kind: 'journal',

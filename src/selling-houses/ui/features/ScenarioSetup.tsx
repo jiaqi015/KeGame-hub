@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Compass, Dice5, Flame, Gauge, ShieldCheck, Sprout, TriangleAlert } from 'lucide-react';
 import type { DifficultyId, DifficultyOption, ScenarioSummary } from '../../domain/models';
 import type { FeaturedScenarioPreview } from '../../application/scenarioOpening';
+import { buildDifficultyPresentation, type DifficultyPresentationTone } from '../../application/difficultyPresentation';
 
 const ICONS = {
   warmup: ShieldCheck,
@@ -45,6 +46,13 @@ const TONES = {
   },
 } as const;
 
+const CHIP_TONES: Record<DifficultyPresentationTone, string> = {
+  easy: 'border-emerald-400/18 bg-emerald-500/12 text-emerald-100',
+  normal: 'border-white/12 bg-white/[0.05] text-white/76',
+  warning: 'border-amber-400/20 bg-amber-500/12 text-amber-100',
+  hard: 'border-rose-400/22 bg-rose-500/12 text-rose-100',
+};
+
 export function ScenarioSetup({
   difficultyOptions,
   featuredScenarios,
@@ -79,8 +87,20 @@ export function ScenarioSetup({
     : null;
   const SelectedIcon = ICONS[selectedOption.id];
   const selectedTone = TONES[selectedOption.id];
-  const primaryPreview = selectedOption.preview.slice(0, 4);
-  const secondaryPreview = selectedOption.preview.slice(4, 8);
+  const selectedPresentation = buildDifficultyPresentation({
+    difficultyId: selectedOption.id,
+    label: selectedOption.label,
+  });
+  const primaryPreview = [
+    { label: '模拟周期', value: `${selectedPresentation.metrics.days} 天` },
+    { label: '市场容量', value: selectedPresentation.metrics.marketCapacity },
+    { label: '成交预期', value: selectedPresentation.metrics.selfDealExpectation },
+    { label: '对手压力', value: selectedPresentation.metrics.rivalStrength },
+  ];
+  const secondaryPreview = [
+    { label: '客户推进', value: selectedPresentation.metrics.customerProgression },
+    { label: '额外空间', value: selectedPresentation.metrics.bonusPotential },
+  ];
 
   return (
     <div className="mx-auto flex h-full w-full max-w-[880px] flex-col overflow-y-auto px-4 py-5 text-[var(--seller-ink)] lg:px-6">
@@ -90,16 +110,17 @@ export function ScenarioSetup({
             <Dice5 size={12} />
             标准局 / 随机局
           </div>
-          <h1 className="seller-title text-[26px]">选难度</h1>
+          <h1 className="seller-title text-[26px]">开一局</h1>
         </div>
         <p className="seller-body max-w-[26rem] text-[12px] leading-6">
-          先定这局强度，再决定走标准局还是随机局。
+          选一个强度，直接开始经营。
         </p>
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2">
         {difficultyOptions.map((option) => {
           const selected = option.id === selectedOption.id;
+          const optionPresentation = buildDifficultyPresentation({ difficultyId: option.id, label: option.label });
           return (
             <button
               key={option.id}
@@ -112,7 +133,7 @@ export function ScenarioSetup({
                   : 'border-white/10 bg-white/[0.03] text-white/68 hover:border-white/18 hover:bg-white/[0.06] hover:text-white'
               } ${starting ? 'cursor-wait opacity-60' : ''}`}
             >
-              {option.label}
+              {optionPresentation.shortLabel}
             </button>
           );
         })}
@@ -128,26 +149,42 @@ export function ScenarioSetup({
                 </div>
                 {selectedOption.id === lastDifficulty && (
                   <div className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${selectedTone.badge}`}>
-                    上次选择
+                    常用
                   </div>
                 )}
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                <h2 className="text-[34px] font-semibold tracking-[-0.05em] text-white">{selectedOption.label}</h2>
+                <h2 className="text-[34px] font-semibold tracking-[-0.05em] text-white">{selectedPresentation.label}</h2>
                 {selectedFeatured && (
                   <div className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${selectedTone.badge}`}>
                     目标 {selectedFeatured.scenario.presentation.targetScore} 分
                   </div>
                 )}
               </div>
-              <p className="mt-3 max-w-[38rem] text-[15px] font-semibold leading-7 text-white/82">{selectedOption.summary}</p>
-              <p className="mt-2 max-w-[42rem] text-[13px] leading-7 text-white/56">{selectedOption.detail}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {selectedPresentation.chips.map((chip) => (
+                  <span
+                    key={`${selectedPresentation.id}-${chip.label}`}
+                    className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${CHIP_TONES[chip.tone]}`}
+                  >
+                    {chip.label}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-3 max-w-[42rem] text-[15px] font-semibold leading-7 text-white/82">{selectedPresentation.summary}</p>
+              <div className="mt-2 grid gap-2 text-[12px] leading-6 text-white/58 md:grid-cols-2">
+                {selectedPresentation.details.map((detail) => (
+                  <div key={`${selectedPresentation.id}-${detail}`} className="rounded-[12px] border border-white/8 bg-white/[0.025] px-3 py-2">
+                    {detail}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
           {selectedFeatured && (
             <div className="grid gap-3 md:grid-cols-2">
-              <FactCard label="标准局剧本" value={selectedFeatured.scenario.name} detail={selectedFeatured.scenario.presentation.theme} />
+              <FactCard label="本局" value={selectedFeatured.scenario.name} />
               <FactCard label="局面设定" value={`${selectedFeatured.scenario.presentation.caseCount} 套 · ${selectedFeatured.scenario.presentation.maxDay} 天`} detail={`Seed ${selectedFeatured.seed}`} />
             </div>
           )}
@@ -165,7 +202,7 @@ export function ScenarioSetup({
               <div key={`${selectedOption.id}-${item.label}`}>
                 <FactCard
                   label={item.label}
-                  value={compactPreviewValue(item.value)}
+                  value={item.value}
                 />
               </div>
             ))}
@@ -179,7 +216,7 @@ export function ScenarioSetup({
                   className={`flex items-center justify-between gap-3 px-4 py-3 ${index === 0 ? '' : 'border-t border-white/8'}`}
                 >
                   <div className="text-[12px] font-medium text-white/48">{item.label}</div>
-                  <div className="text-right text-[12px] font-semibold text-white/78">{compactPreviewValue(item.value)}</div>
+                  <div className="text-right text-[12px] font-semibold text-white/78">{item.value}</div>
                 </div>
               ))}
             </div>
@@ -194,7 +231,7 @@ export function ScenarioSetup({
               onClick={() => onStartFeatured(selectedOption.id)}
               className="rounded-[14px] bg-[#49dd85] px-4 py-3 text-[14px] font-semibold text-[#08110d] transition hover:brightness-105 disabled:cursor-wait disabled:opacity-60"
             >
-              {starting ? '正在进入...' : `进入${selectedOption.label}`}
+              {starting ? '正在进入...' : `进入${selectedPresentation.label}`}
             </button>
             <button
               type="button"
@@ -227,16 +264,6 @@ function FactCard({
       {detail ? <div className="mt-1 text-[12px] leading-6 text-white/52">{detail}</div> : null}
     </div>
   );
-}
-
-function compactPreviewValue(value: string) {
-  return value
-    .replace('，', ' · ')
-    .replace('适合先找回手感', '适合熟悉节奏')
-    .replace('开始吃排序', '要排序')
-    .replace('比较够用', '够用')
-    .replace('持续吃紧', '吃紧')
-    .replace('几乎满负荷', '满负荷');
 }
 
 function goalCopy(goalContext: ScenarioSummary['presentation']['goalContext'], targetScore: number) {

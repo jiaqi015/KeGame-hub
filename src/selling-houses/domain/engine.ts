@@ -1,4 +1,5 @@
 import { WEEKLY_ROUTINE } from './constants.js';
+import { releaseMarketDealSlotsForDay } from './models.js';
 import { recordBudgetChange } from './budget.js';
 import { settlePendingDealClosings } from './dealClosing.js';
 import type { DailyTickResult, DirtyScopeSet, GameState, TickInvariantAlert, Tone } from './models.js';
@@ -13,7 +14,7 @@ import { createWeeklyReview, tickCases, tickSeasonality, updateCustomers, update
 import { applyCompanyPressure, tickCompanyPressure } from './company/companyPressureEngine.js';
 import { applyDailyMarketEvent, rollDailyMarketEvent } from './market/dailyEventDirector.js';
 import { settleMarketSignals } from './market/signalEngine.js';
-import { applyRivalPressure, tickRivalListings } from './rivals/rivalListingEngine.js';
+import { applyRivalPressure, tickRivalListings, tryClaimOpenMarketDealForRivals } from './rivals/rivalListingEngine.js';
 import { tickRivalStores } from './rivals/rivalStoreEngine.js';
 import { applyCustomerFeedbackToCases, applyRivalPullOnCustomers, progressCustomerDemand, touchCustomersForCase } from './engine/customerEngine.js';
 import {
@@ -36,6 +37,9 @@ import {
   spawnPassiveLeads,
   tickOpportunities,
 } from './engine/opportunityEngine.js';
+import { buildExpectations } from './engine/expectationEngine.js';
+import { checkForeshadowing, buryNewForeshadowings } from './engine/foreshadowingEngine.js';
+import { generateDailyNarrative, updateTopicHistory } from './engine/narrativeEngine.js';
 
 export {
   adjustCaseOpportunities,
@@ -77,18 +81,51 @@ export {
   updateMarkets,
 };
 
-export function advanceDays(state: GameState, count: number, onMessage?: (msg: string) => void) {
+function ensureFocusMeetingDayState(state: GameState) {
+  if (state.focusMeeting.submissionDay !== state.day) {
+    state.focusMeeting = {
+      submissionDay: state.day,
+      submittedCaseIds: [],
+      selectedCaseIds: [],
+    };
+  }
+}
+
+function focusMeetingScore(state: GameState, caseItem: GameState['cases'][number]) {
+  const opportunities = state.opportunities
+    .filter((entry) => entry.caseId === caseItem.id && entry.status === 'active')
+    .sort((left, right) => (right.stageIndex + right.intent / 100) - (left.stageIndex + left.intent / 100));
+  const lead = opportunities[0];
+  const stageBonus = !lead ? 0 : lead.stageIndex >= 4 ? 180 : lead.stageIndex >= 3 ? 120 : lead.stageIndex >= 2 ? 70 : 30;
+  const quoteBonus = !lead ? 0 : (lead.intent >= 70 ? 36 : lead.intent >= 55 ? 24 : 10);
+  const pressureBonus = Math.max(0, 8 - caseItem.windowDays) * 8;
+  return (
+    stageBonus
+    + quoteBonus
+    + caseItem.competitiveness * 1.3
+    + caseItem.heat * 0.9
+    + pressureBonus
+    + caseItem.offers * 16
+  );
+}
+
+export function advanceDays(state: GameState, count: number, onMessage?: (msg: string) => void): DailyTickResult[] {
   if (state.gameOver) {
     onMessage?.('本局已经结算，可以直接再开一局。');
-    return;
+    return [];
   }
 
+  const results: DailyTickResult[] = [];
   for (let step = 0; step < count; step += 1) {
     if (state.gameOver) break;
-    advanceOneDay(state, onMessage);
+    const result = advanceOneDay(state, onMessage);
+    if (result) {
+      results.push(result);
+    }
   }
 
   updateDerivedState(state);
+  return results;
 }
 
 export function advanceOneDay(state: GameState, onMessage?: (msg: string) => void): DailyTickResult | null {
@@ -100,9 +137,13 @@ export function advanceOneDay(state: GameState, onMessage?: (msg: string) => voi
   return resolveOneDay(state, onMessage);
 }
 
+function getNewEntriesAfterUnshift<T>(items: T[], startLength: number): T[] {
+  return items.slice(0, Math.max(0, items.length - startLength));
+}
+
 function buildDirtyScopes(state: GameState, settledDay: number, eventStoreStart: number, closedDealStart: number): DirtyScopeSet {
-  const emittedEvents = state.eventStore.slice(0, Math.max(0, state.eventStore.length - eventStoreStart));
-  const closedDeals = state.closedDeals.slice(0, Math.max(0, state.closedDeals.length - closedDealStart));
+  const emittedEvents = getNewEntriesAfterUnshift(state.eventStore, eventStoreStart);
+  const closedDeals = getNewEntriesAfterUnshift(state.closedDeals, closedDealStart);
   const caseIds = new Set<string>();
   const opportunityIds = new Set<string>();
   const customerIds = new Set<string>();
@@ -221,12 +262,16 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
   const settledDay = state.day;
   const eventStoreStart = state.eventStore.length;
   const closedDealStart = state.closedDeals.length;
+  const beforeScore = average(state.cases.map((entry) => entry.competitiveness));
   const beforeD1 = average(state.cases.filter((entry) => entry.status === 'active').map((entry) => entry.d1));
   const beforeD3 = average(state.cases.filter((entry) => entry.status === 'active').map((entry) => entry.d3));
   const beforeCash = getPromotionBudget(state);
   const beforeTrust = average(state.cases.filter((entry) => entry.status === 'active').map((entry) => entry.trust));
   const beforeDanger = state.cases.filter((entry) => entry.status === 'active' && (entry.storylineState === 'critical' || entry.storylineState === 'sliding')).length;
 
+  const expectations = buildExpectations(state);
+
+  releaseMarketDealSlotsForDay(state, settledDay);
   updateMarkets(state);
   tickSeasonality(state);
   rollDailyMarketEvent(state);
@@ -244,6 +289,9 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
   tickCompetition(state);
   fireScheduledEvents(state);
   settlePendingDealClosings(state);
+  if (state.day >= state.maxDay - 7) {
+    tryClaimOpenMarketDealForRivals(state);
+  }
   tickCases(state);
   spawnPassiveLeads(state);
   triggerRandomEvent(state);
@@ -263,12 +311,15 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
   }
 
   updateDerivedState(state);
+  const afterScore = average(state.cases.map((entry) => entry.competitiveness));
   const afterD1 = average(state.cases.filter((entry) => entry.status === 'active').map((entry) => entry.d1));
   const afterD3 = average(state.cases.filter((entry) => entry.status === 'active').map((entry) => entry.d3));
   const afterTrust = average(state.cases.filter((entry) => entry.status === 'active').map((entry) => entry.trust));
   const afterDanger = state.cases.filter((entry) => entry.status === 'active' && (entry.storylineState === 'critical' || entry.storylineState === 'sliding')).length;
 
-  const dayEvents = state.eventLog.filter((entry) => entry.day === state.day);
+  const settledDomainEvents = getNewEntriesAfterUnshift(state.eventStore, eventStoreStart)
+    .filter((entry) => entry.day === settledDay);
+  const dayEvents = state.eventLog.filter((entry) => entry.day === settledDay);
   const majorEvents = dayEvents.filter((entry) => entry.tone === 'success' || entry.tone === 'danger' || entry.tone === 'accent');
   const randomEvents = dayEvents
     .filter((entry) => entry.actor === '市场' || entry.actor === '宏观' || entry.actor === '市场竞争')
@@ -279,8 +330,8 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
     day: settledDay,
     nextDay: state.day,
     report: state.currentReport,
-    emittedEvents: state.eventStore.slice(0, Math.max(0, state.eventStore.length - eventStoreStart)),
-    closedDeals: state.closedDeals.slice(0, Math.max(0, state.closedDeals.length - closedDealStart)),
+    emittedEvents: getNewEntriesAfterUnshift(state.eventStore, eventStoreStart),
+    closedDeals: getNewEntriesAfterUnshift(state.closedDeals, closedDealStart),
     dirtyScopes: buildDirtyScopes(state, settledDay, eventStoreStart, closedDealStart),
     invariantAlerts: collectInvariantAlerts(state),
   });
@@ -342,17 +393,42 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
     entry.isFocused = false;
   });
 
-  if (getDayOfWeek(state.day) === 4) {
-    const activeCases = state.cases.filter((entry) => entry.status === 'active');
-    const candidates = [...activeCases].sort((left, right) => right.competitiveness - left.competitiveness);
-    const selected = candidates.slice(0, 2);
+  if (getDayOfWeek(settledDay) === 4) {
+    const submittedCases = (state.focusMeeting.submissionDay === settledDay
+      ? state.focusMeeting.submittedCaseIds
+      : [])
+      .map((caseId) => state.cases.find((entry) => entry.id === caseId))
+      .filter((entry): entry is GameState['cases'][number] => Boolean(entry) && entry.status === 'active');
+    const selected = submittedCases
+      .sort((left, right) => focusMeetingScore(state, right) - focusMeetingScore(state, left))
+      .slice(0, 2);
+    state.focusMeeting.selectedCaseIds = selected.map((entry) => entry.id);
     selected.forEach((entry) => {
       entry.isFocused = true;
-      entry.heat = clamp(entry.heat + 15, 0, 100);
+      entry.heat = clamp(entry.heat + 12, 0, 100);
+      entry.trust = clamp(entry.trust + 4, 0, 100);
+      entry.patience = clamp(entry.patience + 3, 0, 100);
+      entry.touchedToday = true;
+      entry.touchedOwnerToday = true;
+      entry.lastTouchedDay = state.day;
+      entry.lastOwnerTouchedDay = state.day;
     });
     if (selected.length > 0) {
-      logEvent(state, '房源聚焦', `今日周四，${selected.map((entry) => entry.title).join(' 和 ')} 脱颖而出，流量集中爆发。`, 'accent');
+      logEvent(state, '周四聚焦会', `${selected.map((entry) => entry.title).join('、')} 通过周四聚焦会入选，业主信心和流量同步抬升。`, 'accent');
+    } else {
+      logEvent(state, '周四聚焦会', '本周四暂无有效提报，聚焦资源未能落地。', 'danger');
     }
+  }
+
+  if (getDayOfWeek(state.day) === 4) {
+    ensureFocusMeetingDayState(state);
+    logEvent(state, '周四聚焦会', '周四上午开始聚焦会提报，今日最多提报 3 套房。', 'accent');
+  } else {
+    state.focusMeeting = {
+      submissionDay: null,
+      submittedCaseIds: [],
+      selectedCaseIds: [],
+    };
   }
 
   updateDerivedState(state);
@@ -362,9 +438,11 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
     title: `第 ${state.day - 1} 天经营简报`,
     majorEvents: majorEvents.map((entry) => ({ actor: entry.actor, message: entry.message, tone: entry.tone })),
     metricsDelta: [
-      { label: '漏斗健康 (D1)', value: Math.round((afterD1 - beforeD1) * 10) / 10, unit: 'pts' },
-      { label: '业主意愿 (D3)', value: Math.round((afterD3 - beforeD3) * 10) / 10, unit: 'pts' },
-      { label: '平均业主信任', value: Math.round((afterTrust - beforeTrust) * 10) / 10, unit: 'pts' },
+      { label: '昨日总分', value: Math.round(afterScore), unit: '分', displayMode: 'absolute' },
+      { label: '总分变化', value: Math.round((afterScore - beforeScore) * 10) / 10, unit: '分' },
+      { label: '客户线变化', value: Math.round((afterD1 - beforeD1) * 10) / 10, unit: '分' },
+      { label: '业主配合变化', value: Math.round((afterD3 - beforeD3) * 10) / 10, unit: '分' },
+      { label: '业主信任变化', value: Math.round((afterTrust - beforeTrust) * 10) / 10, unit: '分' },
       { label: '高危房源变化', value: afterDanger - beforeDanger, unit: '套' },
       { label: '推广金变动', value: getPromotionBudget(state) - beforeCash, unit: '点' },
     ],
@@ -378,6 +456,23 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
     },
     randomEvents,
   };
+
+  const resolvedHooks = checkForeshadowing(state.foreshadowingStore, state.eventStore, settledDay);
+  const dailyNarrative = generateDailyNarrative({
+    events: settledDomainEvents,
+    expectations,
+    resolvedHooks,
+    state: {
+      day: settledDay,
+      rngState: state.rngState,
+      rngCalls: state.rngCalls,
+    },
+  });
+
+  updateTopicHistory(state, dailyNarrative.eventsUsed);
+  buryNewForeshadowings(state, dailyNarrative.newHooks);
+
+  state.currentReport.narrativeLog = dailyNarrative;
 
   const result = buildTickResult();
   result.report = state.currentReport;

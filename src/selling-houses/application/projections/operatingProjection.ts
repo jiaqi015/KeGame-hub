@@ -3,16 +3,28 @@ import type {
   CustomerRuntimeState,
   GameState,
   Opportunity,
+  TodayPlanConflictHint,
   TodayArrangementSlot,
-  Tone,
 } from '../../domain/models.js';
 import { ACTIONS, WEEKLY_ROUTINE } from '../../domain/constants.js';
 import { isScenarioAction } from '../../domain/actions/templates.js';
 import { getActionAvailability } from '../../domain/engine.js';
 import { getActiveOpportunities } from '../../domain/engine/opportunityEngine.js';
-import { getDayOfWeek, getRoutine } from '../../domain/utils.js';
-import { getSlotRemainingCapacity, getTodayPlanRemainingEnergy } from '../todayPlan.js';
+import { average, getDayOfWeek, getRoutine } from '../../domain/utils.js';
+import {
+  estimateFixedTodayPlanEnergyReserve,
+  getVisibleFixedScheduleEntries,
+  getSlotRemainingCapacity,
+  getTodayPlanCommittedEnergy,
+  getTodayPlanConflictHint,
+  getTodayPlanRemainingEnergy,
+  isSlotBlockingRoutine,
+  resolveActionDurationHours,
+  resolveScheduleEntryDurationHours,
+  resolveScheduleEntrySlot,
+} from '../todayPlan.js';
 import { buildFollowUpPriorityProjection } from '../../ui/features/followUpPriority.js';
+import { averageValue, mapTone, trimTitle } from './operatingProjectionHelpers.js';
 import {
   buildMarketBoardDetail,
   buildMarketBoardSummary,
@@ -22,6 +34,14 @@ import {
   type IntelItem,
   type IntelLayerTab,
 } from '../../ui/features/marketIntel.js';
+
+function formatVisibleDaysLeft(daysLeft: number) {
+  const value = Number.isFinite(daysLeft) ? Math.max(0, daysLeft) : 0;
+  if (value < 1) return '不足 1 天';
+  const rounded = Math.round(value);
+  if (Math.abs(value - rounded) < 0.001) return `${rounded} 天`;
+  return `约 ${Math.ceil(value)} 天`;
+}
 
 export type ProjectionTone = 'neutral' | 'chance' | 'risk';
 export type CaseMainProblem = 'owner' | 'customer-pool' | 'price' | 'competition' | 'execution' | 'market';
@@ -75,6 +95,7 @@ export interface ArrangementItemProjection {
   caseId?: string;
   matterId?: string;
   customerId?: string;
+  durationHours: number;
   energyCost: number;
   statusLabel: string;
   actionId?: string;
@@ -83,6 +104,7 @@ export interface ArrangementItemProjection {
   secondaryLabel?: string;
   todayPlanItemId?: string;
   disabledReason?: string;
+  conflictHint?: TodayPlanConflictHint;
   isDisabled?: boolean;
 }
 
@@ -100,6 +122,9 @@ export interface ArrangementProjection {
   summary: string;
   remainingEnergy: number;
   remainingEnergyLabel: string;
+  plannedEnergy: number;
+  fixedEnergyReserve: number;
+  plannedEnergyLabel: string;
   fixedItems: ArrangementItemProjection[];
   plannedItems: ArrangementItemProjection[];
   candidateItems: ArrangementItemProjection[];
@@ -143,6 +168,27 @@ export interface DashboardProjection {
     caseId?: string;
   }>;
   arrangement: ArrangementProjection;
+  productOpportunities: ProductOpportunityProjection[];
+}
+
+export type ProductOpportunityType = 'open-day' | 'sincere-sale';
+export type ProductOpportunityScope = 'community' | 'listing';
+export type ProductOpportunityStatus = 'candidate' | 'triggered' | 'acknowledged' | 'accepted' | 'expired';
+
+export interface ProductOpportunityProjection {
+  id: string;
+  type: ProductOpportunityType;
+  scope: ProductOpportunityScope;
+  status: ProductOpportunityStatus;
+  reasonLabel: string;
+  targetId: string;
+  expiresAtDay?: number;
+  primaryActionLabel: string;
+  headline: string;
+  subline: string;
+  actionId: 'open-day' | 'sincerity-sale';
+  actionCaseId: string;
+  caseId?: string;
 }
 
 export interface OpportunityBucketProjection {
@@ -313,22 +359,26 @@ export interface OperatingProjection {
   cases: CaseDetailProjection[];
   opportunities: OpportunityListProjection;
   market: MarketProjection;
+  productOpportunities: ProductOpportunityProjection[];
 }
 
 export function buildOperatingProjection(state: GameState): OperatingProjection {
   const caseDetails = state.cases.map((caseItem) => buildCaseDetailProjection(state, caseItem));
+  const productOpportunities = buildProductOpportunityProjection(state, caseDetails);
 
   return {
-    dashboard: buildDashboardProjection(state, caseDetails),
+    dashboard: buildDashboardProjection(state, caseDetails, productOpportunities),
     cases: caseDetails,
     opportunities: buildOpportunityListProjection(state),
     market: buildMarketProjection(state),
+    productOpportunities,
   };
 }
 
 export function buildDashboardProjection(
   state: GameState,
   caseDetails: CaseDetailProjection[] = state.cases.map((caseItem) => buildCaseDetailProjection(state, caseItem)),
+  productOpportunities: ProductOpportunityProjection[] = buildProductOpportunityProjection(state, caseDetails),
 ): DashboardProjection {
   const activeCaseCount = state.cases.filter((caseItem) => caseItem.status === 'active').length;
   const priorityProjection = buildFollowUpPriorityProjection(state);
@@ -357,7 +407,7 @@ export function buildDashboardProjection(
 
   return {
     todayHeadline: topPriorityCase
-      ? `今日重点：${state.cases.find((caseItem) => caseItem.id === topPriorityCase.caseId)?.title || '重点房源'}`
+      ? `${state.cases.find((caseItem) => caseItem.id === topPriorityCase.caseId)?.title || '重点房源'}`
       : activeCaseCount > 0
         ? `${activeCaseCount} 套在场，按优先级处理。`
         : '暂无在场房源。',
@@ -388,7 +438,119 @@ export function buildDashboardProjection(
     marketBrief,
     triageCards: buildDashboardTriageCards(state, todayPriority, marketBrief, priorityProjection),
     arrangement: buildArrangementProjection(state, caseDetails, todayPriority),
+    productOpportunities,
   };
+}
+
+function buildProductOpportunityProjection(
+  state: GameState,
+  caseDetails: CaseDetailProjection[],
+): ProductOpportunityProjection[] {
+  const result: ProductOpportunityProjection[] = [];
+  const activeCases = state.cases.filter((entry) => entry.status === 'active');
+  const activeRuns = state.productRuns.filter((entry) => entry.status === 'running');
+  const openDayWindow = getDayOfWeek(state.day) === 5 || getDayOfWeek(state.day) === 1;
+
+  const communityBuckets = new Map<string, typeof activeCases>();
+  activeCases.forEach((entry) => {
+    const current = communityBuckets.get(entry.community) || [];
+    current.push(entry);
+    communityBuckets.set(entry.community, current);
+  });
+
+  communityBuckets.forEach((casesInCommunity, community) => {
+    if (casesInCommunity.length < 2) return;
+    const avgHeat = average(casesInCommunity.map((entry) => entry.heat));
+    const topHeat = Math.max(...casesInCommunity.map((entry) => entry.heat));
+    const liftReadyCount = state.opportunities.filter((entry) => (
+      entry.status === 'active'
+      && entry.visibility !== 'shadow'
+      && casesInCommunity.some((caseItem) => caseItem.id === entry.caseId)
+      && entry.stageIndex >= 1
+      && entry.stageIndex <= 3
+    )).length;
+    const hotEnough = avgHeat >= 56 || topHeat >= 64;
+    const run = activeRuns.find((entry) => (
+      entry.productType === 'open-day'
+      && entry.targetIds.some((targetId) => casesInCommunity.some((caseItem) => caseItem.id === targetId))
+    ));
+    const anchorCase = [...casesInCommunity].sort((left, right) => right.heat - left.heat)[0];
+    const expiresAtDay = state.day + (openDayWindow ? 2 : 1);
+    const status: ProductOpportunityStatus = run
+      ? 'accepted'
+      : hotEnough && liftReadyCount >= 2
+        ? openDayWindow ? 'triggered' : 'candidate'
+        : 'candidate';
+    const finalStatus: ProductOpportunityStatus = !run && state.day > expiresAtDay
+      ? 'expired'
+      : status;
+    if (finalStatus === 'candidate' && !openDayWindow) {
+      return;
+    }
+
+    result.push({
+      id: `op-open-day-${community}-${state.day}`,
+      type: 'open-day',
+      scope: 'community',
+      status: finalStatus,
+      reasonLabel: getDayOfWeek(state.day) === 5 ? '周五可先锁周末开放日' : '本周小区热度上来了',
+      targetId: community,
+      expiresAtDay,
+      primaryActionLabel: '去报名',
+      headline: `${community} · 可发起开放日`,
+      subline: `当前有 ${liftReadyCount} 条客户线可承接`,
+      actionId: 'open-day',
+      actionCaseId: anchorCase.id,
+      caseId: anchorCase.id,
+    });
+  });
+
+  activeCases.forEach((caseItem) => {
+    const run = activeRuns.find((entry) => (
+      entry.productType === 'sincere-sale'
+      && entry.targetIds.includes(caseItem.id)
+    ));
+    const offerLeads = state.opportunities.filter((entry) => (
+      entry.status === 'active'
+      && entry.caseId === caseItem.id
+      && entry.visibility !== 'shadow'
+      && entry.stageIndex >= 3
+    ));
+    const closeStage = caseItem.stageIndex >= 3
+      || caseDetails.find((entry) => entry.caseId === caseItem.id)?.listingLifecyclePhase.phaseCode === 'negotiation'
+      || caseDetails.find((entry) => entry.caseId === caseItem.id)?.listingLifecyclePhase.phaseCode === 'feedback_offer';
+    const priceReasonable = caseItem.askPrice <= caseItem.marketPrice * 1.05;
+    const triggerable = offerLeads.length > 2 && priceReasonable && closeStage;
+    if (!triggerable && !run) {
+      return;
+    }
+    const expiresAtDay = state.day + 2;
+    const status: ProductOpportunityStatus = run ? 'accepted' : 'triggered';
+    const finalStatus: ProductOpportunityStatus = !run && state.day > expiresAtDay ? 'expired' : status;
+    result.push({
+      id: `op-sincere-sale-${caseItem.id}-${state.day}`,
+      type: 'sincere-sale',
+      scope: 'listing',
+      status: finalStatus,
+      reasonLabel: `已有 ${offerLeads.length} 位客户出价`,
+      targetId: caseItem.id,
+      expiresAtDay,
+      primaryActionLabel: '去设置',
+      headline: `${caseItem.title} · 可发起诚意卖`,
+      subline: `当前挂牌 ${Math.round(caseItem.askPrice)} 万`,
+      actionId: 'sincerity-sale',
+      actionCaseId: caseItem.id,
+      caseId: caseItem.id,
+    });
+  });
+
+  return result
+    .sort((left, right) => {
+      const leftScore = left.status === 'triggered' ? 3 : left.status === 'accepted' ? 2 : 1;
+      const rightScore = right.status === 'triggered' ? 3 : right.status === 'accepted' ? 2 : 1;
+      return rightScore - leftScore;
+    })
+    .slice(0, 6);
 }
 
 function buildArrangementProjection(
@@ -402,6 +564,8 @@ function buildArrangementProjection(
     : { day: state.day, playerItems: [] };
   const plannedItems = buildPlannedArrangementItems(state, caseDetails, todayPlan.playerItems);
   const completedItems = buildCompletedArrangementItems(state, caseDetails, todayPlan.playerItems);
+  const plannedEnergy = getTodayPlanCommittedEnergy(state, 'planned');
+  const fixedEnergyReserve = estimateFixedTodayPlanEnergyReserve(state);
   const remainingEnergy = getTodayPlanRemainingEnergy(state);
   const candidateItems = buildCandidateArrangementItems(state, caseDetails, todayPriority, todayPlan.playerItems);
   const weekFocus = buildWeekCalendar(state)
@@ -411,21 +575,24 @@ function buildArrangementProjection(
 
   return {
     headline: plannedItems[0]
-      ? `今日重点：${plannedItems[0].title}`
+      ? `先处理：${plannedItems[0].title}`
       : fixedItems[0]
-        ? `今日重点：${fixedItems[0].title}`
+        ? `先处理：${fixedItems[0].title}`
         : candidateItems[0]
-        ? `今日重点：${candidateItems[0].title}`
-        : '今日重点：选一件推进',
+        ? `先处理：${candidateItems[0].title}`
+        : '选一件推进',
     summary: plannedItems.length > 0
       ? `已排 ${plannedItems.length} 件。`
       : fixedItems.length > 0
-        ? `固定安排 ${fixedItems.length} 件。`
+        ? `已安排 ${fixedItems.length} 件。`
       : candidateItems.length > 0
         ? '候选可排。'
         : '从房源页选一件。',
     remainingEnergy,
-    remainingEnergyLabel: `剩余 ${remainingEnergy}/${state.maxEnergy} 精力`,
+    remainingEnergyLabel: `可排余量 ${remainingEnergy}/${state.maxEnergy} 小时`,
+    plannedEnergy,
+    fixedEnergyReserve,
+    plannedEnergyLabel: `已排占用 ${plannedEnergy} · 固定预留 ${fixedEnergyReserve}`,
     fixedItems,
     plannedItems,
     candidateItems,
@@ -476,24 +643,43 @@ function buildArrangementSlotProjection(
 }
 
 function buildFixedArrangementItems(state: GameState): ArrangementItemProjection[] {
-  const scheduleItems = state.schedule.slice(0, 2).map<ArrangementItemProjection>((entry) => {
+  const visibleScheduleEntries = getVisibleFixedScheduleEntries(state);
+
+  const scheduleItems = visibleScheduleEntries.map<ArrangementItemProjection>((entry) => {
     const linkedCase = entry.caseId ? state.cases.find((item) => item.id === entry.caseId) || null : null;
     const scheduleTitle = presentScheduleTitle(entry.title);
+    const isBlockedRoutine = isSlotBlockingRoutine(entry);
+    const durationHours = resolveScheduleEntryDurationHours(entry);
+    const displayTitle = isBlockedRoutine
+      ? scheduleTitle
+      : linkedCase ? `${linkedCase.title} · ${scheduleTitle}` : scheduleTitle;
     return {
       id: `fixed-schedule-${entry.key}`,
       source: 'fixed',
-      slot: scheduleEntrySlot(entry.title),
-      label: '固定安排',
-      title: linkedCase ? `${linkedCase.title} · ${scheduleTitle}` : scheduleTitle,
-      detail: presentScheduleDetail(entry.note),
+      slot: resolveScheduleEntrySlot(entry),
+      label: entry.source === 'interrupt' ? '插单提示' : entry.source === 'routine' ? '周节奏' : '已安排',
+      title: displayTitle,
+      detail: !isBlockedRoutine && entry.weekdayIntent
+        ? `${presentScheduleDetail(entry.note)} ${entry.weekdayIntent}。`
+        : presentScheduleDetail(entry.note),
       tone: entry.urgency >= 82 ? 'risk' : 'neutral',
-      caseId: entry.caseId,
-      energyCost: entry.urgency >= 92 ? 2 : 1,
-      statusLabel: entry.badge,
+      caseId: isBlockedRoutine ? undefined : entry.caseId,
+      durationHours,
+      energyCost: durationHours,
+      statusLabel: presentScheduleBadge(entry.badge),
+      actionId: isBlockedRoutine ? undefined : entry.actionId,
       isDisabled: false,
-      executionMode: 'navigate',
-      ctaLabel: '打开房源',
+      executionMode: !isBlockedRoutine && entry.actionId && isScenarioAction(entry.actionId) ? 'scenario' : !isBlockedRoutine && entry.actionId ? 'direct' : 'navigate',
+      ctaLabel: entry.actionId ? '承接插单' : '打开房源',
       secondaryLabel: '看客户线',
+      conflictHint: entry.source === 'interrupt' && !isBlockedRoutine
+        ? getTodayPlanConflictHint(state, {
+            slot: resolveScheduleEntrySlot(entry),
+            actionId: entry.actionId,
+            caseId: entry.caseId,
+            durationHours,
+          })
+        : undefined,
     };
   });
 
@@ -506,12 +692,13 @@ function buildFixedArrangementItems(state: GameState): ArrangementItemProjection
       id: `fixed-matter-${entry.id}`,
       source: 'fixed',
       slot: 'pm',
-      label: '固定安排',
+      label: '已安排',
       title: linkedCase ? `${linkedCase.title} · ${entry.title}` : entry.title,
-      detail: entry.detail,
+      detail: sanitizeFrontstageText(entry.detail),
       tone: 'chance',
       caseId: entry.caseId,
       matterId: entry.id,
+      durationHours: 1,
       energyCost: 1,
       statusLabel: entry.badge || '今日承接',
       actionId: 'invite-customer-negotiation',
@@ -559,24 +746,35 @@ function buildCandidateArrangementItems(
     const candidateKey = buildTodayPlanKey(action?.id, item.caseId, linkedMatter?.id);
     const isAlreadyPlanned = reservedKeys.has(candidateKey);
     const isEnergyBlocked = Boolean(action && action.costEnergy > simulatedRemainingEnergy);
-    const actionCost = action?.costEnergy ?? 1;
+    const actionDurationHours = action ? resolveActionDurationHours(action.id) : 1;
+    const actionEnergyCost = action?.costEnergy ?? 1;
 
     if (isAlreadyPlanned) {
       continue;
     }
 
-    const slotSelection = suggestedCandidateSlot(state, actionCost, reservedSlots);
+    const slotSelection = suggestedCandidateSlot(state, actionDurationHours, reservedSlots);
     const isSlotBlocked = Boolean(action && !slotSelection.canFit);
     const slot = slotSelection.slot;
-    if (action && !isEnergyBlocked && !isSlotBlocked) {
-      reservedSlots[slot] += actionCost;
-      simulatedRemainingEnergy = Math.max(0, simulatedRemainingEnergy - actionCost);
+    if (isSlotBlocked) {
+      continue;
     }
-    const disabledReason = isEnergyBlocked
-      ? '精力不足，先完成已排。'
-      : isSlotBlocked
-        ? `${slot === 'am' ? '上午' : '下午'}时段容量不足。`
-        : undefined;
+    if (isEnergyBlocked) {
+      continue;
+    }
+    if (action && !isEnergyBlocked && !isSlotBlocked) {
+      reservedSlots[slot] += actionDurationHours;
+      simulatedRemainingEnergy = Math.max(0, simulatedRemainingEnergy - actionEnergyCost);
+    }
+    const conflictHint = action
+      ? getTodayPlanConflictHint(state, {
+          slot,
+          actionId: action.id,
+          caseId: item.caseId,
+          durationHours: actionDurationHours,
+        })
+      : undefined;
+    const disabledReason = isEnergyBlocked ? '精力不足，先完成已排。' : undefined;
 
     candidates.push({
       id: `candidate-${item.id}`,
@@ -584,24 +782,24 @@ function buildCandidateArrangementItems(
       slot,
       label: item.label,
       title: action ? `${caseItem.title} · ${action.name}` : `${caseItem.title} · ${item.title}`,
-      detail: action ? `${caseItem.community} · ${action.name}` : item.detail,
+      detail: action ? appendRhythmHint(state.day, `${caseItem.community} · ${action.name}`) : item.detail,
       tone: item.tone,
       caseId: item.caseId,
       matterId: linkedMatter?.id,
-      energyCost: actionCost,
+      durationHours: actionDurationHours,
+      energyCost: actionEnergyCost,
       statusLabel: action
         ? isEnergyBlocked
           ? '精力不足'
-          : isSlotBlocked
-            ? '时段容量不足'
           : '可加入'
         : '待判断',
       actionId: action?.id,
       executionMode: isScenarioAction(action?.id || '') ? 'scenario' : action ? 'direct' : 'navigate',
       ctaLabel: action ? '加入今天' : '打开房源',
       secondaryLabel: action ? '看房源' : '看客户线',
-      isDisabled: isEnergyBlocked || isSlotBlocked,
+      isDisabled: isEnergyBlocked,
       disabledReason,
+      conflictHint,
     });
   }
 
@@ -669,6 +867,7 @@ function buildTodayPlanArrangementItem(
     caseId: entry.linkedCaseId,
     matterId: entry.sourceMatterId,
     customerId: entry.linkedCustomerId,
+    durationHours: action ? resolveActionDurationHours(action.id) : 1,
     energyCost: action?.costEnergy ?? 1,
     statusLabel: source === 'completed'
       ? '今天已完成'
@@ -684,10 +883,6 @@ function buildTodayPlanArrangementItem(
   };
 }
 
-function scheduleEntrySlot(title: string): TodayArrangementSlot {
-  return /下午|晚|收尾/.test(title) ? 'pm' : 'am';
-}
-
 function presentScheduleTitle(title: string) {
   if (title.includes('推进') || title.includes('节奏')) return '业主开始不耐烦';
   return title;
@@ -695,6 +890,7 @@ function presentScheduleTitle(title: string) {
 
 function sanitizeFrontstageText(text: string) {
   return text
+    .replace(/(\d+(?:\.\d+)?)\s*天/g, (_match, rawDays: string) => formatVisibleDaysLeft(Number(rawDays)))
     .replace(/窗.?压力/g, '推进压力')
     .replace(/谈判窗.?/g, '谈判进程')
     .replace(/观察窗.?/g, '观察期')
@@ -707,21 +903,25 @@ function presentScheduleDetail(detail: string) {
     .replace(/剩余窗.?已经不多/g, '再拖就容易失手'));
 }
 
+function presentScheduleBadge(badge: string) {
+  return sanitizeFrontstageText(badge);
+}
+
 function suggestedCandidateSlot(
   state: GameState,
-  actionCost: number,
+  actionDurationHours: number,
   reservedSlots: { am: number; pm: number },
 ): { slot: TodayArrangementSlot; canFit: boolean } {
   const amRemaining = getSlotRemainingCapacity(state, 'am') - reservedSlots.am;
   const pmRemaining = getSlotRemainingCapacity(state, 'pm') - reservedSlots.pm;
 
-  if (amRemaining >= actionCost && pmRemaining >= actionCost) {
+  if (amRemaining >= actionDurationHours && pmRemaining >= actionDurationHours) {
     return { slot: amRemaining >= pmRemaining ? 'am' : 'pm', canFit: true };
   }
-  if (amRemaining >= actionCost) {
+  if (amRemaining >= actionDurationHours) {
     return { slot: 'am', canFit: true };
   }
-  if (pmRemaining >= actionCost) {
+  if (pmRemaining >= actionDurationHours) {
     return { slot: 'pm', canFit: true };
   }
   return { slot: amRemaining >= pmRemaining ? 'am' : 'pm', canFit: false };
@@ -897,11 +1097,11 @@ function phaseProblemLabel(
   viewedCount: number,
   closingCount: number,
 ) {
-  if (phaseCode === 'pre_visit') return '还没把业主和房子摸透';
-  if (phaseCode === 'packaging') return metCount > 0 ? '房子推出去了，但还没起量' : '房子还没形成有效曝光';
-  if (phaseCode === 'showing') return viewedCount > 0 ? '看房还没形成连续推进' : '房子推出去了，但还没带来看房';
-  if (phaseCode === 'feedback_offer') return closingCount > 0 ? '客户有兴趣，但迟迟拿不出报价' : '看了房，但没沉淀出有效反馈';
-  return caseItem.offers > 0 ? '已经谈价了，但还没收下来' : '客户接近出价，但还没坐到谈判桌';
+  if (phaseCode === 'pre_visit') return '首次面访未完成';
+  if (phaseCode === 'packaging') return metCount > 0 ? '曝光还没起量' : '有效曝光不足';
+  if (phaseCode === 'showing') return viewedCount > 0 ? '带看未连续推进' : '带看还没接上';
+  if (phaseCode === 'feedback_offer') return closingCount > 0 ? '报价还没形成' : '反馈还没沉淀';
+  return caseItem.offers > 0 ? '谈价还未收口' : '谈判桌还没搭起来';
 }
 
 function phaseActionLabel(
@@ -923,21 +1123,21 @@ function phaseRiskHint(
   competitionPressure: number,
 ) {
   if (phaseCode === 'pre_visit') {
-    return delayLevel === 'late' ? '业主开始怀疑你有没有真正理解这套房' : '别再拖，尽快把业主和房子摸透';
+    return delayLevel === 'late' ? '业主反馈空窗偏长' : '业主、价格、房源故事还不完整';
   }
   if (phaseCode === 'packaging') {
-    return delayLevel === 'late' ? '房子还没真正起量' : '再拖，这套房还起不来量';
+    return delayLevel === 'late' ? '曝光起量偏慢' : '曝光仍在启动';
   }
   if (phaseCode === 'showing') {
-    return delayLevel === 'late' ? '看房机会在变冷' : '再拖，带看会继续起不来';
+    return delayLevel === 'late' ? '看房机会在变冷' : '带看节奏偏慢';
   }
   if (phaseCode === 'feedback_offer') {
-    return delayLevel === 'late' ? '客户热度会掉' : '再拖，反馈很难沉淀成报价';
+    return delayLevel === 'late' ? '客户热度在回落' : '反馈到报价的链路偏慢';
   }
   if (caseItem.windowDays <= 3 || competitionPressure >= 70) {
-    return '再拖，这套房可能在他处成交';
+    return '成交窗口偏紧';
   }
-  return '再拖，这套房容易核销';
+  return '谈判窗口偏紧';
 }
 
 function phaseToMainProblem(phaseCode: ListingLifecyclePhaseCode): CaseMainProblem {
@@ -970,7 +1170,31 @@ function pickSuggestedActionId(
           ? ['deep-diagnosis', 'story', 'open-day']
           : ['deep-diagnosis', 'story', 'showing'];
 
-  return actionIds.find((actionId) => getActionAvailability(state, caseItem, actionId).enabled);
+  return applyWeekdayActionBias(state.day, actionIds)
+    .find((actionId) => getActionAvailability(state, caseItem, actionId).enabled);
+}
+
+function applyWeekdayActionBias(day: number, actionIds: string[]) {
+  const dayOfWeek = getDayOfWeek(day);
+  const preferred = dayOfWeek === 1
+    ? ['weekly-feedback', 'pricing-advice', 'deep-diagnosis']
+    : dayOfWeek === 2
+      ? ['deep-diagnosis', 'weekly-feedback']
+      : dayOfWeek === 3
+        ? ['deep-diagnosis', 'story', 'private-referral', 'broker-broadcast']
+        : dayOfWeek === 4
+          ? ['focus-meeting-submit', 'story', 'deep-diagnosis']
+          : dayOfWeek === 5
+            ? ['showing', 'private-referral', 'broker-broadcast', 'open-day']
+            : ['showing', 'open-day', 'invite-customer-negotiation', 'weekly-feedback'];
+  const seen = new Set<string>();
+  return [...preferred, ...actionIds].filter((actionId) => {
+    if (!actionIds.includes(actionId) || seen.has(actionId)) {
+      return false;
+    }
+    seen.add(actionId);
+    return true;
+  });
 }
 
 export function buildCaseDetailProjection(state: GameState, caseItem: Case): CaseDetailProjection {
@@ -1218,7 +1442,7 @@ function buildCaseRecentChanges(
       id: `${caseItem.id}-opportunity-step`,
       label: '客户阶段变化',
       title: `${latestOpportunityStep.opportunity.customerName} 从 ${latestOpportunityStep.previousHistory.stage} 到 ${latestOpportunityStep.latestHistory.stage}`,
-      detail: `发生在第 ${latestOpportunityStep.latestHistory.day} 天，这条客户线还可再推进 ${latestOpportunityStep.opportunity.daysLeft} 天。`,
+      detail: `发生在第 ${latestOpportunityStep.latestHistory.day} 天，这条客户线还可再推进 ${formatVisibleDaysLeft(latestOpportunityStep.opportunity.daysLeft)}。`,
       tone: latestOpportunityStep.opportunity.stageIndex >= 4 ? 'chance' : 'neutral',
       caseId: caseItem.id,
     });
@@ -1227,9 +1451,9 @@ function buildCaseRecentChanges(
   if (!caseItem.touchedToday && caseItem.status === 'active') {
     changes.push({
       id: `${caseItem.id}-no-touch`,
-      label: '动作提醒',
-      title: '今天这套房还没有明确动作',
-      detail: '至少要补一个可落地动作，避免业主和客户都感受不到推进。',
+      label: '今日动作',
+      title: '今天还没安排动作',
+      detail: '当前房源今日动作为空。',
       tone: 'risk',
       caseId: caseItem.id,
     });
@@ -1447,7 +1671,7 @@ function buildTodayPriority(
       id: `priority-group-${item.caseId}-${item.type}`,
       label: item.label,
       title: `${item.caseTitle} · ${item.shortReason}`,
-      detail: item.reason,
+      detail: appendRhythmHint(state.day, item.reason),
       tone: item.tone,
       caseId: item.caseId,
     }));
@@ -1464,12 +1688,28 @@ function buildTodayPriority(
       id: `case-priority-${entry.caseId}`,
       label: entry.listingLifecyclePhase.phaseLabel,
       title: `${state.cases.find((caseItem) => caseItem.id === entry.caseId)?.title || '房源'} · ${entry.listingLifecyclePhase.coreProblemLabel}`,
-      detail: `当前动作：${entry.listingLifecyclePhase.primaryActionLabel}`,
+      detail: appendRhythmHint(state.day, `当前动作：${entry.listingLifecyclePhase.primaryActionLabel}`),
       tone: entry.listingLifecyclePhase.phaseDelayLevel === 'late' ? 'risk' as const : 'neutral' as const,
       caseId: entry.caseId,
     }));
 
   return [...fromSchedule, ...fromPriorityGroups, ...fromCaseDetails].slice(0, 4);
+}
+
+function appendRhythmHint(day: number, detail: string) {
+  const dayOfWeek = getDayOfWeek(day);
+  const hint = dayOfWeek === 1
+    ? '今天是业主反馈拍，先把周末事实翻译给业主。'
+    : dayOfWeek === 2
+      ? '今天是恢复整理拍，只保留最容易失手的一件事。'
+      : dayOfWeek === 3
+        ? '今天上午先做内部判断，下午再补获客和包装。'
+        : dayOfWeek === 4
+          ? '今天上午是聚焦会拍，资源倾斜要有明确对象。'
+          : dayOfWeek === 5
+            ? '今天是周末前的蓄客预约拍，先锁带看。'
+            : '今天是集中带看拍，优先拿真实市场反馈。';
+  return `${detail} ${hint}`;
 }
 
 function buildYesterdayIntel(state: GameState): ProjectionBrief[] {
@@ -1538,7 +1778,7 @@ function buildRiskReminders(
       id: `risk-${entry.caseId}`,
       label: entry.listingLifecyclePhase.phaseLabel,
       title: `${state.cases.find((caseItem) => caseItem.id === entry.caseId)?.title || '房源'} · ${entry.listingLifecyclePhase.coreProblemLabel}`,
-      detail: entry.listingLifecyclePhase.phaseRiskHint,
+      detail: appendRhythmHint(state.day, entry.listingLifecyclePhase.phaseRiskHint),
       tone: 'risk' as const,
       caseId: entry.caseId,
     }));
@@ -1713,9 +1953,9 @@ function deriveOwnerTitle(caseItem: Case) {
 
 function deriveOwnerDetail(currentDay: number, caseItem: Case) {
   const daysSinceOwnerTouched = elapsedDays(currentDay, caseItem.lastOwnerTouchedDay);
-  if (daysSinceOwnerTouched >= 4) return `${daysSinceOwnerTouched} 天没做业主反馈，今天要补事实。`;
-  if (caseItem.trust < 52) return '反馈不能只说“在推”，要拿客户、带看、同类房和价格讲清楚。';
-  if (caseItem.patience < 42) return '沟通要更直接，别绕太久。';
+  if (daysSinceOwnerTouched >= 4) return `业主反馈空窗 ${daysSinceOwnerTouched} 天。`;
+  if (caseItem.trust < 52) return '业主信任偏低，客户和竞品信息还不够清楚。';
+  if (caseItem.patience < 42) return '业主耐心偏低。';
   return caseItem.ownerMood ? sanitizeFrontstageText(caseItem.ownerMood) : '当前业主状态相对稳定。';
 }
 
@@ -1760,11 +2000,14 @@ function deriveCompetitionDetail(caseItem: Case, rivalCount: number, pressure: n
 }
 
 function deriveCalendarDetail(dayOfWeek: number, theme: string) {
-  if (dayOfWeek === 6) return '周末带看高峰，适合集中承接客户。';
-  if (dayOfWeek === 7) return '适合追开放日和周末带看反馈。';
+  if (dayOfWeek === 1) return '把周末客户、带看、同类房和价格整理成事实，回传给业主。';
+  if (dayOfWeek === 2) return '休假、整理和恢复，只轻经营，不把今天排满。';
+  if (dayOfWeek === 3) return '上午内部会做判断，下午补包装、获客和提报准备。';
+  if (dayOfWeek === 4) return '上午聚焦会定资源倾斜，别让好房被同类盘分走。';
+  if (dayOfWeek === 5) return '周末前找带看、蓄客、预约，把高峰日先锁住。';
+  if (dayOfWeek === 6) return '集中带看，现场拿客户和市场的真实反馈。';
+  if (dayOfWeek === 7) return '继续集中带看，同时为周一业主反馈留证据。';
   if (theme.includes('业主')) return '把客户、带看、同类房和价格整理成事实再沟通。';
-  if (theme.includes('获客')) return '重点补客户池，不要只等自然进线。';
-  if (dayOfWeek === 4) return '确定资源位，别让好房被同类盘分走。';
   return '按当天资源处理最关键事项。';
 }
 
@@ -1957,17 +2200,7 @@ function scoreCustomerActivity(customerState: CustomerRuntimeState) {
   return 18;
 }
 
-function averageValue(values: number[]) {
-  const filtered = values.filter(Number.isFinite);
-  if (filtered.length === 0) return 0;
-  return filtered.reduce((sum, value) => sum + value, 0) / filtered.length;
-}
 
-function mapTone(tone: Tone): ProjectionTone {
-  if (tone === 'danger') return 'risk';
-  if (tone === 'success') return 'chance';
-  return 'neutral';
-}
 
 function toIntelProjectionBrief(item: IntelItem): ProjectionBrief {
   return {
@@ -1978,9 +2211,4 @@ function toIntelProjectionBrief(item: IntelItem): ProjectionBrief {
     tone: item.tone === 'risk' ? 'risk' : item.tone === 'chance' ? 'chance' : 'neutral',
     caseId: item.affectedCaseIds[0],
   };
-}
-
-function trimTitle(message: string) {
-  const first = message.split('，')[0] || message;
-  return first.length > 24 ? `${first.slice(0, 24)}...` : first;
 }

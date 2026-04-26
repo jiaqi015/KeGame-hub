@@ -228,16 +228,16 @@ function dedupeIntel(items: IntelItem[]) {
 }
 
 function buildEventSummary(layer: string, affectedCount: number) {
-  if (layer === 'market') return affectedCount > 0 ? '今天外部变化已经传到这几套房。' : '今天大环境有变化，会先影响客户和带看。';
-  if (layer === 'company') return '同公司也在抢客户，会影响你今天能不能分到客。';
-  if (layer === 'rival') return affectedCount > 0 ? '同类房已经压到你的房源上。' : '同类房在抢同板块客户。';
-  return '这条变化已经落到具体房源。';
+  if (layer === 'market') return affectedCount > 0 ? '大环境这波冷风已经吹到这几套房了。' : '大盘风向有变，客户带看量肯定要受影响。';
+  if (layer === 'company') return '店里其他组也在盯着这批客，今天派单得靠抢。';
+  if (layer === 'rival') return affectedCount > 0 ? '隔壁中介已经把人带到咱们这几套房的同户型了。' : '对街的店在疯狂截胡这片区的客户。';
+  return '这事儿已经落到具体这套房上了。';
 }
 
 function buildHistorySummary(actor: string) {
-  if (actor.includes('宏观') || actor.includes('市场')) return '外部环境有过变化。';
-  if (actor.includes('竞品') || actor.includes('公司')) return '竞争关系有过变化。';
-  return '这条变化已经落到具体房源。';
+  if (actor.includes('宏观') || actor.includes('市场')) return '外部大环境起过风。';
+  if (actor.includes('竞品') || actor.includes('公司')) return '同行之前在背后搞过小动作。';
+  return '这事儿之前已经落到具体房源上了。';
 }
 
 function isIntelEvent(actor: string) {
@@ -324,8 +324,8 @@ function buildHomepageProjection(items: IntelItem[], impactedCases: ImpactedCase
     briefs,
     impactedCases: impactedCases.slice(0, 3),
     summary: lead
-      ? `${lead.title} 是今天最先该看的外部变化。`
-      : '今天还没有新的市场情报需要单独抬出来。',
+      ? `商圈经理提个醒：${lead.title} 这事最紧迫，别拖。`
+      : '今天外面没啥大动静，按原计划跑就行。',
   };
 }
 
@@ -355,19 +355,19 @@ function buildLayerSummary(
 }
 
 export function buildMarketBoardTitle(market: GameState['markets'][number]) {
-  if (market.demandHeat >= 70 && market.competitivePressure < 60) return `${market.name} 客户更活跃`;
-  if (market.competitivePressure >= 70) return `${market.name} 竞争很挤`;
-  if (market.supplyPressure >= 70) return `${market.name} 同类房变多了`;
-  if (market.sentiment <= 40) return `${market.name} 客户更观望`;
-  return `${market.name} 今天变化不大`;
+  if (market.demandHeat >= 70 && market.competitivePressure < 60) return `${market.name} 今天看房的人明显多了`;
+  if (market.competitivePressure >= 70) return `${market.name} 各家都在这儿扎堆抢人`;
+  if (market.supplyPressure >= 70) return `${market.name} 业主扎堆往外放同户型`;
+  if (market.sentiment <= 40) return `${market.name} 客户光看不买，都在观望`;
+  return `${market.name} 没啥动静，平稳期`;
 }
 
 export function buildMarketBoardSummary(market: GameState['markets'][number]) {
-  if (market.demandHeat >= 70 && market.competitivePressure < 60) return '这个商圈今天更容易出客户。';
-  if (market.competitivePressure >= 70) return '这个商圈今天更容易被同类房分客。';
-  if (market.supplyPressure >= 70) return '同类房变多，业主更容易拿你去比较。';
-  if (market.sentiment <= 40) return '客户在观望，带看和谈价都会慢一点。';
-  return '这个商圈今天没有明显顺风。';
+  if (market.demandHeat >= 70 && market.competitivePressure < 60) return '客户活跃度上来了，今天是个推盘的好机会。';
+  if (market.competitivePressure >= 70) return '同行带看都挤在这块，稍不注意就被切客。';
+  if (market.supplyPressure >= 70) return '挂牌出来的同户型太多，业主容易拿咱们当备胎比价。';
+  if (market.sentiment <= 40) return '客户都在等政策落地，不敢轻易出手，流程会拉得很长。';
+  return '这片区今天风平浪静，没有明显利好。';
 }
 
 export function buildMarketBoardDetail(market: GameState['markets'][number]) {
@@ -375,31 +375,31 @@ export function buildMarketBoardDetail(market: GameState['markets'][number]) {
 }
 
 function buildCompanyPressureTitle(companyPressure: GameState['marketShadow']['companyPressure']) {
-  if (companyPressure.sharedLeadPressure >= 72) return '同公司在抢同一批客户';
-  if (companyPressure.sharedLeadPressure >= 58) return '今天同公司抢客偏紧';
-  return '今天同公司抢客不明显';
+  if (companyPressure.sharedLeadPressure >= 72) return '店里好几个组在死磕同一批客户';
+  if (companyPressure.sharedLeadPressure >= 58) return '今天店里分客的火药味有点重';
+  return '今天客源竞争不强';
 }
 
 function buildCompanyPressureSummary(companyPressure: GameState['marketShadow']['companyPressure']) {
-  if (companyPressure.sharedLeadPressure >= 58) return '会直接影响你今天能不能分到客户。';
-  return '今天公司里的分客压力不大。';
+  if (companyPressure.sharedLeadPressure >= 58) return '手头的号码捂紧点，稍微动作慢点客就被转走了。';
+  return '客源池还算宽松，正常跟进即可。';
 }
 
 function buildCompanyPressureDetail(companyPressure: GameState['marketShadow']['companyPressure']) {
   if (companyPressure.focusSlotPressure >= 65 || companyPressure.internalCompetitionHeat >= 65) {
-    return '共享客户紧，资源位也在抢。';
+    return '共享客户紧，带看和排位都在抢。';
   }
-  return '今天资源位还算够用。';
+  return '推广和带看资源都够用，按计划推进。';
 }
 
 function buildSignalSummary(signal: GameState['marketShadow']['marketSignals'][number]) {
-  if (signal.type === 'buyer_demand') return '这类客户最近在增多。';
-  if (signal.type === 'seller_intent') return '这类业主最近更愿意放盘。';
-  return '别家已经开始抢这批客户。';
+  if (signal.type === 'buyer_demand') return '最近来问房的客户肉眼可见地变多了。';
+  if (signal.type === 'seller_intent') return '最近业主们都在打听行情，准备往外抛盘。';
+  return '隔壁中介已经开始下场抢这批客户了。';
 }
 
 function buildSignalDetail(signal: GameState['marketShadow']['marketSignals'][number]) {
-  return `${signal.message} ${describeConfidence(signal.confidence)}，大概还会影响 ${signal.expiresInDays} 天。`;
+  return `${signal.message} ${describeConfidence(signal.confidence)}，这股风估计还能刮 ${signal.expiresInDays} 天。`;
 }
 
 function describeBand(value: number, low: string, mid: string, high: string) {

@@ -19,6 +19,7 @@ import {
   resolveScenarioOpening,
 } from '../src/selling-houses/application/scenarioOpening';
 import { advanceDays, executeAction, seedInitialOpportunities } from '../src/selling-houses/domain/engine';
+import { ensureMarketOutcomeState } from '../src/selling-houses/domain/models';
 import { sellVisibleRivalForCase } from '../src/selling-houses/domain/rivals/rivalListingEngine';
 import { getScenarioSnapshotById, listBuiltInScenarioSummaries } from '../src/selling-houses/domain/scenarioCatalog';
 
@@ -215,6 +216,8 @@ function buildWorld() {
 {
   const world = buildWorld();
   const targetCase = world.cases[0];
+  const marketOutcome = ensureMarketOutcomeState(world);
+  marketOutcome.releasedSlots = marketOutcome.totalCapacity21d;
   const previousSoldRivals = world.marketShadow.rivalListings.filter((entry) => entry.status === 'sold').length;
 
   assert.ok(

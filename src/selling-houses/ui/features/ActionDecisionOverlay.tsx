@@ -2,6 +2,11 @@ import React, { useState } from 'react';
 import type { GameState, Case } from '../../domain/models';
 import { ACTIONS } from '../../domain/actions/definitions';
 import { getActionTemplate, getScenarioMode, getScenarioTemplate, isScenarioAction } from '../../domain/actions/templates';
+import type { MatterEntry } from '../../domain/models';
+import { ReportMatterView } from './matters/ReportMatterView';
+import { DiagnoseMatterView } from './matters/DiagnoseMatterView';
+import { ExecuteMatterView } from './matters/ExecuteMatterView';
+import { NegotiateMatterView } from './matters/NegotiateMatterView';
 
 export type CharacterFeedback = {
   actor: 'owner' | 'customer' | 'market';
@@ -91,6 +96,7 @@ export function ActionDecisionOverlay({
   onClose,
   state,
   caseItem,
+  matter,
 }: {
   config: ActionDecisionConfig;
   onChoose?: (optionId: string, assistOptionId?: string, choices?: Array<{ round: number; main: string; assist: string }>, feedbacks?: CharacterFeedback[]) => void;
@@ -98,7 +104,21 @@ export function ActionDecisionOverlay({
   onClose: () => void;
   state?: GameState;
   caseItem?: Case;
+  matter?: MatterEntry;
 }) {
+  if (matter) {
+    switch (matter.lifecycleCategory) {
+      case 'report':
+        return <ReportMatterView config={config} matter={matter} onChoose={onChoose} onComplete={onComplete} onClose={onClose} state={state} caseItem={caseItem} />;
+      case 'diagnose':
+        return <DiagnoseMatterView config={config} matter={matter} onChoose={onChoose} onComplete={onComplete} onClose={onClose} state={state} caseItem={caseItem} />;
+      case 'execute':
+        return <ExecuteMatterView config={config} matter={matter} onChoose={onChoose} onComplete={onComplete} onClose={onClose} state={state} caseItem={caseItem} />;
+      case 'negotiate':
+        return <NegotiateMatterView config={config} matter={matter} onChoose={onChoose} onComplete={onComplete} onClose={onClose} state={state} caseItem={caseItem} />;
+    }
+  }
+
   const mode: OverlayMode = !config.isScenario ? 'direct' : config.scenarioMode === 'heavy' ? 'heavy' : 'light';
   const totalRounds = mode === 'heavy' ? 3 : 2;
 

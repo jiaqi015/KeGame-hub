@@ -3,6 +3,7 @@ import { BALANCE } from '../config/balance.js';
 import { logEvent } from '../runtimeState.js';
 import { chance, clamp, intersections, randomInt } from '../utils.js';
 import { getActiveOpportunities, MAX_ACTIVE_OPPORTUNITIES_PER_CASE, refreshOpportunityLabel } from './opportunityEngine.js';
+import { getRivalOutcomeControl, scaleProbability } from './outcomeControlRuntime.js';
 
 function buildDecisionStyle(customer: CustomerProfile): CustomerRuntimeState['decisionStyle'] {
   if (customer.urgency >= 76 && customer.activity >= 72) {
@@ -113,6 +114,8 @@ function deriveCustomerStatus(customerState: CustomerRuntimeState) {
 }
 
 function applyCustomerDay(state: GameState, customer: CustomerProfile, customerState: CustomerRuntimeState) {
+  const funnelProgressionScale = Math.max(0, state.rules.outcomeControl.playerFunnelProgressionScale);
+  const stagnationScale = Math.max(0, state.rules.outcomeControl.customerStagnationScale);
   const candidateCases = state.cases.filter((entry) =>
     entry.status === 'active' && entry.district === customer.targetDistrict,
   );
@@ -139,8 +142,8 @@ function applyCustomerDay(state: GameState, customer: CustomerProfile, customerS
       .slice(0, 2);
     const caseHeatBoost = (caseItem.heat - 55) / 10;
     const trustBoost = (customerState.advisorTrust - 50) / 12;
-    const fatiguePenalty = customerState.fatigue / 14;
-    const comparePenalty = customerState.status === 'comparing' && !runtime.selected ? 2.5 : 0;
+    const fatiguePenalty = (customerState.fatigue / 14) * stagnationScale;
+    const comparePenalty = (customerState.status === 'comparing' && !runtime.selected ? 2.5 : 0) * stagnationScale;
     const interactionBoost = runtime.interactions > 0 ? Math.min(8, runtime.interactions * 1.5) : 0;
     const rivalryPenalty = (runtime.competingCaseIds?.length || 0) * 1.2;
     const priceAdvantage = runtime.fit >= 70 && caseItem.askPrice <= caseItem.marketPrice * 1.01 ? 2.8 : 0;
@@ -162,7 +165,7 @@ function applyCustomerDay(state: GameState, customer: CustomerProfile, customerS
       runtime.confidence
         + (caseItem.trust - 55) / 14
         + (caseItem.d3 - 50) / 16
-        - customer.priceSensitivity / 80
+        - (customer.priceSensitivity / 80) * stagnationScale
         - rivalryPenalty * 0.7
         + randomInt(-3, 3, state),
       0,
@@ -174,7 +177,7 @@ function applyCustomerDay(state: GameState, customer: CustomerProfile, customerS
       : customerState.decisionStyle === 'hesitant'
         ? 78
         : 70;
-    if (runtime.stageIndex < 5 && runtime.interest >= advanceThreshold && runtime.confidence >= advanceThreshold - 6 && chance(0.28, state)) {
+    if (runtime.stageIndex < 5 && runtime.interest >= advanceThreshold && runtime.confidence >= advanceThreshold - 6 && chance(clamp(0.28 * funnelProgressionScale, 0, 0.95), state)) {
       runtime.stageIndex += 1;
       runtime.lastActiveDay = state.day;
       if (runtime.stageIndex >= 2) {
@@ -209,16 +212,16 @@ function applyCustomerDay(state: GameState, customer: CustomerProfile, customerS
 
   customerState.fatigue = clamp(
     customerState.fatigue
-      + (customerState.status === 'engaged' || customerState.status === 'negotiating' ? 4 : 1)
+      + (customerState.status === 'engaged' || customerState.status === 'negotiating' ? 4 : 1) * stagnationScale
       - (customerState.lastTouchDay === state.day ? 3 : 0),
     0,
     100,
   );
   customerState.churnRisk = clamp(
     customerState.churnRisk
-      + (customerState.status === 'idle' ? 4 : 0)
-      + (customerState.status === 'comparing' ? 3 : 0)
-      + (customerState.fatigue > 70 ? 4 : 0)
+      + (customerState.status === 'idle' ? 4 : 0) * stagnationScale
+      + (customerState.status === 'comparing' ? 3 : 0) * stagnationScale
+      + (customerState.fatigue > 70 ? 4 : 0) * stagnationScale
       - (customerState.lastTouchDay === state.day ? 5 : 0),
     0,
     100,
@@ -331,6 +334,7 @@ export function progressCustomerDemand(state: GameState) {
 }
 
 export function applyRivalPullOnCustomers(state: GameState) {
+  const { rivalCustomerPullScale } = getRivalOutcomeControl(state);
   const activeRivals = state.marketShadow.rivalListings.filter((entry) => entry.status === 'active');
   if (!activeRivals.length) return;
 
@@ -346,14 +350,14 @@ export function applyRivalPullOnCustomers(state: GameState) {
       .sort((left, right) => (right.leadSiphonPower + right.heat + right.freshness) - (left.leadSiphonPower + left.heat + left.freshness))[0];
     if (!rival) return;
 
-    const pressure = (rival.leadSiphonPower + rival.heat + rival.freshness) / 3;
+    const pressure = ((rival.leadSiphonPower + rival.heat + rival.freshness) / 3) * rivalCustomerPullScale;
     if (pressure < 58) return;
 
     leadRuntime.interest = clamp(leadRuntime.interest - pressure / 18, 0, 100);
     leadRuntime.confidence = clamp(leadRuntime.confidence - pressure / 24, 0, 100);
     customerState.churnRisk = clamp(customerState.churnRisk + pressure / 22, 0, 100);
 
-    if (leadRuntime.interest < 42 && chance(0.16, state)) {
+    if (leadRuntime.interest < 42 && chance(scaleProbability(0.16, rivalCustomerPullScale, 0.85), state)) {
       customerState.status = 'comparing';
       customerState.lastActionNote = `被竞品 ${rival.title} 抢走注意力`;
       if (!leadRuntime.competingCaseIds?.includes(rival.id)) {

@@ -159,7 +159,7 @@ export function deriveRankTitle(state: GameState) {
   if (score >= 90) return '这局你真的把房子卖顺了';
   if (score >= 75) return '这局基本是你在带着节奏走';
   if (score >= 60) return '至少把最关键的部分撑住了';
-  return '这局还是没能把情况扳回来';
+  return '这局先交了一笔学费';
 }
 
 export function buildScoreBreakdown(state: GameState) {

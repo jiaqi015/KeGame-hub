@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useReducer, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   FileDown,
@@ -21,14 +22,19 @@ import { resolveOpenDayWaterlineContext } from '../../modules/open-day/domain/op
 import { resolveOpenDayScenarioDraft } from '../../modules/open-day/application/openDayScenarioDraft.js';
 
 import {
-  fetchOpenDayAnalysis,
-  fetchOpenDayCatalog,
-  fetchOpenDaySnapshotDetail,
+  useOpenDayCatalog,
+  useOpenDayAnalysisRuns,
+  useOpenDayScenarios,
+  useUploadWorkbook,
+  useRunAnalysis,
+  useSaveScenario,
+  useOpenDayInvalidate,
+} from './useOpenDayQueries';
+
+import {
+  fetchOpenDayAnalysisRunDetail,
   fetchOpenDayScenarioDetail,
-  fetchOpenDayScenarios,
-  fetchOpenDaySnapshots,
-  saveOpenDayScenario,
-  uploadWorkbook,
+  fetchOpenDayAnalysisRuns,
 } from './openDayClient';
 
 import {
@@ -57,7 +63,7 @@ import { formatNumber, formatPercent, formatDateTime } from './formatters';
 
 // Sub-components
 import { UploadStage } from './components/UploadStage';
-import { FormulaBar } from './components/FormulaBar';
+import { SkillBar } from './components/FormulaBar';
 import { AnalysisTable } from './components/AnalysisTable';
 import { InsightDrawer } from './components/InsightDrawer';
 import { LibraryOverlay } from './components/LibraryOverlay';
@@ -128,6 +134,18 @@ function createInitialState(): OpenDayState {
 export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
   const [state, dispatch] = useReducer(openDayReducer, undefined, createInitialState);
   const requestVersionRef = useRef(0);
+  const queryClient = useQueryClient();
+
+  // ─── Queries ──────────────────────────────────────────────────────────────────
+  const catalogQuery = useOpenDayCatalog(activationKey);
+  const snapshotsQuery = useOpenDayAnalysisRuns(activationKey, 8);
+  const scenariosQuery = useOpenDayScenarios(activationKey, 8);
+
+  // ─── Mutations ────────────────────────────────────────────────────────────────
+  const uploadMutation = useUploadWorkbook();
+  const analysisMutation = useRunAnalysis();
+  const saveScenarioMutation = useSaveScenario();
+  const { invalidateAll, invalidateAnalysisRuns, invalidateScenarios } = useOpenDayInvalidate();
 
   const {
     stage,
@@ -173,6 +191,35 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     qualityReport,
   } = state;
 
+  // ─── Sync Queries to State ────────────────────────────────────────────────────
+  useEffect(() => {
+    if (catalogQuery.data) {
+      dispatch({
+        type: 'BOOTSTRAP_SUCCESS',
+        catalog: catalogQuery.data,
+        config: cloneConfig(catalogQuery.data.defaultConfig),
+        snapshots: snapshotsQuery.data?.items || [],
+        scenarios: scenariosQuery.data?.items || [],
+      });
+    }
+  }, [catalogQuery.data]);
+
+  useEffect(() => {
+    if (snapshotsQuery.data) {
+      dispatch({ type: 'SET_SNAPSHOTS', items: snapshotsQuery.data.items });
+    }
+  }, [snapshotsQuery.data]);
+
+  useEffect(() => {
+    if (scenariosQuery.data) {
+      dispatch({ type: 'SET_SCENARIOS', items: scenariosQuery.data.items });
+    }
+  }, [scenariosQuery.data]);
+
+  useEffect(() => {
+    dispatch({ type: 'SET_IS_BOOTSTRAPPING', value: catalogQuery.isLoading });
+  }, [catalogQuery.isLoading]);
+
   const parameterPackages = (catalog.parameterPackages?.length ? catalog.parameterPackages : (catalog.presets || [])) as OpenDayParameterPackage[];
 
   // ─── Derived ──────────────────────────────────────────────────────────────────
@@ -195,6 +242,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     () =>
       resolveOpenDayScenarioDraft({
         scenario: {
+          skillId: config.skillId || config.formulaId,
           formulaId: config.formulaId,
           parameterPackageId: activeParameterPackageId === 'custom' ? null : activeParameterPackageId,
           config,
@@ -204,10 +252,10 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     [activeParameterPackageId, config],
   );
 
-  const activeFormula = useMemo(
-    () => (catalog.formulas || []).find((f) => f.id === scenarioDraft.formulaId) || fallbackCatalog.formulas[0],
-    [catalog.formulas, scenarioDraft.formulaId],
-  ) || fallbackCatalog.formulas[0];
+  const activeSkill = useMemo(
+    () => (catalog.skills || catalog.formulas || []).find((s) => s.id === (scenarioDraft.skillId || scenarioDraft.formulaId)) || (fallbackCatalog.skills || fallbackCatalog.formulas)[0],
+    [catalog.skills, catalog.formulas, scenarioDraft.skillId, scenarioDraft.formulaId],
+  ) || (fallbackCatalog.skills || fallbackCatalog.formulas)[0];
 
   const missingMappings = getMissingMappings(mappings);
   const normalizedPreviewRows =
@@ -250,7 +298,10 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
 
   const onSetBaseline = async (snapshotId: string) => {
     try {
-      const detail = await fetchOpenDaySnapshotDetail(activationKey, snapshotId);
+      const detail = await queryClient.fetchQuery({
+        queryKey: ['openDay', 'analysisRunDetail', activationKey, snapshotId],
+        queryFn: () => fetchOpenDayAnalysisRunDetail(activationKey, snapshotId),
+      });
       if (detail?.response) {
         dispatch({ type: 'SET_BASELINE_ANALYSIS', analysis: detail.response, snapshotId });
       }
@@ -273,12 +324,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
   // ─── Async Actions ────────────────────────────────────────────────────────────
 
   async function refreshSnapshots() {
-    try {
-      const payload = await fetchOpenDaySnapshots(activationKey, 8);
-      dispatch({ type: 'SET_SNAPSHOTS', items: payload.items });
-    } catch {
-      dispatch({ type: 'SET_SNAPSHOTS', items: [] });
-    }
+    await invalidateAnalysisRuns();
   }
 
   async function refreshScenarioSnapshots(scenarioTemplateId: string) {
@@ -287,7 +333,10 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
       return;
     }
     try {
-      const payload = await fetchOpenDaySnapshots(activationKey, 8, scenarioTemplateId);
+      const payload = await queryClient.fetchQuery({
+        queryKey: ['openDay', 'analysisRuns', activationKey, 8, scenarioTemplateId],
+        queryFn: () => fetchOpenDayAnalysisRuns(activationKey, 8, scenarioTemplateId),
+      });
       dispatch({ type: 'SET_SCENARIO_SNAPSHOTS', items: payload.items });
     } catch {
       dispatch({ type: 'SET_SCENARIO_SNAPSHOTS', items: [] });
@@ -295,12 +344,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
   }
 
   async function refreshScenarios() {
-    try {
-      const payload = await fetchOpenDayScenarios(activationKey, 8);
-      dispatch({ type: 'SET_SCENARIOS', items: payload.items });
-    } catch {
-      dispatch({ type: 'SET_SCENARIOS', items: [] });
-    }
+    await invalidateScenarios();
   }
 
   function applyParsedData(payload: ParsedWorkbookPayload | { headers: string[]; rows: OpenDayRawRow[] }, nextSourceName: string) {
@@ -331,28 +375,35 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
   }
 
   async function handleWorkbookUpload(file: File, requestedSheet = '') {
-    const payload = await uploadWorkbook(activationKey, file, requestedSheet);
-    dispatch({ type: 'SET_WORKBOOK_SHEETS', sheets: payload.sheets });
-    dispatch({ type: 'SET_ACTIVE_SHEET', sheet: payload.activeSheet });
-    if (!requestedSheet) {
-      dispatch({ type: 'SET_SOURCE_UPLOAD_ID', id: payload.uploadArtifact?.id || '' });
-    } else if (payload.uploadArtifact?.id) {
-      dispatch({ type: 'SET_SOURCE_UPLOAD_ID', id: payload.uploadArtifact.id });
+    try {
+      dispatch({ type: 'SET_IS_PARSING_FILE', value: true });
+      const payload = await uploadMutation.mutateAsync({ activationKey, file, requestedSheet });
+      dispatch({ type: 'SET_WORKBOOK_SHEETS', sheets: payload.sheets });
+      dispatch({ type: 'SET_ACTIVE_SHEET', sheet: payload.activeSheet });
+      if (!requestedSheet) {
+        dispatch({ type: 'SET_SOURCE_UPLOAD_ID', id: payload.uploadArtifact?.id || '' });
+      } else if (payload.uploadArtifact?.id) {
+        dispatch({ type: 'SET_SOURCE_UPLOAD_ID', id: payload.uploadArtifact.id });
+      }
+      applyParsedData(payload, `${file.name}${payload.activeSheet ? ` / ${payload.activeSheet}` : ''}`);
+    } catch (err) {
+      dispatch({ type: 'SET_UPLOAD_ERROR', error: err instanceof Error ? err.message : '上传失败' });
+    } finally {
+      dispatch({ type: 'SET_IS_PARSING_FILE', value: false });
     }
-    applyParsedData(payload, `${file.name}${payload.activeSheet ? ` / ${payload.activeSheet}` : ''}`);
   }
 
   async function handleFileSelection(file: File) {
     dispatch({ type: 'SET_UPLOAD_ERROR', error: '' });
-    dispatch({ type: 'SET_IS_PARSING_FILE', value: true });
+
+    if (/\.(xlsx|xls)$/i.test(file.name)) {
+      dispatch({ type: 'SET_UPLOADED_FILE', file });
+      await handleWorkbookUpload(file);
+      return;
+    }
 
     try {
-      if (/\.(xlsx|xls)$/i.test(file.name)) {
-        dispatch({ type: 'SET_UPLOADED_FILE', file });
-        await handleWorkbookUpload(file);
-        return;
-      }
-
+      dispatch({ type: 'SET_IS_PARSING_FILE', value: true });
       const text = await file.text();
       const parsed = parseCsv(text);
       dispatch({ type: 'SET_UPLOADED_FILE', file: null });
@@ -388,18 +439,21 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
   }
 
   async function handleSaveScenario() {
-    const name = scenarioName.trim() || buildScenarioDraftName(datasetDraft.sourceName, scenarioDraft, parameterPackages, catalog.formulas);
+    const name = scenarioName.trim() || buildScenarioDraftName(datasetDraft.sourceName, scenarioDraft, parameterPackages, catalog.skills || catalog.formulas);
     dispatch({ type: 'SET_IS_SAVING_SCENARIO', value: true });
     dispatch({ type: 'SET_SCENARIO_MESSAGE', message: '' });
 
     try {
-      const record = await saveOpenDayScenario(activationKey, {
-        templateId: activeScenarioTemplateId,
-        name,
-        description: datasetDraft.sourceName ? `来源：${datasetDraft.sourceName}` : '',
-        scenario: scenarioDraft,
-        activePresetId: activeParameterPackageId,
-        activeParameterPackageId: scenarioDraft.parameterPackageId || '',
+      const record = await saveScenarioMutation.mutateAsync({
+        activationKey,
+        command: {
+          templateId: activeScenarioTemplateId,
+          name,
+          description: datasetDraft.sourceName ? `来源：${datasetDraft.sourceName}` : '',
+          scenario: scenarioDraft,
+          activePresetId: activeParameterPackageId,
+          activeParameterPackageId: scenarioDraft.parameterPackageId || '',
+        }
       });
 
       dispatch({
@@ -424,7 +478,10 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     dispatch({ type: 'SET_SCENARIO_MESSAGE', message: '' });
 
     try {
-      const record = await fetchOpenDayScenarioDetail(activationKey, id);
+      const record = await queryClient.fetchQuery({
+        queryKey: ['openDay', 'scenarioDetail', activationKey, id],
+        queryFn: () => fetchOpenDayScenarioDetail(activationKey, id),
+      });
       dispatch({ type: 'SET_CONFIG', config: cloneConfig(record.scenario.config) });
       dispatch({ type: 'SET_PARAMETER_PACKAGE_ID', id: record.scenario.parameterPackageId || 'custom' });
       dispatch({
@@ -451,7 +508,10 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     dispatch({ type: 'SET_STATUS_MESSAGE', message: '正在回放历史测算...' });
 
     try {
-      const record = await fetchOpenDaySnapshotDetail(activationKey, id);
+      const record = await queryClient.fetchQuery({
+        queryKey: ['openDay', 'analysisRunDetail', activationKey, id],
+        queryFn: () => fetchOpenDayAnalysisRunDetail(activationKey, id),
+      });
       const restoredMappings: OpenDayFormMappings = {
         area: record.command.mappings.area || '',
         name: record.command.mappings.name || '',
@@ -492,7 +552,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
           scenarioTemplateVersionId: restoredScenarioTemplateVersionId,
           scenarioName:
             restoredScenarioTemplateName
-            || buildScenarioDraftName(restoredSourceName, restoredScenario, parameterPackages, catalog.formulas),
+            || buildScenarioDraftName(restoredSourceName, restoredScenario, parameterPackages, catalog.skills || catalog.formulas),
           statusMessage: `已回放 ${formatDateTime(record.summary.createdAt)} 的测算结果。`,
           qualityReport: restoredQualityReport,
         },
@@ -576,21 +636,24 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     dispatch({ type: 'SET_STATUS_MESSAGE', message: '正在生成测算结果...' });
 
     try {
-      const payload = await fetchOpenDayAnalysis(activationKey, {
-        rows: datasetDraft.rows,
-        mappings: datasetDraft.mappings,
-        scenario: scenarioDraft,
-        sourceName: datasetDraft.sourceName,
-        sourceUploadId: datasetDraft.sourceUploadId,
-        datasetId: datasetDraft.datasetId,
-        activeSheet: datasetDraft.activeSheet,
-        headers: datasetDraft.headers,
-        qualityReport,
-        activeScenarioTemplateId,
-        activeScenarioTemplateName,
-        activeScenarioTemplateVersionId,
-        activePresetId: activeParameterPackageId,
-        activeParameterPackageId: scenarioDraft.parameterPackageId || '',
+      const payload = await analysisMutation.mutateAsync({
+        activationKey,
+        command: {
+          rows: datasetDraft.rows,
+          mappings: datasetDraft.mappings,
+          scenario: scenarioDraft,
+          sourceName: datasetDraft.sourceName,
+          sourceUploadId: datasetDraft.sourceUploadId,
+          datasetId: datasetDraft.datasetId,
+          activeSheet: datasetDraft.activeSheet,
+          headers: datasetDraft.headers,
+          qualityReport,
+          activeScenarioTemplateId,
+          activeScenarioTemplateName,
+          activeScenarioTemplateVersionId,
+          activePresetId: activeParameterPackageId,
+          activeParameterPackageId: scenarioDraft.parameterPackageId || '',
+        }
       });
 
       if (requestVersionRef.current !== currentVersion) return;
@@ -610,45 +673,15 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
   // ─── Effects ──────────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function bootstrap() {
-      dispatch({ type: 'SET_IS_BOOTSTRAPPING', value: true });
-
-      try {
-        const [nextCatalog, nextSnapshots, nextScenarios] = await Promise.all([
-          fetchOpenDayCatalog(activationKey),
-          fetchOpenDaySnapshots(activationKey, 8),
-          fetchOpenDayScenarios(activationKey, 8),
-        ]);
-
-        if (cancelled) return;
-
-        dispatch({
-          type: 'BOOTSTRAP_SUCCESS',
-          catalog: nextCatalog,
-          config: cloneConfig(nextCatalog.defaultConfig),
-          snapshots: nextSnapshots.items,
-          scenarios: nextScenarios.items,
-        });
-      } catch (error) {
-        if (cancelled) return;
-
-        dispatch({
-          type: 'BOOTSTRAP_FAILURE',
-          catalog: fallbackCatalog,
-          config: cloneConfig(fallbackCatalog.defaultConfig),
-          message: error instanceof Error ? `${error.message}，已自动回退到默认策略。` : '策略目录加载失败，已自动回退到默认策略。',
-        });
-      }
+    if (catalogQuery.isError) {
+      dispatch({
+        type: 'BOOTSTRAP_FAILURE',
+        catalog: fallbackCatalog,
+        config: cloneConfig(fallbackCatalog.defaultConfig),
+        message: catalogQuery.error instanceof Error ? `${catalogQuery.error.message}，已自动回退到默认策略。` : '策略目录加载失败，已自动回退到默认策略。',
+      });
     }
-
-    void bootstrap();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activationKey]);
+  }, [catalogQuery.isError, catalogQuery.error]);
 
   useEffect(() => {
     if (!activeScenarioTemplateId) {
@@ -744,14 +777,14 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
           </div>
         </div>
 
-        {/* Formula Bar */}
-        <FormulaBar
+        {/* Skill Bar */}
+        <SkillBar
           scenarioDraft={scenarioDraft}
           config={config}
-          formulas={catalog.formulas || []}
+          skills={catalog.skills || catalog.formulas || []}
           waterlineDefinitions={waterlineDefinitions}
           getResolvedParameter={getResolvedParameter}
-          onFormulaChange={(formulaId) => updateConfig((draft) => { draft.formulaId = formulaId; })}
+          onSkillChange={(skillId) => updateConfig((draft) => { draft.skillId = skillId; draft.formulaId = skillId; })}
           onWaterlineModeChange={(nextMode) => {
             updateConfig((draft) => {
               draft.waterlineMode = nextMode;
@@ -810,7 +843,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
               statusMessage={statusMessage}
               qualityReport={qualityReport}
               currentParameterLabel={getParameterPackageLabel(activeParameterPackageId, parameterPackages)}
-              currentFormulaLabel={activeFormula?.label || '默认公式'}
+              currentFormulaLabel={activeSkill?.label || '默认技能'}
               sampleCount={datasetDraft.rows.length}
               onSearchChange={(term) => dispatch({ type: 'SET_SEARCH_TERM', term })}
               onRowClick={(row) => dispatch({ type: 'SET_ACTIVE_ROW', row })}

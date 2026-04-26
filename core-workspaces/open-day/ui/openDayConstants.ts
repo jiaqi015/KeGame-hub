@@ -1,6 +1,7 @@
 import type {
   OpenDayCatalogResponse,
   OpenDayConfig,
+  OpenDaySkillDefinition,
   OpenDayFormulaDefinition,
   OpenDayParameterPackage,
   OpenDayPreset,
@@ -85,6 +86,7 @@ export const sampleCsv = `大区,小区名称,在售套数,带看量,成交量,�
 朝阳公园大区,燕东大厦,0,0,0,0`;
 
 export const fallbackOpenDayConfig: OpenDayConfig = {
+  skillId: 'geometric_catalyst_v2',
   formulaId: 'geometric_catalyst_v2',
   alpha: 0.8,
   waterlineMode: 'percentile',
@@ -165,7 +167,7 @@ function createFallbackPreset(
   };
 }
 
-const fallbackFormulas: OpenDayFormulaDefinition[] = [
+const fallbackSkills: OpenDaySkillDefinition[] = [
   {
     id: 'weighted_catalyst_v1',
     label: '线性催化',
@@ -177,6 +179,8 @@ const fallbackFormulas: OpenDayFormulaDefinition[] = [
     description: '规模与流量走几何平均，商品分做硬乘子，互动分只作为加成项。',
   },
 ];
+
+const fallbackFormulas = fallbackSkills;
 
 const fallbackParameterPackages: OpenDayParameterPackage[] = [
   createFallbackPreset('auto', '动态分位模式', '按 95% 动态分位适配大盘，适应市场波动。', {}, 'package:auto'),
@@ -227,7 +231,8 @@ export const fallbackCatalog: OpenDayCatalogResponse = {
   generatedAt: new Date(0).toISOString(),
   defaultConfig: clone(fallbackOpenDayConfig),
   defaultConfigVersion: 'cfg:fallback',
-  formulas: fallbackFormulas,
+  skills: fallbackSkills,
+  formulas: fallbackSkills,
   parameterPackages: fallbackParameterPackages,
   presets: fallbackParameterPackages as OpenDayPreset[],
 };

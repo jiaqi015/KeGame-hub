@@ -55,6 +55,8 @@ export interface ActionDefinition {
   family?: ActionFamily;
   name: string;
   summary?: string;
+  /** 时间占用（小时），用于上午/下午时段容量，不影响精力扣减。 */
+  durationHours?: number;
   costEnergy: number;
   costPromotionBudget: number;
   description: string;
@@ -118,6 +120,43 @@ export interface BoardPressureProfile {
   satisfactionPressure: number;
 }
 
+export interface OutcomeControlRules {
+  /** 标准模拟天数。正式难度默认 21。 */
+  simulationDays: number;
+  /** 21 天市场总成交容量，代表市场成交池而非玩家成交数。 */
+  marketDealCapacity21d: number;
+  /** 玩家 21 天基础成交预期，可用小数表达基础成交槽概率。 */
+  playerBaseDealExpectation21d: number;
+  /** 玩家表现特别好时，可额外争取的成交槽上限。 */
+  playerBonusDealCapacity21d: number;
+  /** 解锁额外成交槽所需表现分或局中代理分。 */
+  playerBonusDealUnlockScore: number;
+  /** 玩家自然客源 / 被动来客倍率。 */
+  playerLeadSupplyScale: number;
+  /** 玩家客户漏斗自然推进倍率。 */
+  playerFunnelProgressionScale: number;
+  /** 玩家最后成交签约倍率，需同时影响真实概率和展示概率。 */
+  playerDealClosingScale: number;
+  /** 客户停滞和流失强度。 */
+  customerStagnationScale: number;
+  /** 对手门店综合能力倍率。 */
+  rivalStoreCapabilityScale: number;
+  /** 对手从市场成交池争夺成交槽的能力倍率。 */
+  rivalDealShareScale: number;
+  /** 竞品房源生成倍率。 */
+  rivalListingSpawnScale: number;
+  /** 竞品对客户注意力的分流倍率。 */
+  rivalCustomerPullScale: number;
+  /** 竞品对业主 / 房源热度 / 信任的压力倍率。 */
+  rivalOwnerPressureScale: number;
+  /** 玩家 case 被他处成交 / 被竞对抢走的倍率。 */
+  rivalCaseLossScale: number;
+  /** 调参目标，仅用于 selfplay 和 debug，不直接参与 runtime。 */
+  expectedSelfClosedDeals21d?: number;
+  /** 调参目标，仅用于 selfplay 和 debug，不直接参与 runtime。 */
+  expectedRivalClosedDeals21d?: number;
+}
+
 export interface GameRules {
   maxDay: number;
   baseMaxEnergy: number;
@@ -151,14 +190,276 @@ export interface GameRules {
   companyReferralChanceBase: number;
   marketSignalDecayDays: number;
   marketSignalMaxVisible: number;
+  outcomeControl: OutcomeControlRules;
 }
 
-export type GameRuleOverrides = Partial<GameRules> & {
+export type GameRuleOverrides = Omit<Partial<GameRules>, 'outcomeControl'> & {
+  outcomeControl?: Partial<OutcomeControlRules>;
   /** Legacy alias kept for older authored scenarios and saves. */
   initialReputation?: number;
   saleBudgetBonusRatio?: number;
   saleBudgetBonusFloor?: number;
 };
+
+
+export interface MarketDealSlotScheduleEntry {
+  day: number;
+  slots: number;
+}
+
+export interface MarketOutcomeState {
+  totalCapacity21d: number;
+  playerBaseDealSlots: number;
+  playerBonusDealSlots: number;
+  playerClaimedDeals: number;
+  rivalClaimedDeals: number;
+  delayedDeals: number;
+  releasedSlots: number;
+  slotSchedule: MarketDealSlotScheduleEntry[];
+}
+
+type DelayedMarketDealConversionObserver = (state: GameState, convertedDeals: number) => void;
+
+let delayedMarketDealConversionObserver: DelayedMarketDealConversionObserver | null = null;
+
+export function setDelayedMarketDealConversionObserver(observer: DelayedMarketDealConversionObserver | null) {
+  delayedMarketDealConversionObserver = observer;
+}
+
+function stableOutcomeHash(input: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function deterministicOutcomeFraction(seed: number, salt: string): number {
+  return stableOutcomeHash(`${seed}:${salt}`) / 4294967296;
+}
+
+function resolvePositiveInteger(value: number, fallback: number): number {
+  return Number.isFinite(value) ? Math.max(0, Math.round(value)) : fallback;
+}
+
+export function buildMarketDealSlotSchedule(rules: GameRules, runSeed: number): MarketDealSlotScheduleEntry[] {
+  const outcomeControl = rules.outcomeControl;
+  const simulationDays = Math.max(1, Math.round(outcomeControl.simulationDays || rules.maxDay || 21));
+  const totalCapacity = resolvePositiveInteger(outcomeControl.marketDealCapacity21d, 0);
+  if (totalCapacity <= 0) {
+    return [];
+  }
+
+  const slotsByDay = new Map<number, number>();
+  for (let slotIndex = 0; slotIndex < totalCapacity; slotIndex += 1) {
+    const evenDay = totalCapacity === 1
+      ? 1
+      : 1 + Math.round((slotIndex * (simulationDays - 1)) / Math.max(1, totalCapacity - 1));
+    const jitterWindow = totalCapacity <= 2 ? 0 : Math.max(1, Math.floor(simulationDays / (totalCapacity * 2)));
+    const jitterRoll = deterministicOutcomeFraction(runSeed, `market-slot-${slotIndex}`);
+    const jitter = jitterWindow === 0 ? 0 : Math.round(jitterRoll * jitterWindow * 2) - jitterWindow;
+    const day = slotIndex === 0
+      ? 1
+      : Math.max(1, Math.min(simulationDays, evenDay + jitter));
+    slotsByDay.set(day, (slotsByDay.get(day) || 0) + 1);
+  }
+
+  return [...slotsByDay.entries()]
+    .sort(([leftDay], [rightDay]) => leftDay - rightDay)
+    .map(([day, slots]) => ({ day, slots }));
+}
+
+export function resolvePlayerBaseDealSlots(rules: GameRules, runSeed: number): number {
+  const expectation = Math.max(0, Number(rules.outcomeControl.playerBaseDealExpectation21d) || 0);
+  const guaranteed = Math.floor(expectation);
+  const fractional = expectation - guaranteed;
+  return guaranteed + (fractional > 0 && deterministicOutcomeFraction(runSeed, 'player-base-deal-slot') < fractional ? 1 : 0);
+}
+
+export function buildInitialMarketOutcomeState(
+  rules: GameRules,
+  runSeed: number,
+  currentDay: number = 1,
+  claimedDeals: Partial<Pick<MarketOutcomeState, 'playerClaimedDeals' | 'rivalClaimedDeals' | 'delayedDeals'>> = {},
+): MarketOutcomeState {
+  const slotSchedule = buildMarketDealSlotSchedule(rules, runSeed);
+  const playerClaimedDeals = Math.max(0, Math.round(claimedDeals.playerClaimedDeals || 0));
+  const rivalClaimedDeals = Math.max(0, Math.round(claimedDeals.rivalClaimedDeals || 0));
+  const delayedDeals = Math.max(0, Math.round(claimedDeals.delayedDeals || 0));
+  const releasedBeforeCurrentDay = slotSchedule
+    .filter((entry) => entry.day < currentDay)
+    .reduce((sum, entry) => sum + entry.slots, 0);
+
+  return {
+    totalCapacity21d: slotSchedule.reduce((sum, entry) => sum + entry.slots, 0),
+    playerBaseDealSlots: resolvePlayerBaseDealSlots(rules, runSeed),
+    playerBonusDealSlots: Math.max(0, Math.round(rules.outcomeControl.playerBonusDealCapacity21d || 0)),
+    playerClaimedDeals,
+    rivalClaimedDeals,
+    delayedDeals,
+    releasedSlots: Math.max(releasedBeforeCurrentDay, Math.min(
+      slotSchedule.reduce((sum, entry) => sum + entry.slots, 0),
+      playerClaimedDeals + rivalClaimedDeals + delayedDeals,
+    )),
+    slotSchedule,
+  };
+}
+
+function normalizeSlotSchedule(input: unknown, fallback: MarketDealSlotScheduleEntry[]): MarketDealSlotScheduleEntry[] {
+  if (!Array.isArray(input)) {
+    return fallback;
+  }
+
+  const slotsByDay = new Map<number, number>();
+  input.forEach((entry) => {
+    if (!entry || typeof entry !== 'object') return;
+    const payload = entry as { day?: unknown; slots?: unknown };
+    const day = Math.max(1, Math.round(Number(payload.day) || 1));
+    const slots = Math.max(0, Math.round(Number(payload.slots) || 0));
+    if (slots > 0) {
+      slotsByDay.set(day, (slotsByDay.get(day) || 0) + slots);
+    }
+  });
+
+  const normalized = [...slotsByDay.entries()]
+    .sort(([leftDay], [rightDay]) => leftDay - rightDay)
+    .map(([day, slots]) => ({ day, slots }));
+  return normalized.length > 0 ? normalized : fallback;
+}
+
+export function normalizeMarketOutcomeState(
+  input: unknown,
+  rules: GameRules,
+  runSeed: number,
+  currentDay: number,
+  claimedDeals: Partial<Pick<MarketOutcomeState, 'playerClaimedDeals' | 'rivalClaimedDeals' | 'delayedDeals'>> = {},
+): MarketOutcomeState {
+  const fallback = buildInitialMarketOutcomeState(rules, runSeed, currentDay, claimedDeals);
+  if (!input || typeof input !== 'object') {
+    return fallback;
+  }
+
+  const payload = input as Partial<Record<keyof MarketOutcomeState, unknown>>;
+  const slotSchedule = normalizeSlotSchedule(payload.slotSchedule, fallback.slotSchedule);
+  const totalCapacity21d = Math.max(
+    slotSchedule.reduce((sum, entry) => sum + entry.slots, 0),
+    resolvePositiveInteger(Number(payload.totalCapacity21d), fallback.totalCapacity21d),
+  );
+  const playerClaimedDeals = Math.max(0, Math.round(Number(payload.playerClaimedDeals) || claimedDeals.playerClaimedDeals || 0));
+  const rivalClaimedDeals = Math.max(0, Math.round(Number(payload.rivalClaimedDeals) || claimedDeals.rivalClaimedDeals || 0));
+  const delayedDeals = Math.max(0, Math.round(Number(payload.delayedDeals) || claimedDeals.delayedDeals || 0));
+  const releasedFloor = Math.min(
+    totalCapacity21d,
+    slotSchedule.filter((entry) => entry.day < currentDay).reduce((sum, entry) => sum + entry.slots, 0),
+  );
+
+  return {
+    totalCapacity21d,
+    playerBaseDealSlots: Math.max(0, Math.round(Number(payload.playerBaseDealSlots) || fallback.playerBaseDealSlots)),
+    playerBonusDealSlots: Math.max(0, Math.round(Number(payload.playerBonusDealSlots) || fallback.playerBonusDealSlots)),
+    playerClaimedDeals,
+    rivalClaimedDeals,
+    delayedDeals,
+    releasedSlots: Math.max(
+      releasedFloor,
+      Math.min(totalCapacity21d, Math.round(Number(payload.releasedSlots) || fallback.releasedSlots)),
+      Math.min(totalCapacity21d, playerClaimedDeals + rivalClaimedDeals + delayedDeals),
+    ),
+    slotSchedule,
+  };
+}
+
+export function ensureMarketOutcomeState(state: GameState): MarketOutcomeState {
+  if (!state.marketOutcome) {
+    state.marketOutcome = buildInitialMarketOutcomeState(state.rules, state.runContext.runSeed, state.day, {
+      playerClaimedDeals: state.closedDeals.filter((entry) => entry.dealType === 'self_closed').length,
+    });
+  }
+  return state.marketOutcome;
+}
+
+export function releaseMarketDealSlotsForDay(state: GameState, day: number): number {
+  const marketOutcome = ensureMarketOutcomeState(state);
+  const slots = marketOutcome.slotSchedule
+    .filter((entry) => entry.day === day)
+    .reduce((sum, entry) => sum + entry.slots, 0);
+  if (slots <= 0) {
+    return 0;
+  }
+  const before = marketOutcome.releasedSlots;
+  marketOutcome.releasedSlots = Math.min(marketOutcome.totalCapacity21d, marketOutcome.releasedSlots + slots);
+  convertDelayedMarketDealsToRivalClaims(state);
+  return marketOutcome.releasedSlots - before;
+}
+
+export function getAvailableMarketDealSlots(state: GameState): number {
+  const marketOutcome = ensureMarketOutcomeState(state);
+  return Math.max(0, marketOutcome.releasedSlots - marketOutcome.playerClaimedDeals - marketOutcome.rivalClaimedDeals - marketOutcome.delayedDeals);
+}
+
+export function convertDelayedMarketDealsToRivalClaims(state: GameState): number {
+  const marketOutcome = ensureMarketOutcomeState(state);
+  const releasedCapacity = Math.max(
+    0,
+    marketOutcome.releasedSlots - marketOutcome.playerClaimedDeals - marketOutcome.rivalClaimedDeals,
+  );
+  const convertibleDeals = Math.min(marketOutcome.delayedDeals, releasedCapacity);
+  if (convertibleDeals <= 0) {
+    return 0;
+  }
+  marketOutcome.delayedDeals -= convertibleDeals;
+  marketOutcome.rivalClaimedDeals += convertibleDeals;
+  delayedMarketDealConversionObserver?.(state, convertibleDeals);
+  return convertibleDeals;
+}
+
+export function estimatePlayerDealBonusUnlocked(state: GameState): number {
+  const marketOutcome = ensureMarketOutcomeState(state);
+  if (marketOutcome.playerBonusDealSlots <= 0) {
+    return 0;
+  }
+
+  const selfClosedDeals = state.closedDeals.filter((entry) => entry.dealType === 'self_closed').length;
+  if (selfClosedDeals <= 0) {
+    return 0;
+  }
+
+  const activeCases = state.cases.filter((entry) => entry.status === 'active');
+  const averageCaseStrength = activeCases.length === 0
+    ? 0
+    : activeCases.reduce((sum, entry) => sum + (entry.competitiveness * 0.36 + entry.trust * 0.32 + entry.d3 * 0.32), 0) / activeCases.length;
+  const bestOpportunityStrength = state.opportunities
+    .filter((entry) => entry.status === 'active')
+    .reduce((best, entry) => Math.max(best, entry.stageIndex * 12 + entry.intent * 0.34 + entry.confidence * 0.24), 0);
+  const closedDealMomentum = Math.min(24, selfClosedDeals * 14);
+  const performanceScore = Math.min(
+    100,
+    Math.round(averageCaseStrength * 0.45 + bestOpportunityStrength * 0.35 + closedDealMomentum),
+  );
+
+  return performanceScore >= state.rules.outcomeControl.playerBonusDealUnlockScore
+    ? marketOutcome.playerBonusDealSlots
+    : 0;
+}
+
+export function getPlayerAllowedMarketDeals(state: GameState): number {
+  const marketOutcome = ensureMarketOutcomeState(state);
+  return marketOutcome.playerBaseDealSlots + estimatePlayerDealBonusUnlocked(state);
+}
+
+export function canPlayerClaimMarketDealSlot(state: GameState): boolean {
+  const marketOutcome = ensureMarketOutcomeState(state);
+  return getAvailableMarketDealSlots(state) > 0 && marketOutcome.playerClaimedDeals < getPlayerAllowedMarketDeals(state);
+}
+
+export function claimPlayerMarketDealSlot(state: GameState): boolean {
+  if (!canPlayerClaimMarketDealSlot(state)) {
+    return false;
+  }
+  ensureMarketOutcomeState(state).playerClaimedDeals += 1;
+  return true;
+}
 
 export interface MarketCell {
   id: string;
@@ -826,8 +1127,8 @@ export interface CompetitivenessSnapshot {
 export interface DailyReport {
   day: number;
   title: string;
-  majorEvents: { actor: string; message: string; tone: string }[];
-  metricsDelta: { label: string; value: number; unit: string }[];
+  majorEvents: { actor: string; message: string; tone: Tone }[];
+  metricsDelta: { label: string; value: number; unit: string; displayMode?: 'delta' | 'absolute' }[];
   marketNews: string[];
   todayPlan: {
     label: string;
@@ -836,7 +1137,47 @@ export interface DailyReport {
     focusCases: string[];
     priorities: string[];
   };
-  randomEvents: { actor: string; message: string; tone: string }[];
+  randomEvents: { actor: string; message: string; tone: Tone }[];
+  narrativeLog?: DailyNarrative;
+}
+
+export interface Expectation {
+  id: string;
+  targetEntityId: string;
+  expectedAction: string;
+  createdAtDay: number;
+  weight: number;
+  sourceMatterId?: string;
+}
+
+export interface ForeshadowingHook {
+  id: string;
+  hookType: string;
+  sourceEventId: string;
+  buryDay: number;
+  conditionToTrigger: string;
+  expirationDay: number;
+  relatedEntityId?: string;
+  description: string;
+}
+
+export interface TopicHistoryPointer {
+  ownerId: string;
+  topic: string;
+  lastEmotionalVolatility: number;
+  lastTone: string;
+  day: number;
+}
+
+export interface DailyNarrative {
+  day: number;
+  openingHook?: string;
+  midTwist?: string;
+  lateUndercurrent?: string;
+  tomorrowHook?: string;
+  text: string;
+  eventsUsed: string[];
+  newHooks: string[];
 }
 
 export interface DailyTickResult {
@@ -949,6 +1290,11 @@ export interface ScheduleEntry {
   badge: string;
   note: string;
   urgency: number;
+  slot?: TodayArrangementSlot;
+  source?: 'routine' | 'interrupt' | 'risk' | 'run';
+  weekdayIntent?: string;
+  actionId?: string;
+  opportunityId?: string;
 }
 
 export interface PriorityEntry {
@@ -961,6 +1307,7 @@ export interface PriorityEntry {
 
 export type MatterSource = 'schedule' | 'priority' | 'negotiation';
 export type MatterStage = 'pending' | 'in_progress' | 'completed' | 'abandoned';
+export type MatterLifecycleCategory = 'report' | 'diagnose' | 'execute' | 'negotiate';
 export type MatterTemplate = 'dialog' | 'form' | 'schedule' | 'realtime';
 export type MatterPresentation = 'inline-card' | 'detail-page' | 'full-screen';
 export type MatterScene =
@@ -982,6 +1329,7 @@ export interface MatterEntry {
   sourceKey: string;
   caseId?: string;
   scene: MatterScene;
+  lifecycleCategory: MatterLifecycleCategory;
   title: string;
   detail: string;
   badge?: string;
@@ -1034,14 +1382,30 @@ export interface TodayArrangementItem {
   linkedActionId: string;
   linkedCaseId?: string;
   linkedCustomerId?: string;
+  linkedOpportunityId?: string;
   executionMode: TodayArrangementExecutionMode;
   status: TodayArrangementStatus;
   slot?: TodayArrangementSlot;
 }
 
+export type TodayPlanConflictKind = 'fixed-overlap' | 'planned-tight' | 'running-related';
+
+export interface TodayPlanConflictHint {
+  level: 'info' | 'warning';
+  kind: TodayPlanConflictKind;
+  message: string;
+  relatedItemIds?: string[];
+}
+
 export interface TodayPlanState {
   day: number;
   playerItems: TodayArrangementItem[];
+}
+
+export interface FocusMeetingState {
+  submissionDay: number | null;
+  submittedCaseIds: string[];
+  selectedCaseIds: string[];
 }
 
 export interface DerivedMetrics {
@@ -1053,8 +1417,16 @@ export interface DerivedMetrics {
   topConversion: string;
 }
 
+export type GameSaveSource = 'local' | 'cloud' | 'manual' | 'system';
+
 export interface GameState {
   version: number;
+  runId: string;
+  localRevision: number;
+  clientUpdatedAt: string;
+  lastSavedAt?: string;
+  lastHydratedAt?: string;
+  saveSource: GameSaveSource;
   runContext: RunContext;
   day: number;
   maxDay: number;
@@ -1095,10 +1467,15 @@ export interface GameState {
   priorities: PriorityEntry[];
   matters: MatterEntry[];
   todayPlan: TodayPlanState;
+  focusMeeting: FocusMeetingState;
   productRuns: ProductRun[];
   closedDeals: ClosedDealRecord[];
+  marketOutcome?: MarketOutcomeState;
   metrics: DerivedMetrics;
   currentReport: DailyReport | null;
   lastDailyTickResult?: DailyTickResult | null;
   marketShadow: ShadowMarketState;
+  expectationStore?: Expectation[];
+  foreshadowingStore?: ForeshadowingHook[];
+  topicHistory?: TopicHistoryPointer[];
 }

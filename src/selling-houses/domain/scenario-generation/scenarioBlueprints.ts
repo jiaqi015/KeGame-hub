@@ -236,7 +236,7 @@ const SCENARIO_BLUEPRINTS: ScenarioBlueprint[] = [
     ],
     naming: {
       titlePool: ['双区拉扯局', '两端平衡局', '资源分配局'],
-      themeFragments: ['两边都有盘值得投', '先后顺序比单点动作更重要', '别让一头起火拖垮另一头'],
+      themeFragments: ['两套房都要排顺序', '先后顺序比单点动作更重要', '别让一头起火拖垮另一头'],
       descriptionFragments: ['更考验资源排序', '同类房源会明显互相影响', '需要兼顾关系和价格解释'],
     },
   },

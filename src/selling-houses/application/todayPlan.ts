@@ -2,6 +2,7 @@ import { ACTIONS } from '../domain/constants.js';
 import type {
   ActionDefinition,
   GameState,
+  TodayPlanConflictHint,
   TodayArrangementExecutionMode,
   TodayArrangementItem,
   TodayArrangementSlot,
@@ -12,6 +13,7 @@ export interface TodayPlanDraft {
   linkedActionId: string;
   linkedCaseId?: string;
   linkedCustomerId?: string;
+  linkedOpportunityId?: string;
   executionMode?: TodayArrangementExecutionMode;
   slot?: TodayArrangementSlot;
 }
@@ -20,11 +22,24 @@ function resolveActionDefinition(actionId: string): ActionDefinition | null {
   return ACTIONS.find((entry) => entry.id === actionId || entry.executorId === actionId) || null;
 }
 
-function buildItemSignature(item: Pick<TodayArrangementItem, 'linkedActionId' | 'linkedCaseId' | 'linkedCustomerId' | 'sourceMatterId'>) {
+export function resolveActionDurationHours(actionId: string) {
+  const action = resolveActionDefinition(actionId);
+  if (!action) return 0;
+  return Math.max(0, action.durationHours ?? action.costEnergy);
+}
+
+export function resolveActionEnergyCost(actionId: string) {
+  const action = resolveActionDefinition(actionId);
+  if (!action) return 0;
+  return Math.max(0, action.costEnergy);
+}
+
+function buildItemSignature(item: Pick<TodayArrangementItem, 'linkedActionId' | 'linkedCaseId' | 'linkedCustomerId' | 'linkedOpportunityId' | 'sourceMatterId'>) {
   return [
     item.linkedActionId || '',
     item.linkedCaseId || '',
     item.linkedCustomerId || '',
+    item.linkedOpportunityId || '',
     item.sourceMatterId || '',
   ].join('|');
 }
@@ -47,7 +62,7 @@ export function getTodayPlanActionDefinition(actionId: string) {
 export function estimateFixedTodayPlanEnergyReserve(state: GameState) {
   const scheduleReserve = state.schedule
     .slice(0, 2)
-    .reduce((sum, entry) => sum + (entry.urgency >= 92 ? 2 : 1), 0);
+    .reduce((sum, entry) => sum + resolveScheduleEntryDurationHours(entry), 0);
   const negotiationReserve = state.matters.some((entry) => entry.stage === 'pending' && entry.kind === 'opportunity') ? 1 : 0;
   return scheduleReserve + negotiationReserve;
 }
@@ -55,7 +70,7 @@ export function estimateFixedTodayPlanEnergyReserve(state: GameState) {
 export function getTodayPlanCommittedEnergy(state: GameState, status: TodayArrangementItem['status'] = 'planned') {
   return state.todayPlan.playerItems
     .filter((entry) => entry.day === state.day && entry.status === status)
-    .reduce((sum, entry) => sum + (resolveActionDefinition(entry.linkedActionId)?.costEnergy || 0), 0);
+    .reduce((sum, entry) => sum + resolveActionEnergyCost(entry.linkedActionId), 0);
 }
 
 export function getTodayPlanRemainingEnergy(state: GameState) {
@@ -67,36 +82,123 @@ export const SLOT_CAPACITY = {
   pm: 4,
 } as const;
 
-export function getSlotCommittedEnergy(
+export function resolveScheduleEntrySlot(entry: GameState['schedule'][number]): TodayArrangementSlot {
+  return entry.slot || scheduleEntrySlot(entry.title);
+}
+
+export function isSlotBlockingRoutine(entry: GameState['schedule'][number]) {
+  if (entry.source !== 'routine') return false;
+  const label = `${entry.title} ${entry.badge} ${entry.weekdayIntent || ''}`;
+  return /内部|聚焦会/.test(label);
+}
+
+export function getVisibleFixedScheduleEntries(state: GameState) {
+  const blockingEntries = state.schedule.filter(isSlotBlockingRoutine);
+  const blockedSlots = new Set(blockingEntries.map(resolveScheduleEntrySlot));
+  const visibleEntries = state.schedule.filter((entry) => (
+    !isSlotBlockingRoutine(entry)
+    && !(entry.source === 'risk' && blockedSlots.has(resolveScheduleEntrySlot(entry)))
+  ));
+
+  return [...blockingEntries, ...visibleEntries].slice(0, 2);
+}
+
+export function resolveScheduleEntryDurationHours(entry: GameState['schedule'][number]) {
+  if (isSlotBlockingRoutine(entry)) {
+    return SLOT_CAPACITY[resolveScheduleEntrySlot(entry)];
+  }
+  return entry.urgency >= 92 ? 2 : 1;
+}
+
+export function getSlotCommittedDurationHours(
   state: GameState,
   slot: 'am' | 'pm',
   status: TodayArrangementItem['status'] = 'planned',
 ) {
   return state.todayPlan.playerItems
     .filter((entry) => entry.day === state.day && entry.status === status && entry.slot === slot)
-    .reduce((sum, entry) => sum + (resolveActionDefinition(entry.linkedActionId)?.costEnergy || 0), 0);
+    .reduce((sum, entry) => sum + resolveActionDurationHours(entry.linkedActionId), 0);
 }
 
 export function getSlotRemainingCapacity(
   state: GameState,
   slot: 'am' | 'pm',
 ) {
-  const fixedItemsEnergy = (state.schedule.slice(0, 2).reduce((sum, entry) => {
-    const entrySlot = /下午|晚|收尾/.test(entry.title) ? 'pm' : 'am';
-    return entrySlot === slot ? sum + (entry.urgency >= 92 ? 2 : 1) : sum;
+  const fixedItemsDurationHours = (getVisibleFixedScheduleEntries(state).reduce((sum, entry) => {
+    const entrySlot = resolveScheduleEntrySlot(entry);
+    return entrySlot === slot ? sum + resolveScheduleEntryDurationHours(entry) : sum;
   }, 0)) + (slot === 'pm' && state.matters.some((entry) => entry.stage === 'pending' && entry.kind === 'opportunity') ? 1 : 0);
 
-  const committedEnergy = getSlotCommittedEnergy(state, slot, 'planned');
-  return Math.max(0, SLOT_CAPACITY[slot] - fixedItemsEnergy - committedEnergy);
+  const committedDurationHours = getSlotCommittedDurationHours(state, slot, 'planned');
+  return Math.max(0, SLOT_CAPACITY[slot] - fixedItemsDurationHours - committedDurationHours);
+}
+
+function scheduleEntrySlot(title: string): TodayArrangementSlot {
+  return /下午|晚|收尾/.test(title) ? 'pm' : 'am';
+}
+
+export function getTodayPlanConflictHint(
+  state: GameState,
+  input: {
+    slot?: TodayArrangementSlot;
+    actionId?: string;
+    caseId?: string;
+    durationHours?: number;
+  },
+): TodayPlanConflictHint | undefined {
+  const slot = input.slot === 'pm' ? 'pm' : 'am';
+  const durationHours = input.durationHours ?? (input.actionId ? resolveActionDurationHours(input.actionId) : 1);
+  const remainingCapacity = getSlotRemainingCapacity(state, slot);
+  const fixedItems = getVisibleFixedScheduleEntries(state).filter((entry) => resolveScheduleEntrySlot(entry) === slot);
+  const plannedItems = state.todayPlan.playerItems.filter((entry) => (
+    entry.day === state.day
+    && entry.status === 'planned'
+    && (entry.slot || 'am') === slot
+  ));
+
+  if (fixedItems.length > 0 && remainingCapacity <= durationHours) {
+    return {
+      level: 'warning',
+      kind: 'fixed-overlap',
+      message: `${slot === 'am' ? '上午' : '下午'}已有安排，可以先看另一个时段。`,
+      relatedItemIds: fixedItems.map((entry) => entry.key),
+    };
+  }
+
+  if (plannedItems.length > 0 && remainingCapacity <= durationHours + 1) {
+    return {
+      level: 'warning',
+      kind: 'planned-tight',
+      message: `${slot === 'am' ? '上午' : '下午'}安排已经比较满，建议先完成已排事项。`,
+      relatedItemIds: plannedItems.map((entry) => entry.id),
+    };
+  }
+
+  if (input.caseId) {
+    const relatedRun = state.productRuns.find((run) => (
+      run.status === 'running'
+      && run.targetIds.includes(input.caseId || '')
+    ));
+    if (relatedRun) {
+      return {
+        level: 'info',
+        kind: 'running-related',
+        message: '这套房已有运行中的产品节点，插单时先确认不要和主链路重复发力。',
+        relatedItemIds: [relatedRun.id],
+      };
+    }
+  }
+
+  return undefined;
 }
 
 export function canCandidateFitSlot(
   state: GameState,
   slot: 'am' | 'pm',
-  actionCost: number,
-  reservedEnergy: number = 0,
+  actionDurationHours: number,
+  reservedDurationHours: number = 0,
 ) {
-  return getSlotRemainingCapacity(state, slot) - reservedEnergy >= actionCost;
+  return getSlotRemainingCapacity(state, slot) - reservedDurationHours >= actionDurationHours;
 }
 
 export function syncTodayPlanForCurrentDayMutable(state: GameState) {
@@ -153,6 +255,7 @@ export function buildTodayPlanItem(state: GameState, draft: TodayPlanDraft): Tod
     linkedActionId: draft.linkedActionId,
     linkedCaseId: draft.linkedCaseId,
     linkedCustomerId: draft.linkedCustomerId,
+    linkedOpportunityId: draft.linkedOpportunityId,
     executionMode: resolveTodayPlanExecutionMode(draft.linkedActionId, draft.executionMode),
     status: 'planned',
     slot: draft.slot,
@@ -164,6 +267,7 @@ export function hasTodayPlanDuplicate(state: GameState, draft: TodayPlanDraft) {
     linkedActionId: draft.linkedActionId,
     linkedCaseId: draft.linkedCaseId,
     linkedCustomerId: draft.linkedCustomerId,
+    linkedOpportunityId: draft.linkedOpportunityId,
     sourceMatterId: draft.sourceMatterId,
   });
 

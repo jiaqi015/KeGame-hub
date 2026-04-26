@@ -1,12 +1,21 @@
-import { CASE_STAGES } from './constants.js';
+import { CASE_STAGES, WEEKLY_ROUTINE } from './constants.js';
 import { deriveMatters as derivePersistentMatters } from './matterEngine.js';
+import { normalizeOwnerPriceAnchors } from './priceAnchors.js';
 import { calculateUrgency, updateCompetitiveness } from './scoring.js';
 import type { Case, DomainEventEntry, DomainEventKind, GameState, GoalTier, MatterEntry, Opportunity, Tone } from './models.js';
-import { getOpportunityPriority, average, clamp } from './utils.js';
+import { getDayOfWeek, getOpportunityPriority, getRoutine, average, clamp } from './utils.js';
 import { syncAuxiliaryMirrors } from './runtimeStats.js';
 
 function buildDomainEventId(kind: DomainEventKind, day: number, index: number) {
   return `event-${kind}-${day}-${index}`;
+}
+
+function formatVisibleDaysLeft(daysLeft: number) {
+  const value = Number.isFinite(daysLeft) ? Math.max(0, daysLeft) : 0;
+  if (value < 1) return '不足 1 天';
+  const rounded = Math.round(value);
+  if (Math.abs(value - rounded) < 0.001) return `${rounded} 天`;
+  return `约 ${Math.ceil(value)} 天`;
 }
 
 export function recordDomainEvent(
@@ -76,8 +85,11 @@ export function deriveDefaultGoalTier(caseItem: Partial<Case>): GoalTier {
 }
 
 export function seedCase(base: Case): Case {
+  const priceAnchors = normalizeOwnerPriceAnchors(base);
+
   return {
     ...base,
+    ...priceAnchors,
     competitionGroupIds: Array.isArray(base.competitionGroupIds) ? [...base.competitionGroupIds] : [],
     riskFlags: [],
     competitivenessSnapshots: [],
@@ -99,7 +111,7 @@ export function seedCase(base: Case): Case {
     offers: 0,
     soldPrice: null,
     priceGapPct: 0,
-    lastAskPrice: base.askPrice,
+    lastAskPrice: priceAnchors.askPrice,
     lastRivalThreatDay: undefined,
     goalTier: deriveDefaultGoalTier(base),
     storylineState: 'healthy',
@@ -114,6 +126,11 @@ export function seedCase(base: Case): Case {
 
 export function updateDerivedState(world: GameState) {
   world.cases.forEach((caseItem) => {
+    const priceAnchors = normalizeOwnerPriceAnchors(caseItem);
+    caseItem.askPrice = priceAnchors.askPrice;
+    caseItem.marketPrice = priceAnchors.marketPrice;
+    caseItem.bottomPrice = priceAnchors.bottomPrice;
+
     const opportunities = world.opportunities.filter((entry) => entry.caseId === caseItem.id && entry.status === 'active');
     const highestStage = opportunities.length ? Math.max(...opportunities.map((entry) => entry.stageIndex)) : 0;
 
@@ -170,7 +187,28 @@ function deriveStorylineState(caseItem: Case, opportunities: Opportunity[]) {
 }
 
 function deriveSchedule(world: GameState) {
-  const items: GameState['schedule'] = [];
+  const items: GameState['schedule'] = [...deriveWeekRhythmSchedule(world)];
+  if (getDayOfWeek(world.day) === 4) {
+    const anchorCaseId = world.selectedCaseId
+      || world.cases.find((entry) => entry.status === 'active')?.id
+      || world.cases[0]?.id
+      || '';
+    const submissionCount = world.focusMeeting.submissionDay === world.day
+      ? world.focusMeeting.submittedCaseIds.length
+      : 0;
+    items.push({
+      key: `focus-meeting-${world.day}`,
+      caseId: anchorCaseId,
+      title: '周四上午聚焦会',
+      badge: `已提报 ${submissionCount}/3`,
+      note: '上午固定进行提报评审，入选房源将得到额外业主信心与流量加成。',
+      urgency: 95,
+      slot: 'am',
+      source: 'routine',
+      weekdayIntent: '周四上午聚焦会，把资源倾斜给最值得守的房源。',
+      actionId: 'focus-meeting-submit',
+    });
+  }
   world.cases.forEach((caseItem) => {
     if (caseItem.status !== 'active') return;
     if (caseItem.windowDays <= 4) {
@@ -181,6 +219,7 @@ function deriveSchedule(world: GameState) {
         badge: `${caseItem.windowDays} 天内`,
         note: `${caseItem.title} 已经拖到业主开始收紧耐心，${caseItem.ownerName} 的预期正在变紧。`,
         urgency: 100 - caseItem.windowDays * 10,
+        source: 'risk',
       });
     }
   });
@@ -194,9 +233,11 @@ function deriveSchedule(world: GameState) {
         key: entry.id,
         caseId: entry.caseId,
         title: isShadow ? '确认客户需求' : entry.stageLabel,
-        badge: `${entry.daysLeft} 天后流失`,
+        badge: `${formatVisibleDaysLeft(entry.daysLeft)}后流失`,
         note: `${displayName} 正在从 ${world.cases.find((caseItem) => caseItem.id === entry.caseId)?.title || '房源'} 上流失，再拖就容易失手。`,
         urgency: 86 - entry.daysLeft * 10 + entry.stageIndex * 4,
+        source: 'risk',
+        opportunityId: entry.id,
       });
     });
 
@@ -220,10 +261,165 @@ function deriveSchedule(world: GameState) {
         badge: productRunMilestoneBadge(milestone.kind),
         note: `${targetCase?.title || '当前房源'} · ${milestone.summary}`,
         urgency: productRunMilestoneUrgency(milestone.kind, world.day, milestone.day),
+        slot: milestone.kind === 'heavy_scene' ? 'am' : undefined,
+        source: 'run',
       });
     });
 
-  return items.sort((left, right) => right.urgency - left.urgency).slice(0, 10);
+  return items.sort((left, right) => getScheduleSortScore(right) - getScheduleSortScore(left)).slice(0, 10);
+}
+
+function getScheduleSortScore(entry: GameState['schedule'][number]) {
+  const fixedRoutineBoost = entry.source === 'routine' && /内部|聚焦会/.test(`${entry.title} ${entry.badge} ${entry.weekdayIntent || ''}`)
+    ? 1000
+    : 0;
+  return fixedRoutineBoost + entry.urgency;
+}
+
+function deriveWeekRhythmSchedule(world: GameState): GameState['schedule'] {
+  const routine = getRoutine(world.day, WEEKLY_ROUTINE);
+  const dayOfWeek = getDayOfWeek(world.day);
+  const activeCases = world.cases.filter((entry) => entry.status === 'active');
+  const anchorCase = world.selectedCaseId
+    ? activeCases.find((entry) => entry.id === world.selectedCaseId) || activeCases[0]
+    : activeCases[0];
+  if (!anchorCase) {
+    return [];
+  }
+
+  const items: GameState['schedule'] = [];
+  const activeOpportunities = world.opportunities.filter((entry) => entry.status === 'active' && entry.visibility !== 'shadow');
+  const ownerFeedbackCase = activeCases
+    .slice()
+    .sort((left, right) => (world.day - left.lastOwnerTouchedDay) - (world.day - right.lastOwnerTouchedDay))
+    .reverse()
+    .find((entry) => world.day - Math.max(entry.lastOwnerTouchedDay, 0) >= 2) || activeCases[0];
+  const showingOpportunity = activeOpportunities
+    .slice()
+    .sort((left, right) => (right.stageIndex * 20 + right.intent) - (left.stageIndex * 20 + left.intent))[0] || null;
+  const showingCase = showingOpportunity
+    ? activeCases.find((entry) => entry.id === showingOpportunity.caseId) || anchorCase
+    : anchorCase;
+
+  if (dayOfWeek === 1 && ownerFeedbackCase) {
+    items.push({
+      key: `rhythm-owner-feedback-${ownerFeedbackCase.id}-${world.day}`,
+      caseId: ownerFeedbackCase.id,
+      title: '周一业主反馈',
+      badge: '周节奏',
+      note: `${ownerFeedbackCase.title} 要把周末客户、带看、同类房和价格变化翻译给业主，先稳住下一轮共识。`,
+      urgency: 88,
+      slot: 'am',
+      source: 'routine',
+      weekdayIntent: routine.theme,
+      actionId: 'weekly-feedback',
+    });
+  }
+
+  if (dayOfWeek === 2) {
+    items.push({
+      key: `rhythm-light-ops-${anchorCase.id}-${world.day}`,
+      caseId: anchorCase.id,
+      title: '周二轻经营',
+      badge: '低精力',
+      note: '今天只适合整理、恢复和补最要紧的漏，不要把自己排满。',
+      urgency: activeCases.some((entry) => entry.windowDays <= 3 || entry.trust <= 50) ? 84 : 62,
+      slot: 'am',
+      source: 'routine',
+      weekdayIntent: routine.theme,
+      actionId: 'deep-diagnosis',
+    });
+  }
+
+  if (dayOfWeek === 3) {
+    items.push({
+      key: `rhythm-internal-judgment-${anchorCase.id}-${world.day}`,
+      caseId: anchorCase.id,
+      title: '周三上午内部判断',
+      badge: '内部会',
+      note: '先判断哪些房源值得进周四聚焦会，下午再补包装、获客和邀约。',
+      urgency: 86,
+      slot: 'am',
+      source: 'routine',
+      weekdayIntent: routine.theme,
+      actionId: 'deep-diagnosis',
+    });
+  }
+
+  if (dayOfWeek === 5) {
+    const communityCases = activeCases.filter((entry) => entry.community === anchorCase.community);
+    const hasOpenDayRun = world.productRuns.some((run) => (
+      run.status === 'running'
+      && run.productType === 'open-day'
+      && run.targetIds.some((targetId) => communityCases.some((caseItem) => caseItem.id === targetId))
+    ));
+    if (communityCases.length >= 2 && !hasOpenDayRun) {
+      items.push({
+        key: `interrupt-open-day-available-${anchorCase.community}-${world.day}`,
+        caseId: anchorCase.id,
+        title: '小区突然可办开放日',
+        badge: '插单机会',
+        note: `${anchorCase.community} 今天适合把周末带看集中起来；这是机会，不自动占用排程，但值得立刻判断是否发起开放日。`,
+        urgency: 91,
+        slot: 'pm',
+        source: 'interrupt',
+        weekdayIntent: routine.theme,
+        actionId: 'open-day',
+      });
+    } else {
+      items.push({
+        key: `rhythm-friday-booking-${showingCase.id}-${world.day}`,
+        caseId: showingCase.id,
+        title: '周五锁周末带看',
+        badge: '周节奏',
+        note: '周末前先把客户、经纪人和业主时间对齐，别等到高峰日再临时找人。',
+        urgency: 84,
+        slot: 'pm',
+        source: 'routine',
+        weekdayIntent: routine.theme,
+        actionId: 'showing',
+        opportunityId: showingOpportunity?.id,
+      });
+    }
+  }
+
+  if (dayOfWeek === 6 || dayOfWeek === 7) {
+    items.push({
+      key: `interrupt-second-showing-${showingCase.id}-${world.day}`,
+      caseId: showingCase.id,
+      title: showingOpportunity ? '客户突然要求复看' : '周末集中带看',
+      badge: showingOpportunity ? '插单事件' : '周节奏',
+      note: showingOpportunity
+        ? `${showingOpportunity.customerName} 的热度到了周末窗口，先提示冲突，再决定是否挤进今天。`
+        : '今天先做带看和真实反馈，优先处理能拿到现场反馈的房源。',
+      urgency: showingOpportunity ? 90 : 82,
+      slot: 'am',
+      source: showingOpportunity ? 'interrupt' : 'routine',
+      weekdayIntent: routine.theme,
+      actionId: 'showing',
+      opportunityId: showingOpportunity?.id,
+    });
+  }
+
+  const negotiationOpportunity = activeOpportunities.find((entry) => entry.stageIndex >= 3);
+  if (negotiationOpportunity && (dayOfWeek === 1 || dayOfWeek >= 5)) {
+    const negotiationCase = activeCases.find((entry) => entry.id === negotiationOpportunity.caseId) || anchorCase;
+    items.push({
+      key: `interrupt-owner-negotiation-${negotiationOpportunity.id}-${world.day}`,
+      caseId: negotiationCase.id,
+      title: '协助业主去谈判',
+      badge: '插单事件',
+      note: `${negotiationOpportunity.customerName} 已经接近出价，需要把业主底线、客户反馈和谈判口径放到同一张桌上。`,
+      urgency: 89,
+      slot: 'pm',
+      source: 'interrupt',
+      weekdayIntent: routine.theme,
+      actionId: 'invite-customer-negotiation',
+      opportunityId: negotiationOpportunity.id,
+    });
+  }
+
+  return items.slice(0, 3);
 }
 
 function productRunMilestoneBadge(kind: 'event' | 'light_scene' | 'heavy_scene') {
@@ -277,7 +473,7 @@ function derivePriorities(world: GameState) {
         title: isShadow ? `${displayName} 待确认` : `${displayName} 进入 ${entry.stageLabel}`,
         detail: isShadow
           ? `这是一位待确认客户，当前信息来自经纪人 ${entry.brokerName}。`
-          : `${displayName} 已进入 ${entry.stageLabel}，${entry.daysLeft} 天后可能流失。`,
+          : `${displayName} 已进入 ${entry.stageLabel}，${formatVisibleDaysLeft(entry.daysLeft)}后可能流失。`,
         caseId: entry.caseId,
       });
     });

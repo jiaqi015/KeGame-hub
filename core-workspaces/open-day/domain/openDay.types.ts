@@ -1,5 +1,6 @@
 export type WaterlineMode = 'percentile' | 'absolute';
-export type OpenDayFormulaId = 'weighted_catalyst_v1' | 'geometric_catalyst_v2';
+export type OpenDaySkillId = 'weighted_catalyst_v1' | 'geometric_catalyst_v2';
+export type OpenDayFormulaId = OpenDaySkillId;
 export type OpenDayParameterKey = keyof OpenDayAbsolutes;
 export type OpenDayParameterSourceMode = 'percentile' | 'number';
 export type OpenDayUploadStorageBackend = 'local' | 'blob';
@@ -37,7 +38,8 @@ export interface OpenDayHardFilters {
 }
 
 export interface OpenDayConfig {
-  formulaId: OpenDayFormulaId;
+  skillId?: OpenDaySkillId;
+  formulaId: OpenDaySkillId;
   alpha: number;
   waterlineMode: WaterlineMode;
   weights: OpenDayWeights;
@@ -49,7 +51,8 @@ export interface OpenDayConfig {
 }
 
 export interface OpenDayScenarioDraft {
-  formulaId: OpenDayFormulaId;
+  skillId?: OpenDaySkillId;
+  formulaId: OpenDaySkillId;
   parameterPackageId: string | null;
   config: OpenDayConfig;
 }
@@ -113,11 +116,13 @@ export interface OpenDayAnalysisRow extends NormalizedOpenDayRow {
   logicGuardSeverity?: 'error' | 'warning' | null;
 }
 
-export interface OpenDayFormulaDefinition {
-  id: OpenDayFormulaId;
+export interface OpenDaySkillDefinition {
+  id: OpenDaySkillId;
   label: string;
   description: string;
 }
+
+export type OpenDayFormulaDefinition = OpenDaySkillDefinition;
 
 export interface OpenDayUploadArtifactSummary {
   id: string;
@@ -172,7 +177,8 @@ export interface OpenDayAnalysisMeta {
   totalCount: number;
   eligibleCount: number;
   weights: OpenDayWeights;
-  formula: OpenDayFormulaDefinition;
+  skill: OpenDaySkillDefinition;
+  formula: OpenDaySkillDefinition;
   scenario: OpenDayScenarioDraft;
   waterlines: OpenDayWaterlines;
   resolvedParameters: OpenDayResolvedParameter[];
@@ -194,7 +200,8 @@ export interface OpenDayCatalogResponse {
   generatedAt: string;
   defaultConfig: OpenDayConfig;
   defaultConfigVersion: string;
-  formulas: OpenDayFormulaDefinition[];
+  skills: OpenDaySkillDefinition[];
+  formulas: OpenDaySkillDefinition[];
   parameterPackages: OpenDayParameterPackage[];
   presets: OpenDayPreset[];
 }
@@ -232,7 +239,8 @@ export interface OpenDayScenarioTemplateSummary {
   id: string;
   name: string;
   description: string;
-  formulaId: OpenDayFormulaId;
+  skillId: OpenDaySkillId;
+  formulaId: OpenDaySkillId;
   parameterPackageId: string | null;
   configVersion: string;
   updatedAt: string;

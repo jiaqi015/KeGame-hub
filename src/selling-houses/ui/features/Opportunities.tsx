@@ -11,7 +11,7 @@ import {
   Users,
 } from 'lucide-react';
 import { buildOpportunityListProjection } from '../../application/projections/operatingProjection.js';
-import { buildOpportunityViewModels, type OpportunityViewModel } from './caseOpportunityViewModel';
+import { buildOpportunityViewModels, formatOpportunityDaysLeft, type OpportunityViewModel } from './caseOpportunityViewModel';
 
 interface OpportunitiesProps {
   state: GameState;
@@ -382,7 +382,7 @@ function CustomerOpportunityCard({
           <div className="grid grid-cols-3 gap-2 text-right lg:min-w-[240px]">
             <MetricPill label="意向" value={`${Math.round(model.opportunity.intent)}`} tone="slate" />
             <MetricPill label="把握" value={`${Math.round(model.opportunity.confidence)}`} tone="slate" />
-            <MetricPill label="剩余" value={`${model.opportunity.daysLeft}天`} tone={atRisk ? 'rose' : 'amber'} />
+            <MetricPill label="剩余" value={formatOpportunityDaysLeft(model.opportunity.daysLeft)} tone={atRisk ? 'rose' : 'amber'} />
           </div>
         </div>
 

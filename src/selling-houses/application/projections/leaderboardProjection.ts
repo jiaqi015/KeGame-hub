@@ -46,7 +46,7 @@ export function buildLeaderboardProjection(detail: MaintainerLeaderboardDetail |
 
   return {
     seasonId,
-    heroTitle: '排行榜',
+    heroTitle: '游戏排行榜',
     heroSummary: '只看正式结算后的历史成绩。',
     tabs: [
       {

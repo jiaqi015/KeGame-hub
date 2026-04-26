@@ -1,0 +1,517 @@
+{
+  "metadata": {
+    "date": "2026-04-25T03:45:22.500Z",
+    "runs": 500,
+    "seed": 20260424,
+    "command": "npm run selfplay:outcome-lab -- --runs 500 --json docs/selling-houses-outcome-calibration-500run.json",
+    "gitCommit": "6cb2006",
+    "difficultyIds": [
+      "warmup",
+      "easy",
+      "standard",
+      "advanced",
+      "hard",
+      "extreme"
+    ]
+  },
+  "summaries": [
+    {
+      "difficulty": "warmup",
+      "runs": 500,
+      "averageScore": 87.98,
+      "averageDeals": 1.86,
+      "medianDeals": 2,
+      "pAtLeastOneSelfClose21d": 99.8,
+      "averageRivalDeals": 0.02,
+      "averageDelayedDeals": 0,
+      "averageMarketCapacity": 5,
+      "averageReleasedSlots": 5,
+      "averagePlayerClaimedDeals": 1.86,
+      "averageRivalClaimedDeals": 0.02,
+      "averageAvailableSlotsAtEnd": 3.11,
+      "averageUnclaimedSlotsAtEnd": 3.12,
+      "averagePlayerConsumedSlots": 1.86,
+      "averageRivalClaimAttempts": 0.06,
+      "averageRivalClaimSuccesses": 0.02,
+      "rivalClaimSuccessRate": 32.14,
+      "averageNoSlotRivalAttempts": 0.01,
+      "averageFailedRivalClaimRolls": 0.03,
+      "averageRivalListingsCreated": 0.03,
+      "averageRivalListingsExpired": 0.01,
+      "averageRivalListingsSold": 0.02,
+      "averageRivalListingsWithdrawn": 0.01,
+      "averageRivalListingsDelayed": 0,
+      "averageRivalListingsActive": 0,
+      "averageSlotReleaseDay": 10.96,
+      "averageRivalClaimDay": 0.09,
+      "averageMaxDailyRivalClaims": 0.02,
+      "maxDailyRivalClaimsObserved": 1,
+      "averageRivalListingLifespan": 0.11,
+      "averageMaxOpportunityStage": 5.98,
+      "stageDistribution": {
+        "stage5": 2721,
+        "stage6": 1431,
+        "stage4": 795,
+        "stage2": 284,
+        "stage0": 181,
+        "stage3": 643,
+        "stage1": 146
+      },
+      "averageStagnatedOpportunities": 1.18,
+      "averageLostOpportunities": 0.57,
+      "rivalLossRunRate": 1.8,
+      "difficultyCliffFromPrevious": 0,
+      "targetStatus": "PASS",
+      "targetChecks": [
+        {
+          "difficulty": "warmup",
+          "metric": "averageDeals",
+          "actual": 1.86,
+          "target": {
+            "min": 1.6,
+            "max": 2.2
+          },
+          "status": "PASS",
+          "note": "目标内"
+        },
+        {
+          "difficulty": "warmup",
+          "metric": "pAtLeastOneSelfClose21d",
+          "actual": 99.8,
+          "target": {
+            "min": 95,
+            "max": 100
+          },
+          "status": "PASS",
+          "note": "目标内"
+        },
+        {
+          "difficulty": "warmup",
+          "metric": "averageRivalDeals",
+          "actual": 0.02,
+          "target": {
+            "min": 0,
+            "max": 0.8
+          },
+          "status": "PASS",
+          "note": "目标内"
+        }
+      ]
+    },
+    {
+      "difficulty": "easy",
+      "runs": 500,
+      "averageScore": 87.63,
+      "averageDeals": 2.4,
+      "medianDeals": 2,
+      "pAtLeastOneSelfClose21d": 100,
+      "averageRivalDeals": 0.08,
+      "averageDelayedDeals": 0,
+      "averageMarketCapacity": 5,
+      "averageReleasedSlots": 5,
+      "averagePlayerClaimedDeals": 2.4,
+      "averageRivalClaimedDeals": 0.08,
+      "averageAvailableSlotsAtEnd": 2.53,
+      "averageUnclaimedSlotsAtEnd": 2.53,
+      "averagePlayerConsumedSlots": 2.4,
+      "averageRivalClaimAttempts": 0.14,
+      "averageRivalClaimSuccesses": 0.08,
+      "rivalClaimSuccessRate": 52.78,
+      "averageNoSlotRivalAttempts": 0.02,
+      "averageFailedRivalClaimRolls": 0.05,
+      "averageRivalListingsCreated": 0.09,
+      "averageRivalListingsExpired": 0.02,
+      "averageRivalListingsSold": 0.08,
+      "averageRivalListingsWithdrawn": 0.02,
+      "averageRivalListingsDelayed": 0,
+      "averageRivalListingsActive": 0.01,
+      "averageSlotReleaseDay": 10.85,
+      "averageRivalClaimDay": 0.44,
+      "averageMaxDailyRivalClaims": 0.07,
+      "maxDailyRivalClaimsObserved": 1,
+      "averageRivalListingLifespan": 0.32,
+      "averageMaxOpportunityStage": 6,
+      "stageDistribution": {
+        "stage6": 1946,
+        "stage5": 3617,
+        "stage2": 487,
+        "stage4": 937,
+        "stage1": 299,
+        "stage3": 780,
+        "stage0": 328
+      },
+      "averageStagnatedOpportunities": 1.55,
+      "averageLostOpportunities": 1.2,
+      "rivalLossRunRate": 6.8,
+      "difficultyCliffFromPrevious": -0.54,
+      "targetStatus": "PASS",
+      "targetChecks": [
+        {
+          "difficulty": "easy",
+          "metric": "averageDeals",
+          "actual": 2.4,
+          "target": {
+            "min": 2,
+            "max": 2.7
+          },
+          "status": "PASS",
+          "note": "目标内"
+        },
+        {
+          "difficulty": "easy",
+          "metric": "pAtLeastOneSelfClose21d",
+          "actual": 100,
+          "target": {
+            "min": 95,
+            "max": 100
+          },
+          "status": "PASS",
+          "note": "目标内"
+        },
+        {
+          "difficulty": "easy",
+          "metric": "averageRivalDeals",
+          "actual": 0.08,
+          "target": {
+            "min": 0,
+            "max": 0.9
+          },
+          "status": "PASS",
+          "note": "目标内"
+        }
+      ]
+    },
+    {
+      "difficulty": "standard",
+      "runs": 500,
+      "averageScore": 67.59,
+      "averageDeals": 1.23,
+      "medianDeals": 1,
+      "pAtLeastOneSelfClose21d": 100,
+      "averageRivalDeals": 0.81,
+      "averageDelayedDeals": 0,
+      "averageMarketCapacity": 4,
+      "averageReleasedSlots": 4,
+      "averagePlayerClaimedDeals": 1.23,
+      "averageRivalClaimedDeals": 0.81,
+      "averageAvailableSlotsAtEnd": 1.96,
+      "averageUnclaimedSlotsAtEnd": 1.96,
+      "averagePlayerConsumedSlots": 1.23,
+      "averageRivalClaimAttempts": 1.91,
+      "averageRivalClaimSuccesses": 0.81,
+      "rivalClaimSuccessRate": 42.57,
+      "averageNoSlotRivalAttempts": 0.34,
+      "averageFailedRivalClaimRolls": 0.76,
+      "averageRivalListingsCreated": 1.38,
+      "averageRivalListingsExpired": 1.26,
+      "averageRivalListingsSold": 0.81,
+      "averageRivalListingsWithdrawn": 0.54,
+      "averageRivalListingsDelayed": 0.24,
+      "averageRivalListingsActive": 0.51,
+      "averageSlotReleaseDay": 10.88,
+      "averageRivalClaimDay": 6.73,
+      "averageMaxDailyRivalClaims": 0.69,
+      "maxDailyRivalClaimsObserved": 1,
+      "averageRivalListingLifespan": 8.27,
+      "averageMaxOpportunityStage": 6,
+      "stageDistribution": {
+        "stage6": 2281,
+        "stage5": 4820,
+        "stage3": 795,
+        "stage4": 921,
+        "stage1": 632,
+        "stage0": 804,
+        "stage2": 631
+      },
+      "averageStagnatedOpportunities": 6.73,
+      "averageLostOpportunities": 5.01,
+      "rivalLossRunRate": 68.6,
+      "difficultyCliffFromPrevious": 1.17,
+      "targetStatus": "WATCH",
+      "targetChecks": [
+        {
+          "difficulty": "standard",
+          "metric": "averageDeals",
+          "actual": 1.23,
+          "target": {
+            "min": 1.05,
+            "max": 1.45
+          },
+          "status": "PASS",
+          "note": "目标内"
+        },
+        {
+          "difficulty": "standard",
+          "metric": "pAtLeastOneSelfClose21d",
+          "actual": 100,
+          "target": {
+            "min": 85,
+            "max": 100
+          },
+          "status": "WATCH",
+          "note": "过稳风险"
+        },
+        {
+          "difficulty": "standard",
+          "metric": "averageRivalDeals",
+          "actual": 0.81,
+          "target": {
+            "min": 0.8,
+            "max": 2.6
+          },
+          "status": "PASS",
+          "note": "目标内"
+        }
+      ]
+    },
+    {
+      "difficulty": "advanced",
+      "runs": 500,
+      "averageScore": 53.47,
+      "averageDeals": 1.14,
+      "medianDeals": 1,
+      "pAtLeastOneSelfClose21d": 66.6,
+      "averageRivalDeals": 1.64,
+      "averageDelayedDeals": 0,
+      "averageMarketCapacity": 4,
+      "averageReleasedSlots": 4,
+      "averagePlayerClaimedDeals": 1.14,
+      "averageRivalClaimedDeals": 1.64,
+      "averageAvailableSlotsAtEnd": 1.22,
+      "averageUnclaimedSlotsAtEnd": 1.22,
+      "averagePlayerConsumedSlots": 1.14,
+      "averageRivalClaimAttempts": 4.58,
+      "averageRivalClaimSuccesses": 1.64,
+      "rivalClaimSuccessRate": 35.74,
+      "averageNoSlotRivalAttempts": 1.93,
+      "averageFailedRivalClaimRolls": 1.01,
+      "averageRivalListingsCreated": 2.57,
+      "averageRivalListingsExpired": 3.84,
+      "averageRivalListingsSold": 1.64,
+      "averageRivalListingsWithdrawn": 0.89,
+      "averageRivalListingsDelayed": 1.83,
+      "averageRivalListingsActive": 1.06,
+      "averageSlotReleaseDay": 10.82,
+      "averageRivalClaimDay": 9.59,
+      "averageMaxDailyRivalClaims": 0.97,
+      "maxDailyRivalClaimsObserved": 2,
+      "averageRivalListingLifespan": 8.94,
+      "averageMaxOpportunityStage": 5.96,
+      "stageDistribution": {
+        "stage5": 4286,
+        "stage6": 1500,
+        "stage0": 1126,
+        "stage1": 1205,
+        "stage2": 1011,
+        "stage4": 876,
+        "stage3": 894
+      },
+      "averageStagnatedOpportunities": 7.83,
+      "averageLostOpportunities": 7.86,
+      "rivalLossRunRate": 91.6,
+      "difficultyCliffFromPrevious": 0.09,
+      "targetStatus": "PASS",
+      "targetChecks": [
+        {
+          "difficulty": "advanced",
+          "metric": "averageDeals",
+          "actual": 1.14,
+          "target": {
+            "min": 0.85,
+            "max": 1.25
+          },
+          "status": "PASS",
+          "note": "目标内"
+        },
+        {
+          "difficulty": "advanced",
+          "metric": "pAtLeastOneSelfClose21d",
+          "actual": 66.6,
+          "target": {
+            "min": 55,
+            "max": 85
+          },
+          "status": "PASS",
+          "note": "目标内"
+        },
+        {
+          "difficulty": "advanced",
+          "metric": "averageRivalDeals",
+          "actual": 1.64,
+          "target": {
+            "min": 1.2,
+            "max": 3
+          },
+          "status": "PASS",
+          "note": "目标内"
+        }
+      ]
+    },
+    {
+      "difficulty": "hard",
+      "runs": 500,
+      "averageScore": 34.34,
+      "averageDeals": 0.58,
+      "medianDeals": 1,
+      "pAtLeastOneSelfClose21d": 51.6,
+      "averageRivalDeals": 2.02,
+      "averageDelayedDeals": 0,
+      "averageMarketCapacity": 3,
+      "averageReleasedSlots": 2.97,
+      "averagePlayerClaimedDeals": 0.58,
+      "averageRivalClaimedDeals": 2.02,
+      "averageAvailableSlotsAtEnd": 0.38,
+      "averageUnclaimedSlotsAtEnd": 0.4,
+      "averagePlayerConsumedSlots": 0.58,
+      "averageRivalClaimAttempts": 13.38,
+      "averageRivalClaimSuccesses": 2.02,
+      "rivalClaimSuccessRate": 15.08,
+      "averageNoSlotRivalAttempts": 9.8,
+      "averageFailedRivalClaimRolls": 1.57,
+      "averageRivalListingsCreated": 3.89,
+      "averageRivalListingsExpired": 12.46,
+      "averageRivalListingsSold": 2.02,
+      "averageRivalListingsWithdrawn": 1.63,
+      "averageRivalListingsDelayed": 9.43,
+      "averageRivalListingsActive": 2.03,
+      "averageSlotReleaseDay": 10.74,
+      "averageRivalClaimDay": 11.66,
+      "averageMaxDailyRivalClaims": 0.99,
+      "maxDailyRivalClaimsObserved": 2,
+      "averageRivalListingLifespan": 11.21,
+      "averageMaxOpportunityStage": 5.81,
+      "stageDistribution": {
+        "stage5": 3511,
+        "stage3": 971,
+        "stage6": 964,
+        "stage4": 750,
+        "stage1": 3075,
+        "stage2": 1761,
+        "stage0": 2668
+      },
+      "averageStagnatedOpportunities": 7.06,
+      "averageLostOpportunities": 10.2,
+      "rivalLossRunRate": 94.4,
+      "difficultyCliffFromPrevious": 0.56,
+      "targetStatus": "PASS",
+      "targetChecks": [
+        {
+          "difficulty": "hard",
+          "metric": "averageDeals",
+          "actual": 0.58,
+          "target": {
+            "min": 0.45,
+            "max": 0.85
+          },
+          "status": "PASS",
+          "note": "目标内"
+        },
+        {
+          "difficulty": "hard",
+          "metric": "pAtLeastOneSelfClose21d",
+          "actual": 51.6,
+          "target": {
+            "min": 40,
+            "max": 70
+          },
+          "status": "PASS",
+          "note": "目标内"
+        },
+        {
+          "difficulty": "hard",
+          "metric": "averageRivalDeals",
+          "actual": 2.02,
+          "target": {
+            "min": 1.8,
+            "max": 3.5
+          },
+          "status": "PASS",
+          "note": "目标内"
+        }
+      ]
+    },
+    {
+      "difficulty": "extreme",
+      "runs": 500,
+      "averageScore": 24.54,
+      "averageDeals": 0.27,
+      "medianDeals": 0,
+      "pAtLeastOneSelfClose21d": 26.8,
+      "averageRivalDeals": 2.49,
+      "averageDelayedDeals": 0,
+      "averageMarketCapacity": 3,
+      "averageReleasedSlots": 2.91,
+      "averagePlayerClaimedDeals": 0.27,
+      "averageRivalClaimedDeals": 2.49,
+      "averageAvailableSlotsAtEnd": 0.15,
+      "averageUnclaimedSlotsAtEnd": 0.24,
+      "averagePlayerConsumedSlots": 0.27,
+      "averageRivalClaimAttempts": 17.21,
+      "averageRivalClaimSuccesses": 2.49,
+      "rivalClaimSuccessRate": 14.46,
+      "averageNoSlotRivalAttempts": 13.75,
+      "averageFailedRivalClaimRolls": 0.97,
+      "averageRivalListingsCreated": 4.31,
+      "averageRivalListingsExpired": 16.15,
+      "averageRivalListingsSold": 2.49,
+      "averageRivalListingsWithdrawn": 1.3,
+      "averageRivalListingsDelayed": 13.36,
+      "averageRivalListingsActive": 2.36,
+      "averageSlotReleaseDay": 10.72,
+      "averageRivalClaimDay": 11.82,
+      "averageMaxDailyRivalClaims": 1.01,
+      "maxDailyRivalClaimsObserved": 2,
+      "averageRivalListingLifespan": 11.52,
+      "averageMaxOpportunityStage": 5.65,
+      "stageDistribution": {
+        "stage4": 579,
+        "stage5": 3238,
+        "stage3": 761,
+        "stage2": 1694,
+        "stage1": 3989,
+        "stage0": 3222,
+        "stage6": 630
+      },
+      "averageStagnatedOpportunities": 6.88,
+      "averageLostOpportunities": 12.09,
+      "rivalLossRunRate": 96.6,
+      "difficultyCliffFromPrevious": 0.31,
+      "targetStatus": "PASS",
+      "targetChecks": [
+        {
+          "difficulty": "extreme",
+          "metric": "averageDeals",
+          "actual": 0.27,
+          "target": {
+            "min": 0.25,
+            "max": 0.5
+          },
+          "status": "PASS",
+          "note": "目标内"
+        },
+        {
+          "difficulty": "extreme",
+          "metric": "pAtLeastOneSelfClose21d",
+          "actual": 26.8,
+          "target": {
+            "min": 20,
+            "max": 45
+          },
+          "status": "PASS",
+          "note": "目标内"
+        },
+        {
+          "difficulty": "extreme",
+          "metric": "averageRivalDeals",
+          "actual": 2.49,
+          "target": {
+            "min": 2,
+            "max": 3.8
+          },
+          "status": "PASS",
+          "note": "目标内"
+        }
+      ]
+    }
+  ]
+}

@@ -1,12 +1,26 @@
 import { logEvent } from '../runtimeState.js';
+import { getAvailableMarketDealSlots } from '../models.js';
 import type { Case, GameState, RivalListing, RivalListingArchetype, RivalStore } from '../models.js';
 import { loseCaseToRival } from '../caseLifecycle.js';
+import {
+  getRivalOutcomeControl,
+  recordActiveRivalListingSample,
+  recordFailedRivalClaimRoll,
+  recordRivalListingCreated,
+  recordRivalListingDelayed,
+  recordRivalListingExpired,
+  recordRivalListingSold,
+  recordRivalListingWithdrawn,
+  scaleProbability,
+  tryClaimRivalMarketDealSlot,
+} from '../engine/outcomeControlRuntime.js';
 import { chance, clamp, randomInt } from '../utils.js';
 import { getMarketCell } from '../engine/opportunityEngine.js';
 
 type CreateRivalListingOptions = {
   linkedCaseId?: string;
   silent?: boolean;
+  force?: boolean;
 };
 
 function markCaseLostToVisibleRival(state: GameState, listing: RivalListing) {
@@ -25,6 +39,22 @@ function markCaseLostToVisibleRival(state: GameState, listing: RivalListing) {
 
   logEvent(state, lossEvent.actor, lossEvent.message, 'danger');
   return true;
+}
+
+function getListingStrengthScale(listing: RivalListing) {
+  return clamp(
+    (listing.heat + listing.leadSiphonPower + listing.ownerAnchorPower) / 240,
+    0.65,
+    1.35,
+  );
+}
+
+function getRivalListingClaimChance(state: GameState, listing: RivalListing, baseChance: number) {
+  const { rivalDealShareScale, rivalStoreCapabilityScale } = getRivalOutcomeControl(state);
+  return scaleProbability(
+    baseChance,
+    rivalDealShareScale * rivalStoreCapabilityScale * getListingStrengthScale(listing),
+  );
 }
 
 function chooseMarketCellId(state: GameState) {
@@ -54,12 +84,22 @@ function chooseListingArchetype(state: GameState) {
   return archetypes[randomInt(0, archetypes.length - 1, state)];
 }
 
+function shouldMaterializeRivalListing(state: GameState, source: RivalListing['source'], options: CreateRivalListingOptions) {
+  if (options.force || source === 'seed') return true;
+  const { rivalListingSpawnScale } = getRivalOutcomeControl(state);
+  return chance(scaleProbability(state.rules.rivalListingSpawnChance, rivalListingSpawnScale), state);
+}
+
 export function createRivalListing(
   state: GameState,
   source: RivalListing['source'] = 'daily_event',
   marketCellId?: string,
   options: CreateRivalListingOptions = {},
 ) {
+  if (!shouldMaterializeRivalListing(state, source, options)) {
+    return null;
+  }
+
   const archetype = chooseListingArchetype(state);
   const store = chooseStore(state, archetype || undefined);
   const targetMarketCellId = marketCellId || chooseMarketCellId(state);
@@ -75,6 +115,18 @@ export function createRivalListing(
   const titlePrefix = archetype?.titlePrefix || '新入场竞品';
   const district = anchorCase?.district || cell?.name.split('|')[0]?.trim() || '未知商圈';
 
+  const { rivalStoreCapabilityScale } = getRivalOutcomeControl(state);
+  const leadSiphonPower = clamp(
+    ((archetype?.leadSiphonPower || 45) + (store?.leadCapturePower || 40) * 0.12) * rivalStoreCapabilityScale,
+    0,
+    100,
+  );
+  const ownerAnchorPower = clamp(
+    ((archetype?.ownerAnchorPower || 45) + (store?.pricingPressurePower || 40) * 0.12) * rivalStoreCapabilityScale,
+    0,
+    100,
+  );
+
   const listing: RivalListing = {
     id: `rival-${state.day}-${state.marketShadow.rivalListings.length + 1}-${randomInt(100, 999, state)}`,
     storeId: store?.id || 'unknown-rival-store',
@@ -87,14 +139,15 @@ export function createRivalListing(
     heat: clamp((archetype?.baseHeat || 56) + randomInt(-6, 8, state), 20, 96),
     freshness: clamp((archetype?.freshness || 62) + randomInt(-8, 8, state), 0, 100),
     storyStrength: clamp((archetype?.storyStrength || 50) + randomInt(-8, 8, state), 0, 100),
-    leadSiphonPower: clamp((archetype?.leadSiphonPower || 45) + (store?.leadCapturePower || 40) * 0.12, 0, 100),
-    ownerAnchorPower: clamp((archetype?.ownerAnchorPower || 45) + (store?.pricingPressurePower || 40) * 0.12, 0, 100),
+    leadSiphonPower,
+    ownerAnchorPower,
     status: 'active',
     daysLeft: randomInt(6, 12, state),
     source,
   };
 
   state.marketShadow.rivalListings.unshift(listing);
+  recordRivalListingCreated(state, listing);
   if (!options.silent) {
     logEvent(state, '同类房', `${listing.title} 入场，${store?.name || '外部门店'}开始分流同板块客户。`, 'danger');
   }
@@ -111,13 +164,27 @@ export function sellVisibleRivalForCase(state: GameState, caseItem: Case, detail
     || createRivalListing(state, 'daily_event', caseItem.marketCellId, {
       linkedCaseId: caseItem.id,
       silent: true,
+      force: true,
     });
+
+  if (!existingListing) {
+    return false;
+  }
+
+  const claimResult = tryClaimRivalMarketDealSlot(state, { allowFutureSlot: true });
+  if (!claimResult.claimed) {
+    return false;
+  }
+  if (claimResult.waitingForRelease) {
+    recordRivalListingDelayed(state);
+  }
 
   existingListing.linkedCaseId = caseItem.id;
   existingListing.status = 'sold';
   existingListing.daysLeft = 0;
   existingListing.freshness = 0;
   existingListing.heat = clamp(existingListing.heat + 10, 0, 100);
+  recordRivalListingSold(state, existingListing);
 
   const lossEvent = loseCaseToRival(state, caseItem, detail || `被 ${existingListing.title} 抢先成交，这套房已经被别人拿走了。`);
   if (!lossEvent) {
@@ -130,6 +197,10 @@ export function sellVisibleRivalForCase(state: GameState, caseItem: Case, detail
 }
 
 export function tickRivalListings(state: GameState) {
+  recordActiveRivalListingSample(
+    state,
+    state.marketShadow.rivalListings.filter((listing) => listing.status === 'active').length,
+  );
   state.marketShadow.rivalListings.forEach((listing) => {
     if (listing.status !== 'active') return;
     listing.daysLeft -= 1;
@@ -137,12 +208,36 @@ export function tickRivalListings(state: GameState) {
     listing.heat = clamp(listing.heat + randomInt(-3, 4, state) + listing.freshness / 80, 0, 100);
 
     if (listing.daysLeft <= 0 || listing.freshness <= 8) {
-      listing.status = chance(0.55, state) ? 'sold' : 'withdrawn';
+      recordRivalListingExpired(state);
+      const claimChance = getRivalListingClaimChance(state, listing, 0.55);
+      const claimResult = chance(claimChance, state)
+        ? tryClaimRivalMarketDealSlot(state)
+        : (recordFailedRivalClaimRoll(state), { claimed: false, blockedByCapacity: false });
+      if (claimResult.waitingForRelease) {
+        recordRivalListingDelayed(state);
+        listing.daysLeft = 1;
+        listing.freshness = Math.max(listing.freshness, 12);
+        return;
+      }
+      listing.status = claimResult.claimed ? 'sold' : 'withdrawn';
+      if (listing.status === 'sold') {
+        recordRivalListingSold(state, listing);
+      } else {
+        recordRivalListingWithdrawn(state, listing);
+        if (claimResult.blockedByCapacity) {
+          recordRivalListingDelayed(state);
+        }
+      }
       const closedPlayerCase = listing.status === 'sold' ? markCaseLostToVisibleRival(state, listing) : false;
+      const outcomeText = listing.status === 'sold'
+        ? '被别家卖掉了'
+        : claimResult.blockedByCapacity
+          ? '没抢到本轮市场成交窗口，暂时从市场上撤出'
+          : '从市场上撤出';
       logEvent(
         state,
         '同类房',
-        `${listing.title}${listing.status === 'sold' ? '被别家卖掉了' : '从市场上撤出'}，同板块压力重新洗牌。${closedPlayerCase ? ' 你手里对应那套房也被顺势抢走了。' : ''}`,
+        `${listing.title}${outcomeText}，同板块压力重新洗牌。${closedPlayerCase ? ' 你手里对应那套房也被顺势抢走了。' : ''}`,
         listing.status === 'sold' ? 'danger' : 'accent',
       );
     }
@@ -151,7 +246,52 @@ export function tickRivalListings(state: GameState) {
   state.marketShadow.rivalListings = state.marketShadow.rivalListings.slice(0, 18);
 }
 
+export function tryClaimOpenMarketDealForRivals(state: GameState) {
+  if (getAvailableMarketDealSlots(state) <= 0) {
+    return 0;
+  }
+
+  let claimedCount = 0;
+  const activeRivals = state.marketShadow.rivalListings
+    .filter((entry) => entry.status === 'active')
+    .sort((left, right) => {
+      const rightScore = right.heat + right.leadSiphonPower + right.ownerAnchorPower;
+      const leftScore = left.heat + left.leadSiphonPower + left.ownerAnchorPower;
+      return rightScore - leftScore;
+    });
+
+  activeRivals.forEach((listing) => {
+    if (getAvailableMarketDealSlots(state) <= 0 || listing.status !== 'active') {
+      return;
+    }
+
+    const claimChance = getRivalListingClaimChance(state, listing, 0.36);
+    const claimResult = chance(claimChance, state)
+      ? tryClaimRivalMarketDealSlot(state)
+      : (recordFailedRivalClaimRoll(state), { claimed: false, blockedByCapacity: false });
+    if (!claimResult.claimed) {
+      return;
+    }
+
+    listing.status = 'sold';
+    listing.daysLeft = 0;
+    listing.freshness = 0;
+    recordRivalListingSold(state, listing);
+    const closedPlayerCase = markCaseLostToVisibleRival(state, listing);
+    logEvent(
+      state,
+      '同类房',
+      `${listing.title}被别家卖掉了，同板块压力重新洗牌。${closedPlayerCase ? ' 你手里对应那套房也被顺势抢走了。' : ''}`,
+      'danger',
+    );
+    claimedCount += 1;
+  });
+
+  return claimedCount;
+}
+
 export function applyRivalPressure(state: GameState) {
+  const { rivalOwnerPressureScale } = getRivalOutcomeControl(state);
   const activeRivals = state.marketShadow.rivalListings.filter((entry) => entry.status === 'active');
   if (!activeRivals.length) return;
 
@@ -166,21 +306,22 @@ export function applyRivalPressure(state: GameState) {
       return sum + priceOverlap * ((listing.leadSiphonPower + listing.ownerAnchorPower + listing.heat) / 3);
     }, 0) / rivals.length;
 
-    if (nearestPressure < 34) return;
+    const adjustedPressure = nearestPressure * rivalOwnerPressureScale;
+    if (adjustedPressure < 34) return;
 
-    const heatLoss = (nearestPressure / 100) * state.rules.rivalPressureHeatImpact;
-    const trustLoss = (nearestPressure / 100) * state.rules.rivalPressureTrustImpact;
+    const heatLoss = (adjustedPressure / 100) * state.rules.rivalPressureHeatImpact;
+    const trustLoss = (adjustedPressure / 100) * state.rules.rivalPressureTrustImpact;
     caseItem.heat = clamp(caseItem.heat - heatLoss, 10, 100);
     caseItem.trust = clamp(caseItem.trust - trustLoss, 10, 100);
 
     state.opportunities
       .filter((entry) => entry.caseId === caseItem.id && entry.status === 'active')
       .forEach((entry) => {
-        entry.intent = clamp(entry.intent - nearestPressure / 85, 0, 100);
-        entry.confidence = clamp(entry.confidence - nearestPressure / 110, 0, 100);
+        entry.intent = clamp(entry.intent - adjustedPressure / 85, 0, 100);
+        entry.confidence = clamp(entry.confidence - adjustedPressure / 110, 0, 100);
       });
 
-    if (nearestPressure >= 58 && chance(0.18, state)) {
+    if (adjustedPressure >= 58 && chance(scaleProbability(0.18, rivalOwnerPressureScale, 0.85), state)) {
       const leadRival = rivals.sort((left, right) => right.heat - left.heat)[0];
       logEvent(state, '竞品压制', `${leadRival.title} 正在抢走 ${caseItem.title} 的一部分注意力。`, 'danger');
     }

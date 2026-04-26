@@ -11,7 +11,7 @@ import {
   handleMaintainerLeaderboardList,
 } from '../src/selling-houses/interfaces/http/maintainerLeaderboardHandler.js';
 import {
-  type MaintainerRunIdentityContext,
+  buildMaintainerRunIdentityContext,
   handleMaintainerRunCreate,
   handleMaintainerRunGet,
   handleMaintainerRunList,
@@ -27,19 +27,6 @@ export const config = {
   },
 };
 
-function buildIdentityContext(authorization: {
-  accountId?: string;
-  displayName?: string;
-  nickname?: string;
-  source?: 'session' | 'activation-key';
-}): MaintainerRunIdentityContext {
-  return {
-    accountId: authorization.accountId,
-    displayName: authorization.displayName || authorization.nickname,
-    source: authorization.source,
-  };
-}
-
 export default async function handler(req: any, res: any) {
   if (!['GET', 'POST', 'PUT'].includes(req.method)) {
     res.setHeader('Allow', 'GET, POST, PUT');
@@ -52,7 +39,7 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const identity = buildIdentityContext(authorization);
+    const identity = buildMaintainerRunIdentityContext(authorization);
 
     if (req.method === 'GET') {
       if (isMaintainerLeaderboardDetailQuery(req.query)) {

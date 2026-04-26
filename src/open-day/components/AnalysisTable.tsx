@@ -144,7 +144,7 @@ export function AnalysisTable({
             <strong className="open-day-hero-stat__value">{currentParameterLabel}</strong>
           </div>
           <div className="open-day-hero-stat">
-            <span className="open-day-hero-stat__label">公式</span>
+            <span className="open-day-hero-stat__label">技能</span>
             <strong className="open-day-hero-stat__value">{currentFormulaLabel}</strong>
           </div>
           <div className="open-day-hero-stat">

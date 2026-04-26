@@ -267,21 +267,21 @@ function defenseLabel(outcome: DefenseOutcome) {
 function buildEndingSummary(caseItem: Case, endingType: ListingEndingType) {
   switch (endingType) {
     case 'sold_by_you_happy':
-      return `${caseItem.title} 最终由你顺利卖掉，业主对结果和过程都认可。`;
+      return `${caseItem.title} 最后是你帮着过户的，业主那头不仅把钱拿到手了，还对你赞不绝口，这单做得漂亮。`;
     case 'sold_by_you_neutral':
-      return `${caseItem.title} 最终卖掉了，业主接受结果，但情绪不算特别高。`;
+      return `${caseItem.title} 算是平稳落地签了字，业主反应平平，不过好歹钱是赚到了。`;
     case 'sold_by_you_regret':
-      return `${caseItem.title} 虽然成交了，但业主对过程和体验并不满意。`;
+      return `${caseItem.title} 虽然磕磕绊绊最后还是签了字，但业主那边一肚子牢骚，觉得吃亏了。`;
     case 'sold_by_other':
-      return `${caseItem.title} 最终没守住，机会被别人拿走了。`;
+      return `${caseItem.title} 最后没防住，眼睁睁看着别人把单子撬走，太憋屈了。`;
     case 'not_sold_no_regret':
-      return `${caseItem.title} 这局没卖掉，但至少没有让业主后悔。`;
+      return `${caseItem.title} 这局虽然没能卖出去，但起码没把业主得罪，没算白忙活。`;
     case 'not_sold_regret':
-      return `${caseItem.title} 没卖掉，业主也开始怀疑这轮跟进值不值得。`;
+      return `${caseItem.title} 没卖掉就算了，业主现在连你的电话都不想接，这跟进算是做烂了。`;
     case 'switch_to_rent_no_regret':
-      return `${caseItem.title} 没按卖房走到底，但最后换成转租也还算体面。`;
+      return `${caseItem.title} 业主不想折腾了直接转租，算是体面下车，没砸在手里。`;
     case 'withdrawn_unhappy':
-      return `${caseItem.title} 最终核销，而且收尾并不体面。`;
+      return `${caseItem.title} 彻底黄了，业主直接撤盘，连句软话都没有，收尾收得很狼狈。`;
   }
 }
 
@@ -610,7 +610,7 @@ function deriveGrade(score: number, thresholds: { pass: number; strong: number; 
   if (score >= thresholds.pass) {
     return { grade: '过线', title: '至少把最关键的部分撑住了' };
   }
-  return { grade: '没保住', title: '这局还是没能把情况扳回来' };
+  return { grade: '没保住', title: '这局先交了一笔学费' };
 }
 
 function deriveGoalSummary(goalContext: GoalContextId) {
@@ -639,7 +639,7 @@ function buildHighlights(
     highlights.push('这局不只是有成交，而是多套房都卖得比同类房更顺。');
   }
   if (!highlights.length) {
-    highlights.push('至少你把整局完整跑完了，已经不是乱点动作的状态。');
+    highlights.push('全程跑完，至少拿到了完整战报——下局可以少踩几个坑。');
   }
   return highlights;
 }

@@ -12,6 +12,10 @@ export interface MaintainerRunOwnerContext {
   accountId?: string;
 }
 
+export interface MaintainerCloudResetMarker {
+  resetAt: string;
+}
+
 function isBrowser() {
   return typeof window !== 'undefined' && Boolean(window.localStorage);
 }
@@ -22,6 +26,10 @@ function getScopedCloudUserStorageKey(accountEmail?: string) {
 
 function getScopedCloudMetaStorageKey(accountEmail?: string) {
   return buildScopedStorageKey(CLOUD_META_STORAGE_KEY, accountEmail);
+}
+
+function getScopedCloudResetMarkerStorageKey(accountEmail?: string) {
+  return `${getScopedCloudMetaStorageKey(accountEmail)}:reset-marker`;
 }
 
 function loadRawMaintainerUserId(scopeKey?: string) {
@@ -129,6 +137,44 @@ export function clearMaintainerCloudMeta(accountEmail?: string) {
   }
 
   window.localStorage.removeItem(getScopedCloudMetaStorageKey(accountEmail));
+}
+
+export function loadMaintainerCloudResetMarker(accountEmail?: string): MaintainerCloudResetMarker | null {
+  if (!isBrowser()) {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(getScopedCloudResetMarkerStorageKey(accountEmail));
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw) as Partial<MaintainerCloudResetMarker>;
+    return typeof parsed.resetAt === 'string' && parsed.resetAt.trim()
+      ? { resetAt: parsed.resetAt }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveMaintainerCloudResetMarker(accountEmail?: string) {
+  if (!isBrowser()) {
+    return;
+  }
+
+  window.localStorage.setItem(
+    getScopedCloudResetMarkerStorageKey(accountEmail),
+    JSON.stringify({ resetAt: new Date().toISOString() } satisfies MaintainerCloudResetMarker),
+  );
+}
+
+export function clearMaintainerCloudResetMarker(accountEmail?: string) {
+  if (!isBrowser()) {
+    return;
+  }
+
+  window.localStorage.removeItem(getScopedCloudResetMarkerStorageKey(accountEmail));
 }
 
 export function migrateMaintainerCloudMetaScope(targetScopeKey: string, legacyScopeKey?: string) {

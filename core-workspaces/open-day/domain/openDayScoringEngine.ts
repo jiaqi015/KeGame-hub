@@ -5,7 +5,7 @@ import type {
 import { resolveOpenDayScenarioDraft } from '../application/openDayScenarioDraft.js';
 import { isEligibleOpenDayRow } from './openDayEligibilityPolicy.js';
 import { normalizeOpenDayRows, validateMappings } from './openDayDatasetNormalizer.js';
-import { evaluateOpenDayFormula, getOpenDayFormulaDefinition } from './openDayFormula.js';
+import { evaluateOpenDaySkill, getOpenDaySkillDefinition } from './openDaySkill.js';
 import { resolveOpenDayWaterlineContext } from './openDayParameterResolver.js';
 import { resolveOpenDayTier } from './openDayTierPolicy.js';
 
@@ -30,14 +30,14 @@ export function scoreOpenDayDataset(command: OpenDayScoreCommand): Omit<OpenDayA
 
   const normalizedRows = normalizeOpenDayRows(command.rows, command.mappings);
   const { waterlines, resolvedParameters } = resolveOpenDayWaterlineContext(normalizedRows, mergedConfig);
-  const formula = getOpenDayFormulaDefinition(mergedConfig.formulaId);
+  const skill = getOpenDaySkillDefinition(mergedConfig.skillId || mergedConfig.formulaId);
 
   const scoredRows = normalizedRows.map((row) => {
     const scaleScore = clamp(calculateRatio(row.inventory, waterlines.I_cap));
     const trafficScore = clamp(Math.pow(calculateRatio(row.traffic, waterlines.V_cap), mergedConfig.alpha));
     const productScore = clamp(calculateRatio(row.premium, waterlines.H_cap));
     const interactionScore = clamp(calculateRatio(row.convRate, waterlines.R_cap));
-    const formulaResult = evaluateOpenDayFormula(mergedConfig.formulaId, {
+    const skillResult = evaluateOpenDaySkill(mergedConfig.skillId || mergedConfig.formulaId, {
       scaleScore,
       trafficScore,
       productScore,
@@ -48,8 +48,8 @@ export function scoreOpenDayDataset(command: OpenDayScoreCommand): Omit<OpenDayA
     const trafficIdx = Number((trafficScore * 100).toFixed(1));
     const productIdx = Number((productScore * 100).toFixed(1));
     const interactionIdx = Number((interactionScore * 100).toFixed(1));
-    const catalyst = Number((formulaResult.catalystScore * 100).toFixed(1));
-    const rawScore = formulaResult.rawScore;
+    const catalyst = Number((skillResult.catalystScore * 100).toFixed(1));
+    const rawScore = skillResult.rawScore;
     const isEligible = isEligibleOpenDayRow(row, mergedConfig);
 
     // Logic Guard Scanning
@@ -116,7 +116,8 @@ export function scoreOpenDayDataset(command: OpenDayScoreCommand): Omit<OpenDayA
       totalCount: results.length,
       eligibleCount: eligibleRows.length,
       weights: mergedConfig.weights,
-      formula,
+      skill,
+      formula: skill,
       scenario,
       waterlines,
       resolvedParameters,

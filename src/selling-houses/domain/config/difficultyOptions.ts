@@ -1,109 +1,43 @@
-import type { DifficultyOption } from '../models.js';
+import { buildDifficultyPresentation } from '../../application/difficultyPresentation.js';
+import type { DifficultyId, DifficultyOption } from '../models.js';
 
-export const DIFFICULTY_OPTIONS: DifficultyOption[] = [
-  {
-    id: 'warmup',
-    label: '热身局',
-    summary: '3 套房，推进压力最轻，适合先找回处理房源的手感。',
-    detail: '先练稳业主、安排带看、推进客户。这里是轻量开场，不会一上来就把多套房源互相影响的压力全压上来。',
-    scenarioCount: 1,
-    featuredSeed: 1101,
-    preview: [
-      { label: '维护规模', value: '3 套，注意力宽松' },
-      { label: '精力', value: '宽裕，容错高' },
-      { label: '推广金', value: '够用，能试错' },
-      { label: '房源状态', value: '整体平稳，少数偏冷' },
-      { label: '业主意愿', value: '大多愿意配合' },
-      { label: '竞争环境', value: '轻度同类竞争' },
-      { label: '市场环境', value: '整体友好' },
-    ],
-  },
-  {
-    id: 'easy',
-    label: '入门局',
-    summary: '4 套房，推进压力更轻，顺风回合更多。',
-    detail: '这一档更容易稳住业主，也更容易看到月份、竞品和客户来访如何影响判断，适合先摸清基本操作。',
-    scenarioCount: 1,
-    featuredSeed: 2202,
-    preview: [
-      { label: '维护规模', value: '4 套，刚好顺手' },
-      { label: '精力', value: '比较够用' },
-      { label: '推广金', value: '有空间做活动' },
-      { label: '房源状态', value: '冷热开始分化' },
-      { label: '业主意愿', value: '大体稳定' },
-      { label: '竞争环境', value: '中低压力' },
-      { label: '市场环境', value: '偏顺风' },
-    ],
-  },
-  {
-    id: 'standard',
-    label: '标准局',
-    summary: '5 套房，压力适中，需要兼顾关系、价格和线索。',
-    detail: '这是默认档位。既要做选择，也要开始处理一套房对另一套房的影响。',
-    scenarioCount: 1,
-    featuredSeed: 3303,
-    preview: [
-      { label: '维护规模', value: '5 套，开始考验排序' },
-      { label: '精力', value: '够用但要规划' },
-      { label: '推广金', value: '要开始节制' },
-      { label: '房源状态', value: '明显分层' },
-      { label: '业主意愿', value: '有人开始摇摆' },
-      { label: '竞争环境', value: '同类竞争更明显' },
-      { label: '市场环境', value: '中性偏波动' },
-    ],
-  },
-  {
-    id: 'advanced',
-    label: '进阶局',
-    summary: '5 套房，但推进节奏更碎，关系和竞争会更快打架。',
-    detail: '这一档开始更吃先后手。你需要主动决定哪些盘该保，哪些盘该先放一放。',
-    scenarioCount: 1,
-    featuredSeed: 4404,
-    preview: [
-      { label: '维护规模', value: '5 套，节奏更碎' },
-      { label: '精力', value: '开始偏紧' },
-      { label: '推广金', value: '每笔都要算' },
-      { label: '房源状态', value: '更多错位盘' },
-      { label: '业主意愿', value: '更容易波动' },
-      { label: '竞争环境', value: '中高竞争' },
-      { label: '市场环境', value: '扰动变多' },
-    ],
-  },
-  {
-    id: 'hard',
-    label: '高压局',
-    summary: '6 套房，推进压力更强，竞品和突发消息更强。',
-    detail: '错误动作会更快传导到整组竞争盘。想全救，通常就会全都顾不过来。',
-    scenarioCount: 1,
-    featuredSeed: 5505,
-    preview: [
-      { label: '维护规模', value: '6 套，高并发' },
-      { label: '精力', value: '持续吃紧' },
-      { label: '推广金', value: '偏少，不能乱花' },
-      { label: '房源状态', value: '多盘推进压力偏高' },
-      { label: '业主意愿', value: '脆弱盘变多' },
-      { label: '竞争环境', value: '强竞争' },
-      { label: '市场环境', value: '偏冷偏硬' },
-    ],
-  },
-  {
-    id: 'extreme',
-    label: '极限局',
-    summary: '6 套房，推进和关系都更脆，适合专门练残局。',
-    detail: '这档不要求你全盘通吃，而是要求你在高噪声里迅速识别谁该保、谁该放。',
-    scenarioCount: 1,
-    featuredSeed: 6606,
-    preview: [
-      { label: '维护规模', value: '6 套，几乎满负荷' },
-      { label: '精力', value: '极限排班' },
-      { label: '推广金', value: '非常紧，只能投重点' },
-      { label: '房源状态', value: '多数盘先天吃亏' },
-      { label: '业主意愿', value: '更易失去耐心' },
-      { label: '竞争环境', value: '极强竞争' },
-      { label: '市场环境', value: '多重利空' },
-    ],
-  },
+interface DifficultyOptionMeta {
+  id: DifficultyId;
+  scenarioCount: number;
+  featuredSeed: number;
+}
+
+const DIFFICULTY_OPTION_META: DifficultyOptionMeta[] = [
+  { id: 'warmup', scenarioCount: 1, featuredSeed: 1101 },
+  { id: 'easy', scenarioCount: 1, featuredSeed: 2202 },
+  { id: 'standard', scenarioCount: 1, featuredSeed: 3303 },
+  { id: 'advanced', scenarioCount: 1, featuredSeed: 4404 },
+  { id: 'hard', scenarioCount: 1, featuredSeed: 5505 },
+  { id: 'extreme', scenarioCount: 1, featuredSeed: 6606 },
 ];
+
+function buildDifficultyOption(meta: DifficultyOptionMeta): DifficultyOption {
+  const presentation = buildDifficultyPresentation({ difficultyId: meta.id });
+
+  return {
+    id: meta.id,
+    label: presentation.label,
+    summary: presentation.summary,
+    detail: presentation.details.join('；'),
+    scenarioCount: meta.scenarioCount,
+    featuredSeed: meta.featuredSeed,
+    preview: [
+      { label: '模拟周期', value: `${presentation.metrics.days} 天` },
+      { label: '市场容量', value: presentation.metrics.marketCapacity },
+      { label: '成交预期', value: presentation.metrics.selfDealExpectation },
+      { label: '对手压力', value: presentation.metrics.rivalStrength },
+      { label: '客户推进', value: presentation.metrics.customerProgression },
+      { label: '额外空间', value: presentation.metrics.bonusPotential },
+    ],
+  };
+}
+
+export const DIFFICULTY_OPTIONS: DifficultyOption[] = DIFFICULTY_OPTION_META.map(buildDifficultyOption);
 
 export function getDifficultyOptions() {
   return structuredClone(DIFFICULTY_OPTIONS);

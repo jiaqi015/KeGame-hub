@@ -1,38 +1,43 @@
-import type { OpenDayFormulaDefinition, OpenDayConfig } from '../../../modules/open-day/domain/openDay.types.ts';
+import type { OpenDaySkillDefinition, OpenDayConfig } from '../../../modules/open-day/domain/openDay.types.ts';
 import type { OpenDayResolvedParameter, OpenDayParameterKey } from '../../../modules/open-day/domain/openDay.types.ts';
 import type { OpenDayScenarioDraft } from '../../../modules/open-day/domain/openDay.types.ts';
 import './FormulaBar.css';
 
-interface FormulaBarProps {
+interface SkillBarProps {
   scenarioDraft: OpenDayScenarioDraft;
   config: OpenDayConfig;
-  formulas: OpenDayFormulaDefinition[];
+  skills: OpenDaySkillDefinition[];
   waterlineDefinitions: { key: OpenDayParameterKey }[];
   getResolvedParameter: (key: OpenDayParameterKey) => OpenDayResolvedParameter | null;
-  onFormulaChange: (formulaId: OpenDayConfig['formulaId']) => void;
+  onSkillChange: (skillId: OpenDayConfig['formulaId']) => void;
   onWaterlineModeChange: (mode: OpenDayConfig['waterlineMode']) => void;
 }
 
-export function FormulaBar({
+interface FormulaBarProps extends Omit<SkillBarProps, 'skills' | 'onSkillChange'> {
+  formulas: OpenDaySkillDefinition[];
+  onFormulaChange?: (formulaId: OpenDayConfig['formulaId']) => void;
+}
+
+export function SkillBar({
   scenarioDraft,
   config,
-  formulas,
+  skills,
   waterlineDefinitions,
   getResolvedParameter,
-  onFormulaChange,
+  onSkillChange,
   onWaterlineModeChange,
-}: FormulaBarProps) {
+}: SkillBarProps) {
   return (
     <div className="open-day-formula-bar">
       <div className="open-day-formula-bar__select">
-        <label>核心公式</label>
+        <label>测算技能</label>
         <select
-          value={scenarioDraft.formulaId}
-          onChange={(event) => onFormulaChange(event.target.value as OpenDayConfig['formulaId'])}
+          value={scenarioDraft.skillId || scenarioDraft.formulaId}
+          onChange={(event) => onSkillChange(event.target.value as OpenDayConfig['formulaId'])}
         >
-          {formulas.map((formula) => (
-            <option key={formula.id} value={formula.id}>
-              {formula.label}
+          {skills.map((skill) => (
+            <option key={skill.id} value={skill.id}>
+              {skill.label}
             </option>
           ))}
         </select>
@@ -58,7 +63,7 @@ export function FormulaBar({
 
       <div className="open-day-formula-bar__math">
         <code>
-          {scenarioDraft.formulaId === 'weighted_catalyst_v1' ? (
+          {(scenarioDraft.skillId || scenarioDraft.formulaId) === 'weighted_catalyst_v1' ? (
             <>综合得分 = (规模得分 × 流量得分) × (好房提权权重 + 转化率加成) × 100</>
           ) : (
             <>综合得分 = √(规模得分 × 流量衰减) × 好房门槛系数 × (基础权重 + 转化率加成) × 100</>
@@ -66,5 +71,19 @@ export function FormulaBar({
         </code>
       </div>
     </div>
+  );
+}
+
+export function FormulaBar({
+  formulas,
+  onFormulaChange,
+  ...rest
+}: FormulaBarProps) {
+  return (
+    <SkillBar
+      {...rest}
+      skills={formulas}
+      onSkillChange={(skillId) => onFormulaChange?.(skillId)}
+    />
   );
 }

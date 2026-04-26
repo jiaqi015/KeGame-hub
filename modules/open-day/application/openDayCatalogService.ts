@@ -11,12 +11,14 @@ export class OpenDayCatalogService {
   execute(): OpenDayCatalogResponse {
     const defaultConfig = clone(defaultOpenDayConfig);
     const generatedAt = new Date().toISOString();
+    const formulas = listOpenDayFormulaDefinitions();
 
     return {
       generatedAt,
       defaultConfig,
       defaultConfigVersion: createOpenDayHash(defaultConfig, 'cfg'),
-      formulas: listOpenDayFormulaDefinitions(),
+      skills: formulas,
+      formulas,
       parameterPackages: openDayParameterPackageCatalog.map((parameterPackage) => ({
         ...clone(parameterPackage),
         version: createOpenDayHash({ id: parameterPackage.id, overrides: parameterPackage.overrides }, 'package'),

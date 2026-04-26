@@ -1,4 +1,5 @@
 import type {
+  OpenDaySkillDefinition,
   OpenDayFormulaDefinition,
   OpenDayParameterPackage,
   OpenDayRawRow,
@@ -13,7 +14,6 @@ export function getParameterPackageLabel(activeParameterPackageId: string, param
 
 export function formatWaterlineValue(key: string, value: number): number {
   if (isNaN(value)) return 0;
-  // Conversion rate (R_cap) usually needs more precision, others are usually counts
   if (key === 'R_cap') {
     return Math.round(value * 10000) / 10000;
   }
@@ -24,11 +24,11 @@ export function buildScenarioDraftName(
   sourceName: string,
   scenarioDraft: OpenDayScenarioDraft,
   parameterPackages: OpenDayParameterPackage[],
-  formulas: OpenDayFormulaDefinition[],
+  skills: OpenDaySkillDefinition[],
 ) {
   const label = scenarioDraft.parameterPackageId
     ? getParameterPackageLabel(scenarioDraft.parameterPackageId, parameterPackages)
-    : formulas.find((f) => f.id === scenarioDraft.formulaId)?.label || '默认公式';
+    : skills.find((s) => s.id === (scenarioDraft.skillId || scenarioDraft.formulaId))?.label || '默认技能';
   const baseName = sourceName ? sourceName.split('/')[0].trim() : '开放日方案';
   const timestamp = new Intl.DateTimeFormat('zh-CN', {
     month: '2-digit',

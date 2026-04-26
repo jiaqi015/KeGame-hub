@@ -9,6 +9,7 @@ import { defaultOpenDayConfig, mergeOpenDayConfig, normalizeWeights, openDayPara
 interface OpenDayScenarioInputLike {
   config?: Partial<OpenDayConfig>;
   scenario?: {
+    skillId?: OpenDayScenarioDraft['skillId'];
     formulaId?: OpenDayScenarioDraft['formulaId'];
     parameterPackageId?: string | null;
     config?: Partial<OpenDayConfig>;
@@ -56,11 +57,13 @@ export function resolveOpenDayScenarioDraft(
 
   const explicitConfig = input.scenario?.config || input.config;
   const mergedConfig = mergeOpenDayConfig(packageConfig, explicitConfig) as OpenDayConfig;
-  mergedConfig.formulaId = input.scenario?.formulaId || mergedConfig.formulaId || defaultOpenDayConfig.formulaId;
+  mergedConfig.skillId = input.scenario?.skillId || input.scenario?.formulaId || mergedConfig.skillId || mergedConfig.formulaId || defaultOpenDayConfig.skillId;
+  mergedConfig.formulaId = mergedConfig.skillId;
   mergedConfig.alpha = Math.max(0, Number(mergedConfig.alpha) || defaultOpenDayConfig.alpha);
   mergedConfig.weights = normalizeWeights(mergedConfig.weights);
 
   return {
+    skillId: mergedConfig.skillId,
     formulaId: mergedConfig.formulaId,
     parameterPackageId,
     config: mergedConfig,

@@ -1,5 +1,36 @@
+import formidable from 'formidable';
+import { ensureRuntimeTempDir } from '../lib/runtimeTemp.js';
+
 export function parseJsonBody(body: unknown) {
   return typeof body === 'string' ? JSON.parse(body) : body;
+}
+
+export async function parseMultipartUpload(req: Parameters<typeof formidable>[0]) {
+  const uploadDir = await ensureRuntimeTempDir('uploads');
+  const form = formidable({
+    multiples: false,
+    maxFiles: 1,
+    uploadDir,
+  });
+
+  return new Promise<{ fields: formidable.Fields; files: formidable.Files }>((resolve, reject) => {
+    form.parse(req, (error, fields, files) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve({ fields, files });
+    });
+  });
+}
+
+export function getFirstFieldValue(value: string | string[] | undefined) {
+  if (Array.isArray(value)) {
+    return typeof value[0] === 'string' ? value[0].trim() : '';
+  }
+
+  return typeof value === 'string' ? value.trim() : '';
 }
 
 export function getQueryValue(query: any, key: string): string {

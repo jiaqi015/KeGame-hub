@@ -17,6 +17,7 @@ import {
   startEmailLogin,
 } from './services/apiService';
 import { ComparisonResult, ActivationWorkspaceId } from './types';
+import { resolveSellingHousesStorageProfileFromSearch } from './selling-houses/application/storageProfile';
 
 // UI Components
 import { AuthOverlay } from './components/Auth/AuthOverlay';
@@ -68,6 +69,8 @@ export default function App() {
     results,
     previewData,
   } = state;
+
+  const sellingHousesStorageProfile = resolveSellingHousesStorageProfileFromSearch(window.location.search);
 
   const compareRunRef = useRef(0);
   const activeControllersRef = useRef<AbortController[]>([]);
@@ -420,7 +423,7 @@ export default function App() {
                   onClick={handleReturnToHub}
                   className={`inline-flex items-center gap-2 text-sm font-medium transition ${meta.accentClassName}`}
                 >
-                  返回 Hub
+                  返回 KeGame Hub
                 </button>
               </div>
 
@@ -511,6 +514,7 @@ export default function App() {
                 currentUserAccountId: state.currentUserAccountId,
                 currentUserNickname: currentUserNickname,
                 currentUserEmail: currentUserEmail,
+                sellingHousesStorageProfile,
                 onReturnToHub: handleReturnToHub,
                 onLogout: handleLogoutAccount,
             })}
@@ -532,7 +536,7 @@ export default function App() {
         <footer className="shrink-0 border-t border-black/5 bg-white py-3 text-center text-[11px] text-[#86868B]">
           <div className="flex items-center justify-center gap-2">
             <Sparkles className="h-3.5 w-3.5" />
-            <span>KeGame • 多模型PK + 开放日选址 + 资产顾问 + 商圈经营 + 理性业主</span>
+            <span>KeGame Hub • 多模型PK + 开放日选址 + 资产顾问 + 商圈经营 + 理性业主</span>
             <span className="text-black/10">|</span>
             <span>© 2026</span>
           </div>

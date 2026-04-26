@@ -1,5 +1,6 @@
 import { MAINTAINER_NAMES, OWNER_NAMES } from './constants.js';
 import type { Case, OwnerArchetype, ScenarioCase, ScenarioSnapshot } from './models.js';
+import { normalizeOwnerPriceAnchors } from './priceAnchors.js';
 import { pickRandom, randomFloat, randomInt, type RandomSource } from './utils.js';
 
 function resolvePersonality(archetype: OwnerArchetype): Case['personality'] {
@@ -27,9 +28,12 @@ export function instantiateScenarioCases(snapshot: ScenarioSnapshot, source?: Ra
       throw new Error(`Scenario case ${definition.id} 引用了不存在的 prototype / archetype。`);
     }
 
-    const askPrice = definition.askPrice;
     const marketPrice = Math.round(prototype.marketPrice * (1 + randomFloat(-0.015, 0.015, source)));
-    const bottomPrice = Math.min(definition.bottomPrice, askPrice - 8);
+    const { askPrice, bottomPrice } = normalizeOwnerPriceAnchors({
+      askPrice: definition.askPrice,
+      marketPrice,
+      bottomPrice: definition.bottomPrice,
+    });
     const competitionGroupIds = snapshot.scenario.competitionGroups
       .filter((group) => group.members.includes(buildCaseId(definition)))
       .map((group) => group.id);

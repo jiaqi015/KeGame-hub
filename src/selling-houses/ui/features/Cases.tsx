@@ -1,19 +1,38 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { GameState, Case } from '../../domain/models';
-import { buildCaseDetailProjection } from '../../application/projections/operatingProjection.js';
+import { GameState, Case, type Opportunity } from '../../domain/models';
+import {
+  buildCaseDetailProjection,
+  buildOperatingProjection,
+  type ProductOpportunityProjection,
+} from '../../application/projections/operatingProjection.js';
 import { ACTIONS, ACTION_CATEGORIES } from '../../domain/constants';
 import { costText, caseSortValue } from '../../domain/utils';
 import { getActiveOpportunities, getActionAvailability } from '../../domain/engine';
 import { PERSONALITIES } from '../../domain/constants';
 import { Star } from 'lucide-react';
 import { buildOpportunityViewModels, type OpportunityViewModel } from './caseOpportunityViewModel';
-import { ActionDecisionOverlay, buildActionDecisionConfig, type ActionDecisionConfig, type ScenarioResult } from './ActionDecisionOverlay';
+import {
+  ActionDecisionOverlay,
+  buildActionDecisionConfig,
+  type ActionDecisionConfig,
+  type ScenarioChoice,
+  type ScenarioFeedback,
+  type ScenarioResult,
+} from './ActionDecisionOverlay';
 
 interface CasesProps {
   state: GameState;
+  selectedCaseIdOverride?: string | null;
   onSelectCase: (id: string) => void;
-  onExecuteAction: (actionId: string, caseItem: any, optionId?: string | null) => boolean;
-  onExecuteScenarioAction: (actionId: string, caseItem: any, settlement: ScenarioResult) => boolean;
+  onExecuteAction: (actionId: string, caseItem: Case, optionId?: string | null) => boolean;
+  onCaptureOpportunity: (opportunity: ProductOpportunityProjection) => boolean;
+  onExecuteScenarioAction: (
+    actionId: string,
+    caseItem: Case,
+    settlement: ScenarioResult,
+    choices: ScenarioChoice[],
+    feedbacks: ScenarioFeedback[],
+  ) => boolean;
 }
 
 type ActionCategoryTab = 'feedback' | 'marketing' | 'pricing' | 'negotiation';
@@ -27,22 +46,36 @@ type CaseStageFilter = 'all' | 'pre_visit' | 'packaging' | 'showing' | 'feedback
 type CaseQuickFilter = 'focused' | 'urgent' | 'price' | 'late-stage';
 const CASE_STAGE_FILTERS: Array<{ id: CaseStageFilter; label: string }> = [
   { id: 'all', label: '全部' },
-  { id: 'pre_visit', label: '待面访分型' },
-  { id: 'packaging', label: '需包装曝光' },
-  { id: 'showing', label: '需提升带看' },
-  { id: 'feedback_offer', label: '促进反馈出价' },
-  { id: 'negotiation', label: '推进谈判成交' },
-  { id: 'closed', label: '已结束' },
+  { id: 'pre_visit', label: '面访' },
+  { id: 'packaging', label: '包装' },
+  { id: 'showing', label: '带看' },
+  { id: 'feedback_offer', label: '反馈' },
+  { id: 'negotiation', label: '谈判' },
+  { id: 'closed', label: '结束' },
 ];
 
 const CASE_QUICK_FILTERS: Array<{ id: CaseQuickFilter; label: string }> = [
-  { id: 'focused', label: '本周聚焦' },
-  { id: 'urgent', label: '拖久会丢' },
-  { id: 'price', label: '价格卡壳' },
-  { id: 'late-stage', label: '接近成交' },
+  { id: 'focused', label: '聚焦' },
+  { id: 'urgent', label: '易丢' },
+  { id: 'price', label: '需要反馈' },
+  { id: 'late-stage', label: '成交' },
 ];
 
-export function Cases({ state, onSelectCase, onExecuteAction, onExecuteScenarioAction }: CasesProps) {
+type RecommendedActionCardLike = {
+  action: { id: string };
+  availability: { enabled: boolean };
+};
+
+export function resolveRecommendedActionCard<T extends RecommendedActionCardLike>(
+  cards: T[],
+  primaryActionId?: string | null,
+): T | null {
+  return cards.find((card) => card.action.id === primaryActionId && card.availability.enabled)
+    || cards.find((card) => card.availability.enabled)
+    || null;
+}
+
+export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAction, onCaptureOpportunity, onExecuteScenarioAction }: CasesProps) {
   const { cases, selectedCaseId } = state;
   const [stageFilter, setStageFilter] = useState<CaseStageFilter>('all');
   const [quickFilter, setQuickFilter] = useState<CaseQuickFilter | null>(null);
@@ -51,10 +84,31 @@ export function Cases({ state, onSelectCase, onExecuteAction, onExecuteScenarioA
     () => new Map(sortedCases.map((entry) => [entry.id, buildCaseDetailProjection(state, entry)])),
     [sortedCases, state],
   );
+  const productOpportunities = useMemo(
+    () => buildOperatingProjection(state).productOpportunities,
+    [state],
+  );
+  const listingOpportunityByCaseId = useMemo(
+    () => new Map(
+      productOpportunities
+        .filter((entry) => entry.scope === 'listing' && entry.caseId)
+        .map((entry) => [entry.caseId as string, entry]),
+    ),
+    [productOpportunities],
+  );
+  const communityOpportunityByCommunity = useMemo(
+    () => new Map(
+      productOpportunities
+        .filter((entry) => entry.scope === 'community')
+        .map((entry) => [entry.targetId, entry]),
+    ),
+    [productOpportunities],
+  );
   const visibleCases = sortedCases
     .filter((entry) => matchStageFilter(entry, caseProjectionById.get(entry.id) || null, stageFilter))
     .filter((entry) => matchQuickFilter(state, entry, caseProjectionById.get(entry.id) || null, quickFilter));
-  const selectedCase = sortedCases.find((entry) => entry.id === selectedCaseId) || visibleCases[0] || sortedCases[0];
+  const effectiveSelectedCaseId = selectedCaseIdOverride || selectedCaseId;
+  const selectedCase = sortedCases.find((entry) => entry.id === effectiveSelectedCaseId) || visibleCases[0] || sortedCases[0];
   const selectionHiddenByFilter = Boolean(selectedCase && !visibleCases.some((entry) => entry.id === selectedCase.id));
   const activeOpportunities = selectedCase ? getActiveOpportunities(state, selectedCase.id) : [];
 
@@ -63,7 +117,6 @@ export function Cases({ state, onSelectCase, onExecuteAction, onExecuteScenarioA
   const [activeDetailTab, setActiveDetailTab] = useState<CaseDetailTab>('overview');
 
   const caseProjection = selectedCase ? caseProjectionById.get(selectedCase.id) || null : null;
-  const latestScoreSnapshot = selectedCase?.competitivenessSnapshots?.[0];
   const opportunityModels = useMemo(
     () => buildOpportunityViewModels(state, activeOpportunities),
     [activeOpportunities, state],
@@ -119,6 +172,10 @@ export function Cases({ state, onSelectCase, onExecuteAction, onExecuteScenarioA
   }).filter(({ cards }) => cards.length > 0);
   const activeActionCategory = actionCardsByCategory.find(({ category }) => category.id === activeActionTab) || actionCardsByCategory[0];
   const availableActionCount = actionCards.filter(({ availability }) => availability.enabled).length;
+  const recommendedActionCard = resolveRecommendedActionCard(
+    actionCards,
+    caseProjection?.listingLifecyclePhase.primaryActionId,
+  );
 
   useEffect(() => {
     setActiveActionTab('feedback');
@@ -143,12 +200,12 @@ export function Cases({ state, onSelectCase, onExecuteAction, onExecuteScenarioA
         <div className="z-10 space-y-3 border-b border-[var(--seller-border)] bg-[rgba(15,23,32,0.94)] px-3 pb-3 pt-3 backdrop-blur">
           <div>
             <div className="seller-label">房源筛选</div>
-            <div className="mt-2 flex flex-wrap gap-1.5">
+            <div className="mt-1.5 flex flex-wrap gap-1">
               {CASE_STAGE_FILTERS.map((filter) => (
                 <button
                   key={filter.id}
                   onClick={() => setStageFilter(filter.id)}
-                  className={`whitespace-nowrap rounded-full px-2 py-[3px] text-[9px] font-semibold leading-4 ${
+                  className={`whitespace-nowrap rounded-full px-1.5 py-[1px] text-[8px] font-semibold leading-4 ${
                     stageFilter === filter.id ? 'bg-[var(--seller-ink)] text-[var(--seller-bg)]' : 'bg-[rgba(255,255,255,0.05)] text-[var(--seller-muted)]'
                   }`}
                 >
@@ -159,12 +216,12 @@ export function Cases({ state, onSelectCase, onExecuteAction, onExecuteScenarioA
           </div>
           <div>
             <div className="seller-label">快捷筛选</div>
-            <div className="mt-2 flex flex-wrap gap-2">
+            <div className="mt-1.5 flex flex-wrap gap-1">
               {CASE_QUICK_FILTERS.map((filter) => (
                 <button
                   key={filter.id}
                   onClick={() => setQuickFilter((current) => current === filter.id ? null : filter.id)}
-                  className={`rounded-full px-2 py-[3px] text-[9px] font-semibold leading-4 ${
+                  className={`rounded-full px-1.5 py-[1px] text-[8px] font-semibold leading-4 ${
                     quickFilter === filter.id ? 'seller-chip-chance' : 'bg-[rgba(255,255,255,0.05)] text-[var(--seller-muted)]'
                   }`}
                 >
@@ -177,13 +234,15 @@ export function Cases({ state, onSelectCase, onExecuteAction, onExecuteScenarioA
         <div className="flex-1 space-y-1.5 overflow-y-auto p-2.5">
         {visibleCases.map(c => {
           const cardProjection = caseProjectionById.get(c.id) || null;
+          const listingOpportunity = listingOpportunityByCaseId.get(c.id);
+          const communityOpportunity = communityOpportunityByCommunity.get(c.community);
           return (
           <div
             key={c.id}
             onClick={() => onSelectCase(c.id)}
-            className={`relative cursor-pointer overflow-hidden rounded-[12px] border px-2.5 py-2.5 transition-all ${
+            className={`relative min-h-[150px] cursor-pointer overflow-hidden rounded-[16px] border px-3 py-3.5 transition-all ${
               c.id === selectedCase?.id
-                ? 'border-[color:var(--seller-border-strong)] bg-[rgba(255,255,255,0.04)] shadow-inner'
+                ? 'border-[color:var(--seller-border-strong)] bg-[rgba(255,255,255,0.055)] shadow-inner'
                 : 'border-transparent bg-[rgba(255,255,255,0.02)] hover:border-[var(--seller-border)] hover:bg-[rgba(255,255,255,0.04)]'
             }`}
           >
@@ -192,30 +251,46 @@ export function Cases({ state, onSelectCase, onExecuteAction, onExecuteScenarioA
                   <Star size={10} fill="currentColor" />
                 </div>
               )}
-            <div className="mb-1.5 flex items-start justify-between gap-2">
-              <span className={`rounded-full px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.12em] ${
+            <div className="flex items-start justify-between gap-2">
+              <span className={`rounded-full px-2 py-0.5 text-[8px] font-bold tracking-[0.08em] ${
                 c.isFocused ? 'bg-[var(--seller-accent-soft)] text-[var(--seller-accent)]' : 'bg-[rgba(255,255,255,0.06)] text-[var(--seller-subtle)]'
               }`}>
                 {c.isFocused ? '本周聚焦' : cardProjection?.listingLifecyclePhase.completionStateLabel || cardProjection?.listingLifecyclePhase.phaseLabel || c.stageLabel}
               </span>
               <small className="pt-0.5 text-[9px] font-medium text-[var(--seller-subtle)]">{c.district}</small>
             </div>
-            <strong className="block line-clamp-1 text-[13px] font-semibold leading-5 text-[var(--seller-ink)]">{c.title}</strong>
+            <strong className="mt-2 block line-clamp-2 text-[14px] font-semibold leading-5 text-[var(--seller-ink)]">{c.title}</strong>
             <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-[var(--seller-muted)]">
               <span>{c.community}</span>
               <span className="text-[var(--seller-border-strong)]">/</span>
               <span>{c.layout} · {c.area}㎡</span>
             </div>
-            <div className="mt-2 flex flex-wrap gap-1">
+            <div className="mt-2 grid grid-cols-3 gap-1.5">
+              <CaseCardPrice label="挂牌" value={c.askPrice} strong />
+              <CaseCardPrice label="市场" value={c.marketPrice} />
+              <CaseCardPrice label="底线" value={c.bottomPrice} />
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
               <CompactTag label="剩余" value={deriveListingAgeLabel(c)} tone="amber" />
               <CompactTag
                 label="阶段"
                 value={cardProjection?.listingLifecyclePhase.phaseLabel || deriveShortCaseState(c, getActiveOpportunities(state, c.id))}
                 tone={deriveHouseScoreTone(c.competitiveness)}
               />
-              <CompactTag label="后果" value={cardProjection?.listingLifecyclePhase.phaseRiskHint || deriveWindowLabel(c, getActiveOpportunities(state, c.id))} tone="rose" />
+              {listingOpportunity?.status === 'triggered' && (
+                <CompactTag label="机会" value="可发起诚意卖" tone="amber" />
+              )}
+              {listingOpportunity?.status === 'accepted' && (
+                <CompactTag label="机会" value="诚意卖进行中" tone="emerald" />
+              )}
+              {communityOpportunity?.status === 'triggered' && (
+                <CompactTag label="机会" value="小区可发起开放日" tone="emerald" />
+              )}
+              {communityOpportunity?.status === 'accepted' && (
+                <CompactTag label="机会" value="开放日进行中" tone="emerald" />
+              )}
             </div>
-            <div className="mt-2 flex items-center gap-2">
+            <div className="mt-2.5 flex items-center gap-2">
               <CompactMetric label="信" val={c.trust} />
               <CompactMetric label="热" val={c.heat} />
               <span className={`ml-auto rounded-full px-2 py-0.5 text-[8px] font-bold ${
@@ -275,19 +350,39 @@ export function Cases({ state, onSelectCase, onExecuteAction, onExecuteScenarioA
                       )}
                     </div>
                     <div className="mt-3">
-                      <div className="seller-label">当前问题</div>
+                      <div className="seller-label">房源阶段</div>
                       <div className="mt-1 text-[15px] font-semibold leading-5 text-[var(--seller-ink)]">
-                        {caseProjection?.listingLifecyclePhase.coreProblemLabel || deriveManagerTake(selectedCase, activeOpportunities)}
+                        {caseProjection?.listingLifecyclePhase.phaseLabel || selectedCase.stageLabel}
                       </div>
                     </div>
                     <p className="seller-body mt-2 max-w-[72ch] text-[11px] leading-5">
-                      {caseProjection?.listingLifecyclePhase.phaseRiskHint || deriveManagerTake(selectedCase, activeOpportunities)}
+                      已接上 {caseProjection?.customerPoolSummary.metCount ?? customerStatesForSelectedCase.length} 位 · 带看 {selectedCase.viewings} 次 · 报价 {selectedCase.offers} 次
                     </p>
-                    {caseProjection?.listingLifecyclePhase?.phaseLabel && (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        <span className="seller-chip">{caseProjection.listingLifecyclePhase.phaseLabel}</span>
-                      </div>
-                    )}
+                    {(() => {
+                      const listingOpportunity = selectedCase ? listingOpportunityByCaseId.get(selectedCase.id) : null;
+                      const communityOpportunity = selectedCase ? communityOpportunityByCommunity.get(selectedCase.community) : null;
+                      const visibleOpportunity = (listingOpportunity?.status === 'triggered' || listingOpportunity?.status === 'accepted')
+                        ? listingOpportunity
+                        : (communityOpportunity?.status === 'triggered' || communityOpportunity?.status === 'accepted')
+                          ? communityOpportunity
+                          : null;
+                      if (!visibleOpportunity) return null;
+                      return (
+                        <div className="mt-3 rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-2.5">
+                          <div className="text-[12px] font-semibold text-[var(--seller-ink)]">{visibleOpportunity.headline}</div>
+                          <p className="mt-1 text-[11px] text-[var(--seller-muted)]">{visibleOpportunity.reasonLabel}</p>
+                          <div className="mt-2">
+                            <button
+                              type="button"
+                              className="seller-button-primary rounded-[10px] px-3 py-2 text-[11px]"
+                              onClick={() => onCaptureOpportunity(visibleOpportunity)}
+                            >
+                              {visibleOpportunity.status === 'accepted' ? '查看进展' : visibleOpportunity.primaryActionLabel}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <div className="grid grid-cols-1 gap-1.5">
@@ -299,12 +394,12 @@ export function Cases({ state, onSelectCase, onExecuteAction, onExecuteScenarioA
 
                 <div className="grid gap-3 px-3.5 py-3 lg:grid-cols-[minmax(0,0.96fr)_minmax(0,1.04fr)]">
                   <section className="seller-panel-soft px-3 py-3">
-                    <div className="seller-label">当前问题</div>
+                    <div className="seller-label">房源诊断</div>
                     <div className="mt-2 grid gap-2">
                       <DiagnosisCard
                         label="主阶段"
                         value={caseProjection?.listingLifecyclePhase.phaseLabel || selectedCase.stageLabel}
-                        detail={caseProjection?.listingLifecyclePhase.coreProblemLabel || '看这套房卡点。'}
+                        detail={caseProjection?.listingLifecyclePhase.coreProblemLabel || '查看卡点。'}
                         tone={caseProjection?.listingLifecyclePhase.phaseDelayLevel === 'late' ? 'rose' : 'slate'}
                         metrics={[
                           { label: '已接上', value: `${caseProjection?.customerPoolSummary.metCount ?? customerStatesForSelectedCase.length} 位` },
@@ -314,7 +409,7 @@ export function Cases({ state, onSelectCase, onExecuteAction, onExecuteScenarioA
                       <DiagnosisCard
                         label="当前动作"
                         value={caseProjection?.listingLifecyclePhase.primaryActionLabel || deriveNextFix(selectedCase, activeOpportunities)}
-                        detail={caseProjection?.nextStepLine || '推进最关键一步。'}
+                        detail={caseProjection?.nextStepLine || '关键动作。'}
                         tone="amber"
                         metrics={[
                           { label: '报价', value: `${selectedCase.offers} 次` },
@@ -324,7 +419,7 @@ export function Cases({ state, onSelectCase, onExecuteAction, onExecuteScenarioA
                       <DiagnosisCard
                         label="当前风险"
                         value={caseProjection?.listingLifecyclePhase.phaseRiskHint || deriveWindowLabel(selectedCase, activeOpportunities)}
-                        detail={caseProjection?.competitionSummary.detail || '外部压力会继续叠加。'}
+                        detail={caseProjection?.competitionSummary.detail || '外部压力。'}
                         tone={caseProjection?.listingLifecyclePhase.phaseDelayLevel === 'late' ? 'rose' : 'amber'}
                         metrics={[
                           { label: '同类房', value: `${caseProjection?.competitionSummary.rivalCount ?? 0} 套` },
@@ -343,17 +438,14 @@ export function Cases({ state, onSelectCase, onExecuteAction, onExecuteScenarioA
                         </div>
                       </div>
                       <span className="seller-chip seller-chip-accent">
-                        {availableActionCount}/{ACTIONS.length} 可做
+                        当前可做 {availableActionCount} / {ACTIONS.length}
                       </span>
                     </div>
 
                     <div className="mt-3 space-y-2">
-                      {(actionCards.find((card) => card.action.id === caseProjection?.listingLifecyclePhase.primaryActionId)
-                        || actionCards.find(({ availability }) => availability.enabled)
-                        || null) ? (
+                      {recommendedActionCard ? (
                         <CompactActionButton
-                          card={(actionCards.find((card) => card.action.id === caseProjection?.listingLifecyclePhase.primaryActionId)
-                            || actionCards.find(({ availability }) => availability.enabled))!}
+                          card={recommendedActionCard}
                           onExecute={handleAction}
                           index={0}
                         />
@@ -374,28 +466,28 @@ export function Cases({ state, onSelectCase, onExecuteAction, onExecuteScenarioA
                       onClick={() => setActiveDetailTab('overview')}
                       className={`seller-tab ${activeDetailTab === 'overview' ? 'seller-tab-active' : ''}`}
                     >
-                      概况
+                      房源和业主
                     </button>
                     <button
                       type="button"
                       onClick={() => setActiveDetailTab('customers')}
                       className={`seller-tab ${activeDetailTab === 'customers' ? 'seller-tab-active' : ''}`}
                     >
-                      客户
+                      准客池
                     </button>
                     <button
                       type="button"
                       onClick={() => setActiveDetailTab('changes')}
                       className={`seller-tab ${activeDetailTab === 'changes' ? 'seller-tab-active' : ''}`}
                     >
-                      变化
+                      日志
                     </button>
                     <button
                       type="button"
                       onClick={() => setActiveDetailTab('evidence')}
                       className={`seller-tab ${activeDetailTab === 'evidence' ? 'seller-tab-active' : ''}`}
                     >
-                      依据
+                      风险
                     </button>
                   </div>
                 </div>
@@ -403,35 +495,44 @@ export function Cases({ state, onSelectCase, onExecuteAction, onExecuteScenarioA
                 <div className="px-3.5 py-3">
                   {activeDetailTab === 'overview' && (
                     <div className="grid gap-3 lg:grid-cols-[minmax(0,0.98fr)_minmax(0,1.02fr)]">
-                      <DeskSection title="对象状态" count="业主与房子">
-                        <div className="grid gap-2 lg:grid-cols-2">
-                          <SummaryPanel
-                            title={caseProjection?.ownerSummary.title || '业主还在等明确反馈'}
-                            detail={caseProjection?.ownerSummary.detail || deriveSellerGuidance(selectedCase)}
-                            points={[
-                              `信任 ${caseProjection?.ownerSummary.trust ?? Math.round(selectedCase.trust)}`,
-                              `耐心 ${caseProjection?.ownerSummary.patience ?? Math.round(selectedCase.patience)}`,
-                              `紧迫 ${caseProjection?.ownerSummary.urgency ?? Math.round(selectedCase.urgency)}`,
-                            ]}
-                          />
-                          <SummaryPanel
-                            title={deriveStrongPoint(selectedCase)}
-                            detail={deriveWeakPoint(selectedCase)}
-                            points={[
-                              `客户储备 ${Math.round(selectedCase.d1)}`,
-                              `房子条件 ${Math.round(selectedCase.d2)}`,
-                              `业主配合 ${Math.round(selectedCase.d3)}`,
-                            ]}
-                          />
-                        </div>
+                      <DeskSection title="房源状态" count={caseProjection?.listingLifecyclePhase.phaseLabel || selectedCase.stageLabel}>
+                        <SummaryPanel
+                          title={deriveStrongPoint(selectedCase)}
+                          detail={deriveWeakPoint(selectedCase)}
+                          points={[
+                            `客户储备 ${formatScoreBand(selectedCase.d1)}`,
+                            `房子条件 ${formatScoreBand(selectedCase.d2)}`,
+                            `业主配合 ${formatScoreBand(selectedCase.d3)}`,
+                          ]}
+                        />
                         <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
                           <ProgressRail label="客户储备" value={selectedCase.d1} tone="chance" />
                           <ProgressRail label="房子条件" value={selectedCase.d2} tone="neutral" />
                           <ProgressRail label="业主配合" value={selectedCase.d3} tone="risk" />
                         </div>
                         <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                          <InfoStrip label="沟通方式" value={deriveCommunicationMode(selectedCase)} />
                           <InfoStrip label="当前动作" value={deriveNextFix(selectedCase, activeOpportunities)} />
+                          <InfoStrip label="价格关系" value={`${selectedCase.askPrice} 万 / 市场 ${selectedCase.marketPrice} 万`} />
+                        </div>
+                      </DeskSection>
+
+                      <DeskSection title="业主状态" count={PERSONALITIES[selectedCase.personality as keyof typeof PERSONALITIES]?.label || '业主'}>
+                        <SummaryPanel
+                          title={caseProjection?.ownerSummary.title || '业主状态稳定'}
+                          detail={caseProjection?.ownerSummary.detail || deriveSellerGuidance(selectedCase)}
+                          points={[
+                            `信任 ${caseProjection?.ownerSummary.trust ?? Math.round(selectedCase.trust)}`,
+                            `耐心 ${caseProjection?.ownerSummary.patience ?? Math.round(selectedCase.patience)}`,
+                            `紧迫 ${caseProjection?.ownerSummary.urgency ?? Math.round(selectedCase.urgency)}`,
+                          ]}
+                        />
+                        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                          <ProgressRail label="信任" value={caseProjection?.ownerSummary.trust ?? selectedCase.trust} tone="neutral" />
+                          <ProgressRail label="耐心" value={caseProjection?.ownerSummary.patience ?? selectedCase.patience} tone="chance" />
+                          <ProgressRail label="紧迫" value={caseProjection?.ownerSummary.urgency ?? selectedCase.urgency} tone="risk" />
+                        </div>
+                        <div className="mt-2">
+                          <InfoStrip label="沟通方式" value={deriveCommunicationMode(selectedCase)} />
                         </div>
                       </DeskSection>
                     </div>
@@ -480,7 +581,7 @@ export function Cases({ state, onSelectCase, onExecuteAction, onExecuteScenarioA
 
                   {activeDetailTab === 'changes' && (
                     <div className="grid gap-3 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
-                      <DeskSection title="最近变化" count={`${caseProjection?.recentChanges.length || 0} 条`}>
+                      <DeskSection title="日志" count={`${caseProjection?.recentChanges.length || 0} 条`}>
                         <div className="space-y-1.5">
                           {caseProjection?.recentChanges.slice(0, 5).map((change) => (
                             <div key={change.id}>
@@ -497,7 +598,7 @@ export function Cases({ state, onSelectCase, onExecuteAction, onExecuteScenarioA
 
                   {activeDetailTab === 'evidence' && (
                     <div className="grid gap-3 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
-                      <DeskSection title="依据" count={`${caseProjection?.factChain.length || 0} 条`}>
+                      <DeskSection title="风险" count={`${caseProjection?.factChain.length || 0} 条`}>
                         <div className="space-y-1.5">
                           {caseProjection?.factChain.slice(0, 6).map((fact) => (
                             <div key={fact.id}>
@@ -505,7 +606,7 @@ export function Cases({ state, onSelectCase, onExecuteAction, onExecuteScenarioA
                             </div>
                           ))}
                           {!caseProjection || caseProjection.factChain.length === 0 ? (
-                            <div className="seller-empty px-3 py-3 text-[11px]">目前还没有足够依据。</div>
+                            <div className="seller-empty px-3 py-3 text-[11px]">目前没有明显风险。</div>
                           ) : null}
                         </div>
                       </DeskSection>
@@ -516,41 +617,22 @@ export function Cases({ state, onSelectCase, onExecuteAction, onExecuteScenarioA
             </div>
 
             <aside className="flex min-h-0 flex-col gap-3">
-              <section className="seller-panel-muted px-3.5 py-3">
-                <div className="seller-label">当前问题</div>
-                <div className="mt-2 text-[15px] font-semibold leading-5 text-[var(--seller-ink)]">
-                  {caseProjection?.listingLifecyclePhase.coreProblemLabel || '继续推进'}
-                </div>
-                <p className="seller-body mt-1 text-[11px] leading-5">
-                  {caseProjection?.listingLifecyclePhase.phaseRiskHint || caseProjection?.nextStepLine || '别让这套房继续停住。'}
-                </p>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {caseProjection?.listingLifecyclePhase && (
-                    <span className="seller-chip seller-chip-accent">
-                      当前动作：{caseProjection.listingLifecyclePhase.primaryActionLabel}
-                    </span>
-                  )}
-                  {latestScoreSnapshot ? (
-                    <span className={latestScoreSnapshot.delta >= 0 ? 'seller-chip seller-chip-chance' : 'seller-chip seller-chip-risk'}>
-                      {latestScoreSnapshot.delta >= 0 ? '+' : ''}{Math.round(latestScoreSnapshot.delta * 10) / 10} 分
-                    </span>
-                  ) : null}
-                </div>
-              </section>
-
               <DeskSection title="暂不可做" count={`${activeActionCategory?.blockedCards.length || 0} 项`}>
-                <div className="flex gap-1.5 overflow-x-auto pb-1">
+                <div className="flex flex-wrap gap-1.5 pb-1">
                   {actionCardsByCategory.map(({ category, availableCards }) => (
                     <button
                       key={category.id}
                       onClick={() => setActiveActionTab(category.id as ActionCategoryTab)}
-                      className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-bold tracking-[0.08em] transition-colors ${
+                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-semibold leading-4 transition-colors ${
                         activeActionCategory?.category.id === category.id
                           ? 'bg-[var(--seller-ink)] text-[var(--seller-bg)]'
                           : 'bg-[rgba(255,255,255,0.05)] text-[var(--seller-muted)] hover:bg-[rgba(255,255,255,0.08)]'
                       }`}
                     >
-                      {category.name} · {availableCards.length}
+                      <span>{category.name}</span>
+                      <span className={activeActionCategory?.category.id === category.id ? 'opacity-70' : 'text-[var(--seller-subtle)]'}>
+                        {availableCards.length}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -600,8 +682,8 @@ export function Cases({ state, onSelectCase, onExecuteAction, onExecuteScenarioA
               setDecisionConfig(null);
             }
           }}
-          onComplete={(result) => {
-            onExecuteScenarioAction(decisionConfig.actionId, selectedCase, result);
+          onComplete={(result, choices, feedbacks) => {
+            onExecuteScenarioAction(decisionConfig.actionId, selectedCase, result, choices, feedbacks);
             setDecisionConfig(null);
           }}
           onClose={() => setDecisionConfig(null)}
@@ -707,18 +789,25 @@ function SummaryPanel({
 
 function ProgressRail({ label, value, tone }: { label: string; value: number; tone: 'neutral' | 'chance' | 'risk' }) {
   const colorClass = tone === 'chance' ? 'bg-[var(--seller-chance)]' : tone === 'risk' ? 'bg-[var(--seller-risk)]' : 'bg-[var(--seller-accent)]';
+  const scoreBand = formatScoreBand(value);
 
   return (
     <div className="rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-2.5">
       <div className="mb-1 flex items-center justify-between">
         <div className="seller-label text-[9px]">{label}</div>
-        <div className="text-[10px] font-semibold text-[var(--seller-muted)]">{Math.round(value)}</div>
+        <div className="text-[10px] font-semibold text-[var(--seller-muted)]">{scoreBand}</div>
       </div>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-[rgba(255,255,255,0.07)]">
         <div className={`h-full ${colorClass}`} style={{ width: `${value}%` }} />
       </div>
     </div>
   );
+}
+
+function formatScoreBand(value: number) {
+  if (value >= 70) return '高';
+  if (value >= 45) return '中';
+  return '低';
 }
 
 function InfoStrip({ label, value }: { label: string; value: string }) {
@@ -755,6 +844,15 @@ function PriceLine({ label, value, strong = false }: { label: string; value: str
     <div className={`rounded-[12px] border px-3 py-2.5 ${strong ? 'border-[color:var(--seller-accent)]/28 bg-[var(--seller-accent-soft)]' : 'border-[color:var(--seller-border)] bg-[rgba(255,255,255,0.03)]'}`}>
       <div className="seller-label text-[9px]">{label}</div>
       <div className={`mt-1 ${strong ? 'text-[18px] text-[var(--seller-accent)]' : 'text-[13px] text-[var(--seller-ink)]'} font-semibold`}>{value}</div>
+    </div>
+  );
+}
+
+function CaseCardPrice({ label, value, strong = false }: { label: string; value: number; strong?: boolean }) {
+  return (
+    <div className={`rounded-[10px] border px-2 py-1.5 ${strong ? 'border-[color:var(--seller-accent)]/24 bg-[var(--seller-accent-soft)]' : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)]'}`}>
+      <div className="text-[8px] font-bold tracking-[0.08em] text-[var(--seller-subtle)]">{label}</div>
+      <div className={`mt-0.5 text-[11px] font-semibold ${strong ? 'text-[var(--seller-accent)]' : 'text-[var(--seller-ink)]'}`}>{Math.round(value)} 万</div>
     </div>
   );
 }
@@ -920,23 +1018,27 @@ function CompactActionButton({
   onExecute: (actionId: string) => void;
   index?: number;
 }) {
-  const { action, hint } = card;
+  const { action, hint, availability } = card;
   const primary = index === 0;
+  const disabled = !availability.enabled;
 
   return (
     <button
       type="button"
-      onClick={() => onExecute(action.id)}
-      className={`w-full rounded-[12px] border px-3 py-2.5 text-left transition ${
+      onClick={() => {
+        if (!disabled) onExecute(action.id);
+      }}
+      disabled={disabled}
+      className={`w-full rounded-[12px] border px-3 py-2.5 text-left transition disabled:cursor-not-allowed disabled:opacity-60 ${
         primary
-          ? 'border-[color:var(--seller-accent)]/38 bg-[var(--seller-accent-soft)] hover:border-[color:var(--seller-accent)]/56'
-          : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] hover:border-[var(--seller-border-strong)] hover:bg-[rgba(255,255,255,0.05)]'
+          ? 'border-[color:var(--seller-accent)]/38 bg-[var(--seller-accent-soft)] hover:border-[color:var(--seller-accent)]/56 disabled:hover:border-[color:var(--seller-accent)]/38'
+          : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] hover:border-[var(--seller-border-strong)] hover:bg-[rgba(255,255,255,0.05)] disabled:hover:border-[var(--seller-border)] disabled:hover:bg-[rgba(255,255,255,0.03)]'
       }`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className={`text-[12px] font-semibold ${primary ? 'text-[var(--seller-accent)]' : 'text-[var(--seller-ink)]'}`}>{action.name}</div>
-          <p className="seller-body mt-0.5 line-clamp-2 text-[11px] leading-5">{hint}</p>
+          <p className="seller-body mt-0.5 line-clamp-2 text-[11px] leading-5">{disabled ? availability.reason : hint}</p>
         </div>
         <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${primary ? 'bg-[var(--seller-accent)] text-[var(--seller-bg)]' : 'bg-[rgba(255,255,255,0.06)] text-[var(--seller-muted)]'}`}>
           {costText(action)}
@@ -964,7 +1066,7 @@ function BlockedActionLine({
   );
 }
 
-function deriveActionHint(actionId: string, caseItem: Case, opportunities: any[]) {
+function deriveActionHint(actionId: string, caseItem: Case, opportunities: Opportunity[]) {
   if (actionId === 'first-visit') return !caseItem.hasCompletedFirstVisit ? '未完成首次面访。' : '首次面访已完成。';
   if (actionId === 'weekly-feedback') return caseItem.trust < 60 ? '业主关系已经有点发紧。'
     : '业主关系还稳。';
@@ -1044,14 +1146,14 @@ function derivePricePosition(caseItem: Case) {
   return `比市场常见成交价高 ${caseItem.askPrice - caseItem.marketPrice} 万`;
 }
 
-function deriveWindowLabel(caseItem: Case, opportunities: any[]) {
+function deriveWindowLabel(caseItem: Case, opportunities: Opportunity[]) {
   if (caseItem.windowDays <= 5) return '再拖容易失手';
   if (opportunities.some(o => o.daysLeft <= 2 && o.visibility !== 'shadow')) return '已有客户在掉线边缘';
   if (opportunities.some(o => o.visibility === 'shadow')) return '还有客户没核实';
   return '还要继续往前推';
 }
 
-function deriveManagerTake(caseItem: Case, opportunities: any[]) {
+function deriveManagerTake(caseItem: Case, opportunities: Opportunity[]) {
   if (caseItem.status === 'lost_to_rival') return '这套房已经在别处成交';
   if (caseItem.status === 'withdrawn') return '这套房已经核销';
   if (caseItem.riskFlags?.includes('要价偏高')) return '现在最大问题是价格偏高';
@@ -1061,41 +1163,41 @@ function deriveManagerTake(caseItem: Case, opportunities: any[]) {
 }
 
 function deriveSellerGuidance(caseItem: Case) {
-  if (caseItem.trust < 55) return '业主已经开始不放心，反馈要讲结果，也要讲原因。';
-  if (caseItem.patience < 45) return '业主耐心不多了，沟通要更直接。';
-  if (caseItem.urgency > 80) return '业主很急，更看重速度和结果。';
-  return '业主现在还愿意配合。';
+  if (caseItem.trust < 55) return '业主信任偏低。';
+  if (caseItem.patience < 45) return '业主耐心偏低。';
+  if (caseItem.urgency > 80) return '业主更看重速度。';
+  return '业主状态相对稳定。';
 }
 
 function deriveCommunicationMode(caseItem: Case) {
-  if (caseItem.personality === 'pragmatic') return '用带看反馈和同类房数据说话';
-  if (caseItem.personality === 'emotional') return '先稳情绪，再讲事情';
-  if (caseItem.personality === 'urgent') return '强调速度和结果，不要绕太久';
-  return '说法要统一，别来回变';
+  if (caseItem.personality === 'pragmatic') return '带看反馈 / 同类房数据';
+  if (caseItem.personality === 'emotional') return '情绪安抚 / 事实同步';
+  if (caseItem.personality === 'urgent') return '速度 / 明确结果';
+  return '统一口径';
 }
 
 function deriveStrongPoint(caseItem: Case) {
-  if (caseItem.d2 >= 75) return '房子条件不错，容易讲卖点';
-  if (caseItem.d1 >= 70) return '客户储备还可以，适合继续推带看';
-  if (caseItem.d3 >= 70) return '业主比较配合，动作容易落下去';
+  if (caseItem.d2 >= 75) return '房子条件较好';
+  if (caseItem.d1 >= 70) return '客户储备较好';
+  if (caseItem.d3 >= 70) return '业主配合较好';
   return '目前没有明显短板';
 }
 
 function deriveWeakPoint(caseItem: Case) {
-  if (caseItem.askPrice > caseItem.marketPrice * 1.05) return '价格偏高，容易卡在带看和出价';
-  if (caseItem.d1 < 45) return '客户太少，带看和转化都接不上';
-  if (caseItem.d3 < 50) return '业主不够配合，关键时候容易掉链子';
+  if (caseItem.askPrice > caseItem.marketPrice * 1.05) return '价格高于市场成交位。';
+  if (caseItem.d1 < 45) return '客户储备偏薄。';
+  if (caseItem.d3 < 50) return '业主配合度偏低。';
   return '还没有明显优势';
 }
 
-function deriveNextFix(caseItem: Case, opportunities: any[]) {
+function deriveNextFix(caseItem: Case, opportunities: Opportunity[]) {
   if (opportunities.length === 0) return '去补客户';
   if (opportunities.some(o => o.visibility === 'shadow')) return '去核实客户';
   if (caseItem.askPrice > caseItem.marketPrice * 1.05) return '去谈价格';
   return '去推进带看';
 }
 
-function deriveShortCaseState(caseItem: Case, opportunities: any[]) {
+function deriveShortCaseState(caseItem: Case, opportunities: Opportunity[]) {
   if (caseItem.status === 'sold') return '已成交';
   if (caseItem.status === 'lost_to_rival') return '他处成交';
   if (caseItem.status === 'withdrawn') return '已核销';
@@ -1117,14 +1219,14 @@ function buildExecutionChecklist(caseItem: Case, projection: NonNullable<ReturnT
   const checklist = projection.actionReasons.map((entry) => ({
     title: entry.title,
     detail: entry.detail,
-    badge: entry.tone === 'risk' ? '当前问题' : entry.tone === 'chance' ? '可推进' : '待执行',
+    badge: entry.tone === 'risk' ? '待处理' : entry.tone === 'chance' ? '可推进' : '待执行',
     tone: entry.tone === 'risk' ? 'rose' : entry.tone === 'chance' ? 'emerald' : 'amber',
   }));
 
   if (projection.currentRiskTags.length > 0) {
     checklist.unshift({
       title: projection.currentRiskTags[0],
-      detail: `${caseItem.title} 最容易掉在这个点。`,
+      detail: `风险标签：${projection.currentRiskTags[0]}`,
       badge: '风险点',
       tone: 'rose',
     });
@@ -1133,7 +1235,7 @@ function buildExecutionChecklist(caseItem: Case, projection: NonNullable<ReturnT
   if (activeOpportunityCount === 0) {
     checklist.push({
       title: '把第一批客户接出来',
-      detail: '现在还没人真正接上，这套房的第一步是补到访和补接触。',
+      detail: '当前还没有接上的客户。',
       badge: '补客户',
       tone: 'amber',
     });

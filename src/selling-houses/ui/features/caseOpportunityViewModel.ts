@@ -39,6 +39,14 @@ export function buildOpportunityViewModels(
     .sort((left, right) => scoreOpportunityViewModel(right) - scoreOpportunityViewModel(left));
 }
 
+export function formatOpportunityDaysLeft(daysLeft: number) {
+  const value = Number.isFinite(daysLeft) ? Math.max(0, daysLeft) : 0;
+  if (value < 1) return '不足 1 天';
+  const rounded = Math.round(value);
+  if (Math.abs(value - rounded) < 0.001) return `${rounded} 天`;
+  return `约 ${Math.ceil(value)} 天`;
+}
+
 export function buildOpportunityViewModel(
   state: GameState,
   opportunity: Opportunity,
@@ -224,11 +232,12 @@ function deriveUrgencyLabel(
   opportunity: Opportunity,
   customerState: CustomerRuntimeState | undefined,
 ) {
-  if (opportunity.visibility === 'shadow') return `${opportunity.daysLeft} 天内不接，这波人群会散`;
-  if ((customerState?.churnRisk || 0) >= 60) return `${opportunity.daysLeft} 天内不跟，客户很容易流失`;
-  if (opportunity.stageIndex >= 4) return `${opportunity.daysLeft} 天内要把价格谈实`;
-  if (opportunity.stageIndex >= 2) return `${opportunity.daysLeft} 天内要接住看房热度`;
-  return `${opportunity.daysLeft} 天内要推进到见面`;
+  const daysLeftLabel = formatOpportunityDaysLeft(opportunity.daysLeft);
+  if (opportunity.visibility === 'shadow') return `${daysLeftLabel}内不接，这波人群会散`;
+  if ((customerState?.churnRisk || 0) >= 60) return `${daysLeftLabel}内不跟，客户很容易流失`;
+  if (opportunity.stageIndex >= 4) return `${daysLeftLabel}内要把价格谈实`;
+  if (opportunity.stageIndex >= 2) return `${daysLeftLabel}内要接住看房热度`;
+  return `${daysLeftLabel}内要推进到见面`;
 }
 
 function deriveCompetitorSummary(state: GameState, runtime?: CustomerCaseRuntime) {

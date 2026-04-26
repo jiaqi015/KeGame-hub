@@ -1,5 +1,6 @@
 import { OpenDayAnalysisService } from '../application/openDayAnalysisService.js';
 import type { OpenDayAnalysisCache } from '../application/openDayAnalysisCache.js';
+import { OpenDayBatchService, getOpenDayBatchService } from '../application/openDayBatchService.js';
 import { OpenDayDatasetService } from '../application/openDayDatasetService.js';
 import type { OpenDayDatasetRepository } from '../application/openDayDatasetRepository.js';
 import { OpenDayScenarioService } from '../application/openDayScenarioService.js';
@@ -22,6 +23,8 @@ import { LayeredOpenDayWorkbookParseCache } from './layeredOpenDayWorkbookParseC
 import { NeonOpenDayScenarioRepository } from './neonOpenDayScenarioRepository.js';
 import { NeonOpenDaySnapshotRepository } from './neonOpenDaySnapshotRepository.js';
 import { NeonOpenDayDatasetRepository } from './neonOpenDayDatasetRepository.js';
+import { RedisOpenDayAnalysisCache } from './redisOpenDayAnalysisCache.js';
+import { RedisOpenDayWorkbookParseCache } from './redisOpenDayWorkbookParseCache.js';
 import { RuntimeCacheOpenDayAnalysisCache } from './runtimeCacheOpenDayAnalysisCache.js';
 import { RuntimeCacheOpenDayWorkbookParseCache } from './runtimeCacheOpenDayWorkbookParseCache.js';
 
@@ -31,6 +34,10 @@ function isVercelRuntime() {
 
 function hasBlobToken() {
   return Boolean((process.env.BLOB_READ_WRITE_TOKEN || '').trim());
+}
+
+function hasRedisUrl() {
+  return Boolean((process.env.REDIS_URL || process.env.UPSTASH_REDIS_REST_URL || '').trim());
 }
 
 function resolveStorageBackend() {
@@ -52,11 +59,23 @@ function resolveCacheBackend() {
     return 'memory' as const;
   }
 
+  if (explicit === 'redis') {
+    return 'redis' as const;
+  }
+
   if (explicit === 'runtime') {
     return 'runtime' as const;
   }
 
+  if (hasRedisUrl()) {
+    return 'redis' as const;
+  }
+
   return isVercelRuntime() ? ('runtime' as const) : ('memory' as const);
+}
+
+function getRedisUrl(): string {
+  return process.env.REDIS_URL || process.env.UPSTASH_REDIS_REST_URL || '';
 }
 
 function resolveUploadBackend() {
@@ -81,8 +100,18 @@ let workbookParseServiceSingleton: OpenDayWorkbookParseService | null = null;
 
 function createAnalysisCache(): OpenDayAnalysisCache {
   const memoryCache = new InMemoryOpenDayAnalysisCache();
-  if (resolveCacheBackend() !== 'runtime') {
+  const backend = resolveCacheBackend();
+
+  if (backend === 'memory') {
     return memoryCache;
+  }
+
+  if (backend === 'redis') {
+    const redisCache = new RedisOpenDayAnalysisCache(getRedisUrl());
+    return new LayeredOpenDayAnalysisCache(
+      memoryCache,
+      redisCache,
+    );
   }
 
   return new LayeredOpenDayAnalysisCache(memoryCache, new RuntimeCacheOpenDayAnalysisCache());
@@ -114,8 +143,18 @@ function createUploadArtifactRepository(): OpenDayUploadArtifactRepository {
 
 function createWorkbookParseCache(): OpenDayWorkbookParseCache {
   const memoryCache = new InMemoryOpenDayWorkbookParseCache();
-  if (resolveCacheBackend() !== 'runtime') {
+  const backend = resolveCacheBackend();
+
+  if (backend === 'memory') {
     return memoryCache;
+  }
+
+  if (backend === 'redis') {
+    const redisCache = new RedisOpenDayWorkbookParseCache(getRedisUrl());
+    return new LayeredOpenDayWorkbookParseCache(
+      memoryCache,
+      redisCache,
+    );
   }
 
   return new LayeredOpenDayWorkbookParseCache(memoryCache, new RuntimeCacheOpenDayWorkbookParseCache());
@@ -176,3 +215,5 @@ export function getOpenDayWorkbookParseService() {
 
   return workbookParseServiceSingleton;
 }
+
+export { getOpenDayBatchService };

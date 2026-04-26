@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { GameState, TodayArrangementSlot } from '../../domain/models';
 import { formatDate, getRoutine } from '../../domain/utils';
 import { WEEKLY_ROUTINE } from '../../domain/constants';
@@ -7,27 +7,34 @@ import {
   type ArrangementProjection,
   buildOperatingProjection,
   type CalendarDayProjection,
+  type CaseDetailProjection,
   type DashboardProjection,
+  type ProductOpportunityProjection,
   type ProjectionBrief,
   type ProjectionTone,
 } from '../../application/projections/operatingProjection.js';
-import { type IntelLayerTab } from './marketIntel';
+import { buildMyWechatProjection } from '../../application/projections/myWechatProjection.js';
+import { buildMarketIntelProjection, type IntelLayerTab } from './marketIntel';
+import { MyWechatPanel } from './MyWechatPanel';
 import {
   ArrowRight,
   Calendar,
   Clock3,
-  Target,
 } from 'lucide-react';
 
 interface DashboardProps {
   state: GameState;
+  wechatReadIds: Set<string>;
   onSelectCase: (id: string) => void;
   onExecuteAction: (actionId: string, caseId: string) => boolean;
   onAddToToday: (item: ArrangementItemProjection, slot: TodayArrangementSlot) => boolean;
   onRemoveFromToday: (itemId: string) => boolean;
   onExecuteTodayItem: (itemId: string) => boolean;
+  onCaptureOpportunity: (opportunity: ProductOpportunityProjection) => boolean;
   onSetView: (view: string) => void;
   onOpenMarket: (layer?: IntelLayerTab) => void;
+  onOpenCaseFromWechat: (caseId: string) => void;
+  onMarkWechatRead: (id: string) => void;
 }
 
 type CalendarRelation = 'past' | 'today' | 'future';
@@ -60,20 +67,38 @@ type AgendaTool = {
   marketLayer?: IntelLayerTab;
 };
 
-type DashboardSidePanel = 'case' | 'scope';
+const CALENDAR_WINDOW_DAYS = 14;
+const CALENDAR_PAST_CONTEXT_DAYS = 3;
+
+export function resolveDashboardSelectedDayAfterStateDayChange(
+  selectedDay: number,
+  stateDay: number,
+  previousStateDay: number,
+) {
+  return stateDay !== previousStateDay ? stateDay : selectedDay;
+}
 
 export function Dashboard({
   state,
+  wechatReadIds,
   onSelectCase,
   onExecuteAction,
   onAddToToday,
   onRemoveFromToday,
   onExecuteTodayItem,
+  onCaptureOpportunity,
   onSetView,
   onOpenMarket,
+  onOpenCaseFromWechat,
+  onMarkWechatRead,
 }: DashboardProps) {
   const operatingProjection = useMemo(() => buildOperatingProjection(state), [state]);
   const dashboard = operatingProjection.dashboard;
+  const marketIntel = useMemo(() => buildMarketIntelProjection(state), [state]);
+  const myWechat = useMemo(
+    () => buildMyWechatProjection({ state, dashboard, marketIntel }),
+    [dashboard, marketIntel, state],
+  );
   const journalItems = useMemo(() => buildJournalItems(state), [state]);
   const calendarRail = useMemo(
     () => buildCalendarRail(state, dashboard, journalItems),
@@ -81,32 +106,32 @@ export function Dashboard({
   );
   const [selectedDay, setSelectedDay] = useState(state.day);
   const [showTimelineDetail, setShowTimelineDetail] = useState(false);
-  const [activeSidePanel, setActiveSidePanel] = useState<DashboardSidePanel>('case');
+  const lastKnownStateDayRef = useRef(state.day);
+
+  useEffect(() => {
+    const previousStateDay = lastKnownStateDayRef.current;
+    const nextSelectedDay = resolveDashboardSelectedDayAfterStateDayChange(
+      selectedDay,
+      state.day,
+      previousStateDay,
+    );
+
+    if (nextSelectedDay !== selectedDay) {
+      setSelectedDay(nextSelectedDay);
+    }
+
+    if (previousStateDay !== state.day) {
+      setShowTimelineDetail(false);
+      lastKnownStateDayRef.current = state.day;
+    }
+  }, [selectedDay, state.day]);
 
   useEffect(() => {
     if (!calendarRail.some((entry) => entry.day === selectedDay)) {
       setSelectedDay(state.day);
+      setShowTimelineDetail(false);
     }
   }, [calendarRail, selectedDay, state.day]);
-
-  const routine = getRoutine(state.day, WEEKLY_ROUTINE);
-  const activeCases = state.cases.filter((caseItem) => caseItem.status === 'active');
-  const visiblePriorities = dashboard.todayPriority.slice(0, 4);
-  const daysRemaining = Math.max(state.maxDay - state.day, 0);
-
-  const leadCaseId = visiblePriorities[0]?.caseId
-    || activeCases.find((caseItem) => caseItem.isFocused)?.id
-    || [...activeCases].sort((left, right) => scoreCaseWeight(right) - scoreCaseWeight(left))[0]?.id
-    || null;
-  const leadCase = leadCaseId
-    ? state.cases.find((caseItem) => caseItem.id === leadCaseId) || null
-    : null;
-  const leadCaseProjection = leadCaseId
-    ? operatingProjection.cases.find((entry) => entry.caseId === leadCaseId) || null
-    : null;
-  const leadCaseImpact = leadCase && dashboard.marketBrief.impactedCases.length > 0
-    ? dashboard.marketBrief.impactedCases.find((item) => item.caseId === leadCase.id) || null
-    : null;
 
   const selectedCalendarEntry = calendarRail.find((entry) => entry.day === selectedDay) || null;
   const selectedDayEvents = journalItems.filter((entry) => entry.day === selectedDay).slice(0, 4);
@@ -142,55 +167,17 @@ export function Dashboard({
     }
   };
 
-  useEffect(() => {
-    if (calendarMode === 'today' && leadCaseId) {
-      setActiveSidePanel('case');
-    }
-  }, [calendarMode, leadCaseId]);
-
   return (
     <div className="space-y-4" data-selling-houses-page="overview">
-      <section className="seller-workbench-dark overflow-hidden px-5 py-4">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
-          <div className="min-w-0">
-            <div className="seller-label">总览</div>
-            <h1
-              className="mt-2 text-[28px] font-semibold leading-[1.04] tracking-[-0.04em] text-[var(--seller-ink)] md:text-[30px]"
-              style={{ fontFamily: 'var(--font-display)' }}
-            >
-              {calendarMode === 'today' ? '今日重点' : calendarMode === 'past' ? '当日回看' : '后续安排'}
-            </h1>
-            <p className="mt-2 max-w-[72ch] text-[12px] leading-6 text-[var(--seller-muted)]">
-              {calendarMode === 'today'
-                ? `在场 ${dashboard.resourceSnapshot.activeCases} 套，活跃客户线 ${dashboard.resourceSnapshot.activeOpportunities} 条。${leadCase
-                  ? ` ${leadCase.title} 在前。`
-                  : ' 处理最关键一件。'}`
-                : calendarMode === 'past'
-                  ? `${selectedDateLabel} 看记录与影响。`
-                  : `${selectedDateLabel} 看安排。`}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-2 text-[11px] text-[var(--seller-muted)] xl:justify-end">
-            <span className="seller-chip seller-chip-accent">DAY {state.day}</span>
-            <span className="seller-chip">{routine.label} · {routine.theme}</span>
-            <span className="seller-chip">剩 {daysRemaining} 天</span>
-          </div>
-        </div>
-      </section>
-
       <section className="seller-panel overflow-hidden">
         <div className="border-b border-[var(--seller-border)] px-4 py-3">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="seller-label flex items-center gap-2">
               <Calendar size={13} />
-              周节奏
+              14天节奏
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
-              <div className="text-[11px] font-medium text-[var(--seller-subtle)]">
-                DAY {state.day.toString().padStart(2, '0')} / {state.maxDay}　剩 {daysRemaining} 天　{routine.label} · {routine.theme}
-              </div>
               <button
                 type="button"
                 onClick={() => {
@@ -207,7 +194,7 @@ export function Dashboard({
             </div>
           </div>
 
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-7">
+          <div className="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-4 lg:grid-cols-7">
             {calendarRail.map((entry) => (
               <CalendarCell
                 key={entry.day}
@@ -241,6 +228,7 @@ export function Dashboard({
             <AgendaPanel
               arrangement={dashboard.arrangement}
               day={state.day}
+              maxDay={state.maxDay}
               energyLabel={dashboard.resourceSnapshot.energy}
               budgetLabel={dashboard.resourceSnapshot.promotionBudget}
               onOpenCase={openCase}
@@ -252,58 +240,20 @@ export function Dashboard({
             />
 
             <div className="space-y-3">
-              <section className="seller-panel overflow-hidden">
-                <div className="flex items-center justify-between gap-3 border-b border-[var(--seller-border)] px-4 py-3">
-          <div className="seller-label">视图</div>
-                  <div className="seller-tabbar">
-                    <button
-                      type="button"
-                      onClick={() => setActiveSidePanel('case')}
-                      className={`seller-tab ${activeSidePanel === 'case' ? 'seller-tab-active' : ''}`}
-                    >
-                      主房源
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setActiveSidePanel('scope')}
-                      className={`seller-tab ${activeSidePanel === 'scope' ? 'seller-tab-active' : ''}`}
-                    >
-                      去向
-                    </button>
-                  </div>
-                </div>
-              </section>
-
-              {activeSidePanel === 'case' ? (
-                <PinnedCasePanel
-                  caseItem={leadCase}
-                  projection={leadCaseProjection}
-                  impactedItem={leadCaseImpact ? {
-                    caseId: leadCaseImpact.caseId || '',
-                    title: leadCaseImpact.title,
-                    count: 1,
-                    reason: leadCaseImpact.detail,
-                    tone: leadCaseImpact.tone,
-                    layer: 'listing',
-                  } : null}
-                  onOpenCase={() => openCase(leadCase?.id)}
-                  onOpenMarket={onOpenMarket}
-                />
-              ) : (
-                <TriageSummaryPanel
-                  cards={dashboard.triageCards}
-                  onOpen={(targetView, caseId, marketLayer) => {
-                    if (caseId) {
-                      onSelectCase(caseId);
-                    }
-                    if (targetView === 'market') {
-                      onOpenMarket(marketLayer || 'macro');
-                      return;
-                    }
-                    onSetView(targetView);
-                  }}
-                />
-              )}
+              {/* 旧右栏“机会 / 今日新闻摘要 / 推荐跟进房源”已由“我的微信”替代，旧组件保留便于回滚。 */}
+              <MyWechatPanel
+                projection={myWechat}
+                readIds={wechatReadIds}
+                onMarkRead={onMarkWechatRead}
+                onSelectCase={onOpenCaseFromWechat}
+                onSelectOpportunity={(opportunityId) => {
+                  const opportunity = state.opportunities.find((entry) => entry.id === opportunityId);
+                  if (opportunity?.caseId) {
+                    onOpenCaseFromWechat(opportunity.caseId);
+                  }
+                }}
+                onOpenMarket={(layer) => onOpenMarket(layer || 'macro')}
+              />
             </div>
           </div>
         </>
@@ -320,9 +270,227 @@ export function Dashboard({
   );
 }
 
+function ProductOpportunityPanel({
+  items,
+  onOpenCase,
+  onCapture,
+}: {
+  items: ProductOpportunityProjection[];
+  onOpenCase: (caseId?: string) => void;
+  onCapture: (opportunity: ProductOpportunityProjection) => boolean;
+}) {
+  return (
+    <section className="seller-panel overflow-hidden">
+      <div className="border-b border-[var(--seller-border)] px-4 py-3">
+        <div className="seller-label">机会</div>
+      </div>
+      <div className="space-y-2 px-4 py-3">
+        {items.map((item) => {
+          const actionLabel = item.status === 'accepted'
+            ? '看进展'
+            : item.primaryActionLabel;
+          return (
+            <article key={item.id} className="rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-2.5">
+              <div className="text-[12px] font-semibold text-[var(--seller-ink)]">{item.headline}</div>
+              <p className="mt-1 text-[11px] text-[var(--seller-muted)]">{item.reasonLabel}</p>
+              <p className="mt-1 text-[11px] text-[var(--seller-subtle)]">{item.subline}</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={item.status === 'expired'}
+                  onClick={() => onCapture(item)}
+                  className="seller-button-primary rounded-[10px] px-3 py-2 text-[11px] disabled:opacity-60"
+                >
+                  {actionLabel}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenCase(item.caseId)}
+                  className="seller-button-secondary rounded-[10px] px-3 py-2 text-[11px]"
+                >
+                  看房源
+                </button>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function oneLine(text: string, max: number) {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= max) return normalized;
+  return `${normalized.slice(0, Math.max(0, max - 1))}…`;
+}
+
+function buildDashboardMarketNews(
+  marketBrief: DashboardProjection['marketBrief'],
+): Array<{ title: string; impact: string }> {
+  const rows: Array<{ title: string; impact: string }> = [];
+  const seen = new Set<string>();
+
+  const append = (title: string, detail: string) => {
+    if (rows.length >= 3) return;
+    const lineTitle = oneLine(title, 56);
+    if (seen.has(lineTitle)) return;
+    seen.add(lineTitle);
+    rows.push({
+      title: lineTitle,
+      impact: oneLine(detail, 48),
+    });
+  };
+
+  if (marketBrief.lead) {
+    append(marketBrief.lead.title, marketBrief.lead.detail);
+  }
+  for (const brief of marketBrief.briefs) {
+    if (rows.length >= 3) break;
+    append(brief.title, brief.detail);
+  }
+
+  return rows;
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function buildFollowListingRows(
+  state: GameState,
+  caseDetails: CaseDetailProjection[],
+  todayPriority: DashboardProjection['todayPriority'],
+) {
+  const seen = new Set<string>();
+  const rows: Array<{
+    caseId: string;
+    name: string;
+    stageOrProblem: string;
+    reason: string;
+  }> = [];
+
+  for (const item of todayPriority) {
+    if (!item.caseId || seen.has(item.caseId)) {
+      continue;
+    }
+    const caseItem = state.cases.find((entry) => entry.id === item.caseId);
+    if (!caseItem || caseItem.status !== 'active') {
+      continue;
+    }
+    seen.add(item.caseId);
+    const projection = caseDetails.find((entry) => entry.caseId === item.caseId) || null;
+    const name = caseItem.title;
+    const stageOrProblem = projection
+      ? projection.listingLifecyclePhase.phaseLabel
+      : oneLine(item.label, 14);
+    let reason = oneLine(item.detail, 50);
+    if (reason.length < 6) {
+      const stripped = item.title.replace(new RegExp(`^\\s*${escapeRegExp(name)}\\s*·\\s*`), '');
+      reason = oneLine(stripped, 50);
+    }
+    rows.push({
+      caseId: item.caseId,
+      name,
+      stageOrProblem,
+      reason: reason || '按今日优先级先推进这一件。',
+    });
+    if (rows.length >= 3) {
+      break;
+    }
+  }
+
+  return rows;
+}
+
+function TodayNewsSummaryPanel({
+  items,
+  onOpenMarket,
+}: {
+  items: Array<{ title: string; impact: string }>;
+  onOpenMarket: () => void;
+}) {
+  return (
+    <section className="seller-panel overflow-hidden">
+      <div className="border-b border-[var(--seller-border)] px-4 py-2.5">
+        <div className="seller-label">今日新闻摘要</div>
+      </div>
+      <div className="px-4 py-3">
+        {items.length === 0 ? (
+          <p className="text-[11px] leading-5 text-[var(--seller-muted)]">
+            今日外部信号不多，可去市场页看板块、竞品和房源变化。
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {items.map((row, index) => (
+              <li key={`${row.title}-${index}`} className="border-b border-[var(--seller-border)] pb-3 last:border-b-0 last:pb-0">
+                <div className="text-[12px] font-semibold text-[var(--seller-ink)]">{row.title}</div>
+                <p className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">{row.impact}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+        <button
+          type="button"
+          onClick={onOpenMarket}
+          className="seller-button-secondary mt-3 flex w-full items-center justify-center gap-1 rounded-[10px] px-3 py-2 text-[11px]"
+        >
+          查看市场动态
+          <ArrowRight size={12} />
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function RecommendedFollowListingsPanel({
+  rows,
+  onOpenCase,
+}: {
+  rows: Array<{
+    caseId: string;
+    name: string;
+    stageOrProblem: string;
+    reason: string;
+  }>;
+  onOpenCase: (caseId: string) => void;
+}) {
+  return (
+    <section className="seller-panel overflow-hidden">
+      <div className="border-b border-[var(--seller-border)] px-4 py-2.5">
+        <div className="seller-label">推荐跟进房源</div>
+      </div>
+      <div className="space-y-2.5 px-4 py-3">
+        {rows.length === 0 ? (
+          <p className="text-[11px] text-[var(--seller-muted)]">暂无需要跟进的在场房源。</p>
+        ) : (
+          rows.map((row) => (
+            <div
+              key={row.caseId}
+              className="rounded-[10px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.02)] px-3 py-2.5"
+            >
+              <div className="text-[13px] font-semibold text-[var(--seller-ink)]">{row.name}</div>
+              <p className="mt-0.5 text-[11px] text-[var(--seller-subtle)]">{row.stageOrProblem}</p>
+              <p className="mt-1.5 text-[11px] leading-5 text-[var(--seller-muted)]">{row.reason}</p>
+              <button
+                type="button"
+                onClick={() => onOpenCase(row.caseId)}
+                className="mt-2 text-[11px] font-medium text-[var(--seller-accent)] hover:underline"
+              >
+                打开房源
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
 function AgendaPanel({
   arrangement,
   day,
+  maxDay,
   energyLabel,
   budgetLabel,
   onOpenCase,
@@ -334,6 +502,7 @@ function AgendaPanel({
 }: {
   arrangement: ArrangementProjection;
   day: number;
+  maxDay: number;
   energyLabel: string;
   budgetLabel: string;
   onOpenCase: (caseId?: string) => void;
@@ -344,16 +513,6 @@ function AgendaPanel({
   onUseTool: (tool: AgendaTool, caseId?: string) => void;
 }) {
   const slots: TodayArrangementSlot[] = ['am', 'pm'];
-  const [collapsedBlocks, setCollapsedBlocks] = useState<Record<string, boolean>>({
-    'am:fixed': true,
-    'pm:fixed': true,
-    'am:completed': true,
-    'pm:completed': true,
-  });
-  const toggleBlock = (slot: TodayArrangementSlot, block: 'fixed' | 'planned' | 'candidate' | 'completed') => {
-    const key = `${slot}:${block}`;
-    setCollapsedBlocks((current) => ({ ...current, [key]: !current[key] }));
-  };
   return (
     <section className="seller-panel overflow-hidden">
       <div className="border-b border-[var(--seller-border)] px-4 py-4">
@@ -363,34 +522,23 @@ function AgendaPanel({
             今日安排
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <h2 className="text-[17px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">
-              {arrangement.headline}
-            </h2>
-            <span className="seller-chip">DAY {day}</span>
-            <span className="seller-chip seller-chip-accent">{energyLabel} 精力</span>
+            <span className="seller-chip">{day}/{maxDay}</span>
+            <span className="seller-chip seller-chip-accent">今日精力 {energyLabel}</span>
             <span className="seller-chip">{budgetLabel} 推广金</span>
+            <span className="seller-chip">{arrangement.plannedEnergyLabel}</span>
             <span className="seller-chip">{arrangement.remainingEnergyLabel}</span>
           </div>
           <p className="mt-2 max-w-[78ch] text-[12px] leading-6 text-[var(--seller-muted)]">
             {arrangement.summary}
           </p>
         </div>
-
-        {arrangement.fixedItems[0] && (
-          <div className="mt-4 rounded-[12px] border border-[color:var(--seller-accent)]/26 bg-[var(--seller-accent-soft)] px-3.5 py-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="seller-chip seller-chip-accent">本周节奏</span>
-              <span className="text-[12px] font-semibold text-[var(--seller-ink)]">{arrangement.weekFocusLabel}</span>
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="border-b border-[var(--seller-border)] px-4 py-4">
         <div className="flex items-center justify-between gap-3">
-          <div className="seller-label">上午 / 下午</div>
+          <div className="seller-label">我的安排</div>
           <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">
-            固定 {arrangement.fixedItems.length} · 已排 {arrangement.plannedItems.length} · 完成 {arrangement.completedItems.length}
+            已安排 {arrangement.fixedItems.length} · 今天做 {arrangement.plannedItems.length} · 完成 {arrangement.completedItems.length}
           </span>
         </div>
         <div className="mt-3 space-y-3">
@@ -399,8 +547,6 @@ function AgendaPanel({
               <HalfDayAgendaSection
                 slot={slot}
                 arrangement={arrangement.slots[slot]}
-                collapsedBlocks={collapsedBlocks}
-                onToggleBlock={toggleBlock}
                 onOpenCase={onOpenCase}
                 onExecuteAction={onExecuteAction}
                 onAddToToday={onAddToToday}
@@ -416,6 +562,32 @@ function AgendaPanel({
   );
 }
 
+function ArrangementTitleBlock({ title, size = 'md' }: { title: string; size?: 'sm' | 'md' }) {
+  const { caseTitle, matterTitle } = splitArrangementTitle(title);
+  const titleClass = size === 'sm'
+    ? 'mt-2 text-[14px] font-semibold text-[var(--seller-ink)]'
+    : 'mt-2 text-[16px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]';
+
+  return (
+    <div>
+      <div className={titleClass}>{caseTitle}</div>
+      {matterTitle ? (
+        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+          <span className="seller-chip">事项：{matterTitle}</span>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function splitArrangementTitle(title: string) {
+  const [caseTitle, ...matterParts] = title.split(' · ');
+  return {
+    caseTitle: caseTitle || title,
+    matterTitle: matterParts.join(' · '),
+  };
+}
+
 function FixedArrangementCard({
   item,
   onOpenCase,
@@ -428,13 +600,17 @@ function FixedArrangementCard({
   return (
     <div className={`rounded-[12px] border px-3.5 py-3 ${item.tone === 'risk' ? 'border-[color:var(--seller-risk)]/24 bg-[var(--seller-risk-soft)]' : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)]'}`}>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="seller-chip">{item.label}</span>
         <span className="seller-chip">{item.slot === 'pm' ? '下午' : '上午'}</span>
         <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">{item.statusLabel}</span>
-        <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">需 {item.energyCost} 点精力</span>
+        <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">占 {item.durationHours} 小时 · {item.energyCost} 精力</span>
       </div>
-      <div className="mt-2 text-[14px] font-semibold text-[var(--seller-ink)]">{item.title}</div>
+      <ArrangementTitleBlock title={item.title} size="sm" />
       <p className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">{item.detail}</p>
+      {item.conflictHint ? (
+        <p className={`mt-2 text-[11px] leading-5 ${item.conflictHint.level === 'warning' ? 'text-[var(--seller-risk)]' : 'text-[var(--seller-muted)]'}`}>
+          {item.conflictHint.message}
+        </p>
+      ) : null}
       <div className="mt-3 flex flex-wrap gap-2">
         {item.actionId && item.caseId ? (
           <button
@@ -445,13 +621,15 @@ function FixedArrangementCard({
             {item.ctaLabel}
           </button>
         ) : null}
-        <button
-          type="button"
-          onClick={() => onOpenCase(item.caseId)}
-          className="seller-button-secondary rounded-[10px] px-3 py-2 text-[11px]"
-        >
-          打开房源
-        </button>
+        {item.caseId ? (
+          <button
+            type="button"
+            onClick={() => onOpenCase(item.caseId)}
+            className="seller-button-secondary rounded-[10px] px-3 py-2 text-[11px]"
+          >
+            看房源
+          </button>
+        ) : null}
       </div>
     </div>
   );
@@ -460,8 +638,6 @@ function FixedArrangementCard({
 function HalfDayAgendaSection({
   slot,
   arrangement,
-  collapsedBlocks,
-  onToggleBlock,
   onOpenCase,
   onExecuteAction,
   onAddToToday,
@@ -471,8 +647,6 @@ function HalfDayAgendaSection({
 }: {
   slot: TodayArrangementSlot;
   arrangement: ArrangementProjection['slots'][TodayArrangementSlot];
-  collapsedBlocks: Record<string, boolean>;
-  onToggleBlock: (slot: TodayArrangementSlot, block: 'fixed' | 'planned' | 'candidate' | 'completed') => void;
   onOpenCase: (caseId?: string) => void;
   onExecuteAction: (actionId: string, caseId: string) => boolean;
   onAddToToday: (item: ArrangementItemProjection, slot: TodayArrangementSlot) => boolean;
@@ -480,137 +654,109 @@ function HalfDayAgendaSection({
   onExecuteTodayItem: (itemId: string) => boolean;
   onUseTool: (tool: AgendaTool, caseId?: string) => void;
 }) {
+  const hasAnyItems = arrangement.plannedItems.length > 0
+    || arrangement.candidateItems.length > 0
+    || arrangement.fixedItems.length > 0
+    || arrangement.completedItems.length > 0;
+
   return (
-    <div className="rounded-[14px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.02)] px-3.5 py-3.5">
+    <div
+      className="rounded-[14px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.02)] px-3.5 py-3.5"
+      data-seller-agenda-slot={slot}
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className={`seller-chip ${slot === 'am' ? 'seller-chip-accent' : ''}`}>{arrangement.label}</span>
-          <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">
-            固定 {arrangement.fixedItems.length} · 已排 {arrangement.plannedItems.length} · 候选 {arrangement.candidateItems.length}
-          </span>
         </div>
         <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">
-          完成 {arrangement.completedItems.length}
+          已排 {arrangement.plannedItems.length} · 候选 {arrangement.candidateItems.length} · 已安排 {arrangement.fixedItems.length}
         </span>
       </div>
 
-      <div className="mt-3 space-y-4">
-        <HalfDayAgendaBlock
-          title="固定安排"
-          emptyText={`${arrangement.label}没有固定安排。`}
-          collapsed={Boolean(collapsedBlocks[`${slot}:fixed`])}
-          onToggle={() => onToggleBlock(slot, 'fixed')}
-        >
-          {arrangement.fixedItems.map((item) => (
-            <React.Fragment key={item.id}>
-              <FixedArrangementCard
-                item={item}
-                onOpenCase={onOpenCase}
-                onExecuteAction={onExecuteAction}
-              />
-            </React.Fragment>
-          ))}
-        </HalfDayAgendaBlock>
+      <div className="mt-3 space-y-3">
+        {arrangement.plannedItems.length > 0 && (
+          <AgendaGroup title="已排今天做" helper="点执行，完成后会扣精力并写入流水。">
+            {arrangement.plannedItems.map((item, index) => (
+              <React.Fragment key={item.id}>
+                <PlannedArrangementCard
+                  item={item}
+                  index={index}
+                  onOpenCase={onOpenCase}
+                  onExecuteTodayItem={onExecuteTodayItem}
+                  onRemoveFromToday={onRemoveFromToday}
+                />
+              </React.Fragment>
+            ))}
+          </AgendaGroup>
+        )}
 
-        <HalfDayAgendaBlock
-          title="我今天安排的"
-          emptyText={`把${arrangement.label}要做的事排进去。`}
-          collapsed={Boolean(collapsedBlocks[`${slot}:planned`])}
-          onToggle={() => onToggleBlock(slot, 'planned')}
-        >
-          {arrangement.plannedItems.map((item, index) => (
-            <React.Fragment key={item.id}>
-              <PlannedArrangementCard
-                item={item}
-                index={index}
-                onOpenCase={onOpenCase}
-                onExecuteTodayItem={onExecuteTodayItem}
-                onRemoveFromToday={onRemoveFromToday}
-              />
-            </React.Fragment>
-          ))}
-        </HalfDayAgendaBlock>
+        {arrangement.candidateItems.length > 0 && (
+          <AgendaGroup title="可排事项" helper={`想做就点“排到${arrangement.label}”，精力不够会自动禁用。`}>
+            {arrangement.candidateItems.map((item, index) => (
+              <React.Fragment key={item.id}>
+                <AgendaItemRow
+                  item={item}
+                  index={index}
+                  slot={slot}
+                  onOpenCase={onOpenCase}
+                  onAddToToday={onAddToToday}
+                  onUseTool={onUseTool}
+                />
+              </React.Fragment>
+            ))}
+          </AgendaGroup>
+        )}
 
-        <HalfDayAgendaBlock
-          title="候选事项"
-          emptyText={`${arrangement.label}暂时没有新的候选事项。`}
-          collapsed={Boolean(collapsedBlocks[`${slot}:candidate`])}
-          onToggle={() => onToggleBlock(slot, 'candidate')}
-        >
-          {arrangement.candidateItems.map((item, index) => (
-            <React.Fragment key={item.id}>
-              <AgendaItemRow
-                item={item}
-                index={index}
-                slot={slot}
-                onOpenCase={onOpenCase}
-                onAddToToday={onAddToToday}
-                onUseTool={onUseTool}
-              />
-            </React.Fragment>
-          ))}
-        </HalfDayAgendaBlock>
+        {arrangement.fixedItems.length > 0 && (
+          <AgendaGroup title="已安排" helper="已排进今天。">
+            {arrangement.fixedItems.map((item) => (
+              <React.Fragment key={item.id}>
+                <FixedArrangementCard
+                  item={item}
+                  onOpenCase={onOpenCase}
+                  onExecuteAction={onExecuteAction}
+                />
+              </React.Fragment>
+            ))}
+          </AgendaGroup>
+        )}
 
-        <HalfDayAgendaBlock
-          title="已完成"
-          emptyText={`${arrangement.label}还没有完成事项。`}
-          collapsed={Boolean(collapsedBlocks[`${slot}:completed`])}
-          onToggle={() => onToggleBlock(slot, 'completed')}
-        >
-          {arrangement.completedItems.map((item) => (
-            <React.Fragment key={item.id}>
-              <CompletedArrangementCard item={item} onOpenCase={onOpenCase} />
-            </React.Fragment>
-          ))}
-        </HalfDayAgendaBlock>
+        {arrangement.completedItems.length > 0 && (
+          <AgendaGroup title="已完成" helper="这里保留今天已经处理过的事项。">
+            {arrangement.completedItems.map((item) => (
+              <React.Fragment key={item.id}>
+                <CompletedArrangementCard item={item} onOpenCase={onOpenCase} />
+              </React.Fragment>
+            ))}
+          </AgendaGroup>
+        )}
+
+        {!hasAnyItems && (
+          <div className="seller-empty px-4 py-5 text-center text-[12px]">
+            {arrangement.label}暂时没有要处理的事，可以先看另一时段或进入房源页。
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function HalfDayAgendaBlock({
+function AgendaGroup({
   title,
-  emptyText,
-  collapsed,
-  onToggle,
+  helper,
   children,
 }: {
   title: string;
-  emptyText: string;
-  collapsed: boolean;
-  onToggle: () => void;
+  helper: string;
   children: React.ReactNode;
 }) {
-  const items = React.Children.toArray(children);
   return (
-    <div>
-      <div className="flex items-center justify-between gap-2">
-        <button
-          type="button"
-          onClick={onToggle}
-          className="seller-label rounded-full px-2 py-1 text-left transition hover:bg-[rgba(255,255,255,0.05)]"
-        >
-          {title}
-        </button>
-        <button
-          type="button"
-          onClick={onToggle}
-          className="text-[10px] font-semibold text-[var(--seller-subtle)]"
-        >
-          {items.length} 件 · {collapsed ? '展开' : '收起'}
-        </button>
+    <div className="rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] px-3 py-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="seller-label">{title}</div>
+        <div className="text-[10px] font-medium text-[var(--seller-subtle)]">{helper}</div>
       </div>
-      {collapsed ? (
-        <div className="mt-3 rounded-[10px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.02)] px-3 py-2 text-[11px] text-[var(--seller-subtle)]">
-          已收起，点击展开查看明细。
-        </div>
-      ) : items.length > 0 ? (
-        <div className="mt-3 space-y-3">{items}</div>
-      ) : (
-        <div className="seller-empty mt-3 px-4 py-4 text-center text-[12px]">
-          {emptyText}
-        </div>
-      )}
+      <div className="space-y-3">{children}</div>
     </div>
   );
 }
@@ -630,6 +776,7 @@ function AgendaItemRow({
   onAddToToday: (item: ArrangementItemProjection, slot: TodayArrangementSlot) => boolean;
   onUseTool: (tool: AgendaTool, caseId?: string) => void;
 }) {
+  const [isHovered, setIsHovered] = useState(false);
   const tools = buildAgendaTools({
     label: item.label,
     title: item.title,
@@ -639,7 +786,11 @@ function AgendaItemRow({
     id: item.id,
   });
   return (
-    <article className="grid gap-3 py-4 md:grid-cols-[72px_minmax(0,1fr)_auto] md:items-start">
+    <article
+      className="grid gap-3 py-4 md:grid-cols-[72px_minmax(0,1fr)_auto] md:items-start transition-all rounded-lg hover:bg-[rgba(255,255,255,0.02)]"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       <div className="pt-0.5">
         <div className={`inline-flex rounded-[10px] px-2.5 py-1 text-[11px] font-semibold ${
           index === 0
@@ -659,20 +810,25 @@ function AgendaItemRow({
           <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${toneChipClass(item.tone)}`}>
             {item.label}
           </span>
-          <span className="text-[10px] font-medium text-[var(--seller-subtle)]">需 {item.energyCost} 点精力</span>
+          <span className={`text-[10px] font-medium transition-colors ${isHovered && item.energyCost > 0 ? 'text-red-400 font-bold' : 'text-[var(--seller-subtle)]'}`}>
+            占 {item.durationHours} 小时 · {isHovered && item.energyCost > 0 ? '-' : ''}{item.energyCost} 精力
+          </span>
           <span className="text-[10px] font-medium text-[var(--seller-subtle)]">{item.statusLabel}</span>
         </div>
-        <h3 className="mt-2 text-[16px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">
-          {item.title}
-        </h3>
+        <ArrangementTitleBlock title={item.title} />
         <p className="mt-1 max-w-[72ch] text-[12px] leading-6 text-[var(--seller-muted)]">{item.detail}</p>
+        {item.conflictHint ? (
+          <p className={`mt-2 max-w-[72ch] text-[11px] leading-5 ${item.conflictHint.level === 'warning' ? 'text-[var(--seller-risk)]' : 'text-[var(--seller-muted)]'}`}>
+            {item.conflictHint.message}
+          </p>
+        ) : null}
         <div className="mt-3 flex flex-wrap gap-2">
           {tools.map((tool) => (
             <button
               key={tool.label}
               type="button"
               onClick={() => onUseTool(tool, item.caseId)}
-              className="rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] px-3 py-1.5 text-[11px] font-medium text-[var(--seller-muted)] transition hover:border-[var(--seller-border-strong)] hover:text-[var(--seller-ink)]"
+              className="rounded-[8px] border border-[var(--seller-border)] bg-transparent px-2 py-1 text-[10px] font-medium leading-none text-[var(--seller-subtle)] transition hover:border-[var(--seller-border-strong)] hover:bg-white/[0.04] hover:text-[var(--seller-ink)]"
             >
               {tool.label}
             </button>
@@ -703,7 +859,7 @@ function AgendaItemRow({
             onClick={() => onOpenCase(item.caseId)}
             className="seller-button-secondary inline-flex items-center gap-1 rounded-[10px] px-3 py-2 text-[11px] font-semibold"
           >
-            打开房源
+            看房源
             <ArrowRight size={12} />
           </button>
           {item.isDisabled && item.disabledReason ? (
@@ -730,18 +886,41 @@ function PlannedArrangementCard({
   onExecuteTodayItem: (itemId: string) => boolean;
   onRemoveFromToday: (itemId: string) => boolean;
 }) {
+  const [isHovered, setIsHovered] = useState(false);
+  const isWaiting = item.disabledReason?.includes('等待');
+  const isUrgent = index === 0 && !item.isDisabled && !isWaiting;
+
   return (
-    <div className="rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3.5 py-3">
+    <div
+      className={`relative rounded-[12px] border px-3.5 py-3 transition-all ${
+        isWaiting ? 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.01)] opacity-70 grayscale-[30%]' :
+        isUrgent ? 'border-[var(--seller-accent)] bg-[var(--seller-accent-soft)] shadow-[0_0_15px_rgba(40,120,240,0.15)]' :
+        'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)]'
+      }`}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      {isUrgent && (
+        <div className="absolute -top-1 -right-1 flex h-3 w-3">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         {index === 0 ? <span className="seller-chip seller-chip-accent">主动作</span> : <span className="seller-chip">已安排</span>}
         <span className="seller-chip">{item.slot === 'pm' ? '下午' : '上午'}</span>
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${toneChipClass(item.tone)}`}>
           {item.executionMode === 'scenario' ? '情境' : '直接处理'}
         </span>
+        {isWaiting && (
+          <span className="seller-chip bg-[rgba(255,255,255,0.1)] text-[var(--seller-muted)] animate-pulse">⏳ 等待回复</span>
+        )}
         <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">{item.statusLabel}</span>
-        <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">需 {item.energyCost} 点精力</span>
+        <span className={`text-[10px] font-semibold transition-colors ${isHovered && item.energyCost > 0 ? 'text-red-400 font-bold' : 'text-[var(--seller-subtle)]'}`}>
+          占 {item.durationHours} 小时 · {isHovered && item.energyCost > 0 ? '-' : ''}{item.energyCost} 精力
+        </span>
       </div>
-      <div className="mt-2 text-[14px] font-semibold text-[var(--seller-ink)]">{item.title}</div>
+      <ArrangementTitleBlock title={item.title} size="sm" />
       <p className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">{item.detail}</p>
       {item.disabledReason ? (
         <p className="mt-2 text-[11px] leading-5 text-[var(--seller-risk)]">{item.disabledReason}</p>
@@ -769,7 +948,7 @@ function PlannedArrangementCard({
           onClick={() => onOpenCase(item.caseId)}
           className="seller-button-secondary rounded-[10px] px-3 py-2 text-[11px]"
         >
-          打开房源
+          看房源
         </button>
       </div>
     </div>
@@ -789,9 +968,9 @@ function CompletedArrangementCard({
         <span className="seller-chip seller-chip-accent">已完成</span>
         <span className="seller-chip">{item.slot === 'pm' ? '下午' : '上午'}</span>
         <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">{item.statusLabel}</span>
-        <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">已消耗 {item.energyCost} 点精力</span>
+        <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">占 {item.durationHours} 小时 · 已消耗 {item.energyCost} 精力</span>
       </div>
-      <div className="mt-2 text-[14px] font-semibold text-[var(--seller-ink)]">{item.title}</div>
+      <ArrangementTitleBlock title={item.title} size="sm" />
       <p className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">{item.detail}</p>
       <div className="mt-3">
         <button
@@ -802,288 +981,6 @@ function CompletedArrangementCard({
           查看房源
         </button>
       </div>
-    </div>
-  );
-}
-
-function PinnedCasePanel({
-  caseItem,
-  projection,
-  impactedItem,
-  onOpenCase,
-  onOpenMarket,
-}: {
-  caseItem: GameState['cases'][number] | null;
-  projection: ReturnType<typeof buildOperatingProjection>['cases'][number] | null;
-  impactedItem: {
-    caseId: string;
-    title: string;
-    count: number;
-    reason: string;
-    tone: ProjectionTone;
-    layer: IntelLayerTab;
-  } | null;
-  onOpenCase: () => void;
-  onOpenMarket: (layer?: IntelLayerTab) => void;
-}) {
-  if (!caseItem || !projection) {
-    return (
-      <section className="seller-panel px-4 py-4">
-        <div className="seller-label flex items-center gap-2">
-          <Target size={13} />
-          主房源
-        </div>
-        <div className="seller-empty mt-3 px-4 py-6 text-[12px]">
-          暂无主房源。
-        </div>
-      </section>
-    );
-  }
-
-  return (
-    <section className="seller-panel overflow-hidden">
-      <div className="border-b border-[var(--seller-border)] px-4 py-3">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="seller-label flex items-center gap-2">
-              <Target size={13} />
-              主房源
-            </div>
-            <h2 className="mt-2 text-[16px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">
-              {caseItem.title}
-            </h2>
-            <p className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">
-              {caseItem.community} · {caseItem.layout} · 业主 {caseItem.ownerName}
-            </p>
-          </div>
-          <span className="seller-chip">{projection.recentChanges.slice(0, 3).length + projection.actionReasons.slice(0, 2).length} 项</span>
-        </div>
-      </div>
-
-      <div className="px-4 py-4">
-        <div className="seller-fact-row px-3.5 py-3.5">
-          <div className="seller-label">当前问题</div>
-          <div className="mt-2 text-[13px] font-semibold text-[var(--seller-ink)]">
-            {projection.listingLifecyclePhase.coreProblemLabel}
-          </div>
-          <div className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">
-            {`当前动作：${projection.listingLifecyclePhase.primaryActionLabel}。${projection.listingLifecyclePhase.phaseRiskHint}`}
-          </div>
-
-          {impactedItem && (
-            <div className="mt-3 rounded-[10px] border border-[color:var(--seller-risk)]/26 bg-[var(--seller-risk-soft)] px-3 py-2.5">
-              <div className="text-[10px] font-semibold text-[var(--seller-risk)]">外部也打到了这套房</div>
-              <div className="mt-1 text-[11px] leading-5 text-[var(--seller-ink)]">
-                {impactedItem.reason}，今天被命中 {impactedItem.count} 次。
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="mt-4 grid gap-2 md:grid-cols-3">
-          <MetricBar
-            label="业主关系"
-            value={Math.round(caseItem.trust)}
-            detail={`信任 ${Math.round(caseItem.trust)} / 耐心 ${Math.round(caseItem.patience)}`}
-            tone={caseItem.trust < 55 || caseItem.patience < 45 ? 'risk' : 'neutral'}
-          />
-          <MetricBar
-            label="竞争力"
-            value={Math.round(caseItem.competitiveness)}
-            detail={`竞争力 ${Math.round(caseItem.competitiveness)} / 阶段 ${projection.listingLifecyclePhase.phaseLabel}`}
-            tone={caseItem.competitiveness < 50 || caseItem.windowDays <= 3 ? 'risk' : 'chance'}
-          />
-          <MetricBar
-            label="价格位"
-            value={pricePosition(caseItem)}
-            detail={`挂牌高出常见成交价 ${Math.max(0, Math.round(caseItem.askPrice - caseItem.marketPrice))} 万`}
-            tone={caseItem.askPrice > caseItem.marketPrice ? 'risk' : 'chance'}
-          />
-        </div>
-
-        <div className="mt-4 border-t border-[var(--seller-border)] pt-3">
-          <div className="seller-label">客户情况</div>
-          <div className="mt-3 space-y-3">
-            <SummaryRow
-              label="已接上客户"
-              value={`${projection.customerPoolSummary.metCount} 位`}
-              detail={projection.customerPoolSummary.title}
-            />
-            <SummaryRow
-              label="在跟进的客户"
-              value={`${projection.customerPoolSummary.metCount + projection.customerPoolSummary.potentialCount} 位`}
-              detail={projection.customerPoolSummary.detail}
-            />
-            <SummaryRow
-              label="快到报价"
-              value={`${projection.customerPoolSummary.closingCount} 位`}
-              detail={projection.customerPoolSummary.closingCount > 0 ? '已经进入报价或谈判区。' : '当前还没有进入报价桌的客户。'}
-            />
-          </div>
-        </div>
-
-        <div className="mt-4 border-t border-[var(--seller-border)] pt-3">
-          <div className="seller-label">最近变化</div>
-          <div className="mt-3 space-y-3">
-            {projection.recentChanges.slice(0, 3).map((item) => (
-              <div key={item.id}>
-                <FactChainRow
-                  label={item.label}
-                  title={item.title}
-                  detail={item.detail}
-                  tone={item.tone}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-4 grid gap-2 sm:grid-cols-2">
-          <button
-            type="button"
-            onClick={onOpenCase}
-            className="seller-button-primary flex w-full items-center justify-center gap-1 rounded-[10px] px-3 py-2 text-[11px]"
-          >
-            打开房源
-            <ArrowRight size={12} />
-          </button>
-          <button
-            type="button"
-            onClick={() => onOpenMarket(impactedItem ? 'listing' : 'district')}
-            className="seller-button-secondary flex w-full items-center justify-center gap-1 rounded-[10px] px-3 py-2 text-[11px]"
-          >
-            看外部变化
-            <ArrowRight size={12} />
-          </button>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function MetricBar({
-  label,
-  value,
-  detail,
-  tone,
-}: {
-  label: string;
-  value: number;
-  detail: string;
-  tone: ProjectionTone;
-}) {
-  const barColor = tone === 'risk'
-    ? 'var(--seller-risk)'
-    : tone === 'chance'
-      ? 'var(--seller-accent)'
-      : 'var(--seller-info)';
-
-  return (
-    <div className="seller-fact-row px-3 py-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-[10px] font-semibold tracking-[0.08em] text-[var(--seller-subtle)]">{label}</div>
-        <div className="text-[13px] font-semibold text-[var(--seller-ink)]">{value}/100</div>
-      </div>
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[rgba(255,255,255,0.08)]">
-        <div
-          className="h-full rounded-full"
-          style={{ width: `${Math.max(6, Math.min(100, value))}%`, backgroundColor: barColor }}
-        />
-      </div>
-      <div className="mt-2 text-[10px] leading-5 text-[var(--seller-muted)]">{detail}</div>
-    </div>
-  );
-}
-
-function SummaryRow({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-}) {
-  return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-b border-[var(--seller-border)] pb-3 last:border-b-0 last:pb-0">
-      <div className="min-w-0">
-        <div className="text-[11px] font-semibold text-[var(--seller-ink)]">{label}</div>
-        <div className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">{detail}</div>
-      </div>
-      <div className="text-[12px] font-semibold text-[var(--seller-ink)]">{value}</div>
-    </div>
-  );
-}
-
-function TriageSummaryPanel({
-  cards,
-  onOpen,
-}: {
-  cards: DashboardProjection['triageCards'];
-  onOpen: (targetView: string, caseId?: string, marketLayer?: IntelLayerTab) => void;
-}) {
-  return (
-    <section className="seller-panel overflow-hidden">
-      <div className="border-b border-[var(--seller-border)] px-4 py-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="seller-label flex items-center gap-2">
-            <Target size={13} />
-            去向
-          </div>
-          <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">{cards.length} 个入口</span>
-        </div>
-      </div>
-
-      <div className="grid divide-y divide-[var(--seller-border)]">
-        <section className="px-4 py-4">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div className="text-[11px] font-semibold text-[var(--seller-ink)]">入口</div>
-            <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">{cards.length}</span>
-          </div>
-          <div className="space-y-3">
-            {cards.map((card) => (
-              <button
-                key={card.id}
-                type="button"
-                onClick={() => onOpen(card.targetView, card.caseId, card.marketLayer)}
-                className="w-full rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-3 text-left transition hover:border-[var(--seller-border-strong)]"
-              >
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${toneChipClass(card.tone)}`}>{card.label}</span>
-                  <span className="text-[10px] font-medium text-[var(--seller-subtle)]">{card.countLabel}</span>
-                </div>
-                <div className="mt-2 text-[13px] font-semibold text-[var(--seller-ink)]">{card.title}</div>
-                <div className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">{card.detail}</div>
-              </button>
-            ))}
-          </div>
-        </section>
-
-      </div>
-    </section>
-  );
-}
-
-function FactChainRow({
-  label,
-  title,
-  detail,
-  tone,
-}: {
-  key?: React.Key;
-  label: string;
-  title: string;
-  detail: string;
-  tone: ProjectionTone;
-}) {
-  return (
-    <div className="rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-3">
-      <div className="flex items-center gap-2">
-        <span className={`h-1.5 w-1.5 rounded-full ${toneDotClass(tone)}`} />
-        <span className="text-[10px] font-medium text-[var(--seller-subtle)]">{label}</span>
-      </div>
-      <div className="mt-2 text-[12px] font-semibold text-[var(--seller-ink)]">{title}</div>
-      <div className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">{detail}</div>
     </div>
   );
 }
@@ -1099,30 +996,37 @@ function CalendarCell({
   onClick: () => void;
 }) {
   const isToday = entry.relation === 'today';
+  const relationLabel = isToday
+    ? '今天'
+    : entry.relation === 'past'
+      ? entry.label === '昨天' ? '昨天' : '已过'
+      : entry.label === '明天' ? '明天' : '后续';
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`relative w-full rounded-[12px] border px-3 py-3 text-left transition ${
+      className={`relative min-h-[78px] w-full rounded-[10px] border px-2.5 py-2.5 text-left transition ${
         active
           ? 'border-[var(--seller-accent)] bg-[var(--seller-panel-alt)] text-[var(--seller-ink)]'
-          : isToday
+        : isToday
             ? 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] text-[var(--seller-ink)]'
             : 'border-[var(--seller-border)] bg-transparent text-[var(--seller-muted)] hover:bg-[rgba(255,255,255,0.04)]'
       }`}
     >
-      {isToday && (
-        <span className="absolute left-3 top-[-10px] rounded-full bg-[var(--seller-accent)] px-2 py-0.5 text-[10px] font-bold text-[var(--seller-bg)]">
-          TODAY
-        </span>
-      )}
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] font-bold uppercase tracking-[0.14em] opacity-70">DAY {entry.day}</span>
+        <span className="text-[10px] font-bold uppercase tracking-[0.12em] opacity-70">D{entry.day}</span>
+        <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold leading-none ${
+          isToday
+            ? 'bg-[var(--seller-accent)] text-[var(--seller-bg)]'
+            : 'bg-[rgba(255,255,255,0.06)] text-[var(--seller-subtle)]'
+        }`}>
+          {relationLabel}
+        </span>
         <span className={`h-1.5 w-1.5 rounded-full ${toneDotClass(entry.tone)}`} />
       </div>
-      <div className="mt-2 text-[14px] font-semibold tracking-[-0.02em]">{entry.label}</div>
-      <div className="mt-1 text-[11px] leading-5 opacity-80">{entry.title}</div>
-      <div className="mt-2 text-[10px] font-medium opacity-75">{entry.meta}</div>
+      <div className="mt-2 truncate text-[12px] font-semibold tracking-[-0.02em]">{entry.label}</div>
+      <div className="mt-0.5 truncate text-[10px] leading-4 opacity-80">{entry.title}</div>
+      <div className="mt-1 truncate text-[10px] font-medium opacity-75">{entry.meta}</div>
     </button>
   );
 }
@@ -1297,43 +1201,51 @@ function buildCalendarRail(
   journalItems: JournalItem[],
 ): CalendarRailEntry[] {
   const entries: CalendarRailEntry[] = [];
-  const startPastDay = Math.max(1, state.day - 3);
+  const windowStartDay = resolveCalendarWindowStart(state.day, state.maxDay);
+  const windowEndDay = Math.min(state.maxDay, windowStartDay + CALENDAR_WINDOW_DAYS - 1);
+  const projectedDays = new Map(dashboard.weekCalendar.map((entry) => [entry.day, entry]));
 
-  for (let day = startPastDay; day < state.day; day += 1) {
+  for (let day = windowStartDay; day <= windowEndDay; day += 1) {
+    const routine = getRoutine(day, WEEKLY_ROUTINE);
+    if (day >= state.day) {
+      const projected = projectedDays.get(day);
+      const isToday = day === state.day;
+      entries.push({
+        day,
+        relation: isToday ? 'today' : 'future',
+        label: isToday ? '今天' : day === state.day + 1 ? '明天' : routine.label,
+        title: projected?.title || routine.theme,
+        detail: projected?.detail || `${routine.label} · ${routine.theme}`,
+        meta: isToday
+          ? `${dashboard.todayPriority.length} 件事 · ${dashboard.marketBrief.todayCount} 外部变化`
+          : `${routine.energy} 精力 · ${futureSignal(projected || { title: routine.theme, energy: routine.energy })}`,
+        tone: isToday
+          ? (dashboard.marketBrief.riskCount > 0 ? 'risk' : dashboard.marketBrief.chanceCount > 0 ? 'chance' : 'neutral')
+          : (projected?.tone || (routine.energy <= 1 ? 'risk' : 'neutral')),
+        energy: routine.energy,
+      });
+      continue;
+    }
+
     const events = journalItems.filter((item) => item.day === day);
     entries.push({
       day,
       relation: 'past',
-      label: day === state.day - 1 ? '昨天' : `DAY ${day}`,
-      title: events[0]?.title || '没有关键记录',
+      label: day === state.day - 1 ? '昨天' : routine.label,
+      title: events[0]?.title || routine.theme,
       detail: events[0]?.detail || '这天没有留下会影响今天判断的变化。',
       meta: events.length > 0 ? `${events.length} 条记录` : '无新增',
       tone: deriveEventsTone(events),
     });
   }
 
-  dashboard.weekCalendar
-    .filter((entry) => entry.day >= state.day && entry.day <= state.maxDay)
-    .slice(0, 7)
-    .forEach((entry) => {
-      const isToday = entry.day === state.day;
-      entries.push({
-        day: entry.day,
-        relation: isToday ? 'today' : 'future',
-        label: isToday ? '今天' : entry.day === state.day + 1 ? '明天' : entry.label,
-        title: entry.title,
-        detail: entry.detail,
-        meta: isToday
-          ? `${dashboard.todayPriority.length} 件事 · ${dashboard.marketBrief.todayCount} 条外部变化`
-          : `${entry.energy} 精力 · ${futureSignal(entry)}`,
-        tone: isToday
-          ? (dashboard.marketBrief.riskCount > 0 ? 'risk' : dashboard.marketBrief.chanceCount > 0 ? 'chance' : 'neutral')
-          : entry.tone,
-        energy: entry.energy,
-      });
-    });
-
   return entries;
+}
+
+function resolveCalendarWindowStart(stateDay: number, maxDay: number) {
+  const maxStart = Math.max(1, maxDay - CALENDAR_WINDOW_DAYS + 1);
+  const preferredStart = Math.max(1, stateDay - CALENDAR_PAST_CONTEXT_DAYS);
+  return Math.min(preferredStart, maxStart);
 }
 
 function buildJournalItems(state: GameState): JournalItem[] {
@@ -1365,9 +1277,9 @@ function buildAgendaTools(item: ProjectionBrief): AgendaTool[] {
   const text = `${item.label} ${item.title} ${item.detail}`;
   if (/业主|反馈|信任|耐心/.test(text)) {
     return [
-      { label: '写反馈要点', target: 'case' },
-      { label: '看客户情况', target: 'customers' },
-      { label: '查同类房对比', target: 'market', marketLayer: 'competition' },
+      { label: '写反馈', target: 'case' },
+      { label: '看客户', target: 'customers' },
+      { label: '同类对比', target: 'market', marketLayer: 'competition' },
     ];
   }
   if (/竞品|竞争/.test(text)) {
@@ -1400,7 +1312,7 @@ function buildAgendaTools(item: ProjectionBrief): AgendaTool[] {
   }
 
   return [
-    { label: '打开房源', target: 'case' },
+    { label: '看房源', target: 'case' },
     { label: '看客户线', target: 'customers' },
     { label: '看市场变化', target: 'market', marketLayer: 'macro' },
   ];
@@ -1408,7 +1320,7 @@ function buildAgendaTools(item: ProjectionBrief): AgendaTool[] {
 
 function buildFuturePrepPills(entry: CalendarRailEntry) {
   if (entry.title.includes('业主') || entry.detail.includes('业主')) {
-    return ['筛反馈房源', '看客户记录', '查同类房对比'];
+    return ['筛反馈房源', '看客户记录', '同类对比'];
   }
   if (entry.title.includes('获客') || entry.detail.includes('客户')) {
     return ['筛缺客户房源', '看推广金', '看商圈热度'];
@@ -1498,11 +1410,6 @@ function deriveEventsTone(events: JournalItem[]): ProjectionTone {
   if (events.some((event) => event.tone === 'danger')) return 'risk';
   if (events.some((event) => event.tone === 'success')) return 'chance';
   return 'neutral';
-}
-
-function pricePosition(caseItem: GameState['cases'][number]) {
-  const gapPct = Math.max(0, Math.round(caseItem.priceGapPct * 100));
-  return Math.max(12, Math.min(100, 100 - gapPct));
 }
 
 function scoreCaseWeight(caseItem: GameState['cases'][number]) {

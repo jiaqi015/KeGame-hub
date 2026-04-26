@@ -10,6 +10,8 @@ import {
 } from '../domain/utils.js';
 import { instantiateScenarioCases } from '../domain/generator.js';
 import {
+  buildInitialMarketOutcomeState,
+  normalizeMarketOutcomeState,
   type Case,
   type CompetitionGroup,
   type CustomerProfile,
@@ -27,10 +29,12 @@ import {
   type TodayArrangementItem,
   type TodayArrangementSlot,
   type TodayPlanState,
+  type FocusMeetingState,
 } from '../domain/models.js';
 import { createInitialBudgetLedger, normalizeBudgetLedger } from '../domain/budget.js';
 import { getBuiltInWorld, resolveScenarioRules } from '../domain/scenarioCatalog.js';
 import { mergeRules } from '../domain/config/baseRules.js';
+import { normalizeOwnerPriceAnchors } from '../domain/priceAnchors.js';
 import {
   targetScoreForDifficulty,
   scoreThresholdsForTarget,
@@ -45,12 +49,18 @@ import {
 import { deriveDefaultGoalTier, seedCase, updateDerivedState as updateDomainDerivedState } from '../domain/runtimeState.js';
 import { initializeCustomerStates } from '../domain/engine/customerEngine.js';
 import { buildProductRunMilestones } from '../domain/productRuns.js';
+import {
+  createGameRunId,
+  createLegacyGameRunId,
+  markSavedState,
+  normalizeGameSaveMetadata,
+} from './saveConsistency.js';
 
 function isBrowser() {
   return typeof window !== 'undefined' && Boolean(window.localStorage);
 }
 
-function getScopedGameStateStorageKey(accountEmail?: string) {
+export function getGameStateStorageKey(accountEmail?: string) {
   return buildScopedStorageKey(STORAGE_KEY, accountEmail);
 }
 
@@ -306,6 +316,10 @@ export function createInitialState(snapshot: ScenarioSnapshot, seedInput: RunSee
 
   const state: GameState = {
     version: 6,
+    runId: createGameRunId(),
+    localRevision: 0,
+    clientUpdatedAt: new Date().toISOString(),
+    saveSource: 'system',
     runContext: buildRunContext(snapshot, seedInput),
     day: 1,
     maxDay: rules.maxDay,
@@ -350,8 +364,14 @@ export function createInitialState(snapshot: ScenarioSnapshot, seedInput: RunSee
       day: 1,
       playerItems: [],
     },
+    focusMeeting: {
+      submissionDay: null,
+      submittedCaseIds: [],
+      selectedCaseIds: [],
+    },
     productRuns: [],
     closedDeals: [],
+    marketOutcome: buildInitialMarketOutcomeState(rules, runSeed),
     metrics: {
       activeCaseCount: generatedCases.filter((entry) => entry.status === 'active').length,
       activeOpportunityCount: 0,
@@ -463,14 +483,20 @@ function normalizeCase(caseItem: any): Case {
   const normalizedStatus = caseItem?.status === 'withdrawn' && caseItem?.defenseOutcome === 'lost_to_rival'
     ? 'lost_to_rival'
     : caseItem?.status;
+  const priceAnchors = normalizeOwnerPriceAnchors({
+    askPrice: Number(caseItem?.askPrice) || 0,
+    marketPrice: Number(caseItem?.marketPrice) || 0,
+    bottomPrice: Number(caseItem?.bottomPrice) || 0,
+  });
   return {
     ...caseItem,
+    ...priceAnchors,
     status: normalizedStatus,
     housePrototypeId: caseItem?.housePrototypeId || caseItem?.id || 'legacy-prototype',
     ownerArchetypeId: caseItem?.ownerArchetypeId || 'fair-value',
     personality: caseItem?.personality || 'pragmatic',
     competitionGroupIds: Array.isArray(caseItem?.competitionGroupIds) ? caseItem.competitionGroupIds : [],
-    lastAskPrice: Number(caseItem?.lastAskPrice) || Number(caseItem?.askPrice) || 0,
+    lastAskPrice: Math.max(Number(caseItem?.lastAskPrice) || 0, priceAnchors.askPrice),
     lastRivalThreatDay: Number.isFinite(caseItem?.lastRivalThreatDay)
       ? Number(caseItem.lastRivalThreatDay)
       : undefined,
@@ -585,6 +611,7 @@ function normalizeTodayArrangementItem(entry: any, fallbackDay: number, index: n
     linkedActionId,
     linkedCaseId: typeof entry?.linkedCaseId === 'string' ? entry.linkedCaseId : undefined,
     linkedCustomerId: typeof entry?.linkedCustomerId === 'string' ? entry.linkedCustomerId : undefined,
+    linkedOpportunityId: typeof entry?.linkedOpportunityId === 'string' ? entry.linkedOpportunityId : undefined,
     executionMode: normalizeTodayArrangementExecutionMode(entry?.executionMode),
     status: entry?.status === 'completed' ? 'completed' : 'planned',
     slot: normalizeTodayArrangementSlot(entry?.slot),
@@ -617,6 +644,35 @@ function normalizeTodayPlan(input: unknown, currentDay: number): TodayPlanState 
   return {
     day: currentDay,
     playerItems,
+  };
+}
+
+function normalizeFocusMeeting(input: unknown, currentDay: number): FocusMeetingState {
+  if (!input || typeof input !== 'object') {
+    return {
+      submissionDay: null,
+      submittedCaseIds: [],
+      selectedCaseIds: [],
+    };
+  }
+
+  const payload = input as {
+    submissionDay?: unknown;
+    submittedCaseIds?: unknown;
+    selectedCaseIds?: unknown;
+  };
+  const submissionDay = Number.isFinite(payload.submissionDay)
+    ? Number(payload.submissionDay)
+    : null;
+
+  return {
+    submissionDay: submissionDay === currentDay ? currentDay : null,
+    submittedCaseIds: Array.isArray(payload.submittedCaseIds)
+      ? payload.submittedCaseIds.map(String).filter(Boolean).slice(0, 3)
+      : [],
+    selectedCaseIds: Array.isArray(payload.selectedCaseIds)
+      ? payload.selectedCaseIds.map(String).filter(Boolean).slice(0, 3)
+      : [],
   };
 }
 
@@ -695,7 +751,7 @@ export function loadSavedState(accountEmail?: string): GameState | null {
   }
 
   try {
-    const raw = window.localStorage.getItem(getScopedGameStateStorageKey(accountEmail));
+    const raw = window.localStorage.getItem(getGameStateStorageKey(accountEmail));
     if (!raw) return null;
     return normalizeLoadedState(JSON.parse(raw));
   } catch {
@@ -747,6 +803,9 @@ export function normalizeLoadedState(parsed: any): GameState | null {
     Number(parsedRunContext?.scenarioSeed ?? parsedRunContext?.runSeed ?? parsedRunContext?.rngSeed ?? runSeed),
   );
   const normalizedCases = Array.isArray(parsed?.cases) ? parsed.cases.map(normalizeCase) : [];
+  const normalizedClosedDeals = Array.isArray(parsed?.closedDeals)
+    ? parsed.closedDeals.map(normalizeClosedDeal)
+    : [];
   const currentDay = Math.max(1, Number(parsed?.day) || 1);
   const restoredCustomers = Array.isArray(parsed?.customers)
     ? parsed.customers.map((entry: any) => cloneCustomer(entry as CustomerProfile))
@@ -755,8 +814,18 @@ export function normalizeLoadedState(parsed: any): GameState | null {
     rngState: normalizeSeed(runSeed ^ 0x9e3779b9),
     rngCalls: 0,
   };
+  const saveMetadata = normalizeGameSaveMetadata(parsed, {
+    runId: createLegacyGameRunId({
+      scenarioId: String(parsedRunContext?.scenarioId || snapshot.scenario.id),
+      runSeed,
+      createdAt: typeof parsedRunContext?.createdAt === 'string' ? parsedRunContext.createdAt : undefined,
+    }),
+    createdAt: typeof parsedRunContext?.createdAt === 'string' ? parsedRunContext.createdAt : undefined,
+  });
+
   const state = {
     ...parsed,
+    ...saveMetadata,
     version: 6,
     runContext: {
       ...buildRunContext(snapshot, { runSeed, scenarioSeed }),
@@ -792,9 +861,7 @@ export function normalizeLoadedState(parsed: any): GameState | null {
     withdrawnCount: 0,
     cases: normalizedCases,
     opportunities: Array.isArray(parsed?.opportunities) ? parsed.opportunities.map(normalizeOpportunity) : [],
-    closedDeals: Array.isArray(parsed?.closedDeals)
-      ? parsed.closedDeals.map(normalizeClosedDeal)
-      : [],
+    closedDeals: normalizedClosedDeals,
     eventStore: Array.isArray(parsed?.eventStore) ? parsed.eventStore.map((entry: any, index: number) => ({
       id: String(entry?.id || `event-legacy-${index + 1}`),
       day: Number(entry?.day) || 1,
@@ -818,17 +885,21 @@ export function normalizeLoadedState(parsed: any): GameState | null {
         }))
       : [],
     todayPlan: normalizeTodayPlan(parsed?.todayPlan, currentDay),
+    focusMeeting: normalizeFocusMeeting(parsed?.focusMeeting, currentDay),
     productRuns: normalizeProductRuns(parsed?.productRuns, currentDay),
     budgetLedger: normalizeBudgetLedger(parsed?.budgetLedger, Number(parsed?.cash) || 0),
     currentReport: parsed?.currentReport || null,
     lastDailyTickResult: parsed?.lastDailyTickResult || null,
+    marketOutcome: normalizeMarketOutcomeState(parsed?.marketOutcome, rules, runSeed, currentDay, {
+      playerClaimedDeals: normalizedClosedDeals.filter((entry) => entry.dealType === 'self_closed').length,
+    }),
     marketShadow: normalizeShadowMarket(parsed?.marketShadow, snapshot),
   } as GameState;
 
   if (!state.customerStates.length) {
     initializeCustomerStates(state);
   }
-  syncAuxiliaryMirrors(state);
+  updateDerivedState(state);
 
   return state;
 }
@@ -841,8 +912,9 @@ export function saveGameState(world: GameState, accountEmail?: string) {
   try {
     const legacyAuxiliaryStats = buildAuxiliaryStats(world);
     const soldCount = resolveFormalSoldCount(world);
+    const savedWorld = markSavedState(world);
     const snapshot = {
-      ...world,
+      ...savedWorld,
       commission: legacyAuxiliaryStats.commission,
       wordOfMouth: legacyAuxiliaryStats.wordOfMouth,
       reputation: legacyAuxiliaryStats.wordOfMouth,
@@ -852,9 +924,9 @@ export function saveGameState(world: GameState, accountEmail?: string) {
       eventStore: world.eventStore,
       weeklyReviews: world.weeklyReviews.slice(0, 12),
     };
-    window.localStorage.setItem(getScopedGameStateStorageKey(accountEmail), JSON.stringify(snapshot));
+    window.localStorage.setItem(getGameStateStorageKey(accountEmail), JSON.stringify(snapshot));
   } catch (error) {
-    console.error('Save failed', error);
+    console.warn('Save failed', error);
   }
 }
 
@@ -864,7 +936,7 @@ export function clearSavedGameState(accountEmail?: string) {
   }
 
   try {
-    window.localStorage.removeItem(getScopedGameStateStorageKey(accountEmail));
+    window.localStorage.removeItem(getGameStateStorageKey(accountEmail));
   } catch {
     // ignore local cleanup failure
   }

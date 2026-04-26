@@ -7,6 +7,7 @@ function buildScheduleMatter(world: GameState, entry: ScheduleEntry): MatterEntr
     sourceKey: entry.key,
     caseId: entry.caseId,
     scene: 'risk_followup',
+    lifecycleCategory: 'diagnose',
     title: entry.title,
     detail: entry.note,
     badge: entry.badge,
@@ -27,6 +28,7 @@ function buildPriorityMatter(world: GameState, entry: PriorityEntry): MatterEntr
     sourceKey: entry.key,
     caseId: entry.caseId,
     scene: entry.kind === 'opportunity' ? 'client_call' : 'report_to_owner',
+    lifecycleCategory: 'report',
     title: entry.title,
     detail: entry.detail,
     stage: 'pending',
@@ -54,8 +56,9 @@ function buildNegotiationMatter(world: GameState, opportunity: Opportunity): Mat
     sourceKey: opportunity.id,
     caseId: opportunity.caseId,
     scene: 'negotiation',
-    title: `${opportunity.customerName} 正在谈价格`,
-    detail: `${caseTitle} 已进入价格确认，当前按“${strategyLabel}”处理，今天结束后统一看能不能谈成。`,
+    lifecycleCategory: 'negotiate',
+    title: `${opportunity.customerName} 在桌上逼单了`,
+    detail: `${caseTitle} 到了最后咬价格的阶段，目前咱们定的是“${strategyLabel}”的策略，就看今晚这局能不能按住。`,
     badge: `${opportunity.stageLabel}`,
     stage: 'pending',
     template: 'dialog',
@@ -69,8 +72,8 @@ function buildNegotiationMatter(world: GameState, opportunity: Opportunity): Mat
 
 function markResolvedMatter(existing: MatterEntry, worldDay: number): MatterEntry {
   const defaultResolutionSummary = existing.source === 'negotiation'
-    ? '今天的价格确认已经结束。'
-    : '关联事项已退出今日主链。';
+    ? '桌上的价格谈判已经告一段落了。'
+    : '这事儿今天算是翻篇了。';
 
   if (existing.stage === 'completed' || existing.stage === 'abandoned') {
     return {

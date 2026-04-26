@@ -53,6 +53,31 @@ const steps: Step[] = [
     args: ['tsx', 'scripts/verify-selling-houses-daily-tick-contract.ts'],
   },
   {
+    label: 'Maintainer time advance invariants verify',
+    command: 'npm',
+    args: ['run', 'verify:maintainer-time'],
+  },
+  {
+    label: 'Maintainer save consistency verify',
+    command: 'npm',
+    args: ['run', 'verify:maintainer-save-consistency'],
+  },
+  {
+    label: 'Maintainer browser profile smoke verify',
+    command: 'npm',
+    args: ['run', 'verify:maintainer-browser'],
+  },
+  {
+    label: 'Maintainer outcome control verify',
+    command: 'npm',
+    args: ['run', 'verify:maintainer-outcome-control'],
+  },
+  {
+    label: 'Seller Playwright e2e verify',
+    command: 'npm',
+    args: ['run', 'e2e:seller'],
+  },
+  {
     label: 'Maintainer endgame transition contract verify',
     command: 'npx',
     args: ['tsx', 'scripts/verify-selling-houses-endgame-transition-contract.ts'],

@@ -51,10 +51,10 @@ const dashboardMarkup = render(
 
 expectIncludes(
   dashboardMarkup,
-  ['data-selling-houses-page="overview"', '总览', '今天先去哪', '本周节奏', '今日安排', '固定安排', '更多', '主房源', '去向', '当前主房源'],
+  ['data-selling-houses-page="overview"', '14天节奏', '今日安排', '1/21', '我的安排', '可排余量', '已安排', '我的微信'],
   'overview',
 );
-expectExcludes(dashboardMarkup, ['市场雷达', '房源筛选', '单房结果', '去复盘'], 'overview');
+expectExcludes(dashboardMarkup, ['市场雷达', '房源筛选', '单房结果', '去复盘', '本周节奏', '固定安排', '上午 / 下午', '先处理：', '当前 DAY'], 'overview');
 
 const marketMarkup = render(
   React.createElement(Market, {
@@ -85,25 +85,24 @@ expectIncludes(
     'data-selling-houses-page="cases"',
     '房源筛选',
     '快捷筛选',
-    '当前对象',
-    '当前问题',
+    '当前房源',
+    '房源阶段',
     '挂牌价',
     '市场成交位',
     '业主底线',
-    '当前判断',
-    '可做动作',
-    '更多信息',
-    '概况',
-    '客户',
-    '变化',
-    '依据',
-    '这套房卡在哪',
-    '受阻动作',
+    '当前动作',
+    '当前可做',
+    '房源和业主',
+    '准客池',
+    '日志',
+    '风险',
+    '房源状态',
+    '业主状态',
     '执行清单',
   ],
   'cases',
 );
-expectExcludes(casesMarkup, ['市场雷达', '经营回看', '单房结果'], 'cases');
+expectExcludes(casesMarkup, ['市场雷达', '经营回看', '单房结果', '对象状态', '概况', '变化', '依据', '后果'], 'cases');
 
 const opportunitiesMarkup = render(
   React.createElement(Opportunities, {
@@ -131,21 +130,19 @@ expectIncludes(
   profileMarkup,
   [
     'data-selling-houses-page="profile"',
-    '我的经营状态',
-    '当前进度',
-    '今日精力',
-    '推广金',
-    '在场房源',
-    '活跃客户',
-    '关系网络',
-    '我现在在守谁、接着谁',
-    '战绩与记录',
-    '这局记录',
+    '本局记录',
+    '战绩台账',
     '已成交',
-    '平均信任',
+    '佣金',
+    '他处成交',
+    '已执行',
+    '成交台账',
+    '房源结局',
+    '事件流水',
+    '周记录',
   ],
   'profile',
 );
-expectExcludes(profileMarkup, ['单房结果', '市场雷达', '房源筛选'], 'profile');
+expectExcludes(profileMarkup, ['单房结果', '市场雷达', '房源筛选', '我的经营状态', '关系网络', '我现在在守谁、接着谁', '平均信任'], 'profile');
 
 console.log('selling-houses page responsibility contract verification passed');

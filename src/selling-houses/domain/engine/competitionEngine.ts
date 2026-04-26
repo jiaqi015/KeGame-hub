@@ -4,9 +4,11 @@ import type { Case, GameState } from '../models.js';
 import { chance, clamp, randomInt } from '../utils.js';
 import { getMarketCell } from './opportunityEngine.js';
 import { sellVisibleRivalForCase } from '../rivals/rivalListingEngine.js';
+import { getRivalOutcomeControl } from './outcomeControlRuntime.js';
 
 function shouldLoseToRival(world: GameState, caseItem: Case, groupPricePremiumRatio: number) {
   const rivalLossBalance = BALANCE.competition.rivalLoss;
+  const { rivalCaseLossScale } = getRivalOutcomeControl(world);
   const cell = getMarketCell(world, caseItem.marketCellId);
   if (!cell || caseItem.defenseOutcome === 'lost_to_rival') {
     return false;
@@ -82,7 +84,7 @@ function shouldLoseToRival(world: GameState, caseItem: Case, groupPricePremiumRa
     + (caseItem.windowDays <= rivalLossBalance.lastWindowThreshold ? rivalLossBalance.rawLastWindowBonus : 0);
   const maintainedGuard = recentlyMaintained && pipelineOpening ? rivalLossBalance.maintainedGuardWhenPipelineOpen : 1;
   const probability = clamp(
-    rawProbability * world.rules.rivalLossProbabilityScale * maintainedGuard,
+    rawProbability * world.rules.rivalLossProbabilityScale * rivalCaseLossScale * maintainedGuard,
     rivalLossBalance.probabilityMin,
     rivalLossBalance.probabilityMax,
   );

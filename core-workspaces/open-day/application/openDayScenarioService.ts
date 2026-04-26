@@ -55,6 +55,7 @@ export class OpenDayScenarioService {
       name,
       description,
       formulaId: scenario.formulaId,
+      skillId: scenario.skillId,
       parameterPackageId: scenario.parameterPackageId,
       configVersion: createOpenDayHash(scenario.config, 'cfg'),
       updatedAt,

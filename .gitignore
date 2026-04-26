@@ -13,3 +13,5 @@ output/
 tmp/
 skills/
 .env*.local
+test-results/
+playwright-report/

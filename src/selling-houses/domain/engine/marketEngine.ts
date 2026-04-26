@@ -171,7 +171,7 @@ export function tickCases(world: GameState) {
         });
         logEvent(world, caseItem.ownerName, `${caseItem.title} 的业主被安抚后又给了 4 天操作空间。`, 'accent');
       } else {
-        withdrawCase(world, caseItem, '推进耗尽，业主选择核销。');
+        withdrawCase(world, caseItem, '推进窗口已经用完，业主没等到足够明确的客户反馈和成交路径，最终选择核销。');
         return;
       }
     }

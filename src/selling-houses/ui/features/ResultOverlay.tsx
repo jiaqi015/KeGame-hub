@@ -3,7 +3,6 @@ import type { GameState, ScoreAttribution, ScoreAttributionItem } from '../../do
 import { buildResultProjection } from '../../application/projections/resultProjection.js';
 import {
   ArrowRightLeft,
-  BadgeCheck,
   CircleDollarSign,
   Clock3,
   Layers3,
@@ -27,9 +26,6 @@ interface ResultOverlayProps {
 export function ResultOverlay({ state, onRestart }: ResultOverlayProps) {
   const projection = useMemo(() => buildResultProjection(state), [state]);
   const { customerReview } = projection;
-  const leadHighlight = projection.highlights[0];
-  const leadImprovement = projection.improvements[0];
-  const totalResolvedCases = projection.tierGroups.reduce((sum, group) => sum + group.total, 0);
 
   return (
     <div className="fixed inset-0 z-[100] overflow-y-auto bg-slate-900/50 p-6 backdrop-blur-md">
@@ -50,9 +46,6 @@ export function ResultOverlay({ state, onRestart }: ResultOverlayProps) {
               <span className="seller-chip">
                 {projection.hero.difficultyId}
               </span>
-              <span className="seller-chip">
-                {projection.hero.scenarioName}
-              </span>
               <span className="seller-chip seller-chip-chance">
                 {projection.hero.grade}
               </span>
@@ -60,9 +53,6 @@ export function ResultOverlay({ state, onRestart }: ResultOverlayProps) {
             <p className="mx-auto mt-3 max-w-3xl text-sm leading-relaxed text-[var(--seller-muted)]">
               {projection.hero.summary}
             </p>
-            <div className="seller-chip mt-5 inline-flex">
-              {projection.hero.settlementLabel}
-            </div>
           </div>
         </div>
 
@@ -75,39 +65,30 @@ export function ResultOverlay({ state, onRestart }: ResultOverlayProps) {
             ))}
           </section>
 
-          <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-            <SettlementSignalCard
-              label="当前状态"
-              title="这页已经锁定到正式成绩"
-              detail="这局结果已经定下。"
-              tone="chance"
-            />
-            <SettlementSignalCard
-              label="重点"
-              title={totalResolvedCases > 0 ? `${totalResolvedCases} 套房最后落成什么样` : '这局有没有形成正式房源结果'}
-              detail={totalResolvedCases > 0 ? '单房结果已经生成。' : '还没有形成正式房源结果。'}
-              tone={totalResolvedCases > 0 ? 'chance' : 'neutral'}
-            />
-            <SettlementSignalCard
-              label="带走"
-              title={leadHighlight || leadImprovement || '这局还没有特别集中的代表作'}
-              detail={leadHighlight
-                ? '这条最能代表这局。'
-                : leadImprovement
-                  ? '这条最值得回看。'
-                  : '这局没有特别突出的单点高光或失手。'}
-              tone={leadHighlight ? 'chance' : leadImprovement ? 'risk' : 'neutral'}
-            />
-          </section>
+          {projection.marketOutcome && (
+            <section className="seller-panel-soft p-6">
+              <div className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[var(--seller-subtle)]">
+                <Layers3 size={15} />
+                {projection.marketOutcome.title}
+              </div>
+              <div className="seller-note mb-4 px-4 py-3 text-sm leading-relaxed">
+                {projection.marketOutcome.summary}
+              </div>
+              <div className="grid grid-cols-2 gap-4 xl:grid-cols-5">
+                {projection.marketOutcome.metrics.map((card) => (
+                  <div key={card.label}>
+                    <SummaryCard label={card.label} value={card.value} note={card.note} tone={card.tone} />
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           <section className="seller-panel overflow-hidden">
             <div className="border-b border-[var(--seller-border)] px-6 py-5">
               <div className="seller-label flex items-center gap-2 text-sm">
                 <Sparkles size={16} />
                 正式单房结果
-              </div>
-              <div className="seller-body mt-2 text-[12px]">
-                每套房最后怎么收。
               </div>
             </div>
             <div className="space-y-5 p-6">
@@ -168,45 +149,9 @@ export function ResultOverlay({ state, onRestart }: ResultOverlayProps) {
                   ))}
                 </div>
               </section>
-
-              <section className="seller-panel-soft p-6">
-                <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[var(--seller-accent)]">
-                  <ShieldAlert size={15} />
-                  哪些算结果
-                </div>
-                <div className="space-y-2.5">
-                  {projection.settlementNotes.map((item) => (
-                    <div key={item.title}>
-                      <PlainNote title={item.title} detail={item.detail} tone={item.tone} />
-                    </div>
-                  ))}
-                </div>
-              </section>
             </div>
 
             <div className="space-y-4">
-              <section className="seller-panel-soft p-6">
-                <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[var(--seller-accent)]">
-                  <Target size={15} />
-                  生涯记录
-                </div>
-                <div className="space-y-2.5">
-                  {projection.careerNotes.map((item) => (
-                    <div key={item.title}>
-                      <PlainNote title={item.title} detail={item.detail} tone={item.tone} />
-                    </div>
-                  ))}
-                </div>
-              </section>
-
-              <section className="seller-panel-soft p-6">
-                <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[var(--seller-chance)]">
-                  <BadgeCheck size={15} />
-                  这局亮点
-                </div>
-                <StackNotes items={projection.highlights} empty="这局还没有明显亮点。" />
-              </section>
-
               <section className="seller-panel-soft p-6">
                 <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[var(--seller-risk)]">
                   <TriangleAlert size={15} />
@@ -293,32 +238,6 @@ function FormalCaseResultCard({
   );
 }
 
-function SettlementSignalCard({
-  label,
-  title,
-  detail,
-  tone,
-}: {
-  label: string;
-  title: string;
-  detail: string;
-  tone: 'neutral' | 'chance' | 'risk';
-}) {
-  const className = tone === 'chance'
-    ? 'border-[color:var(--seller-chance)]/22 bg-[var(--seller-chance-soft)]'
-    : tone === 'risk'
-      ? 'border-[color:var(--seller-risk)]/22 bg-[var(--seller-risk-soft)]'
-      : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)]';
-
-  return (
-    <div className={`rounded-[24px] border px-5 py-5 ${className}`}>
-      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--seller-subtle)]">{label}</div>
-      <div className="mt-2 text-[16px] font-semibold text-[var(--seller-ink)]">{title}</div>
-      <div className="mt-2 text-[12px] leading-6 text-[var(--seller-muted)]">{detail}</div>
-    </div>
-  );
-}
-
 function SummaryCard({
   label,
   value,
@@ -341,29 +260,6 @@ function SummaryCard({
       <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--seller-subtle)]">{label}</div>
       <div className="mt-2 text-xl font-bold text-[var(--seller-ink)]">{value}</div>
       <div className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">{note}</div>
-    </div>
-  );
-}
-
-function PlainNote({
-  title,
-  detail,
-  tone,
-}: {
-  title: string;
-  detail: string;
-  tone: 'neutral' | 'chance' | 'risk';
-}) {
-  const toneClass = tone === 'chance'
-    ? 'bg-[var(--seller-chance-soft)]'
-    : tone === 'risk'
-      ? 'bg-[var(--seller-risk-soft)]'
-      : 'bg-[rgba(255,255,255,0.03)]';
-
-  return (
-    <div className={`seller-tablet px-4 py-4 ${toneClass}`}>
-      <div className="text-sm font-semibold text-[var(--seller-ink)]">{title}</div>
-      <div className="mt-1 text-[12px] leading-6 text-[var(--seller-muted)]">{detail}</div>
     </div>
   );
 }

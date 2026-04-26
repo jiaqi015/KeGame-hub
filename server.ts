@@ -4,7 +4,6 @@ import http from "node:http";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
-import formidable from "formidable";
 import {
   authorizeSession,
   clearSessionCookie,
@@ -17,7 +16,6 @@ import {
 import { authorizeRequest, validateActivationKey } from "./lib/activation.js";
 import { compareModels, streamCompareModel } from "./lib/compare.js";
 import { AVAILABLE_MODELS } from "./lib/models.js";
-import { ensureRuntimeTempDir } from "./lib/runtimeTemp.js";
 import { handleOpenDayCatalog } from "./modules/open-day/interfaces/http/openDayCatalogHandler.js";
 import { handleOpenDaySnapshotGet } from "./modules/open-day/interfaces/http/openDaySnapshotGetHandler.js";
 import { handleOpenDayWorkbookParse } from "./modules/open-day/interfaces/http/openDayWorkbookParseHandler.js";
@@ -33,6 +31,7 @@ import {
   handleMaintainerRunGet,
   handleMaintainerRunList,
   handleMaintainerRunSave,
+  buildMaintainerRunIdentityContext,
   isMaintainerSyncConflictError,
 } from "./src/selling-houses/interfaces/http/maintainerRunHandlers.js";
 import {
@@ -44,59 +43,18 @@ import {
   handleSellingHousesScenarioList,
 } from "./src/selling-houses/interfaces/http/sellingHousesScenarioHandlers.js";
 import {
+  getFirstFieldValue,
   hasQueryValue,
   isMaintainerLeaderboardDetailQuery,
   isMaintainerLeaderboardQuery,
   isOpenDayScenarioVersionQuery,
   isOpenDaySnapshotDetailQuery,
   isStreamRequested,
+  parseMultipartUpload,
 } from "./api/_request.js";
 
 dotenv.config({ path: ".env.local", override: false });
 dotenv.config({ path: ".env", override: false });
-
-async function parseMultipart(req: Parameters<typeof formidable>[0]) {
-  const uploadDir = await ensureRuntimeTempDir("uploads");
-  const form = formidable({
-    multiples: false,
-    maxFiles: 1,
-    uploadDir,
-  });
-
-  return new Promise<{ fields: formidable.Fields; files: formidable.Files }>((resolve, reject) => {
-    form.parse(req, (error, fields, files) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-
-      resolve({ fields, files });
-    });
-  });
-}
-
-function getFirstFieldValue(value: string | string[] | undefined) {
-  if (Array.isArray(value)) {
-    return typeof value[0] === "string" ? value[0].trim() : "";
-  }
-
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function buildMaintainerRunIdentity(
-  authorization: {
-    accountId?: string;
-    displayName?: string;
-    nickname?: string;
-    source?: "session" | "activation-key";
-  },
-) {
-  return {
-    accountId: authorization.accountId,
-    displayName: authorization.displayName || authorization.nickname,
-    source: authorization.source,
-  } as const;
-}
 
 async function startServer() {
   const app = express();
@@ -342,7 +300,7 @@ async function startServer() {
 
   app.post("/api/parse-workbook", async (req, res) => {
     try {
-      const { fields, files } = await parseMultipart(req);
+      const { fields, files } = await parseMultipartUpload(req);
       const file = Array.isArray(files.file) ? files.file[0] : files.file;
 
       if (!file?.filepath) {
@@ -382,7 +340,7 @@ async function startServer() {
       if (!authorization.ok) {
         return res.status(authorization.status).json({ error: authorization.error });
       }
-      const identity = buildMaintainerRunIdentity(authorization);
+      const identity = buildMaintainerRunIdentityContext(authorization);
 
       if (isMaintainerLeaderboardDetailQuery(req.query)) {
         const payload = await handleMaintainerLeaderboardDetail(req.query);
@@ -413,7 +371,7 @@ async function startServer() {
         return res.status(authorization.status).json({ error: authorization.error });
       }
 
-      const payload = await handleMaintainerRunCreate(req.body, buildMaintainerRunIdentity(authorization));
+      const payload = await handleMaintainerRunCreate(req.body, buildMaintainerRunIdentityContext(authorization));
       return res.json(payload);
     } catch (error) {
       return res.status(400).json({ error: error instanceof Error ? error.message : "云端存档创建失败" });
@@ -427,7 +385,7 @@ async function startServer() {
         return res.status(authorization.status).json({ error: authorization.error });
       }
 
-      const payload = await handleMaintainerRunSave(req.body, buildMaintainerRunIdentity(authorization));
+      const payload = await handleMaintainerRunSave(req.body, buildMaintainerRunIdentityContext(authorization));
       return res.json(payload);
     } catch (error) {
       if (isMaintainerSyncConflictError(error)) {

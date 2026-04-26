@@ -5,7 +5,7 @@ import { queueDealClosingEvaluation } from '../dealClosing.js';
 import { updateDerivedState, logEvent, recordDomainEvent } from '../runtimeState.js';
 import { recordBudgetChange } from '../budget.js';
 import { applyAuxiliaryStats, getPromotionBudget } from '../runtimeStats.js';
-import { clamp, randomInt } from '../utils.js';
+import { clamp, getDayOfWeek, randomInt } from '../utils.js';
 import type {
   ActionDefinition,
   Case,
@@ -260,6 +260,36 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
     });
     logEvent(state, '私域转介绍', `${caseItem.title} 通过私域关系链被再次推荐，客群质量更整齐。`, 'success');
     onMessage?.(`${caseItem.title} 已完成一轮私域转介绍。`);
+    return true;
+  },
+  'focus-meeting-submit': ({ state, caseItem, action, onMessage }) => {
+    if (getDayOfWeek(state.day) !== 4) {
+      refundResources(state, action, '非周四不可提报聚焦会');
+      onMessage?.('周四上午才能提报聚焦会。');
+      return false;
+    }
+    if (state.focusMeeting.submissionDay !== state.day) {
+      state.focusMeeting = {
+        submissionDay: state.day,
+        submittedCaseIds: [],
+        selectedCaseIds: [],
+      };
+    }
+    if (state.focusMeeting.submittedCaseIds.includes(caseItem.id)) {
+      refundResources(state, action, '同一房源当天不可重复提报');
+      onMessage?.('这套房今天已经提报过了。');
+      return false;
+    }
+    if (state.focusMeeting.submittedCaseIds.length >= 3) {
+      refundResources(state, action, '周四聚焦会提报上限为 3 套');
+      onMessage?.('周四聚焦会最多提报 3 套房。');
+      return false;
+    }
+    state.focusMeeting.submittedCaseIds.push(caseItem.id);
+    touchCaseForAction(caseItem, action.id, state.day, true);
+    caseItem.lastOwnerTouchedDay = state.day;
+    logEvent(state, '周四聚焦会', `${caseItem.title} 已完成聚焦会提报（${state.focusMeeting.submittedCaseIds.length}/3）。`, 'accent');
+    onMessage?.(`${caseItem.title} 已提报周四聚焦会。`);
     return true;
   },
   'open-day': ({ state, caseItem, action, optionId, onMessage }) => {
@@ -642,6 +672,17 @@ export function getActionAvailability(
   }
   if (normalizedActionId === 'open-day' && caseItem.openDayCooldown > 0) {
     return { enabled: false, reason: `开放日还要冷却 ${caseItem.openDayCooldown} 天。` };
+  }
+  if (normalizedActionId === 'focus-meeting-submit') {
+    if (getDayOfWeek(state.day) !== 4) {
+      return { enabled: false, reason: '周四上午才能提报聚焦会。' };
+    }
+    if (state.focusMeeting.submissionDay === state.day && state.focusMeeting.submittedCaseIds.includes(caseItem.id)) {
+      return { enabled: false, reason: '这套房今天已经提报过了。' };
+    }
+    if (state.focusMeeting.submissionDay === state.day && state.focusMeeting.submittedCaseIds.length >= 3) {
+      return { enabled: false, reason: '周四聚焦会最多提报 3 套房。' };
+    }
   }
   if (normalizedActionId === 'showing' && !findBestOpportunity(state, caseItem.id, 0, 2)) {
     return { enabled: false, reason: '还没有足够成熟的线索能安排带看。' };

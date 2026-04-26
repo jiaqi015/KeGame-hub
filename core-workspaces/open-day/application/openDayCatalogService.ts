@@ -1,5 +1,5 @@
 import type { OpenDayCatalogResponse } from '../domain/openDay.types.js';
-import { listOpenDayFormulaDefinitions } from '../domain/openDayFormula.js';
+import { listOpenDaySkillDefinitions, listOpenDayFormulaDefinitions } from '../domain/openDaySkill.js';
 import { defaultOpenDayConfig, mergeOpenDayConfig, openDayParameterPackageCatalog } from './openDayConfig.js';
 import { createOpenDayHash } from './openDayFingerprint.js';
 
@@ -11,12 +11,14 @@ export class OpenDayCatalogService {
   execute(): OpenDayCatalogResponse {
     const defaultConfig = clone(defaultOpenDayConfig);
     const generatedAt = new Date().toISOString();
+    const skills = listOpenDaySkillDefinitions();
 
     return {
       generatedAt,
       defaultConfig,
       defaultConfigVersion: createOpenDayHash(defaultConfig, 'cfg'),
-      formulas: listOpenDayFormulaDefinitions(),
+      skills,
+      formulas: skills,
       parameterPackages: openDayParameterPackageCatalog.map((parameterPackage) => ({
         ...clone(parameterPackage),
         version: createOpenDayHash({ id: parameterPackage.id, overrides: parameterPackage.overrides }, 'package'),

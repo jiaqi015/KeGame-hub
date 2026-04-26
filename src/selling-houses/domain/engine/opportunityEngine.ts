@@ -35,6 +35,8 @@ function resolveLeadIntel(world: GameState, channelId: string) {
 
 export function tickOpportunities(world: GameState) {
   const tickBalance = BALANCE.opportunities.tick;
+  const funnelProgressionScale = Math.max(0, world.rules.outcomeControl.playerFunnelProgressionScale);
+  const stagnationScale = Math.max(0, world.rules.outcomeControl.customerStagnationScale);
   world.opportunities.forEach((opportunity) => {
     if (opportunity.status !== 'active') return;
 
@@ -44,8 +46,8 @@ export function tickOpportunities(world: GameState) {
       return;
     }
 
-    opportunity.daysLeft -= 1;
-    opportunity.stagnationTicks += 1;
+    opportunity.daysLeft -= stagnationScale;
+    opportunity.stagnationTicks += stagnationScale;
     opportunity.lifecycleStatus = opportunity.stagnationTicks >= 3 ? 'stagnated' : 'active';
 
     const pricePenalty = Math.max(0, caseItem.askPrice - opportunity.budgetMax) / tickBalance.pricePenaltyDivisor;
@@ -67,13 +69,13 @@ export function tickOpportunities(world: GameState) {
     );
 
     if (!opportunity.touchedToday) {
-      opportunity.intent = clamp(opportunity.intent - tickBalance.untouchedIntentLoss, 0, 100);
+      opportunity.intent = clamp(opportunity.intent - tickBalance.untouchedIntentLoss * stagnationScale, 0, 100);
     }
 
     if (
       opportunity.stageIndex < 6
       && opportunity.intent >= tickBalance.stageAdvanceIntentThreshold
-      && chance(tickBalance.stageAdvanceChance, world)
+      && chance(clamp(tickBalance.stageAdvanceChance * funnelProgressionScale, 0, 0.95), world)
     ) {
       opportunity.stageIndex += 1;
       opportunity.stagnationTicks = 0;
@@ -122,10 +124,11 @@ export function spawnPassiveLeads(state: GameState) {
     if (caseItem.status !== 'active') return;
 
     const focusMultiplier = caseItem.isFocused ? state.rules.passiveLeadFocusedMultiplier : 1.0;
+    const leadSupplyScale = Math.max(0, state.rules.outcomeControl.playerLeadSupplyScale);
     const baseChance = (
       (caseItem.heat / passiveLeadBalance.heatDivisor)
       + (caseItem.d1 / passiveLeadBalance.d1Divisor)
-    ) * state.rules.passiveLeadBaseMultiplier;
+    ) * state.rules.passiveLeadBaseMultiplier * leadSupplyScale;
 
     if (chance(baseChance * focusMultiplier, state)) {
       const channelId = caseItem.isFocused ? 'xiaohongshu' : getRandomChannel(state);

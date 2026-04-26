@@ -41,7 +41,7 @@ export function WorkspaceHub({
           <div className="flex min-w-0 items-center gap-3">
             <KeGameHubMark size={34} />
             <div className="min-w-0">
-              <div className="text-[13px] font-bold uppercase tracking-[0.22em] text-[#5C5C60]">KeGame</div>
+              <div className="text-[13px] font-bold uppercase tracking-[0.22em] text-[#5C5C60]">KeGame Hub</div>
             </div>
           </div>
 
@@ -65,9 +65,17 @@ export function WorkspaceHub({
         <div className="grid gap-6 xl:grid-cols-3">
           {visibleWorkspaces.map((workspace) => {
             const Icon = workspace.icon;
-            const isAvailable = workspace.isAvailable;
-            const footerLabel = isAvailable ? workspace.ctaLabel : '开发中，请期待';
-            const cardClassName = isAvailable
+            const isAvailable = workspace.status === 'available';
+            const isPlanned = workspace.status === 'planned';
+            const canOpen = isAvailable || isPlanned;
+            const footerLabel = canOpen ? workspace.ctaLabel : '未开放，请期待';
+            const statusBadgeLabel = isAvailable ? '已开放' : isPlanned ? '规划中' : '未开放';
+            const statusBadgeClassName = isAvailable
+              ? workspace.pillClassName
+              : isPlanned
+                ? 'bg-amber-50 text-amber-700'
+                : 'bg-slate-100 text-slate-500';
+            const cardClassName = canOpen
               ? 'group flex h-full flex-col rounded-[32px] border border-black/5 bg-white p-8 text-left shadow-[0_4px_24px_rgba(0,0,0,0.03)] transition-all hover:-translate-y-1.5 hover:shadow-[0_24px_50px_rgba(0,0,0,0.08)]'
               : 'flex h-full flex-col rounded-[32px] border border-black/5 bg-[linear-gradient(180deg,#ffffff,#fbfbfd)] p-8 text-left shadow-[0_4px_24px_rgba(0,0,0,0.03)] opacity-80';
 
@@ -75,22 +83,27 @@ export function WorkspaceHub({
               <button
                 key={workspace.id}
                 type="button"
-                onClick={isAvailable ? () => {
+                onClick={canOpen ? () => {
                   setOpeningWorkspace(workspace.id);
                   onSelect(workspace.id);
                 } : undefined}
                 onMouseEnter={isAvailable ? () => onPrepareWorkspace?.(workspace.id) : undefined}
                 onFocus={isAvailable ? () => onPrepareWorkspace?.(workspace.id) : undefined}
-                disabled={!isAvailable}
-                aria-disabled={!isAvailable}
+                disabled={!canOpen}
+                aria-disabled={!canOpen}
                 className={cardClassName}
               >
                 <div className="flex items-center gap-4">
                   <div className={`flex h-14 w-14 items-center justify-center rounded-[20px] ${workspace.iconContainerClassName}`}>
                     <Icon className="h-5 w-5" />
                   </div>
-                  <div className={`rounded-full px-3 py-1 text-[11px] font-semibold ${workspace.pillClassName}`}>
-                    {workspace.shortLabel}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${workspace.pillClassName}`}>
+                      {workspace.shortLabel}
+                    </span>
+                    <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${statusBadgeClassName}`}>
+                      {statusBadgeLabel}
+                    </span>
                   </div>
                 </div>
                 <h2 className="mt-6 text-[30px] font-semibold tracking-[-0.05em] text-[#111111]">
@@ -109,11 +122,11 @@ export function WorkspaceHub({
                 </div>
                 <div className="mt-auto flex items-center justify-between pt-8 text-sm font-semibold text-[#111111]">
                   <span>{openingWorkspace === workspace.id ? '正在打开…' : footerLabel}</span>
-                  {isAvailable ? (
+                  {canOpen ? (
                     <span
                       className={`inline-flex items-center gap-1 transition group-hover:translate-x-1 ${workspace.accentClassName.split(' ').slice(0, 1).join(' ')}`}
                     >
-                      {openingWorkspace === workspace.id ? '进入中' : '打开'}
+                      {openingWorkspace === workspace.id ? '进入中' : isPlanned ? '预览' : '打开'}
                       <ArrowRight className="h-4 w-4" />
                     </span>
                   ) : (

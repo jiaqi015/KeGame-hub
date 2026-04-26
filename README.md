@@ -1,4 +1,4 @@
-# AI Model Sabrina II
+# KeGame Hub
 
 统一入口的产品型工作台，面向三个相互关联的场景：
 
@@ -128,7 +128,7 @@ http://localhost:3000
   - 方案版本
   - dataset / profile 追溯
 
-### Selling Houses
+### 我是王牌资产顾问
 
 - 主模块：`src/selling-houses/`
 - 运行真相入口：`index.html` -> `src/main.tsx` -> `src/App.tsx` -> `src/workspaces/workspaceRegistry.tsx` -> `src/selling-houses/SellingHousesWorkspace.tsx`
@@ -142,7 +142,7 @@ http://localhost:3000
 
 ### API
 
-- Sabrina：
+- 多模型PK（内部 id：sabrina）：
   - `/api/auth?mode=activate`
   - `/api/compare`
   - `/api/compare-stream`
@@ -153,7 +153,7 @@ http://localhost:3000
   - `/api/open-day-analyses`
   - `/api/open-day-scenarios`
   - `/api/open-day-scenario-versions`
-- Selling Houses：
+- 我是王牌资产顾问（内部 API 仍沿用 maintainer）：
   - `/api/maintainer-runs`
   - `/api/selling-houses-scenarios`
 
@@ -183,7 +183,7 @@ http://localhost:3000
 - [Phase 3: Dataset / Profile](docs/open-day-phase3-dataset-profile.md)
 - [DBA 工作 SOP](docs/open-day-dba-sop.md)
 
-### Selling Houses
+### 我是王牌资产顾问
 
 - [玩法说明](docs/selling-houses-how-to-play.md)
 - [卖房总设计](docs/selling-houses-total-design.md)
@@ -298,7 +298,7 @@ npm run selfplay:lab
 
 ### Entry and workspace flow
 
-- 验证页沿用 Sabrina 的激活机制
+- 验证页沿用统一入口激活机制，并兼容旧 Sabrina 工作台标识
 - 验证通过后先进入功能选择页，再切入具体工作台
 - 代码内部继续保留 `open-day` 作为模块与接口前缀，避免为了产品文案变化做高风险重命名
 

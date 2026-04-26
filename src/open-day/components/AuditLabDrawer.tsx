@@ -11,9 +11,8 @@ interface AuditLabDrawerProps {
 }
 
 export function AuditLabDrawer({ row, config, onClose }: AuditLabDrawerProps) {
-  // 提取当前公式描述
-  const isGeometric = config.formulaId === 'geometric_catalyst_v2';
-  const formulaLabel = isGeometric ? '几何体量 + 商品门控' : '线性加权催化';
+  const isGeometric = (config.skillId || config.formulaId) === 'geometric_catalyst_v2';
+  const skillLabel = isGeometric ? '几何体量 + 商品门控' : '线性加权催化';
   
   // 指标映射关系
   const metrics = [
@@ -102,7 +101,7 @@ export function AuditLabDrawer({ row, config, onClose }: AuditLabDrawerProps) {
             </div>
             
             <div className="open-day-audit-formula-box">
-              <div className="formula-badge">当前公式：{formulaLabel}</div>
+              <div className="formula-badge">测算技能：{skillLabel}</div>
               <div className="formula-visual">
                 <div className="formula-node">
                   <span className="node-label">体量得分 (Volume)</span>

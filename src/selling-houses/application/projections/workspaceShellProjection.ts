@@ -185,8 +185,8 @@ export function buildWorkspaceShellProjection(state: GameState): WorkspaceShellP
       },
       energy: {
         label: '今日精力',
-        value: `${state.energy}/${state.maxEnergy}`,
-        detail: buildEnergyHealthText(state.energy, state.maxEnergy),
+        value: `${state.energy} / ${state.maxEnergy}`,
+        detail: `当前可用 ${state.energy}，今日上限 ${state.maxEnergy}。${buildEnergyHealthText(state.energy, state.maxEnergy)}`,
       },
     },
     panelMeta: {
@@ -239,8 +239,8 @@ export function buildWorkspaceShellProjection(state: GameState): WorkspaceShellP
       soldCases: soldCases.map((entry) => toSoldCaseProjection(entry)),
     },
     energyPanel: {
-      energyLabel: `${state.energy}/${state.maxEnergy}`,
-      summary: `今天是 ${routine.label} · ${routine.theme}。${buildEnergyHealthText(state.energy, state.maxEnergy)}`,
+      energyLabel: `${state.energy} / ${state.maxEnergy}`,
+      summary: `今天是 ${routine.label} · ${routine.theme}。当前可用 ${state.energy}，今日上限 ${state.maxEnergy}。${buildEnergyHealthText(state.energy, state.maxEnergy)}`,
       stats: [
         { label: '今日上限', value: `${state.maxEnergy}`, tone: 'amber' },
         { label: '已用精力', value: `${spentEnergy}`, tone: 'rose' },
@@ -251,7 +251,7 @@ export function buildWorkspaceShellProjection(state: GameState): WorkspaceShellP
         { label: '基础上限', value: `${state.rules.baseMaxEnergy} 精力` },
         { label: '明日主题', value: nextRoutine.theme },
       ],
-      note: '精力是每日硬上限，数值只反映今天还能执行多少动作。',
+      note: '今日精力表示当前可用 / 今日上限；日程里的可排余量会扣掉固定预留和已排占用。',
       rhythm: Array.from({ length: 4 }, (_, index) => {
         const absoluteDay = state.day + index;
         const previewRoutine = getRoutine(absoluteDay, WEEKLY_ROUTINE);

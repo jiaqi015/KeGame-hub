@@ -1,6 +1,5 @@
 import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Calendar,
   ChevronRight,
   CircleDollarSign,
   FastForward,
@@ -19,9 +18,16 @@ import { ConfirmBackButton } from '../components/Common/ConfirmBackButton';
 import { LoadingScene } from '../components/Common/LoadingScene';
 import { useGame } from './application/useGame';
 import {
+  getSellingHousesStorageProfileLabel,
+  isDefaultSellingHousesStorageProfile,
+  type SellingHousesStorageProfile,
+} from './application/storageProfile';
+import {
   buildWorkspaceShellProjection,
 } from './application/projections/workspaceShellProjection';
-import type { ArrangementItemProjection } from './application/projections/operatingProjection';
+import { buildWeeklySummaryPresentation, type WeeklySummaryPresentation } from './application/weeklySummary';
+import type { ArrangementItemProjection, ProductOpportunityProjection } from './application/projections/operatingProjection';
+import type { Settlement } from './domain/actions/templates';
 import type { TodayArrangementSlot } from './domain/models';
 import { ActionDecisionOverlay, buildActionDecisionConfig } from './ui/features/ActionDecisionOverlay';
 import { DailyJournal } from './ui/widgets/DailyJournal';
@@ -34,8 +40,11 @@ const Market = lazy(() => import('./ui/features/Market').then((module) => ({ def
 const ProfilePanel = lazy(() => import('./ui/features/ProfilePanel').then((module) => ({ default: module.ProfilePanel })));
 const ResultOverlay = lazy(() => import('./ui/features/ResultOverlay').then((module) => ({ default: module.ResultOverlay })));
 const DailySummaryOverlay = lazy(() => import('./ui/features/DailySummaryOverlay').then((module) => ({ default: module.DailySummaryOverlay })));
+const WeeklySummaryOverlay = lazy(() => import('./ui/features/WeeklySummaryOverlay').then((module) => ({ default: module.WeeklySummaryOverlay })));
 const LeaderboardOverlay = lazy(() => import('./ui/features/LeaderboardOverlay').then((module) => ({ default: module.LeaderboardOverlay })));
 const ScenarioSetup = lazy(() => import('./ui/features/ScenarioSetup').then((module) => ({ default: module.ScenarioSetup })));
+
+const ADVANCE_LOCK_RELEASE_DELAY_MS = 650;
 
 export function preloadSellingHousesPrimaryViews() {
   return Promise.all([
@@ -59,6 +68,7 @@ interface SellingHousesWorkspaceProps {
   currentUserAccountId?: string;
   currentUserNickname?: string;
   currentUserEmail?: string;
+  storageProfile?: SellingHousesStorageProfile;
   onReturnToHub: () => void;
   onLogout: () => void;
 }
@@ -78,6 +88,7 @@ export function SellingHousesWorkspace({
   currentUserAccountId,
   currentUserNickname,
   currentUserEmail,
+  storageProfile = 'default',
   onReturnToHub,
   onLogout,
 }: SellingHousesWorkspaceProps) {
@@ -90,11 +101,12 @@ export function SellingHousesWorkspace({
     starting,
     leaderboardDetail,
     leaderboardLoading,
+    syncWarning,
     loadLeaderboardDetail,
     startFeaturedRun,
     startRandomGeneratedRun,
     handleSelectCase,
-    handleAdvanceDays,
+    handleAdvanceDaysWithSummary,
     handleExecuteAction,
     handleExecuteScenarioAction,
     handleAddTodayPlanItem,
@@ -107,27 +119,52 @@ export function SellingHousesWorkspace({
     accountId: currentUserAccountId,
     email: currentUserEmail,
     nickname: currentUserNickname,
+    storageProfile,
   });
 
   const [activeView, setActiveView] = useState<WorkspaceView>('overview');
   const [marketEntryLayer, setMarketEntryLayer] = useState<MarketEntryLayer>('macro');
   const [activeResourcePanel, setActiveResourcePanel] = useState<ResourcePanelType | null>(null);
+  const [selectedCaseIdOverride, setSelectedCaseIdOverride] = useState<string | null>(null);
   const [journalOpen, setJournalOpen] = useState(false);
   const [activeDetailPanel, setActiveDetailPanel] = useState<DetailPanelType | null>(null);
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [activeTodayScenario, setActiveTodayScenario] = useState<ActiveTodayScenario | null>(null);
+  const [isAdvancing, setIsAdvancing] = useState(false);
+  const [weeklySummary, setWeeklySummary] = useState<WeeklySummaryPresentation | null>(null);
+  const [wechatReadIds, setWechatReadIds] = useState<Set<string>>(() => new Set());
   const mainScrollRef = useRef<HTMLElement | null>(null);
+  const workspaceContentRef = useRef<HTMLDivElement | null>(null);
+  const advancingLockRef = useRef(false);
   const viewFallback = useMemo(() => <WorkspacePanelSkeleton />, []);
   const overlayFallback = useMemo(() => <WorkspaceOverlaySkeleton />, []);
   const shellProjection = useMemo(() => (state ? buildWorkspaceShellProjection(state) : null), [state]);
+  const wechatReadScopeKey = state
+    ? `${state.runContext.createdAt}:${state.runContext.runSeed}:${state.runContext.difficultyId}`
+    : 'no-run';
+  const isDefaultProfile = isDefaultSellingHousesStorageProfile(storageProfile);
+  const storageProfileLabel = getSellingHousesStorageProfileLabel(storageProfile);
   const activeScenarioCase = state && activeTodayScenario
     ? state.cases.find((entry) => entry.id === activeTodayScenario.caseId) || null
     : null;
   const activeScenarioConfig = state && activeTodayScenario && activeScenarioCase
     ? buildActionDecisionConfig(state, activeScenarioCase, activeTodayScenario.actionId)
     : null;
+  const activeTodayPlanItem = state && activeTodayScenario
+    ? state.todayPlan.playerItems.find(item => item.id === activeTodayScenario.todayPlanItemId)
+    : null;
+  const activeMatter = state && activeTodayPlanItem?.sourceMatterId
+    ? state.matters.find(m => m.id === activeTodayPlanItem.sourceMatterId)
+    : undefined;
+
+  const releaseWorkspaceFocus = () => {
+    const activeElement = document.activeElement;
+    if (activeElement instanceof HTMLElement && workspaceContentRef.current?.contains(activeElement)) {
+      activeElement.blur();
+    }
+  };
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -135,6 +172,16 @@ export function SellingHousesWorkspace({
     });
     return () => cancelAnimationFrame(frame);
   }, [activeView, state?.day]);
+
+  useEffect(() => {
+    if (!state) {
+      setWeeklySummary(null);
+    }
+  }, [state]);
+
+  useEffect(() => {
+    setWechatReadIds(new Set());
+  }, [wechatReadScopeKey]);
 
   useEffect(() => {
     if (activeTodayScenario && !activeScenarioConfig) {
@@ -153,6 +200,40 @@ export function SellingHousesWorkspace({
     }
   }, [activeTodayScenario, state]);
 
+  const displayMessage = (msg: string) => {
+    setMessage(msg);
+    setTimeout(() => setMessage(null), 3000);
+  };
+
+  const closeTransientPanels = () => {
+    setActiveResourcePanel(null);
+    setActiveDetailPanel(null);
+    setJournalOpen(false);
+    setActiveTodayScenario(null);
+    setLeaderboardOpen(false);
+    setLeaderboardError(null);
+  };
+
+  const resetToNewDayView = () => {
+    closeTransientPanels();
+    setActiveView('overview');
+    setMarketEntryLayer('macro');
+  };
+
+  const resetTestProfile = async () => {
+    if (isDefaultProfile || starting) {
+      return;
+    }
+
+    releaseWorkspaceFocus();
+    advancingLockRef.current = false;
+    setIsAdvancing(false);
+    resetToNewDayView();
+    handleReset();
+    await startFeaturedRun('standard');
+    displayMessage(`${storageProfileLabel}已重置到 Day 1。`);
+  };
+
   if (phase === 'loading') {
     return (
       <LoadingScene
@@ -163,7 +244,20 @@ export function SellingHousesWorkspace({
 
   if (phase === 'setup' || !state) {
     return (
-      <div className="selling-houses-shell flex h-full flex-col overflow-hidden text-[var(--seller-ink)]">
+      <div className="selling-houses-shell relative flex h-full flex-col overflow-hidden text-[var(--seller-ink)]">
+        {!isDefaultProfile && (
+          <div className="absolute right-4 top-4 z-20 flex items-center gap-2 rounded-full border border-[var(--seller-border)] bg-[rgba(11,17,24,0.88)] px-2 py-1 shadow-[var(--seller-shadow-sm)]">
+            <span className="px-2 text-[10px] font-bold text-[var(--seller-chance)]">{storageProfileLabel}</span>
+            <button
+              type="button"
+              onClick={() => { void resetTestProfile(); }}
+              disabled={starting}
+              className="rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.06)] px-2.5 py-1 text-[10px] font-bold text-[var(--seller-ink)] transition hover:bg-[rgba(255,255,255,0.1)] disabled:opacity-50"
+            >
+              重置测试档
+            </button>
+          </div>
+        )}
         <Suspense fallback={viewFallback}>
           <ScenarioSetup
             difficultyOptions={difficultyOptions}
@@ -187,9 +281,55 @@ export function SellingHousesWorkspace({
     );
   }
 
-  const displayMessage = (msg: string) => {
-    setMessage(msg);
-    setTimeout(() => setMessage(null), 3000);
+  const hasBlockingDailyReport = Boolean(state.currentReport && !state.gameOver);
+  const hasBlockingWeeklySummary = Boolean(weeklySummary && !state.gameOver);
+
+  const advanceByDays = (count: number) => {
+    releaseWorkspaceFocus();
+    if (advancingLockRef.current || isAdvancing) {
+      return;
+    }
+    if (state.gameOver) {
+      displayMessage('本局已结算');
+      return;
+    }
+    if (hasBlockingDailyReport) {
+      displayMessage('先查看今日结算。');
+      return;
+    }
+    if (hasBlockingWeeklySummary) {
+      displayMessage('先查看周经营复盘。');
+      return;
+    }
+
+    advancingLockRef.current = true;
+    setIsAdvancing(true);
+    setWeeklySummary(null);
+    resetToNewDayView();
+    const summary = handleAdvanceDaysWithSummary(count, count === 1 ? displayMessage : undefined);
+    if (count > 1 && summary) {
+      handleClearReport();
+      if (count === 7 && summary.settledDays > 0 && !summary.gameOver) {
+        setWeeklySummary(buildWeeklySummaryPresentation(state, summary.nextState, summary.settledResults));
+      }
+      displayMessage(summary.gameOver
+        ? '本局已结算'
+        : `已连续结算 ${summary.settledDays} 天，当前到第 ${summary.afterDay} 天`);
+    }
+    window.setTimeout(() => {
+      advancingLockRef.current = false;
+      setIsAdvancing(false);
+    }, ADVANCE_LOCK_RELEASE_DELAY_MS);
+  };
+
+  const continueAfterDailySummary = () => {
+    resetToNewDayView();
+    handleClearReport();
+  };
+
+  const continueAfterWeeklySummary = () => {
+    resetToNewDayView();
+    setWeeklySummary(null);
   };
 
   const executeActionByCaseId = (actionId: string, caseId: string) => {
@@ -216,6 +356,25 @@ export function SellingHousesWorkspace({
     }, displayMessage).success;
   };
 
+  const captureProductOpportunity = (opportunity: ProductOpportunityProjection) => {
+    const actionCase = state.cases.find((entry) => entry.id === opportunity.actionCaseId) || null;
+    if (!actionCase || actionCase.status !== 'active') {
+      displayMessage('当前对象已不可执行，请刷新后再试。');
+      return false;
+    }
+    if (opportunity.status === 'expired') {
+      displayMessage('这个机会已经过期了。');
+      return false;
+    }
+    if (opportunity.status === 'accepted') {
+      handleSelectCase(actionCase.id);
+      setActiveView('cases');
+      displayMessage(`${actionCase.title} 的${opportunity.type === 'open-day' ? '开放日' : '诚意卖'}正在推进中。`);
+      return true;
+    }
+    return handleExecuteAction(opportunity.actionId, actionCase, null, displayMessage);
+  };
+
   const removeTodayPlanItem = (itemId: string) => handleRemoveTodayPlanItem(itemId, displayMessage).success;
   const executeTodayPlanItem = (itemId: string) => {
     const todayPlanItem = state.todayPlan.playerItems.find((entry) => entry.id === itemId) || null;
@@ -224,6 +383,7 @@ export function SellingHousesWorkspace({
       && todayPlanItem.executionMode === 'scenario'
       && todayPlanItem.linkedCaseId
     ) {
+      releaseWorkspaceFocus();
       setActiveTodayScenario({
         todayPlanItemId: itemId,
         actionId: todayPlanItem.linkedActionId,
@@ -238,7 +398,12 @@ export function SellingHousesWorkspace({
 
   const closeTodayScenario = () => setActiveTodayScenario(null);
 
-  const completeTodayScenario = (optionId: string | null, settlement?: any) => {
+  const completeTodayScenario = (
+    optionId: string | null,
+    settlement?: Settlement,
+    choices: Array<{ round: number; main: string; assist: string }> = [],
+    feedbacks: Array<{ actor: string; mood: string; message: string }> = [],
+  ) => {
     if (!activeTodayScenario || !activeScenarioCase) {
       setActiveTodayScenario(null);
       return;
@@ -249,6 +414,8 @@ export function SellingHousesWorkspace({
         activeTodayScenario.actionId,
         activeScenarioCase,
         settlement,
+        choices,
+        feedbacks,
         displayMessage,
         activeTodayScenario.todayPlanItemId,
       );
@@ -264,12 +431,13 @@ export function SellingHousesWorkspace({
   };
 
   const openLeaderboard = async () => {
+    releaseWorkspaceFocus();
     setLeaderboardOpen(true);
     setLeaderboardError(null);
     try {
       await loadLeaderboardDetail();
     } catch (error) {
-      setLeaderboardError(error instanceof Error ? error.message : '排行榜加载失败。');
+      setLeaderboardError(error instanceof Error ? error.message : '游戏排行榜加载失败。');
     }
   };
 
@@ -279,7 +447,26 @@ export function SellingHousesWorkspace({
   };
 
   const openView = (view: WorkspaceView) => {
+    if (view !== 'cases') {
+      setSelectedCaseIdOverride(null);
+    }
     setActiveView(view);
+  };
+
+  const openCaseFromWechat = (caseId: string) => {
+    setSelectedCaseIdOverride(caseId);
+    setActiveView('cases');
+  };
+
+  const markWechatRead = (id: string) => {
+    setWechatReadIds((current) => {
+      if (current.has(id)) {
+        return current;
+      }
+      const next = new Set(current);
+      next.add(id);
+      return next;
+    });
   };
 
   const openSelectedCaseQuickView = (caseId?: string) => {
@@ -287,6 +474,7 @@ export function SellingHousesWorkspace({
       setActiveView('overview');
       return;
     }
+    releaseWorkspaceFocus();
     handleSelectCase(caseId);
     setActiveDetailPanel('selected-case');
   };
@@ -297,17 +485,23 @@ export function SellingHousesWorkspace({
       return;
     }
     if (view === 'customers' || view === 'opportunities') {
+      setSelectedCaseIdOverride(null);
       setActiveView('customers');
       return;
     }
     if (view === 'cases' || view === 'market' || view === 'profile') {
+      if (view !== 'cases') {
+        setSelectedCaseIdOverride(null);
+      }
       setActiveView(view);
       return;
     }
+    setSelectedCaseIdOverride(null);
     setActiveView('overview');
   };
 
   const openMarketView = (layer: MarketEntryLayer = 'macro') => {
+    setSelectedCaseIdOverride(null);
     setMarketEntryLayer(layer);
     setActiveView('market');
   };
@@ -318,22 +512,33 @@ export function SellingHousesWorkspace({
         return (
           <Dashboard
             state={state}
+            wechatReadIds={wechatReadIds}
             onSelectCase={handleSelectCase}
             onExecuteAction={executeActionByCaseId}
             onAddToToday={addTodayPlanFromProjection}
             onRemoveFromToday={removeTodayPlanItem}
             onExecuteTodayItem={executeTodayPlanItem}
+            onCaptureOpportunity={captureProductOpportunity}
             onSetView={openViewFromChild}
             onOpenMarket={openMarketView}
+            onOpenCaseFromWechat={openCaseFromWechat}
+            onMarkWechatRead={markWechatRead}
           />
         );
       case 'cases':
         return (
           <Cases
             state={state}
-            onSelectCase={handleSelectCase}
+            selectedCaseIdOverride={selectedCaseIdOverride}
+            onSelectCase={(caseId) => {
+              setSelectedCaseIdOverride(null);
+              handleSelectCase(caseId);
+            }}
             onExecuteAction={(id, item, opt) => handleExecuteAction(id, item, opt, displayMessage)}
-            onExecuteScenarioAction={(actionId, caseItem, settlement) => handleExecuteScenarioAction(actionId, caseItem, settlement, displayMessage)}
+            onCaptureOpportunity={captureProductOpportunity}
+            onExecuteScenarioAction={(actionId, caseItem, settlement, choices, feedbacks) => (
+              handleExecuteScenarioAction(actionId, caseItem, settlement, choices, feedbacks, displayMessage)
+            )}
           />
         );
       case 'customers':
@@ -353,22 +558,52 @@ export function SellingHousesWorkspace({
         return (
           <Dashboard
             state={state}
+            wechatReadIds={wechatReadIds}
             onSelectCase={handleSelectCase}
             onExecuteAction={executeActionByCaseId}
             onAddToToday={addTodayPlanFromProjection}
             onRemoveFromToday={removeTodayPlanItem}
             onExecuteTodayItem={executeTodayPlanItem}
+            onCaptureOpportunity={captureProductOpportunity}
             onSetView={openViewFromChild}
             onOpenMarket={openMarketView}
+            onOpenCaseFromWechat={openCaseFromWechat}
+            onMarkWechatRead={markWechatRead}
           />
         );
     }
   };
 
+  const openJournal = () => {
+    releaseWorkspaceFocus();
+    setJournalOpen(true);
+  };
+
+  const openResourcePanel = (panel: ResourcePanelType) => {
+    releaseWorkspaceFocus();
+    setActiveResourcePanel(panel);
+  };
+
   const activeResourceMeta = activeResourcePanel ? runShellProjection.panelMeta[activeResourcePanel] : null;
+  const isOverlayOpen = Boolean(
+    journalOpen
+    || activeResourcePanel
+    || activeDetailPanel
+    || leaderboardOpen
+    || activeScenarioConfig
+    || hasBlockingDailyReport
+    || state.gameOver,
+  );
 
   return (
     <div className="selling-houses-shell flex h-full flex-col overflow-hidden font-sans text-[var(--seller-ink)]">
+      <div
+        ref={workspaceContentRef}
+        aria-hidden={isOverlayOpen ? true : undefined}
+        inert={isOverlayOpen ? true : undefined}
+        data-seller-interaction-layer={isOverlayOpen ? 'background-inert' : 'active'}
+        className={`flex min-h-0 flex-1 flex-col transition duration-200 ${isOverlayOpen ? 'pointer-events-none select-none opacity-45 blur-[1px]' : ''}`}
+      >
       <header className="shrink-0 border-b border-[var(--seller-border)] bg-[rgba(11,17,24,0.96)] px-4 py-2 backdrop-blur-xl">
         <div className="flex flex-col gap-2.5">
           <div className="seller-band flex flex-wrap items-center justify-between gap-3 px-3 py-2">
@@ -387,9 +622,9 @@ export function SellingHousesWorkspace({
                       tone: 'primary',
                     },
                   ]}
-                  title="返回到 Hub？"
+                  title="返回入口？"
                   description="你可以保留当前进度回到功能入口，也可以直接清掉这一局后返回。"
-                  buttonLabel="返回 Hub"
+                  buttonLabel="返回"
                   buttonClassName="seller-button-secondary inline-flex h-9 shrink-0 items-center gap-1.5 px-3"
                 />
 
@@ -398,19 +633,25 @@ export function SellingHousesWorkspace({
                 <div className="flex min-w-0 items-center gap-3">
                   <div className="min-w-0 flex flex-wrap items-center gap-1.5">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <div className="seller-chip seller-chip-accent">
-                        {runShellProjection.header.scenarioTheme}
-                      </div>
-                      <div className="seller-chip">
-                        <Calendar size={10} />
-                        {runShellProjection.header.routineLabel} · {runShellProjection.header.routineTheme}
-                      </div>
                       <div className="seller-chip">
                         {difficultyLabel(runShellProjection.header.difficultyId)}
                       </div>
-                    </div>
-                    <div className="truncate text-[14px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">
-                      {runShellProjection.header.scenarioName}
+                      {!isDefaultProfile && (
+                        <>
+                          <div className="seller-chip seller-chip-chance" title="当前使用独立测试存档，不影响正式档">
+                            {storageProfileLabel}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => { void resetTestProfile(); }}
+                            disabled={starting || isAdvancing}
+                            className="seller-button-secondary h-8 rounded-full px-3 text-[10px] disabled:opacity-50"
+                            title="只重置当前测试档，不影响正式档"
+                          >
+                            重置测试档
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -420,9 +661,8 @@ export function SellingHousesWorkspace({
             <div className="flex items-center justify-end">
               <WorkspaceUtilityBar
                 journalTodayCount={runShellProjection.sidebar.journal.todayCount}
-                onOpenJournal={() => setJournalOpen(true)}
+                onOpenJournal={openJournal}
                 onOpenLeaderboard={openLeaderboard}
-                onLogout={onLogout}
               />
             </div>
           </div>
@@ -442,7 +682,7 @@ export function SellingHousesWorkspace({
               <div className="seller-band flex items-center gap-1 p-1">
                 <button
                   type="button"
-                  onClick={() => setActiveResourcePanel('budget')}
+                  onClick={() => openResourcePanel('budget')}
                   className="min-w-[108px] rounded-[10px] border border-transparent bg-transparent px-2 py-2 text-left transition-all hover:border-[var(--seller-border)] hover:bg-[rgba(255,255,255,0.06)]"
                   aria-label="查看推广金详情"
                   title="查看推广金详情"
@@ -463,7 +703,7 @@ export function SellingHousesWorkspace({
                 <div className="seller-separator h-8 w-px" />
                 <button
                   type="button"
-                  onClick={() => setActiveResourcePanel('auxiliary')}
+                  onClick={() => openResourcePanel('auxiliary')}
                   className="min-w-[108px] rounded-[10px] border border-transparent bg-transparent px-2 py-2 text-left transition-all hover:border-[var(--seller-border)] hover:bg-[rgba(255,255,255,0.06)]"
                   aria-label="查看成交与佣金详情"
                   title="查看成交与佣金详情"
@@ -479,7 +719,7 @@ export function SellingHousesWorkspace({
                 <div className="seller-separator h-8 w-px" />
                 <button
                   type="button"
-                  onClick={() => setActiveResourcePanel('energy')}
+                  onClick={() => openResourcePanel('energy')}
                   className="min-w-[84px] rounded-[10px] border border-transparent bg-transparent px-2 py-2 text-left transition-all hover:border-[var(--seller-border)] hover:bg-[rgba(255,255,255,0.06)]"
                   aria-label="查看今日精力详情"
                   title="查看今日精力详情"
@@ -496,16 +736,16 @@ export function SellingHousesWorkspace({
 
               <div className="seller-band flex items-center gap-1 p-1">
                 <button
-                  onClick={() => handleAdvanceDays(7, displayMessage)}
-                  disabled={state.gameOver}
+                  onClick={() => advanceByDays(7)}
+                  disabled={hasBlockingDailyReport || state.gameOver || isAdvancing}
                   className="seller-button-secondary flex h-11 items-center gap-1.5 rounded-[10px] px-3.5 disabled:opacity-50"
                 >
                   <FastForward size={16} />
                   <span>推进一周</span>
                 </button>
                 <button
-                  onClick={() => handleAdvanceDays(1, displayMessage)}
-                  disabled={state.gameOver}
+                  onClick={() => advanceByDays(1)}
+                  disabled={hasBlockingDailyReport || state.gameOver || isAdvancing}
                   className="seller-button-primary h-11 rounded-[10px] px-3.5 shadow-[var(--seller-shadow-sm)] disabled:opacity-50"
                 >
                   结束今日
@@ -518,16 +758,17 @@ export function SellingHousesWorkspace({
 
       <div className="seller-shell-body flex flex-1 min-h-0 overflow-hidden">
         <main ref={mainScrollRef} className="relative min-w-0 flex-1 overflow-y-auto p-4 lg:p-5">
-          {message && (
-            <div className="fixed bottom-10 left-1/2 z-[60] flex -translate-x-1/2 items-center gap-3 rounded-2xl border border-[var(--seller-border)] bg-[var(--seller-paper)] px-6 py-3 text-[var(--seller-ink)] shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300">
+          {(message || syncWarning) && (
+            <div className="fixed bottom-10 left-1/2 z-[120] flex -translate-x-1/2 items-center gap-3 rounded-2xl border border-[var(--seller-border)] bg-[var(--seller-paper)] px-6 py-3 text-[var(--seller-ink)] shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300">
               <MessageSquare size={18} className="text-emerald-400" />
-              <span className="text-sm font-medium">{message}</span>
+              <span className="text-sm font-medium">{message || syncWarning}</span>
             </div>
           )}
           <Suspense fallback={viewFallback}>
             {renderView()}
           </Suspense>
         </main>
+      </div>
       </div>
 
       {state.gameOver && (
@@ -540,7 +781,15 @@ export function SellingHousesWorkspace({
           <DailySummaryOverlay
             report={state.currentReport}
             tickResult={state.lastDailyTickResult}
-            onContinue={handleClearReport}
+            onContinue={continueAfterDailySummary}
+          />
+        </Suspense>
+      )}
+      {weeklySummary && !state.gameOver && (
+        <Suspense fallback={overlayFallback}>
+          <WeeklySummaryOverlay
+            summary={weeklySummary}
+            onContinue={continueAfterWeeklySummary}
           />
         </Suspense>
       )}
@@ -562,12 +811,13 @@ export function SellingHousesWorkspace({
               completeTodayScenario(optionId || null);
             }
           }}
-          onComplete={(result) => {
-            completeTodayScenario(null, result);
+          onComplete={(result, choices, feedbacks) => {
+            completeTodayScenario(null, result, choices, feedbacks);
           }}
           onClose={closeTodayScenario}
           state={state}
           caseItem={activeScenarioCase || undefined}
+          matter={activeMatter}
         />
       )}
       {journalOpen && (
@@ -583,9 +833,9 @@ export function SellingHousesWorkspace({
               <div className="max-w-2xl">
                 <div className="seller-label flex items-center gap-2">
                   <History size={14} />
-                  经营记录
+                  经营流水
                 </div>
-                <h3 className="seller-title mt-2 text-[22px]">整局记录</h3>
+                <h3 className="seller-title mt-2 text-[22px]">今天变化与全局记录</h3>
                 <p className="seller-body mt-2 text-[13px]">
                   {runShellProjection.sidebar.journal.brief}
                 </p>
@@ -852,7 +1102,7 @@ export function SellingHousesWorkspace({
                 <div className="seller-panel-strong mb-5 px-5 py-5">
                   <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
                     <div>
-                      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">当前精力</div>
+                      <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">今日精力（当前可用 / 今日上限）</div>
                       <div className="mt-2 text-[34px] font-semibold tracking-[-0.04em] text-[var(--seller-ink)]">{runShellProjection.energyPanel.energyLabel}</div>
                       <div className="mt-2 max-w-md text-[12px] leading-6 text-[var(--seller-muted)]">
                         {runShellProjection.energyPanel.summary}
@@ -882,7 +1132,7 @@ export function SellingHousesWorkspace({
                   </div>
 
                   <div className="seller-panel-soft px-4 py-4">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-accent)]">剩余精力说明</div>
+                    <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-accent)]">精力口径说明</div>
                     <p className="mt-3 text-[12px] leading-6 text-[var(--seller-muted)]">
                       {runShellProjection.energyPanel.note}
                     </p>
@@ -934,9 +1184,9 @@ function SelectedCaseDetailSheet({
   return (
     <div className="space-y-4">
       <div className="seller-panel-strong px-4 py-4">
-        <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">当前问题</div>
-        <div className="mt-2 text-[17px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">{projection.listingLifecyclePhase.coreProblemLabel}</div>
-        <p className="mt-2 text-[12px] leading-6 text-[var(--seller-muted)]">{projection.listingLifecyclePhase.phaseRiskHint}</p>
+        <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">房源阶段</div>
+        <div className="mt-2 text-[17px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]">{projection.listingLifecyclePhase.phaseLabel}</div>
+        <p className="mt-2 text-[12px] leading-6 text-[var(--seller-muted)]">{projection.listingLifecyclePhase.coreProblemLabel}</p>
         <div className="mt-3 flex flex-wrap gap-2">
           <span className="seller-chip">{projection.listingLifecyclePhase.phaseLabel}</span>
           <span className="seller-chip seller-chip-accent">下一步：{projection.listingLifecyclePhase.primaryActionLabel}</span>

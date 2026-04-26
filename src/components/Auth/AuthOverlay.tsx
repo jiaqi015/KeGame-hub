@@ -193,47 +193,23 @@ export function AuthOverlay({
         />
 
         <svg className="absolute inset-0 h-full w-full opacity-[0.08]" xmlns="http://www.w3.org/2000/svg">
-          <motion.path
+          <path
             d="M-100 400 Q 300 200 700 400 T 1500 400"
             fill="none"
             stroke="white"
             strokeWidth="0.5"
-            animate={{
-              d: [
-                "M-100 400 Q 300 200 700 400 T 1500 400",
-                "M-100 450 Q 350 250 750 450 T 1500 450",
-                "M-100 400 Q 300 200 700 400 T 1500 400"
-              ]
-            }}
-            transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
           />
-          <motion.path
+          <path
             d="M-100 500 Q 400 300 900 500 T 1800 500"
             fill="none"
             stroke="white"
             strokeWidth="0.3"
-            animate={{
-              d: [
-                "M-100 500 Q 400 300 900 500 T 1800 500",
-                "M-100 400 Q 450 350 950 400 T 1800 400",
-                "M-100 500 Q 400 300 900 500 T 1800 500"
-              ]
-            }}
-            transition={{ duration: 20, repeat: Infinity, ease: "easeInOut", delay: 2 }}
           />
-          <motion.path
+          <path
             d="M-200 200 Q 200 400 600 200 T 1400 200"
             fill="none"
             stroke="white"
             strokeWidth="0.2"
-            animate={{
-              d: [
-                "M-200 200 Q 200 400 600 200 T 1400 200",
-                "M-200 250 Q 250 450 650 250 T 1400 250",
-                "M-200 200 Q 200 400 600 200 T 1400 200"
-              ]
-            }}
-            transition={{ duration: 12, repeat: Infinity, ease: "easeInOut", delay: 5 }}
           />
         </svg>
 
@@ -307,7 +283,7 @@ export function AuthOverlay({
                 <div className="absolute inset-0 bg-white/5 blur-2xl rounded-full" />
               </div>
               <h1 className="text-[48px] font-[900] italic leading-none tracking-[-0.05em] text-white select-none translate-y-[2px]">
-                KeGame
+                KeGame Hub
               </h1>
             </div>
             <p className="mt-4 max-w-md text-left text-[14px] font-medium leading-relaxed text-zinc-500">

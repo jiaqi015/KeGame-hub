@@ -34,7 +34,7 @@ export function applyCompanyPressure(state: GameState) {
       });
 
     if (chance(0.16, state)) {
-      logEvent(state, '公司资源', '同公司共享客户池变紧，部分经纪人线索推进开始变慢。', 'danger');
+      logEvent(state, '公司群消息', '商圈经理在群里发火了，大家都在抢客，必须增加跟客户的联系频率，不然全被洗走了。', 'danger');
     }
   }
 
@@ -43,8 +43,8 @@ export function applyCompanyPressure(state: GameState) {
       id: `company-referral-${state.day}-${randomInt(100, 999, state)}`,
       type: 'customer_to_player',
       source: 'same_company',
-      title: '同公司转客',
-      message: '同公司同事转来一位客户，但需求还需要你自己确认。',
+      title: '同事甩来的线索',
+      message: '二组老赵丢过来一个号码，要看你手头的房，但客户到底图啥他是一问三不知。',
       payload: {
         bonus: 8,
       },

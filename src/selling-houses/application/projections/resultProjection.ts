@@ -16,7 +16,6 @@ export interface ResultHeroProjection {
   grade: string;
   scenarioName: string;
   difficultyId: string;
-  settlementLabel: string;
 }
 
 export interface ResultMetricProjection {
@@ -26,17 +25,6 @@ export interface ResultMetricProjection {
   tone: ProjectionTone;
 }
 
-export interface ResultNoteProjection {
-  title: string;
-  detail: string;
-  tone: ProjectionTone;
-}
-
-export interface ResultCareerNoteProjection {
-  title: string;
-  detail: string;
-  tone: ProjectionTone;
-}
 
 export interface ResultTierGroupProjection {
   goalTier: GoalTier;
@@ -50,11 +38,16 @@ export interface ResultTierGroupProjection {
   items: CaseFinalResult[];
 }
 
+export interface ResultMarketOutcomeProjection {
+  title: string;
+  summary: string;
+  metrics: ResultMetricProjection[];
+}
+
 export interface ResultProjection {
   hero: ResultHeroProjection;
   summaryCards: ResultMetricProjection[];
-  settlementNotes: ResultNoteProjection[];
-  careerNotes: ResultCareerNoteProjection[];
+  marketOutcome: ResultMarketOutcomeProjection | null;
   scoreBreakdown: ScoreBreakdownEntry[];
   tierGroups: ResultTierGroupProjection[];
   highlights: string[];
@@ -67,6 +60,52 @@ export interface ResultProjection {
 
 function getClosedDealCount(state: GameState) {
   return resolveFormalSoldCount(state);
+}
+
+function buildMarketOutcomeProjection(state: GameState): ResultMarketOutcomeProjection | null {
+  const marketOutcome = state.marketOutcome;
+  if (!marketOutcome) {
+    return null;
+  }
+
+  const total = marketOutcome.totalCapacity21d;
+  const released = marketOutcome.releasedSlots;
+  const player = marketOutcome.playerClaimedDeals;
+  const rival = marketOutcome.rivalClaimedDeals;
+  const delayed = marketOutcome.delayedDeals;
+  const available = Math.max(0, released - player - rival - delayed);
+
+  return {
+    title: '市场结算',
+    summary: buildMarketOutcomeSummary(total, released, player, rival, delayed, available),
+    metrics: [
+      { label: '市场容量', value: `${total} 套`, note: `${state.rules.outcomeControl.simulationDays} 天共享成交池`, tone: 'neutral' },
+      { label: '已释放', value: `${released} 套`, note: available > 0 ? `剩余 ${available} 套未被消耗` : '本局释放窗口已结算', tone: 'neutral' },
+      { label: '我方成交', value: `${player} 套`, note: player > 0 ? '你拿到的成交窗口' : '本局未拿到成交窗口', tone: player > 0 ? 'chance' : 'neutral' },
+      { label: '对手成交', value: `${rival} 套`, note: rival > 0 ? '对手拿到的成交窗口' : '对手未拿到成交窗口', tone: rival > player ? 'risk' : 'neutral' },
+      { label: '延后窗口', value: `${delayed} 套`, note: delayed > 0 ? '释放后未形成成交' : '没有延后窗口', tone: delayed > 0 ? 'risk' : 'neutral' },
+    ],
+  };
+}
+
+function buildMarketOutcomeSummary(
+  total: number,
+  released: number,
+  player: number,
+  rival: number,
+  delayed: number,
+  available: number,
+) {
+  if (player > rival) {
+    return `本局市场容量 ${total} 套，已释放 ${released} 套；你拿到 ${player} 套，对手拿到 ${rival} 套。`;
+  }
+  if (rival > player) {
+    return `本局市场容量 ${total} 套，已释放 ${released} 套；对手拿到 ${rival} 套，你拿到 ${player} 套。`;
+  }
+  if (delayed > 0) {
+    return `本局市场容量 ${total} 套，已释放 ${released} 套；延后 ${delayed} 套，剩余 ${available} 套。`;
+  }
+  return `本局市场容量 ${total} 套，已释放 ${released} 套；成交窗口分配接近。`;
 }
 
 export function buildResultProjection(state: GameState): ResultProjection {
@@ -88,7 +127,6 @@ export function buildResultProjection(state: GameState): ResultProjection {
       grade: finalResult?.grade || '待结算',
       scenarioName: state.runContext.scenarioName,
       difficultyId: state.runContext.difficultyId,
-      settlementLabel: finalResult ? '会写入生涯与排行榜' : '尚未生成正式成绩',
     },
     summaryCards: [
       {
@@ -128,8 +166,7 @@ export function buildResultProjection(state: GameState): ResultProjection {
         tone: endingStats && endingStats.coreBadCount > 0 ? 'risk' : 'chance',
       },
     ],
-    settlementNotes: buildSettlementNotes(Boolean(finalResult), caseResults.length),
-    careerNotes: buildCareerNotes(state, soldCount, lostCount, activeCount),
+    marketOutcome: buildMarketOutcomeProjection(state),
     scoreBreakdown,
     tierGroups: buildTierGroups(caseResults),
     highlights: Array.isArray(finalResult?.highlights) ? finalResult.highlights : [],
@@ -139,70 +176,6 @@ export function buildResultProjection(state: GameState): ResultProjection {
     nextRunAdvice: Array.isArray(finalResult?.nextRunAdvice) ? finalResult.nextRunAdvice : [],
     customerReview: finalResult?.customerReview || null,
   };
-}
-
-function buildSettlementNotes(hasFinalResult: boolean, caseResultCount: number): ResultNoteProjection[] {
-  if (!hasFinalResult) {
-    return [
-      {
-        title: '还没生成正式结算',
-        detail: '现在看到的只是当前局面，还不会写入生涯和排行榜。',
-        tone: 'risk',
-      },
-      {
-        title: '每日预估分不入榜',
-        detail: '局内每天看到的预估分不算正式成绩。',
-        tone: 'neutral',
-      },
-    ];
-  }
-
-  return [
-      {
-        title: '已经结算',
-        detail: `当前已经生成 ${caseResultCount} 条单房结果。`,
-        tone: 'chance',
-      },
-    {
-      title: '每日预估分不会入榜',
-      detail: '局内每天看到的预估分不会写进排行榜。',
-      tone: 'neutral',
-    },
-    {
-      title: '排行榜只看正式结果',
-      detail: '总分榜、单局最高榜、局数榜都只看正式结算。',
-      tone: 'neutral',
-    },
-  ];
-}
-
-function buildCareerNotes(
-  state: GameState,
-  soldCount: number,
-  lostCount: number,
-  activeCount: number,
-): ResultCareerNoteProjection[] {
-  return [
-    {
-      title: '这局会留下什么',
-      detail: `正式总分、三维得分、${soldCount} 套成交和单房结果会一起写进生涯。`,
-      tone: soldCount > 0 ? 'chance' : 'neutral',
-    },
-    {
-      title: '这局不会留下什么',
-      detail: '精力、推广金、客户过程状态这些局内数据，不会直接带到下一局。',
-      tone: 'neutral',
-    },
-    {
-      title: '下次重点',
-      detail: lostCount > 0
-        ? `这局有 ${lostCount} 套丢盘，下一局重点是守盘和同类房处理。`
-        : activeCount > 0
-          ? `这局结束时还有 ${activeCount} 套房在场，下一局重点看怎么更早把机会推进到成交桌。`
-          : `这局整体已经结算，下一局可以挑战更高难度的经营局面。`,
-      tone: lostCount > 0 ? 'risk' : 'chance',
-    },
-  ];
 }
 
 function buildTierGroups(caseResults: CaseFinalResult[]): ResultTierGroupProjection[] {

@@ -17,6 +17,19 @@ export interface MaintainerRunIdentityContext {
   source?: 'session' | 'activation-key';
 }
 
+export function buildMaintainerRunIdentityContext(authorization: {
+  accountId?: string;
+  displayName?: string;
+  nickname?: string;
+  source?: 'session' | 'activation-key';
+}): MaintainerRunIdentityContext {
+  return {
+    accountId: authorization.accountId,
+    displayName: authorization.displayName || authorization.nickname,
+    source: authorization.source,
+  };
+}
+
 function resolveOptionalString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }

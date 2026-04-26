@@ -149,7 +149,7 @@ export async function sendVerificationEmail(params: {
   await transporter.sendMail({
     from: getFromAddress(),
     to: params.to,
-    subject: 'KeGame 登录验证码',
+    subject: 'KeGame Hub 登录验证码',
     text: buildVerificationText({ nickname, code: params.code, expiresAtLabel }),
     html: buildVerificationHtml({ nickname, code: params.code, expiresAtLabel }),
   });

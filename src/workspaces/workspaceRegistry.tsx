@@ -2,6 +2,7 @@ import React, { lazy } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { Building2, Layers, Sparkles, Target, UserRound } from 'lucide-react';
 import type { ActivationWorkspaceId } from '../types';
+import type { SellingHousesStorageProfile } from '../selling-houses/application/storageProfile';
 import { getWorkspaceLabel, getWorkspaceSlug, resolveWorkspaceBySlug } from '../../lib/workspaces.js';
 
 const OpenDayWorkspace = lazy(() =>
@@ -32,6 +33,7 @@ function PlaceholderWorkspace({
   futurePlays,
   prompts,
   nextSteps,
+  statusText = '概念预览：仅用于方向对齐，暂不是可玩的正式工作台。',
   tone = 'sky',
 }: {
   badge: string;
@@ -45,6 +47,7 @@ function PlaceholderWorkspace({
   futurePlays: { sectionTitle: string; items: PlaceholderFuturePlay[] };
   prompts: string[];
   nextSteps: string[];
+  statusText?: string;
   tone?: 'sky' | 'rose';
 }) {
   const accentClassName = tone === 'rose'
@@ -104,7 +107,7 @@ function PlaceholderWorkspace({
             </div>
             <div className="mt-5 border-t border-black/5 pt-4">
               <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500/90">状态</div>
-              <p className="mt-1.5 text-sm font-medium text-slate-800">已开放体验</p>
+              <p className="mt-1.5 text-sm font-medium text-slate-800">{statusText}</p>
             </div>
           </div>
         </div>
@@ -165,6 +168,7 @@ type WorkspaceRenderProps = {
   currentUserAccountId?: string;
   currentUserNickname?: string;
   currentUserEmail?: string;
+  sellingHousesStorageProfile?: SellingHousesStorageProfile;
   onReturnToHub: () => void;
   onLogout: () => void;
 };
@@ -174,7 +178,7 @@ export interface WorkspaceRegistryItem {
   slug: string;
   title: string;
   shortLabel: string;
-  isAvailable: boolean;
+  status: 'available' | 'planned' | 'disabled';
   accentClassName: string;
   icon: LucideIcon;
   iconContainerClassName: string;
@@ -194,7 +198,7 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
     slug: getWorkspaceSlug('sabrina'),
     title: getWorkspaceLabel('sabrina'),
     shortLabel: getWorkspaceLabel('sabrina'),
-    isAvailable: true,
+    status: 'available',
     accentClassName: 'text-blue-700 hover:text-blue-800',
     icon: Sparkles,
     iconContainerClassName: 'bg-[#111111] text-white shadow-[0_18px_40px_rgba(17,17,17,0.18)]',
@@ -210,7 +214,7 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
     slug: getWorkspaceSlug('open-day'),
     title: getWorkspaceLabel('open-day'),
     shortLabel: getWorkspaceLabel('open-day'),
-    isAvailable: true,
+    status: 'available',
     accentClassName: 'text-emerald-700 hover:text-emerald-800',
     icon: Layers,
     iconContainerClassName: 'bg-[#1F5F4A] text-white shadow-[0_18px_40px_rgba(31,95,74,0.18)]',
@@ -226,7 +230,7 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
     slug: getWorkspaceSlug('selling-houses'),
     title: getWorkspaceLabel('selling-houses'),
     shortLabel: getWorkspaceLabel('selling-houses'),
-    isAvailable: true,
+    status: 'available',
     accentClassName: 'text-[#8B5A2B] hover:text-[#72461f]',
     icon: UserRound,
     iconContainerClassName: 'bg-[#8B5A2B] text-white shadow-[0_18px_34px_rgba(139,90,43,0.16)]',
@@ -235,12 +239,13 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
     highlights: ['快速看清每套房现在该怎么推', '定价沟通、开放日和议价都要做取舍', '在业主预期和推进节奏之间把局面控住'],
     ctaLabel: '开一局',
     sortOrder: 30,
-    render: ({ activationKey, currentUserAccountId, currentUserNickname, currentUserEmail, onReturnToHub, onLogout }) => (
+    render: ({ activationKey, currentUserAccountId, currentUserNickname, currentUserEmail, sellingHousesStorageProfile, onReturnToHub, onLogout }) => (
       <SellingHousesWorkspace
         activationKey={activationKey}
         currentUserAccountId={currentUserAccountId}
         currentUserNickname={currentUserNickname}
         currentUserEmail={currentUserEmail}
+        storageProfile={sellingHousesStorageProfile}
         onReturnToHub={onReturnToHub}
         onLogout={onLogout}
       />
@@ -251,14 +256,14 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
     slug: getWorkspaceSlug('market-management'),
     title: getWorkspaceLabel('market-management'),
     shortLabel: getWorkspaceLabel('market-management'),
-    isAvailable: true,
+    status: 'planned',
     accentClassName: 'text-sky-700 hover:text-sky-800',
     icon: Building2,
     iconContainerClassName: 'bg-[#0F4C81] text-white shadow-[0_18px_34px_rgba(15,76,129,0.18)]',
     pillClassName: 'bg-sky-50 text-sky-700',
     cardDescription: '从商圈资源、重点盘分配到协同节奏，打一局商圈经营的整体判断。',
     highlights: ['资源分配和节奏管理更立体', '从单盘视角上升到商圈视角', '聚焦商圈经营决策'],
-    ctaLabel: '进入',
+    ctaLabel: '查看概念预览',
     sortOrder: 40,
     render: () => (
       <PlaceholderWorkspace
@@ -270,7 +275,7 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
         heroTagline="经理最期待：一屏里看清谁该压、谁该保、谁该让"
         heroSubline="把「重点盘、跨店协同、资源位、总部政策」从口号变成一局的取舍"
         advisorBlock={{
-          title: '和「王牌资产顾问 / 卖方顾问游戏」',
+          title: '和「我是王牌资产顾问」',
           paragraphs: [
             '两边共用同一套底层对象：商圈、重点盘、竞品、客户、资源位与周节奏；顾问端模拟单盘与多房经营，你端放大到「整片 + 组织」的分配与推进。',
             '以后上线后，你在商圈里调资源、改节奏，会反向体现在顾问局里的可行动作强度与组织压力；同一场数据的复盘，可以从单盘切到商圈，从商圈沉回单盘。',
@@ -303,14 +308,14 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
     slug: getWorkspaceSlug('rational-owner'),
     title: getWorkspaceLabel('rational-owner'),
     shortLabel: getWorkspaceLabel('rational-owner'),
-    isAvailable: true,
+    status: 'planned',
     accentClassName: 'text-rose-700 hover:text-rose-800',
     icon: Target,
     iconContainerClassName: 'bg-[#B9385D] text-white shadow-[0_18px_34px_rgba(185,56,93,0.18)]',
     pillClassName: 'bg-rose-50 text-rose-700',
     cardDescription: '站在业主视角做取舍，在价格、时机、经纪人动作和持有成本之间找到最理性的决策。',
     highlights: ['业主视角玩法', '价格和时机判断更直接', '聚焦卖房取舍'],
-    ctaLabel: '进入',
+    ctaLabel: '查看概念预览',
     sortOrder: 50,
     render: () => (
       <PlaceholderWorkspace
@@ -322,7 +327,7 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
         heroTagline="业主最期待：少被节奏带着跑，多看清自己真正要什么"
         heroSubline="价格、时机、信任、持有成本，将来会在同一局里可对比、可复盘。"
         advisorBlock={{
-          title: '和「王牌资产顾问 / 卖方顾问游戏」',
+          title: '和「我是王牌资产顾问」',
           paragraphs: [
             '顾问那端是「帮你怎么卖」的经营模拟；你这一端是「我作为业主该怎么选」的决策实验——两边绑定同一套房源、市场与谈判过程。',
             '上线后，你在这里的定价与节奏选择，会反过来影响顾问局里看到的业主信任、耐心与推进压力，形成真正的双视角同世界。',

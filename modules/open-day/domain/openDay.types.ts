@@ -1,5 +1,6 @@
 export type WaterlineMode = 'percentile' | 'absolute';
-export type OpenDayFormulaId = 'weighted_catalyst_v1' | 'geometric_catalyst_v2';
+export type OpenDaySkillId = 'weighted_catalyst_v1' | 'geometric_catalyst_v2';
+export type OpenDayFormulaId = OpenDaySkillId;
 export type OpenDayParameterKey = keyof OpenDayAbsolutes;
 export type OpenDayParameterSourceMode = 'percentile' | 'number';
 export type OpenDayUploadStorageBackend = 'local' | 'blob';
@@ -37,6 +38,7 @@ export interface OpenDayHardFilters {
 }
 
 export interface OpenDayConfig {
+  skillId?: OpenDaySkillId;
   formulaId: OpenDayFormulaId;
   alpha: number;
   waterlineMode: WaterlineMode;
@@ -49,6 +51,7 @@ export interface OpenDayConfig {
 }
 
 export interface OpenDayScenarioDraft {
+  skillId?: OpenDaySkillId;
   formulaId: OpenDayFormulaId;
   parameterPackageId: string | null;
   config: OpenDayConfig;
@@ -113,11 +116,13 @@ export interface OpenDayAnalysisRow extends NormalizedOpenDayRow {
   logicGuardSeverity?: 'error' | 'warning' | null;
 }
 
-export interface OpenDayFormulaDefinition {
-  id: OpenDayFormulaId;
+export interface OpenDaySkillDefinition {
+  id: OpenDaySkillId;
   label: string;
   description: string;
 }
+
+export type OpenDayFormulaDefinition = OpenDaySkillDefinition;
 
 export interface OpenDayUploadArtifactSummary {
   id: string;
@@ -194,6 +199,7 @@ export interface OpenDayCatalogResponse {
   generatedAt: string;
   defaultConfig: OpenDayConfig;
   defaultConfigVersion: string;
+  skills: OpenDaySkillDefinition[];
   formulas: OpenDayFormulaDefinition[];
   parameterPackages: OpenDayParameterPackage[];
   presets: OpenDayPreset[];
@@ -232,6 +238,7 @@ export interface OpenDayScenarioTemplateSummary {
   id: string;
   name: string;
   description: string;
+  skillId?: OpenDaySkillId;
   formulaId: OpenDayFormulaId;
   parameterPackageId: string | null;
   configVersion: string;

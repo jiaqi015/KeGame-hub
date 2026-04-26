@@ -23,8 +23,6 @@ export function LeaderboardOverlay({ loading, detail, error, onClose }: Leaderbo
   const projection = useMemo(() => buildLeaderboardProjection(detail), [detail]);
   const [activeTab, setActiveTab] = useState<LeaderboardProjectionTabId>('total-score');
   const active = projection.tabs.find((item) => item.id === activeTab) || projection.tabs[0];
-  const leadingEntry = active?.entries[0];
-  const leaderboardLabel = active?.label || '排行榜';
 
   return (
     <div
@@ -39,28 +37,18 @@ export function LeaderboardOverlay({ loading, detail, error, onClose }: Leaderbo
           <div className="max-w-[440px]">
             <div className="seller-label flex items-center gap-2 text-[11px] text-white/55">
               <Trophy size={13} />
-              排行榜
+              游戏排行榜
             </div>
-            <h3 className="mt-2 text-[38px] font-semibold tracking-[-0.04em] text-white">排行榜</h3>
-            <p className="mt-2 text-[18px] leading-7 text-white/68">{projection.heroSummary}</p>
+            <h3 className="mt-2 text-[38px] font-semibold tracking-[-0.04em] text-white">{projection.heroTitle}</h3>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="inline-flex h-10 w-10 items-center justify-center rounded-[16px] border border-white/10 bg-white/4 text-white/70 transition hover:bg-white/8 hover:text-white"
-            aria-label="关闭排行榜"
+            aria-label="关闭游戏排行榜"
           >
             <X size={18} />
           </button>
-        </div>
-
-        <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-2">
-          <SummaryCard label="当前榜单" title={leaderboardLabel} detail={active.summary} />
-          <SummaryCard
-            label="榜首"
-            title={leadingEntry ? leadingEntry.playerName : '当前还没有榜首'}
-            detail={leadingEntry ? `${leaderboardLabel}${leadingEntry.valueLabel}。` : '还没有跨局记录。'}
-          />
         </div>
 
         <div className="mb-5 flex gap-1 rounded-full border border-white/10 bg-[#121b27] p-1">
@@ -83,22 +71,6 @@ export function LeaderboardOverlay({ loading, detail, error, onClose }: Leaderbo
             );
           })}
         </div>
-
-        <section className="mb-5 rounded-[22px] border border-white/8 bg-[linear-gradient(180deg,rgba(19,28,39,0.98),rgba(14,21,30,0.98))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
-          <div className="seller-label text-[11px] text-white/45">榜单说明</div>
-          <div className="mt-2 text-[18px] font-semibold text-white">{active.summary}</div>
-          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-            {projection.highlights.map((item) => (
-              <div
-                key={item.title}
-                className="rounded-[18px] border border-white/8 bg-[linear-gradient(180deg,rgba(16,24,33,0.85),rgba(11,17,24,0.92))] p-4"
-              >
-                <div className="text-[11px] font-semibold tracking-[-0.01em] text-white/55">{item.title}</div>
-                <div className="mt-3 text-[13px] leading-7 text-white/72">{item.detail}</div>
-              </div>
-            ))}
-          </div>
-        </section>
 
         <div className="rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,rgba(19,28,39,0.98),rgba(14,21,30,0.98))] p-5">
           {loading ? (
@@ -131,24 +103,6 @@ export function LeaderboardOverlay({ loading, detail, error, onClose }: Leaderbo
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-function SummaryCard({
-  label,
-  title,
-  detail,
-}: {
-  label: string;
-  title: string;
-  detail: string;
-}) {
-  return (
-    <div className="rounded-[18px] border border-[#314154] bg-[linear-gradient(180deg,rgba(19,28,39,0.9),rgba(14,21,30,0.95))] px-4 py-4">
-      <div className="seller-label text-white/45">{label}</div>
-      <div className="mt-3 text-[30px] font-semibold tracking-[-0.04em] text-white">{title}</div>
-      <div className="mt-2 text-[14px] leading-6 text-white/62">{detail}</div>
     </div>
   );
 }

@@ -1,4 +1,24 @@
-import type { GameRuleOverrides, GameRules } from '../models.js';
+import type { GameRuleOverrides, GameRules, OutcomeControlRules } from '../models.js';
+
+export const BASE_OUTCOME_CONTROL: OutcomeControlRules = {
+  simulationDays: 21,
+  marketDealCapacity21d: 4,
+  playerBaseDealExpectation21d: 1,
+  playerBonusDealCapacity21d: 1,
+  playerBonusDealUnlockScore: 75,
+  playerLeadSupplyScale: 1,
+  playerFunnelProgressionScale: 1,
+  playerDealClosingScale: 1,
+  customerStagnationScale: 1,
+  rivalStoreCapabilityScale: 1,
+  rivalDealShareScale: 1,
+  rivalListingSpawnScale: 1,
+  rivalCustomerPullScale: 1,
+  rivalOwnerPressureScale: 1,
+  rivalCaseLossScale: 1,
+  expectedSelfClosedDeals21d: 1,
+  expectedRivalClosedDeals21d: 3,
+};
 
 export const BASE_RULES: GameRules = {
   maxDay: 21,
@@ -33,12 +53,14 @@ export const BASE_RULES: GameRules = {
   companyReferralChanceBase: 0.08,
   marketSignalDecayDays: 4,
   marketSignalMaxVisible: 5,
+  outcomeControl: BASE_OUTCOME_CONTROL,
 };
 
 export function mergeRules(overrides?: GameRuleOverrides): GameRules {
   const {
     saleBudgetBonusRatio: _legacyPromotionRatio,
     saleBudgetBonusFloor: _legacyPromotionFloor,
+    outcomeControl: outcomeControlOverrides,
     ...nextOverrides
   } = overrides || {};
   const promotionRebateRatio = overrides?.promotionRebateRatio
@@ -55,5 +77,9 @@ export function mergeRules(overrides?: GameRuleOverrides): GameRules {
     promotionRebateFloor,
     initialWordOfMouth: overrides?.initialWordOfMouth ?? overrides?.initialReputation ?? BASE_RULES.initialWordOfMouth,
     initialEnergy: overrides?.initialEnergy ?? overrides?.baseMaxEnergy ?? BASE_RULES.initialEnergy,
+    outcomeControl: {
+      ...BASE_RULES.outcomeControl,
+      ...outcomeControlOverrides,
+    },
   };
 }

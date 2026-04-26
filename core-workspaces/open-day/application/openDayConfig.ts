@@ -1,6 +1,7 @@
 import type { OpenDayConfig, OpenDayParameterPackageDefinition, OpenDayPresetDefinition } from '../domain/openDay.types.js';
 
 export const defaultOpenDayConfig: OpenDayConfig = {
+  skillId: 'geometric_catalyst_v2',
   formulaId: 'geometric_catalyst_v2',
   alpha: 0.8,
   waterlineMode: 'percentile',

@@ -1,11 +1,10 @@
 import type {
-  DisambiguationCandidate,
   DisambiguationRequest,
   DisambiguationResult,
   OpenDayNameDisambiguator,
 } from '../domain/openDayDisambiguation.types.js';
-import { callIkunModel } from '../../../lib/ikun.js';
-import { AVAILABLE_MODELS } from '../../../lib/models.js';
+import { compareModels } from '../../../lib/compare.js';
+import { MODEL_CONFIG_MAP } from '../../../lib/models.js';
 
 function buildDisambiguationPrompt(request: DisambiguationRequest): string {
   const { inputName, inputArea, candidates } = request;
@@ -73,8 +72,8 @@ export class AIOpenDayNameDisambiguator implements OpenDayNameDisambiguator {
       };
     }
 
-    const model = AVAILABLE_MODELS.find((item) => item.id === this.modelId);
-    if (!model) {
+    const model = MODEL_CONFIG_MAP.get(this.modelId);
+    if (!model?.enabled) {
       return {
         matched: topCandidates[0],
         candidates: topCandidates,
@@ -88,8 +87,38 @@ export class AIOpenDayNameDisambiguator implements OpenDayNameDisambiguator {
       candidates: topCandidates,
     });
 
-    const result = await callIkunModel(prompt, model);
+    let result;
+    try {
+      [result] = await compareModels(prompt, [model.id]);
+    } catch (error) {
+      console.warn('[open-day] AI name disambiguation exception fallback', {
+        modelId: model.id,
+        provider: model.provider,
+        message: error instanceof Error ? error.message : 'unknown error',
+      });
+      return {
+        matched: topCandidates[0],
+        candidates: topCandidates,
+        ambiguous: true,
+        reasoning: 'AI调用异常，已使用规则候选兜底。',
+      };
+    }
+
+    if (!result) {
+      return {
+        matched: topCandidates[0],
+        candidates: topCandidates,
+        ambiguous: true,
+        reasoning: 'AI没有返回可用结果，已使用规则候选兜底。',
+      };
+    }
+
     if (result.status !== 'completed') {
+      console.warn('[open-day] AI name disambiguation fallback', {
+        modelId: model.id,
+        provider: model.provider,
+        status: result.status,
+      });
       return {
         matched: topCandidates[0],
         candidates: topCandidates,

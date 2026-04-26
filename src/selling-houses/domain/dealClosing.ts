@@ -1,3 +1,9 @@
+import {
+  claimPlayerMarketDealSlot,
+  ensureMarketOutcomeState,
+  getAvailableMarketDealSlots,
+  getPlayerAllowedMarketDeals,
+} from './models.js';
 import type {
   Case,
   ClosedDealRecord,
@@ -41,6 +47,19 @@ function calculateNegotiationSuccessScore(
     + strategy.shift;
 }
 
+function calculateScaledCloseProbability(
+  state: GameState,
+  caseItem: Case,
+  opportunity: Opportunity,
+  strategyId?: string | null,
+) {
+  return clamp(
+    Math.round(calculateNegotiationSuccessScore(caseItem, opportunity, strategyId) * state.rules.outcomeControl.playerDealClosingScale),
+    0,
+    95,
+  );
+}
+
 function finalizeClosedDeal(
   state: GameState,
   caseItem: Case,
@@ -76,8 +95,8 @@ function finalizeClosedDeal(
   recordBudgetChange(state, {
     amount: budgetReturn,
     kind: 'sale-rebate',
-    title: '成交返投',
-    detail: `${caseItem.title} 成交后，按成交价 1% * 25% 计佣 ${commission} 点，并按当前推广金返投规则回补 ${budgetReturn} 点推广金。`,
+    title: '总部推广金到账',
+    detail: `${caseItem.title} 成功过户。按规定提了 ${commission} 个点，总部按比例发了 ${budgetReturn} 个推广点，又有弹药了。`,
   });
   applyAuxiliaryStats(state, {
     soldCount: state.auxiliaryStats.soldCount + 1,
@@ -121,7 +140,7 @@ function finalizeClosedDeal(
     kind: 'case_sold',
     actor: caseItem.title,
     title: '房源成交',
-    detail: `${caseItem.title} 以 ${soldPrice} 万成交，成交返投 ${budgetReturn} 点。`,
+    detail: `${caseItem.title} 最终以 ${soldPrice} 万落锤，咱们拿到了 ${budgetReturn} 个推广点奖励。`,
     tone: 'success',
     caseId: caseItem.id,
     opportunityId: opportunity.id,
@@ -141,7 +160,7 @@ function finalizeClosedDeal(
     },
   });
 
-  logEvent(state, caseItem.title, `成功成交，成交价 ${soldPrice} 万，计佣 ${commission} 点，按返投规则回补推广金 ${budgetReturn} 点。`, 'success');
+  logEvent(state, '成交快报', `${caseItem.title} 签了！最终 ${soldPrice} 万落锤，咱们组分了 ${commission} 个点，外加 ${budgetReturn} 个推广点，今晚加鸡腿！`, 'success');
 }
 
 function resolveFailedPendingClosing(
@@ -169,11 +188,45 @@ function resolveFailedPendingClosing(
 
   clearPendingDealClosing(opportunity);
   if (opportunity.intent < negotiationBalance.lostIntentThreshold) {
-    closeOpportunity(state, opportunity, 'lost', `${opportunity.customerName} 在议价桌上转身离场。`, 'danger');
+    closeOpportunity(state, opportunity, 'lost', `${opportunity.customerName} 最后没崩住，摔门走了，这单彻底黄了。`, 'danger');
     return;
   }
 
-  logEvent(state, opportunity.customerName, `${caseItem.title} 的议价暂时没有谈拢，桌面仍然留着机会。`, 'danger');
+  logEvent(state, opportunity.customerName, `${caseItem.title} 这次没谈拢，但只要人还没死心就还有机会，明天再想办法磨。`, 'danger');
+}
+
+function isClosingBlockedByMarketCapacity(state: GameState, evaluation: DealClosingEvaluation) {
+  if (getAvailableMarketDealSlots(state) <= 0) {
+    return true;
+  }
+  const marketOutcome = ensureMarketOutcomeState(state);
+  return marketOutcome.playerClaimedDeals >= getPlayerAllowedMarketDeals(state)
+    || evaluation.blockingReasons.some((reason) => reason.includes('市场成交名额') || reason.includes('自成交空间'));
+}
+
+function resolveCapacityBlockedPendingClosing(
+  state: GameState,
+  caseItem: Case,
+  opportunity: Opportunity,
+) {
+  clearPendingDealClosing(opportunity);
+  refreshOpportunityLabel(opportunity);
+  const feedback = '今日成交窗口已被占满，客户意向仍在，建议明天优先跟进确认。';
+  recordDomainEvent(state, {
+    kind: 'journal',
+    actor: opportunity.customerName,
+    title: '成交窗口暂满',
+    detail: feedback,
+    tone: 'accent',
+    caseId: caseItem.id,
+    opportunityId: opportunity.id,
+    customerId: opportunity.customerId,
+    payload: {
+      reason: 'market_capacity_blocked',
+      availableSlots: getAvailableMarketDealSlots(state),
+    },
+  });
+  logEvent(state, opportunity.customerName, feedback, 'accent');
 }
 
 export function queueDealClosingEvaluation(
@@ -188,7 +241,7 @@ export function queueDealClosingEvaluation(
   opportunity.touchedToday = true;
   opportunity.daysLeft = Math.max(opportunity.daysLeft, 2);
   refreshOpportunityLabel(opportunity);
-  logEvent(state, opportunity.customerName, `${caseItem.title} 已进入价格确认，今天结束后会看客户和业主条件能不能真正谈拢。`, 'accent');
+  logEvent(state, opportunity.customerName, `${caseItem.title} 马上要见真章了。今晚关门算总账，看看底牌能不能碰上。`, 'accent');
 }
 
 export function settlePendingDealClosings(state: GameState) {
@@ -207,12 +260,19 @@ export function settlePendingDealClosings(state: GameState) {
     const strategyId = opportunity.pendingClosingStrategyId || 'balanced';
     const strategy = resolveNegotiationStrategy(strategyId);
     const soldPrice = Math.round(caseItem.askPrice * strategy.priceFactor);
-    const evaluation = buildDealClosingEvaluation(state, caseItem, opportunity, soldPrice);
-    const successScore = calculateNegotiationSuccessScore(caseItem, opportunity, strategyId);
-    const canClose = evaluation.isEligible && randomInt(0, 100, state) < successScore;
+    const evaluation = buildDealClosingEvaluation(state, caseItem, opportunity, soldPrice, strategyId);
+    if (isClosingBlockedByMarketCapacity(state, evaluation)) {
+      resolveCapacityBlockedPendingClosing(state, caseItem, opportunity);
+      return;
+    }
+    const canClose = evaluation.isEligible && randomInt(0, 99, state) < evaluation.closeProbability;
 
     if (canClose) {
-      finalizeClosedDeal(state, caseItem, opportunity, soldPrice, evaluation, strategy.wordOfMouthBonus);
+      if (claimPlayerMarketDealSlot(state)) {
+        finalizeClosedDeal(state, caseItem, opportunity, soldPrice, evaluation, strategy.wordOfMouthBonus);
+      } else {
+        resolveCapacityBlockedPendingClosing(state, caseItem, opportunity);
+      }
       return;
     }
 
@@ -225,6 +285,7 @@ export function buildDealClosingEvaluation(
   caseItem: Case,
   opportunity: Opportunity,
   soldPrice: number,
+  strategyId?: string | null,
 ): DealClosingEvaluation {
   const closeReadiness = clamp(
     Math.round(
@@ -237,25 +298,23 @@ export function buildDealClosingEvaluation(
     0,
     100,
   );
-  const closeProbability = clamp(
-    Math.round(
-      opportunity.intent * 0.3
-      + opportunity.confidence * 0.25
-      + caseItem.trust * 0.15
-      + caseItem.competitiveness * 0.15
-      + Math.max(0, 100 - Math.abs(soldPrice - caseItem.marketPrice) * 0.8) * 0.15,
-    ),
-    0,
-    100,
-  );
+  const rawCloseProbability = calculateScaledCloseProbability(state, caseItem, opportunity, strategyId);
 
   const blockingReasons: string[] = [];
   if (soldPrice > opportunity.budgetMax) {
-    blockingReasons.push('成交价高于客户预算上限');
+    blockingReasons.push('你报的价格直接把客户吓退了，超预算太多');
   }
   if (caseItem.trust < 60) {
-    blockingReasons.push('业主对当前顾问信任不足');
+    blockingReasons.push('业主觉得你办事不靠谱，根本不听你的压价');
   }
+  const marketOutcome = ensureMarketOutcomeState(state);
+  if (getAvailableMarketDealSlots(state) <= 0) {
+    blockingReasons.push('今天释放的市场成交名额已经被消耗，需要继续推进下一批客户');
+  }
+  if (marketOutcome.playerClaimedDeals >= getPlayerAllowedMarketDeals(state)) {
+    blockingReasons.push('本局可争取的自成交空间已用完，除非经营表现再上一个台阶');
+  }
+  const closeProbability = blockingReasons.length > 0 ? 0 : rawCloseProbability;
 
   return {
     relationId: opportunity.id,
@@ -267,9 +326,9 @@ export function buildDealClosingEvaluation(
     closeProbability,
     blockingReasons,
     supportingReasons: [
-      `${opportunity.customerName} 已进入 ${opportunity.stageLabel}`,
-      `客户意向 ${Math.round(opportunity.intent)}，信心 ${Math.round(opportunity.confidence)}`,
-      `业主信任 ${Math.round(caseItem.trust)}，房源竞争力 ${Math.round(caseItem.competitiveness)}`,
+      `${opportunity.customerName} 已经坐到了桌前，进入 ${opportunity.stageLabel}`,
+      `客户两眼放光，意向 ${Math.round(opportunity.intent)}，但对房子信心 ${Math.round(opportunity.confidence)}`,
+      `业主跟你交了底（信任 ${Math.round(caseItem.trust)}），而且房子确实能打（竞争力 ${Math.round(caseItem.competitiveness)}）`,
     ],
   };
 }
