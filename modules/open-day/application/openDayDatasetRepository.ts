@@ -22,4 +22,5 @@ export interface SaveOpenDayDatasetProfileCommand {
 export interface OpenDayDatasetRepository {
   saveDataset(command: SaveOpenDayDatasetCommand): Promise<OpenDayDatasetSummary>;
   saveDatasetProfile(command: SaveOpenDayDatasetProfileCommand): Promise<OpenDayDatasetProfileSummary>;
+  getDatasetRows(datasetId: string): Promise<{ headers: string[]; rows: Record<string, string>[] } | null>;
 }

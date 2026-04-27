@@ -42,11 +42,18 @@ type ActionWorkspaceCard = {
   availability: ReturnType<typeof getActionAvailability>;
   hint: string;
 };
+type ActionCategoryGroup = {
+  category: typeof ACTION_CATEGORIES[number];
+  cards: ActionWorkspaceCard[];
+  availableCards: ActionWorkspaceCard[];
+  blockedCards: ActionWorkspaceCard[];
+};
 type CaseStageFilter = 'all' | 'pre_visit' | 'packaging' | 'showing' | 'feedback_offer' | 'negotiation' | 'closed';
 type CaseQuickFilter = 'focused' | 'urgent' | 'price' | 'late-stage';
 type SelectedCustomerState = GameState['customerStates'][number];
 type AttentionListingRow = {
   id: string;
+  targetCaseId?: string;
   title: string;
   sourceLabel: string;
   price: number;
@@ -134,6 +141,7 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
   const [decisionConfig, setDecisionConfig] = useState<ActionDecisionConfig | null>(null);
   const [activeActionTab, setActiveActionTab] = useState<ActionCategoryTab>('feedback');
   const [activeDetailTab, setActiveDetailTab] = useState<CaseDetailTab>('overview');
+  const [blockedActionPanelOpen, setBlockedActionPanelOpen] = useState(false);
 
   const caseProjection = selectedCase ? caseProjectionById.get(selectedCase.id) || null : null;
   const opportunityModels = useMemo(
@@ -185,7 +193,7 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
           return 0;
         })
     : [];
-  const actionCardsByCategory = ACTION_CATEGORIES.map(category => {
+  const actionCardsByCategory: ActionCategoryGroup[] = ACTION_CATEGORIES.map(category => {
     const cards = actionCards.filter(({ action }) => action.categoryId === category.id);
     return {
       category,
@@ -196,6 +204,7 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
   }).filter(({ cards }) => cards.length > 0);
   const activeActionCategory = actionCardsByCategory.find(({ category }) => category.id === activeActionTab) || actionCardsByCategory[0];
   const availableActionCount = actionCards.filter(({ availability }) => availability.enabled).length;
+  const blockedActionCount = actionCards.length - availableActionCount;
   const recommendedActionCard = resolveRecommendedActionCard(
     actionCards,
     caseProjection?.listingLifecyclePhase.primaryActionId,
@@ -204,6 +213,7 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
   useEffect(() => {
     setActiveActionTab('feedback');
     setActiveDetailTab('overview');
+    setBlockedActionPanelOpen(false);
   }, [selectedCase?.id]);
 
   const handleAction = (actionId: string) => {
@@ -342,67 +352,70 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
             <div className="flex min-h-0 flex-col gap-3">
               <section className="seller-workbench overflow-hidden">
                 <div className="grid gap-3 border-b border-[var(--seller-border)] px-3.5 py-3 xl:grid-cols-[minmax(0,1fr)_228px]">
-                  <div className="min-w-0">
-                    <div className="seller-label">当前房源</div>
-                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                      <h2 className="seller-title text-[17px] leading-5">{selectedCase.title}</h2>
-                      <span className="seller-chip bg-[var(--seller-ink)] text-[var(--seller-bg)]">
-                        {caseProjection?.listingLifecyclePhase.completionStateLabel || caseProjection?.listingLifecyclePhase.phaseLabel || selectedCase.stageLabel}
-                      </span>
-                      {selectedCase.isFocused && (
-                        <span className="seller-chip seller-chip-accent flex items-center gap-1">
-                          <Star size={11} fill="currentColor" />
-                          本周聚焦
+                  <div className="grid min-w-0 gap-3 sm:grid-cols-[124px_minmax(0,1fr)]">
+                    <ListingHeroImage caseItem={selectedCase} />
+                    <div className="min-w-0">
+                      <div className="seller-label">当前房源</div>
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                        <h2 className="seller-title text-[17px] leading-5">{selectedCase.title}</h2>
+                        <span className="seller-chip bg-[var(--seller-ink)] text-[var(--seller-bg)]">
+                          {caseProjection?.listingLifecyclePhase.completionStateLabel || caseProjection?.listingLifecyclePhase.phaseLabel || selectedCase.stageLabel}
                         </span>
-                      )}
-                    </div>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[var(--seller-muted)]">
-                      <span>{selectedCase.community}</span>
-                      <span className="text-[var(--seller-border-strong)]">/</span>
-                      <span>{selectedCase.district}</span>
-                      <span className="text-[var(--seller-border-strong)]">/</span>
-                      <span>{selectedCase.layout} · {selectedCase.area}㎡</span>
-                      {selectedOwnerProfile && (
-                        <>
-                          <span className="text-[var(--seller-border-strong)]">/</span>
-                          <span>{selectedOwnerProfile.label}</span>
-                        </>
-                      )}
-                    </div>
-                    <div className="mt-3">
-                      <div className="seller-label">房源阶段</div>
-                      <div className="mt-1 text-[15px] font-semibold leading-5 text-[var(--seller-ink)]">
-                        {caseProjection?.listingLifecyclePhase.phaseLabel || selectedCase.stageLabel}
+                        {selectedCase.isFocused && (
+                          <span className="seller-chip seller-chip-accent flex items-center gap-1">
+                            <Star size={11} fill="currentColor" />
+                            本周聚焦
+                          </span>
+                        )}
                       </div>
-                    </div>
-                    <p className="seller-body mt-2 max-w-[72ch] text-[11px] leading-5">
-                      已接上 {caseProjection?.customerPoolSummary.metCount ?? customerStatesForSelectedCase.length} 位 · 带看 {selectedCase.viewings} 次 · 报价 {selectedCase.offers} 次
-                    </p>
-                    {(() => {
-                      const listingOpportunity = selectedCase ? listingOpportunityByCaseId.get(selectedCase.id) : null;
-                      const communityOpportunity = selectedCase ? communityOpportunityByCommunity.get(selectedCase.community) : null;
-                      const visibleOpportunity = (listingOpportunity?.status === 'triggered' || listingOpportunity?.status === 'accepted')
-                        ? listingOpportunity
-                        : (communityOpportunity?.status === 'triggered' || communityOpportunity?.status === 'accepted')
-                          ? communityOpportunity
-                          : null;
-                      if (!visibleOpportunity) return null;
-                      return (
-                        <div className="mt-3 rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-2.5">
-                          <div className="text-[12px] font-semibold text-[var(--seller-ink)]">{visibleOpportunity.headline}</div>
-                          <p className="mt-1 text-[11px] text-[var(--seller-muted)]">{visibleOpportunity.reasonLabel}</p>
-                          <div className="mt-2">
-                            <button
-                              type="button"
-                              className="seller-button-primary rounded-[10px] px-3 py-2 text-[11px]"
-                              onClick={() => onCaptureOpportunity(visibleOpportunity)}
-                            >
-                              {visibleOpportunity.status === 'accepted' ? '查看进展' : visibleOpportunity.primaryActionLabel}
-                            </button>
-                          </div>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[var(--seller-muted)]">
+                        <span>{selectedCase.community}</span>
+                        <span className="text-[var(--seller-border-strong)]">/</span>
+                        <span>{selectedCase.district}</span>
+                        <span className="text-[var(--seller-border-strong)]">/</span>
+                        <span>{selectedCase.layout} · {selectedCase.area}㎡</span>
+                        {selectedOwnerProfile && (
+                          <>
+                            <span className="text-[var(--seller-border-strong)]">/</span>
+                            <span>{selectedOwnerProfile.label}</span>
+                          </>
+                        )}
+                      </div>
+                      <div className="mt-3">
+                        <div className="seller-label">房源阶段</div>
+                        <div className="mt-1 text-[15px] font-semibold leading-5 text-[var(--seller-ink)]">
+                          {caseProjection?.listingLifecyclePhase.phaseLabel || selectedCase.stageLabel}
                         </div>
-                      );
-                    })()}
+                      </div>
+                      <p className="seller-body mt-2 max-w-[72ch] text-[11px] leading-5">
+                        已接上 {caseProjection?.customerPoolSummary.metCount ?? customerStatesForSelectedCase.length} 位 · 带看 {selectedCase.viewings} 次 · 报价 {selectedCase.offers} 次
+                      </p>
+                      {(() => {
+                        const listingOpportunity = selectedCase ? listingOpportunityByCaseId.get(selectedCase.id) : null;
+                        const communityOpportunity = selectedCase ? communityOpportunityByCommunity.get(selectedCase.community) : null;
+                        const visibleOpportunity = (listingOpportunity?.status === 'triggered' || listingOpportunity?.status === 'accepted')
+                          ? listingOpportunity
+                          : (communityOpportunity?.status === 'triggered' || communityOpportunity?.status === 'accepted')
+                            ? communityOpportunity
+                            : null;
+                        if (!visibleOpportunity) return null;
+                        return (
+                          <div className="mt-3 rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-2.5">
+                            <div className="text-[12px] font-semibold text-[var(--seller-ink)]">{visibleOpportunity.headline}</div>
+                            <p className="mt-1 text-[11px] text-[var(--seller-muted)]">{visibleOpportunity.reasonLabel}</p>
+                            <div className="mt-2">
+                              <button
+                                type="button"
+                                className="seller-button-primary rounded-[10px] px-3 py-2 text-[11px]"
+                                onClick={() => onCaptureOpportunity(visibleOpportunity)}
+                              >
+                                {visibleOpportunity.status === 'accepted' ? '查看进展' : visibleOpportunity.primaryActionLabel}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 gap-1.5">
@@ -413,67 +426,67 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
                 </div>
 
                 <div className="grid gap-3 px-3.5 py-3 lg:grid-cols-[minmax(0,0.96fr)_minmax(0,1.04fr)]">
-                  <section className="seller-panel-soft px-3 py-3">
-                    <div className="seller-label">房源诊断</div>
-                    <div className="mt-2 grid gap-2">
-                      <DiagnosisCard
-                        label="主阶段"
-                        value={caseProjection?.listingLifecyclePhase.phaseLabel || selectedCase.stageLabel}
-                        detail={caseProjection?.listingLifecyclePhase.coreProblemLabel || '查看卡点。'}
-                        tone={caseProjection?.listingLifecyclePhase.phaseDelayLevel === 'late' ? 'rose' : 'slate'}
-                        metrics={[
-                          { label: '已接上', value: `${caseProjection?.customerPoolSummary.metCount ?? customerStatesForSelectedCase.length} 位` },
-                          { label: '带看', value: `${selectedCase.viewings} 次` },
-                        ]}
-                      />
-                      <DiagnosisCard
-                        label="当前动作"
-                        value={caseProjection?.listingLifecyclePhase.primaryActionLabel || deriveNextFix(selectedCase, activeOpportunities)}
-                        detail={caseProjection?.nextStepLine || '关键动作。'}
-                        tone="amber"
-                        metrics={[
-                          { label: '报价', value: `${selectedCase.offers} 次` },
-                          { label: '比较中', value: `${caseProjection?.customerPoolSummary.comparingCount ?? comparingCustomers.length} 位` },
-                        ]}
-                      />
-                      <DiagnosisCard
-                        label="当前风险"
-                        value={caseProjection?.listingLifecyclePhase.phaseRiskHint || deriveWindowLabel(selectedCase, activeOpportunities)}
-                        detail={caseProjection?.competitionSummary.detail || '外部压力。'}
-                        tone={caseProjection?.listingLifecyclePhase.phaseDelayLevel === 'late' ? 'rose' : 'amber'}
-                        metrics={[
-                          { label: '同类房', value: `${caseProjection?.competitionSummary.rivalCount ?? 0} 套` },
-                          { label: '压力', value: `${caseProjection?.competitionSummary.pressure ?? 0}` },
-                        ]}
-                      />
-                    </div>
-                  </section>
+	                  <section className="seller-panel-soft px-3 py-3">
+	                    <div className="seller-label">房源诊断</div>
+	                    <div className="mt-2 grid gap-1.5">
+	                      <DiagnosisBriefRow
+	                        label="阶段"
+	                        value={caseProjection?.listingLifecyclePhase.phaseLabel || selectedCase.stageLabel}
+	                        tone={caseProjection?.listingLifecyclePhase.phaseDelayLevel === 'late' ? 'rose' : 'slate'}
+	                      />
+	                      <DiagnosisBriefRow
+	                        label="业主分型"
+	                        value={selectedOwnerProfile?.label || '未分型'}
+	                        tone={selectedOwnerProfile?.tone === 'risk' ? 'rose' : selectedOwnerProfile?.tone === 'accent' ? 'emerald' : 'slate'}
+	                      />
+	                      <DiagnosisBriefRow
+	                        label="建议动作"
+	                        value={caseProjection?.listingLifecyclePhase.primaryActionLabel || deriveNextFix(selectedCase, activeOpportunities)}
+	                        tone="amber"
+	                      />
+	                    </div>
+	                  </section>
 
-                  <section className="seller-panel-soft px-3 py-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="seller-label">当前动作</div>
-                        <div className="mt-1 text-[14px] font-semibold leading-5 text-[var(--seller-ink)]">
-                          {caseProjection?.listingLifecyclePhase.primaryActionLabel || '补关键一步。'}
-                        </div>
-                      </div>
-                      <span className="seller-chip seller-chip-accent">
-                        当前可做 {availableActionCount} / {ACTIONS.length}
-                      </span>
-                    </div>
+	                  <section className="seller-panel-soft relative px-3 py-3">
+	                    <div className="flex items-start justify-between gap-3">
+	                      <div>
+	                        <div className="seller-label">当前动作</div>
+	                        <div className="mt-1 text-[14px] font-semibold leading-5 text-[var(--seller-ink)]">
+	                          {caseProjection?.listingLifecyclePhase.primaryActionLabel || '补关键一步。'}
+	                        </div>
+	                      </div>
+	                      <button
+	                        type="button"
+	                        aria-expanded={blockedActionPanelOpen}
+	                        disabled={blockedActionCount === 0}
+	                        onClick={() => setBlockedActionPanelOpen((open) => !open)}
+	                        className="seller-chip seller-chip-accent disabled:cursor-default disabled:opacity-70"
+	                      >
+	                        可做 {availableActionCount}/{ACTIONS.length} · 暂缓 {blockedActionCount}
+	                      </button>
+	                    </div>
 
-                    <div className="mt-3 space-y-2">
-                      {recommendedActionCard ? (
+	                    <div className="mt-3 space-y-2">
+	                      {recommendedActionCard ? (
                         <CompactActionButton
                           card={recommendedActionCard}
                           onExecute={handleAction}
                           index={0}
                         />
                       ) : (
-                        <div className="seller-empty px-3 py-4 text-[12px]">这套房眼下还没有能直接执行的动作。</div>
-                      )}
-                    </div>
-                  </section>
+	                        <div className="seller-empty px-3 py-4 text-[12px]">这套房眼下还没有能直接执行的动作。</div>
+	                      )}
+	                    </div>
+
+	                    {blockedActionPanelOpen && activeActionCategory ? (
+	                      <BlockedActionsPopover
+	                        categories={actionCardsByCategory}
+	                        activeCategoryId={activeActionCategory.category.id as ActionCategoryTab}
+	                        onSelectCategory={(categoryId) => setActiveActionTab(categoryId)}
+	                        onClose={() => setBlockedActionPanelOpen(false)}
+	                      />
+	                    ) : null}
+	                  </section>
                 </div>
               </section>
 
@@ -532,6 +545,7 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
                             `业主配合 ${formatScoreBand(selectedCase.d3)}`,
                           ]}
                         />
+                        <HouseDimensionPosition caseItem={selectedCase} />
                         <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
                           <ProgressRail label="准客情况" value={selectedCase.d1} tone="chance" />
                           <ProgressRail label="房子条件" value={selectedCase.d2} tone="neutral" />
@@ -572,7 +586,10 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
 	                        <div className="mt-2.5 space-y-2">
 	                          {attentionListings.slice(0, 4).map((row) => (
 	                            <div key={row.id}>
-	                              <AttentionListingCard row={row} />
+	                              <AttentionListingCard
+	                                row={row}
+	                                onSelectCase={row.targetCaseId ? onSelectCase : undefined}
+	                              />
 	                            </div>
 	                          ))}
 	                          {attentionListings.length === 0 && (
@@ -684,44 +701,8 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
               </section>
             </div>
 
-            <aside className="flex min-h-0 flex-col gap-3">
-              <DeskSection title="暂不可做" count={`${activeActionCategory?.blockedCards.length || 0} 项`}>
-                <div className="flex flex-wrap gap-1.5 pb-1">
-                  {actionCardsByCategory.map(({ category, availableCards }) => (
-                    <button
-                      key={category.id}
-                      onClick={() => setActiveActionTab(category.id as ActionCategoryTab)}
-                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-semibold leading-4 transition-colors ${
-                        activeActionCategory?.category.id === category.id
-                          ? 'bg-[var(--seller-ink)] text-[var(--seller-bg)]'
-                          : 'bg-[rgba(255,255,255,0.05)] text-[var(--seller-muted)] hover:bg-[rgba(255,255,255,0.08)]'
-                      }`}
-                    >
-                      <span>{category.name}</span>
-                      <span className={activeActionCategory?.category.id === category.id ? 'opacity-70' : 'text-[var(--seller-subtle)]'}>
-                        {availableCards.length}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-
-                {activeActionCategory && (
-                  <>
-                    <div className="mt-2 space-y-2">
-                      {activeActionCategory.blockedCards.slice(0, 3).map((card) => (
-                        <div key={card.action.id}>
-                          <BlockedActionLine card={card} />
-                        </div>
-                      ))}
-                      {activeActionCategory.blockedCards.length === 0 && (
-                        <div className="seller-empty px-3 py-4 text-[12px]">这一类动作目前没有明显阻塞。</div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </DeskSection>
-
-              <DeskSection title="执行清单" count={`${executionChecklist.length || 0} 步`}>
+	            <aside className="flex min-h-0 flex-col gap-3">
+	              <DeskSection title="执行清单" count={`${executionChecklist.length || 0} 步`}>
                 <div className="space-y-1.5">
                   {executionChecklist.map((entry, index) => (
                     <div key={`${entry.title}-${index}`}>
@@ -785,6 +766,143 @@ function OwnerPersonaPill({ profile }: { profile: OwnerPersonaProfile }) {
   );
 }
 
+function ListingHeroImage({ caseItem }: { caseItem: Case }) {
+  const tone = caseItem.d2 >= 70 ? 'good' : caseItem.d1 < 45 || caseItem.d3 < 48 ? 'risk' : 'normal';
+  const toneClass = tone === 'good'
+    ? 'from-emerald-500/28 via-cyan-500/14 to-white/[0.03]'
+    : tone === 'risk'
+      ? 'from-amber-500/22 via-rose-500/10 to-white/[0.03]'
+      : 'from-cyan-500/20 via-slate-500/10 to-white/[0.03]';
+  const heroLabel = caseItem.area >= 110 ? '资产盘' : caseItem.area <= 70 ? '小户型' : '主力户型';
+
+  return (
+    <div className="relative min-h-[132px] overflow-hidden rounded-[18px] border border-[var(--seller-border)] bg-[#101822] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+      <div className={`absolute inset-0 bg-gradient-to-br ${toneClass}`} />
+      <div className="absolute inset-x-0 top-0 h-16 bg-[radial-gradient(circle_at_25%_12%,rgba(255,255,255,0.28),transparent_22%),radial-gradient(circle_at_80%_18%,rgba(73,221,133,0.18),transparent_24%)]" />
+      <div className="absolute bottom-0 left-0 right-0 h-14 bg-[linear-gradient(180deg,transparent,rgba(5,9,14,0.82))]" />
+
+      <div className="absolute bottom-5 left-4 h-16 w-12 rounded-t-[12px] border border-white/12 bg-[rgba(8,14,22,0.72)] shadow-[0_12px_24px_rgba(0,0,0,0.28)]">
+        <div className="grid grid-cols-2 gap-1 p-2">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <span
+              key={`main-window-${caseItem.id}-${index}`}
+              className={`h-2 rounded-[2px] ${index % 3 === 0 ? 'bg-[#49dd85]/80' : 'bg-white/18'}`}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="absolute bottom-4 left-12 h-20 w-20 rounded-t-[16px] border border-white/14 bg-[rgba(18,30,43,0.86)] shadow-[0_14px_28px_rgba(0,0,0,0.34)]">
+        <div className="grid grid-cols-3 gap-1.5 p-3">
+          {Array.from({ length: 9 }).map((_, index) => (
+            <span
+              key={`tower-window-${caseItem.id}-${index}`}
+              className={`h-2 rounded-[2px] ${index === 1 || index === 5 ? 'bg-cyan-200/72' : 'bg-white/16'}`}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="absolute bottom-4 right-3 h-12 w-9 rounded-t-[10px] border border-white/10 bg-[rgba(9,15,24,0.62)]" />
+
+      <div className="absolute left-3 top-3 rounded-full border border-white/10 bg-black/20 px-2 py-1 text-[9px] font-bold text-white/68 backdrop-blur-sm">
+        {heroLabel}
+      </div>
+      <div className="absolute bottom-3 left-3 right-3">
+        <div className="truncate text-[12px] font-semibold text-white">{caseItem.community}</div>
+        <div className="mt-0.5 text-[10px] font-semibold text-white/56">{caseItem.layout} · {caseItem.area}㎡</div>
+      </div>
+    </div>
+  );
+}
+
+function HouseDimensionPosition({ caseItem }: { caseItem: Case }) {
+  const lead = clampScore(caseItem.d1) / 100;
+  const house = clampScore(caseItem.d2) / 100;
+  const owner = clampScore(caseItem.d3) / 100;
+  const origin = { x: 30, y: 112 };
+  const leadAxis = { x: 102, y: -20 };
+  const houseAxis = { x: 0, y: -78 };
+  const ownerAxis = { x: 64, y: 27 };
+  const point = {
+    x: origin.x + leadAxis.x * lead + houseAxis.x * house + ownerAxis.x * owner,
+    y: origin.y + leadAxis.y * lead + houseAxis.y * house + ownerAxis.y * owner,
+  };
+  const floorA = `${origin.x},${origin.y}`;
+  const floorB = `${origin.x + leadAxis.x},${origin.y + leadAxis.y}`;
+  const floorC = `${origin.x + leadAxis.x + ownerAxis.x},${origin.y + leadAxis.y + ownerAxis.y}`;
+  const floorD = `${origin.x + ownerAxis.x},${origin.y + ownerAxis.y}`;
+  const topA = `${origin.x + houseAxis.x},${origin.y + houseAxis.y}`;
+  const topB = `${origin.x + leadAxis.x + houseAxis.x},${origin.y + leadAxis.y + houseAxis.y}`;
+  const topC = `${origin.x + leadAxis.x + ownerAxis.x + houseAxis.x},${origin.y + leadAxis.y + ownerAxis.y + houseAxis.y}`;
+  const topD = `${origin.x + ownerAxis.x + houseAxis.x},${origin.y + ownerAxis.y + houseAxis.y}`;
+
+  return (
+    <div className="mt-2 overflow-hidden rounded-[14px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] px-3 py-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div>
+          <div className="seller-label text-[9px]">三维评价位置</div>
+          <div className="mt-0.5 text-[11px] font-semibold text-[var(--seller-ink)]">{buildDimensionPositionLabel(caseItem)}</div>
+        </div>
+        <span className="seller-chip">好房分 {Math.round(caseItem.competitiveness)}</span>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_108px]">
+        <svg
+          viewBox="0 0 210 146"
+          role="img"
+          aria-label="准客情况、房子条件、业主配合三维坐标"
+          className="h-[138px] w-full overflow-visible"
+        >
+          <polygon points={`${floorA} ${floorB} ${floorC} ${floorD}`} fill="rgba(73,221,133,0.06)" stroke="rgba(255,255,255,0.12)" />
+          <polygon points={`${topA} ${topB} ${topC} ${topD}`} fill="rgba(102,209,224,0.06)" stroke="rgba(255,255,255,0.10)" />
+          <polygon points={`${floorB} ${floorC} ${topC} ${topB}`} fill="rgba(255,255,255,0.025)" stroke="rgba(255,255,255,0.08)" />
+          <polygon points={`${floorD} ${floorC} ${topC} ${topD}`} fill="rgba(255,255,255,0.018)" stroke="rgba(255,255,255,0.08)" />
+          {[0.25, 0.5, 0.75].map((step) => {
+            const baseX = origin.x + leadAxis.x * step;
+            const baseY = origin.y + leadAxis.y * step;
+            return (
+              <line
+                key={`lead-grid-${step}`}
+                x1={baseX}
+                y1={baseY}
+                x2={baseX + ownerAxis.x}
+                y2={baseY + ownerAxis.y}
+                stroke="rgba(255,255,255,0.08)"
+              />
+            );
+          })}
+          {[0.25, 0.5, 0.75].map((step) => {
+            const baseX = origin.x + ownerAxis.x * step;
+            const baseY = origin.y + ownerAxis.y * step;
+            return (
+              <line
+                key={`owner-grid-${step}`}
+                x1={baseX}
+                y1={baseY}
+                x2={baseX + leadAxis.x}
+                y2={baseY + leadAxis.y}
+                stroke="rgba(255,255,255,0.08)"
+              />
+            );
+          })}
+          <line x1={origin.x} y1={origin.y} x2={origin.x + leadAxis.x} y2={origin.y + leadAxis.y} stroke="rgba(73,221,133,0.76)" strokeWidth="2" />
+          <line x1={origin.x} y1={origin.y} x2={origin.x + houseAxis.x} y2={origin.y + houseAxis.y} stroke="rgba(102,209,224,0.78)" strokeWidth="2" />
+          <line x1={origin.x} y1={origin.y} x2={origin.x + ownerAxis.x} y2={origin.y + ownerAxis.y} stroke="rgba(255,107,129,0.72)" strokeWidth="2" />
+          <line x1={point.x} y1={point.y} x2={point.x} y2={origin.y + leadAxis.y * lead + ownerAxis.y * owner} stroke="rgba(255,255,255,0.18)" strokeDasharray="4 4" />
+          <circle cx={point.x} cy={point.y} r="7" fill="#49dd85" stroke="rgba(255,255,255,0.9)" strokeWidth="2" />
+          <circle cx={point.x} cy={point.y} r="14" fill="rgba(73,221,133,0.12)" />
+          <text x={origin.x + leadAxis.x + 5} y={origin.y + leadAxis.y + 2} fill="rgba(73,221,133,0.9)" fontSize="10" fontWeight="700">准客</text>
+          <text x={origin.x - 8} y={origin.y + houseAxis.y - 6} fill="rgba(102,209,224,0.9)" fontSize="10" fontWeight="700">房子</text>
+          <text x={origin.x + ownerAxis.x + 5} y={origin.y + ownerAxis.y + 4} fill="rgba(255,107,129,0.9)" fontSize="10" fontWeight="700">业主</text>
+        </svg>
+        <div className="grid content-center gap-2">
+          <DimensionMiniValue label="准客" value={caseItem.d1} tone="chance" />
+          <DimensionMiniValue label="房子" value={caseItem.d2} tone="neutral" />
+          <DimensionMiniValue label="业主" value={caseItem.d3} tone="risk" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ownerPersonaToneClass(tone: OwnerPersonaProfile['tone']) {
   if (tone === 'risk') return 'bg-[var(--seller-risk-soft)] text-[var(--seller-risk)]';
   if (tone === 'chance') return 'bg-[rgba(102,209,224,0.12)] text-[var(--seller-chance)]';
@@ -792,39 +910,29 @@ function ownerPersonaToneClass(tone: OwnerPersonaProfile['tone']) {
   return 'bg-[rgba(255,255,255,0.06)] text-[var(--seller-muted)]';
 }
 
-function DiagnosisCard({
+function DiagnosisBriefRow({
   label,
   value,
-  detail,
   tone,
-  metrics,
 }: {
   label: string;
   value: string;
-  detail: string;
   tone: 'slate' | 'amber' | 'emerald' | 'rose';
-  metrics: Array<{ label: string; value: string }>;
 }) {
   const toneClass =
     tone === 'emerald'
-      ? 'border-[color:var(--seller-accent)]/28 bg-[var(--seller-accent-soft)]'
+      ? 'border-[color:var(--seller-accent)]/24 bg-[var(--seller-accent-soft)]'
       : tone === 'amber'
-        ? 'border-[color:var(--seller-chance)]/24 bg-[var(--seller-chance-soft)]'
+        ? 'border-[color:var(--seller-chance)]/22 bg-[var(--seller-chance-soft)]'
         : tone === 'rose'
-          ? 'border-[color:var(--seller-risk)]/28 bg-[var(--seller-risk-soft)]'
-          : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)]';
+          ? 'border-[color:var(--seller-risk)]/24 bg-[var(--seller-risk-soft)]'
+          : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)]';
 
   return (
-    <div className={`rounded-[14px] border px-3 py-3 ${toneClass}`}>
-      <div className="seller-label">{label}</div>
-      <div className="mt-2 text-[13px] font-semibold leading-5 text-[var(--seller-ink)]">{value}</div>
-      <p className="seller-body mt-1 line-clamp-2 text-[11px] leading-5">{detail}</p>
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        {metrics.map((metric) => (
-          <span key={`${label}-${metric.label}`} className="seller-chip">
-            {metric.label} · {metric.value}
-          </span>
-        ))}
+    <div className={`grid grid-cols-[64px_minmax(0,1fr)] items-center gap-3 rounded-[12px] border px-3 py-2.5 ${toneClass}`}>
+      <div className="seller-label text-[9px]">{label}</div>
+      <div className="truncate text-[12px] font-semibold leading-5 text-[var(--seller-ink)]" title={value}>
+        {value}
       </div>
     </div>
   );
@@ -893,6 +1001,36 @@ function formatScoreBand(value: number) {
   return '低';
 }
 
+function DimensionMiniValue({ label, value, tone }: { label: string; value: number; tone: 'neutral' | 'chance' | 'risk' }) {
+  const colorClass = tone === 'chance' ? 'bg-[var(--seller-chance)]' : tone === 'risk' ? 'bg-[var(--seller-risk)]' : 'bg-[var(--seller-accent)]';
+  return (
+    <div className="rounded-[10px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-2 py-1.5">
+      <div className="flex items-center justify-between gap-2 text-[9px] font-bold text-[var(--seller-subtle)]">
+        <span>{label}</span>
+        <span>{Math.round(value)}</span>
+      </div>
+      <div className="mt-1 h-1 overflow-hidden rounded-full bg-white/10">
+        <div className={`h-full ${colorClass}`} style={{ width: `${clampScore(value)}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function buildDimensionPositionLabel(caseItem: Case) {
+  const strongest = [
+    { label: '准客更强', value: caseItem.d1 },
+    { label: '房子更强', value: caseItem.d2 },
+    { label: '业主更配合', value: caseItem.d3 },
+  ].sort((left, right) => right.value - left.value)[0];
+  const weakest = [
+    { label: '准客偏薄', value: caseItem.d1 },
+    { label: '房子条件弱', value: caseItem.d2 },
+    { label: '业主配合弱', value: caseItem.d3 },
+  ].sort((left, right) => left.value - right.value)[0];
+  if (strongest.value - weakest.value < 12) return '三项比较均衡';
+  return `${strongest.label}，${weakest.label}`;
+}
+
 function InfoStrip({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-2.5">
@@ -924,14 +1062,45 @@ function CurrentListingBenchmark({ caseItem, activeCustomerCount }: { caseItem: 
   );
 }
 
-function AttentionListingCard({ row }: { row: AttentionListingRow }) {
+function AttentionListingCard({
+  row,
+  onSelectCase,
+}: {
+  row: AttentionListingRow;
+  onSelectCase?: (caseId: string) => void;
+}) {
+  const canSwitchCase = Boolean(row.targetCaseId && onSelectCase);
+  const handleSelect = () => {
+    if (row.targetCaseId && onSelectCase) {
+      onSelectCase(row.targetCaseId);
+    }
+  };
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!canSwitchCase || (event.key !== 'Enter' && event.key !== ' ')) {
+      return;
+    }
+    event.preventDefault();
+    handleSelect();
+  };
+
   return (
-    <div className="rounded-[14px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-3">
+    <div
+      role={canSwitchCase ? 'button' : undefined}
+      tabIndex={canSwitchCase ? 0 : undefined}
+      onClick={canSwitchCase ? handleSelect : undefined}
+      onKeyDown={handleKeyDown}
+      className={`rounded-[14px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-3 transition ${
+        canSwitchCase
+          ? 'cursor-pointer hover:border-[var(--seller-accent)] hover:bg-[rgba(73,221,133,0.07)]'
+          : ''
+      }`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="seller-chip">{row.sourceLabel}</span>
             <span className={attentionToneClass(row.customerOverlap)}>{row.overlapLabel}</span>
+            {canSwitchCase ? <span className="seller-chip seller-chip-accent">点击切换</span> : null}
           </div>
           <div className="mt-2 text-[13px] font-semibold leading-5 text-[var(--seller-ink)]">{row.title}</div>
           <p className="seller-body mt-1 text-[11px] leading-5">{row.detail}</p>
@@ -1239,6 +1408,63 @@ function CompactActionButton({
         </span>
       </div>
     </button>
+  );
+}
+
+function BlockedActionsPopover({
+  categories,
+  activeCategoryId,
+  onSelectCategory,
+  onClose,
+}: {
+  categories: ActionCategoryGroup[];
+  activeCategoryId: ActionCategoryTab;
+  onSelectCategory: (categoryId: ActionCategoryTab) => void;
+  onClose: () => void;
+}) {
+  const activeCategory = categories.find(({ category }) => category.id === activeCategoryId) || categories[0];
+  const blockedCards = activeCategory?.blockedCards || [];
+
+  return (
+    <div className="absolute right-3 top-[52px] z-30 w-[min(360px,calc(100%-24px))] rounded-[14px] border border-[var(--seller-border-strong)] bg-[rgba(14,22,31,0.98)] p-3 shadow-[0_18px_48px_rgba(0,0,0,0.42)] backdrop-blur">
+      <div className="flex items-center justify-between gap-2">
+        <div className="seller-label">暂缓动作</div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-full border border-[var(--seller-border)] px-2 py-0.5 text-[9px] font-bold text-[var(--seller-muted)] hover:text-[var(--seller-ink)]"
+        >
+          收起
+        </button>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {categories.map(({ category, blockedCards: categoryBlockedCards }) => (
+          <button
+            key={category.id}
+            type="button"
+            onClick={() => onSelectCategory(category.id as ActionCategoryTab)}
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-semibold leading-4 transition-colors ${
+              activeCategory?.category.id === category.id
+                ? 'bg-[var(--seller-ink)] text-[var(--seller-bg)]'
+                : 'bg-[rgba(255,255,255,0.05)] text-[var(--seller-muted)] hover:bg-[rgba(255,255,255,0.08)]'
+            }`}
+          >
+            <span>{category.name}</span>
+            <span className={activeCategory?.category.id === category.id ? 'opacity-70' : 'text-[var(--seller-subtle)]'}>
+              {categoryBlockedCards.length}
+            </span>
+          </button>
+        ))}
+      </div>
+      <div className="mt-2 max-h-[220px] space-y-2 overflow-y-auto pr-1">
+        {blockedCards.map((card) => (
+          <BlockedActionLine key={card.action.id} card={card} />
+        ))}
+        {blockedCards.length === 0 && (
+          <div className="seller-empty px-3 py-4 text-[12px]">这一类动作目前没有明显阻塞。</div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -1550,6 +1776,7 @@ function buildCaseAttentionRow(
 
   return {
     id: competitor.id,
+    targetCaseId: competitor.id,
     title: competitor.title,
     sourceLabel: sameMarketCell ? '同商圈' : '同区房源',
     price: competitor.askPrice,

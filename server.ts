@@ -72,7 +72,6 @@ async function startServer() {
         email: result.email,
         mode: result.mode,
         expiresAt: result.expiresAt || null,
-        verificationCode: result.verificationCode || null,
         user: result.user || null,
       });
     } catch (error) {
@@ -108,7 +107,6 @@ async function startServer() {
         email: result.email,
         mode: result.mode,
         expiresAt: result.expiresAt || null,
-        verificationCode: result.verificationCode || null,
         user: result.user || null,
       });
     } catch (error) {

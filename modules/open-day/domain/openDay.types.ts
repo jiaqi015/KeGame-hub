@@ -177,6 +177,7 @@ export interface OpenDayAnalysisMeta {
   totalCount: number;
   eligibleCount: number;
   weights: OpenDayWeights;
+  skill?: OpenDaySkillDefinition;
   formula: OpenDayFormulaDefinition;
   scenario: OpenDayScenarioDraft;
   waterlines: OpenDayWaterlines;

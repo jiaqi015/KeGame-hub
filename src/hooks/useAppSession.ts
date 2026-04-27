@@ -70,7 +70,9 @@ export function useAppSession(state: AppState, dispatch: React.Dispatch<AppActio
         if (!disposed) {
           const cachedPath = window.sessionStorage.getItem('kegame-target-path') || '';
           const candidatePath = resolveWorkspaceRestorePath(window.location.pathname || '/', cachedPath);
-          const matchedWorkspace = resolveAllowedWorkspaceFromPathname(candidatePath, user.allowedWorkspaces);
+          const matchedWorkspace = candidatePath
+            ? resolveAllowedWorkspaceFromPathname(candidatePath, user.allowedWorkspaces)
+            : null;
 
           dispatch({
             type: 'COMPLETE_ACTIVATION',

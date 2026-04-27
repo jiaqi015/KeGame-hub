@@ -98,4 +98,24 @@ export class NeonOpenDayDatasetRepository implements OpenDayDatasetRepository {
 
     return command.summary;
   }
+
+  async getDatasetRows(datasetId: string) {
+    try {
+      const result = await withOpenDayNeon(async (sql) => {
+        const rows = await sql.query(
+          `SELECT headers_json, rows_json FROM open_day_datasets WHERE id = $1 LIMIT 1`,
+          [datasetId],
+        );
+        return rows as any[];
+      });
+      const row = result[0];
+      if (!row) return null;
+      return {
+        headers: typeof row.headers_json === 'string' ? JSON.parse(row.headers_json) : (row.headers_json || []),
+        rows: typeof row.rows_json === 'string' ? JSON.parse(row.rows_json) : (row.rows_json || []),
+      };
+    } catch {
+      return null;
+    }
+  }
 }

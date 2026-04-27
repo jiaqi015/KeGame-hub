@@ -124,6 +124,7 @@ export const BALANCE = {
       defaultTrustWeight: 0.18,
       competitivenessWeight: 0.16,
       askPricePenaltyWeight: 0.6,
+      trustGate: 60,
       confidenceLossOnFailure: 8,
       failureDaysLeft: 2,
       lostIntentThreshold: 35,

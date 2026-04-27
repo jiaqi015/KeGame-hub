@@ -184,20 +184,20 @@ export function Dashboard({
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
-              <div className="inline-flex rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] p-0.5">
+              <div className="inline-flex items-center gap-0.5 rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] p-0.5">
                 {CALENDAR_WINDOW_OPTIONS.map((windowDays) => (
                   <button
                     key={windowDays}
                     type="button"
                     aria-pressed={calendarWindowDays === windowDays}
                     onClick={() => setCalendarWindowDays(windowDays)}
-                    className={`rounded-full px-2.5 py-1 text-[10px] font-semibold transition ${
+                    className={`inline-flex h-[18px] min-w-[30px] items-center justify-center rounded-full px-1 text-[9px] font-bold leading-none transition ${
                       calendarWindowDays === windowDays
                         ? 'bg-[var(--seller-ink)] text-[var(--seller-bg)]'
                         : 'text-[var(--seller-muted)] hover:text-[var(--seller-ink)]'
                     }`}
                   >
-                    {windowDays}天
+                    <span className="origin-center scale-[0.78]">{windowDays}天</span>
                   </button>
                 ))}
               </div>
@@ -536,49 +536,113 @@ function AgendaPanel({
   onUseTool: (tool: AgendaTool, caseId?: string) => void;
 }) {
   const slots: TodayArrangementSlot[] = ['am', 'pm'];
+  const [activeAgendaSlot, setActiveAgendaSlot] = useState<TodayArrangementSlot>(
+    () => getDefaultAgendaSlot(arrangement),
+  );
+  const activeSlotArrangement = arrangement.slots[activeAgendaSlot];
+  const plannedItemKeys = useMemo(
+    () => activeSlotArrangement.plannedItems.map((item) => getArrangementItemKey(item)),
+    [activeSlotArrangement.plannedItems],
+  );
+  const plannedItemKeySignature = plannedItemKeys.join('|');
+  const [activePlannedItemKey, setActivePlannedItemKey] = useState<string | null>(
+    plannedItemKeys[0] || null,
+  );
+
+  useEffect(() => {
+    setActiveAgendaSlot(getDefaultAgendaSlot(arrangement));
+  }, [arrangement, day]);
+
+  useEffect(() => {
+    setActivePlannedItemKey((current) => (
+      current && plannedItemKeys.includes(current)
+        ? current
+        : plannedItemKeys[0] || null
+    ));
+  }, [plannedItemKeySignature, plannedItemKeys]);
+
+  const activePlannedItem = activeSlotArrangement.plannedItems.find((item) => getArrangementItemKey(item) === activePlannedItemKey) || null;
+  const summary = buildAgendaSummary(arrangement, activeSlotArrangement);
+
   return (
     <section className="seller-panel overflow-hidden">
       <div className="border-b border-[var(--seller-border)] px-4 py-4">
         <div className="min-w-0">
           <div className="seller-label flex items-center gap-2">
             <Clock3 size={13} />
-            今日安排
+            今日日程
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <span className="seller-chip">{day}/{maxDay}</span>
             <span className="seller-chip seller-chip-accent">今日精力 {energyLabel}</span>
             <span className="seller-chip">{budgetLabel} 推广金</span>
-            <span className="seller-chip">{arrangement.plannedEnergyLabel}</span>
-            <span className="seller-chip">{arrangement.remainingEnergyLabel}</span>
+            <span className="seller-chip">我排占用 {arrangement.plannedEnergy} 小时</span>
+            <span className="seller-chip">固定预留 {arrangement.fixedEnergyReserve} 小时</span>
+            <span className="seller-chip">可排余量 {arrangement.remainingEnergy} 小时</span>
+            <span className="seller-chip seller-chip-accent">
+              当前时段：{activeSlotArrangement.label}
+            </span>
+            {activePlannedItem ? (
+              <span className="seller-chip seller-chip-accent">
+                当前要做：{getArrangementItemShortTitle(activePlannedItem)}
+              </span>
+            ) : null}
           </div>
           <p className="mt-2 max-w-[78ch] text-[12px] leading-6 text-[var(--seller-muted)]">
-            {arrangement.summary}
+            {summary}
           </p>
         </div>
       </div>
 
       <div className="border-b border-[var(--seller-border)] px-4 py-4">
         <div className="flex items-center justify-between gap-3">
-          <div className="seller-label">我的安排</div>
+          <div className="seller-label">今天要处理什么</div>
           <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">
-            已安排 {arrangement.fixedItems.length} · 今天做 {arrangement.plannedItems.length} · 完成 {arrangement.completedItems.length}
+            固定 {arrangement.fixedItems.length} 件 · 我排 {arrangement.plannedItems.length} 件 · 已完成 {arrangement.completedItems.length} 件
           </span>
         </div>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          {slots.map((slot) => {
+            const slotArrangement = arrangement.slots[slot];
+            const isActive = activeAgendaSlot === slot;
+            return (
+              <button
+                key={slot}
+                type="button"
+                aria-pressed={isActive}
+                onClick={() => setActiveAgendaSlot(slot)}
+                className={`rounded-[12px] border px-3 py-2 text-left transition ${
+                  isActive
+                    ? 'border-[var(--seller-accent)] bg-[var(--seller-accent-soft)] text-[var(--seller-ink)]'
+                    : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] text-[var(--seller-muted)] hover:border-[var(--seller-border-strong)] hover:bg-white/[0.04] hover:text-[var(--seller-ink)]'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className={`seller-chip ${isActive ? 'seller-chip-accent' : ''}`}>{slotArrangement.label}</span>
+                  <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">
+                    {isActive ? '正在看' : '切换'}
+                  </span>
+                </div>
+                <div className="mt-2 text-[10px] font-semibold text-[var(--seller-subtle)]">
+                  我排 {slotArrangement.plannedItems.length} 件 · 可加入 {slotArrangement.candidateItems.length} 件 · 固定 {slotArrangement.fixedItems.length} 件
+                </div>
+              </button>
+            );
+          })}
+        </div>
         <div className="mt-3 space-y-3">
-          {slots.map((slot) => (
-            <React.Fragment key={slot}>
-              <HalfDayAgendaSection
-                slot={slot}
-                arrangement={arrangement.slots[slot]}
-                onOpenCase={onOpenCase}
-                onExecuteAction={onExecuteAction}
-                onAddToToday={onAddToToday}
-                onRemoveFromToday={onRemoveFromToday}
-                onExecuteTodayItem={onExecuteTodayItem}
-                onUseTool={onUseTool}
-              />
-            </React.Fragment>
-          ))}
+          <HalfDayAgendaSection
+            slot={activeAgendaSlot}
+            arrangement={activeSlotArrangement}
+            onOpenCase={onOpenCase}
+            onExecuteAction={onExecuteAction}
+            onAddToToday={onAddToToday}
+            onRemoveFromToday={onRemoveFromToday}
+            onExecuteTodayItem={onExecuteTodayItem}
+            onUseTool={onUseTool}
+            activePlannedItemKey={activePlannedItemKey}
+            onSelectPlannedItem={setActivePlannedItemKey}
+          />
         </div>
       </div>
     </section>
@@ -611,6 +675,56 @@ function splitArrangementTitle(title: string) {
   };
 }
 
+function getArrangementItemKey(item: ArrangementItemProjection) {
+  return item.todayPlanItemId || item.id;
+}
+
+function getArrangementItemShortTitle(item: ArrangementItemProjection) {
+  return splitArrangementTitle(item.title).caseTitle;
+}
+
+function getArrangementSlotItemCount(slot: ArrangementProjection['slots'][TodayArrangementSlot]) {
+  return slot.plannedItems.length
+    + slot.candidateItems.length
+    + slot.fixedItems.length
+    + slot.completedItems.length;
+}
+
+function getDefaultAgendaSlot(arrangement: ArrangementProjection): TodayArrangementSlot {
+  if (arrangement.slots.pm.plannedItems.length > 0) return 'pm';
+  if (arrangement.slots.am.plannedItems.length > 0) return 'am';
+  if (getArrangementSlotItemCount(arrangement.slots.am) > 0) return 'am';
+  if (getArrangementSlotItemCount(arrangement.slots.pm) > 0) return 'pm';
+  return 'am';
+}
+
+function buildAgendaSummary(
+  arrangement: ArrangementProjection,
+  activeSlot: ArrangementProjection['slots'][TodayArrangementSlot],
+) {
+  const totalFixed = arrangement.fixedItems.length;
+  const totalPlanned = arrangement.plannedItems.length;
+  if (totalPlanned > 0) {
+    return `今天你主动排了 ${totalPlanned} 件事，系统还放进 ${totalFixed} 个固定/临时事项。当前只看${activeSlot.label}，先处理绿色“当前要做”，再切换时段补其他事。`;
+  }
+  if (activeSlot.candidateItems.length > 0) {
+    return `${activeSlot.label}有 ${activeSlot.candidateItems.length} 件可加入事项；先判断要不要排进今天，再执行。固定事项是系统已经放进今天的提醒。`;
+  }
+  return `今天有 ${totalFixed} 个系统固定/临时事项。先按上午/下午切换查看，不需要把两个时段同时摊开处理。`;
+}
+
+function presentFixedStatusLabel(label: string) {
+  return label === '已排进今天' ? '系统排入今天' : label;
+}
+
+function presentFixedSourceLabel(label: string) {
+  return label === '已安排' ? '系统事项' : label;
+}
+
+function presentPlannedStatusLabel(label: string) {
+  return label === '已排进今天' ? '已加入今天' : label;
+}
+
 function FixedArrangementCard({
   item,
   onOpenCase,
@@ -623,8 +737,10 @@ function FixedArrangementCard({
   return (
     <div className={`rounded-[12px] border px-3.5 py-3 ${item.tone === 'risk' ? 'border-[color:var(--seller-risk)]/24 bg-[var(--seller-risk-soft)]' : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)]'}`}>
       <div className="flex flex-wrap items-center gap-2">
+        <span className="seller-chip">固定事项</span>
         <span className="seller-chip">{item.slot === 'pm' ? '下午' : '上午'}</span>
-        <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">{item.statusLabel}</span>
+        <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">{presentFixedSourceLabel(item.label)}</span>
+        <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">{presentFixedStatusLabel(item.statusLabel)}</span>
         <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">占 {item.durationHours} 小时 · {item.energyCost} 精力</span>
       </div>
       <ArrangementTitleBlock title={item.title} size="sm" />
@@ -667,6 +783,8 @@ function HalfDayAgendaSection({
   onRemoveFromToday,
   onExecuteTodayItem,
   onUseTool,
+  activePlannedItemKey,
+  onSelectPlannedItem,
 }: {
   slot: TodayArrangementSlot;
   arrangement: ArrangementProjection['slots'][TodayArrangementSlot];
@@ -676,6 +794,8 @@ function HalfDayAgendaSection({
   onRemoveFromToday: (itemId: string) => boolean;
   onExecuteTodayItem: (itemId: string) => boolean;
   onUseTool: (tool: AgendaTool, caseId?: string) => void;
+  activePlannedItemKey: string | null;
+  onSelectPlannedItem: (itemKey: string) => void;
 }) {
   const hasAnyItems = arrangement.plannedItems.length > 0
     || arrangement.candidateItems.length > 0
@@ -692,21 +812,27 @@ function HalfDayAgendaSection({
           <span className={`seller-chip ${slot === 'am' ? 'seller-chip-accent' : ''}`}>{arrangement.label}</span>
         </div>
         <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">
-          已排 {arrangement.plannedItems.length} · 候选 {arrangement.candidateItems.length} · 已安排 {arrangement.fixedItems.length}
+          我排 {arrangement.plannedItems.length} 件 · 可加入 {arrangement.candidateItems.length} 件 · 固定 {arrangement.fixedItems.length} 件
         </span>
       </div>
 
       <div className="mt-3 space-y-3">
         {arrangement.plannedItems.length > 0 && (
-          <AgendaGroup title="已排今天做" helper="点执行，完成后会扣精力并写入流水。">
-            {arrangement.plannedItems.map((item, index) => (
+          <AgendaGroup
+            title="我排的动作"
+            helper={arrangement.plannedItems.length > 1
+              ? '点击卡片或“切到这件”切换当前日程。'
+              : '当前日程可直接进入情境处理。'}
+          >
+            {arrangement.plannedItems.map((item) => (
               <React.Fragment key={item.id}>
                 <PlannedArrangementCard
                   item={item}
-                  index={index}
+                  isActive={getArrangementItemKey(item) === activePlannedItemKey}
                   onOpenCase={onOpenCase}
                   onExecuteTodayItem={onExecuteTodayItem}
                   onRemoveFromToday={onRemoveFromToday}
+                  onSelect={() => onSelectPlannedItem(getArrangementItemKey(item))}
                 />
               </React.Fragment>
             ))}
@@ -714,7 +840,7 @@ function HalfDayAgendaSection({
         )}
 
         {arrangement.candidateItems.length > 0 && (
-          <AgendaGroup title="可排事项" helper={`想做就点“排到${arrangement.label}”，精力不够会自动禁用。`}>
+          <AgendaGroup title="可加入今天" helper={`判断要做，再加入${arrangement.label}。精力不够会禁用。`}>
             {arrangement.candidateItems.map((item, index) => (
               <React.Fragment key={item.id}>
                 <AgendaItemRow
@@ -731,7 +857,7 @@ function HalfDayAgendaSection({
         )}
 
         {arrangement.fixedItems.length > 0 && (
-          <AgendaGroup title="已安排" helper="已排进今天。">
+          <AgendaGroup title="固定/临时事项" helper="系统已经放进今天；可承接，也可先看房源。">
             {arrangement.fixedItems.map((item) => (
               <React.Fragment key={item.id}>
                 <FixedArrangementCard
@@ -745,7 +871,7 @@ function HalfDayAgendaSection({
         )}
 
         {arrangement.completedItems.length > 0 && (
-          <AgendaGroup title="已完成" helper="这里保留今天已经处理过的事项。">
+          <AgendaGroup title="已处理" helper="今天已经完成的动作会留在这里。">
             {arrangement.completedItems.map((item) => (
               <React.Fragment key={item.id}>
                 <CompletedArrangementCard item={item} onOpenCase={onOpenCase} />
@@ -823,7 +949,7 @@ function AgendaItemRow({
           {index + 1}
         </div>
         <div className="mt-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">
-          {slot === 'am' ? '上午候选' : '下午候选'}
+          可加入{slot === 'am' ? '上午' : '下午'}
         </div>
       </div>
 
@@ -873,7 +999,7 @@ function AgendaItemRow({
               } disabled:opacity-50`}
               title={item.disabledReason}
             >
-              {slot === 'am' ? '排到上午' : '排到下午'}
+              {slot === 'am' ? '加入上午' : '加入下午'}
               <ArrowRight size={12} />
             </button>
           ) : null}
@@ -898,28 +1024,41 @@ function AgendaItemRow({
 
 function PlannedArrangementCard({
   item,
-  index,
+  isActive,
   onOpenCase,
   onExecuteTodayItem,
   onRemoveFromToday,
+  onSelect,
 }: {
   item: ArrangementItemProjection;
-  index: number;
+  isActive: boolean;
   onOpenCase: (caseId?: string) => void;
   onExecuteTodayItem: (itemId: string) => boolean;
   onRemoveFromToday: (itemId: string) => boolean;
+  onSelect: () => void;
 }) {
   const [isHovered, setIsHovered] = useState(false);
   const isWaiting = item.disabledReason?.includes('等待');
-  const isUrgent = index === 0 && !item.isDisabled && !isWaiting;
+  const isUrgent = isActive && !item.isDisabled && !isWaiting;
 
   return (
     <div
+      aria-current={isActive ? 'true' : undefined}
+      role={isActive ? undefined : 'button'}
+      tabIndex={isActive ? undefined : 0}
+      onClick={isActive ? undefined : onSelect}
+      onKeyDown={(event) => {
+        if (isActive || (event.key !== 'Enter' && event.key !== ' ')) {
+          return;
+        }
+        event.preventDefault();
+        onSelect();
+      }}
       className={`relative rounded-[12px] border px-3.5 py-3 transition-all ${
         isWaiting ? 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.01)] opacity-70 grayscale-[30%]' :
         isUrgent ? 'border-[var(--seller-accent)] bg-[var(--seller-accent-soft)] shadow-[0_0_15px_rgba(40,120,240,0.15)]' :
         'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)]'
-      }`}
+      } ${isActive ? 'cursor-default' : 'cursor-pointer hover:border-[var(--seller-border-strong)] hover:bg-white/[0.04]'}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
@@ -930,7 +1069,7 @@ function PlannedArrangementCard({
         </div>
       )}
       <div className="flex flex-wrap items-center gap-2">
-        {index === 0 ? <span className="seller-chip seller-chip-accent">主动作</span> : <span className="seller-chip">已安排</span>}
+        {isActive ? <span className="seller-chip seller-chip-accent">当前要做</span> : <span className="seller-chip">待处理</span>}
         <span className="seller-chip">{item.slot === 'pm' ? '下午' : '上午'}</span>
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${toneChipClass(item.tone)}`}>
           {item.executionMode === 'scenario' ? '情境' : '直接处理'}
@@ -938,7 +1077,7 @@ function PlannedArrangementCard({
         {isWaiting && (
           <span className="seller-chip bg-[rgba(255,255,255,0.1)] text-[var(--seller-muted)] animate-pulse">⏳ 等待回复</span>
         )}
-        <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">{item.statusLabel}</span>
+        <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">{presentPlannedStatusLabel(item.statusLabel)}</span>
         <span className={`text-[10px] font-semibold transition-colors ${isHovered && item.energyCost > 0 ? 'text-red-400 font-bold' : 'text-[var(--seller-subtle)]'}`}>
           占 {item.durationHours} 小时 · {isHovered && item.energyCost > 0 ? '-' : ''}{item.energyCost} 精力
         </span>
@@ -949,18 +1088,41 @@ function PlannedArrangementCard({
         <p className="mt-2 text-[11px] leading-5 text-[var(--seller-risk)]">{item.disabledReason}</p>
       ) : null}
       <div className="mt-3 flex flex-wrap gap-2">
+        {isActive ? (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              if (item.todayPlanItemId) {
+                onExecuteTodayItem(item.todayPlanItemId);
+              }
+            }}
+            disabled={item.isDisabled || !item.todayPlanItemId}
+            className="seller-button-primary rounded-[10px] px-3 py-2 text-[11px] disabled:opacity-50"
+            title={item.disabledReason}
+          >
+            {item.executionMode === 'scenario' ? '进入情境' : '立即处理'}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onSelect();
+            }}
+            className="seller-button-primary rounded-[10px] px-3 py-2 text-[11px]"
+          >
+            切到这件
+          </button>
+        )}
         <button
           type="button"
-          onClick={() => item.todayPlanItemId && onExecuteTodayItem(item.todayPlanItemId)}
-          disabled={item.isDisabled || !item.todayPlanItemId}
-          className="seller-button-primary rounded-[10px] px-3 py-2 text-[11px] disabled:opacity-50"
-          title={item.disabledReason}
-        >
-          {item.executionMode === 'scenario' ? '进入情境' : '立即处理'}
-        </button>
-        <button
-          type="button"
-          onClick={() => item.todayPlanItemId && onRemoveFromToday(item.todayPlanItemId)}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (item.todayPlanItemId) {
+              onRemoveFromToday(item.todayPlanItemId);
+            }
+          }}
           disabled={!item.todayPlanItemId}
           className="seller-button-secondary rounded-[10px] px-3 py-2 text-[11px] disabled:opacity-50"
         >
@@ -968,7 +1130,10 @@ function PlannedArrangementCard({
         </button>
         <button
           type="button"
-          onClick={() => onOpenCase(item.caseId)}
+          onClick={(event) => {
+            event.stopPropagation();
+            onOpenCase(item.caseId);
+          }}
           className="seller-button-secondary rounded-[10px] px-3 py-2 text-[11px]"
         >
           看房源

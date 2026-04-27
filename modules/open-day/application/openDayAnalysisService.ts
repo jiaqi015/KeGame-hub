@@ -4,19 +4,26 @@ import type { OpenDayAnalysisCache } from './openDayAnalysisCache.js';
 import { OpenDayDatasetService } from './openDayDatasetService.js';
 import { createOpenDayHash } from './openDayFingerprint.js';
 import type { OpenDaySnapshotRepository } from './openDaySnapshotRepository.js';
+import type { OpenDayDatasetRepository } from './openDayDatasetRepository.js';
+
+const MAX_ROWS_IN_REQUEST = 10000;
 
 function createCacheKey(command: OpenDayScoreCommand): string {
-  return createOpenDayHash(
-    {
-      rows: command.rows,
-      mappings: command.mappings,
-      config: command.config,
-      scenario: command.scenario,
-      activePresetId: command.activePresetId,
-      activeParameterPackageId: command.activeParameterPackageId,
-    },
-    'open-day',
-  );
+  const hashInput: Record<string, unknown> = {
+    mappings: command.mappings,
+    config: command.config,
+    scenario: command.scenario,
+    activePresetId: command.activePresetId,
+    activeParameterPackageId: command.activeParameterPackageId,
+  };
+
+  if (command.datasetId) {
+    hashInput['datasetId'] = command.datasetId;
+  } else {
+    hashInput['rows'] = command.rows;
+  }
+
+  return createOpenDayHash(hashInput, 'open-day');
 }
 
 function stripRunMeta(response: OpenDayAnalysisResponse): OpenDayAnalysisResponse {

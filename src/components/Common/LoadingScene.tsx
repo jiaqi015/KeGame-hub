@@ -9,58 +9,18 @@ interface LoadingSceneProps {
 
 export function LoadingScene({
   title = '正在加载',
-  subtitle = '请稍候',
   compact = false,
-  steps = ['读取进度', '装配页面', '检查更新'],
 }: LoadingSceneProps) {
   return (
-    <div className="selling-houses-shell relative flex h-full w-full items-center justify-center overflow-hidden px-5">
+    <div className="relative flex h-full w-full items-center justify-center overflow-hidden px-5">
       <div
         role="status"
         aria-live="polite"
-        className={`relative w-full ${compact ? 'max-w-[520px]' : 'max-w-[640px]'}`}
+        aria-label={title}
+        className={`flex items-center justify-center ${compact ? 'min-h-[220px]' : 'min-h-[420px]'}`}
       >
-        <div className="seller-panel-muted rounded-[20px] p-5">
-          <div className="flex items-start gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)]">
-              <div className="h-2.5 w-2.5 rounded-full bg-[var(--seller-accent)] shadow-[0_0_0_4px_rgba(74,227,138,0.08)]" />
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <div className={`seller-title ${compact ? 'text-[17px]' : 'text-[20px]'}`}>
-                  {title}
-                </div>
-                <span className="seller-chip">加载中</span>
-              </div>
-              <div className="seller-body mt-1 text-[12px] leading-5">
-                {subtitle}
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 grid gap-2 sm:grid-cols-3">
-            {steps.map((step, index) => (
-              <div
-                key={`${step}-${index}`}
-                className="seller-tablet px-3 py-2.5"
-              >
-                <div className="flex items-center gap-2">
-                  <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${
-                    index < 2 ? 'bg-[var(--seller-accent)] text-[var(--seller-bg)]' : 'bg-[rgba(255,255,255,0.06)] text-[var(--seller-subtle)]'
-                  }`}>
-                    {index < 2 ? '✓' : index + 1}
-                  </span>
-                  <span className="text-[11px] font-semibold text-[var(--seller-ink)]">{step}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-4 rounded-[16px] border border-[var(--seller-border)] bg-[rgba(15,23,32,0.86)] px-3 py-2 text-[11px] leading-5 text-[var(--seller-muted)]">
-            正在准备工作台。
-          </div>
-        </div>
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[rgba(232,230,222,0.16)] border-t-[var(--seller-ink)]" />
+        <span className="sr-only">{title}</span>
       </div>
     </div>
   );

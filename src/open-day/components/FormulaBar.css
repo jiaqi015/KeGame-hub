@@ -48,6 +48,17 @@
   cursor: pointer;
 }
 
+.open-day-workspace .open-day-formula-bar__select select:hover,
+.open-day-workspace .open-day-formula-bar__select select:active,
+.open-day-workspace .open-day-formula-bar__select select:focus,
+.open-day-workspace .open-day-formula-bar__select select:focus-visible {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.32);
+  background-color: #243044;
+  color: #fff;
+  box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.16);
+}
+
 .open-day-formula-bar__select select option {
   background: #211c17;
   color: #fff;

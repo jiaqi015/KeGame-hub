@@ -2,7 +2,6 @@ import { useEffect, useMemo, useReducer, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
-  FileDown,
   FileUp,
   RotateCw,
   Activity,
@@ -192,8 +191,12 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
   } = state;
 
   // ─── Sync Queries to State ────────────────────────────────────────────────────
+  // Bootstrap: wait for catalog, then seed snapshots & scenarios as they arrive
+  const bootstrapReady = useRef(false);
+
   useEffect(() => {
-    if (catalogQuery.data) {
+    if (catalogQuery.data && !bootstrapReady.current) {
+      bootstrapReady.current = true;
       dispatch({
         type: 'BOOTSTRAP_SUCCESS',
         catalog: catalogQuery.data,
@@ -202,16 +205,16 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
         scenarios: scenariosQuery.data?.items || [],
       });
     }
-  }, [catalogQuery.data]);
+  }, [catalogQuery.data, snapshotsQuery.data, scenariosQuery.data]);
 
   useEffect(() => {
-    if (snapshotsQuery.data) {
+    if (snapshotsQuery.data && bootstrapReady.current) {
       dispatch({ type: 'SET_SNAPSHOTS', items: snapshotsQuery.data.items });
     }
   }, [snapshotsQuery.data]);
 
   useEffect(() => {
-    if (scenariosQuery.data) {
+    if (scenariosQuery.data && bootstrapReady.current) {
       dispatch({ type: 'SET_SCENARIOS', items: scenariosQuery.data.items });
     }
   }, [scenariosQuery.data]);
@@ -277,8 +280,9 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
 
   const filteredResults = useMemo(() => {
     if (!analysis) return [];
+    const term = searchTerm.toLowerCase();
     return analysis.results.filter((row) => 
-      !searchTerm || row.name.toLowerCase().includes(searchTerm.toLowerCase())
+      !term || (row.name || '').toLowerCase().includes(term)
     );
   }, [analysis, searchTerm]);
 

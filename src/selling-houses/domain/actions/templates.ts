@@ -32,9 +32,11 @@ export type Settlement = {
   finalOptionId: string | null;
 };
 
+export type ScenarioChoice = { round: number; main: string; assist: string; mainTopics?: string[] };
+
 export type ScenarioResult = {
   settlement: Settlement;
-  choices: Array<{ round: number; main: string; assist: string }>;
+  choices: ScenarioChoice[];
   feedbacks: CharacterFeedback[];
   templateId: string;
 };
@@ -67,7 +69,7 @@ export type ScenarioActionTemplate = ActionBattleTemplate & {
     caseItem: Case,
   ) => CharacterFeedback;
   resolveOutcome: (
-    choices: Array<{ round: number; main: string; assist: string }>,
+    choices: ScenarioChoice[],
     feedbacks: CharacterFeedback[],
     state: GameState,
     caseItem: Case,

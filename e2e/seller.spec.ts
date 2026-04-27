@@ -5,7 +5,10 @@ const TEST_EMAIL = 'codex@ke.com';
 async function waitForSellerSurface(page: Page, timeout = 12_000) {
   await page.waitForFunction(() => {
     const text = document.body.innerText;
-    return text.includes('开一局')
+    return text.includes('选择难度')
+      || text.includes('进入标准剧本')
+      || text.includes('开一局')
+      || text.includes('工作台')
       || text.includes('经营概览')
       || text.includes('今天')
       || text.includes('本局正式结算');
@@ -20,11 +23,28 @@ async function loginIfNeeded(page: Page) {
 
   const emailInput = page.getByPlaceholder('请输入 @ke.com 邮箱');
   if (await emailInput.isVisible({ timeout: 3_000 }).catch(() => false)) {
-    await emailInput.fill(TEST_EMAIL);
-    await page.getByRole('button', { name: '获取验证码' }).click();
+    if (!(await emailInput.inputValue()).trim()) {
+      await emailInput.fill(TEST_EMAIL);
+    }
+    const continueButton = page.getByRole('button', { name: '继续登录' });
+    if (await continueButton.isVisible().catch(() => false)) {
+      await continueButton.click();
+    } else {
+      await page.getByRole('button', { name: '获取验证码' }).click();
+    }
   }
 
   await waitForSellerSurface(page);
+}
+
+async function loginToHub(page: Page) {
+  await page.goto('/');
+  const emailInput = page.getByPlaceholder('请输入 @ke.com 邮箱');
+  if (await emailInput.isVisible({ timeout: 5_000 }).catch(() => false)) {
+    await emailInput.fill(TEST_EMAIL);
+    await page.getByRole('button', { name: '获取验证码' }).click();
+  }
+  await expect(page.getByRole('button', { name: '退出到登录' })).toBeVisible();
 }
 
 async function openSeller(page: Page, path: string) {
@@ -70,6 +90,19 @@ async function expectUnreadRowsPinned(page: Page, selector: string) {
   if (firstReadIndex >= 0 && lastUnreadIndex >= 0) {
     expect(lastUnreadIndex).toBeLessThan(firstReadIndex);
   }
+}
+
+async function returnToWorkbench(page: Page) {
+  await page.getByRole('button', { name: '工作台' }).click();
+}
+
+async function continueFromSummary(page: Page) {
+  const enterTodayButton = page.getByRole('button', { name: '进入今天' });
+  if (await enterTodayButton.isVisible({ timeout: 1_000 }).catch(() => false)) {
+    await enterTodayButton.click();
+    return;
+  }
+  await page.getByRole('button', { name: '继续经营' }).click();
 }
 
 function isKnownConsoleNoise(message: ConsoleMessage) {
@@ -129,7 +162,7 @@ test('selling-houses e2e profile advances safely without touching default save',
   expect(await e2eSaveSnapshot(page)).toEqual(snapshotBeforeWechatClick);
   expect(defaultSaveFingerprint(await sellerSaveKeys(page))).toBe(defaultKeysBeforeE2e);
 
-  await page.getByRole('button', { name: '经营概览' }).click();
+  await returnToWorkbench(page);
   await expect(page.locator('[data-my-wechat-panel="true"]')).toBeVisible();
   await expectUnreadRowsPinned(page, '[data-my-wechat-message-row="true"]');
   await page.locator('[data-my-wechat-tab="公众号"]').click();
@@ -139,13 +172,13 @@ test('selling-houses e2e profile advances safely without touching default save',
   expect(await e2eSaveSnapshot(page)).toEqual(snapshotBeforeWechatClick);
   expect(defaultSaveFingerprint(await sellerSaveKeys(page))).toBe(defaultKeysBeforeE2e);
 
-  await page.getByRole('button', { name: '经营概览' }).click();
+  await returnToWorkbench(page);
   await page.locator('[data-my-wechat-tab="公众号"]').click();
   await expectUnreadRowsPinned(page, '[data-my-wechat-official-row="true"]');
 
   await page.getByRole('button', { name: '结束今日' }).click();
   await expect(page.getByText(/第 1 天经营简报/)).toBeVisible();
-  await page.getByRole('button', { name: '继续经营' }).click();
+  await continueFromSummary(page);
   await expectTodayRhythmCell(page, 2);
   await expect(page.getByText(/经营简报/)).toHaveCount(0);
 
@@ -169,10 +202,7 @@ test('selling-houses e2e profile advances safely without touching default save',
   await advanceWeekButton.dblclick();
   await expect(page.locator('body')).toContainText('8/21');
   await expect(page.getByText(/已连续结算 7 天|当前到第 8 天/)).toBeVisible();
-  const weeklySummaryContinue = page.getByRole('button', { name: '继续经营' });
-  if (await weeklySummaryContinue.isVisible({ timeout: 1_000 }).catch(() => false)) {
-    await weeklySummaryContinue.click();
-  }
+  await continueFromSummary(page);
   await expectTodayRhythmCell(page, 8);
 
   await page.reload();
@@ -197,7 +227,7 @@ test('selling-houses e2e profile advances safely without touching default save',
   for (const day of [8, 9, 10]) {
     await page.getByRole('button', { name: '结束今日' }).click();
     await expect(page.getByText(new RegExp(`第 ${day} 天经营简报`))).toBeVisible();
-    await page.getByRole('button', { name: '继续经营' }).click();
+    await continueFromSummary(page);
     await expectTodayRhythmCell(page, day + 1);
   }
 
@@ -218,4 +248,14 @@ test('selling-houses e2e profile advances safely without touching default save',
   expect(ariaFocusWarnings.map((message) => message.text())).toEqual([]);
   expect(consoleErrors.map((message) => message.text())).toEqual([]);
   expect(pageErrors.map((error) => error.message)).toEqual([]);
+});
+
+test('authenticated hub session restores on home reload', async ({ page }) => {
+  await loginToHub(page);
+
+  await page.reload();
+
+  await expect(page.getByRole('button', { name: '退出到登录' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '继续登录' })).toHaveCount(0);
+  await expect(page.getByText(/工作\s*skill/i)).toBeVisible();
 });

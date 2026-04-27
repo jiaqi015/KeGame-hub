@@ -1,7 +1,25 @@
 import { useState } from 'react';
-import { Compass, Flame, Gauge, ShieldCheck, Sprout, TriangleAlert } from 'lucide-react';
+import {
+  ArrowLeft,
+  CalendarDays,
+  Compass,
+  Flame,
+  Gauge,
+  Home,
+  Play,
+  ShieldCheck,
+  Sprout,
+  Store,
+  TriangleAlert,
+  Users,
+} from 'lucide-react';
 import type { DifficultyId, DifficultyOption, ScenarioSummary } from '../../domain/models';
-import type { FeaturedScenarioPreview } from '../../application/scenarioOpening';
+import {
+  buildGeneratedScenarioOpeningPreview,
+  createGeneratedScenarioSeed,
+  type FeaturedScenarioPreview,
+  type ScenarioOpeningBriefing,
+} from '../../application/scenarioOpening';
 import { buildDifficultyPresentation, type DifficultyPresentationTone } from '../../application/difficultyPresentation';
 
 const ICONS = {
@@ -66,9 +84,15 @@ export function ScenarioSetup({
   lastDifficulty: DifficultyId;
   starting: boolean;
   onStartFeatured: (difficultyId: DifficultyId) => void | Promise<void>;
-  onStartRandom: (difficultyId: DifficultyId) => void | Promise<void>;
+  onStartRandom: (difficultyId: DifficultyId, seed?: number) => void | Promise<void>;
 }) {
   const [selectedDifficultyId, setSelectedDifficultyId] = useState<DifficultyId>(lastDifficulty);
+  const [pendingOpening, setPendingOpening] = useState<{
+    mode: 'featured' | 'random';
+    difficultyId: DifficultyId;
+    seed: number;
+    briefing: ScenarioOpeningBriefing;
+  } | null>(null);
   const selectedOption = difficultyOptions.find((entry) => entry.id === selectedDifficultyId)
     || difficultyOptions.find((entry) => entry.id === lastDifficulty)
     || difficultyOptions[0];
@@ -101,6 +125,48 @@ export function ScenarioSetup({
     { label: '客户推进', value: selectedPresentation.metrics.customerProgression },
     { label: '额外空间', value: selectedPresentation.metrics.bonusPotential },
   ];
+  const openFeaturedBriefing = () => {
+    if (!selectedFeatured) return;
+    const seed = selectedFeatured.seed;
+    const preview = buildGeneratedScenarioOpeningPreview(selectedOption.id, seed, 'standard');
+    setPendingOpening({
+      mode: 'featured',
+      difficultyId: selectedOption.id,
+      seed,
+      briefing: preview.briefing,
+    });
+  };
+  const openRandomBriefing = () => {
+    const seed = createGeneratedScenarioSeed(Date.now());
+    const preview = buildGeneratedScenarioOpeningPreview(selectedOption.id, seed, 'random');
+    setPendingOpening({
+      mode: 'random',
+      difficultyId: selectedOption.id,
+      seed,
+      briefing: preview.briefing,
+    });
+  };
+  const enterPendingOpening = async () => {
+    if (!pendingOpening) return;
+    if (pendingOpening.mode === 'featured') {
+      await onStartFeatured(pendingOpening.difficultyId);
+      return;
+    }
+    await onStartRandom(pendingOpening.difficultyId, pendingOpening.seed);
+  };
+
+  if (pendingOpening) {
+    return (
+      <OpeningBriefingView
+        briefing={pendingOpening.briefing}
+        difficultyLabel={selectedPresentation.label}
+        targetScore={selectedFeatured?.scenario.presentation.targetScore}
+        starting={starting}
+        onBack={() => setPendingOpening(null)}
+        onEnter={() => { void enterPendingOpening(); }}
+      />
+    );
+  }
 
   return (
     <div className="mx-auto flex h-full w-full max-w-[880px] flex-col overflow-y-auto px-4 py-5 text-[var(--seller-ink)] lg:px-6">
@@ -181,7 +247,9 @@ export function ScenarioSetup({
             <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-4">
               <div className="seller-label text-white/40">这局看什么</div>
               <div className={`mt-2 text-[18px] font-semibold ${selectedTone.accent}`}>{selectedGoal.title}</div>
-              <p className="mt-2 text-[13px] leading-7 text-white/64">{selectedGoal.detail}</p>
+              {selectedGoal.detail ? (
+                <p className="mt-2 text-[13px] leading-7 text-white/64">{selectedGoal.detail}</p>
+              ) : null}
             </div>
           )}
 
@@ -212,26 +280,189 @@ export function ScenarioSetup({
         </div>
 
         <div className="border-t border-white/8 bg-[#101823] p-4">
-          <div className="grid gap-2">
+          <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
               disabled={starting}
-              onClick={() => onStartFeatured(selectedOption.id)}
-              className="rounded-[14px] bg-[#49dd85] px-4 py-3 text-[14px] font-semibold text-[#08110d] transition hover:brightness-105 disabled:cursor-wait disabled:opacity-60"
-            >
-              {starting ? '正在进入...' : `进入${selectedPresentation.shortLabel}剧本`}
-            </button>
-            <button
-              type="button"
-              disabled={starting}
-              onClick={() => onStartRandom(selectedOption.id)}
+              onClick={openRandomBriefing}
               className="rounded-[14px] border border-white/10 bg-white/[0.04] px-4 py-3 text-[14px] font-semibold text-white/88 transition hover:bg-white/[0.07] disabled:cursor-wait disabled:opacity-60"
             >
               {starting ? '正在生成...' : '按照难度随机生成'}
             </button>
+            <button
+              type="button"
+              disabled={starting}
+              onClick={openFeaturedBriefing}
+              className="rounded-[14px] bg-[#49dd85] px-4 py-3 text-[14px] font-semibold text-[#08110d] transition hover:brightness-105 disabled:cursor-wait disabled:opacity-60"
+            >
+              {starting ? '正在进入...' : `进入${selectedPresentation.shortLabel}剧本`}
+            </button>
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function OpeningBriefingView({
+  briefing,
+  difficultyLabel,
+  targetScore,
+  starting,
+  onBack,
+  onEnter,
+}: {
+  briefing: ScenarioOpeningBriefing;
+  difficultyLabel: string;
+  targetScore?: number;
+  starting: boolean;
+  onBack: () => void;
+  onEnter: () => void;
+}) {
+  return (
+    <div className="mx-auto flex h-full w-full max-w-[980px] flex-col overflow-y-auto px-4 py-5 text-[var(--seller-ink)] lg:px-6">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <button
+          type="button"
+          disabled={starting}
+          onClick={onBack}
+          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-[12px] font-semibold text-white/72 transition hover:bg-white/[0.07] hover:text-white disabled:cursor-wait disabled:opacity-60"
+        >
+          <ArrowLeft size={14} />
+          返回选择难度
+        </button>
+        <div className="flex flex-wrap gap-2">
+          <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-semibold text-white/70">{difficultyLabel}</span>
+          {targetScore ? (
+            <span className="rounded-full border border-emerald-400/18 bg-emerald-500/12 px-3 py-1 text-[11px] font-semibold text-emerald-100">
+              目标 {targetScore} 分
+            </span>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="seller-panel-muted flex flex-1 flex-col overflow-hidden rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(17,25,35,0.98),rgba(11,17,24,0.98))]">
+        <div className="flex flex-1 flex-col gap-5 overflow-y-auto p-5">
+          <div className="flex flex-wrap items-start justify-between gap-5">
+            <div className="min-w-0">
+              <div className="seller-label text-white/42">本局开局简报</div>
+              <h1 className="mt-2 text-[34px] font-semibold tracking-[-0.05em] text-white">先看接手局面</h1>
+              <p className="mt-3 max-w-[42rem] text-[14px] font-semibold leading-7 text-white/72">
+                你不是从空白页开始，而是接手一组已经在市场里的房源、业主和客户线索。
+              </p>
+            </div>
+            <div className="rounded-[20px] border border-white/10 bg-white/[0.04] p-4 text-right">
+              <div className="seller-label text-white/42">今天</div>
+              <div className="mt-2 text-[24px] font-semibold tracking-[-0.04em] text-white">{briefing.dateLabel}</div>
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-4">
+            <BriefingStat icon={CalendarDays} label="周期" value={briefing.scaleLabel} />
+            <BriefingStat icon={Home} label="业主" value={briefing.ownerCountLabel} />
+            <BriefingStat icon={Users} label="客户" value={briefing.customerCountLabel} />
+            <BriefingStat icon={Store} label="压力" value={briefing.competitionLabel} />
+          </div>
+
+          <div className="rounded-[22px] border border-white/8 bg-white/[0.03] p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="seller-label text-white/42">市场情况</div>
+                <div className="mt-2 text-[18px] font-semibold text-white">{briefing.marketTitle}</div>
+                <p className="mt-2 text-[13px] font-semibold leading-6 text-white/62">{briefing.marketDetail}</p>
+              </div>
+              <div className="flex max-w-[26rem] flex-wrap justify-end gap-2">
+                {briefing.marketTags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-semibold text-white/62"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-3 lg:grid-cols-2">
+            {briefing.cases.map((caseItem) => (
+              <div key={caseItem.id} className="rounded-[22px] border border-white/8 bg-white/[0.03] p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-[16px] font-semibold leading-6 text-white">{caseItem.title}</div>
+                    <div className="mt-1 text-[12px] font-semibold text-white/48">{caseItem.ownerName} · {caseItem.ownerMood}</div>
+                  </div>
+                  <span className="rounded-full border border-cyan-400/18 bg-cyan-500/12 px-3 py-1 text-[11px] font-semibold text-cyan-100">
+                    {caseItem.stageLabel}
+                  </span>
+                </div>
+                <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                  <MiniFact label="价格" value={caseItem.priceLabel} />
+                  <MiniFact label="业主" value={caseItem.ownerStateLabel} />
+                  <MiniFact label="客户" value={caseItem.customerLabel} />
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {caseItem.tags.map((tag) => (
+                    <span
+                      key={`${caseItem.id}-${tag}`}
+                      className="rounded-full bg-white/[0.05] px-2.5 py-1 text-[10px] font-semibold text-white/52"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="border-t border-white/8 bg-[#101823] p-4">
+          <button
+            type="button"
+            disabled={starting}
+            onClick={onEnter}
+            className="ml-auto flex items-center justify-center gap-2 rounded-[14px] bg-[#49dd85] px-5 py-3 text-[14px] font-semibold text-[#08110d] transition hover:brightness-105 disabled:cursor-wait disabled:opacity-60"
+          >
+            <Play size={15} fill="currentColor" />
+            {starting ? '正在进入...' : '进入今天'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BriefingStat({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof CalendarDays;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-[18px] border border-white/8 bg-white/[0.03] p-4">
+      <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/38">
+        <Icon size={14} />
+        {label}
+      </div>
+      <div className="mt-3 text-[14px] font-semibold leading-6 text-white/86">{value}</div>
+    </div>
+  );
+}
+
+function MiniFact({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-[14px] border border-white/8 bg-[#0d141e] px-3 py-2">
+      <div className="text-[10px] font-semibold text-white/34">{label}</div>
+      <div className="mt-1 text-[12px] font-semibold leading-5 text-white/74">{value}</div>
     </div>
   );
 }
@@ -269,6 +500,5 @@ function goalCopy(goalContext: ScenarioSummary['presentation']['goalContext'], t
   }
   return {
     title: `把这组房卖得更好，目标 ${targetScore} 分`,
-    detail: '重点看每套房和同类房比，是卖得更顺、差不多，还是明显更难卖。',
   };
 }

@@ -304,7 +304,7 @@ export function buildDealClosingEvaluation(
   if (soldPrice > opportunity.budgetMax) {
     blockingReasons.push('你报的价格直接把客户吓退了，超预算太多');
   }
-  if (caseItem.trust < 60) {
+  if (caseItem.trust < BALANCE.actions.negotiation.trustGate) {
     blockingReasons.push('业主觉得你办事不靠谱，根本不听你的压价');
   }
   const marketOutcome = ensureMarketOutcomeState(state);

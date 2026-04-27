@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { GameState, Case } from '../../domain/models';
 import { ACTIONS } from '../../domain/actions/definitions';
 import { getActionTemplate, getScenarioMode, getScenarioTemplate, isScenarioAction } from '../../domain/actions/templates';
+import type { ScenarioChoice as DomainScenarioChoice } from '../../domain/actions/templates';
 import type { MatterEntry } from '../../domain/models';
 import { ReportMatterView } from './matters/ReportMatterView';
 import { DiagnoseMatterView } from './matters/DiagnoseMatterView';
@@ -26,7 +27,7 @@ export type Settlement = {
 };
 
 export type ScenarioResult = Settlement;
-export type ScenarioChoice = { round: number; main: string; assist: string };
+export type ScenarioChoice = DomainScenarioChoice;
 export type ScenarioFeedback = CharacterFeedback;
 
 export type ActionDecisionConfig = {
@@ -88,6 +89,7 @@ export function buildActionDecisionConfig(
 
 type OverlayMode = 'direct' | 'light' | 'heavy';
 type OverlayPhase = 'choosing' | 'feedback' | 'result';
+const MAX_MAIN_TOPIC_SELECTIONS = 2;
 
 export function ActionDecisionOverlay({
   config,
@@ -99,8 +101,8 @@ export function ActionDecisionOverlay({
   matter,
 }: {
   config: ActionDecisionConfig;
-  onChoose?: (optionId: string, assistOptionId?: string, choices?: Array<{ round: number; main: string; assist: string }>, feedbacks?: CharacterFeedback[]) => void;
-  onComplete?: (result: Settlement, choices: Array<{ round: number; main: string; assist: string }>, feedbacks: CharacterFeedback[]) => void;
+  onChoose?: (optionId: string, assistOptionId?: string, choices?: ScenarioChoice[], feedbacks?: CharacterFeedback[]) => void;
+  onComplete?: (result: Settlement, choices: ScenarioChoice[], feedbacks: CharacterFeedback[]) => void;
   onClose: () => void;
   state?: GameState;
   caseItem?: Case;
@@ -124,9 +126,9 @@ export function ActionDecisionOverlay({
 
   const [currentRound, setCurrentRound] = useState(1);
   const [phase, setPhase] = useState<OverlayPhase>('choosing');
-  const [selectedMain, setSelectedMain] = useState<string | null>(null);
+  const [selectedMainIds, setSelectedMainIds] = useState<string[]>([]);
   const [selectedAssist, setSelectedAssist] = useState<string | null>(null);
-  const [choices, setChoices] = useState<Array<{ round: number; main: string; assist: string }>>([]);
+  const [choices, setChoices] = useState<ScenarioChoice[]>([]);
   const [feedbacks, setFeedbacks] = useState<CharacterFeedback[]>([]);
   const [result, setResult] = useState<Settlement | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -137,6 +139,28 @@ export function ActionDecisionOverlay({
   };
 
   const currentRoundConfig = getCurrentRound();
+  const selectedMain = selectedMainIds[0] || null;
+  const mainSelectionLimitReached = selectedMainIds.length >= MAX_MAIN_TOPIC_SELECTIONS;
+
+  const toggleMainTopic = (optionId: string) => {
+    setSelectedMainIds((current) => {
+      if (current.includes(optionId)) {
+        return current.filter((id) => id !== optionId);
+      }
+      if (current.length >= MAX_MAIN_TOPIC_SELECTIONS) {
+        return current;
+      }
+      return [...current, optionId];
+    });
+  };
+
+  const formatMainTopics = (choice: ScenarioChoice) => {
+    const roundDef = config.rounds?.[choice.round - 1];
+    const topicIds = choice.mainTopics?.length ? choice.mainTopics : [choice.main];
+    return topicIds
+      .map((topicId) => roundDef?.mainStrategies?.find((option: any) => option.id === topicId)?.title || topicId)
+      .join(' / ');
+  };
 
   const handleConfirmChoice = () => {
     if (!selectedMain || isAnimating) return;
@@ -166,7 +190,15 @@ export function ActionDecisionOverlay({
       };
     }
 
-    const newChoices = [...choices, { round: currentRound, main: selectedMain, assist: selectedAssist || '' }];
+    const newChoices = [
+      ...choices,
+      {
+        round: currentRound,
+        main: selectedMain,
+        mainTopics: [...selectedMainIds],
+        assist: selectedAssist || '',
+      },
+    ];
     setChoices(newChoices);
     setFeedbacks([...feedbacks, feedback]);
 
@@ -183,7 +215,7 @@ export function ActionDecisionOverlay({
     if (currentRound < totalRounds) {
       setTimeout(() => {
         setCurrentRound(currentRound + 1);
-        setSelectedMain(null);
+        setSelectedMainIds([]);
         setSelectedAssist(null);
         setPhase('choosing');
         setIsAnimating(false);
@@ -325,30 +357,48 @@ export function ActionDecisionOverlay({
               <p className="mb-5 text-[12px] text-[var(--seller-muted)]">{currentRoundConfig.description}</p>
 
               <div className="mb-5">
-                <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--seller-muted)]">主选项</div>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--seller-muted)]">主要话题</div>
+                  <div className="text-[10px] font-semibold text-[var(--seller-subtle)]">最多选 {MAX_MAIN_TOPIC_SELECTIONS} 个</div>
+                </div>
                 <div className="space-y-2.5">
-                  {currentRoundConfig.mainStrategies.map((option: any) => (
-                  <button
-                    key={option.id}
-                    type="button"
-                    onClick={() => setSelectedMain(option.id)}
-                    className={`group w-full rounded-[14px] border p-3.5 text-left transition-all ${
-                      selectedMain === option.id
-                        ? 'border-[var(--seller-accent)] bg-[var(--seller-accent-soft)]'
-                        : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] hover:border-[color:var(--seller-accent)]/45 hover:bg-[var(--seller-accent-soft)]'
-                    }`}
-                  >
-                    <strong className={`block text-[13px] ${selectedMain === option.id ? 'text-[var(--seller-accent)]' : 'text-[var(--seller-ink)]'}`}>
-                      {option.title}
-                    </strong>
-                    <p className="mt-1 text-[11px] text-[var(--seller-muted)]">{option.note}</p>
-                  </button>
-                ))}
+                  {currentRoundConfig.mainStrategies.map((option: any) => {
+                    const selectedIndex = selectedMainIds.indexOf(option.id);
+                    const isSelected = selectedIndex >= 0;
+                    const disabled = !isSelected && mainSelectionLimitReached;
+
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        aria-pressed={isSelected}
+                        disabled={disabled}
+                        onClick={() => toggleMainTopic(option.id)}
+                        className={`group w-full rounded-[14px] border p-3.5 text-left transition-all disabled:cursor-not-allowed disabled:opacity-45 ${
+                          isSelected
+                            ? 'border-[var(--seller-accent)] bg-[var(--seller-accent-soft)]'
+                            : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] hover:border-[color:var(--seller-accent)]/45 hover:bg-[var(--seller-accent-soft)]'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <strong className={`block text-[13px] ${isSelected ? 'text-[var(--seller-accent)]' : 'text-[var(--seller-ink)]'}`}>
+                            {option.title}
+                          </strong>
+                          {isSelected ? (
+                            <span className="rounded-full border border-[color:var(--seller-accent)]/25 bg-[rgba(74,227,138,0.1)] px-2 py-0.5 text-[10px] font-bold text-[var(--seller-accent)]">
+                              {selectedIndex === 0 ? '主线' : `话题${selectedIndex + 1}`}
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="mt-1 text-[11px] text-[var(--seller-muted)]">{option.note}</p>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
               <div>
-                <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--seller-muted)]">补充动作</div>
+                <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--seller-muted)]">态度</div>
                 <div className="grid grid-cols-2 gap-2.5">
                   {currentRoundConfig.assistStrategies.map((option: any) => (
                     <button
@@ -424,11 +474,10 @@ export function ActionDecisionOverlay({
                   <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--seller-muted)]">本轮选择</div>
                   <div className="space-y-1.5">
                     {choices.map((choice, i) => {
-                      const mainOption = config.rounds?.[choice.round - 1]?.mainStrategies?.find((o: any) => o.id === choice.main);
                       return (
                         <div key={i} className="flex items-center justify-between">
                           <span className="text-[12px] text-[var(--seller-muted)]">第 {choice.round} 轮</span>
-                          <span className="text-[12px] font-medium text-[var(--seller-ink)]">{mainOption?.title || choice.main}</span>
+                          <span className="text-[12px] font-medium text-[var(--seller-ink)]">{formatMainTopics(choice)}</span>
                         </div>
                       );
                     })}
@@ -456,11 +505,10 @@ export function ActionDecisionOverlay({
                   <div className="mb-3 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">本轮回看</div>
                   <ul className="space-y-1.5">
                     {choices.map((choice, i) => {
-                      const mainOption = config.rounds?.[choice.round - 1]?.mainStrategies?.find((o: any) => o.id === choice.main);
                       return (
                         <li key={i} className="flex items-start justify-between gap-2 text-[12px] text-[var(--seller-muted)]">
                         <span>第{choice.round}轮</span>
-                        <span className="font-medium text-[var(--seller-ink)]">{mainOption?.title || choice.main}</span>
+                        <span className="text-right font-medium text-[var(--seller-ink)]">{formatMainTopics(choice)}</span>
                         </li>
                       );
                     })}
@@ -512,7 +560,7 @@ export function ActionDecisionOverlay({
           {phase === 'choosing' && (
             <div className="flex items-center justify-between">
               <div className="text-[11px] text-[var(--seller-muted)]">
-                {selectedMain ? '已选主项' : '请选择主项'}
+                {selectedMainIds.length > 0 ? `已选 ${selectedMainIds.length} 个主要话题` : '请选择主要话题'}
               </div>
               <div className="flex gap-3">
                 <button

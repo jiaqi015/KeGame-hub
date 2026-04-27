@@ -39,4 +39,14 @@ export class FileOpenDayDatasetRepository implements OpenDayDatasetRepository {
     );
     return command.summary;
   }
+
+  async getDatasetRows(datasetId: string) {
+    try {
+      const raw = await fs.readFile(path.join(this.datasetDir, `${datasetId}.json`), 'utf8');
+      const parsed = JSON.parse(raw) as SaveOpenDayDatasetCommand;
+      return { headers: parsed.headers, rows: parsed.rows };
+    } catch {
+      return null;
+    }
+  }
 }

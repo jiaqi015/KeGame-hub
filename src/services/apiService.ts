@@ -37,7 +37,6 @@ export interface AuthStartPayload {
   email: string;
   mode: 'trusted-bypass' | 'verification_required' | 'activation_required';
   expiresAt?: string | null;
-  verificationCode?: string | null;
   user?: AuthenticatedUserPayload | null;
 }
 
@@ -189,7 +188,6 @@ export async function startEmailLogin(email: string): Promise<AuthStartPayload> 
     email: typeof payload?.email === 'string' ? payload.email : email.trim().toLowerCase(),
     mode: payload?.mode,
     expiresAt: typeof payload?.expiresAt === 'string' ? payload.expiresAt : null,
-    verificationCode: typeof payload?.verificationCode === 'string' ? payload.verificationCode : null,
     user: payload?.user ?? null,
   };
 }

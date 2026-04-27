@@ -2,6 +2,7 @@ import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import {
   ACTIVATION_HEADER_NAME,
   ACTIVATION_WORKSPACES,
+  getConfiguredActivationKeys,
   type ActivationWorkspaceId,
   validateActivationKey,
 } from './activation.js';
@@ -510,6 +511,10 @@ export async function startEmailLogin(emailInput: string): Promise<LoginStartRes
       mode: 'trusted-bypass',
       user: store.users[email],
     };
+  }
+
+  if (!existingUser && getConfiguredActivationKeys().length === 0) {
+    throw new Error('服务器未配置首登激活密钥，请使用白名单账号或配置 ACTIVATION_KEYS。');
   }
 
   const code = `${Math.floor(100000 + Math.random() * 900000)}`;

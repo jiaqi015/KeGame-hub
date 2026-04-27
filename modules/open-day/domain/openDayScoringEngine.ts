@@ -116,6 +116,7 @@ export function scoreOpenDayDataset(command: OpenDayScoreCommand): Omit<OpenDayA
       totalCount: results.length,
       eligibleCount: eligibleRows.length,
       weights: mergedConfig.weights,
+      skill: { id: formula.id, label: formula.label, description: formula.description },
       formula,
       scenario,
       waterlines,

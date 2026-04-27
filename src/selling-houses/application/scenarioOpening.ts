@@ -2,6 +2,8 @@ import type {
   DifficultyId,
   DifficultyOption,
   GameState,
+  GoalTier,
+  MarketCell,
   ScenarioOpeningRef,
   ScenarioSnapshot,
   ScenarioSummary,
@@ -37,10 +39,40 @@ export interface FeaturedScenarioPreview {
   scenario: ScenarioSummary;
 }
 
+export interface ScenarioOpeningBriefingCase {
+  id: string;
+  title: string;
+  ownerName: string;
+  ownerMood: string;
+  stageLabel: string;
+  priceLabel: string;
+  ownerStateLabel: string;
+  customerLabel: string;
+  tags: string[];
+}
+
+export interface ScenarioOpeningBriefing {
+  dateLabel: string;
+  marketTitle: string;
+  marketDetail: string;
+  marketTags: string[];
+  scaleLabel: string;
+  ownerCountLabel: string;
+  customerCountLabel: string;
+  competitionLabel: string;
+  cases: ScenarioOpeningBriefingCase[];
+}
+
+export interface ScenarioOpeningPreview extends ScenarioOpening {
+  briefing: ScenarioOpeningBriefing;
+}
+
 export interface ScenarioOpeningCatalog {
   scenarios: ScenarioSummary[];
   featuredScenarios: FeaturedScenarioPreview[];
 }
+
+const WEEKDAY_LABELS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
 function hashScenarioIdToSeed(input: string) {
   let hash = 2166136261;
@@ -80,6 +112,35 @@ export function buildGeneratedScenarioSummary(
       seed: normalizeSeed(seed),
       preset,
     },
+  };
+}
+
+export function buildGeneratedScenarioOpeningPreview(
+  difficultyId: DifficultyId,
+  seed: number,
+  preset: 'standard' | 'random' = 'standard',
+): ScenarioOpeningPreview {
+  const openingRef = preset === 'random'
+    ? createRandomGeneratedOpeningRef(difficultyId, seed)
+    : {
+        kind: 'generated' as const,
+        difficultyId,
+        seed: normalizeSeed(seed),
+        preset,
+      };
+  const summary = buildGeneratedScenarioSummary(difficultyId, seed, preset);
+  const snapshot = generateScenarioSnapshot({ difficultyId, seed });
+  const opening = {
+    openingRef,
+    summary,
+    snapshot,
+    scenarioSeed: normalizeSeed(seed),
+    runSeed: normalizeSeed(seed),
+  } satisfies ScenarioOpening;
+
+  return {
+    ...opening,
+    briefing: buildScenarioOpeningBriefing(opening),
   };
 }
 
@@ -222,4 +283,136 @@ export function createStateFromScenarioOpening(opening: ScenarioOpening): GameSt
   seedInitialOpportunities(world);
   updateDerivedState(world);
   return world;
+}
+
+export function buildScenarioOpeningBriefing(opening: ScenarioOpening): ScenarioOpeningBriefing {
+  const state = createStateFromScenarioOpening(opening);
+  const scenario = opening.snapshot.scenario;
+  const marketCells = collectScenarioMarketCells(opening.snapshot);
+  const marketTitle = marketCells.length
+    ? marketCells.map((entry) => entry.name).join(' / ')
+    : opening.snapshot.world.name;
+  const averageDemandHeat = average(marketCells.map((entry) => entry.demandHeat));
+  const averageCompetitivePressure = average(marketCells.map((entry) => entry.competitivePressure));
+  const averageSentiment = average(marketCells.map((entry) => entry.sentiment));
+  const visibleOpportunities = state.opportunities.filter((entry) => entry.visibility !== 'shadow');
+  const urgentCases = state.cases.filter((entry) => entry.windowDays <= 7 || entry.urgency >= 76);
+  const fragileOwners = state.cases.filter((entry) => entry.trust <= 58 || entry.patience <= 45);
+
+  return {
+    dateLabel: buildOpeningDateLabel(opening.snapshot),
+    marketTitle,
+    marketDetail: [
+      `客户热度${demandHeatLabel(averageDemandHeat)}`,
+      `同类房竞争${pressureLabel(averageCompetitivePressure)}`,
+      `市场情绪${sentimentLabel(averageSentiment)}`,
+    ].join(' · '),
+    marketTags: [
+      `${scenario.competitionGroups.length} 组同类房竞争`,
+      `${scenario.scriptedEvents.length} 个已知节点`,
+      `${scenario.initialRivalListings?.length || 0} 套竞品在场`,
+    ],
+    scaleLabel: `${scenario.cases.length} 套房 · ${scenario.maxDay} 天`,
+    ownerCountLabel: `${state.cases.length} 位业主，${urgentCases.length} 位时间较紧`,
+    customerCountLabel: `${state.customers.length} 位潜在客户，${visibleOpportunities.length} 条线索已浮出`,
+    competitionLabel: fragileOwners.length > 0
+      ? `${fragileOwners.length} 位业主信任或耐心偏低`
+      : '业主关系暂时稳住',
+    cases: state.cases.map((caseItem) => {
+      const opportunities = state.opportunities.filter((entry) => entry.caseId === caseItem.id && entry.status === 'active');
+      const bestOpportunity = [...opportunities].sort((left, right) =>
+        (right.stageIndex * 100 + right.intent) - (left.stageIndex * 100 + left.intent),
+      )[0];
+      return {
+        id: caseItem.id,
+        title: caseItem.title,
+        ownerName: caseItem.ownerName,
+        ownerMood: caseItem.ownerMood,
+        stageLabel: caseItem.stageLabel,
+        priceLabel: pricePositionLabel(caseItem.askPrice, caseItem.marketPrice),
+        ownerStateLabel: [
+          `信任${scoreBand(caseItem.trust)}`,
+          `耐心${scoreBand(caseItem.patience)}`,
+          `急迫${urgencyBand(caseItem.urgency)}`,
+        ].join(' · '),
+        customerLabel: bestOpportunity
+          ? `${opportunities.length} 条线索，最高到${bestOpportunity.stageLabel}`
+          : '暂无明确线索',
+        tags: [
+          goalTierLabel(caseItem.goalTier),
+          `热度${scoreBand(caseItem.heat)}`,
+          `${caseItem.windowDays} 天窗口`,
+        ],
+      } satisfies ScenarioOpeningBriefingCase;
+    }),
+  };
+}
+
+function buildOpeningDateLabel(snapshot: ScenarioSnapshot) {
+  const month = Math.max(1, Math.min(12, snapshot.scenario.startMonth));
+  const day = Math.max(1, Math.min(28, snapshot.scenario.startDay));
+  const date = new Date(Date.UTC(2026, month - 1, day));
+  return `${month}月${day}日 ${WEEKDAY_LABELS[date.getUTCDay()]}`;
+}
+
+function collectScenarioMarketCells(snapshot: ScenarioSnapshot): MarketCell[] {
+  const marketIds = new Set(
+    snapshot.scenario.cases
+      .map((caseItem) => snapshot.world.housePrototypes.find((prototype) => prototype.id === caseItem.housePrototypeId)?.marketCellId)
+      .filter(Boolean),
+  );
+  return snapshot.world.marketCells.filter((entry) => marketIds.has(entry.id));
+}
+
+function average(values: number[]) {
+  if (!values.length) return 50;
+  return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+}
+
+function demandHeatLabel(value: number) {
+  if (value >= 70) return '偏热';
+  if (value >= 55) return '正常';
+  if (value >= 42) return '偏冷';
+  return '很冷';
+}
+
+function pressureLabel(value: number) {
+  if (value >= 72) return '很挤';
+  if (value >= 58) return '偏紧';
+  if (value >= 42) return '正常';
+  return '宽松';
+}
+
+function sentimentLabel(value: number) {
+  if (value >= 66) return '偏暖';
+  if (value >= 48) return '平稳';
+  return '偏弱';
+}
+
+function scoreBand(value: number) {
+  if (value >= 70) return '高';
+  if (value >= 55) return '中';
+  if (value >= 42) return '偏低';
+  return '低';
+}
+
+function urgencyBand(value: number) {
+  if (value >= 78) return '很高';
+  if (value >= 62) return '偏高';
+  if (value >= 46) return '中';
+  return '低';
+}
+
+function pricePositionLabel(askPrice: number, marketPrice: number) {
+  const gapPct = ((askPrice - marketPrice) / Math.max(marketPrice, 1)) * 100;
+  if (gapPct >= 5) return `高于常见价 ${Math.round(gapPct)}%`;
+  if (gapPct >= 2) return `略高 ${Math.round(gapPct)}%`;
+  if (gapPct <= -2) return `低于常见价 ${Math.abs(Math.round(gapPct))}%`;
+  return '接近常见价';
+}
+
+function goalTierLabel(goalTier: GoalTier | undefined) {
+  if (goalTier === 'core') return '重点盯';
+  if (goalTier === 'important') return '要跟紧';
+  return '正常推进';
 }

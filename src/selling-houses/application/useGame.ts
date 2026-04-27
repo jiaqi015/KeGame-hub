@@ -529,8 +529,8 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
     await startScenarioRun(featured.scenario.opening, difficultyId);
   }, [featuredScenarios, startScenarioRun]);
 
-  const startRandomGeneratedRun = useCallback(async (difficultyId: DifficultyId) => {
-    await startScenarioRun(createRandomGeneratedOpeningRef(difficultyId, createGeneratedScenarioSeed(Date.now())), difficultyId);
+  const startRandomGeneratedRun = useCallback(async (difficultyId: DifficultyId, seed?: number) => {
+    await startScenarioRun(createRandomGeneratedOpeningRef(difficultyId, seed ?? createGeneratedScenarioSeed(Date.now())), difficultyId);
   }, [startScenarioRun]);
 
   const handleSelectCase = useCallback((id: string) => {
