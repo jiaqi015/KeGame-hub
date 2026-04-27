@@ -39,9 +39,20 @@ export class OpenDayAnalysisService {
     private readonly cache: OpenDayAnalysisCache,
     private readonly snapshotRepository?: OpenDaySnapshotRepository,
     private readonly datasetService?: OpenDayDatasetService,
+    private readonly datasetRepository?: OpenDayDatasetRepository,
   ) {}
 
   async execute(command: OpenDayScoreCommand): Promise<OpenDayAnalysisResponse> {
+    if (!command.datasetId && command.rows.length > MAX_ROWS_IN_REQUEST) {
+      throw new Error(`单次请求数据量超过上限（${MAX_ROWS_IN_REQUEST} 行）。请先上传文件后再测算。`);
+    }
+
+    if (command.datasetId && command.rows.length === 0 && this.datasetRepository) {
+      const fetched = await this.datasetRepository.getDatasetRows(command.datasetId);
+      if (fetched) {
+        command = { ...command, rows: fetched.rows };
+      }
+    }
     const cacheKey = createCacheKey(command);
     const cached = await this.cache.get(cacheKey);
     const cachedBase = cached ? stripRunMeta(cached) : null;

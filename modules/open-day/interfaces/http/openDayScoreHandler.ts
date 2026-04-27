@@ -10,11 +10,13 @@ function normalizeBody(body: unknown): OpenDayScoreCommand {
 
   const candidate = body as Partial<OpenDayScoreCommand>;
   const rows = Array.isArray(candidate.rows) ? candidate.rows : [];
-  const mappings = candidate.mappings;
+  const datasetId = typeof candidate.datasetId === 'string' ? candidate.datasetId : '';
 
-  if (!rows.length) {
-    throw new Error('至少需要一行数据才能开始测算。');
+  if (!rows.length && !datasetId) {
+    throw new Error('至少需要一行数据才能开始测算。请先上传数据文件。');
   }
+
+  const mappings = candidate.mappings;
 
   if (!mappings || typeof mappings !== 'object') {
     throw new Error('缺少字段映射信息。');

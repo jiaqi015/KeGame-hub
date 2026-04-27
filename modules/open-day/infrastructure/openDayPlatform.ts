@@ -127,6 +127,7 @@ export function getOpenDayAnalysisService() {
       createAnalysisCache(),
       createSnapshotRepository(),
       getOpenDayDatasetService(),
+      createDatasetRepository(),
     );
   }
 

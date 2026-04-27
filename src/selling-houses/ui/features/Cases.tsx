@@ -172,10 +172,6 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
     [customerStatesForSelectedCase, selectedCase, state],
   );
   const leadAttentionListing = attentionListings[0] || null;
-  const executionChecklist = useMemo(
-    () => (selectedCase && caseProjection ? buildExecutionChecklist(selectedCase, caseProjection, activeOpportunities.length) : []),
-    [activeOpportunities.length, caseProjection, selectedCase],
-  );
   const actionCards: ActionWorkspaceCard[] = selectedCase
     ? [...ACTIONS]
         .map(action => {
@@ -350,7 +346,7 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
         {selectedCase ? (
           <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.28fr)_320px]">
             <div className="flex min-h-0 flex-col gap-3">
-              <section className="seller-workbench overflow-hidden">
+              <section className="seller-workbench overflow-visible">
                 <div className="grid gap-3 border-b border-[var(--seller-border)] px-3.5 py-3 xl:grid-cols-[minmax(0,1fr)_228px]">
                   <div className="grid min-w-0 gap-3 sm:grid-cols-[124px_minmax(0,1fr)]">
                     <ListingHeroImage caseItem={selectedCase} />
@@ -701,21 +697,7 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
               </section>
             </div>
 
-	            <aside className="flex min-h-0 flex-col gap-3">
-	              <DeskSection title="执行清单" count={`${executionChecklist.length || 0} 步`}>
-                <div className="space-y-1.5">
-                  {executionChecklist.map((entry, index) => (
-                    <div key={`${entry.title}-${index}`}>
-                      <MatterLine matter={entry} compact />
-                    </div>
-                  ))}
-                  {executionChecklist.length === 0 && (
-                    <div className="seller-empty px-3 py-3 text-[11px]">这套房今天没有特别紧的事项。</div>
-                  )}
-                </div>
-              </DeskSection>
-
-            </aside>
+	            <aside className="hidden xl:block" aria-hidden="true" />
           </div>
         ) : (
           <div className="flex flex-1 items-center justify-center text-[var(--seller-subtle)] italic">选择一个房源开始经营</div>
@@ -1246,32 +1228,6 @@ function MiniStat({
   );
 }
 
-function MatterLine({
-  matter,
-  compact = false,
-}: {
-  matter: { title: string; detail: string; badge: string; tone: 'rose' | 'amber' | 'emerald' };
-  compact?: boolean;
-}) {
-  const toneClass = matter.tone === 'rose'
-    ? 'bg-[var(--seller-risk-soft)] text-[var(--seller-risk)]'
-    : matter.tone === 'amber'
-      ? 'bg-[var(--seller-chance-soft)] text-[var(--seller-chance)]'
-      : 'bg-[var(--seller-accent-soft)] text-[var(--seller-accent)]';
-
-  return (
-    <div className={compact ? 'rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-2.5' : 'py-2.5'}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-[12px] font-semibold text-[var(--seller-ink)]">{matter.title}</div>
-          <p className="seller-body mt-0.5 line-clamp-2 text-[11px] leading-5">{matter.detail}</p>
-        </div>
-        <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${toneClass}`}>{matter.badge}</span>
-      </div>
-    </div>
-  );
-}
-
 function FactLine({
   fact,
 }: {
@@ -1458,7 +1414,9 @@ function BlockedActionsPopover({
       </div>
       <div className="mt-2 max-h-[220px] space-y-2 overflow-y-auto pr-1">
         {blockedCards.map((card) => (
-          <BlockedActionLine key={card.action.id} card={card} />
+          <div key={card.action.id}>
+            <BlockedActionLine card={card} />
+          </div>
         ))}
         {blockedCards.length === 0 && (
           <div className="seller-empty px-3 py-4 text-[12px]">这一类动作目前没有明显阻塞。</div>
@@ -1633,35 +1591,6 @@ function describeWindowDays(days: number) {
   if (days <= 3) return `${days} 天内`;
   if (days <= 7) return `${days} 天内要推进`;
   return `${days} 天观察期`;
-}
-
-function buildExecutionChecklist(caseItem: Case, projection: NonNullable<ReturnType<typeof buildCaseDetailProjection>>, activeOpportunityCount: number) {
-  const checklist = projection.actionReasons.map((entry) => ({
-    title: entry.title,
-    detail: entry.detail,
-    badge: entry.tone === 'risk' ? '待处理' : entry.tone === 'chance' ? '可推进' : '待执行',
-    tone: entry.tone === 'risk' ? 'rose' : entry.tone === 'chance' ? 'emerald' : 'amber',
-  }));
-
-  if (projection.currentRiskTags.length > 0) {
-    checklist.unshift({
-      title: projection.currentRiskTags[0],
-      detail: `风险标签：${projection.currentRiskTags[0]}`,
-      badge: '风险点',
-      tone: 'rose',
-    });
-  }
-
-  if (activeOpportunityCount === 0) {
-    checklist.push({
-      title: '把第一批客户接出来',
-      detail: '当前还没有接上的客户。',
-      badge: '补客户',
-      tone: 'amber',
-    });
-  }
-
-  return checklist.slice(0, 3);
 }
 
 function buildPotentialSignalRows(models: OpportunityViewModel[]) {
