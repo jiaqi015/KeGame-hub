@@ -14,7 +14,9 @@ import {
   buildDifferenceSummaryPrompt,
   completeEmailLogin,
   DIFFERENCE_SUMMARY_MODEL_ID,
+  fetchAuthenticatedUser,
   startEmailLogin,
+  type AuthenticatedUserPayload,
 } from './services/apiService';
 import { ComparisonResult, ActivationWorkspaceId } from './types';
 import { resolveSellingHousesStorageProfileFromSearch } from './selling-houses/application/storageProfile';
@@ -42,6 +44,7 @@ export default function App() {
     (seed) => ({
       ...seed,
       activeWorkspace: resolveWorkspaceFromPathname(window.location.pathname),
+      loginEmail: window.localStorage.getItem(AUTH_EMAIL_STORAGE_KEY)?.trim() || '',
     }),
   );
   const { authorizedFetch, lockApplication } = useAppSession(state, dispatch);
@@ -71,6 +74,7 @@ export default function App() {
   } = state;
 
   const sellingHousesStorageProfile = resolveSellingHousesStorageProfileFromSearch(window.location.search);
+  const rememberedLoginEmail = window.localStorage.getItem(AUTH_EMAIL_STORAGE_KEY)?.trim() || '';
 
   const compareRunRef = useRef(0);
   const activeControllersRef = useRef<AbortController[]>([]);
@@ -160,31 +164,52 @@ export default function App() {
     summaryControllerRef.current = null;
   };
 
+  const completeAuthenticatedUser = (user: AuthenticatedUserPayload, key = 'session-authenticated') => {
+    dispatch({
+      type: 'COMPLETE_ACTIVATION',
+      key,
+      allowedWorkspaces: user.allowedWorkspaces,
+      accountId: user.accountId,
+      email: user.email,
+      nickname: user.nickname,
+      sessionExpiresAt: user.sessionExpiresAt,
+    });
+    const targetWorkspace = pendingWorkspaceRef.current;
+    if (targetWorkspace !== 'hub' && user.allowedWorkspaces.includes(targetWorkspace)) {
+      dispatch({ type: 'SET_WORKSPACE', workspace: targetWorkspace });
+    }
+  };
+
   const submitActivationKey = async (event?: React.FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
     dispatch({ type: 'SET_AUTH_STATUS', status: 'submitting' });
 
     try {
       if (authMode === 'email') {
+        const normalizedLoginEmail = loginEmail.trim().toLowerCase();
+        if (
+          rememberedLoginEmail
+          && normalizedLoginEmail
+          && normalizedLoginEmail === rememberedLoginEmail.trim().toLowerCase()
+        ) {
+          try {
+            const user = await fetchAuthenticatedUser();
+            if (user.email.trim().toLowerCase() === normalizedLoginEmail) {
+              completeAuthenticatedUser(user);
+              return;
+            }
+          } catch (_error) {
+            // 会话已过期时继续走验证码登录。
+          }
+        }
+
         const result = await startEmailLogin(loginEmail);
         dispatch({ type: 'SET_LOGIN_EMAIL', value: result.email });
         window.localStorage.setItem(AUTH_EMAIL_STORAGE_KEY, result.email);
 
         if (result.mode === 'trusted-bypass') {
           const user = await completeEmailLogin({ email: result.email });
-          const targetWorkspace = pendingWorkspaceRef.current;
-          dispatch({
-            type: 'COMPLETE_ACTIVATION',
-            key: 'session-authenticated',
-            allowedWorkspaces: user.allowedWorkspaces,
-            accountId: user.accountId,
-            email: user.email,
-            nickname: user.nickname,
-            sessionExpiresAt: user.sessionExpiresAt,
-          });
-          if (targetWorkspace !== 'hub' && user.allowedWorkspaces.includes(targetWorkspace)) {
-            dispatch({ type: 'SET_WORKSPACE', workspace: targetWorkspace });
-          }
+          completeAuthenticatedUser(user);
           return;
         }
 
@@ -210,19 +235,7 @@ export default function App() {
         window.localStorage.setItem(ACTIVATION_STORAGE_KEY, verified.key);
       }
 
-      dispatch({
-        type: 'COMPLETE_ACTIVATION',
-        key: authorizedSessionKey,
-        allowedWorkspaces: user.allowedWorkspaces,
-        accountId: user.accountId,
-        email: user.email,
-        nickname: user.nickname,
-        sessionExpiresAt: user.sessionExpiresAt,
-      });
-      const targetWorkspace = pendingWorkspaceRef.current;
-      if (targetWorkspace !== 'hub' && user.allowedWorkspaces.includes(targetWorkspace)) {
-        dispatch({ type: 'SET_WORKSPACE', workspace: targetWorkspace });
-      }
+      completeAuthenticatedUser(user, authorizedSessionKey);
     } catch (error) {
       const message = error instanceof Error ? error.message : '激活失败。';
       if (message.includes('激活密钥')) {
@@ -384,7 +397,7 @@ export default function App() {
   const handleLogoutAccount = () => {
     abortActiveComparisons();
     abortDifferenceSummary();
-    lockApplication('', '');
+    lockApplication('', '', { endSession: false });
   };
 
   const canAccessWorkspace = (workspace: ActivationWorkspaceId) =>
@@ -438,7 +451,7 @@ export default function App() {
                   onClick={handleLogoutAccount}
                   className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#5C5C60] transition hover:border-black/20 hover:text-[#1D1D1F]"
                 >
-                  登出账号
+                  退出到登录
                 </button>
               </div>
             </div>
@@ -465,6 +478,7 @@ export default function App() {
       {authStatus !== 'authenticated' ? (
         <AuthOverlay
           loginEmail={loginEmail}
+          rememberedEmail={rememberedLoginEmail}
           verificationCode={verificationCode}
           activationInput={activationInput}
           authMode={authMode}

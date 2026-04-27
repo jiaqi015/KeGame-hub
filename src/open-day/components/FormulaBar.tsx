@@ -30,7 +30,7 @@ export function SkillBar({
   return (
     <div className="open-day-formula-bar">
       <div className="open-day-formula-bar__select">
-        <label>测算技能</label>
+        <label>skill</label>
         <select
           value={scenarioDraft.skillId || scenarioDraft.formulaId}
           onChange={(event) => onSkillChange(event.target.value as OpenDayConfig['formulaId'])}
@@ -54,8 +54,8 @@ export function SkillBar({
             onWaterlineModeChange(nextMode);
           }}
         >
-          <option value="percentile">按分位自动对标</option>
-          <option value="absolute">按固定数值设定</option>
+          <option value="percentile">系统自动算水位</option>
+          <option value="absolute">手动填写水位</option>
         </select>
       </div>
 

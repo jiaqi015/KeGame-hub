@@ -39,6 +39,7 @@ interface DashboardProps {
 
 type CalendarRelation = 'past' | 'today' | 'future';
 type DashboardCalendarMode = CalendarRelation;
+type CalendarWindowDays = 7 | 14;
 
 type CalendarRailEntry = {
   day: number;
@@ -67,8 +68,12 @@ type AgendaTool = {
   marketLayer?: IntelLayerTab;
 };
 
-const CALENDAR_WINDOW_DAYS = 14;
-const CALENDAR_PAST_CONTEXT_DAYS = 3;
+const DEFAULT_CALENDAR_WINDOW_DAYS: CalendarWindowDays = 14;
+const CALENDAR_WINDOW_OPTIONS: CalendarWindowDays[] = [7, 14];
+const CALENDAR_PAST_CONTEXT_DAYS: Record<CalendarWindowDays, number> = {
+  7: 0,
+  14: 3,
+};
 
 export function resolveDashboardSelectedDayAfterStateDayChange(
   selectedDay: number,
@@ -100,12 +105,13 @@ export function Dashboard({
     [dashboard, marketIntel, state],
   );
   const journalItems = useMemo(() => buildJournalItems(state), [state]);
-  const calendarRail = useMemo(
-    () => buildCalendarRail(state, dashboard, journalItems),
-    [dashboard, journalItems, state],
-  );
   const [selectedDay, setSelectedDay] = useState(state.day);
   const [showTimelineDetail, setShowTimelineDetail] = useState(false);
+  const [calendarWindowDays, setCalendarWindowDays] = useState<CalendarWindowDays>(DEFAULT_CALENDAR_WINDOW_DAYS);
+  const calendarRail = useMemo(
+    () => buildCalendarRail(state, dashboard, journalItems, calendarWindowDays),
+    [calendarWindowDays, dashboard, journalItems, state],
+  );
   const lastKnownStateDayRef = useRef(state.day);
 
   useEffect(() => {
@@ -174,10 +180,27 @@ export function Dashboard({
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="seller-label flex items-center gap-2">
               <Calendar size={13} />
-              14天节奏
+              {calendarWindowDays}天节奏
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
+              <div className="inline-flex rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] p-0.5">
+                {CALENDAR_WINDOW_OPTIONS.map((windowDays) => (
+                  <button
+                    key={windowDays}
+                    type="button"
+                    aria-pressed={calendarWindowDays === windowDays}
+                    onClick={() => setCalendarWindowDays(windowDays)}
+                    className={`rounded-full px-2.5 py-1 text-[10px] font-semibold transition ${
+                      calendarWindowDays === windowDays
+                        ? 'bg-[var(--seller-ink)] text-[var(--seller-bg)]'
+                        : 'text-[var(--seller-muted)] hover:text-[var(--seller-ink)]'
+                    }`}
+                  >
+                    {windowDays}天
+                  </button>
+                ))}
+              </div>
               <button
                 type="button"
                 onClick={() => {
@@ -1199,10 +1222,11 @@ function buildCalendarRail(
   state: GameState,
   dashboard: DashboardProjection,
   journalItems: JournalItem[],
+  windowDays: CalendarWindowDays,
 ): CalendarRailEntry[] {
   const entries: CalendarRailEntry[] = [];
-  const windowStartDay = resolveCalendarWindowStart(state.day, state.maxDay);
-  const windowEndDay = Math.min(state.maxDay, windowStartDay + CALENDAR_WINDOW_DAYS - 1);
+  const windowStartDay = resolveCalendarWindowStart(state.day, state.maxDay, windowDays);
+  const windowEndDay = Math.min(state.maxDay, windowStartDay + windowDays - 1);
   const projectedDays = new Map(dashboard.weekCalendar.map((entry) => [entry.day, entry]));
 
   for (let day = windowStartDay; day <= windowEndDay; day += 1) {
@@ -1242,9 +1266,9 @@ function buildCalendarRail(
   return entries;
 }
 
-function resolveCalendarWindowStart(stateDay: number, maxDay: number) {
-  const maxStart = Math.max(1, maxDay - CALENDAR_WINDOW_DAYS + 1);
-  const preferredStart = Math.max(1, stateDay - CALENDAR_PAST_CONTEXT_DAYS);
+function resolveCalendarWindowStart(stateDay: number, maxDay: number, windowDays: CalendarWindowDays) {
+  const maxStart = Math.max(1, maxDay - windowDays + 1);
+  const preferredStart = Math.max(1, stateDay - CALENDAR_PAST_CONTEXT_DAYS[windowDays]);
   return Math.min(preferredStart, maxStart);
 }
 

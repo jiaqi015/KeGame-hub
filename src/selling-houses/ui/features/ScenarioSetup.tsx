@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Compass, Dice5, Flame, Gauge, ShieldCheck, Sprout, TriangleAlert } from 'lucide-react';
+import { Compass, Flame, Gauge, ShieldCheck, Sprout, TriangleAlert } from 'lucide-react';
 import type { DifficultyId, DifficultyOption, ScenarioSummary } from '../../domain/models';
 import type { FeaturedScenarioPreview } from '../../application/scenarioOpening';
 import { buildDifficultyPresentation, type DifficultyPresentationTone } from '../../application/difficultyPresentation';
@@ -106,33 +106,28 @@ export function ScenarioSetup({
     <div className="mx-auto flex h-full w-full max-w-[880px] flex-col overflow-y-auto px-4 py-5 text-[var(--seller-ink)] lg:px-6">
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <div className="seller-chip seller-chip-accent mb-2 inline-flex items-center gap-2">
-            <Dice5 size={12} />
-            标准局 / 随机局
-          </div>
-          <h1 className="seller-title text-[26px]">开一局</h1>
+          <h1 className="seller-title text-[26px]">选择难度</h1>
         </div>
-        <p className="seller-body max-w-[26rem] text-[12px] leading-6">
-          选一个强度，直接开始经营。
-        </p>
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2">
         {difficultyOptions.map((option) => {
           const selected = option.id === selectedOption.id;
           const optionPresentation = buildDifficultyPresentation({ difficultyId: option.id, label: option.label });
+          const OptionIcon = ICONS[option.id];
           return (
             <button
               key={option.id}
               type="button"
               disabled={starting}
               onClick={() => setSelectedDifficultyId(option.id)}
-              className={`rounded-full border px-4 py-2 text-[13px] font-semibold transition ${
+              className={`inline-flex items-center gap-1.5 rounded-full border px-4 py-2 text-[13px] font-semibold transition ${
                 selected
                   ? 'border-white/18 bg-[#efe8da] text-[#121821]'
                   : 'border-white/10 bg-white/[0.03] text-white/68 hover:border-white/18 hover:bg-white/[0.06] hover:text-white'
               } ${starting ? 'cursor-wait opacity-60' : ''}`}
             >
+              <OptionIcon size={13} strokeWidth={2.3} />
               {optionPresentation.shortLabel}
             </button>
           );
@@ -172,20 +167,13 @@ export function ScenarioSetup({
                 ))}
               </div>
               <p className="mt-3 max-w-[42rem] text-[15px] font-semibold leading-7 text-white/82">{selectedPresentation.summary}</p>
-              <div className="mt-2 grid gap-2 text-[12px] leading-6 text-white/58 md:grid-cols-2">
-                {selectedPresentation.details.map((detail) => (
-                  <div key={`${selectedPresentation.id}-${detail}`} className="rounded-[12px] border border-white/8 bg-white/[0.025] px-3 py-2">
-                    {detail}
-                  </div>
-                ))}
-              </div>
             </div>
           </div>
 
           {selectedFeatured && (
             <div className="grid gap-3 md:grid-cols-2">
               <FactCard label="本局" value={selectedFeatured.scenario.name} />
-              <FactCard label="局面设定" value={`${selectedFeatured.scenario.presentation.caseCount} 套 · ${selectedFeatured.scenario.presentation.maxDay} 天`} detail={`Seed ${selectedFeatured.seed}`} />
+              <FactCard label="经营规模" value={`${selectedFeatured.scenario.presentation.caseCount} 套 · ${selectedFeatured.scenario.presentation.maxDay} 天`} />
             </div>
           )}
 
@@ -231,7 +219,7 @@ export function ScenarioSetup({
               onClick={() => onStartFeatured(selectedOption.id)}
               className="rounded-[14px] bg-[#49dd85] px-4 py-3 text-[14px] font-semibold text-[#08110d] transition hover:brightness-105 disabled:cursor-wait disabled:opacity-60"
             >
-              {starting ? '正在进入...' : `进入${selectedPresentation.label}`}
+              {starting ? '正在进入...' : `进入${selectedPresentation.shortLabel}剧本`}
             </button>
             <button
               type="button"
@@ -239,7 +227,7 @@ export function ScenarioSetup({
               onClick={() => onStartRandom(selectedOption.id)}
               className="rounded-[14px] border border-white/10 bg-white/[0.04] px-4 py-3 text-[14px] font-semibold text-white/88 transition hover:bg-white/[0.07] disabled:cursor-wait disabled:opacity-60"
             >
-              {starting ? '正在生成...' : '随机开一局'}
+              {starting ? '正在生成...' : '按照难度随机生成'}
             </button>
           </div>
         </div>

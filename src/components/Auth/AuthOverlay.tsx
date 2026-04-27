@@ -21,6 +21,7 @@ const PARTICLES = Array.from({ length: 45 }).map((_, i) => {
 
 interface AuthOverlayProps {
   loginEmail: string;
+  rememberedEmail: string;
   verificationCode: string;
   activationInput: string;
   authMode: AuthMode;
@@ -35,6 +36,7 @@ interface AuthOverlayProps {
 
 export function AuthOverlay({
   loginEmail,
+  rememberedEmail,
   verificationCode,
   activationInput,
   authMode,
@@ -48,11 +50,20 @@ export function AuthOverlay({
 }: AuthOverlayProps) {
   const isBusy = authStatus === 'checking' || authStatus === 'submitting';
   const shouldShowActivationInput = authMode === 'activate' || authError.includes('激活密钥');
+  const isRememberedEmail = Boolean(rememberedEmail.trim())
+    && loginEmail.trim().toLowerCase() === rememberedEmail.trim().toLowerCase();
   const submitLabel = authMode === 'email'
-    ? '获取验证码'
+    ? isRememberedEmail
+      ? '继续登录'
+      : '获取验证码'
     : authMode === 'verify'
       ? '验证并登录'
       : '完成首登';
+  const footerMessage = authStatus === 'checking'
+    ? '正在恢复已登录状态'
+    : isRememberedEmail && authMode === 'email'
+      ? '已记住账号，会话有效会自动进入'
+      : '登录后会记住当前设备';
 
   const containerRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -287,12 +298,17 @@ export function AuthOverlay({
               </h1>
             </div>
             <p className="mt-4 max-w-md text-left text-[14px] font-medium leading-relaxed text-zinc-500">
-              第一次登录：使用 <span className="text-zinc-200">@ke.com</span> 邮箱，验证码 + 首登激活 Key 开通。之后仅需验证码即可登录。
+              第一次登录：使用 <span className="text-zinc-200">@ke.com</span> 邮箱，验证码 + 首登激活 Key 开通。再次进入会先恢复有效会话；主动登出后会保留账号，方便回登。
             </p>
 
             <div className="mt-8 grid gap-5">
               <div className="space-y-2.5">
-                <label className="ml-1 text-[11px] font-bold uppercase tracking-[0.25em] text-zinc-500">企业邮箱</label>
+                <label className="ml-1 flex items-center justify-between gap-3 text-[11px] font-bold uppercase tracking-[0.25em] text-zinc-500">
+                  <span>企业邮箱</span>
+                  {isRememberedEmail && authMode === 'email' ? (
+                    <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] tracking-[0.18em] text-zinc-400">已记住</span>
+                  ) : null}
+                </label>
                 <div className="group/input flex items-center gap-4 rounded-[26px] border border-white/[0.06] bg-white/[0.03] px-5 py-4.5 transition-all duration-300 focus-within:border-white/20 focus-within:bg-white/[0.06]">
                   <Mail className="h-5 w-5 shrink-0 text-zinc-500 transition-colors group-focus-within/input:text-white" />
                   <input
@@ -363,7 +379,7 @@ export function AuthOverlay({
 
             <div className="mt-8 flex items-center justify-center gap-2 text-xs font-medium tracking-wide text-zinc-500">
               <div className="h-1 w-1 rounded-full bg-zinc-600" />
-              {authStatus === 'checking' ? '正在恢复已登录状态' : '登录后会记住当前设备'}
+              {footerMessage}
               <div className="h-1 w-1 rounded-full bg-zinc-600" />
             </div>
           </div>

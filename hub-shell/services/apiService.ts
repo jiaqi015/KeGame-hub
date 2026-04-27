@@ -83,7 +83,6 @@ export async function fetchAuthenticatedUser(): Promise<{
 
 export async function logoutCurrentSession(): Promise<void> {
   localStorage.removeItem(ACTIVATION_STORAGE_KEY);
-  localStorage.removeItem(AUTH_EMAIL_STORAGE_KEY);
 }
 
 export async function startEmailLogin(_email: string): Promise<{

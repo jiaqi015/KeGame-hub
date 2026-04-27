@@ -5,7 +5,7 @@ type WorkspacePathMatcher =
 export const WORKSPACE_DEFINITIONS = [
   {
     id: 'sabrina',
-    label: '多模型PK',
+    label: '模型大乱斗',
     slug: 'pk',
     legacyCode: '1',
     aliases: ['sabrina', 'compare', 'comparison', 'pk'],
@@ -18,7 +18,7 @@ export const WORKSPACE_DEFINITIONS = [
   },
   {
     id: 'open-day',
-    label: '小区开放日选址',
+    label: '小区开放日选址 skill',
     slug: 'openday',
     legacyCode: '2',
     aliases: ['open-day', 'open_day', 'openday'],
@@ -45,7 +45,7 @@ export const WORKSPACE_DEFINITIONS = [
   },
   {
     id: 'market-management',
-    label: '经营好商圈',
+    label: '商圈大赢家',
     slug: 'market',
     legacyCode: '4',
     aliases: ['market-management', 'market_management', 'marketmanagement'],
@@ -53,7 +53,7 @@ export const WORKSPACE_DEFINITIONS = [
   },
   {
     id: 'rational-owner',
-    label: '做最理性的业主',
+    label: '中国好业主',
     slug: 'owner',
     legacyCode: '5',
     aliases: ['rational-owner', 'rational_owner', 'rationalowner'],

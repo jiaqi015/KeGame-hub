@@ -8,13 +8,29 @@ interface DailySummaryOverlayProps {
   onContinue: () => void;
 }
 
+type SummaryImpactRow = {
+  id: string;
+  label: string;
+  title: string;
+  detail: string;
+  tone: string;
+};
+
+type SummaryRiskRow = {
+  id: string;
+  title: string;
+  detail: string;
+  tone: 'danger' | 'warning';
+};
+
 export function DailySummaryOverlay({ report, tickResult, onContinue }: DailySummaryOverlayProps) {
   const overnightEvents = [
     ...report.majorEvents.map((entry) => ({ ...entry, kind: 'major' as const })),
     ...report.randomEvents.map((entry) => ({ ...entry, kind: 'random' as const })),
   ];
-  const scopeChips = buildScopeChips(tickResult);
   const invariantAlerts = tickResult?.invariantAlerts || [];
+  const impactRows = buildImpactRows(tickResult);
+  const riskRows = buildRiskRows(report, invariantAlerts);
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/40 p-3 backdrop-blur-md sm:p-5">
@@ -117,22 +133,19 @@ export function DailySummaryOverlay({ report, tickResult, onContinue }: DailySum
                   </div>
                 </div>
 
-                {(scopeChips.length > 0 || invariantAlerts.length > 0) && (
+                {(impactRows.length > 0 || riskRows.length > 0) && (
                   <div className="border-t border-black/[0.06] pt-5">
-                    {scopeChips.length > 0 && (
+                    {impactRows.length > 0 && (
                       <div className="seller-tablet px-4 py-4">
                         <div className="seller-label mb-3 flex items-center gap-2">
                           <MapPinned size={12} className="text-emerald-600" />
-                          今天影响到哪里
+                          今日影响明细
                         </div>
-                        <div className="flex flex-wrap gap-2">
-                          {scopeChips.map((chip) => (
-                            <span
-                              key={chip}
-                              className="inline-flex items-center rounded-full bg-white px-3 py-1 text-[12px] font-medium text-slate-700 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08)]"
-                            >
-                              {chip}
-                            </span>
+                        <div className="space-y-2">
+                          {impactRows.map((row) => (
+                            <div key={row.id}>
+                              <ImpactRow row={row} />
+                            </div>
                           ))}
                         </div>
                       </div>
@@ -140,19 +153,21 @@ export function DailySummaryOverlay({ report, tickResult, onContinue }: DailySum
 
                     <div className="seller-tablet mt-3 px-4 py-4">
                       <div className="seller-label mb-3 flex items-center gap-2">
-                        <ShieldAlert size={12} className={invariantAlerts.length > 0 ? 'text-rose-500' : 'text-emerald-600'} />
-                        系统提醒
+                        <ShieldAlert size={12} className={riskRows.length > 0 ? 'text-rose-500' : 'text-emerald-600'} />
+                        今日风险
                       </div>
-                      {invariantAlerts.length > 0 ? (
+                      {riskRows.length > 0 ? (
                         <div className="space-y-2.5">
-                          {invariantAlerts.slice(0, 3).map((alert, index) => (
-                            <InvariantAlertRow key={`${alert.code}-${index}`} alert={alert} />
+                          {riskRows.slice(0, 3).map((row) => (
+                            <div key={row.id}>
+                              <RiskRow row={row} />
+                            </div>
                           ))}
                         </div>
                       ) : (
                         <div className="flex items-start gap-2 text-sm leading-6 text-slate-600">
                           <Users size={14} className="mt-1 shrink-0 text-emerald-600" />
-                          <span>今天没有发现结构异常，房源、客户和事项链条都还在合理范围内。</span>
+                          <span>暂无新增高危变化，重点仍在今日关注。</span>
                         </div>
                       )}
                     </div>
@@ -167,7 +182,7 @@ export function DailySummaryOverlay({ report, tickResult, onContinue }: DailySum
               onClick={onContinue}
               className="seller-button-primary ml-auto flex items-center justify-center gap-2 px-5 py-3 text-sm"
             >
-              继续经营
+              进入今天
               <ArrowRight size={18} />
             </button>
           </div>
@@ -261,46 +276,155 @@ function PriorityRow({ index, text, isLast }: { key?: React.Key; index: number; 
   );
 }
 
-function buildScopeChips(tickResult?: DailyTickResult | null) {
+function ImpactRow({ row }: { row: SummaryImpactRow }) {
+  const toneClass = row.tone === 'danger'
+    ? 'bg-rose-50 text-rose-600'
+    : row.tone === 'success'
+      ? 'bg-emerald-50 text-emerald-600'
+      : 'bg-slate-100 text-slate-500';
+
+  return (
+    <div className="rounded-[14px] bg-white px-3 py-2.5 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.06)]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[12px] font-semibold leading-5 text-slate-800">{row.title}</div>
+          <p className="mt-0.5 text-[12px] leading-5 text-slate-500">{row.detail}</p>
+        </div>
+        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${toneClass}`}>{row.label}</span>
+      </div>
+    </div>
+  );
+}
+
+function RiskRow({ row }: { row: SummaryRiskRow }) {
+  const toneClass = row.tone === 'danger'
+    ? 'bg-rose-50 text-rose-600'
+    : 'bg-amber-50 text-amber-700';
+
+  return (
+    <div className={`rounded-[14px] px-3 py-2.5 ${toneClass}`}>
+      <div className="text-[11px] font-bold uppercase tracking-[0.02em]">{row.title}</div>
+      <div className="mt-1 text-[13px] font-medium leading-6">{row.detail}</div>
+    </div>
+  );
+}
+
+function buildImpactRows(tickResult?: DailyTickResult | null): SummaryImpactRow[] {
   if (!tickResult) {
     return [];
   }
 
-  const chips: string[] = [];
-  const addChip = (value: string) => {
-    if (!chips.includes(value)) {
-      chips.push(value);
+  const rows: SummaryImpactRow[] = [];
+  const used = new Set<string>();
+  const addRow = (row: SummaryImpactRow) => {
+    const key = `${row.label}-${row.title}-${row.detail}`;
+    if (!used.has(key)) {
+      used.add(key);
+      rows.push(row);
     }
   };
 
   const caseLabels = buildCaseScopeLabels(tickResult);
   const customerLabels = buildCustomerScopeLabels(tickResult);
 
+  tickResult.closedDeals.forEach((deal) => {
+    addRow({
+      id: `deal-${deal.dealId}`,
+      label: '成交',
+      title: deal.caseTitle || deal.caseId,
+      detail: `${deal.customerName || '客户'} · ${Math.round(deal.dealPrice || deal.price)} 万成交。`,
+      tone: 'success',
+    });
+  });
+
+  tickResult.emittedEvents.slice(0, 5).forEach((event) => {
+    const caseLabel = event.caseId ? caseLabels.get(event.caseId) : null;
+    const customerLabel = event.customerId ? customerLabels.get(event.customerId) : null;
+    const title = event.title || event.actor;
+    const subject = caseLabel || customerLabel || nonTechnicalActor(event.actor) || deriveEventKindLabel(event.kind);
+    addRow({
+      id: event.id,
+      label: deriveImpactLabel(event),
+      title: subject ? `${subject} · ${title}` : title,
+      detail: oneLine(event.detail, 58),
+      tone: event.tone,
+    });
+  });
+
   tickResult.dirtyScopes.cases.slice(0, 3).forEach((caseId) => {
     const label = caseLabels.get(caseId);
     if (label) {
-      addChip(`房源 ${label}`);
+      addRow({
+        id: `dirty-case-${caseId}`,
+        label: '房源',
+        title: label,
+        detail: '状态、窗口或客户推进发生变化。',
+        tone: 'accent',
+      });
     }
   });
   tickResult.dirtyScopes.customers.slice(0, 2).forEach((customerId) => {
     const label = customerLabels.get(customerId);
     if (label) {
-      addChip(`客户 ${label}`);
+      addRow({
+        id: `dirty-customer-${customerId}`,
+        label: '准客',
+        title: label,
+        detail: '意向、把握或掉线风险发生变化。',
+        tone: 'accent',
+      });
     }
   });
   tickResult.dirtyScopes.owners.slice(0, 2).forEach((ownerRef) => {
     if (!isTechnicalToken(ownerRef)) {
-      addChip(`业主 ${ownerRef}`);
+      addRow({
+        id: `dirty-owner-${ownerRef}`,
+        label: '业主',
+        title: ownerRef,
+        detail: '信任、耐心或紧迫度发生变化。',
+        tone: 'accent',
+      });
     }
   });
   tickResult.dirtyScopes.districts.slice(0, 2).forEach((district) => {
-    addChip(`商圈 ${district}`);
+    addRow({
+      id: `dirty-district-${district}`,
+      label: '商圈',
+      title: district,
+      detail: '供给、竞争或客户活跃度发生变化。',
+      tone: 'accent',
+    });
   });
   if (tickResult.dirtyScopes.market) {
-    addChip('市场层有波动');
+    addRow({
+      id: 'dirty-market',
+      label: '市场',
+      title: '市场层有波动',
+      detail: '会影响客户比较、竞品热度和今日关注顺序。',
+      tone: 'accent',
+    });
   }
 
-  return chips.slice(0, 8);
+  return rows.slice(0, 4);
+}
+
+function buildRiskRows(report: DailyReport, invariantAlerts: TickInvariantAlert[]): SummaryRiskRow[] {
+  const invariantRows = invariantAlerts.map((alert, index) => ({
+    id: `invariant-${alert.code}-${index}`,
+    title: alert.level === 'error' ? '需修正' : '请留意',
+    detail: alert.message,
+    tone: alert.level === 'error' ? 'danger' as const : 'warning' as const,
+  }));
+  const eventRows = [...report.majorEvents, ...report.randomEvents]
+    .filter((event) => event.tone === 'danger')
+    .map((event, index) => ({
+      id: `event-risk-${index}`,
+      title: event.actor,
+      detail: oneLine(event.message, 62),
+      tone: 'danger' as const,
+    }));
+
+  return [...invariantRows, ...eventRows].slice(0, 4);
 }
 
 function buildCaseScopeLabels(tickResult: DailyTickResult) {
@@ -361,23 +485,34 @@ function extractCaseLabelFromEvent(event: DailyTickResult['emittedEvents'][numbe
   return null;
 }
 
+function deriveImpactLabel(event: DailyTickResult['emittedEvents'][number]) {
+  if (event.kind === 'case_sold' || event.kind === 'opportunity_closed') return '成交';
+  if (event.kind === 'case_lost_to_rival') return '竞品';
+  if (event.kind === 'case_withdrawn') return '核销';
+  if (event.kind === 'market_event' || event.actor.includes('市场')) return '市场';
+  if (event.opportunityId || event.customerId) return '准客';
+  if (event.caseId) return '房源';
+  return deriveEventKindLabel(event.kind);
+}
+
+function deriveEventKindLabel(kind: DailyTickResult['emittedEvents'][number]['kind']) {
+  if (kind === 'budget_changed') return '资源';
+  if (kind === 'action_executed') return '动作';
+  if (kind === 'opportunity_advanced') return '准客';
+  if (kind === 'window_extended') return '窗口';
+  return '变化';
+}
+
+function nonTechnicalActor(actor: string) {
+  return actor && !isTechnicalToken(actor) ? actor : null;
+}
+
 function isTechnicalToken(value: string) {
   return /^(case|cus|opp|event|matter|run)-/.test(value);
 }
 
-function InvariantAlertRow({ alert }: { key?: React.Key; alert: TickInvariantAlert }) {
-  const toneClass = alert.level === 'error'
-    ? 'text-rose-600 bg-rose-50'
-    : 'text-amber-700 bg-amber-50';
-
-  return (
-    <div className={`rounded-[14px] px-3 py-2.5 ${toneClass}`}>
-      <div className="text-[11px] font-bold tracking-[0.02em] uppercase">
-        {alert.level === 'error' ? '需修正' : '请留意'}
-      </div>
-      <div className="mt-1 text-[13px] font-medium leading-6">
-        {alert.message}
-      </div>
-    </div>
-  );
+function oneLine(text: string, limit: number) {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= limit) return normalized;
+  return `${normalized.slice(0, limit - 1)}…`;
 }

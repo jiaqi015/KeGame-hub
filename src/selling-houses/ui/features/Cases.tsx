@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { GameState, Case, type Opportunity } from '../../domain/models';
+import { GameState, Case, type Opportunity, type RivalListing } from '../../domain/models';
 import {
   buildCaseDetailProjection,
   buildOperatingProjection,
@@ -36,7 +36,7 @@ interface CasesProps {
 }
 
 type ActionCategoryTab = 'feedback' | 'marketing' | 'pricing' | 'negotiation';
-type CaseDetailTab = 'overview' | 'customers' | 'changes' | 'evidence';
+type CaseDetailTab = 'overview' | 'attention' | 'customers' | 'changes' | 'evidence';
 type ActionWorkspaceCard = {
   action: typeof ACTIONS[number];
   availability: ReturnType<typeof getActionAvailability>;
@@ -44,6 +44,24 @@ type ActionWorkspaceCard = {
 };
 type CaseStageFilter = 'all' | 'pre_visit' | 'packaging' | 'showing' | 'feedback_offer' | 'negotiation' | 'closed';
 type CaseQuickFilter = 'focused' | 'urgent' | 'price' | 'late-stage';
+type SelectedCustomerState = GameState['customerStates'][number];
+type AttentionListingRow = {
+  id: string;
+  title: string;
+  sourceLabel: string;
+  price: number;
+  priceDelta: number;
+  priceDeltaLabel: string;
+  houseScore: number;
+  houseDelta: number;
+  houseLabel: string;
+  customerOverlap: number;
+  overlapLabel: string;
+  actualOverlapCount: number;
+  heat: number;
+  strengthLabel: string;
+  detail: string;
+};
 const CASE_STAGE_FILTERS: Array<{ id: CaseStageFilter; label: string }> = [
   { id: 'all', label: '全部' },
   { id: 'pre_visit', label: '面访' },
@@ -141,6 +159,11 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
     () => buildPotentialSignalRows(predictedOpportunities),
     [predictedOpportunities],
   );
+  const attentionListings = useMemo(
+    () => (selectedCase ? buildAttentionListings(state, selectedCase, customerStatesForSelectedCase) : []),
+    [customerStatesForSelectedCase, selectedCase, state],
+  );
+  const leadAttentionListing = attentionListings[0] || null;
   const executionChecklist = useMemo(
     () => (selectedCase && caseProjection ? buildExecutionChecklist(selectedCase, caseProjection, activeOpportunities.length) : []),
     [activeOpportunities.length, caseProjection, selectedCase],
@@ -467,6 +490,13 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
                     </button>
                     <button
                       type="button"
+                      onClick={() => setActiveDetailTab('attention')}
+                      className={`seller-tab ${activeDetailTab === 'attention' ? 'seller-tab-active' : ''}`}
+                    >
+                      关注房源
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setActiveDetailTab('customers')}
                       className={`seller-tab ${activeDetailTab === 'customers' ? 'seller-tab-active' : ''}`}
                     >
@@ -490,20 +520,20 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
                 </div>
 
                 <div className="px-3.5 py-3">
-                  {activeDetailTab === 'overview' && (
-                    <div className="grid gap-3 lg:grid-cols-[minmax(0,0.98fr)_minmax(0,1.02fr)]">
+	                  {activeDetailTab === 'overview' && (
+	                    <div className="grid gap-3 lg:grid-cols-[minmax(0,0.98fr)_minmax(0,1.02fr)]">
                       <DeskSection title="房源状态" count={caseProjection?.listingLifecyclePhase.phaseLabel || selectedCase.stageLabel}>
                         <SummaryPanel
                           title={deriveStrongPoint(selectedCase)}
                           detail={deriveWeakPoint(selectedCase)}
                           points={[
-                            `客户储备 ${formatScoreBand(selectedCase.d1)}`,
+                            `准客情况 ${formatScoreBand(selectedCase.d1)}`,
                             `房子条件 ${formatScoreBand(selectedCase.d2)}`,
                             `业主配合 ${formatScoreBand(selectedCase.d3)}`,
                           ]}
                         />
                         <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                          <ProgressRail label="客户储备" value={selectedCase.d1} tone="chance" />
+                          <ProgressRail label="准客情况" value={selectedCase.d1} tone="chance" />
                           <ProgressRail label="房子条件" value={selectedCase.d2} tone="neutral" />
                           <ProgressRail label="业主配合" value={selectedCase.d3} tone="risk" />
                         </div>
@@ -532,10 +562,51 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
                           <InfoStrip label="沟通方式" value={selectedOwnerProfile?.communicationLabel || deriveCommunicationMode(selectedCase)} />
                         </div>
                       </DeskSection>
-                    </div>
-                  )}
+	                    </div>
+	                  )}
 
-                  {activeDetailTab === 'customers' && (
+	                  {activeDetailTab === 'attention' && (
+	                    <div className="grid gap-3 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+	                      <DeskSection title="关注房源" count={`${attentionListings.length} 套`}>
+	                        <CurrentListingBenchmark caseItem={selectedCase} activeCustomerCount={customerStatesForSelectedCase.length} />
+	                        <div className="mt-2.5 space-y-2">
+	                          {attentionListings.slice(0, 4).map((row) => (
+	                            <div key={row.id}>
+	                              <AttentionListingCard row={row} />
+	                            </div>
+	                          ))}
+	                          {attentionListings.length === 0 && (
+	                            <div className="seller-empty px-3 py-4 text-[12px]">暂时没有同类竞品露出，先看本房价格和房况位置。</div>
+	                          )}
+	                        </div>
+	                      </DeskSection>
+
+	                      <DeskSection title="本房对比" count={leadAttentionListing?.strengthLabel || '对比'}>
+	                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+	                          <ComparisonMetric
+	                            label="挂牌位置"
+	                            value={deriveAttentionPriceSummary(selectedCase, attentionListings)}
+	                            tone={deriveAttentionPriceTone(selectedCase, attentionListings)}
+	                          />
+	                          <ComparisonMetric
+	                            label="房子条件"
+	                            value={deriveAttentionHouseSummary(selectedCase, attentionListings)}
+	                            tone={deriveAttentionHouseTone(selectedCase, attentionListings)}
+	                          />
+	                          <ComparisonMetric
+	                            label="客户重合"
+	                            value={deriveAttentionOverlapSummary(attentionListings)}
+	                            tone={deriveAttentionOverlapTone(attentionListings)}
+	                          />
+	                        </div>
+	                        <div className="mt-2.5">
+	                          <AttentionComparisonTable caseItem={selectedCase} row={leadAttentionListing} />
+	                        </div>
+	                      </DeskSection>
+	                    </div>
+	                  )}
+
+	                  {activeDetailTab === 'customers' && (
                     <div className="grid gap-3 lg:grid-cols-[minmax(0,0.98fr)_minmax(0,1.02fr)]">
                       <DeskSection title="客户情况" count={`${engagedOpportunities.length} 位在跟`}>
                         <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
@@ -827,6 +898,117 @@ function InfoStrip({ label, value }: { label: string; value: string }) {
     <div className="rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-2.5">
       <div className="seller-label text-[9px]">{label}</div>
       <div className="mt-1 text-[11px] font-semibold leading-5 text-[var(--seller-ink)]">{value}</div>
+    </div>
+  );
+}
+
+function CurrentListingBenchmark({ caseItem, activeCustomerCount }: { caseItem: Case; activeCustomerCount: number }) {
+  return (
+    <div className="rounded-[16px] border border-[color:var(--seller-accent)]/30 bg-[var(--seller-accent-soft)] px-3 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="seller-label">本房</div>
+          <div className="mt-1 text-[13px] font-semibold leading-5 text-[var(--seller-ink)]">{caseItem.title}</div>
+          <p className="seller-body mt-1 text-[11px] leading-5">
+            {caseItem.community} · {caseItem.layout} · {caseItem.area}㎡
+          </p>
+        </div>
+        <span className="rounded-full bg-[var(--seller-accent)] px-2 py-0.5 text-[9px] font-bold text-[var(--seller-bg)]">本房</span>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-1.5">
+        <MiniCompareCell label="挂牌" value={`${caseItem.askPrice} 万`} />
+        <MiniCompareCell label="房子条件" value={formatScoreBand(caseItem.d2)} />
+        <MiniCompareCell label="准客" value={`${activeCustomerCount} 位`} />
+      </div>
+    </div>
+  );
+}
+
+function AttentionListingCard({ row }: { row: AttentionListingRow }) {
+  return (
+    <div className="rounded-[14px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="seller-chip">{row.sourceLabel}</span>
+            <span className={attentionToneClass(row.customerOverlap)}>{row.overlapLabel}</span>
+          </div>
+          <div className="mt-2 text-[13px] font-semibold leading-5 text-[var(--seller-ink)]">{row.title}</div>
+          <p className="seller-body mt-1 text-[11px] leading-5">{row.detail}</p>
+        </div>
+        <div className="shrink-0 text-right">
+          <div className="text-[15px] font-semibold text-[var(--seller-ink)]">{row.price} 万</div>
+          <div className={`mt-1 text-[10px] font-semibold ${row.priceDelta < 0 ? 'text-[var(--seller-risk)]' : row.priceDelta > 0 ? 'text-[var(--seller-accent)]' : 'text-[var(--seller-muted)]'}`}>
+            {row.priceDeltaLabel}
+          </div>
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-1.5">
+        <MiniCompareCell label="房子条件" value={row.houseLabel} />
+        <MiniCompareCell label="价差" value={row.priceDeltaLabel} />
+        <MiniCompareCell label="重合" value={`${row.customerOverlap}%`} />
+      </div>
+    </div>
+  );
+}
+
+function ComparisonMetric({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: 'slate' | 'amber' | 'emerald' | 'rose';
+}) {
+  const toneClass =
+    tone === 'emerald'
+      ? 'border-[color:var(--seller-accent)]/24 bg-[var(--seller-accent-soft)] text-[var(--seller-accent)]'
+      : tone === 'amber'
+        ? 'border-[color:var(--seller-chance)]/22 bg-[var(--seller-chance-soft)] text-[var(--seller-chance)]'
+        : tone === 'rose'
+          ? 'border-[color:var(--seller-risk)]/24 bg-[var(--seller-risk-soft)] text-[var(--seller-risk)]'
+          : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] text-[var(--seller-ink)]';
+
+  return (
+    <div className={`rounded-[12px] border px-3 py-2.5 ${toneClass}`}>
+      <div className="text-[9px] font-bold uppercase tracking-[0.14em] opacity-70">{label}</div>
+      <div className="mt-1 text-[12px] font-semibold leading-5">{value}</div>
+    </div>
+  );
+}
+
+function AttentionComparisonTable({ caseItem, row }: { caseItem: Case; row: AttentionListingRow | null }) {
+  const rows = [
+    { label: '挂牌价', mine: `${caseItem.askPrice} 万`, rival: row ? `${row.price} 万` : '暂无竞品' },
+    { label: '房子条件', mine: formatScoreBand(caseItem.d2), rival: row ? row.houseLabel : '—' },
+    { label: '准客重合', mine: '本房准客', rival: row ? row.overlapLabel : '—' },
+    { label: '吸客强度', mine: formatScoreBand(caseItem.heat), rival: row ? formatScoreBand(row.heat) : '—' },
+  ];
+
+  return (
+    <div className="overflow-hidden rounded-[14px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)]">
+      <div className="grid grid-cols-[0.8fr_1fr_1fr] border-b border-[var(--seller-border)] px-3 py-2 text-[10px] font-bold text-[var(--seller-subtle)]">
+        <span>对比项</span>
+        <span>本房</span>
+        <span>{row ? '最强竞品' : '竞品'}</span>
+      </div>
+      {rows.map((item) => (
+        <div key={item.label} className="grid grid-cols-[0.8fr_1fr_1fr] border-b border-[var(--seller-border)] px-3 py-2 text-[11px] last:border-b-0">
+          <span className="text-[var(--seller-subtle)]">{item.label}</span>
+          <span className="font-semibold text-[var(--seller-ink)]">{item.mine}</span>
+          <span className="font-semibold text-[var(--seller-muted)]">{item.rival}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MiniCompareCell({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[10px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-2 py-1.5">
+      <div className="text-[8px] font-bold tracking-[0.08em] text-[var(--seller-subtle)]">{label}</div>
+      <div className="mt-0.5 truncate text-[11px] font-semibold text-[var(--seller-ink)]">{value}</div>
     </div>
   );
 }
@@ -1190,14 +1372,14 @@ function deriveCommunicationMode(caseItem: Case) {
 
 function deriveStrongPoint(caseItem: Case) {
   if (caseItem.d2 >= 75) return '房子条件较好';
-  if (caseItem.d1 >= 70) return '客户储备较好';
+  if (caseItem.d1 >= 70) return '准客情况较好';
   if (caseItem.d3 >= 70) return '业主配合较好';
   return '目前没有明显短板';
 }
 
 function deriveWeakPoint(caseItem: Case) {
   if (caseItem.askPrice > caseItem.marketPrice * 1.05) return '价格高于市场成交位。';
-  if (caseItem.d1 < 45) return '客户储备偏薄。';
+  if (caseItem.d1 < 45) return '准客情况偏薄。';
   if (caseItem.d3 < 50) return '业主配合度偏低。';
   return '还没有明显优势';
 }
@@ -1288,6 +1470,213 @@ function buildPotentialSignalRows(models: OpportunityViewModel[]) {
       };
     })
     .sort((left, right) => right.score - left.score);
+}
+
+function buildAttentionListings(
+  state: GameState,
+  caseItem: Case,
+  customerStatesForSelectedCase: SelectedCustomerState[],
+): AttentionListingRow[] {
+  const activeRivals = (state.marketShadow?.rivalListings || [])
+    .filter((entry) => entry.status === 'active')
+    .filter((entry) => (
+      entry.linkedCaseId === caseItem.id
+      || entry.marketCellId === caseItem.marketCellId
+      || entry.district === caseItem.district
+    ));
+  const rowsById = new Map<string, AttentionListingRow>();
+
+  activeRivals.forEach((rival) => {
+    rowsById.set(rival.id, buildRivalAttentionRow(caseItem, rival, customerStatesForSelectedCase));
+  });
+
+  state.cases
+    .filter((entry) => entry.id !== caseItem.id && entry.status === 'active')
+    .filter((entry) => entry.marketCellId === caseItem.marketCellId || entry.district === caseItem.district)
+    .forEach((entry) => {
+      if (!rowsById.has(entry.id)) {
+        rowsById.set(entry.id, buildCaseAttentionRow(caseItem, entry, customerStatesForSelectedCase));
+      }
+    });
+
+  return [...rowsById.values()]
+    .sort((left, right) => (
+      right.customerOverlap - left.customerOverlap
+      || right.actualOverlapCount - left.actualOverlapCount
+      || right.heat - left.heat
+    ))
+    .slice(0, 6);
+}
+
+function buildRivalAttentionRow(
+  caseItem: Case,
+  rival: RivalListing,
+  customerStatesForSelectedCase: SelectedCustomerState[],
+): AttentionListingRow {
+  const actualOverlapCount = countCustomerOverlap(customerStatesForSelectedCase, rival.id);
+  const houseScore = clampScore(Math.round(rival.storyStrength * 0.42 + rival.freshness * 0.3 + rival.heat * 0.28));
+  const customerOverlap = deriveRivalOverlapScore(rival, actualOverlapCount, customerStatesForSelectedCase.length);
+  const priceDelta = rival.askPrice - caseItem.askPrice;
+
+  return {
+    id: rival.id,
+    title: rival.title,
+    sourceLabel: rival.source === 'seed' ? '同类竞品' : '市场新盘',
+    price: rival.askPrice,
+    priceDelta,
+    priceDeltaLabel: formatPriceDelta(priceDelta),
+    houseScore,
+    houseDelta: houseScore - caseItem.d2,
+    houseLabel: formatHouseDelta(houseScore - caseItem.d2),
+    customerOverlap,
+    overlapLabel: formatOverlapLabel(customerOverlap),
+    actualOverlapCount,
+    heat: rival.heat,
+    strengthLabel: formatOverlapLabel(customerOverlap),
+    detail: `${rival.district} · ${rival.segment} · ${actualOverlapCount > 0 ? `${actualOverlapCount} 位准客也在看` : `吸客 ${formatScoreBand(rival.leadSiphonPower)}`}。`,
+  };
+}
+
+function buildCaseAttentionRow(
+  caseItem: Case,
+  competitor: Case,
+  customerStatesForSelectedCase: SelectedCustomerState[],
+): AttentionListingRow {
+  const actualOverlapCount = countCustomerOverlap(customerStatesForSelectedCase, competitor.id);
+  const sameMarketCell = competitor.marketCellId === caseItem.marketCellId;
+  const sameLayout = competitor.layout === caseItem.layout;
+  const priceDelta = competitor.askPrice - caseItem.askPrice;
+  const customerOverlap = deriveCaseOverlapScore(caseItem, competitor, actualOverlapCount, customerStatesForSelectedCase.length);
+
+  return {
+    id: competitor.id,
+    title: competitor.title,
+    sourceLabel: sameMarketCell ? '同商圈' : '同区房源',
+    price: competitor.askPrice,
+    priceDelta,
+    priceDeltaLabel: formatPriceDelta(priceDelta),
+    houseScore: clampScore(Math.round(competitor.d2)),
+    houseDelta: competitor.d2 - caseItem.d2,
+    houseLabel: formatHouseDelta(competitor.d2 - caseItem.d2),
+    customerOverlap,
+    overlapLabel: formatOverlapLabel(customerOverlap),
+    actualOverlapCount,
+    heat: competitor.heat,
+    strengthLabel: formatOverlapLabel(customerOverlap),
+    detail: `${competitor.community} · ${competitor.layout} · ${sameLayout ? '户型接近' : `${competitor.area}㎡`}。`,
+  };
+}
+
+function countCustomerOverlap(customerStatesForSelectedCase: SelectedCustomerState[], competitorId: string) {
+  return customerStatesForSelectedCase.filter((customerState) => (
+    customerState.activeCaseIds.includes(competitorId)
+    || Object.values(customerState.caseStates).some((runtime) => runtime.competingCaseIds?.includes(competitorId))
+  )).length;
+}
+
+function deriveRivalOverlapScore(rival: RivalListing, actualOverlapCount: number, selectedCustomerCount: number) {
+  const directOverlap = selectedCustomerCount > 0 ? (actualOverlapCount / selectedCustomerCount) * 100 : 0;
+  const marketPull = rival.leadSiphonPower * 0.55 + rival.heat * 0.28 + rival.freshness * 0.17;
+  return clampScore(Math.round(actualOverlapCount > 0 ? Math.max(directOverlap, marketPull, 58) : marketPull));
+}
+
+function deriveCaseOverlapScore(
+  caseItem: Case,
+  competitor: Case,
+  actualOverlapCount: number,
+  selectedCustomerCount: number,
+) {
+  const directOverlap = selectedCustomerCount > 0 ? (actualOverlapCount / selectedCustomerCount) * 100 : 0;
+  const priceGapRatio = Math.abs(competitor.askPrice - caseItem.askPrice) / Math.max(1, caseItem.askPrice);
+  const areaGapRatio = Math.abs(competitor.area - caseItem.area) / Math.max(1, caseItem.area);
+  const similarityScore = 28
+    + (competitor.marketCellId === caseItem.marketCellId ? 22 : 10)
+    + (competitor.layout === caseItem.layout ? 16 : 0)
+    + Math.max(0, 20 - Math.round(priceGapRatio * 220))
+    + Math.max(0, 14 - Math.round(areaGapRatio * 120))
+    + Math.round(competitor.heat * 0.12);
+
+  return clampScore(Math.round(Math.max(directOverlap, similarityScore)));
+}
+
+function deriveAttentionPriceSummary(caseItem: Case, rows: AttentionListingRow[]) {
+  if (rows.length === 0) return `${caseItem.askPrice} 万`;
+  const lowerCount = rows.filter((row) => row.price < caseItem.askPrice).length;
+  const nearestLower = rows
+    .filter((row) => row.price < caseItem.askPrice)
+    .sort((left, right) => Math.abs(left.priceDelta) - Math.abs(right.priceDelta))[0];
+
+  if (nearestLower) return `${lowerCount} 套更低，最近低 ${Math.abs(nearestLower.priceDelta)} 万`;
+  const closest = rows.slice().sort((left, right) => Math.abs(left.priceDelta) - Math.abs(right.priceDelta))[0];
+  if (!closest || closest.priceDelta === 0) return '和竞品持平';
+  return `本房低 ${closest.priceDelta} 万`;
+}
+
+function deriveAttentionPriceTone(caseItem: Case, rows: AttentionListingRow[]): 'slate' | 'amber' | 'emerald' | 'rose' {
+  const lowerCount = rows.filter((row) => row.price < caseItem.askPrice).length;
+  if (lowerCount >= 2) return 'rose';
+  if (lowerCount === 1) return 'amber';
+  if (rows.some((row) => row.price > caseItem.askPrice)) return 'emerald';
+  return 'slate';
+}
+
+function deriveAttentionHouseSummary(caseItem: Case, rows: AttentionListingRow[]) {
+  if (rows.length === 0) return formatScoreBand(caseItem.d2);
+  const strongerCount = rows.filter((row) => row.houseScore > caseItem.d2 + 5).length;
+  const weakerCount = rows.filter((row) => row.houseScore < caseItem.d2 - 5).length;
+  if (strongerCount > 0) return `${strongerCount} 套房况更强`;
+  if (weakerCount > 0) return '本房房况占优';
+  return '房况接近';
+}
+
+function deriveAttentionHouseTone(caseItem: Case, rows: AttentionListingRow[]): 'slate' | 'amber' | 'emerald' | 'rose' {
+  if (rows.some((row) => row.houseScore > caseItem.d2 + 10)) return 'rose';
+  if (rows.some((row) => row.houseScore > caseItem.d2 + 5)) return 'amber';
+  if (rows.some((row) => row.houseScore < caseItem.d2 - 5)) return 'emerald';
+  return 'slate';
+}
+
+function deriveAttentionOverlapSummary(rows: AttentionListingRow[]) {
+  if (rows.length === 0) return '暂无竞品';
+  const strongest = rows[0];
+  if (strongest.actualOverlapCount > 0) return `${strongest.actualOverlapCount} 位准客重合`;
+  return strongest.overlapLabel;
+}
+
+function deriveAttentionOverlapTone(rows: AttentionListingRow[]): 'slate' | 'amber' | 'emerald' | 'rose' {
+  const strongest = rows[0];
+  if (!strongest) return 'slate';
+  if (strongest.customerOverlap >= 70) return 'rose';
+  if (strongest.customerOverlap >= 45) return 'amber';
+  return 'slate';
+}
+
+function attentionToneClass(overlap: number) {
+  if (overlap >= 70) return 'seller-chip-risk';
+  if (overlap >= 45) return 'seller-chip-chance';
+  return 'seller-chip';
+}
+
+function formatPriceDelta(delta: number) {
+  if (delta < 0) return `低 ${Math.abs(delta)} 万`;
+  if (delta > 0) return `高 ${delta} 万`;
+  return '持平';
+}
+
+function formatHouseDelta(delta: number) {
+  if (delta >= 8) return '更强';
+  if (delta <= -8) return '本房更强';
+  return '接近';
+}
+
+function formatOverlapLabel(value: number) {
+  if (value >= 70) return '重合高';
+  if (value >= 45) return '重合中';
+  return '重合低';
+}
+
+function clampScore(value: number) {
+  return Math.max(0, Math.min(100, value));
 }
 
 function describePotentialBudgetRange(budgets: number[]) {

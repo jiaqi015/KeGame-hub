@@ -1,48 +1,89 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 320" fill="none" role="img" aria-hidden="true">
   <defs>
-    <linearGradient id="bga" x1="0" y1="0" x2="1" y2="1">
+    <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1">
       <stop stop-color="#F0F9FF"/>
-      <stop offset="0.5" stop-color="#E0F2FE"/>
-      <stop offset="1" stop-color="#BAE6FD"/>
+      <stop offset="0.55" stop-color="#DFF3FF"/>
+      <stop offset="1" stop-color="#BFE8FF"/>
     </linearGradient>
-    <linearGradient id="bna" x1="0" y1="0" x2="1" y2="0">
-      <stop stop-color="#0F4C81" stop-opacity="0.15"/>
-      <stop offset="1" stop-color="#0EA5E9" stop-opacity="0.25"/>
+    <linearGradient id="store" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#EAF7FF"/>
     </linearGradient>
-    <filter id="fa" x="-0.1" y="-0.1" width="1.2" height="1.2">
-      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#0F4C81" flood-opacity="0.12"/>
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#F4FBFF"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#0F4C81" flood-opacity="0.14"/>
     </filter>
   </defs>
-  <rect width="640" height="320" rx="24" fill="url(#bga)"/>
-  <g opacity="0.5" stroke="#0F4C81" stroke-width="1.2">
-    <line x1="100" y1="100" x2="300" y2="140"/>
-    <line x1="300" y1="140" x2="500" y2="110"/>
-    <line x1="200" y1="220" x2="380" y2="180"/>
-    <line x1="380" y1="180" x2="520" y2="200"/>
+  <rect width="640" height="320" rx="24" fill="url(#sky)"/>
+  <path d="M74 238C122 198 168 198 222 222C274 244 327 242 374 211C428 175 500 172 567 212" stroke="#89CFF0" stroke-width="18" stroke-linecap="round" opacity="0.34"/>
+  <path d="M86 238C139 202 183 208 230 226C283 246 331 236 379 204C432 169 493 170 557 205" stroke="#0EA5E9" stroke-width="3" stroke-linecap="round" stroke-dasharray="8 10" opacity="0.45"/>
+
+  <g stroke="#0F4C81" stroke-width="1.5" opacity="0.46">
+    <line x1="320" y1="151" x2="154" y2="84"/>
+    <line x1="320" y1="151" x2="126" y2="204"/>
+    <line x1="320" y1="151" x2="500" y2="82"/>
+    <line x1="320" y1="151" x2="512" y2="216"/>
   </g>
-  <circle cx="120" cy="100" r="10" fill="#fff" stroke="#0F4C81" stroke-width="2"/>
-  <circle cx="300" cy="140" r="12" fill="#0F4C81" fill-opacity="0.15" stroke="#0F4C81" stroke-width="2"/>
-  <circle cx="500" cy="110" r="10" fill="#fff" stroke="#0284C7" stroke-width="2"/>
-  <circle cx="200" cy="220" r="9" fill="#fff" stroke="#0F4C81" stroke-width="2"/>
-  <circle cx="380" cy="180" r="11" fill="#0EA5E9" fill-opacity="0.25" stroke="#0F4C81" stroke-width="2"/>
-  <circle cx="520" cy="200" r="9" fill="#fff" stroke="#0F4C81" stroke-width="2"/>
-  <rect x="255" y="80" width="130" height="100" rx="6" fill="#fff" filter="url(#fa)" stroke="#0F4C81" stroke-width="2"/>
-  <rect x="275" y="100" width="20" height="12" rx="1" fill="#0EA5E9" fill-opacity="0.35"/>
-  <rect x="310" y="100" width="20" height="12" rx="1" fill="#0EA5E9" fill-opacity="0.35"/>
-  <rect x="345" y="100" width="20" height="12" rx="1" fill="#0EA5E9" fill-opacity="0.35"/>
-  <rect x="300" y="150" width="40" height="20" rx="2" fill="url(#bna)"/>
-  <g transform="translate(420 210)">
-    <ellipse rx="32" ry="8" fill="#0F4C81" fill-opacity="0.08"/>
-    <circle cy="-40" r="20" fill="#fff" stroke="#0F4C81" stroke-width="2"/>
-    <path d="M-20-5Q0 15 20-5" stroke="#0F4C81" stroke-width="2" fill="none"/>
-    <rect x="-22" y="-5" width="44" height="50" rx="4" fill="#0F4C81" fill-opacity="0.85"/>
+
+  <g filter="url(#soft)">
+    <rect x="248" y="86" width="144" height="120" rx="18" fill="url(#store)" stroke="#0F4C81" stroke-width="2"/>
+    <path d="M268 112H372L358 84H282L268 112Z" fill="#0F4C81"/>
+    <path d="M268 112H294V126C294 133 288 139 281 139C274 139 268 133 268 126V112Z" fill="#38BDF8"/>
+    <path d="M294 112H320V126C320 133 314 139 307 139C300 139 294 133 294 126V112Z" fill="#FFFFFF"/>
+    <path d="M320 112H346V126C346 133 340 139 333 139C326 139 320 133 320 126V112Z" fill="#38BDF8"/>
+    <path d="M346 112H372V126C372 133 366 139 359 139C352 139 346 133 346 126V112Z" fill="#FFFFFF"/>
+    <rect x="275" y="148" width="38" height="38" rx="7" fill="#D9F1FF" stroke="#0F4C81" stroke-opacity="0.25"/>
+    <rect x="328" y="145" width="34" height="61" rx="8" fill="#0F4C81"/>
+    <circle cx="354" cy="176" r="2.5" fill="#BAE6FD"/>
+    <text x="320" y="232" text-anchor="middle" font-family="Inter, PingFang SC, sans-serif" font-size="18" font-weight="700" fill="#0F4C81">中心门店</text>
   </g>
-  <g transform="translate(100 240)">
-    <rect width="200" height="8" rx="4" fill="#0F4C81" fill-opacity="0.1"/>
-    <rect width="120" height="8" rx="4" fill="#0F4C81" fill-opacity="0.4"/>
+
+  <g filter="url(#soft)">
+    <rect x="58" y="45" width="152" height="72" rx="18" fill="url(#card)" stroke="#0EA5E9" stroke-opacity="0.42"/>
+    <rect x="78" y="73" width="44" height="26" rx="5" fill="#0F4C81" fill-opacity="0.16"/>
+    <path d="M80 73L100 56L120 73" stroke="#0F4C81" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="138" y="75" font-family="Inter, PingFang SC, sans-serif" font-size="14" font-weight="700" fill="#0F172A">重点盘</text>
+    <text x="138" y="96" font-family="Inter, PingFang SC, sans-serif" font-size="12" fill="#64748B">资源位优先</text>
   </g>
-  <g transform="translate(340 250)">
-    <rect width="200" height="8" rx="4" fill="#0EA5E9" fill-opacity="0.15"/>
-    <rect width="80" height="8" rx="4" fill="#0EA5E9" fill-opacity="0.45"/>
+
+  <g filter="url(#soft)">
+    <rect x="430" y="44" width="150" height="76" rx="18" fill="url(#card)" stroke="#0EA5E9" stroke-opacity="0.42"/>
+    <rect x="448" y="76" width="46" height="25" rx="5" fill="#38BDF8" fill-opacity="0.22"/>
+    <path d="M450 76L471 58L492 76" stroke="#0284C7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="508" y="75" font-family="Inter, PingFang SC, sans-serif" font-size="14" font-weight="700" fill="#0F172A">竞品盘</text>
+    <text x="508" y="96" font-family="Inter, PingFang SC, sans-serif" font-size="12" fill="#64748B">压价观察</text>
+  </g>
+
+  <g filter="url(#soft)">
+    <rect x="54" y="178" width="158" height="74" rx="18" fill="url(#card)" stroke="#0EA5E9" stroke-opacity="0.42"/>
+    <circle cx="93" cy="212" r="18" fill="#0F4C81" fill-opacity="0.16"/>
+    <path d="M84 215H102M93 206V224" stroke="#0F4C81" stroke-width="2" stroke-linecap="round"/>
+    <text x="124" y="208" font-family="Inter, PingFang SC, sans-serif" font-size="14" font-weight="700" fill="#0F172A">客流热区</text>
+    <text x="124" y="229" font-family="Inter, PingFang SC, sans-serif" font-size="12" fill="#64748B">带看升温</text>
+  </g>
+
+  <g filter="url(#soft)">
+    <rect x="436" y="180" width="156" height="76" rx="18" fill="url(#card)" stroke="#0EA5E9" stroke-opacity="0.42"/>
+    <rect x="456" y="210" width="40" height="26" rx="5" fill="#0F4C81" fill-opacity="0.14"/>
+    <path d="M458 210L476 194L494 210" stroke="#0F4C81" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="510" y="211" font-family="Inter, PingFang SC, sans-serif" font-size="14" font-weight="700" fill="#0F172A">协同房源</text>
+    <text x="510" y="232" font-family="Inter, PingFang SC, sans-serif" font-size="12" fill="#64748B">跨店联动</text>
+  </g>
+
+  <g>
+    <circle cx="320" cy="151" r="12" fill="#0F4C81"/>
+    <circle cx="154" cy="84" r="7" fill="#FFFFFF" stroke="#0F4C81" stroke-width="2"/>
+    <circle cx="126" cy="204" r="7" fill="#FFFFFF" stroke="#0F4C81" stroke-width="2"/>
+    <circle cx="500" cy="82" r="7" fill="#FFFFFF" stroke="#0284C7" stroke-width="2"/>
+    <circle cx="512" cy="216" r="7" fill="#FFFFFF" stroke="#0284C7" stroke-width="2"/>
+  </g>
+
+  <g transform="translate(236 268)">
+    <rect width="168" height="24" rx="12" fill="#FFFFFF" fill-opacity="0.72"/>
+    <circle cx="22" cy="12" r="5" fill="#0F4C81"/>
+    <text x="38" y="16" font-family="Inter, PingFang SC, sans-serif" font-size="12" font-weight="700" fill="#0F4C81">资源、客流、竞品一起调度</text>
   </g>
 </svg>

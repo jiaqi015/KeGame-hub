@@ -32,7 +32,7 @@ export function UserIdentityBadge({ nickname, email, compact = false, sessionExp
         ) : null}
         {sessionExpiresAt ? (
           <div className="truncate text-[11px] text-[#8E8E93]">
-            有效至 {formatSessionExpiry(sessionExpiresAt)}
+            登录有效期 {formatSessionExpiry(sessionExpiresAt)}
           </div>
         ) : null}
       </div>

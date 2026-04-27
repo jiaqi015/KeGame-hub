@@ -22,19 +22,28 @@ export function resolveWorkspaceRestorePath(currentPathname: string, cachedPathn
   return currentPath || (cachedPathname?.trim() || null);
 }
 
-export function useAppSession(state: AppState, dispatch: React.Dispatch<AppAction>) {
-  const { authorizedKey, authStatus, allowedWorkspaces, currentUserEmail, activeWorkspace } = state;
+interface LockApplicationOptions {
+  endSession?: boolean;
+}
 
-  const lockApplication = useCallback((message: string, nextInput = '') => {
+export function useAppSession(state: AppState, dispatch: React.Dispatch<AppAction>) {
+  const { authorizedKey, authStatus, allowedWorkspaces, currentUserEmail, activeWorkspace, loginEmail } = state;
+
+  const lockApplication = useCallback((message: string, nextInput = '', options: LockApplicationOptions = {}) => {
     const currentPath = normalizeWorkspacePathname(window.location.pathname || '/');
     if (currentPath !== '/') {
       window.sessionStorage.setItem('kegame-target-path', currentPath);
     }
+    const rememberedEmail = (currentUserEmail || loginEmail).trim();
+    if (rememberedEmail) {
+      window.localStorage.setItem(AUTH_EMAIL_STORAGE_KEY, rememberedEmail);
+    }
     window.localStorage.removeItem(ACTIVATION_STORAGE_KEY);
-    window.localStorage.removeItem(AUTH_EMAIL_STORAGE_KEY);
-    void logoutCurrentSession().catch(() => {});
+    if (options.endSession !== false) {
+      void logoutCurrentSession().catch(() => {});
+    }
     dispatch({ type: 'LOCK_APPLICATION', message, nextInput });
-  }, [dispatch]);
+  }, [currentUserEmail, dispatch, loginEmail]);
 
   const authorizedFetch = useCallback(async (input: string, init: RequestInit = {}) => {
     const response = await fetch(input, {
@@ -79,6 +88,10 @@ export function useAppSession(state: AppState, dispatch: React.Dispatch<AppActio
         }
       } catch (error) {
         if (!disposed) {
+          const rememberedEmail = window.localStorage.getItem(AUTH_EMAIL_STORAGE_KEY)?.trim() || '';
+          if (rememberedEmail) {
+            dispatch({ type: 'SET_LOGIN_EMAIL', value: rememberedEmail });
+          }
           dispatch({ type: 'SET_AUTH_STATUS', status: 'locked' });
         }
       }

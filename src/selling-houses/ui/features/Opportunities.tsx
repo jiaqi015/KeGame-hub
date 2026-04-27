@@ -116,7 +116,7 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
         <div className="flex flex-col gap-3 border-b border-[var(--seller-border)] pb-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="seller-label">分区</div>
           <div className="seller-tabbar">
-            <button type="button" onClick={() => showActiveTab()} className={`seller-tab ${activeTab === 'active' ? 'seller-tab-active' : ''}`}>已接上</button>
+            <button type="button" onClick={() => showActiveTab()} className={`seller-tab ${activeTab === 'active' ? 'seller-tab-active' : ''}`}>在跟准客</button>
             <button type="button" onClick={() => { setActiveCustomerFilter('all'); setActiveTab('closing'); }} className={`seller-tab ${activeTab === 'closing' ? 'seller-tab-active' : ''}`}>快成交</button>
             <button type="button" onClick={() => { setActiveCustomerFilter('all'); setActiveTab('risk'); }} className={`seller-tab ${activeTab === 'risk' ? 'seller-tab-active' : ''}`}>掉线</button>
             <button type="button" onClick={() => { setActiveCustomerFilter('all'); setActiveTab('potential'); }} className={`seller-tab ${activeTab === 'potential' ? 'seller-tab-active' : ''}`}>潜在</button>
@@ -129,15 +129,15 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
               <StageOverviewCard
                 title="已见过面"
                 count={viewedModels.length}
-                detail="重点盯复看、报价和家人决策。"
+                detail="看过房，后续多在复看、报价或家人决策。"
                 tone="emerald"
                 active={activeCustomerFilter === 'viewed'}
                 onClick={() => showActiveTab('viewed')}
               />
               <StageOverviewCard
-                title="只接上话"
+                title="咨询过"
                 count={contactedModels.length}
-                detail="重点推进到带看。"
+                detail="聊过需求，还没形成看房记录。"
                 tone="slate"
                 active={activeCustomerFilter === 'contacted'}
                 onClick={() => showActiveTab('contacted')}
@@ -146,7 +146,7 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
             <div className="seller-note p-3.5">
               <div className="grid grid-cols-2 gap-3 text-[11px] text-[var(--seller-muted)] md:grid-cols-4">
                 <CustomerMetricButton
-                  label="已接上"
+                  label="在跟准客"
                   value={metModels.length}
                   active={activeCustomerFilter === 'all'}
                   onClick={() => showActiveTab()}
@@ -182,7 +182,7 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
               )) : (
                 <EmptyState
                   title={activeCustomerFilter === 'all' ? '还没有稳定接上的客户' : '这个分组暂时为空'}
-                  detail={activeCustomerFilter === 'all' ? '先从房源页接出第一批真人客户。' : '可以切回已接上看全部客户。'}
+                  detail={activeCustomerFilter === 'all' ? '房源页还没有形成真人客户记录。' : '可以切回在跟准客看全部客户。'}
                 />
               )}
             </div>
@@ -583,7 +583,7 @@ function CustomerOpportunityCard({
           <p className="mt-1 truncate text-[11px] leading-5 text-[var(--seller-subtle)]">{model.caseItem?.title || '未知房源'} · {model.opportunity.channelName}</p>
           <p className="mt-2 line-clamp-2 text-[11px] leading-5 text-[var(--seller-muted)]">{model.nextStep}</p>
         </div>
-        <div className="grid w-[168px] shrink-0 grid-cols-3 gap-1.5 text-right">
+        <div className="grid w-[210px] shrink-0 grid-cols-3 gap-2 text-right">
           <MetricPill label="意向" value={`${Math.round(model.opportunity.intent)}`} tone="slate" />
           <MetricPill label="把握" value={`${Math.round(model.opportunity.confidence)}`} tone="slate" />
           <MetricPill label="剩余" value={formatOpportunityDaysLeft(model.opportunity.daysLeft)} tone={atRisk ? 'rose' : 'amber'} />

@@ -193,7 +193,7 @@ function deriveOpportunityStatusLabel(
 ) {
   if (engagementBand === 'potential') return '潜在人群信号';
   if (engagementBand === 'met') return `已见面 · ${opportunity.stageLabel}`;
-  return `已接上话 · ${opportunity.stageLabel}`;
+  return `咨询过 · ${opportunity.stageLabel}`;
 }
 
 function deriveOpportunityStatusDetail(
@@ -209,7 +209,7 @@ function deriveOpportunityStatusDetail(
 
   if (engagementBand === 'contacted') {
     return opportunity.stageIndex >= 1
-      ? '已经有明确接触，但还没形成现场感受，下一步应该尽快推进到带看。'
+      ? '已经有明确接触，但还没形成现场感受。'
       : '刚接上话，真实需求还需要再确认一轮。';
   }
 
@@ -284,8 +284,8 @@ function deriveNextStep(
   if (opportunity.visibility === 'shadow') return '先接上真人，再核实预算、决策人和看房时间。';
   if ((customerState?.churnRisk || 0) >= 60) return '需要一次明确回访，稳住机会。';
   if (opportunity.stageIndex >= 4 || customerState?.status === 'negotiating') return '集中推进报价和谈判细节，争取尽快落到成交动作。';
-  if (runtime?.viewed || opportunity.stageIndex >= 2) return '趁现场记忆还热，推进复看或明确出价意向。';
-  return '尽快推进到带看，把模糊意向变成现场判断。';
+  if (runtime?.viewed || opportunity.stageIndex >= 2) return '已有看房反馈，复看或报价意向会更清楚。';
+  return '聊过需求，还没形成看房记录。';
 }
 
 function deriveStageTrail(opportunity: Opportunity) {

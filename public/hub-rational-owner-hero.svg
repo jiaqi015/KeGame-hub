@@ -1,34 +1,65 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 320" fill="none" role="img" aria-hidden="true">
   <defs>
-    <linearGradient id="og" x1="0" y1="0" x2="1" y2="1">
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop stop-color="#FFF1F2"/>
-      <stop offset="0.5" stop-color="#FFE4E6"/>
+      <stop offset="0.52" stop-color="#FFE4E6"/>
       <stop offset="1" stop-color="#FDA4AF"/>
     </linearGradient>
-    <linearGradient id="oh" x1="0" y1="0" x2="0" y2="1">
-      <stop stop-color="#F43F5E" stop-opacity="0.12"/>
-      <stop offset="1" stop-color="#B9385D" stop-opacity="0.35"/>
+    <linearGradient id="desk" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#FFFFFF" stop-opacity="0.96"/>
+      <stop offset="1" stop-color="#FCE7F3" stop-opacity="0.9"/>
     </linearGradient>
-    <filter id="os" x="-0.2" y="-0.2" width="1.4" height="1.4">
-      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#B9385D" flood-opacity="0.12"/>
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#FFF7ED"/>
+      <stop offset="1" stop-color="#FFE4E6"/>
+    </linearGradient>
+    <filter id="shadow" x="-0.2" y="-0.2" width="1.4" height="1.4">
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#9F1239" flood-opacity="0.14"/>
     </filter>
   </defs>
-  <rect width="640" height="320" rx="24" fill="url(#og)"/>
-  <path d="M0 200 Q 160 160 320 200 T 640 200 V 320 H 0 Z" fill="url(#oh)"/>
-  <g filter="url(#os)">
-    <rect x="220" y="120" width="200" height="120" rx="8" fill="#fff" stroke="#F43F5E" stroke-opacity="0.35" stroke-width="2"/>
-    <path d="M200 120L320 60L440 120" stroke="#B9385D" stroke-width="3" stroke-linejoin="round" fill="#fff" fill-opacity="0.9"/>
-    <rect x="270" y="160" width="40" height="50" rx="3" fill="#B9385D" fill-opacity="0.15" stroke="#B9385D" stroke-opacity="0.4"/>
-    <rect x="350" y="150" width="32" height="24" rx="2" fill="#0EA5E9" fill-opacity="0.2" stroke="#0284C7" stroke-opacity="0.4"/>
+
+  <rect width="640" height="320" rx="24" fill="url(#bg)"/>
+  <path d="M0 226C94 188 178 198 266 218C382 245 476 214 640 160V320H0V226Z" fill="#BE123C" fill-opacity="0.14"/>
+
+  <g filter="url(#shadow)">
+    <rect x="58" y="204" width="524" height="56" rx="24" fill="url(#desk)" stroke="#FB7185" stroke-opacity="0.24"/>
+    <rect x="80" y="68" width="150" height="112" rx="18" fill="#FFFFFF" fill-opacity="0.86" stroke="#FB7185" stroke-opacity="0.25"/>
+    <path d="M112 116L154 91L196 116" stroke="#BE123C" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="124" y="116" width="62" height="42" rx="6" fill="#FFE4E6" stroke="#BE123C" stroke-opacity="0.32"/>
+    <rect x="145" y="132" width="14" height="26" rx="2" fill="#BE123C" fill-opacity="0.16"/>
+    <rect x="166" y="127" width="12" height="10" rx="2" fill="#0284C7" fill-opacity="0.18"/>
+    <text x="104" y="164" fill="#9F1239" font-family="Arial, sans-serif" font-size="13" font-weight="700">本房信息</text>
+
+    <rect x="416" y="62" width="126" height="86" rx="18" fill="#FFFFFF" fill-opacity="0.82" stroke="#F43F5E" stroke-opacity="0.22"/>
+    <text x="438" y="93" fill="#9F1239" font-family="Arial, sans-serif" font-size="13" font-weight="700">竞品</text>
+    <text x="438" y="118" fill="#475569" font-family="Arial, sans-serif" font-size="12">低 35 万</text>
+    <path d="M452 134H516" stroke="#F43F5E" stroke-width="5" stroke-linecap="round" stroke-opacity="0.34"/>
+
+    <rect x="404" y="174" width="154" height="54" rx="18" fill="#FFFFFF" fill-opacity="0.72" stroke="#FB7185" stroke-opacity="0.2"/>
+    <text x="425" y="199" fill="#475569" font-family="Arial, sans-serif" font-size="12" font-weight="700">客户反馈</text>
+    <path d="M425 213H512" stroke="#14B8A6" stroke-width="5" stroke-linecap="round" stroke-opacity="0.45"/>
   </g>
-  <circle cx="140" cy="200" r="36" fill="#fff" stroke="#B9385D" stroke-opacity="0.35" stroke-width="2"/>
-  <path d="M120 196Q140 180 160 196" stroke="#B9385D" stroke-width="2" fill="none" stroke-linecap="round"/>
-  <circle cx="128" cy="192" r="3" fill="#9F1239"/>
-  <circle cx="152" cy="192" r="3" fill="#9F1239"/>
-  <g transform="translate(480 170)">
-    <circle r="28" fill="#fff" stroke="#F43F5E" stroke-opacity="0.4"/>
-    <path d="M-8 4v14h12v-10h6" stroke="#B9385D" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <g filter="url(#shadow)">
+    <circle cx="308" cy="116" r="34" fill="#F9A8D4"/>
+    <path d="M278 110C282 82 300 68 324 78C346 86 354 112 340 140C326 130 300 129 278 110Z" fill="#7F1D1D"/>
+    <circle cx="300" cy="118" r="3" fill="#7F1D1D"/>
+    <circle cx="323" cy="118" r="3" fill="#7F1D1D"/>
+    <path d="M301 135C309 141 319 141 327 135" stroke="#7F1D1D" stroke-width="2" stroke-linecap="round"/>
+    <path d="M250 230C254 178 276 151 314 151C352 151 376 178 382 230H250Z" fill="#BE123C"/>
+    <path d="M276 174C288 188 337 188 352 174" stroke="#FFE4E6" stroke-opacity="0.55" stroke-width="4" stroke-linecap="round"/>
+    <rect x="246" y="194" width="132" height="74" rx="16" fill="#FFFFFF" stroke="#F43F5E" stroke-opacity="0.22"/>
+    <rect x="264" y="212" width="96" height="10" rx="5" fill="#F43F5E" fill-opacity="0.18"/>
+    <rect x="264" y="234" width="64" height="10" rx="5" fill="#14B8A6" fill-opacity="0.3"/>
+    <path d="M296 252L312 238L330 246L350 224" stroke="#BE123C" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
-  <path d="M80 260Q200 220 360 200T560 150" stroke="#B9385D" stroke-width="3" fill="none" stroke-linecap="round" stroke-opacity="0.5"/>
-  <circle cx="560" cy="150" r="6" fill="#F43F5E"/>
+
+  <g>
+    <circle cx="214" cy="216" r="5" fill="#F43F5E"/>
+    <circle cx="405" cy="132" r="5" fill="#F43F5E"/>
+    <circle cx="394" cy="206" r="5" fill="#14B8A6"/>
+    <path d="M219 214C240 198 252 190 268 184" stroke="#BE123C" stroke-opacity="0.28" stroke-width="2" stroke-dasharray="5 6"/>
+    <path d="M384 154C397 147 405 140 414 132" stroke="#BE123C" stroke-opacity="0.28" stroke-width="2" stroke-dasharray="5 6"/>
+    <path d="M382 214C390 212 395 209 402 205" stroke="#0F766E" stroke-opacity="0.26" stroke-width="2" stroke-dasharray="5 6"/>
+  </g>
 </svg>

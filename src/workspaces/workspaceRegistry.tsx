@@ -1,6 +1,6 @@
 import React, { lazy } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { Building2, Layers, Sparkles, Target, UserRound } from 'lucide-react';
+import { HouseHeart, MapPinHouse, Sparkles, Store, UserRound } from 'lucide-react';
 import type { ActivationWorkspaceId } from '../types';
 import type { SellingHousesStorageProfile } from '../selling-houses/application/storageProfile';
 import { getWorkspaceLabel, getWorkspaceSlug, resolveWorkspaceBySlug } from '../../lib/workspaces.js';
@@ -20,6 +20,12 @@ export function preloadSellingHousesWorkspace() {
 }
 
 type PlaceholderFuturePlay = { title: string; body: string };
+type PlaceholderSideNote = { label: string; body: string };
+type PlaceholderAdvisorBlock = {
+  title: string;
+  paragraphs: string[];
+  highlights?: PlaceholderSideNote[];
+};
 
 function PlaceholderWorkspace({
   badge,
@@ -30,6 +36,7 @@ function PlaceholderWorkspace({
   heroTagline,
   heroSubline,
   advisorBlock,
+  sideNotes,
   futurePlays,
   prompts,
   nextSteps,
@@ -43,7 +50,8 @@ function PlaceholderWorkspace({
   heroImageAlt: string;
   heroTagline: string;
   heroSubline: string;
-  advisorBlock: { title: string; paragraphs: string[] };
+  advisorBlock: PlaceholderAdvisorBlock;
+  sideNotes?: { title: string; eyebrow: string; items: PlaceholderSideNote[] };
   futurePlays: { sectionTitle: string; items: PlaceholderFuturePlay[] };
   prompts: string[];
   nextSteps: string[];
@@ -72,7 +80,7 @@ function PlaceholderWorkspace({
   return (
     <div className={`flex h-full items-start justify-center overflow-y-auto ${pageBg} px-4 py-10 sm:px-8`}>
       <div className="w-full max-w-5xl rounded-[36px] border border-black/5 bg-white/95 p-6 shadow-[0_24px_70px_rgba(20,20,43,0.08)] sm:p-10">
-        <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex flex-col gap-8 lg:flex-row lg:items-stretch lg:justify-between">
           <div className="min-w-0 flex-1 max-w-2xl">
             <div className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold ${badgeClassName}`}>
               {badge}
@@ -98,17 +106,43 @@ function PlaceholderWorkspace({
             </div>
           </div>
 
-          <div className={`w-full max-w-md shrink-0 rounded-[24px] border px-5 py-5 ${sectionClassName}`}>
-            <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500/90">{advisorBlock.title}</div>
-            <div className="mt-3 space-y-2.5 text-[14px] leading-6 text-slate-700">
-              {advisorBlock.paragraphs.map((p, i) => (
-                <p key={i}>{p}</p>
-              ))}
+          <div className="flex w-full max-w-md shrink-0 flex-col gap-4">
+            <div className={`rounded-[24px] border px-5 py-5 ${advisorBlock.highlights?.length ? 'lg:min-h-[340px]' : ''} ${sectionClassName}`}>
+              <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500/90">{advisorBlock.title}</div>
+              <div className="mt-3 space-y-2.5 text-[14px] leading-6 text-slate-700">
+                {advisorBlock.paragraphs.map((p, i) => (
+                  <p key={i}>{p}</p>
+                ))}
+              </div>
+              {advisorBlock.highlights?.length ? (
+                <div className="mt-4 grid gap-2">
+                  {advisorBlock.highlights.map((item) => (
+                    <div key={item.label} className="rounded-[16px] border border-black/[0.05] bg-white/55 px-3.5 py-3">
+                      <div className="text-[12px] font-semibold text-slate-900">{item.label}</div>
+                      <p className="mt-1 text-[12px] leading-5 text-slate-600">{item.body}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              <div className="mt-5 border-t border-black/5 pt-4">
+                <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500/90">状态</div>
+                <p className="mt-1.5 text-sm font-medium text-slate-800">{statusText}</p>
+              </div>
             </div>
-            <div className="mt-5 border-t border-black/5 pt-4">
-              <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500/90">状态</div>
-              <p className="mt-1.5 text-sm font-medium text-slate-800">{statusText}</p>
-            </div>
+            {sideNotes ? (
+              <div className="flex-1 rounded-[24px] border border-black/[0.05] bg-white/90 px-5 py-5 shadow-[0_14px_44px_rgba(15,23,42,0.05)]">
+                <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">{sideNotes.eyebrow}</div>
+                <h3 className="mt-2 text-[17px] font-semibold tracking-[-0.03em] text-[#111111]">{sideNotes.title}</h3>
+                <div className="mt-4 grid gap-3">
+                  {sideNotes.items.map((item) => (
+                    <div key={item.label} className="rounded-[18px] border border-black/[0.05] bg-slate-50/70 px-4 py-3">
+                      <div className="text-[13px] font-semibold text-slate-900">{item.label}</div>
+                      <p className="mt-1 text-[12px] leading-5 text-slate-600">{item.body}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -176,6 +210,7 @@ type WorkspaceRenderProps = {
 export interface WorkspaceRegistryItem {
   id: ActivationWorkspaceId;
   slug: string;
+  hubSection: 'work-skill' | 'selling-world';
   title: string;
   shortLabel: string;
   status: 'available' | 'planned' | 'disabled';
@@ -196,6 +231,7 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
   {
     id: 'sabrina',
     slug: getWorkspaceSlug('sabrina'),
+    hubSection: 'work-skill',
     title: getWorkspaceLabel('sabrina'),
     shortLabel: getWorkspaceLabel('sabrina'),
     status: 'available',
@@ -212,11 +248,12 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
   {
     id: 'open-day',
     slug: getWorkspaceSlug('open-day'),
+    hubSection: 'work-skill',
     title: getWorkspaceLabel('open-day'),
     shortLabel: getWorkspaceLabel('open-day'),
     status: 'available',
     accentClassName: 'text-emerald-700 hover:text-emerald-800',
-    icon: Layers,
+    icon: MapPinHouse,
     iconContainerClassName: 'bg-[#1F5F4A] text-white shadow-[0_18px_40px_rgba(31,95,74,0.18)]',
     pillClassName: 'bg-emerald-50 text-emerald-700',
     cardDescription: '上传楼盘表格后，用统一口径完成测算排序，帮你把资源放到更可能出结果的项目上。',
@@ -228,6 +265,7 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
   {
     id: 'selling-houses',
     slug: getWorkspaceSlug('selling-houses'),
+    hubSection: 'selling-world',
     title: getWorkspaceLabel('selling-houses'),
     shortLabel: getWorkspaceLabel('selling-houses'),
     status: 'available',
@@ -254,11 +292,12 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
   {
     id: 'market-management',
     slug: getWorkspaceSlug('market-management'),
+    hubSection: 'selling-world',
     title: getWorkspaceLabel('market-management'),
     shortLabel: getWorkspaceLabel('market-management'),
     status: 'planned',
     accentClassName: 'text-sky-700 hover:text-sky-800',
-    icon: Building2,
+    icon: Store,
     iconContainerClassName: 'bg-[#0F4C81] text-white shadow-[0_18px_34px_rgba(15,76,129,0.18)]',
     pillClassName: 'bg-sky-50 text-sky-700',
     cardDescription: '从商圈资源、重点盘分配到协同节奏，打一局商圈经营的整体判断。',
@@ -268,17 +307,26 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
     render: () => (
       <PlaceholderWorkspace
         badge="商圈经营"
-        title="从整片商圈做经营"
-        subtitle="面向商圈经理：一屏看盘面、看资源、看组织节奏。"
+        title="经营成王牌商圈"
+        subtitle="从门店、重点盘、竞品和客户热度里，打出一片区的经营节奏。"
         heroImageSrc="/hub-district-manager-hero.svg"
-        heroImageAlt="商圈网络与经营中枢示意图"
-        heroTagline="经理最期待：一屏里看清谁该压、谁该保、谁该让"
-        heroSubline="把「重点盘、跨店协同、资源位、总部政策」从口号变成一局的取舍"
+        heroImageAlt="门店与周边房源关系示意图"
+        heroTagline="把门店、房源和资源位连成一张盘面"
+        heroSubline="看到哪套该托、哪套该抢、哪套该联动，周节奏不再靠感觉。"
         advisorBlock={{
-          title: '和「我是王牌资产顾问」',
+          title: '未来怎么玩',
           paragraphs: [
-            '两边共用同一套底层对象：商圈、重点盘、竞品、客户、资源位与周节奏；顾问端模拟单盘与多房经营，你端放大到「整片 + 组织」的分配与推进。',
-            '以后上线后，你在商圈里调资源、改节奏，会反向体现在顾问局里的可行动作强度与组织压力；同一场数据的复盘，可以从单盘切到商圈，从商圈沉回单盘。',
+            '你会接手一片真实感很强的商圈：门店人力、重点房源、竞品压价、客户流向和资源位都在同一张盘面里变化。',
+            '顾问端负责把单盘经营好；商圈端负责决定资源给谁、谁来协同、哪套房要保住节奏。最后可以从一片区下钻到每套房，也能从单盘复盘回商圈策略。',
+          ],
+        }}
+        sideNotes={{
+          eyebrow: '上线后会看到',
+          title: '王牌商圈经营桌',
+          items: [
+            { label: '门店与房源', body: '门店产能、重点盘、竞品盘和客户热度，会在同一张地图上联动。' },
+            { label: '资源分配', body: '资源位、人员协同和跨店让客，会变成每周可执行的经营动作。' },
+            { label: '周复盘', body: '看哪条投入带来看房、成交和口碑，下周继续押对方向。' },
           ],
         }}
         futurePlays={{
@@ -306,11 +354,12 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
   {
     id: 'rational-owner',
     slug: getWorkspaceSlug('rational-owner'),
+    hubSection: 'selling-world',
     title: getWorkspaceLabel('rational-owner'),
     shortLabel: getWorkspaceLabel('rational-owner'),
     status: 'planned',
     accentClassName: 'text-rose-700 hover:text-rose-800',
-    icon: Target,
+    icon: HouseHeart,
     iconContainerClassName: 'bg-[#B9385D] text-white shadow-[0_18px_34px_rgba(185,56,93,0.18)]',
     pillClassName: 'bg-rose-50 text-rose-700',
     cardDescription: '站在业主视角做取舍，在价格、时机、经纪人动作和持有成本之间找到最理性的决策。',
@@ -323,14 +372,30 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
         title="在情绪里做最理性的主"
         subtitle="把「要多少钱、什么时候动、信谁的话」变成一局的取舍。"
         heroImageSrc="/hub-rational-owner-hero.svg"
-        heroImageAlt="家、确定感与决策象征示意图"
-        heroTagline="业主最期待：少被节奏带着跑，多看清自己真正要什么"
-        heroSubline="价格、时机、信任、持有成本，将来会在同一局里可对比、可复盘。"
+        heroImageAlt="业主查看房源、竞品和价格信息的形象图"
+        heroTagline="获取全面信息，知己知彼，理性决策"
+        heroSubline="价格、竞品、客户反馈、持有成本与谈判节奏，将来会放在同一张决策桌上。"
         advisorBlock={{
-          title: '和「我是王牌资产顾问」',
+          title: '未来怎么玩',
           paragraphs: [
-            '顾问那端是「帮你怎么卖」的经营模拟；你这一端是「我作为业主该怎么选」的决策实验——两边绑定同一套房源、市场与谈判过程。',
-            '上线后，你在这里的定价与节奏选择，会反过来影响顾问局里看到的业主信任、耐心与推进压力，形成真正的双视角同世界。',
+            '你会拿到一套真实感很强的卖房局面：本房价格、竞品变化、客户反馈、顾问动作和时间成本会同时展开，每一步选择都会改变后面的谈判空间。',
+            '它会和「我是王牌资产顾问」共用同一套房源与市场。顾问在那边推进经营，你在这边决定底价、节奏和接受条件，最后从两个视角复盘同一场交易。',
+            '你不是被动等结果，而是在信息越来越完整的过程中，判断该守、该动，还是该给顾问新的约束。',
+          ],
+          highlights: [
+            { label: '信息会逐步补齐', body: '先看到挂牌、竞品和客户反馈，再看到顾问动作带来的真实变化。' },
+            { label: '选择会留下后果', body: '坚持价格、提前调整、换沟通口径，都会改变后续谈判空间。' },
+            { label: '最后看综合账', body: '成交价、等待成本、掉价感和后悔值，会一起进入复盘。' },
+          ],
+        }}
+        statusText="概念预览：后续会先开放一套样例局，用来验证业主视角的选择、反馈和复盘是否足够真实。"
+        sideNotes={{
+          eyebrow: '上线后会看到',
+          title: '一张业主决策桌',
+          items: [
+            { label: '本房站位', body: '把本房、竞品、成交价和心理底线放在同一张表里比较。' },
+            { label: '顾问动作', body: '每次沟通、带看和调价，会同步影响信任、耐心和谈判空间。' },
+            { label: '最终取舍', body: '成交价、时间成本和后悔值一起复盘，不只看卖了多少钱。' },
           ],
         }}
         futurePlays={{
