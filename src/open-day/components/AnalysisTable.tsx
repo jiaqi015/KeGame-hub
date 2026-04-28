@@ -34,7 +34,7 @@ type OpenDayScopedExportHandler = (
   reportProgress?: OpenDayExportProgress,
 ) => void | Promise<void>;
 
-const pageSize = 10;
+const pageSize = 30;
 const exportFormatLabels: Record<OpenDayExportFormat, string> = {
   xlsx: 'Excel',
   csv: 'CSV',
