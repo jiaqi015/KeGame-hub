@@ -2,10 +2,14 @@ import './_bootstrap.js';
 import { requireAdminPermission, isSessionAuthorizationFailure } from '../lib/auth.js';
 import { WORKSPACE_IDS } from '../lib/workspaces.js';
 import { parseJsonBody } from './_request.js';
-import { neon } from '@neondatabase/serverless';
+
+function getNeon() {
+  const { neon } = require('@neondatabase/serverless');
+  return neon;
+}
 
 function getSql() {
-  return neon(process.env.DATABASE_URL || process.env.POSTGRES_URL || '');
+  return getNeon()(process.env.DATABASE_URL || process.env.POSTGRES_URL || '');
 }
 
 async function ensureSchema() {
