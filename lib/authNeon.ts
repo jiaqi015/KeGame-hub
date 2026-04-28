@@ -1,5 +1,16 @@
 import { neon } from '@neondatabase/serverless';
-import type { AuthUserRecord, ActivationWorkspaceId } from './auth.js';
+
+export interface AuthNeonUser {
+  accountId: string;
+  email: string;
+  nickname: string;
+  displayName: string;
+  allowedWorkspaces: string[];
+  activationBound: boolean;
+  activationKey?: string;
+  createdAt: string;
+  lastLoginAt: string;
+}
 
 type AuthSqlClient = ReturnType<typeof neon>;
 
@@ -43,8 +54,8 @@ function ensureSchema(sql?: AuthSqlClient) {
   return schemaReady;
 }
 
-function rowToUser(row: any): AuthUserRecord {
-  const allowedWorkspaces: ActivationWorkspaceId[] = Array.isArray(row.allowed_workspaces)
+function rowToUser(row: any): AuthNeonUser {
+  const allowedWorkspaces: string[] = Array.isArray(row.allowed_workspaces)
     ? row.allowed_workspaces
     : [];
 
@@ -61,14 +72,14 @@ function rowToUser(row: any): AuthUserRecord {
   };
 }
 
-export async function neonGetUser(email: string): Promise<AuthUserRecord | null> {
+export async function neonGetUser(email: string): Promise<AuthNeonUser | null> {
   if (!isAuthNeonAvailable()) return null;
   await ensureSchema();
   const rows = await getSql()`SELECT * FROM auth_users WHERE email = ${email}`;
   return rows.length > 0 ? rowToUser(rows[0]) : null;
 }
 
-export async function neonUpsertUser(user: AuthUserRecord): Promise<void> {
+export async function neonUpsertUser(user: AuthNeonUser): Promise<void> {
   if (!isAuthNeonAvailable()) return;
   await ensureSchema();
   await getSql()`
@@ -85,14 +96,14 @@ export async function neonUpsertUser(user: AuthUserRecord): Promise<void> {
   `;
 }
 
-export async function neonListUsers(): Promise<AuthUserRecord[]> {
+export async function neonListUsers(): Promise<AuthNeonUser[]> {
   if (!isAuthNeonAvailable()) return [];
   await ensureSchema();
   const rows = await getSql()`SELECT * FROM auth_users ORDER BY last_login_at DESC`;
   return rows.map(rowToUser);
 }
 
-export async function neonUpdatePermissions(email: string, allowedWorkspaces: ActivationWorkspaceId[]): Promise<AuthUserRecord | null> {
+export async function neonUpdatePermissions(email: string, allowedWorkspaces: string[]): Promise<AuthNeonUser | null> {
   if (!isAuthNeonAvailable()) return null;
   await ensureSchema();
   const rows = await getSql()`
@@ -144,10 +155,10 @@ export async function neonMigrateLegacyUsers(): Promise<number> {
   if (!isAuthNeonAvailable()) return 0;
   await ensureSchema();
 
-  const allWorkspacesExceptAdmin: ActivationWorkspaceId[] = [
+  const allWorkspacesExceptAdmin: string[] = [
     'sabrina', 'open-day', 'selling-houses', 'market-management', 'rational-owner',
   ];
-  const allWorkspaces: ActivationWorkspaceId[] = [...allWorkspacesExceptAdmin, 'admin'];
+  const allWorkspaces: string[] = [...allWorkspacesExceptAdmin, 'admin'];
 
   const rows = await getSql()`
     SELECT user_id, display_name FROM maintainer_users
