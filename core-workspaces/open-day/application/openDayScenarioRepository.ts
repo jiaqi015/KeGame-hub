@@ -9,4 +9,5 @@ export interface OpenDayScenarioRepository {
   list(limit: number): Promise<OpenDayScenarioTemplateSummary[]>;
   get(id: string): Promise<OpenDayScenarioTemplateRecord | null>;
   listVersions(templateId: string, limit: number): Promise<OpenDayScenarioTemplateVersionSummary[]>;
+  delete(id: string): Promise<boolean>;
 }

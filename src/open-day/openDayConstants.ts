@@ -178,7 +178,7 @@ const fallbackParameterPackages: OpenDayParameterPackage[] = [
   createFallbackPreset(
     'sprint',
     '高转化要求模式',
-    '要出价，高转化率权重。',
+    '核心关注出价和反馈。',
     {
       weights: {
         product: 0.3,

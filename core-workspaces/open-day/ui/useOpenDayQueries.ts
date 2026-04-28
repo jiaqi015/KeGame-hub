@@ -26,6 +26,7 @@ import {
   fetchOpenDayScenarioVersions,
   fetchOpenDayAnalysis,
   saveOpenDayScenario,
+  deleteOpenDayScenario,
   uploadWorkbook,
   disambiguateOpenDayNames,
 } from './openDayClient.ts';
@@ -207,6 +208,34 @@ export function useSaveScenario(
     onSuccess: () => {
       void queryClient.invalidateQueries({ 
         queryKey: ['openDay', 'scenarios'] 
+      });
+    },
+    ...options,
+  });
+}
+
+interface DeleteScenarioVariables {
+  activationKey: string;
+  id: string;
+}
+
+export function useDeleteScenario(
+  options?: UseMutationOptions<{ id: string; deleted: true }, Error, DeleteScenarioVariables>
+) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ activationKey, id }) =>
+      deleteOpenDayScenario(activationKey, id),
+    onSuccess: (_payload, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: ['openDay', 'scenarios'],
+      });
+      void queryClient.removeQueries({
+        queryKey: ['openDay', 'scenarioDetail', variables.activationKey, variables.id],
+      });
+      void queryClient.removeQueries({
+        queryKey: ['openDay', 'scenarioVersions', variables.activationKey, variables.id],
       });
     },
     ...options,

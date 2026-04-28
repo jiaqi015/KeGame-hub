@@ -52,7 +52,7 @@ let strategyPresets = [
   {
     id: "sprint",
     label: "高转化要求模式",
-    description: "要出价，高转化率权重。",
+    description: "核心关注出价和反馈。",
     overrides: {
       weights: {
         product: 0.3,

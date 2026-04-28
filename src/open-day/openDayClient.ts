@@ -113,6 +113,16 @@ export function saveOpenDayScenario(activationKey: string, command: OpenDaySaveS
   });
 }
 
+export function deleteOpenDayScenario(activationKey: string, id: string) {
+  return requestJson<{ id: string; deleted: true }>(
+    activationKey,
+    `/api/open-day-scenarios?id=${encodeURIComponent(id)}`,
+    {
+      method: 'DELETE',
+    },
+  );
+}
+
 export async function uploadWorkbook(
   activationKey: string,
   file: File,

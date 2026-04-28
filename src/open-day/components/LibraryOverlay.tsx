@@ -1,4 +1,5 @@
-import { X, History, Save, RotateCw, FileUp } from 'lucide-react';
+import { useState } from 'react';
+import { X, History, Save, RotateCw, FileUp, Trash2 } from 'lucide-react';
 import { HistoryPanel } from './HistoryPanel';
 import type { 
   OpenDayAnalysisSnapshotSummary, 
@@ -15,10 +16,12 @@ interface LibraryOverlayProps {
   scenarioMessage: string;
   isSavingScenario: boolean;
   isLoadingScenario: string;
+  isDeletingScenario: string;
   activeScenarioTemplateId: string;
   onScenarioNameChange: (name: string) => void;
   onSaveScenario: () => void;
   onLoadScenario: (id: string) => void;
+  onDeleteScenario: (id: string) => void;
   // History state
   snapshots: OpenDayAnalysisSnapshotSummary[];
   activeSnapshotId?: string;
@@ -37,10 +40,12 @@ export function LibraryOverlay({
   scenarioMessage,
   isSavingScenario,
   isLoadingScenario,
+  isDeletingScenario,
   activeScenarioTemplateId,
   onScenarioNameChange,
   onSaveScenario,
   onLoadScenario,
+  onDeleteScenario,
   snapshots,
   activeSnapshotId,
   baselineSnapshotId,
@@ -49,6 +54,8 @@ export function LibraryOverlay({
   onSetBaseline,
   onClearBaseline,
 }: LibraryOverlayProps) {
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState('');
+
   if (!isOpen) return null;
 
   return (
@@ -71,7 +78,7 @@ export function LibraryOverlay({
             <div className="flex items-center justify-between mb-4">
               <h3 className="flex items-center gap-2">
                 <Save size={16} />
-                测算方案
+                个性化参数模版保存
               </h3>
             </div>
             <p className="open-day-library-section-desc">
@@ -113,15 +120,55 @@ export function LibraryOverlay({
                     <div className="font-semibold text-sm">{s.name}</div>
                     <div className="text-xs text-[#6E6E73] mt-1">{new Date(s.updatedAt).toLocaleDateString()}</div>
                   </div>
-                  <button
-                    type="button"
-                    className="open-day-button open-day-button--secondary open-day-button--xs"
-                    onClick={() => onLoadScenario(s.id)}
-                    disabled={isLoadingScenario === s.id}
-                  >
-                    {isLoadingScenario === s.id ? <RotateCw className="animate-spin" size={12} /> : <FileUp size={12} />}
-                    <span>载入</span>
-                  </button>
+                  <div className="open-day-library-item__actions">
+                    {confirmingDeleteId === s.id ? (
+                      <div className="open-day-library-delete-confirm">
+                        <span>确认删除？</span>
+                        <button
+                          type="button"
+                          className="open-day-library-delete-confirm__cancel"
+                          onClick={() => setConfirmingDeleteId('')}
+                          disabled={isDeletingScenario === s.id}
+                        >
+                          取消
+                        </button>
+                        <button
+                          type="button"
+                          className="open-day-library-delete-confirm__danger"
+                          onClick={() => {
+                            onDeleteScenario(s.id);
+                            setConfirmingDeleteId('');
+                          }}
+                          disabled={isDeletingScenario === s.id}
+                        >
+                          {isDeletingScenario === s.id ? <RotateCw className="animate-spin" size={12} /> : null}
+                          删除
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          className="open-day-button open-day-button--secondary open-day-button--xs"
+                          onClick={() => onLoadScenario(s.id)}
+                          disabled={isLoadingScenario === s.id || isDeletingScenario === s.id}
+                        >
+                          {isLoadingScenario === s.id ? <RotateCw className="animate-spin" size={12} /> : <FileUp size={12} />}
+                          <span>载入</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="open-day-button open-day-button--secondary open-day-button--xs open-day-library-delete-button"
+                          onClick={() => setConfirmingDeleteId(s.id)}
+                          disabled={isLoadingScenario === s.id || isDeletingScenario === s.id}
+                          aria-label={`删除方案 ${s.name}`}
+                        >
+                          {isDeletingScenario === s.id ? <RotateCw className="animate-spin" size={12} /> : <Trash2 size={12} />}
+                          <span>删除</span>
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               ))}
               {!scenarios.length && <div className="text-center py-8 text-sm text-[#6E6E73]">暂无方案</div>}

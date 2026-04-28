@@ -58,6 +58,7 @@ export interface OpenDayState {
   scenarioMessage: string;
   isSavingScenario: boolean;
   isLoadingScenario: string;
+  isDeletingScenario: string;
   activeScenarioTemplateId: string;
   activeScenarioTemplateName: string;
   activeScenarioTemplateVersionId: string;
@@ -108,6 +109,7 @@ export type OpenDayAction =
   | { type: 'SET_SCENARIO_MESSAGE'; message: string }
   | { type: 'SET_IS_SAVING_SCENARIO'; value: boolean }
   | { type: 'SET_IS_LOADING_SCENARIO'; id: string }
+  | { type: 'SET_IS_DELETING_SCENARIO'; id: string }
   | { type: 'SET_ACTIVE_SCENARIO_TEMPLATE'; id: string; name: string; versionId?: string }
   | { type: 'SET_IS_SIDEBAR_COLLAPSED'; value: boolean }
   | { type: 'TOGGLE_FULL_SCREEN' }
@@ -225,6 +227,8 @@ export function openDayReducer(state: OpenDayState, action: OpenDayAction): Open
       return { ...state, isSavingScenario: action.value };
     case 'SET_IS_LOADING_SCENARIO':
       return { ...state, isLoadingScenario: action.id };
+    case 'SET_IS_DELETING_SCENARIO':
+      return { ...state, isDeletingScenario: action.id };
     case 'SET_ACTIVE_SCENARIO_TEMPLATE':
       return {
         ...state,

@@ -357,6 +357,16 @@
   align-items: center;
 }
 
+.open-day-header-secondary-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.open-day-doc-link {
+  text-decoration: none;
+}
+
 /* =========================================
    Formula Bar (Engine Core)
    ========================================= */
@@ -443,15 +453,15 @@
    ========================================= */
 .open-day-workspace-layout {
   display: grid;
-  grid-template-columns: 380px minmax(0, 1fr);
-  gap: 20px;
+  grid-template-columns: 340px minmax(0, 1fr);
+  gap: 12px;
   align-items: start;
   transition: grid-template-columns 180ms ease, gap 180ms ease;
 }
 
 .open-day-workspace-layout.is-sidebar-collapsed {
   grid-template-columns: 28px minmax(0, 1fr);
-  gap: 12px;
+  gap: 8px;
 }
 
 /* =========================================

@@ -3,12 +3,13 @@ import { authorizeRequest } from '../lib/activation.js';
 import { handleOpenDayScenarioGet } from '../modules/open-day/interfaces/http/openDayScenarioGetHandler.js';
 import { handleOpenDayScenarioList } from '../modules/open-day/interfaces/http/openDayScenarioListHandler.js';
 import { handleOpenDayScenarioSave } from '../modules/open-day/interfaces/http/openDayScenarioSaveHandler.js';
+import { handleOpenDayScenarioDelete } from '../modules/open-day/interfaces/http/openDayScenarioDeleteHandler.js';
 import { handleOpenDayScenarioVersionList } from '../modules/open-day/interfaces/http/openDayScenarioVersionListHandler.js';
 import { hasQueryValue, isOpenDayScenarioVersionQuery, parseJsonBody } from './_request.js';
 
 export default async function handler(req: any, res: any) {
-  if (req.method !== 'GET' && req.method !== 'POST') {
-    res.setHeader('Allow', 'GET, POST');
+  if (req.method !== 'GET' && req.method !== 'POST' && req.method !== 'DELETE') {
+    res.setHeader('Allow', 'GET, POST, DELETE');
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
@@ -30,6 +31,11 @@ export default async function handler(req: any, res: any) {
       }
 
       const payload = await handleOpenDayScenarioList(req.query || {});
+      return res.status(200).json(payload);
+    }
+
+    if (req.method === 'DELETE') {
+      const payload = await handleOpenDayScenarioDelete(req.query || {});
       return res.status(200).json(payload);
     }
 

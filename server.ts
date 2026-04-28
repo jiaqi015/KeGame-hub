@@ -22,6 +22,7 @@ import { handleOpenDayWorkbookParse } from "./modules/open-day/interfaces/http/o
 import { handleOpenDayScenarioGet } from "./modules/open-day/interfaces/http/openDayScenarioGetHandler.js";
 import { handleOpenDayScenarioList } from "./modules/open-day/interfaces/http/openDayScenarioListHandler.js";
 import { handleOpenDayScenarioSave } from "./modules/open-day/interfaces/http/openDayScenarioSaveHandler.js";
+import { handleOpenDayScenarioDelete } from "./modules/open-day/interfaces/http/openDayScenarioDeleteHandler.js";
 import { handleOpenDayScenarioVersionList } from "./modules/open-day/interfaces/http/openDayScenarioVersionListHandler.js";
 import { handleOpenDaySnapshotList } from "./modules/open-day/interfaces/http/openDaySnapshotListHandler.js";
 import { handleOpenDayScore } from "./modules/open-day/interfaces/http/openDayScoreHandler.js";
@@ -293,6 +294,15 @@ async function startServer() {
       return res.json(payload);
     } catch (error) {
       return res.status(400).json({ error: error instanceof Error ? error.message : "开放日方案保存失败" });
+    }
+  });
+
+  app.delete("/api/open-day-scenarios", async (req, res) => {
+    try {
+      const payload = await handleOpenDayScenarioDelete(req.query);
+      return res.json(payload);
+    } catch (error) {
+      return res.status(400).json({ error: error instanceof Error ? error.message : "开放日方案删除失败" });
     }
   });
 

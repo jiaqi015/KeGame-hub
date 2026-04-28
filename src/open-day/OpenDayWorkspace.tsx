@@ -2,6 +2,7 @@ import { useEffect, useMemo, useReducer, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
+  BookOpen,
   FileUp,
   RotateCw,
   Activity,
@@ -27,6 +28,7 @@ import {
   useUploadWorkbook,
   useRunAnalysis,
   useSaveScenario,
+  useDeleteScenario,
   useOpenDayInvalidate,
 } from './useOpenDayQueries';
 
@@ -138,6 +140,7 @@ function createInitialState(): OpenDayState {
     scenarioMessage: '',
     isSavingScenario: false,
     isLoadingScenario: '',
+    isDeletingScenario: '',
     activeScenarioTemplateId: '',
     activeScenarioTemplateName: '',
     activeScenarioTemplateVersionId: '',
@@ -167,6 +170,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
   const uploadMutation = useUploadWorkbook();
   const analysisMutation = useRunAnalysis();
   const saveScenarioMutation = useSaveScenario();
+  const deleteScenarioMutation = useDeleteScenario();
   const { invalidateAll, invalidateAnalysisRuns, invalidateScenarios } = useOpenDayInvalidate();
 
   const {
@@ -200,6 +204,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     scenarioMessage,
     isSavingScenario,
     isLoadingScenario,
+    isDeletingScenario,
     activeScenarioTemplateId,
     activeScenarioTemplateName,
     activeScenarioTemplateVersionId,
@@ -528,6 +533,27 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     }
   }
 
+  async function handleDeleteScenario(id: string) {
+    const target = scenarios.find((item) => item.id === id);
+    dispatch({ type: 'SET_IS_DELETING_SCENARIO', id });
+    dispatch({ type: 'SET_SCENARIO_MESSAGE', message: '' });
+
+    try {
+      await deleteScenarioMutation.mutateAsync({ activationKey, id });
+      if (activeScenarioTemplateId === id) {
+        dispatch({ type: 'SET_ACTIVE_SCENARIO_TEMPLATE', id: '', name: '', versionId: '' });
+        dispatch({ type: 'SET_SCENARIO_SNAPSHOTS', items: [] });
+        dispatch({ type: 'SET_SHOW_SCENARIO_SNAPSHOTS_ONLY', value: false });
+      }
+      dispatch({ type: 'SET_SCENARIO_MESSAGE', message: `已删除方案：${target?.name || '未命名方案'}` });
+      await refreshScenarios();
+    } catch (error) {
+      dispatch({ type: 'SET_SCENARIO_MESSAGE', message: `方案删除失败：${error instanceof Error ? error.message : '未知错误'}` });
+    } finally {
+      dispatch({ type: 'SET_IS_DELETING_SCENARIO', id: '' });
+    }
+  }
+
   async function handleReplaySnapshot(id: string) {
     dispatch({ type: 'SET_REPLAYING_SNAPSHOT_ID', id });
     dispatch({ type: 'SET_SCENARIO_MESSAGE', message: '' });
@@ -818,6 +844,16 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
 
           <div className="open-day-workspace-header__actions">
             <div className="open-day-header-secondary-group">
+              <a
+                className="open-day-button open-day-button--secondary open-day-button--sm open-day-doc-link"
+                href="https://beike.feishu.cn/docx/JeeYdvidrod4urxd785cjArxnmb"
+                target="_blank"
+                rel="noreferrer"
+                title="打开说明文档"
+              >
+                <BookOpen size={16} />
+                <span>说明文档</span>
+              </a>
               <label className="open-day-button open-day-button--secondary open-day-button--sm open-day-button--file" title="更换数据文件">
                 <FileUp size={16} />
                 <input
@@ -948,10 +984,12 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
         scenarioMessage={scenarioMessage}
         isSavingScenario={isSavingScenario}
         isLoadingScenario={isLoadingScenario}
+        isDeletingScenario={isDeletingScenario}
         activeScenarioTemplateId={activeScenarioTemplateId}
         onScenarioNameChange={(name) => dispatch({ type: 'SET_SCENARIO_NAME', name })}
         onSaveScenario={() => void handleSaveScenario()}
         onLoadScenario={(id) => void handleLoadScenario(id)}
+        onDeleteScenario={(id) => void handleDeleteScenario(id)}
         snapshots={displayedSnapshots}
         activeSnapshotId={analysis?.meta.snapshotId}
         baselineSnapshotId={baselineSnapshotId}

@@ -219,4 +219,19 @@ export class NeonOpenDayScenarioRepository implements OpenDayScenarioRepository 
       }));
     });
   }
+
+  async delete(id: string): Promise<boolean> {
+    return withOpenDayNeon(async (sql) => {
+      const rows = (await sql.query(
+        `
+          DELETE FROM open_day_scenario_templates
+          WHERE id = $1
+          RETURNING id
+        `,
+        [id],
+      )) as Array<{ id: string }>;
+
+      return rows.length > 0;
+    });
+  }
 }

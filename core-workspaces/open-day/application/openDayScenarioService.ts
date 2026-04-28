@@ -105,4 +105,21 @@ export class OpenDayScenarioService {
 
     return record;
   }
+
+  async deleteById(id: string): Promise<{ id: string; deleted: true }> {
+    const normalizedId = typeof id === 'string' ? id.trim() : '';
+    if (!normalizedId) {
+      throw new Error('缺少方案 ID。');
+    }
+
+    const deleted = await this.repository.delete(normalizedId);
+    if (!deleted) {
+      throw new Error('未找到对应的方案。');
+    }
+
+    return {
+      id: normalizedId,
+      deleted: true,
+    };
+  }
 }

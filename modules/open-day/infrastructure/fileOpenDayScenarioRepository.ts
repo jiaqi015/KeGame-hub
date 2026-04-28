@@ -106,6 +106,45 @@ export class FileOpenDayScenarioRepository implements OpenDayScenarioRepository 
     }
   }
 
+  async delete(id: string): Promise<boolean> {
+    const normalizedId = typeof id === 'string' ? id.trim() : '';
+    if (!normalizedId) {
+      return false;
+    }
+
+    const current = await this.readIndex();
+    const nextItems = current.items.filter((item) => item.id !== normalizedId);
+    const existedInIndex = nextItems.length !== current.items.length;
+    const detailFile = path.join(this.scenarioDir, `${normalizedId}.json`);
+    const versionTargetDir = path.join(this.versionDir, normalizedId);
+
+    let existedOnDisk = false;
+    try {
+      await fs.rm(detailFile);
+      existedOnDisk = true;
+    } catch (error) {
+      if (!error || typeof error !== 'object' || (error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw error;
+      }
+    }
+
+    await fs.rm(versionTargetDir, { recursive: true, force: true });
+    await fs.mkdir(this.scenarioDir, { recursive: true });
+    await fs.writeFile(
+      this.indexFile,
+      JSON.stringify(
+        {
+          items: nextItems,
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+
+    return existedInIndex || existedOnDisk;
+  }
+
   private async readIndex(): Promise<ScenarioIndexFile> {
     try {
       const content = await fs.readFile(this.indexFile, 'utf8');
