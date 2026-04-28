@@ -683,7 +683,28 @@ export function setAuthCookie(res: any, cookie: string) {
 
 export function listAllUsers(): AuthUserRecord[] {
   const store = getAuthStore();
-  return Object.values(store.users);
+  const defaultUsers = getDefaultUsers();
+  const merged: Record<string, AuthUserRecord> = {};
+
+  for (const user of defaultUsers) {
+    const key = normalizeEmail(user.email);
+    merged[key] = { ...user };
+  }
+
+  for (const user of Object.values(store.users)) {
+    const key = normalizeEmail(user.email);
+    if (merged[key]) {
+      merged[key] = {
+        ...merged[key],
+        ...user,
+        allowedWorkspaces: Array.from(new Set([...merged[key].allowedWorkspaces, ...user.allowedWorkspaces])),
+      };
+    } else {
+      merged[key] = { ...user };
+    }
+  }
+
+  return Object.values(merged);
 }
 
 export function updateUserPermissions(email: string, allowedWorkspaces: ActivationWorkspaceId[]): AuthUserRecord {
