@@ -596,6 +596,20 @@ export function authorizeSession(req: any): SessionAuthorizationResult {
   if (sessionToken) {
     const payload = parseSessionToken(sessionToken);
     if (payload && payload.exp > Date.now()) {
+      const store = getAuthStore();
+      const storedUser = store.users[normalizeEmail(payload.email)];
+      if (storedUser) {
+        return {
+          ok: true,
+          accountId: storedUser.accountId || deriveAccountIdFromEmail(storedUser.email),
+          email: storedUser.email,
+          nickname: storedUser.nickname,
+          displayName: storedUser.displayName,
+          allowedWorkspaces: storedUser.allowedWorkspaces,
+          source: 'session',
+        };
+      }
+
       return {
         ok: true,
         accountId: payload.accountId,
