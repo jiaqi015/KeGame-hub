@@ -288,12 +288,18 @@ function syncOpportunityFromCustomer(
     state.opportunities.unshift(opportunity);
   }
 
+  const previousStageIndex = opportunity.stageIndex;
+  const previousDaysLeft = opportunity.daysLeft;
+
   opportunity.fit = Math.round(runtime.fit);
   opportunity.intent = Math.round(runtime.interest);
   opportunity.confidence = Math.round(runtime.confidence);
-  opportunity.stageIndex = runtime.stageIndex;
+  opportunity.stageIndex = Math.max(opportunity.stageIndex, runtime.stageIndex);
+  runtime.stageIndex = Math.max(runtime.stageIndex, Math.min(5, opportunity.stageIndex));
   opportunity.lifecycleStatus = runtime.interactions > 0 ? 'active' : opportunity.lifecycleStatus;
-  opportunity.daysLeft = clamp(6 - Math.min(4, runtime.stageIndex) + (customerState.lastTouchDay === state.day ? 1 : 0), 2, 7);
+  if (previousStageIndex === opportunity.stageIndex) {
+    opportunity.daysLeft = previousDaysLeft;
+  }
   opportunity.touchedToday = customerState.lastTouchDay === state.day;
   refreshOpportunityLabel(opportunity);
 }
@@ -543,7 +549,8 @@ export function touchCustomersForCase(
       opportunity.touchedToday = true;
       opportunity.intent = Math.round(runtime.interest);
       opportunity.confidence = Math.round(runtime.confidence);
-      opportunity.stageIndex = runtime.stageIndex;
+      opportunity.stageIndex = Math.max(opportunity.stageIndex, runtime.stageIndex);
+      runtime.stageIndex = Math.max(runtime.stageIndex, Math.min(5, opportunity.stageIndex));
       refreshOpportunityLabel(opportunity);
     }
   });

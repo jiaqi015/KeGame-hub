@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import type { GameState, Case, MatterEntry } from '../../../domain/models';
 import type { ActionDecisionConfig, CharacterFeedback, Settlement } from '../ActionDecisionOverlay';
-import { getActionTemplate } from '../../../domain/actions/templates';
-import { ACTIONS } from '../../../domain/actions/definitions';
 import { Activity, Target, Zap, AlertTriangle } from 'lucide-react';
+import { buildQuickMatterScenarioCompletion } from './matterCompletion';
 
 interface Props {
   config: ActionDecisionConfig;
@@ -33,7 +32,10 @@ export function DiagnoseMatterView({ config, matter, onChoose, onComplete, onClo
   };
 
   const handleFinish = (optionId: string) => {
-    if (onChoose) {
+    if (config.isScenario && onComplete) {
+      const completion = buildQuickMatterScenarioCompletion(config, optionId, state, caseItem);
+      onComplete(completion.settlement, completion.choices, completion.feedbacks);
+    } else if (onChoose) {
       onChoose(optionId);
     }
     onClose();

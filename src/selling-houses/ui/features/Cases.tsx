@@ -344,11 +344,11 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
 
       <main className="flex min-w-0 flex-col">
         {selectedCase ? (
-          <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.28fr)_320px]">
+          <div className="min-h-0 flex-1">
             <div className="flex min-h-0 flex-col gap-3">
               <section className="seller-workbench overflow-visible">
                 <div className="grid gap-3 border-b border-[var(--seller-border)] px-3.5 py-3 xl:grid-cols-[minmax(0,1fr)_228px]">
-                  <div className="grid min-w-0 gap-3 sm:grid-cols-[124px_minmax(0,1fr)]">
+                  <div className="grid min-w-0 gap-3 sm:grid-cols-[154px_minmax(0,1fr)]">
                     <ListingHeroImage caseItem={selectedCase} />
                     <div className="min-w-0">
                       <div className="seller-label">当前房源</div>
@@ -557,11 +557,7 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
                         <SummaryPanel
                           title={caseProjection?.ownerSummary.title || '业主状态稳定'}
                           detail={caseProjection?.ownerSummary.detail || deriveSellerGuidance(selectedCase)}
-                          points={[
-                            `业主信任度 ${caseProjection?.ownerSummary.trust ?? Math.round(selectedCase.trust)}`,
-                            `耐心 ${caseProjection?.ownerSummary.patience ?? Math.round(selectedCase.patience)}`,
-                            `紧迫 ${caseProjection?.ownerSummary.urgency ?? Math.round(selectedCase.urgency)}`,
-                          ]}
+                          points={[]}
                         />
                         <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
                           <ProgressRail label="信任" value={caseProjection?.ownerSummary.trust ?? selectedCase.trust} tone="neutral" />
@@ -696,8 +692,6 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
                 </div>
               </section>
             </div>
-
-	            <aside className="hidden xl:block" aria-hidden="true" />
           </div>
         ) : (
           <div className="flex flex-1 items-center justify-center text-[var(--seller-subtle)] italic">选择一个房源开始经营</div>
@@ -751,46 +745,65 @@ function OwnerPersonaPill({ profile }: { profile: OwnerPersonaProfile }) {
 function ListingHeroImage({ caseItem }: { caseItem: Case }) {
   const tone = caseItem.d2 >= 70 ? 'good' : caseItem.d1 < 45 || caseItem.d3 < 48 ? 'risk' : 'normal';
   const toneClass = tone === 'good'
-    ? 'from-emerald-500/28 via-cyan-500/14 to-white/[0.03]'
+    ? 'from-emerald-500/24 via-cyan-500/12 to-white/[0.03]'
     : tone === 'risk'
-      ? 'from-amber-500/22 via-rose-500/10 to-white/[0.03]'
-      : 'from-cyan-500/20 via-slate-500/10 to-white/[0.03]';
+      ? 'from-amber-500/18 via-rose-500/10 to-white/[0.03]'
+      : 'from-cyan-500/18 via-slate-500/10 to-white/[0.03]';
   const heroLabel = caseItem.area >= 110 ? '资产盘' : caseItem.area <= 70 ? '小户型' : '主力户型';
+  const bedroomLabel = caseItem.layout.includes('3室') ? '三房' : caseItem.layout.includes('1室') ? '一房' : '两房';
 
   return (
-    <div className="relative min-h-[132px] overflow-hidden rounded-[18px] border border-[var(--seller-border)] bg-[#101822] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+    <div className="relative min-h-[164px] overflow-hidden rounded-[18px] border border-[var(--seller-border)] bg-[#101822] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
       <div className={`absolute inset-0 bg-gradient-to-br ${toneClass}`} />
-      <div className="absolute inset-x-0 top-0 h-16 bg-[radial-gradient(circle_at_25%_12%,rgba(255,255,255,0.28),transparent_22%),radial-gradient(circle_at_80%_18%,rgba(73,221,133,0.18),transparent_24%)]" />
-      <div className="absolute bottom-0 left-0 right-0 h-14 bg-[linear-gradient(180deg,transparent,rgba(5,9,14,0.82))]" />
-
-      <div className="absolute bottom-5 left-4 h-16 w-12 rounded-t-[12px] border border-white/12 bg-[rgba(8,14,22,0.72)] shadow-[0_12px_24px_rgba(0,0,0,0.28)]">
-        <div className="grid grid-cols-2 gap-1 p-2">
-          {Array.from({ length: 6 }).map((_, index) => (
-            <span
-              key={`main-window-${caseItem.id}-${index}`}
-              className={`h-2 rounded-[2px] ${index % 3 === 0 ? 'bg-[#49dd85]/80' : 'bg-white/18'}`}
-            />
-          ))}
-        </div>
-      </div>
-      <div className="absolute bottom-4 left-12 h-20 w-20 rounded-t-[16px] border border-white/14 bg-[rgba(18,30,43,0.86)] shadow-[0_14px_28px_rgba(0,0,0,0.34)]">
-        <div className="grid grid-cols-3 gap-1.5 p-3">
-          {Array.from({ length: 9 }).map((_, index) => (
-            <span
-              key={`tower-window-${caseItem.id}-${index}`}
-              className={`h-2 rounded-[2px] ${index === 1 || index === 5 ? 'bg-cyan-200/72' : 'bg-white/16'}`}
-            />
-          ))}
-        </div>
-      </div>
-      <div className="absolute bottom-4 right-3 h-12 w-9 rounded-t-[10px] border border-white/10 bg-[rgba(9,15,24,0.62)]" />
+      <div className="absolute inset-x-0 top-0 h-16 bg-[radial-gradient(circle_at_28%_12%,rgba(255,255,255,0.20),transparent_24%),radial-gradient(circle_at_82%_20%,rgba(73,221,133,0.16),transparent_24%)]" />
+      <div className="absolute bottom-0 left-0 right-0 h-16 bg-[linear-gradient(180deg,transparent,rgba(5,9,14,0.78))]" />
 
       <div className="absolute left-3 top-3 rounded-full border border-white/10 bg-black/20 px-2 py-1 text-[9px] font-bold text-white/68 backdrop-blur-sm">
         {heroLabel}
       </div>
+      <svg
+        viewBox="0 0 172 156"
+        role="img"
+        aria-label={`${caseItem.community}${bedroomLabel}模拟3D户型图`}
+        className="absolute inset-x-1 top-7 h-[118px] w-[calc(100%-0.5rem)] overflow-visible"
+      >
+        <defs>
+          <linearGradient id={`floor-fill-${caseItem.id}`} x1="0%" x2="100%" y1="0%" y2="100%">
+            <stop offset="0%" stopColor="rgba(118,221,255,0.20)" />
+            <stop offset="100%" stopColor="rgba(73,221,133,0.15)" />
+          </linearGradient>
+          <filter id={`plan-shadow-${caseItem.id}`} x="-20%" y="-20%" width="140%" height="150%">
+            <feDropShadow dx="0" dy="12" stdDeviation="7" floodColor="rgba(0,0,0,0.42)" />
+          </filter>
+        </defs>
+        <g transform="translate(10 18) rotate(-8 76 62)" filter={`url(#plan-shadow-${caseItem.id})`}>
+          <polygon points="18,34 136,34 146,44 28,44" fill="rgba(255,255,255,0.10)" />
+          <polygon points="136,34 146,44 146,123 136,113" fill="rgba(7,13,21,0.74)" />
+          <polygon points="28,113 146,123 136,113 18,103" fill="rgba(5,9,14,0.78)" />
+          <rect x="18" y="34" width="118" height="79" rx="4" fill={`url(#floor-fill-${caseItem.id})`} stroke="rgba(255,255,255,0.34)" strokeWidth="3" />
+          <rect x="22" y="38" width="34" height="34" rx="2" fill="rgba(23,38,54,0.92)" stroke="rgba(255,255,255,0.28)" strokeWidth="2" />
+          <rect x="22" y="72" width="34" height="37" rx="2" fill="rgba(19,34,50,0.92)" stroke="rgba(255,255,255,0.28)" strokeWidth="2" />
+          <rect x="56" y="38" width="76" height="44" rx="2" fill="rgba(17,55,57,0.82)" stroke="rgba(255,255,255,0.28)" strokeWidth="2" />
+          <rect x="56" y="82" width="35" height="27" rx="2" fill="rgba(36,49,41,0.9)" stroke="rgba(255,255,255,0.24)" strokeWidth="2" />
+          <rect x="91" y="82" width="18" height="27" rx="2" fill="rgba(34,42,56,0.94)" stroke="rgba(255,255,255,0.24)" strokeWidth="2" />
+          <rect x="109" y="82" width="23" height="27" rx="2" fill="rgba(28,47,58,0.86)" stroke="rgba(102,209,224,0.34)" strokeWidth="2" />
+          <path d="M56 61 Q69 61 69 48" fill="none" stroke="rgba(255,255,255,0.26)" strokeWidth="1.5" />
+          <path d="M56 94 Q66 94 66 84" fill="none" stroke="rgba(255,255,255,0.24)" strokeWidth="1.5" />
+          <path d="M91 96 Q99 96 99 88" fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth="1.5" />
+          <line x1="72" y1="36" x2="122" y2="36" stroke="rgba(102,209,224,0.72)" strokeWidth="2" strokeLinecap="round" />
+          <line x1="22" y1="49" x2="22" y2="62" stroke="rgba(73,221,133,0.70)" strokeWidth="2" strokeLinecap="round" />
+          <line x1="22" y1="84" x2="22" y2="99" stroke="rgba(73,221,133,0.60)" strokeWidth="2" strokeLinecap="round" />
+          <text x="39" y="58" fill="rgba(255,255,255,0.86)" fontSize="8" fontWeight="700" textAnchor="middle">主卧</text>
+          <text x="39" y="93" fill="rgba(255,255,255,0.78)" fontSize="8" fontWeight="700" textAnchor="middle">次卧</text>
+          <text x="94" y="62" fill="rgba(255,255,255,0.90)" fontSize="9" fontWeight="800" textAnchor="middle">客餐厅</text>
+          <text x="73" y="100" fill="rgba(255,255,255,0.72)" fontSize="7" fontWeight="700" textAnchor="middle">厨房</text>
+          <text x="100" y="100" fill="rgba(255,255,255,0.72)" fontSize="7" fontWeight="700" textAnchor="middle">卫</text>
+          <text x="120" y="100" fill="rgba(102,209,224,0.84)" fontSize="7" fontWeight="700" textAnchor="middle">阳台</text>
+        </g>
+      </svg>
       <div className="absolute bottom-3 left-3 right-3">
         <div className="truncate text-[12px] font-semibold text-white">{caseItem.community}</div>
-        <div className="mt-0.5 text-[10px] font-semibold text-white/56">{caseItem.layout} · {caseItem.area}㎡</div>
+        <div className="mt-0.5 text-[10px] font-semibold text-white/56">{bedroomLabel}户型 · {caseItem.layout} · {caseItem.area}㎡</div>
       </div>
     </div>
   );
@@ -818,7 +831,7 @@ function HouseDimensionPosition({ caseItem }: { caseItem: Case }) {
   const topD = `${origin.x + ownerAxis.x + houseAxis.x},${origin.y + ownerAxis.y + houseAxis.y}`;
 
   return (
-    <div className="mt-2 overflow-hidden rounded-[14px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] px-3 py-3">
+    <div className="mt-2 overflow-hidden rounded-[14px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] px-4 py-4">
       <div className="mb-2 flex items-center justify-between gap-2">
         <div>
           <div className="seller-label text-[9px]">三维评价位置</div>
@@ -826,12 +839,12 @@ function HouseDimensionPosition({ caseItem }: { caseItem: Case }) {
         </div>
         <span className="seller-chip">好房分 {Math.round(caseItem.competitiveness)}</span>
       </div>
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_108px]">
+      <div className="rounded-[12px] bg-[rgba(255,255,255,0.018)] px-2 py-2">
         <svg
           viewBox="0 0 210 146"
           role="img"
           aria-label="准客情况、房子条件、业主配合三维坐标"
-          className="h-[138px] w-full overflow-visible"
+          className="h-[190px] w-full overflow-visible md:h-[220px]"
         >
           <polygon points={`${floorA} ${floorB} ${floorC} ${floorD}`} fill="rgba(73,221,133,0.06)" stroke="rgba(255,255,255,0.12)" />
           <polygon points={`${topA} ${topB} ${topC} ${topD}`} fill="rgba(102,209,224,0.06)" stroke="rgba(255,255,255,0.10)" />
@@ -875,11 +888,6 @@ function HouseDimensionPosition({ caseItem }: { caseItem: Case }) {
           <text x={origin.x - 8} y={origin.y + houseAxis.y - 6} fill="rgba(102,209,224,0.9)" fontSize="10" fontWeight="700">房子</text>
           <text x={origin.x + ownerAxis.x + 5} y={origin.y + ownerAxis.y + 4} fill="rgba(255,107,129,0.9)" fontSize="10" fontWeight="700">业主</text>
         </svg>
-        <div className="grid content-center gap-2">
-          <DimensionMiniValue label="准客" value={caseItem.d1} tone="chance" />
-          <DimensionMiniValue label="房子" value={caseItem.d2} tone="neutral" />
-          <DimensionMiniValue label="业主" value={caseItem.d3} tone="risk" />
-        </div>
       </div>
     </div>
   );
@@ -949,13 +957,15 @@ function SummaryPanel({
     <div className="seller-tablet px-3 py-2.5">
       <div className="text-[12px] font-semibold leading-5 text-[var(--seller-ink)]">{title}</div>
       <p className="seller-body mt-1 text-[11px] leading-5">{detail}</p>
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        {points.map((point) => (
-          <span key={`${title}-${point}`} className="seller-chip">
-            {point}
-          </span>
-        ))}
-      </div>
+      {points.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {points.map((point) => (
+            <span key={`${title}-${point}`} className="seller-chip">
+              {point}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -981,21 +991,6 @@ function formatScoreBand(value: number) {
   if (value >= 70) return '高';
   if (value >= 45) return '中';
   return '低';
-}
-
-function DimensionMiniValue({ label, value, tone }: { label: string; value: number; tone: 'neutral' | 'chance' | 'risk' }) {
-  const colorClass = tone === 'chance' ? 'bg-[var(--seller-chance)]' : tone === 'risk' ? 'bg-[var(--seller-risk)]' : 'bg-[var(--seller-accent)]';
-  return (
-    <div className="rounded-[10px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-2 py-1.5">
-      <div className="flex items-center justify-between gap-2 text-[9px] font-bold text-[var(--seller-subtle)]">
-        <span>{label}</span>
-        <span>{Math.round(value)}</span>
-      </div>
-      <div className="mt-1 h-1 overflow-hidden rounded-full bg-white/10">
-        <div className={`h-full ${colorClass}`} style={{ width: `${clampScore(value)}%` }} />
-      </div>
-    </div>
-  );
 }
 
 function buildDimensionPositionLabel(caseItem: Case) {

@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import type { GameState, Case, MatterEntry } from '../../../domain/models';
 import type { ActionDecisionConfig, CharacterFeedback, Settlement } from '../ActionDecisionOverlay';
-import { getActionTemplate } from '../../../domain/actions/templates';
-import { ACTIONS } from '../../../domain/actions/definitions';
 import { Zap, CheckCircle2, Play, Circle } from 'lucide-react';
+import { buildQuickMatterScenarioCompletion } from './matterCompletion';
 
 interface Props {
   config: ActionDecisionConfig;
@@ -31,7 +30,10 @@ export function ExecuteMatterView({ config, matter, onChoose, onComplete, onClos
     
     // Simulate execution timeline
     setTimeout(() => {
-      if (onChoose) {
+      if (config.isScenario && onComplete) {
+        const completion = buildQuickMatterScenarioCompletion(config, selectedOption, state, caseItem);
+        onComplete(completion.settlement, completion.choices, completion.feedbacks);
+      } else if (onChoose) {
         onChoose(selectedOption);
       }
       onClose(); // In direct mode, usually we just close or show result
