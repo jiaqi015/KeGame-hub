@@ -20,15 +20,20 @@
 
 .open-day-formula-bar__select {
   display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 12px;
   flex-shrink: 0;
+  min-width: max-content;
 }
 
 .open-day-formula-bar__select label {
   font-size: 14px;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.8);
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .open-day-formula-bar__select select {

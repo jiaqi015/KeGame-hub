@@ -40,9 +40,9 @@
 }
 
 .open-day-status-card {
-  border: 1px solid rgba(37, 86, 72, 0.16);
-  background: rgba(239, 248, 244, 0.92);
-  color: var(--od-secondary);
+  border: 1px solid rgba(22, 163, 74, 0.18);
+  background: #dcfce7;
+  color: #166534;
   padding: 14px 18px;
   border-radius: 16px;
   font-size: 14px;

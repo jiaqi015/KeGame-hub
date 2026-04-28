@@ -45,7 +45,7 @@ let strategyPresets = [
   {
     id: "auto",
     label: "标准参数模式",
-    description: "按照建议分位测算。",
+    description: "按照建议分位参数直接测算",
     overrides: {},
     resolvedConfig: deepClone(defaultConfig),
   },

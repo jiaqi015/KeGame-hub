@@ -1,5 +1,7 @@
 import type { NormalizedOpenDayRow, OpenDayMappings, OpenDayRawRow } from './openDay.types.js';
 
+const UNKNOWN_OPEN_DAY_AREA = '未知大区';
+
 function parseNumericValue(value: unknown): number {
   if (typeof value === 'number') {
     return Number.isFinite(value) ? value : 0;
@@ -45,9 +47,10 @@ export function normalizeOpenDayRows(
       const traffic = parseNumericValue(row[mappings.traffic]);
       const transactions = parseNumericValue(row[mappings.transactions]);
       const convRate = traffic > 0 ? transactions / traffic : 0;
+      const area = mappings.area ? String(row[mappings.area] ?? '').trim() : '';
 
       return {
-        area: mappings.area ? String(row[mappings.area] ?? '').trim() : '',
+        area: area || UNKNOWN_OPEN_DAY_AREA,
         name: String(row[mappings.name] ?? '').trim(),
         inventory: parseNumericValue(row[mappings.inventory]),
         traffic,

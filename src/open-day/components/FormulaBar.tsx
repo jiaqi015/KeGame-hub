@@ -30,7 +30,7 @@ export function SkillBar({
   return (
     <div className="open-day-formula-bar">
       <div className="open-day-formula-bar__select">
-        <label>skill</label>
+        <label>测算 skill</label>
         <select
           value={scenarioDraft.skillId || scenarioDraft.formulaId}
           onChange={(event) => onSkillChange(event.target.value as OpenDayConfig['formulaId'])}

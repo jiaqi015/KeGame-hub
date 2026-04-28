@@ -2,7 +2,6 @@ import { useEffect, useMemo, useReducer, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
-  Database,
   FileUp,
   RotateCw,
   Activity,
@@ -49,8 +48,6 @@ import {
   waterlineDefinitions,
   type OpenDayDatasetDraft,
   generateDatasetQualityReport,
-  OPEN_DAY_LARGE_SAMPLE_SIZE,
-  createOpenDaySamplePayload,
 } from './openDayConstants';
 import {
   createOpenDayCsvBlob,
@@ -455,15 +452,6 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     applyParsedData(parsed, '示例数据');
   }
 
-  function handleLoadLargeSample() {
-    const parsed = createOpenDaySamplePayload(OPEN_DAY_LARGE_SAMPLE_SIZE);
-    dispatch({ type: 'SET_UPLOADED_FILE', file: null });
-    dispatch({ type: 'SET_WORKBOOK_SHEETS', sheets: [] });
-    dispatch({ type: 'SET_ACTIVE_SHEET', sheet: '' });
-    dispatch({ type: 'SET_SOURCE_UPLOAD_ID', id: '' });
-    applyParsedData(parsed, `万行测试数据（${OPEN_DAY_LARGE_SAMPLE_SIZE} 行）`);
-  }
-
   function handleApplyPreset(presetId: string) {
     const pp = parameterPackages.find((p) => p.id === presetId);
     dispatch({
@@ -812,8 +800,6 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
               <span>返回上传</span>
             </button>
             <div className="open-day-workspace-header__title-group">
-              <h2>测算工作台</h2>
-              <div className="open-day-workspace-header__meta-sep" />
               <p className="open-day-workspace-header__meta">
                 {datasetDraft.sourceName || '未命名数据集'}
                 {datasetDraft.activeSheet ? ` · ${datasetDraft.activeSheet}` : ''}
@@ -823,15 +809,6 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
 
           <div className="open-day-workspace-header__actions">
             <div className="open-day-header-secondary-group">
-              <button
-                type="button"
-                className="open-day-button open-day-button--secondary open-day-button--sm"
-                onClick={handleLoadLargeSample}
-                title={`载入 ${OPEN_DAY_LARGE_SAMPLE_SIZE} 行测试数据`}
-              >
-                <Database size={16} />
-                <span>测试数据</span>
-              </button>
               <label className="open-day-button open-day-button--secondary open-day-button--sm open-day-button--file" title="更换数据文件">
                 <FileUp size={16} />
                 <input

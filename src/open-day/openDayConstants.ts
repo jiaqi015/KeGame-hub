@@ -174,7 +174,7 @@ const fallbackSkills: OpenDaySkillDefinition[] = [
 const fallbackFormulas = fallbackSkills;
 
 const fallbackParameterPackages: OpenDayParameterPackage[] = [
-  createFallbackPreset('auto', '标准参数模式', '按照建议分位测算。', {}, 'package:auto'),
+  createFallbackPreset('auto', '标准参数模式', '按照建议分位参数直接测算', {}, 'package:auto'),
   createFallbackPreset(
     'sprint',
     '高转化要求模式',
@@ -352,6 +352,9 @@ export function generateDatasetQualityReport(rows: OpenDayRawRow[], mappings: Op
 
       const val = row[header];
       if (val === undefined || val === null || val === '') {
+        if (key === 'area') {
+          return;
+        }
         report.missingFieldCounts[key]++;
         hasError = true;
       } else if (key !== 'name' && key !== 'area') {
