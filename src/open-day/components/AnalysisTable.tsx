@@ -9,11 +9,13 @@ import { formatNumber, formatPercent } from '../formatters';
 import './AnalysisTable.css';
 
 export type OpenDayExportFormat = 'xlsx' | 'csv';
+export type OpenDayExportScope = 'eligible' | 'all';
 export type OpenDayExportPhase = 'queued' | 'preparing' | 'generating' | 'downloading' | 'done' | 'error';
 
 export interface OpenDayExportTask {
   id: string;
   format: OpenDayExportFormat;
+  scope: OpenDayExportScope;
   phase: OpenDayExportPhase;
   progress: number;
   message: string;
@@ -26,12 +28,24 @@ export type OpenDayExportProgress = (
   patch: Partial<Pick<OpenDayExportTask, 'phase' | 'progress' | 'message' | 'completedAt' | 'error'>>,
 ) => void;
 
-type OpenDayExportHandler = (format: OpenDayExportFormat, reportProgress?: OpenDayExportProgress) => void | Promise<void>;
+type OpenDayScopedExportHandler = (
+  format: OpenDayExportFormat,
+  scope: OpenDayExportScope,
+  reportProgress?: OpenDayExportProgress,
+) => void | Promise<void>;
 
 const pageSize = 10;
 const exportFormatLabels: Record<OpenDayExportFormat, string> = {
   xlsx: 'Excel',
   csv: 'CSV',
+};
+const exportScopeLabels: Record<OpenDayExportScope, string> = {
+  eligible: '仅导出达标数据',
+  all: '导出全量数据',
+};
+const exportScopeTaskLabels: Record<OpenDayExportScope, string> = {
+  eligible: '达标数据',
+  all: '全量数据',
 };
 const exportPhaseLabels: Record<OpenDayExportPhase, string> = {
   queued: '排队中',
@@ -67,7 +81,7 @@ interface AnalysisTableProps {
   qualityReport: DatasetQualityReport | null;
   isFullScreen: boolean;
   onToggleFullScreen: () => void;
-  onExport: OpenDayExportHandler;
+  onExport: OpenDayScopedExportHandler;
   onSearchChange: (term: string) => void;
   onRowClick: (row: OpenDayAnalysisRow) => void;
   onExecuteAnalysis: () => void;
@@ -201,7 +215,7 @@ export function AnalysisTable({
     setPageIndex(Math.floor(activeIndex / pageSize));
   }, [activeRow, filteredRows, pageSize, viewMode]);
 
-  async function handleExportClick(format: OpenDayExportFormat) {
+  async function handleExportClick(scope: OpenDayExportScope, format: OpenDayExportFormat) {
     if (!canExport) return;
     if (exportCleanupTimerRef.current) {
       window.clearTimeout(exportCleanupTimerRef.current);
@@ -211,6 +225,7 @@ export function AnalysisTable({
     setExportTask({
       id: taskId,
       format,
+      scope,
       phase: 'queued',
       progress: 5,
       message: '导出任务已创建，正在准备数据。',
@@ -229,7 +244,7 @@ export function AnalysisTable({
       });
     };
     try {
-      await onExport(format, reportProgress);
+      await onExport(format, scope, reportProgress);
       reportProgress({
         phase: 'done',
         progress: 100,
@@ -336,7 +351,7 @@ export function AnalysisTable({
               }}
             >
               <button
-                className="open-day-button open-day-button--secondary open-day-button--sm"
+                className="open-day-button open-day-button--secondary open-day-button--sm open-day-export-button"
                 onClick={() => {
                   if (exportTask && !isExportInProgress) {
                     setExportTask(null);
@@ -354,30 +369,46 @@ export function AnalysisTable({
 
               {isExportMenuOpen && (
                 <div className="open-day-export-menu" role="menu">
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      void handleExportClick('xlsx');
-                    }}
-                  >
-                    Excel .xlsx
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      void handleExportClick('csv');
-                    }}
-                  >
-                    CSV .csv
-                  </button>
+                  {(['eligible', 'all'] as const).map((scope) => (
+                    <div key={scope} className="open-day-export-menu__section" role="none">
+                      <div className="open-day-export-menu__scope">
+                        <strong>{exportScopeLabels[scope]}</strong>
+                        <span>
+                          {scope === 'eligible'
+                            ? `${analysis?.meta.eligibleCount ?? 0}/${analysis?.meta.totalCount ?? 0} 条`
+                            : `${analysis?.meta.totalCount ?? 0} 条`}
+                        </span>
+                      </div>
+                      <div className="open-day-export-menu__formats" role="none">
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            void handleExportClick(scope, 'xlsx');
+                          }}
+                          disabled={scope === 'eligible' && !analysis?.meta.eligibleCount}
+                        >
+                          Excel .xlsx
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            void handleExportClick(scope, 'csv');
+                          }}
+                          disabled={scope === 'eligible' && !analysis?.meta.eligibleCount}
+                        >
+                          CSV .csv
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
               {exportTask ? (
                 <div className={`open-day-export-task is-${exportTask.phase}`} role="status" aria-live="polite">
                   <div className="open-day-export-task__header">
-                    <span>导出任务 · {exportFormatLabels[exportTask.format]}</span>
+                    <span>导出任务 · {exportScopeTaskLabels[exportTask.scope]} · {exportFormatLabels[exportTask.format]}</span>
                     <strong>{exportPhaseLabels[exportTask.phase]}</strong>
                   </div>
                   <div className="open-day-export-task__message">

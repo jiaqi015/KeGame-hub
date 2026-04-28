@@ -29,7 +29,6 @@ export function buildScenarioDraftName(
   const label = scenarioDraft.parameterPackageId
     ? getParameterPackageLabel(scenarioDraft.parameterPackageId, parameterPackages)
     : skills.find((s) => s.id === (scenarioDraft.skillId || scenarioDraft.formulaId))?.label || '默认技能';
-  const baseName = sourceName ? sourceName.split('/')[0].trim() : '开放日方案';
   const timestamp = new Intl.DateTimeFormat('zh-CN', {
     month: '2-digit',
     day: '2-digit',
@@ -40,7 +39,7 @@ export function buildScenarioDraftName(
     .replace(/\//g, '-')
     .replace(/\s+/g, ' ');
 
-  return `${baseName} ${label} ${timestamp}`;
+  return `开放日方案 ${label} ${timestamp}`;
 }
 
 export function extractHeadersFromRows(rows: OpenDayRawRow[], mappings: OpenDayFormMappings) {

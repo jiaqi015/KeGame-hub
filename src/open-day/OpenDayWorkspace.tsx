@@ -67,7 +67,7 @@ import { formatDateTime } from './formatters';
 // Sub-components
 import { UploadStage } from './components/UploadStage';
 import { SkillBar } from './components/FormulaBar';
-import { AnalysisTable, type OpenDayExportFormat, type OpenDayExportProgress } from './components/AnalysisTable';
+import { AnalysisTable, type OpenDayExportFormat, type OpenDayExportProgress, type OpenDayExportScope } from './components/AnalysisTable';
 import { InsightDrawer } from './components/InsightDrawer';
 import { LibraryOverlay } from './components/LibraryOverlay';
 import { SidebarConfig } from './components/SidebarConfig';
@@ -598,10 +598,19 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     }
   }
 
-  async function handleExport(format: OpenDayExportFormat, reportProgress?: OpenDayExportProgress) {
+  async function handleExport(format: OpenDayExportFormat, scope: OpenDayExportScope, reportProgress?: OpenDayExportProgress) {
     if (!analysis || !analysis.results.length) {
       throw new Error('暂无可导出的测算结果。');
     }
+    const exportResults = scope === 'eligible'
+      ? analysis.results.filter((row) => row.isEligible)
+      : analysis.results;
+
+    if (!exportResults.length) {
+      throw new Error(scope === 'eligible' ? '暂无达标数据可导出。' : '暂无可导出的测算结果。');
+    }
+
+    const exportScopeLabel = scope === 'eligible' ? '达标数据' : '全量数据';
 
     reportProgress?.({
       phase: 'queued',
@@ -613,24 +622,24 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     reportProgress?.({
       phase: 'preparing',
       progress: 24,
-      message: `正在整理 ${analysis.results.length} 条测算结果。`,
+      message: `正在整理 ${exportResults.length} 条${exportScopeLabel}。`,
     });
     await waitForExportPaint();
 
-    const exportFileName = createOpenDayExportFileName(datasetDraft.sourceName, format);
+    const exportFileName = createOpenDayExportFileName(datasetDraft.sourceName, format, scope);
 
     reportProgress?.({
       phase: 'generating',
       progress: 52,
       message: format === 'xlsx'
-        ? `正在生成 Excel 工作簿（${analysis.results.length} 行）。`
-        : `正在生成 CSV 文本（${analysis.results.length} 行）。`,
+        ? `正在生成 Excel 工作簿（${exportResults.length} 行）。`
+        : `正在生成 CSV 文本（${exportResults.length} 行）。`,
     });
     await waitForExportPaint();
 
     const blob = format === 'xlsx'
-      ? createOpenDayXlsxBlob(analysis.results)
-      : createOpenDayCsvBlob(analysis.results);
+      ? createOpenDayXlsxBlob(exportResults)
+      : createOpenDayCsvBlob(exportResults);
 
     if (format === 'xlsx') {
       reportProgress?.({

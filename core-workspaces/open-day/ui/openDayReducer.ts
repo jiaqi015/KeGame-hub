@@ -296,7 +296,7 @@ export function openDayReducer(state: OpenDayState, action: OpenDayAction): Open
         hasPendingChanges: true,
         uploadError: '',
         scenarioMessage: '',
-        scenarioName: state.scenarioName || action.sourceName.split('/')[0].trim(),
+        scenarioName: state.scenarioName,
         statusMessage: action.statusMessage,
       };
 

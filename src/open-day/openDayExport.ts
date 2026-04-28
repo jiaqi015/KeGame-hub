@@ -73,7 +73,12 @@ export function createOpenDayXlsxBlob(results: OpenDayAnalysisRow[]) {
   });
 }
 
-export function createOpenDayExportFileName(sourceName: string, format: 'xlsx' | 'csv') {
-  const safeName = (sourceName || '开放日测算结果').replace(/[\\/:*?"<>|]/g, '_');
-  return `${safeName}.${format}`;
+export function createOpenDayExportFileName(sourceName: string, format: 'xlsx' | 'csv', scope: 'eligible' | 'all' = 'all') {
+  const sourceBaseName = (sourceName || '开放日测算结果')
+    .split('/')[0]
+    .trim()
+    .replace(/\.(xlsx|xls|csv)$/i, '');
+  const safeName = (sourceBaseName || '开放日测算结果').replace(/[\\/:*?"<>|]/g, '_');
+  const scopeLabel = scope === 'eligible' ? '达标数据' : '全量数据';
+  return `${safeName}_${scopeLabel}.${format}`;
 }

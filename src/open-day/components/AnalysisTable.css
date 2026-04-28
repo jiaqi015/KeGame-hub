@@ -44,12 +44,34 @@
   display: inline-flex;
 }
 
+.open-day-button.open-day-export-button {
+  border-color: rgba(37, 99, 235, 0.28);
+  background: #2563eb;
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.18);
+}
+
+.open-day-button.open-day-export-button:hover:not(:disabled),
+.open-day-button.open-day-export-button:focus-visible {
+  border-color: rgba(29, 78, 216, 0.34);
+  background: #1d4ed8;
+  color: #fff;
+}
+
+.open-day-button.open-day-export-button:disabled {
+  border-color: rgba(147, 197, 253, 0.7);
+  background: #bfdbfe;
+  color: rgba(255, 255, 255, 0.84);
+  box-shadow: none;
+}
+
 .open-day-export-menu {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
   z-index: 40;
-  min-width: 132px;
+  min-width: 284px;
+  padding: 8px;
   overflow: hidden;
   border: 1px solid rgba(76, 58, 42, 0.12);
   border-radius: 14px;
@@ -57,17 +79,57 @@
   box-shadow: 0 16px 36px rgba(31, 41, 55, 0.16);
 }
 
+.open-day-export-menu__section {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 12px;
+}
+
+.open-day-export-menu__section + .open-day-export-menu__section {
+  margin-top: 4px;
+  border-top: 1px solid rgba(76, 58, 42, 0.08);
+  padding-top: 12px;
+}
+
+.open-day-export-menu__scope {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--od-text-main);
+}
+
+.open-day-export-menu__scope strong {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.open-day-export-menu__scope span {
+  color: var(--od-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.open-day-export-menu__formats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
 .open-day-export-menu button {
   display: flex;
   width: 100%;
+  justify-content: center;
   align-items: center;
-  padding: 10px 12px;
-  border: 0;
-  background: transparent;
+  padding: 9px 10px;
+  border: 1px solid rgba(76, 58, 42, 0.1);
+  border-radius: 10px;
+  background: #fff;
   color: var(--od-text-main);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
-  text-align: left;
+  text-align: center;
   cursor: pointer;
 }
 
@@ -76,6 +138,11 @@
   outline: none;
   background: rgba(37, 86, 72, 0.08);
   color: var(--od-secondary);
+}
+
+.open-day-export-menu button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .open-day-export-task {

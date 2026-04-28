@@ -79,13 +79,16 @@ export function LibraryOverlay({
             </p>
 
             <div className="open-day-library-save-box mb-4">
-              <input
-                type="text"
-                placeholder="方案名称..."
-                className="open-day-library-input"
-                value={scenarioName}
-                onChange={(e) => onScenarioNameChange(e.target.value)}
-              />
+              <div className="open-day-library-name-field">
+                <input
+                  type="text"
+                  placeholder="例如：4月浦东开放日｜标准参数｜高转化优先"
+                  className="open-day-library-input"
+                  value={scenarioName}
+                  onChange={(e) => onScenarioNameChange(e.target.value)}
+                />
+                <p>建议按「时间/区域 + 测算目标 + 参数模式」命名，避免直接用原始文件名。</p>
+              </div>
               <button
                 type="button"
                 className="open-day-button open-day-button--primary open-day-button--sm"

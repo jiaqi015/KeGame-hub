@@ -106,12 +106,17 @@
 
 .open-day-library-save-box {
   display: flex;
+  flex-direction: column;
   gap: 12px;
   background: #fff;
   padding: 12px;
   border-radius: 16px;
   border: 1px solid rgba(76, 58, 42, 0.08);
   box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+}
+
+.open-day-library-save-box .open-day-button {
+  align-self: flex-end;
 }
 
 .open-day-library-input {
@@ -121,6 +126,22 @@
   outline: none;
   font-size: 14px;
   color: var(--od-text-main);
+}
+
+.open-day-library-name-field {
+  flex: 1;
+  min-width: 0;
+}
+
+.open-day-library-name-field .open-day-library-input {
+  width: 100%;
+}
+
+.open-day-library-name-field p {
+  margin: 6px 0 0;
+  color: var(--od-text-muted);
+  font-size: 11px;
+  line-height: 1.5;
 }
 
 .open-day-library-grid {
