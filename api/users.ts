@@ -7,12 +7,24 @@ function dbUrl() {
   return process.env.DATABASE_URL || process.env.POSTGRES_URL || '';
 }
 
+function parseNeonUrl(connStr: string) {
+  const u = new URL(connStr);
+  const hostname = u.hostname;
+  const database = u.pathname.replace(/^\//, '');
+  const sqlEndpoint = `https://${hostname}/sql`;
+  return { sqlEndpoint, database, hostname };
+}
+
 async function sql(query: string, params: any[] = []) {
-  const url = dbUrl();
-  if (!url) throw new Error('No database URL');
-  const res = await fetch(url + '/sql', {
+  const connStr = dbUrl();
+  if (!connStr) throw new Error('No database URL');
+  const { sqlEndpoint } = parseNeonUrl(connStr);
+  const res = await fetch(sqlEndpoint, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Neon-Connection-String': url },
+    headers: {
+      'Content-Type': 'application/json',
+      'Neon-Connection-String': connStr,
+    },
     body: JSON.stringify({ query, params }),
   });
   const data = await res.json() as any;
