@@ -596,6 +596,20 @@ export function authorizeSession(req: any): SessionAuthorizationResult {
   if (sessionToken) {
     const payload = parseSessionToken(sessionToken);
     if (payload && payload.exp > Date.now()) {
+      const store = getAuthStore();
+      const storedUser = store.users[normalizeEmail(payload.email)];
+      if (storedUser) {
+        return {
+          ok: true,
+          accountId: storedUser.accountId || deriveAccountIdFromEmail(storedUser.email),
+          email: storedUser.email,
+          nickname: storedUser.nickname,
+          displayName: storedUser.displayName,
+          allowedWorkspaces: storedUser.allowedWorkspaces,
+          source: 'session',
+        };
+      }
+
       return {
         ok: true,
         accountId: payload.accountId,
@@ -603,20 +617,6 @@ export function authorizeSession(req: any): SessionAuthorizationResult {
         nickname: payload.nickname,
         displayName: payload.displayName,
         allowedWorkspaces: payload.allowedWorkspaces,
-        source: 'session',
-      };
-    }
-
-    const store = getAuthStore();
-    const configuredUser = store.users[normalizeEmail(payload?.email || '')];
-    if (configuredUser && payload?.exp && payload.exp > Date.now()) {
-      return {
-        ok: true,
-        accountId: configuredUser.accountId || deriveAccountIdFromEmail(configuredUser.email),
-        email: configuredUser.email,
-        nickname: configuredUser.nickname,
-        displayName: configuredUser.displayName,
-        allowedWorkspaces: configuredUser.allowedWorkspaces,
         source: 'session',
       };
     }
