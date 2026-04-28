@@ -53,27 +53,30 @@ export function LibraryOverlay({
 
   return (
     <>
-      <div className="open-day-library-backdrop" onClick={onClose} aria-label="关闭方案库" />
+      <div className="open-day-library-backdrop" onClick={onClose} aria-label="关闭个性化配置和测算历史" />
       <aside className="open-day-library-drawer">
         <div className="open-day-library-header">
           <h2>
             <History className="text-emerald-700" size={20} />
-            档案与方案库
+            个性化配置和测算历史
           </h2>
-          <button className="open-day-library-close" onClick={onClose} aria-label="关闭方案库">
+          <button className="open-day-library-close" onClick={onClose} aria-label="关闭个性化配置和测算历史">
             <X size={20} />
           </button>
         </div>
 
         <div className="open-day-library-content">
           {/* Section: Scenario Management */}
-          <section className="open-day-library-section">
+          <section className="open-day-library-section open-day-library-section--scenarios">
             <div className="flex items-center justify-between mb-4">
               <h3 className="flex items-center gap-2">
                 <Save size={16} />
                 测算方案
               </h3>
             </div>
+            <p className="open-day-library-section-desc">
+              保存当前参数、权重、水位和达标线，后续可一键载入复用。
+            </p>
 
             <div className="open-day-library-save-box mb-4">
               <input
@@ -125,7 +128,7 @@ export function LibraryOverlay({
           <div className="open-day-library-divider" />
 
           {/* Section: History Snapshots */}
-          <section className="open-day-library-section">
+          <section className="open-day-library-section open-day-library-section--history">
             <HistoryPanel
               snapshots={snapshots}
               activeSnapshotId={activeSnapshotId}

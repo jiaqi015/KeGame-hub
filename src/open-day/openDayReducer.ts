@@ -293,6 +293,8 @@ export function openDayReducer(state: OpenDayState, action: OpenDayAction): Open
         mappings: action.mappings,
         qualityReport: action.qualityReport,
         analysis: null,
+        activeRow: null,
+        searchTerm: '',
         hasPendingChanges: true,
         uploadError: '',
         scenarioMessage: '',
@@ -360,6 +362,8 @@ export function openDayReducer(state: OpenDayState, action: OpenDayAction): Open
       return {
         ...state,
         analysis: action.analysis,
+        activeRow: null,
+        searchTerm: '',
         datasetId: action.analysis.meta.datasetId || state.datasetId,
         datasetProfileId: action.analysis.meta.datasetProfileId || state.datasetProfileId,
         hasPendingChanges: false,

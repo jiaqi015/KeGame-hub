@@ -70,14 +70,14 @@ export function ComparisonWorkspace({
               className="absolute left-0 top-0 inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#5C5C60] transition hover:border-black/20 hover:text-[#1D1D1F]"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
-              返回 KeGame Hub
+              返回
             </button>
             <button
               onClick={onLogout}
               className="absolute right-0 top-0 inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#5C5C60] transition hover:border-black/20 hover:text-[#1D1D1F]"
             >
               <LogOut className="h-3.5 w-3.5" />
-              登出账号
+              退出账号
             </button>
             <h1 className="text-2xl font-bold tracking-tight mb-0.5">多模型PK</h1>
             <p className="text-[10px] text-[#86868B] uppercase tracking-widest font-medium">一句提示词，多个模型一起出</p>
@@ -269,7 +269,7 @@ export function ComparisonWorkspace({
                   className="inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[#5C5C60] transition hover:border-black/20 hover:text-[#1D1D1F]"
                 >
                   <LogOut className="h-3.5 w-3.5" />
-                  登出账号
+                  退出账号
                 </button>
               </div>
             </div>

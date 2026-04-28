@@ -51,7 +51,7 @@ export function ComparisonWorkspace({
             className="flex items-center gap-2 text-slate-600 hover:text-slate-900 transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
-            <span className="font-medium">返回 Hub</span>
+            <span className="font-medium">返回</span>
           </button>
 
           <div className="flex items-center gap-4">

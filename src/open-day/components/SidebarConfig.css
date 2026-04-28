@@ -6,6 +6,10 @@
   z-index: 5;
 }
 
+.is-sidebar-collapsed .open-day-sidebar {
+  width: 28px;
+}
+
 .open-day-sidebar-scrollable {
   opacity: 1;
   visibility: visible;
@@ -21,6 +25,9 @@
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
+  width: 0;
+  padding-right: 0;
+  overflow: hidden;
 }
 
 .open-day-sidebar-toggle {
@@ -43,7 +50,7 @@
 }
 
 .is-sidebar-collapsed .open-day-sidebar-toggle {
-  right: -28px;
+  right: -20px;
 }
 
 .open-day-sidebar-toggle:hover {

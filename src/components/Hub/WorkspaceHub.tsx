@@ -91,7 +91,7 @@ export function WorkspaceHub({
               className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-black/10 bg-white px-4 text-[11px] font-bold uppercase tracking-[0.14em] text-[#5C5C60] transition-all hover:border-black/20 hover:bg-[#F5F5F7] hover:text-[#1D1D1F] active:scale-95"
             >
               <LogOut className="h-3.5 w-3.5" />
-              退出到登录
+              退出账号
             </button>
           </div>
         </div>

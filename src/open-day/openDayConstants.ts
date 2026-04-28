@@ -7,6 +7,11 @@ import type {
   OpenDayPreset,
   OpenDayRawRow,
 } from '../../modules/open-day/domain/openDay.types.ts';
+import {
+  OPEN_DAY_LARGE_SAMPLE_SIZE,
+  createOpenDaySampleCsv,
+  createOpenDaySamplePayload,
+} from './openDaySampleData.ts';
 
 export interface WaterlineDefinition {
   key: keyof OpenDayConfig['absolutes'];
@@ -68,22 +73,8 @@ export const waterlineDefinitions: WaterlineDefinition[] = [
   },
 ];
 
-export const sampleCsv = `大区,小区名称,在售套数,带看量,成交量,好房数
-学院大区,今典花园,45,655,11,8
-团结湖大区,慈云寺,66,422,7,12
-五道口大区,展春园,22,185,4,6
-望京北大区,首开金茂·望京樾,10,199,4,3
-学院大区,北太平庄路2号院,21,22,1,1
-望京北大区,东洲家园,71,436,10,7
-五道口大区,八家嘉园,36,588,8,5
-朝阳公园大区,阳光上东,72,294,6,3
-朝阳公园大区,阳光上东滨河花园,6,33,1,0
-朝阳公园大区,京达国际公寓,3,2,0,0
-朝阳公园大区,南十里居10号院,3,4,1,0
-学院大区,二里庄小区,18,126,1,2
-团结湖大区,棕榈泉国际公寓,28,240,2,4
-望京北大区,澳洲康都,70,1120,8,4
-朝阳公园大区,燕东大厦,0,0,0,0`;
+export const sampleCsv = createOpenDaySampleCsv();
+export { OPEN_DAY_LARGE_SAMPLE_SIZE, createOpenDaySamplePayload };
 
 export const fallbackOpenDayConfig: OpenDayConfig = {
   skillId: 'geometric_catalyst_v2',
@@ -113,9 +104,9 @@ export const fallbackOpenDayConfig: OpenDayConfig = {
     min_transaction: 1,
   },
   tierThresholds: {
-    s: 65,
-    a: 50,
-    b: 35,
+    s: 80,
+    a: 55,
+    b: 30,
     c: 20,
   },
 };
@@ -170,12 +161,12 @@ function createFallbackPreset(
 const fallbackSkills: OpenDaySkillDefinition[] = [
   {
     id: 'weighted_catalyst_v1',
-    label: '线性催化',
+    label: '规模放大模式（流量效果优先）',
     description: '规模与流量直接乘积，商品和互动按权重线性合成催化项。',
   },
   {
     id: 'geometric_catalyst_v2',
-    label: '几何体量 + 商品门控',
+    label: '规模平均+好房放大（活动质量优先）',
     description: '规模与流量走几何平均，商品分做硬乘子，互动分只作为加成项。',
   },
 ];
@@ -183,11 +174,11 @@ const fallbackSkills: OpenDaySkillDefinition[] = [
 const fallbackFormulas = fallbackSkills;
 
 const fallbackParameterPackages: OpenDayParameterPackage[] = [
-  createFallbackPreset('auto', '动态分位模式', '按 95% 动态分位适配大盘，适应市场波动。', {}, 'package:auto'),
+  createFallbackPreset('auto', '标准参数模式', '按照建议分位测算。', {}, 'package:auto'),
   createFallbackPreset(
     'sprint',
-    '高转化权重模式',
-    '互动权重拉高至 0.7，核心关注逼定表现。',
+    '高转化要求模式',
+    '要出价，高转化率权重。',
     {
       weights: {
         product: 0.3,
@@ -198,8 +189,8 @@ const fallbackParameterPackages: OpenDayParameterPackage[] = [
   ),
   createFallbackPreset(
     'kpi',
-    '固定阈值模式',
-    '使用固定绝对值门槛，强控规模与流量底线。',
+    '强规模模式',
+    '直接改固定数值。',
     {
       waterlineMode: 'absolute',
       alpha: 0.6,
@@ -214,8 +205,8 @@ const fallbackParameterPackages: OpenDayParameterPackage[] = [
   ),
   createFallbackPreset(
     'all-market',
-    '全域观察模式',
-    '准入过滤全部归零，透视全城楼盘底盘数据。',
+    '水位自由调整',
+    '自由调整水位。',
     {
       hardFilters: {
         min_inventory: 0,

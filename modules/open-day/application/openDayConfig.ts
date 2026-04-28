@@ -20,16 +20,18 @@ export const defaultOpenDayConfig: OpenDayConfig = {
     H_cap: 5,
     R_cap: 0.02,
   },
-  waterlineOverrides: {},
+  waterlineOverrides: {
+    H_cap: 3,
+  },
   hardFilters: {
     min_inventory: 20,
-    min_hq_rooms: 2,
+    min_hq_rooms: 1,
     min_transaction: 1,
   },
   tierThresholds: {
-    s: 65,
-    a: 50,
-    b: 35,
+    s: 80,
+    a: 55,
+    b: 30,
     c: 20,
   },
 };
@@ -37,14 +39,14 @@ export const defaultOpenDayConfig: OpenDayConfig = {
 export const openDayParameterPackageCatalog: OpenDayParameterPackageDefinition[] = [
   {
     id: 'auto',
-    label: '自动巡航',
-    description: '按动态分位适配当月大盘。',
+    label: '标准参数模式',
+    description: '按照建议分位测算。',
     overrides: {},
   },
   {
     id: 'sprint',
-    label: '逼单冲刺',
-    description: '互动权重拉高，强调转化效率。',
+    label: '高转化要求模式',
+    description: '要出价，高转化率权重。',
     overrides: {
       weights: {
         product: 0.3,
@@ -54,8 +56,8 @@ export const openDayParameterPackageCatalog: OpenDayParameterPackageDefinition[]
   },
   {
     id: 'kpi',
-    label: '强压 KPI',
-    description: '改用固定数值，强控规模与流量门槛。',
+    label: '强规模模式',
+    description: '直接改固定数值。',
     overrides: {
       waterlineMode: 'absolute',
       alpha: 0.6,
@@ -69,8 +71,8 @@ export const openDayParameterPackageCatalog: OpenDayParameterPackageDefinition[]
   },
   {
     id: 'all-market',
-    label: '全域深潜',
-    description: '红线归零，拉出全城所有盘做观察。',
+    label: '水位自由调整',
+    description: '自由调整水位。',
     overrides: {
       hardFilters: {
         min_inventory: 0,

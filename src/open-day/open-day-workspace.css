@@ -440,6 +440,12 @@
   grid-template-columns: 380px minmax(0, 1fr);
   gap: 20px;
   align-items: start;
+  transition: grid-template-columns 180ms ease, gap 180ms ease;
+}
+
+.open-day-workspace-layout.is-sidebar-collapsed {
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 12px;
 }
 
 /* =========================================
@@ -580,12 +586,13 @@
 
 .open-day-hero-card__stats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: minmax(360px, 1.6fr) minmax(160px, 0.7fr) minmax(220px, 0.9fr);
   gap: 12px;
   margin-bottom: 20px;
+  align-items: stretch;
 }
 
-.open-day-hero-card__stats div {
+.open-day-hero-card__stats > .open-day-hero-stat {
   padding: 14px;
   border-radius: var(--od-radius-lg);
   background: #f8fafc;
@@ -593,14 +600,18 @@
   text-align: center;
 }
 
-.open-day-hero-card__stats span {
+.open-day-hero-card__stats > .open-day-hero-stat:first-child {
+  text-align: left;
+}
+
+.open-day-hero-card__stats .open-day-hero-stat__label {
   display: block;
   font-size: 12px;
   color: var(--od-text-muted);
   margin-bottom: 4px;
 }
 
-.open-day-hero-card__stats strong {
+.open-day-hero-card__stats .open-day-hero-stat__value {
   font-size: 20px;
   font-weight: 600;
   color: var(--od-text-main);

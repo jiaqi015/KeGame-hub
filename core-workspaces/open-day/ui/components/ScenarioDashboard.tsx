@@ -1,5 +1,5 @@
 import { useMemo, type FC } from 'react';
-import { TrendingUp, ShieldCheck, Flag, GitCompare } from 'lucide-react';
+import { TrendingUp, Flag, GitCompare } from 'lucide-react';
 import type { OpenDayAnalysisRow } from '../../domain/openDay.types.ts';
 import './ScenarioDashboard.css';
 
@@ -45,16 +45,9 @@ export const ScenarioDashboard: FC<ScenarioDashboardProps> = ({ results, isVisib
       .slice(0, 3);
   }, [results]);
 
-  // 3. Health Summary
-  const healthStats = useMemo(() => {
-    const errorCount = results.filter(r => r.logicGuardSeverity === 'error').length;
-    const warningCount = results.filter(r => r.logicGuardSeverity === 'warning').length;
-    const healthScore = Math.round(((results.length - errorCount) / results.length) * 100);
-    return { errorCount, warningCount, healthScore };
-  }, [results]);
-
-  const total = results.length;
   const tierEntries = Object.entries(tierStats) as Array<[string, number]>;
+  const qualifiedTierEntries = tierEntries.filter(([tier]) => tier !== 'D');
+  const qualifiedTierTotal = qualifiedTierEntries.reduce((sum, [, count]) => sum + count, 0);
 
   return (
     <div className="open-day-scenario-dashboard">
@@ -62,12 +55,12 @@ export const ScenarioDashboard: FC<ScenarioDashboardProps> = ({ results, isVisib
       <div className="dashboard-item is-tier-split">
         <div className="dashboard-item-header">
           <TrendingUp size={14} />
-          <span>梯队画像 (Tier Distribution)</span>
+          <span>达标梯度画像</span>
         </div>
         <div className="tier-ratio-track">
-          {tierEntries.map(([tier, count]) => {
+          {qualifiedTierEntries.map(([tier, count]) => {
             if (count === 0) return null;
-            const width = (count / total) * 100;
+            const width = qualifiedTierTotal > 0 ? (count / qualifiedTierTotal) * 100 : 0;
             return (
               <div 
                 key={tier}
@@ -81,7 +74,7 @@ export const ScenarioDashboard: FC<ScenarioDashboardProps> = ({ results, isVisib
           })}
         </div>
         <div className="tier-legend">
-          {tierEntries.map(([tier, count]) => (
+          {qualifiedTierEntries.map(([tier, count]) => (
             <div key={tier} className="legend-item">
               <span className={`dot is-${tier}`} />
               <span className="label">{tier}:</span>
@@ -120,31 +113,6 @@ export const ScenarioDashboard: FC<ScenarioDashboardProps> = ({ results, isVisib
         </div>
       </div>
 
-      {/* Data Health Section */}
-      <div className="dashboard-item is-health">
-        <div className="dashboard-item-header">
-          <ShieldCheck size={14} />
-          <span>场景健康度 (Data Health)</span>
-        </div>
-        <div className="health-content">
-          <div className="health-gauge">
-            <div className="gauge-value">{healthStats.healthScore}%</div>
-            <div className="gauge-label">信任分</div>
-          </div>
-          <div className="health-details">
-            <div className="health-stat">
-              <span className="label">逻辑冲突 (Error)</span>
-              <span className={`value ${healthStats.errorCount > 0 ? 'is-danger' : ''}`}>
-                {healthStats.errorCount}
-              </span>
-            </div>
-            <div className="health-stat">
-              <span className="label">异常提醒 (Warn)</span>
-              <span className="value">{healthStats.warningCount}</span>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };

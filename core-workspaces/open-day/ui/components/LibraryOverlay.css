@@ -61,11 +61,33 @@
 
 .open-day-library-content {
   flex: 1;
-  overflow-y: auto;
-  padding: 32px;
+  min-height: 0;
+  overflow: hidden;
+  padding: 28px 32px 24px;
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 20px;
+}
+
+.open-day-library-section {
+  min-height: 0;
+}
+
+.open-day-library-section--scenarios {
+  flex: 0 0 auto;
+}
+
+.open-day-library-section--history {
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 320px;
+}
+
+.open-day-library-section--history > .open-day-sidebar-section {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
 }
 
 .open-day-library-section h3 {
@@ -73,6 +95,13 @@
   font-weight: 700;
   color: var(--od-text-main);
   margin-bottom: 16px;
+}
+
+.open-day-library-section-desc {
+  margin: -8px 0 14px;
+  color: var(--od-text-muted);
+  font-size: 12px;
+  line-height: 1.7;
 }
 
 .open-day-library-save-box {
@@ -98,6 +127,9 @@
   display: grid;
   grid-template-columns: 1fr;
   gap: 10px;
+  max-height: 150px;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .open-day-library-item {

@@ -9,7 +9,7 @@ import type { OpenDayFormMappings } from './openDayConstants';
 
 export function getParameterPackageLabel(activeParameterPackageId: string, parameterPackages: OpenDayParameterPackage[]) {
   return parameterPackages.find((p) => p.id === activeParameterPackageId)?.label
-    || (activeParameterPackageId === 'custom' ? '自定义参数' : '自动巡航');
+    || (activeParameterPackageId === 'custom' ? '自定义参数' : '标准参数模式');
 }
 
 export function formatWaterlineValue(key: string, value: number): number {

@@ -6,7 +6,7 @@ import { createOpenDayHash } from './openDayFingerprint.js';
 import type { OpenDaySnapshotRepository } from './openDaySnapshotRepository.js';
 import type { OpenDayDatasetRepository } from './openDayDatasetRepository.js';
 
-const MAX_ROWS_IN_REQUEST = 10000;
+const MAX_ROWS_IN_REQUEST = 50000;
 
 function createCacheKey(command: OpenDayScoreCommand): string {
   const hashInput: Record<string, unknown> = {

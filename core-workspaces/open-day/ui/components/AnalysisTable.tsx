@@ -17,7 +17,6 @@ interface AnalysisTableProps {
   isAnalyzing: boolean;
   hasPendingChanges: boolean;
   statusMessage: string;
-  currentParameterLabel: string;
   currentFormulaLabel: string;
   sampleCount: number;
   qualityReport: DatasetQualityReport | null;
@@ -41,7 +40,6 @@ export function AnalysisTable({
   isAnalyzing,
   hasPendingChanges,
   statusMessage,
-  currentParameterLabel,
   currentFormulaLabel,
   sampleCount,
   qualityReport,
@@ -140,10 +138,6 @@ export function AnalysisTable({
         {/* Row 1: Key Metrics */}
         <div className="open-day-hero-card__stats">
           <div className="open-day-hero-stat">
-            <span className="open-day-hero-stat__label">策略</span>
-            <strong className="open-day-hero-stat__value">{currentParameterLabel}</strong>
-          </div>
-          <div className="open-day-hero-stat">
             <span className="open-day-hero-stat__label">公式</span>
             <strong className="open-day-hero-stat__value">{currentFormulaLabel}</strong>
           </div>
@@ -152,7 +146,7 @@ export function AnalysisTable({
             <strong className="open-day-hero-stat__value">{analysis?.meta.totalCount ?? sampleCount}</strong>
           </div>
           <div className="open-day-hero-stat">
-            <span className="open-day-hero-stat__label">入围</span>
+            <span className="open-day-hero-stat__label">达标</span>
             <strong className="open-day-hero-stat__value">{analysis ? `${analysis.meta.eligibleCount}/${analysis.meta.totalCount}` : '--'}</strong>
           </div>
         </div>
@@ -235,7 +229,7 @@ export function AnalysisTable({
               <tr>
                 <th>排名</th>
                 <th>小区</th>
-                <th className="is-numeric">综合分</th>
+                <th className="is-numeric is-score-column">综合分</th>
                 <th>梯队</th>
                 <th>状态</th>
                 <th className="is-numeric">规模</th>
@@ -252,7 +246,7 @@ export function AnalysisTable({
                 <th className="is-numeric">平均综合分</th>
                 <th className="is-numeric">纳管小区数</th>
                 <th className="is-numeric">入围率 (合规)</th>
-                <th className="is-numeric">优质转化 (S/A率)</th>
+                <th className="is-numeric">优质转化 (S/A数/率)</th>
                 <th className="is-numeric">数据异常率</th>
                 <th>战略地位</th>
               </tr>
@@ -321,7 +315,7 @@ export function AnalysisTable({
                           </div>
                         </td>
                         <td 
-                          className="open-day-table-cell--score-audit is-numeric"
+                          className="open-day-table-cell--score-audit is-numeric is-score-column"
                           onClick={(e) => {
                             e.stopPropagation();
                             onAuditRow(row);
@@ -428,6 +422,7 @@ export function AnalysisTable({
                     <td className="is-numeric">
                       <div className="flex items-center justify-end gap-2">
                         <span className="text-indigo-600 font-bold">{formatPercent(area.qualityRatio, 0)}</span>
+                        <span className="text-xs font-semibold text-indigo-500">{area.sACount}个</span>
                         <div className="w-12 h-1.5 bg-indigo-50 rounded-full overflow-hidden">
                           <div className="h-full bg-indigo-500" style={{ width: `${area.qualityRatio * 100}%` }} />
                         </div>

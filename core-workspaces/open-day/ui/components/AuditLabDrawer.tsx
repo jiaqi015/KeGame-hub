@@ -13,7 +13,7 @@ interface AuditLabDrawerProps {
 export function AuditLabDrawer({ row, config, onClose }: AuditLabDrawerProps) {
   // 提取当前公式描述
   const isGeometric = config.formulaId === 'geometric_catalyst_v2';
-  const formulaLabel = isGeometric ? '几何体量 + 商品门控' : '线性加权催化';
+  const formulaLabel = isGeometric ? '规模平均+好房放大（活动质量优先）' : '规模放大模式（流量效果优先）';
   
   // 指标映射关系
   const metrics = [
@@ -125,8 +125,8 @@ export function AuditLabDrawer({ row, config, onClose }: AuditLabDrawerProps) {
               </div>
               <p className="formula-desc">
                 {isGeometric 
-                  ? "采用几何平均计算体量，能有效抑制单一指标过大导致的权重倾斜。同时引入商品分作为门控乘子。" 
-                  : "采用线性加权催化逻辑，规模与流量构成基础盘，商品与互动按预设权重产生线性加成。"}
+                  ? "采用规模平均+好房放大逻辑，抑制单一指标过大导致的权重倾斜，并把好房质量作为放大项。"
+                  : "采用规模放大逻辑，规模与流量构成基础盘，优先放大流量带来的活动效果。"}
               </p>
             </div>
           </div>

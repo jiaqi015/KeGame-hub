@@ -436,7 +436,7 @@ export default function App() {
                   onClick={handleReturnToHub}
                   className={`inline-flex items-center gap-2 text-sm font-medium transition ${meta.accentClassName}`}
                 >
-                  返回 KeGame Hub
+                  返回
                 </button>
               </div>
 
@@ -451,7 +451,7 @@ export default function App() {
                   onClick={handleLogoutAccount}
                   className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#5C5C60] transition hover:border-black/20 hover:text-[#1D1D1F]"
                 >
-                  退出到登录
+                  退出账号
                 </button>
               </div>
             </div>

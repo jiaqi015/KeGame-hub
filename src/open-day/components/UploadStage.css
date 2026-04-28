@@ -127,10 +127,316 @@
   color: #dc2626;
 }
 
+.open-day-stat-box--button {
+  display: block;
+  width: 100%;
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.open-day-stat-box--button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(37, 86, 72, 0.28);
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(37, 86, 72, 0.08);
+}
+
+.open-day-stat-box--button:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.75);
+  outline-offset: 2px;
+}
+
+.open-day-stat-box--button small {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--od-secondary);
+}
+
+.open-day-mapping-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2400;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(31, 41, 55, 0.28);
+  backdrop-filter: blur(8px);
+}
+
+.open-day-mapping-dialog {
+  width: min(640px, 100%);
+  overflow: hidden;
+  border: 1px solid rgba(76, 58, 42, 0.12);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 28px 80px rgba(31, 41, 55, 0.24);
+}
+
+.open-day-mapping-dialog__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 22px 16px;
+  border-bottom: 1px solid rgba(76, 58, 42, 0.08);
+}
+
+.open-day-mapping-dialog__header h3 {
+  margin: 0;
+  color: var(--od-text-main);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.open-day-mapping-dialog__header p {
+  margin-top: 6px;
+  color: var(--od-text-muted);
+  font-size: 13px;
+}
+
+.open-day-mapping-dialog__close {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(76, 58, 42, 0.1);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--od-text-muted);
+  cursor: pointer;
+}
+
+.open-day-mapping-dialog__table {
+  display: grid;
+  gap: 0;
+  padding: 10px 16px 18px;
+}
+
+.open-day-mapping-dialog__row {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.9fr) minmax(180px, 1.3fr) 88px;
+  gap: 12px;
+  align-items: center;
+  padding: 11px 8px;
+  border-bottom: 1px solid rgba(76, 58, 42, 0.07);
+  color: var(--od-text-main);
+  font-size: 13px;
+}
+
+.open-day-mapping-dialog__row.is-head {
+  color: var(--od-text-dim);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.open-day-mapping-dialog__row:last-child {
+  border-bottom: none;
+}
+
+.open-day-mapping-dialog__row em {
+  margin-left: 6px;
+  color: var(--od-text-dim);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.open-day-mapping-dialog__row strong {
+  min-width: 0;
+  color: var(--od-text-main);
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.open-day-mapping-dialog__row i {
+  justify-self: start;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.open-day-mapping-dialog__row i.is-ok {
+  background: rgba(37, 86, 72, 0.12);
+  color: var(--od-secondary);
+}
+
+.open-day-mapping-dialog__row i.is-missing {
+  background: rgba(220, 38, 38, 0.08);
+  color: #b91c1c;
+}
+
+.open-day-quality-dialog {
+  width: min(720px, 100%);
+}
+
+.open-day-quality-dialog__body {
+  display: grid;
+  gap: 16px;
+  padding: 16px 18px 20px;
+}
+
+.open-day-quality-dialog__summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.open-day-quality-dialog__summary div {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid rgba(76, 58, 42, 0.08);
+  border-radius: 16px;
+  background: #f8fafc;
+}
+
+.open-day-quality-dialog__summary span {
+  display: block;
+  color: var(--od-text-muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.open-day-quality-dialog__summary strong {
+  display: inline-block;
+  margin-top: 6px;
+  color: var(--od-text-main);
+  font-size: 24px;
+  line-height: 1;
+}
+
+.open-day-quality-dialog__summary em {
+  margin-left: 6px;
+  color: var(--od-text-dim);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.open-day-quality-dialog__note {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.open-day-quality-dialog__note p {
+  color: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.open-day-quality-issue-table {
+  overflow: hidden;
+  border: 1px solid rgba(76, 58, 42, 0.08);
+  border-radius: 14px;
+}
+
+.open-day-quality-issue-table__row {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.5fr) minmax(80px, 0.8fr) 64px 84px 72px;
+  gap: 10px;
+  align-items: center;
+  padding: 11px 12px;
+  border-bottom: 1px solid rgba(76, 58, 42, 0.07);
+  color: var(--od-text-main);
+  font-size: 13px;
+}
+
+.open-day-quality-issue-table__row:last-child {
+  border-bottom: none;
+}
+
+.open-day-quality-issue-table__row.is-head {
+  background: #f8fafc;
+  color: var(--od-text-dim);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.open-day-quality-issue-table__row strong {
+  min-width: 0;
+  font-weight: 800;
+}
+
+.open-day-quality-dialog__empty {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 16px;
+  color: #166534;
+  background: #f0fdf4;
+}
+
+.open-day-quality-dialog__empty strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+
+.open-day-quality-dialog__empty p {
+  color: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .open-day-upload-success-actions {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+.open-day-template-fallback {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(37, 86, 72, 0.14);
+  border-radius: 14px;
+  background: rgba(239, 248, 244, 0.72);
+  color: var(--od-text-main);
+}
+
+.open-day-template-fallback strong {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.open-day-template-fallback p {
+  margin-top: 3px;
+  color: var(--od-text-muted);
+  font-size: 12px;
+}
+
+.open-day-template-fallback textarea {
+  display: block;
+  overflow-x: auto;
+  width: 100%;
+  min-height: 38px;
+  padding: 9px 10px;
+  border: 1px solid rgba(76, 58, 42, 0.08);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--od-secondary);
+  outline: none;
+  font-size: 12px;
+  font-weight: 700;
+  resize: none;
+  white-space: nowrap;
+}
+
+.open-day-template-fallback > span {
+  color: var(--od-secondary);
+  font-size: 12px;
+  font-weight: 800;
 }
 
 /* Quality Report Styles */

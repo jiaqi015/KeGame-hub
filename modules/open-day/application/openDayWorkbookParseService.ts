@@ -5,6 +5,8 @@ import type { OpenDayWorkbookParseCache, OpenDayWorkbookParseCachePayload } from
 import { OpenDayUploadArtifactService } from './openDayUploadArtifactService.js';
 import { OpenDayDatasetService } from './openDayDatasetService.js';
 
+const WORKBOOK_PARSER_VERSION = 'multi-sheet-v2';
+
 export interface ParseOpenDayWorkbookCommand {
   buffer: Buffer;
   requestedSheet?: string;
@@ -26,6 +28,7 @@ export class OpenDayWorkbookParseService {
       {
         checksumSha256,
         requestedSheet: command.requestedSheet || '',
+        parserVersion: WORKBOOK_PARSER_VERSION,
       },
       'open-day-workbook',
     );

@@ -41,7 +41,7 @@ export function SkillBar({
       <div className="open-day-formula-bar__divider" />
 
       <div className="open-day-formula-bar__select">
-        <label>水位基准</label>
+        <label>基准</label>
         <select
           value={config.waterlineMode}
           onChange={(event) => {

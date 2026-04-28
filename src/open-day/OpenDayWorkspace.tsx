@@ -2,6 +2,7 @@ import { useEffect, useMemo, useReducer, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
+  Database,
   FileUp,
   RotateCw,
   Activity,
@@ -48,22 +49,28 @@ import {
   waterlineDefinitions,
   type OpenDayDatasetDraft,
   generateDatasetQualityReport,
+  OPEN_DAY_LARGE_SAMPLE_SIZE,
+  createOpenDaySamplePayload,
 } from './openDayConstants';
+import {
+  createOpenDayCsvBlob,
+  createOpenDayExportFileName,
+  createOpenDayXlsxBlob,
+} from './openDayExport.ts';
 
 import {
-  getParameterPackageLabel,
   buildScenarioDraftName,
   extractHeadersFromRows,
 } from './openDayUtils';
 
 import { parseCsv } from './openDayCsv';
 import { openDayReducer, type OpenDayState } from './openDayReducer';
-import { formatNumber, formatPercent, formatDateTime } from './formatters';
+import { formatDateTime } from './formatters';
 
 // Sub-components
 import { UploadStage } from './components/UploadStage';
 import { SkillBar } from './components/FormulaBar';
-import { AnalysisTable } from './components/AnalysisTable';
+import { AnalysisTable, type OpenDayExportFormat, type OpenDayExportProgress } from './components/AnalysisTable';
 import { InsightDrawer } from './components/InsightDrawer';
 import { LibraryOverlay } from './components/LibraryOverlay';
 import { SidebarConfig } from './components/SidebarConfig';
@@ -76,6 +83,25 @@ import './open-day-workspace.css';
 
 interface OpenDayWorkspaceProps {
   activationKey: string;
+}
+
+function waitForExportPaint() {
+  return new Promise<void>((resolve) => {
+    requestAnimationFrame(() => {
+      window.setTimeout(resolve, 0);
+    });
+  });
+}
+
+function downloadOpenDayBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // ─── Initial State ──────────────────────────────────────────────────────────────
@@ -429,6 +455,15 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     applyParsedData(parsed, '示例数据');
   }
 
+  function handleLoadLargeSample() {
+    const parsed = createOpenDaySamplePayload(OPEN_DAY_LARGE_SAMPLE_SIZE);
+    dispatch({ type: 'SET_UPLOADED_FILE', file: null });
+    dispatch({ type: 'SET_WORKBOOK_SHEETS', sheets: [] });
+    dispatch({ type: 'SET_ACTIVE_SHEET', sheet: '' });
+    dispatch({ type: 'SET_SOURCE_UPLOAD_ID', id: '' });
+    applyParsedData(parsed, `万行测试数据（${OPEN_DAY_LARGE_SAMPLE_SIZE} 行）`);
+  }
+
   function handleApplyPreset(presetId: string) {
     const pp = parameterPackages.find((p) => p.id === presetId);
     dispatch({
@@ -575,33 +610,68 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
     }
   }
 
-  function handleExportCsv() {
-    if (!analysis || !analysis.results.length) return;
+  async function handleExport(format: OpenDayExportFormat, reportProgress?: OpenDayExportProgress) {
+    if (!analysis || !analysis.results.length) {
+      throw new Error('暂无可导出的测算结果。');
+    }
 
-    const headersList = ['排名', '大区', '小区名称', '综合得分', '梯队', '状态', '规模得分', '流量得分', '商品得分', '互动得分', '成交量(单)', '转化率'];
-    const rowsList = analysis.results.map((row) => [
-      row.rank,
-      row.area,
-      row.name,
-      formatNumber(row.score, 1),
-      row.tierCode,
-      row.isEligible ? '达标' : '未达标',
-      formatNumber(row.scaleIdx, 1),
-      formatNumber(row.trafficIdx, 1),
-      formatNumber(row.productIdx, 1),
-      formatNumber(row.interactionIdx, 1),
-      row.transactions,
-      formatPercent(row.convRate, 2),
-    ]);
+    reportProgress?.({
+      phase: 'queued',
+      progress: 8,
+      message: '导出任务已进入前台队列。',
+    });
+    await waitForExportPaint();
 
-    const csvContent = '\uFEFF' + [headersList.join(','), ...rowsList.map((r) => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${datasetDraft.sourceName || '开放日测算结果'}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    reportProgress?.({
+      phase: 'preparing',
+      progress: 24,
+      message: `正在整理 ${analysis.results.length} 条测算结果。`,
+    });
+    await waitForExportPaint();
+
+    const exportFileName = createOpenDayExportFileName(datasetDraft.sourceName, format);
+
+    reportProgress?.({
+      phase: 'generating',
+      progress: 52,
+      message: format === 'xlsx'
+        ? `正在生成 Excel 工作簿（${analysis.results.length} 行）。`
+        : `正在生成 CSV 文本（${analysis.results.length} 行）。`,
+    });
+    await waitForExportPaint();
+
+    const blob = format === 'xlsx'
+      ? createOpenDayXlsxBlob(analysis.results)
+      : createOpenDayCsvBlob(analysis.results);
+
+    if (format === 'xlsx') {
+      reportProgress?.({
+        phase: 'downloading',
+        progress: 88,
+        message: 'Excel 文件已生成，正在交给浏览器下载。',
+      });
+      await waitForExportPaint();
+      downloadOpenDayBlob(blob, exportFileName);
+      reportProgress?.({
+        phase: 'done',
+        progress: 100,
+        message: '导出完成，浏览器已开始下载。',
+      });
+      return;
+    }
+
+    reportProgress?.({
+      phase: 'downloading',
+      progress: 90,
+      message: 'CSV 文件已生成，正在交给浏览器下载。',
+    });
+    await waitForExportPaint();
+    downloadOpenDayBlob(blob, exportFileName);
+    reportProgress?.({
+      phase: 'done',
+      progress: 100,
+      message: '导出完成，浏览器已开始下载。',
+    });
   }
 
   // Effect to handle Esc key for full screen and library
@@ -703,6 +773,7 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
       <UploadStage
         rows={rows}
         headers={headers}
+        mappings={datasetDraft.mappings}
         sourceName={sourceName}
         activeSheet={activeSheet}
         isParsingFile={isParsingFile}
@@ -752,6 +823,15 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
 
           <div className="open-day-workspace-header__actions">
             <div className="open-day-header-secondary-group">
+              <button
+                type="button"
+                className="open-day-button open-day-button--secondary open-day-button--sm"
+                onClick={handleLoadLargeSample}
+                title={`载入 ${OPEN_DAY_LARGE_SAMPLE_SIZE} 行测试数据`}
+              >
+                <Database size={16} />
+                <span>测试数据</span>
+              </button>
               <label className="open-day-button open-day-button--secondary open-day-button--sm open-day-button--file" title="更换数据文件">
                 <FileUp size={16} />
                 <input
@@ -846,17 +926,19 @@ export function OpenDayWorkspace({ activationKey }: OpenDayWorkspaceProps) {
               hasPendingChanges={hasPendingChanges}
               statusMessage={statusMessage}
               qualityReport={qualityReport}
-              currentParameterLabel={getParameterPackageLabel(activeParameterPackageId, parameterPackages)}
               currentFormulaLabel={activeSkill?.label || '默认技能'}
               sampleCount={datasetDraft.rows.length}
-              onSearchChange={(term) => dispatch({ type: 'SET_SEARCH_TERM', term })}
+              onSearchChange={(term) => {
+                dispatch({ type: 'SET_ACTIVE_ROW', row: null });
+                dispatch({ type: 'SET_SEARCH_TERM', term });
+              }}
               onRowClick={(row) => dispatch({ type: 'SET_ACTIVE_ROW', row })}
               onExecuteAnalysis={() => void executeAnalysis()}
               isFullScreen={isFullScreen}
               onSelectNext={handleSelectNext}
               onSelectPrev={handleSelectPrev}
               onToggleFullScreen={() => dispatch({ type: 'TOGGLE_FULL_SCREEN' })}
-              onExport={handleExportCsv}
+              onExport={handleExport}
               onAuditRow={(row) => dispatch({ type: 'SET_AUDIT_ROW', row })}
             />
           </main>

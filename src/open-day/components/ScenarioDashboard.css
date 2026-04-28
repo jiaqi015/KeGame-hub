@@ -4,7 +4,7 @@
   border-radius: 12px;
   padding: 16px;
   display: grid;
-  grid-template-columns: 1fr 1.2fr 0.8fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
   gap: 24px;
   margin-bottom: 20px;
   animation: od-dashboard-slide-in 0.3s ease-out;
@@ -124,31 +124,81 @@
 .legend-item .label { color: var(--od-text-muted); }
 .legend-item .value { font-weight: 700; color: var(--od-text-main); }
 
+.tier-eligibility-rule,
+.tier-grade-rule {
+  display: grid;
+  gap: 5px;
+  padding: 10px 12px;
+  border: 1px solid rgba(76, 58, 42, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.tier-eligibility-rule strong,
+.tier-grade-rule strong {
+  color: var(--od-text-main);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.tier-eligibility-rule span {
+  color: var(--od-text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.tier-eligibility-rule em {
+  color: var(--od-secondary);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.tier-grade-rule div {
+  display: grid;
+  gap: 4px;
+}
+
+.tier-grade-rule span {
+  color: var(--od-text-muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.tier-grade-rule b {
+  display: inline-flex;
+  justify-content: center;
+  width: 16px;
+  margin-right: 5px;
+  color: var(--od-text-main);
+  font-weight: 900;
+}
+
 /* Regional Rank */
 .region-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
 
 .region-card {
   display: flex;
   align-items: center;
-  padding: 8px 12px;
+  padding: 7px 10px;
   background: #fff;
   border: 1px solid rgba(0, 0, 0, 0.04);
   border-radius: 8px;
-  gap: 12px;
+  gap: 10px;
 }
 
 .region-rank {
   font-family: serif;
   font-style: italic;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 800;
   color: var(--od-primary);
   opacity: 0.5;
-  width: 24px;
+  width: 22px;
 }
 
 .region-info { flex: 1; }
@@ -156,60 +206,10 @@
 .region-meta { font-size: 11px; color: var(--od-text-muted); }
 
 .region-score {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 800;
   color: var(--od-primary);
 }
-
-/* Health Analysis */
-.health-content {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  height: 100%;
-}
-
-.health-gauge {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  border: 4px solid var(--od-secondary-light);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: #fff;
-}
-
-.gauge-value {
-  font-size: 18px;
-  font-weight: 800;
-  color: var(--od-secondary);
-  line-height: 1;
-}
-
-.gauge-label {
-  font-size: 9px;
-  color: var(--od-text-muted);
-  font-weight: 700;
-}
-
-.health-details {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.health-stat {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.health-stat .label { font-size: 11px; color: var(--od-text-muted); }
-.health-stat .value { font-size: 13px; font-weight: 700; }
-.health-stat .value.is-danger { color: #ef4444; }
 
 /* Dashboard Toggle in AnalysisTable */
 .dashboard-toggle-btn {

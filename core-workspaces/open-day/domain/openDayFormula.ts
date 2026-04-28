@@ -21,7 +21,7 @@ interface OpenDayFormulaRuntimeDefinition extends OpenDayFormulaDefinition {
 const formulaRegistry: Record<OpenDayFormulaId, OpenDayFormulaRuntimeDefinition> = {
   weighted_catalyst_v1: {
     id: 'weighted_catalyst_v1',
-    label: '线性催化',
+    label: '规模放大模式（流量效果优先）',
     description: '规模与流量直接乘积，商品和互动按权重线性合成催化项。',
     evaluate: ({ scaleScore, trafficScore, productScore, interactionScore, weights }) => {
       const volumeScore = scaleScore * trafficScore;
@@ -35,7 +35,7 @@ const formulaRegistry: Record<OpenDayFormulaId, OpenDayFormulaRuntimeDefinition>
   },
   geometric_catalyst_v2: {
     id: 'geometric_catalyst_v2',
-    label: '几何体量 + 商品门控',
+    label: '规模平均+好房放大（活动质量优先）',
     description: '规模与流量走几何平均，商品分做硬乘子，互动分只作为加成项。',
     evaluate: ({ scaleScore, trafficScore, productScore, interactionScore, weights }) => {
       const volumeScore = Math.sqrt(scaleScore * trafficScore);

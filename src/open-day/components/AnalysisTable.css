@@ -39,6 +39,153 @@
   color: var(--od-text-main);
 }
 
+.open-day-export-control {
+  position: relative;
+  display: inline-flex;
+}
+
+.open-day-export-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  min-width: 132px;
+  overflow: hidden;
+  border: 1px solid rgba(76, 58, 42, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 16px 36px rgba(31, 41, 55, 0.16);
+}
+
+.open-day-export-menu button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--od-text-main);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.open-day-export-menu button:hover,
+.open-day-export-menu button:focus-visible {
+  outline: none;
+  background: rgba(37, 86, 72, 0.08);
+  color: var(--od-secondary);
+}
+
+.open-day-export-task {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  width: 268px;
+  padding: 12px;
+  border: 1px solid rgba(37, 86, 72, 0.14);
+  border-radius: 16px;
+  background: rgba(239, 248, 244, 0.98);
+  box-shadow: 0 16px 36px rgba(31, 41, 55, 0.12);
+  color: var(--od-secondary);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.open-day-export-task.is-error {
+  border-color: rgba(185, 28, 28, 0.16);
+  background: rgba(255, 241, 242, 0.98);
+  color: #991b1b;
+}
+
+.open-day-export-task.is-done {
+  border-color: rgba(37, 86, 72, 0.18);
+  background: rgba(240, 253, 244, 0.98);
+}
+
+.open-day-export-task__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.open-day-export-task__header span {
+  color: var(--od-text-main);
+}
+
+.open-day-export-task__header strong {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(37, 86, 72, 0.1);
+  color: var(--od-secondary);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.open-day-export-task.is-error .open-day-export-task__header strong {
+  background: rgba(185, 28, 28, 0.1);
+  color: #991b1b;
+}
+
+.open-day-export-task__message {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  color: inherit;
+  line-height: 1.5;
+}
+
+.open-day-export-task__bar {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(37, 86, 72, 0.1);
+}
+
+.open-day-export-task__bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #cf6940, var(--od-secondary));
+  transition: width 180ms ease;
+}
+
+.open-day-export-task.is-error .open-day-export-task__bar span {
+  background: linear-gradient(90deg, #fb7185, #b91c1c);
+}
+
+.open-day-export-task__error {
+  margin-top: 8px;
+  color: #991b1b;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.open-day-export-task__close {
+  margin-top: 10px;
+  padding: 4px 9px;
+  border: 1px solid rgba(76, 58, 42, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+  color: currentColor;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.open-day-export-task__close:hover,
+.open-day-export-task__close:focus-visible {
+  outline: none;
+  border-color: rgba(37, 86, 72, 0.24);
+  background: #fff;
+}
+
 .open-day-status-card {
   border: 1px solid rgba(37, 86, 72, 0.16);
   background: rgba(239, 248, 244, 0.92);
@@ -81,23 +228,31 @@
 }
 
 .open-day-hero-card__stats {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(360px, 1.6fr) minmax(160px, 0.7fr) minmax(220px, 0.9fr);
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  width: 100%;
 }
 
 .open-day-hero-stat {
-  flex: 1;
-  min-width: 140px;
-  padding: 10px 14px;
+  min-width: 0;
+  min-height: 84px;
+  padding: 12px 18px;
   border-radius: 14px;
   border: 1px solid rgba(76, 58, 42, 0.04);
   background: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(8px);
   display: flex;
   flex-direction: column;
+  justify-content: center;
+  text-align: center;
   gap: 2px;
+}
+
+.open-day-hero-stat:first-child {
+  align-items: flex-start;
+  text-align: left;
 }
 
 .open-day-hero-stat__label {
@@ -108,10 +263,28 @@
 }
 
 .open-day-hero-stat__value {
-  font-size: 15px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--od-text-main);
   letter-spacing: -0.01em;
+  line-height: 1.35;
+}
+
+.open-day-hero-stat:not(:first-child) .open-day-hero-stat__value {
+  font-size: 22px;
+  font-weight: 800;
+}
+
+@media (max-width: 1120px) {
+  .open-day-hero-card__stats {
+    grid-template-columns: 1fr;
+  }
+
+  .open-day-hero-stat,
+  .open-day-hero-stat:first-child {
+    align-items: center;
+    text-align: center;
+  }
 }
 
 .open-day-analysis-grid {
@@ -166,7 +339,78 @@
   background: rgba(255, 255, 255, 0.5);
   width: 100%;
   /* Removed fixed max-height to allow natural page scrolling */
-  overflow-y: visible; 
+  overflow-y: visible;
+}
+
+.open-day-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid rgba(76, 58, 42, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--od-text-muted);
+  font-size: 12px;
+}
+
+.open-day-pagination__summary {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.open-day-pagination__controls {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+}
+
+.open-day-pagination__controls button {
+  min-height: 26px;
+  border: 1px solid rgba(76, 58, 42, 0.12);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--od-text-main);
+  font: inherit;
+  font-weight: 700;
+}
+
+.open-day-pagination__controls button {
+  padding: 0 8px;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+
+.open-day-pagination__icon-button {
+  width: 28px;
+  min-width: 28px;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.open-day-pagination__controls button:hover:not(:disabled) {
+  border-color: rgba(37, 86, 72, 0.22);
+  background: rgba(37, 86, 72, 0.08);
+  color: var(--od-secondary);
+}
+
+.open-day-pagination__controls button:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.open-day-pagination__page-indicator {
+  min-width: 58px;
+  padding: 0 2px;
+  color: var(--od-text-main);
+  font-weight: 800;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .is-full-screen .open-day-table-wrap {
@@ -224,8 +468,7 @@
 }
 
 .open-day-table thead {
-  position: sticky;
-  top: 46px; /* Optimized height to prevent covering Rank #1 */
+  position: static;
   z-index: 10;
   background: #fff;
   border-bottom: 2px solid var(--od-primary);
@@ -250,6 +493,10 @@
 
 .open-day-table th.is-numeric {
   padding-right: 12px;
+}
+
+.open-day-table .is-score-column {
+  text-align: left;
 }
 
 .open-day-table tbody tr {
@@ -310,9 +557,10 @@
 }
 
 /* Fix sticky header when in full screen:
-   The scroll container is now .open-day-table-wrap, 
+   The scroll container is now .open-day-table-wrap,
    so the header should stick at top-0 within that container. */
 .is-full-screen .open-day-table thead {
+  position: sticky;
   top: 0;
 }
 

@@ -10,6 +10,7 @@
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "verify:platform-smoke": "tsx scripts/verify-platform-smoke.ts",
+    "verify:open-day-large-export": "tsx scripts/verify-open-day-large-export.ts",
     "verify:maintainer": "tsx scripts/verify-selling-houses.ts",
     "verify:maintainer-cloud-resume": "tsx scripts/verify-maintainer-cloud-resume.ts",
     "verify:maintainer-identity": "tsx scripts/verify-maintainer-run-identity.ts",

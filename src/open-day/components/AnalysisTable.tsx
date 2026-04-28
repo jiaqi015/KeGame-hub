@@ -8,6 +8,51 @@ import type { DatasetQualityReport } from '../openDayConstants';
 import { formatNumber, formatPercent } from '../formatters';
 import './AnalysisTable.css';
 
+export type OpenDayExportFormat = 'xlsx' | 'csv';
+export type OpenDayExportPhase = 'queued' | 'preparing' | 'generating' | 'downloading' | 'done' | 'error';
+
+export interface OpenDayExportTask {
+  id: string;
+  format: OpenDayExportFormat;
+  phase: OpenDayExportPhase;
+  progress: number;
+  message: string;
+  startedAt: number;
+  completedAt?: number;
+  error?: string;
+}
+
+export type OpenDayExportProgress = (
+  patch: Partial<Pick<OpenDayExportTask, 'phase' | 'progress' | 'message' | 'completedAt' | 'error'>>,
+) => void;
+
+type OpenDayExportHandler = (format: OpenDayExportFormat, reportProgress?: OpenDayExportProgress) => void | Promise<void>;
+
+const pageSize = 10;
+const exportFormatLabels: Record<OpenDayExportFormat, string> = {
+  xlsx: 'Excel',
+  csv: 'CSV',
+};
+const exportPhaseLabels: Record<OpenDayExportPhase, string> = {
+  queued: '排队中',
+  preparing: '整理数据',
+  generating: '生成文件',
+  downloading: '交给浏览器',
+  done: '已完成',
+  error: '失败',
+};
+
+function clampExportProgress(progress: number) {
+  return Math.min(100, Math.max(0, Math.round(progress)));
+}
+
+function getRankChipClassName(rank: number) {
+  if (rank === 1) return 'open-day-rank-chip open-day-rank-chip--gold';
+  if (rank === 2) return 'open-day-rank-chip open-day-rank-chip--silver';
+  if (rank === 3) return 'open-day-rank-chip open-day-rank-chip--bronze';
+  return 'open-day-rank-chip';
+}
+
 interface AnalysisTableProps {
   analysis: OpenDayAnalysisResponse | null;
   baselineAnalysis: OpenDayAnalysisResponse | null;
@@ -17,13 +62,12 @@ interface AnalysisTableProps {
   isAnalyzing: boolean;
   hasPendingChanges: boolean;
   statusMessage: string;
-  currentParameterLabel: string;
   currentFormulaLabel: string;
   sampleCount: number;
   qualityReport: DatasetQualityReport | null;
   isFullScreen: boolean;
   onToggleFullScreen: () => void;
-  onExport: () => void;
+  onExport: OpenDayExportHandler;
   onSearchChange: (term: string) => void;
   onRowClick: (row: OpenDayAnalysisRow) => void;
   onExecuteAnalysis: () => void;
@@ -41,7 +85,6 @@ export function AnalysisTable({
   isAnalyzing,
   hasPendingChanges,
   statusMessage,
-  currentParameterLabel,
   currentFormulaLabel,
   sampleCount,
   qualityReport,
@@ -57,20 +100,40 @@ export function AnalysisTable({
 }: AnalysisTableProps) {
   const [showDashboard, setShowDashboard] = useState(true);
   const [viewMode, setViewMode] = useState<'property' | 'area'>('property');
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const [exportTask, setExportTask] = useState<OpenDayExportTask | null>(null);
+  const [pageIndex, setPageIndex] = useState(0);
   const selectedRowRef = useRef<HTMLTableRowElement>(null);
+  const exportCleanupTimerRef = useRef<number | null>(null);
   const isLargeDataset = (analysis?.meta.totalCount ?? 0) > 80;
-  const filteredRows = useMemo(() => {
+  const isExportInProgress = Boolean(exportTask && exportTask.phase !== 'done' && exportTask.phase !== 'error');
+  const canExport = Boolean(analysis && !isAnalyzing && !isExportInProgress);
+  const indexedRows = useMemo(() => {
     if (!analysis) return [];
-    const term = searchTerm.toLowerCase();
-    return analysis.results.filter((row) => 
-      !term || (row.name || '').toLowerCase().includes(term)
-    );
-  }, [analysis, searchTerm]);
+    return analysis.results.map((row) => ({
+      row,
+      searchText: `${row.name || ''} ${row.area || ''} ${row.rank}`.toLowerCase(),
+    }));
+  }, [analysis]);
+  const filteredRows = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    return indexedRows
+      .filter((item) => !term || item.searchText.includes(term))
+      .map((item) => item.row);
+  }, [indexedRows, searchTerm]);
+  const pageCount = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  const pageStartIndex = pageIndex * pageSize;
+  const pagedRows = useMemo(
+    () => filteredRows.slice(pageStartIndex, pageStartIndex + pageSize),
+    [filteredRows, pageSize, pageStartIndex],
+  );
+  const pageStartNumber = filteredRows.length ? pageStartIndex + 1 : 0;
+  const pageEndNumber = Math.min(filteredRows.length, pageStartIndex + pageSize);
 
   // Aggregation Logic for Area View
   const areaAggregation = useMemo(() => {
     if (!analysis) return [];
-    
+
     const areaMap: Record<string, {
       name: string;
       totalScore: number;
@@ -113,8 +176,83 @@ export function AnalysisTable({
     }
   }, [activeRow]);
 
+  useEffect(() => {
+    if (!canExport) setIsExportMenuOpen(false);
+  }, [canExport]);
+
+  useEffect(() => () => {
+    if (exportCleanupTimerRef.current) {
+      window.clearTimeout(exportCleanupTimerRef.current);
+    }
+  }, []);
+
+  useEffect(() => {
+    setPageIndex(0);
+  }, [analysis, searchTerm, viewMode]);
+
+  useEffect(() => {
+    setPageIndex((currentPageIndex) => Math.min(currentPageIndex, pageCount - 1));
+  }, [pageCount]);
+
+  useEffect(() => {
+    if (!activeRow || viewMode !== 'property') return;
+    const activeIndex = filteredRows.findIndex((row) => row.name === activeRow.name);
+    if (activeIndex < 0) return;
+    setPageIndex(Math.floor(activeIndex / pageSize));
+  }, [activeRow, filteredRows, pageSize, viewMode]);
+
+  async function handleExportClick(format: OpenDayExportFormat) {
+    if (!canExport) return;
+    if (exportCleanupTimerRef.current) {
+      window.clearTimeout(exportCleanupTimerRef.current);
+      exportCleanupTimerRef.current = null;
+    }
+    const taskId = `open-day-export-${Date.now()}`;
+    setExportTask({
+      id: taskId,
+      format,
+      phase: 'queued',
+      progress: 5,
+      message: '导出任务已创建，正在准备数据。',
+      startedAt: Date.now(),
+    });
+    setIsExportMenuOpen(false);
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    const reportProgress: OpenDayExportProgress = (patch) => {
+      setExportTask((currentTask) => {
+        if (!currentTask || currentTask.id !== taskId) return currentTask;
+        return {
+          ...currentTask,
+          ...patch,
+          progress: patch.progress === undefined ? currentTask.progress : clampExportProgress(patch.progress),
+        };
+      });
+    };
+    try {
+      await onExport(format, reportProgress);
+      reportProgress({
+        phase: 'done',
+        progress: 100,
+        message: '导出完成，浏览器已开始下载。',
+        completedAt: Date.now(),
+      });
+      exportCleanupTimerRef.current = window.setTimeout(() => {
+        setExportTask((currentTask) => (currentTask?.id === taskId ? null : currentTask));
+        exportCleanupTimerRef.current = null;
+      }, 5000);
+    } catch (error) {
+      reportProgress({
+        phase: 'error',
+        progress: 100,
+        message: '导出失败，未生成下载文件。',
+        error: error instanceof Error ? error.message : '未知错误',
+        completedAt: Date.now(),
+      });
+    }
+  }
+
   return (
-    <div 
+    <div
       className={`open-day-main-card ${isFullScreen ? 'is-full-screen' : ''}`}
       tabIndex={0}
       onKeyDown={(e) => {
@@ -145,10 +283,6 @@ export function AnalysisTable({
         {/* Row 1: Key Metrics */}
         <div className="open-day-hero-card__stats">
           <div className="open-day-hero-stat">
-            <span className="open-day-hero-stat__label">策略</span>
-            <strong className="open-day-hero-stat__value">{currentParameterLabel}</strong>
-          </div>
-          <div className="open-day-hero-stat">
             <span className="open-day-hero-stat__label">技能</span>
             <strong className="open-day-hero-stat__value">{currentFormulaLabel}</strong>
           </div>
@@ -157,7 +291,7 @@ export function AnalysisTable({
             <strong className="open-day-hero-stat__value">{analysis?.meta.totalCount ?? sampleCount}</strong>
           </div>
           <div className="open-day-hero-stat">
-            <span className="open-day-hero-stat__label">入围</span>
+            <span className="open-day-hero-stat__label">达标</span>
             <strong className="open-day-hero-stat__value">{analysis ? `${analysis.meta.eligibleCount}/${analysis.meta.totalCount}` : '--'}</strong>
           </div>
         </div>
@@ -168,7 +302,7 @@ export function AnalysisTable({
             <Search size={16} />
             <input
               type="text"
-              placeholder="按名字及编号搜索小区..."
+              placeholder="按小区 / 大区 / 排名搜索..."
               value={searchTerm}
               onChange={(e) => onSearchChange(e.target.value)}
               onKeyDown={(e) => {
@@ -183,7 +317,7 @@ export function AnalysisTable({
           </div>
 
           <div className="flex gap-2">
-            <button 
+            <button
               className={`dashboard-toggle-btn ${showDashboard ? 'is-active' : ''}`}
               onClick={() => setShowDashboard(!showDashboard)}
               title={showDashboard ? '折叠看板' : '展开场景看板'}
@@ -192,17 +326,91 @@ export function AnalysisTable({
               <span>{showDashboard ? '隐藏概览' : '场景概览'}</span>
             </button>
 
-            <button 
-              className="open-day-button open-day-button--secondary open-day-button--sm"
-              onClick={onExport}
-              disabled={!analysis || isAnalyzing}
-              title="导出当前结果为 CSV"
+            <div
+              className="open-day-export-control"
+              onBlur={(event) => {
+                const nextTarget = event.relatedTarget;
+                if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
+                  setIsExportMenuOpen(false);
+                }
+              }}
             >
-              <FileDown size={16} />
-              <span>导出</span>
-            </button>
+              <button
+                className="open-day-button open-day-button--secondary open-day-button--sm"
+                onClick={() => {
+                  if (exportTask && !isExportInProgress) {
+                    setExportTask(null);
+                  }
+                  setIsExportMenuOpen((value) => !value);
+                }}
+                disabled={!canExport}
+                title="选择导出格式"
+                aria-haspopup="menu"
+                aria-expanded={isExportMenuOpen}
+              >
+                {isExportInProgress ? <RotateCw size={16} className="animate-spin" /> : <FileDown size={16} />}
+                <span>{isExportInProgress && exportTask ? `导出中 ${exportTask.progress}%` : '导出'}</span>
+              </button>
 
-            <button 
+              {isExportMenuOpen && (
+                <div className="open-day-export-menu" role="menu">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      void handleExportClick('xlsx');
+                    }}
+                  >
+                    Excel .xlsx
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      void handleExportClick('csv');
+                    }}
+                  >
+                    CSV .csv
+                  </button>
+                </div>
+              )}
+              {exportTask ? (
+                <div className={`open-day-export-task is-${exportTask.phase}`} role="status" aria-live="polite">
+                  <div className="open-day-export-task__header">
+                    <span>导出任务 · {exportFormatLabels[exportTask.format]}</span>
+                    <strong>{exportPhaseLabels[exportTask.phase]}</strong>
+                  </div>
+                  <div className="open-day-export-task__message">
+                    {exportTask.phase === 'error' ? <AlertCircle size={14} /> : null}
+                    <span>{exportTask.message}</span>
+                  </div>
+                  <div
+                    className="open-day-export-task__bar"
+                    aria-label={`导出进度 ${exportTask.progress}%`}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={exportTask.progress}
+                    role="progressbar"
+                  >
+                    <span style={{ width: `${exportTask.progress}%` }} />
+                  </div>
+                  {exportTask.error ? (
+                    <div className="open-day-export-task__error">{exportTask.error}</div>
+                  ) : null}
+                  {exportTask.phase === 'done' || exportTask.phase === 'error' ? (
+                    <button
+                      type="button"
+                      className="open-day-export-task__close"
+                      onClick={() => setExportTask(null)}
+                    >
+                      关闭
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+
+            <button
               className="open-day-button open-day-button--secondary open-day-button--sm open-day-button--icon-only"
               onClick={onToggleFullScreen}
               title={isFullScreen ? '退出全屏' : '全屏模式'}
@@ -214,15 +422,17 @@ export function AnalysisTable({
       </div>
 
       {analysis && baselineAnalysis && (
-        <ImpactNarrator 
-          analysis={analysis} 
-          baseline={baselineAnalysis} 
+        <ImpactNarrator
+          analysis={analysis}
+          baseline={baselineAnalysis}
         />
       )}
 
-      <ScenarioDashboard 
-        results={analysis?.results || []} 
-        isVisible={showDashboard} 
+      <ScenarioDashboard
+        results={analysis?.results || []}
+        hardFilters={analysis?.meta.requestedConfig.hardFilters}
+        tierThresholds={analysis?.meta.requestedConfig.tierThresholds}
+        isVisible={showDashboard}
         viewMode={viewMode}
         onToggleViewMode={setViewMode}
       />
@@ -240,7 +450,7 @@ export function AnalysisTable({
               <tr>
                 <th>排名</th>
                 <th>小区</th>
-                <th className="is-numeric">综合分</th>
+                <th className="is-numeric is-score-column">综合分</th>
                 <th>梯队</th>
                 <th>状态</th>
                 <th className="is-numeric">规模</th>
@@ -257,7 +467,7 @@ export function AnalysisTable({
                 <th className="is-numeric">平均综合分</th>
                 <th className="is-numeric">纳管小区数</th>
                 <th className="is-numeric">入围率 (合规)</th>
-                <th className="is-numeric">优质转化 (S/A率)</th>
+                <th className="is-numeric">优质转化 (S/A数/率)</th>
                 <th className="is-numeric">数据异常率</th>
                 <th>战略地位</th>
               </tr>
@@ -268,32 +478,25 @@ export function AnalysisTable({
               viewMode === 'property' ? (
                 filteredRows.length > 0 ? (
                   isLargeDataset ? (
-                    filteredRows.map((row) => (
-                      <tr
-                        key={`${row.name || row.rank}`}
-                        className={activeRow?.name === row.name ? 'is-selected' : ''}
-                        ref={activeRow?.name === row.name ? selectedRowRef : null}
-                        onClick={() => onRowClick(row)}
-                      >
-                        <td>
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`open-day-rank-chip ${
-                                row.rank === 1
-                                  ? 'open-day-rank-chip--gold'
-                                  : row.rank === 2
-                                    ? 'open-day-rank-chip--silver'
-                                    : row.rank === 3
-                                      ? 'open-day-rank-chip--bronze'
-                                      : ''
-                              }`}
-                            >
-                              #{row.rank}
-                            </span>
+                    pagedRows.map((row, index) => {
+                      const displayRank = pageStartIndex + index + 1;
+
+                      return (
+                        <tr
+                          key={`${row.name || row.rank}`}
+                          className={activeRow?.name === row.name ? 'is-selected' : ''}
+                          ref={activeRow?.name === row.name ? selectedRowRef : null}
+                          onClick={() => onRowClick(row)}
+                        >
+                          <td>
+                            <div className="flex items-center gap-2">
+                              <span className={getRankChipClassName(displayRank)}>
+                                #{displayRank}
+                              </span>
                             {baselineAnalysis && (() => {
                               const baselineRow = baselineAnalysis.results.find(br => br.name === row.name);
                               if (!baselineRow) return <span className="open-day-delta-rank is-new">NEW</span>;
-                              const delta = baselineRow.rank - row.rank; 
+                              const delta = baselineRow.rank - row.rank;
                               if (delta > 0) return <span className="open-day-delta-rank is-up">↑{delta}</span>;
                               if (delta < 0) return <span className="open-day-delta-rank is-down">↓{Math.abs(delta)}</span>;
                               return null;
@@ -305,7 +508,7 @@ export function AnalysisTable({
                             <div className="flex items-center gap-1.5">
                               <span className="text-sm font-bold">{row.name}</span>
                               {row.logicGuardTags && (
-                                <div 
+                                <div
                                   className={`open-day-logic-alert is-${row.logicGuardSeverity || 'warning'}`}
                                   title={`[智能诊断报告]\n${row.logicGuardTags.map(t => '• ' + t).join('\n')}`}
                                 >
@@ -316,8 +519,8 @@ export function AnalysisTable({
                             {row.area && <span className="text-[10px] text-[#6E6E73] opacity-70 uppercase tracking-wider">{row.area}</span>}
                           </div>
                         </td>
-                        <td 
-                          className="open-day-table-cell--score-audit is-numeric"
+                        <td
+                          className="open-day-table-cell--score-audit is-numeric is-score-column"
                           onClick={(e) => {
                             e.stopPropagation();
                             onAuditRow(row);
@@ -378,11 +581,15 @@ export function AnalysisTable({
                         <td className="is-numeric">{formatNumber(row.transactions, 0)}</td>
                         <td className="is-numeric">{formatPercent(row.convRate, 2)}</td>
                       </tr>
-                    ))
+                      );
+                    })
                   ) : (
-                  <AnimatePresence mode="popLayout" initial={false}>
-                    {filteredRows.map((row) => (
-                      <motion.tr
+                    <AnimatePresence mode="popLayout" initial={false}>
+                      {pagedRows.map((row, index) => {
+                        const displayRank = pageStartIndex + index + 1;
+
+                        return (
+                        <motion.tr
                         layout
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -398,24 +605,14 @@ export function AnalysisTable({
                       >
                         <td>
                           <div className="flex items-center gap-2">
-                            <span
-                              className={`open-day-rank-chip ${
-                                row.rank === 1
-                                  ? 'open-day-rank-chip--gold'
-                                  : row.rank === 2
-                                    ? 'open-day-rank-chip--silver'
-                                    : row.rank === 3
-                                      ? 'open-day-rank-chip--bronze'
-                                      : ''
-                              }`}
-                            >
-                              #{row.rank}
+                            <span className={getRankChipClassName(displayRank)}>
+                              #{displayRank}
                             </span>
-                            
+
                             {baselineAnalysis && (() => {
                               const baselineRow = baselineAnalysis.results.find(br => br.name === row.name);
                               if (!baselineRow) return <span className="open-day-delta-rank is-new">NEW</span>;
-                              const delta = baselineRow.rank - row.rank; 
+                              const delta = baselineRow.rank - row.rank;
                               if (delta > 0) return <span className="open-day-delta-rank is-up">↑{delta}</span>;
                               if (delta < 0) return <span className="open-day-delta-rank is-down">↓{Math.abs(delta)}</span>;
                               return null;
@@ -427,7 +624,7 @@ export function AnalysisTable({
                             <div className="flex items-center gap-1.5">
                               <span className="text-sm font-bold">{row.name}</span>
                               {row.logicGuardTags && (
-                                <div 
+                                <div
                                   className={`open-day-logic-alert is-${row.logicGuardSeverity || 'warning'}`}
                                   title={`[智能诊断报告]\n${row.logicGuardTags.map(t => '• ' + t).join('\n')}`}
                                 >
@@ -438,8 +635,8 @@ export function AnalysisTable({
                             {row.area && <span className="text-[10px] text-[#6E6E73] opacity-70 uppercase tracking-wider">{row.area}</span>}
                           </div>
                         </td>
-                        <td 
-                          className="open-day-table-cell--score-audit is-numeric"
+                        <td
+                          className="open-day-table-cell--score-audit is-numeric is-score-column"
                           onClick={(e) => {
                             e.stopPropagation();
                             onAuditRow(row);
@@ -448,7 +645,7 @@ export function AnalysisTable({
                         >
                           <div className="open-day-audit-trigger">
                             <span className="open-day-audit-value">{formatNumber(row.score, 1)}</span>
-                            
+
                             {baselineAnalysis && (() => {
                               const baselineRow = baselineAnalysis.results.find(br => br.name === row.name);
                               if (!baselineRow) return null;
@@ -501,9 +698,10 @@ export function AnalysisTable({
                         </td>
                         <td className="is-numeric">{formatNumber(row.transactions, 0)}</td>
                         <td className="is-numeric">{formatPercent(row.convRate, 2)}</td>
-                      </motion.tr>
-                    ))}
-                  </AnimatePresence>
+                        </motion.tr>
+                        );
+                      })}
+                    </AnimatePresence>
                 )
                 ) : (
                   <tr>
@@ -547,6 +745,7 @@ export function AnalysisTable({
                     <td className="is-numeric">
                       <div className="flex items-center justify-end gap-2">
                         <span className="text-indigo-600 font-bold">{formatPercent(area.qualityRatio, 0)}</span>
+                        <span className="text-xs font-semibold text-indigo-500">{area.sACount}个</span>
                         <div className="w-12 h-1.5 bg-indigo-50 rounded-full overflow-hidden">
                           <div className="h-full bg-indigo-500" style={{ width: `${area.qualityRatio * 100}%` }} />
                         </div>
@@ -595,6 +794,57 @@ export function AnalysisTable({
           </tbody>
         </table>
       </div>
+
+      {analysis && viewMode === 'property' && filteredRows.length > 0 ? (
+        <div className="open-day-pagination">
+          <div className="open-day-pagination__summary">
+            {pageStartNumber}-{pageEndNumber} / {filteredRows.length} 条
+          </div>
+          <div className="open-day-pagination__controls">
+            <button
+              type="button"
+              className="open-day-pagination__icon-button"
+              onClick={() => setPageIndex(0)}
+              disabled={pageIndex === 0}
+              aria-label="回到第一页"
+              title="第一页"
+            >
+              «
+            </button>
+            <button
+              type="button"
+              className="open-day-pagination__icon-button"
+              onClick={() => setPageIndex((value) => Math.max(0, value - 1))}
+              disabled={pageIndex === 0}
+              aria-label="上一页"
+              title="上一页"
+            >
+              ‹
+            </button>
+            <span className="open-day-pagination__page-indicator">{pageIndex + 1} / {pageCount}</span>
+            <button
+              type="button"
+              className="open-day-pagination__icon-button"
+              onClick={() => setPageIndex((value) => Math.min(pageCount - 1, value + 1))}
+              disabled={pageIndex >= pageCount - 1}
+              aria-label="下一页"
+              title="下一页"
+            >
+              ›
+            </button>
+            <button
+              type="button"
+              className="open-day-pagination__icon-button"
+              onClick={() => setPageIndex(pageCount - 1)}
+              disabled={pageIndex >= pageCount - 1}
+              aria-label="跳到最后一页"
+              title="最后一页"
+            >
+              »
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

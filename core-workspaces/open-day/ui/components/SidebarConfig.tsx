@@ -89,13 +89,13 @@ export function SidebarConfig({
               onClick={onToggleLibrary}
             >
               <Archive size={16} className="text-emerald-700" />
-              <span className="font-bold text-sm">档案与方案库</span>
+              <span className="font-bold text-sm">个性化配置和测算历史</span>
             </button>
           </div>
           <div className="open-day-sidebar-divider" />
           {/* Presets */}
           <div className="open-day-sidebar-section">
-            <h3>场景模型</h3>
+            <h3>参数调整模式</h3>
             <div className="open-day-preset-grid">
               {parameterPackages.map((preset) => (
                 <button
@@ -116,17 +116,17 @@ export function SidebarConfig({
             <h3>权重分布</h3>
             <div className="open-day-params-grid">
               <label>
-                <span>敏感指数 (Alpha)</span>
+                <span>带看幂等指数</span>
                 <DebouncedNumberInput min={0} max={2} step={0.05} value={config.alpha}
                   onChange={(v) => onUpdateConfig((d) => { d.alpha = Math.max(0, v); })} />
               </label>
               <label>
-                <span>商品权重</span>
+                <span>好房指数权重</span>
                 <DebouncedNumberInput min={0} max={1} step={0.05} value={config.weights.product}
                   onChange={(v) => onUpdateConfig((d) => { d.weights.product = Math.max(0, v); })} />
               </label>
               <label>
-                <span>互动权重</span>
+                <span>转化指数权重</span>
                 <DebouncedNumberInput min={0} max={1} step={0.05} value={config.weights.interaction}
                   onChange={(v) => onUpdateConfig((d) => { d.weights.interaction = Math.max(0, v); })} />
               </label>
@@ -135,7 +135,7 @@ export function SidebarConfig({
 
           {/* Hard Filters */}
           <div className="open-day-sidebar-section">
-            <h3>入围过滤</h3>
+            <h3>达标线调整</h3>
             <div className="open-day-filter-row">
               <label>
                 <span>最低在售</span>
@@ -157,7 +157,7 @@ export function SidebarConfig({
 
             {/* Waterline Table */}
             <div className="open-day-sidebar-section">
-              <h3>基准水位</h3>
+              <h3>满分水位调整</h3>
               <table className="open-day-waterline-table">
                 <thead>
                   <tr>
