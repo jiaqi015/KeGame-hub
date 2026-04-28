@@ -75,7 +75,7 @@ function rowToUser(row: any): AuthNeonUser {
 export async function neonGetUser(email: string): Promise<AuthNeonUser | null> {
   if (!isAuthNeonAvailable()) return null;
   await ensureSchema();
-  const rows = await getSql()`SELECT * FROM auth_users WHERE email = ${email}`;
+  const rows = await getSql()`SELECT * FROM auth_users WHERE email = ${email}` as any[];
   return rows.length > 0 ? rowToUser(rows[0]) : null;
 }
 
@@ -99,7 +99,7 @@ export async function neonUpsertUser(user: AuthNeonUser): Promise<void> {
 export async function neonListUsers(): Promise<AuthNeonUser[]> {
   if (!isAuthNeonAvailable()) return [];
   await ensureSchema();
-  const rows = await getSql()`SELECT * FROM auth_users ORDER BY last_login_at DESC`;
+  const rows = await getSql()`SELECT * FROM auth_users ORDER BY last_login_at DESC` as any[];
   return rows.map(rowToUser);
 }
 
@@ -111,7 +111,7 @@ export async function neonUpdatePermissions(email: string, allowedWorkspaces: st
     SET allowed_workspaces = ${JSON.stringify(allowedWorkspaces)}
     WHERE email = ${email}
     RETURNING *
-  `;
+  ` as any[];
   return rows.length > 0 ? rowToUser(rows[0]) : null;
 }
 
@@ -136,7 +136,7 @@ export async function neonSaveChallenge(email: string, codeHash: string, expires
 export async function neonGetChallenge(email: string): Promise<{ email: string; codeHash: string; expiresAt: string } | null> {
   if (!isAuthNeonAvailable()) return null;
   await ensureSchema();
-  const rows = await getSql()`SELECT * FROM auth_challenges WHERE email = ${email}`;
+  const rows = await getSql()`SELECT * FROM auth_challenges WHERE email = ${email}` as any[];
   if (rows.length === 0) return null;
   return {
     email: rows[0].email,
@@ -163,7 +163,7 @@ export async function neonMigrateLegacyUsers(): Promise<number> {
   const rows = await getSql()`
     SELECT user_id, display_name FROM maintainer_users
     WHERE user_id LIKE 'acct_%'
-  `;
+  ` as any[];
 
   let migrated = 0;
   for (const row of rows) {

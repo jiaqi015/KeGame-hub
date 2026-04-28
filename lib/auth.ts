@@ -13,10 +13,25 @@ import {
   neonDeleteUser as neonDeleteUserFromDb,
   neonMigrateLegacyUsers,
 } from './authNeon.js';
+import type { AuthNeonUser } from './authNeon.js';
 import { sendVerificationEmail } from './email.js';
 import { decodeLegacyWorkspaceCodes } from './workspaces.js';
 
 let authNeonSeeded = false;
+
+function toAuthUserRecord(user: AuthNeonUser): AuthUserRecord {
+  return {
+    accountId: user.accountId,
+    email: user.email,
+    nickname: user.nickname,
+    displayName: user.displayName,
+    allowedWorkspaces: user.allowedWorkspaces as ActivationWorkspaceId[],
+    activationBound: user.activationBound,
+    activationKey: user.activationKey,
+    createdAt: user.createdAt,
+    lastLoginAt: user.lastLoginAt,
+  };
+}
 
 export const AUTH_SESSION_COOKIE_NAME = 'sabrina-session';
 export const AUTH_USER_STORAGE_ENV_NAME = 'AUTH_USER_STORAGE';
@@ -205,7 +220,7 @@ async function seedAuthStoreFromNeon(): Promise<void> {
       const key = normalizeEmail(user.email);
       const existing = store.users[key];
       if (!existing || existing.allowedWorkspaces.length === 0) {
-        store.users[key] = user;
+        store.users[key] = toAuthUserRecord(user);
       }
     }
     process.env[AUTH_USER_STORAGE_ENV_NAME] = JSON.stringify(store);
@@ -728,7 +743,7 @@ export async function listAllUsers(): Promise<AuthUserRecord[]> {
   if (isAuthNeonAvailable()) {
     await seedAuthStoreFromNeon();
     const neonUsers = await neonListUsers();
-    if (neonUsers.length > 0) return neonUsers;
+    if (neonUsers.length > 0) return neonUsers.map(toAuthUserRecord);
   }
 
   const store = getAuthStore();
@@ -761,7 +776,7 @@ export async function updateUserPermissions(email: string, allowedWorkspaces: Ac
 
   if (isAuthNeonAvailable()) {
     const neonResult = await neonUpdatePermissions(normalizedEmail, allowedWorkspaces);
-    if (neonResult) return neonResult;
+    if (neonResult) return toAuthUserRecord(neonResult);
   }
 
   const store = getAuthStore();

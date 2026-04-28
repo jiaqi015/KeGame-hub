@@ -1,11 +1,11 @@
 import './_bootstrap.js';
-import { requireAdminPermission, listAllUsers, updateUserPermissions, deleteUser } from '../lib/auth.js';
+import { requireAdminPermission, isSessionAuthorizationFailure, listAllUsers, updateUserPermissions, deleteUser } from '../lib/auth.js';
 import { WORKSPACE_IDS } from '../lib/workspaces.js';
 import { parseJsonBody } from './_request.js';
 
 export default async function handler(req: any, res: any) {
   const authorization = requireAdminPermission(req);
-  if (!authorization.ok) {
+  if (isSessionAuthorizationFailure(authorization)) {
     return res.status(authorization.status).json({ error: authorization.error });
   }
 
