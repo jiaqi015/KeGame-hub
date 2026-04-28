@@ -655,7 +655,7 @@ export function getActionAvailability(
     return { enabled: false, reason: '推广金不足，先成交回款或者少做高成本动作。' };
   }
 
-  if (['first-visit', 'weekly-feedback', 'deep-diagnosis', 'pricing-advice', 'ask-psychological-price', 'adjust-listing-price'].includes(normalizedActionId) && caseItem.touchedOwnerToday) {
+  if (['first-visit', 'weekly-feedback', 'deep-diagnosis', 'pricing-advice', 'ask-psychological-price', 'adjust-listing-price', 'focus-meeting-submit'].includes(normalizedActionId) && caseItem.touchedOwnerToday) {
     return { enabled: false, reason: '今天已经和业主深聊过一次了，先消化反馈，明天再推进。' };
   }
   if (normalizedActionId === 'first-visit' && caseItem.hasCompletedFirstVisit) {

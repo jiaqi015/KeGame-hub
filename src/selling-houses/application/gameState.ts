@@ -862,6 +862,15 @@ export function normalizeLoadedState(parsed: any): GameState | null {
     cases: normalizedCases,
     opportunities: Array.isArray(parsed?.opportunities) ? parsed.opportunities.map(normalizeOpportunity) : [],
     closedDeals: normalizedClosedDeals,
+    eventLog: Array.isArray(parsed?.eventLog)
+      ? parsed.eventLog.map((entry: any) => ({
+          actor: String(entry?.actor || '系统'),
+          message: String(entry?.message || entry?.detail || ''),
+          tone: entry?.tone === 'success' || entry?.tone === 'danger' ? entry.tone : 'accent',
+          day: Number(entry?.day) || 1,
+          date: typeof entry?.date === 'string' ? entry.date : buildInitialDate(snapshot),
+        }))
+      : [],
     eventStore: Array.isArray(parsed?.eventStore) ? parsed.eventStore.map((entry: any, index: number) => ({
       id: String(entry?.id || `event-legacy-${index + 1}`),
       day: Number(entry?.day) || 1,
@@ -917,7 +926,7 @@ export function saveGameState(world: GameState, accountEmail?: string) {
       ...savedWorld,
       commission: legacyAuxiliaryStats.commission,
       wordOfMouth: legacyAuxiliaryStats.wordOfMouth,
-      reputation: legacyAuxiliaryStats.wordOfMouth,
+      reputation: world.reputation,
       soldCount,
       withdrawnCount: legacyAuxiliaryStats.withdrawnCount,
       eventLog: world.eventLog.slice(0, 120),

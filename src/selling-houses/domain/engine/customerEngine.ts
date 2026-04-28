@@ -201,7 +201,7 @@ function applyCustomerDay(state: GameState, customer: CustomerProfile, customerS
       const gap = (lead.interest + lead.confidence) - (second.interest + second.confidence);
       if (Math.abs(gap) <= 10) {
         customerState.status = 'comparing';
-      } else if (gap >= 14) {
+      } else if (gap > 10) {
         second.interest = clamp(second.interest - 4, 0, 100);
         second.confidence = clamp(second.confidence - 3, 0, 100);
         lead.selected = true;
