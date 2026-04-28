@@ -681,6 +681,54 @@ export function setAuthCookie(res: any, cookie: string) {
   res.setHeader('Set-Cookie', cookie);
 }
 
+export function listAllUsers(): AuthUserRecord[] {
+  const store = getAuthStore();
+  return Object.values(store.users);
+}
+
+export function updateUserPermissions(email: string, allowedWorkspaces: ActivationWorkspaceId[]): AuthUserRecord {
+  const normalizedEmail = normalizeEmail(email);
+  const store = getAuthStore();
+  const user = store.users[normalizedEmail];
+
+  if (!user) {
+    throw new Error('用户不存在。');
+  }
+
+  user.allowedWorkspaces = allowedWorkspaces;
+  saveAuthStore(store);
+  return user;
+}
+
+export function deleteUser(email: string): void {
+  const normalizedEmail = normalizeEmail(email);
+  const store = getAuthStore();
+
+  if (!store.users[normalizedEmail]) {
+    throw new Error('用户不存在。');
+  }
+
+  delete store.users[normalizedEmail];
+  saveAuthStore(store);
+}
+
+export function requireAdminPermission(req: any): SessionAuthorizationResult {
+  const authorization = authorizeSession(req);
+  if (!authorization.ok) {
+    return authorization;
+  }
+
+  if (!authorization.allowedWorkspaces.includes('admin')) {
+    return {
+      ok: false,
+      status: 403,
+      error: '需要管理员权限。',
+    };
+  }
+
+  return authorization;
+}
+
 function getHeaderValue(req: any, name: string): string {
   const headers = req?.headers;
 

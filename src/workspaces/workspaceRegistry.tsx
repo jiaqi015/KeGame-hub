@@ -1,12 +1,15 @@
 import React, { lazy } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { HouseHeart, MapPinHouse, Sparkles, Store, UserRound } from 'lucide-react';
+import { HouseHeart, MapPinHouse, Settings, Sparkles, Store, UserRound } from 'lucide-react';
 import type { ActivationWorkspaceId } from '../types';
 import type { SellingHousesStorageProfile } from '../selling-houses/application/storageProfile';
 import { getWorkspaceLabel, getWorkspaceSlug, resolveWorkspaceBySlug } from '../../lib/workspaces.js';
 
 const OpenDayWorkspace = lazy(() =>
   import('../open-day/OpenDayWorkspace').then((module) => ({ default: module.OpenDayWorkspace })),
+);
+const AdminWorkspace = lazy(() =>
+  import('../components/Admin/AdminWorkspace'),
 );
 // Seller runtime source of truth:
 // The production workspace registry only loads from src/selling-houses/*.
@@ -419,6 +422,23 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
         tone="rose"
       />
     ),
+  },
+  {
+    id: 'admin',
+    slug: getWorkspaceSlug('admin'),
+    hubSection: 'work-skill',
+    title: getWorkspaceLabel('admin'),
+    shortLabel: getWorkspaceLabel('admin'),
+    status: 'available',
+    accentClassName: 'text-slate-700 hover:text-slate-800',
+    icon: Settings,
+    iconContainerClassName: 'bg-[#475569] text-white shadow-[0_18px_34px_rgba(71,85,105,0.18)]',
+    pillClassName: 'bg-slate-100 text-slate-700',
+    cardDescription: '管理系统用户和权限配置，控制各工作区的访问范围。',
+    highlights: ['查看和管理所有注册用户', '为用户分配工作区访问权限', '支持删除和权限更新操作'],
+    ctaLabel: '进入管理后台',
+    sortOrder: 60,
+    render: () => <AdminWorkspace />,
   },
 ];
 

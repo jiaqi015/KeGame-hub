@@ -8,11 +8,16 @@ import {
   authorizeSession,
   clearSessionCookie,
   completeEmailLogin,
+  deleteUser,
   isSessionAuthorizationFailure,
+  listAllUsers,
   refreshSession,
+  requireAdminPermission,
   setAuthCookie,
   startEmailLogin,
+  updateUserPermissions,
 } from "./lib/auth.js";
+import { WORKSPACE_IDS } from "./lib/workspaces.js";
 import { authorizeRequest, validateActivationKey } from "./lib/activation.js";
 import { compareModels, streamCompareModel } from "./lib/compare.js";
 import { AVAILABLE_MODELS } from "./lib/models.js";
@@ -220,6 +225,79 @@ async function startServer() {
   app.post("/api/auth-logout", (_req, res) => {
     setAuthCookie(res, clearSessionCookie());
     return res.json({ ok: true });
+  });
+
+  app.get("/api/users", (req, res) => {
+    const authorization = requireAdminPermission(req);
+    if (isSessionAuthorizationFailure(authorization)) {
+      return res.status(authorization.status).json({ error: authorization.error });
+    }
+
+    const users = listAllUsers();
+    return res.json({
+      users: users.map((user) => ({
+        email: user.email,
+        nickname: user.nickname,
+        displayName: user.displayName,
+        allowedWorkspaces: user.allowedWorkspaces,
+        createdAt: user.createdAt,
+        lastLoginAt: user.lastLoginAt,
+      })),
+      availableWorkspaces: WORKSPACE_IDS,
+    });
+  });
+
+  app.put("/api/users", (req, res) => {
+    const authorization = requireAdminPermission(req);
+    if (isSessionAuthorizationFailure(authorization)) {
+      return res.status(authorization.status).json({ error: authorization.error });
+    }
+
+    try {
+      const email = typeof req.body?.email === "string" ? req.body.email.trim() : "";
+      const allowedWorkspaces = Array.isArray(req.body?.allowedWorkspaces)
+        ? req.body.allowedWorkspaces.filter((w: unknown) => typeof w === "string" && WORKSPACE_IDS.includes(w as any))
+        : [];
+
+      const updatedUser = updateUserPermissions(email, allowedWorkspaces);
+
+      return res.json({
+        ok: true,
+        user: {
+          email: updatedUser.email,
+          nickname: updatedUser.nickname,
+          displayName: updatedUser.displayName,
+          allowedWorkspaces: updatedUser.allowedWorkspaces,
+        },
+      });
+    } catch (error) {
+      return res.status(400).json({
+        error: error instanceof Error ? error.message : "更新权限失败。",
+      });
+    }
+  });
+
+  app.delete("/api/users", (req, res) => {
+    const authorization = requireAdminPermission(req);
+    if (isSessionAuthorizationFailure(authorization)) {
+      return res.status(authorization.status).json({ error: authorization.error });
+    }
+
+    try {
+      const email = typeof req.body?.email === "string" ? req.body.email.trim() : "";
+
+      if (email === authorization.email) {
+        return res.status(400).json({ error: "不能删除自己。" });
+      }
+
+      deleteUser(email);
+
+      return res.json({ ok: true });
+    } catch (error) {
+      return res.status(400).json({
+        error: error instanceof Error ? error.message : "删除用户失败。",
+      });
+    }
   });
 
   app.post("/api/auth", (req, res, next) => {

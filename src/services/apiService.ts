@@ -349,3 +349,56 @@ export async function readCompareStream(
 
   throw new Error('模型未返回可展示的流式内容。');
 }
+
+export interface UserListItem {
+  email: string;
+  nickname: string;
+  displayName: string;
+  allowedWorkspaces: ActivationWorkspaceId[];
+  createdAt: string;
+  lastLoginAt: string;
+}
+
+export interface UserListResponse {
+  users: UserListItem[];
+  availableWorkspaces: ActivationWorkspaceId[];
+}
+
+export async function fetchUserList(): Promise<UserListResponse> {
+  const response = await fetch('/api/users');
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(typeof payload?.error === 'string' ? payload.error : '获取用户列表失败。');
+  }
+
+  return payload as UserListResponse;
+}
+
+export async function updateUserPermissions(email: string, allowedWorkspaces: ActivationWorkspaceId[]): Promise<UserListItem> {
+  const response = await fetch('/api/users', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, allowedWorkspaces }),
+  });
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(typeof payload?.error === 'string' ? payload.error : '更新权限失败。');
+  }
+
+  return payload.user as UserListItem;
+}
+
+export async function deleteUser(email: string): Promise<void> {
+  const response = await fetch('/api/users', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(typeof payload?.error === 'string' ? payload.error : '删除用户失败。');
+  }
+}

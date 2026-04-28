@@ -59,6 +59,17 @@ export const WORKSPACE_DEFINITIONS = [
     aliases: ['rational-owner', 'rational_owner', 'rationalowner'],
     pathMatchers: [] satisfies WorkspacePathMatcher[],
   },
+  {
+    id: 'admin',
+    label: '管理后台',
+    slug: 'admin',
+    legacyCode: '6',
+    aliases: ['admin', 'administrator', 'manage'],
+    pathMatchers: [
+      { type: 'prefix', value: '/api/admin-' },
+      { type: 'exact', value: '/api/users' },
+    ] satisfies WorkspacePathMatcher[],
+  },
 ] as const;
 
 export type WorkspaceId = (typeof WORKSPACE_DEFINITIONS)[number]['id'];
