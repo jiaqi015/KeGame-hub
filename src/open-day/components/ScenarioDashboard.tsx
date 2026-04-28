@@ -123,7 +123,7 @@ export const ScenarioDashboard: FC<ScenarioDashboardProps> = ({ results, hardFil
             title={viewMode === 'area' ? '返回小区列表' : '进入大区透视模式'}
           >
             <GitCompare size={14} />
-            <span>对比透视</span>
+            <span>按照大区查看，可下钻</span>
           </button>
         </div>
         <div className="region-list">
