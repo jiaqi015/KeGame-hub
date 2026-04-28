@@ -10,7 +10,7 @@ export default async function handler(req: any, res: any) {
   }
 
   if (req.method === 'GET') {
-    const users = listAllUsers();
+    const users = await listAllUsers();
     return res.status(200).json({
       users: users.map((user) => ({
         email: user.email,
@@ -32,7 +32,7 @@ export default async function handler(req: any, res: any) {
         ? body.allowedWorkspaces.filter((w: unknown) => typeof w === 'string' && WORKSPACE_IDS.includes(w as any))
         : [];
 
-      const updatedUser = updateUserPermissions(email, allowedWorkspaces);
+      const updatedUser = await updateUserPermissions(email, allowedWorkspaces);
 
       return res.status(200).json({
         ok: true,
@@ -59,7 +59,7 @@ export default async function handler(req: any, res: any) {
         return res.status(400).json({ error: '不能删除自己。' });
       }
 
-      deleteUser(email);
+      await deleteUser(email);
 
       return res.status(200).json({ ok: true });
     } catch (error) {

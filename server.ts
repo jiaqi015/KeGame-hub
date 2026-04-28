@@ -227,13 +227,13 @@ async function startServer() {
     return res.json({ ok: true });
   });
 
-  app.get("/api/users", (req, res) => {
+  app.get("/api/users", async (req, res) => {
     const authorization = requireAdminPermission(req);
     if (isSessionAuthorizationFailure(authorization)) {
       return res.status(authorization.status).json({ error: authorization.error });
     }
 
-    const users = listAllUsers();
+    const users = await listAllUsers();
     return res.json({
       users: users.map((user) => ({
         email: user.email,
@@ -247,7 +247,7 @@ async function startServer() {
     });
   });
 
-  app.put("/api/users", (req, res) => {
+  app.put("/api/users", async (req, res) => {
     const authorization = requireAdminPermission(req);
     if (isSessionAuthorizationFailure(authorization)) {
       return res.status(authorization.status).json({ error: authorization.error });
@@ -259,7 +259,7 @@ async function startServer() {
         ? req.body.allowedWorkspaces.filter((w: unknown) => typeof w === "string" && WORKSPACE_IDS.includes(w as any))
         : [];
 
-      const updatedUser = updateUserPermissions(email, allowedWorkspaces);
+      const updatedUser = await updateUserPermissions(email, allowedWorkspaces);
 
       return res.json({
         ok: true,
@@ -277,7 +277,7 @@ async function startServer() {
     }
   });
 
-  app.delete("/api/users", (req, res) => {
+  app.delete("/api/users", async (req, res) => {
     const authorization = requireAdminPermission(req);
     if (isSessionAuthorizationFailure(authorization)) {
       return res.status(authorization.status).json({ error: authorization.error });
@@ -290,7 +290,7 @@ async function startServer() {
         return res.status(400).json({ error: "不能删除自己。" });
       }
 
-      deleteUser(email);
+      await deleteUser(email);
 
       return res.json({ ok: true });
     } catch (error) {
