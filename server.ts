@@ -233,7 +233,7 @@ async function startServer() {
       return res.status(authorization.status).json({ error: authorization.error });
     }
 
-    const users = await listAllUsers();
+    const users = listAllUsers();
     return res.json({
       users: users.map((user) => ({
         email: user.email,
@@ -259,7 +259,7 @@ async function startServer() {
         ? req.body.allowedWorkspaces.filter((w: unknown) => typeof w === "string" && WORKSPACE_IDS.includes(w as any))
         : [];
 
-      const updatedUser = await updateUserPermissions(email, allowedWorkspaces);
+      const updatedUser = updateUserPermissions(email, allowedWorkspaces);
 
       return res.json({
         ok: true,
@@ -290,7 +290,7 @@ async function startServer() {
         return res.status(400).json({ error: "不能删除自己。" });
       }
 
-      await deleteUser(email);
+      deleteUser(email);
 
       return res.json({ ok: true });
     } catch (error) {

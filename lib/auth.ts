@@ -5,33 +5,8 @@ import {
   type ActivationWorkspaceId,
   validateActivationKey,
 } from './activation.js';
-import {
-  isAuthNeonAvailable,
-  neonListUsers,
-  neonUpsertUser,
-  neonUpdatePermissions,
-  neonDeleteUser as neonDeleteUserFromDb,
-  neonMigrateLegacyUsers,
-} from './authNeon.js';
-import type { AuthNeonUser } from './authNeon.js';
 import { sendVerificationEmail } from './email.js';
 import { decodeLegacyWorkspaceCodes } from './workspaces.js';
-
-let authNeonSeeded = false;
-
-function toAuthUserRecord(user: AuthNeonUser): AuthUserRecord {
-  return {
-    accountId: user.accountId,
-    email: user.email,
-    nickname: user.nickname,
-    displayName: user.displayName,
-    allowedWorkspaces: user.allowedWorkspaces as ActivationWorkspaceId[],
-    activationBound: user.activationBound,
-    activationKey: user.activationKey,
-    createdAt: user.createdAt,
-    lastLoginAt: user.lastLoginAt,
-  };
-}
 
 export const AUTH_SESSION_COOKIE_NAME = 'sabrina-session';
 export const AUTH_USER_STORAGE_ENV_NAME = 'AUTH_USER_STORAGE';
@@ -167,19 +142,9 @@ function parseAuthStore(rawValue: string): AuthStore {
 
 function saveAuthStore(store: AuthStore) {
   process.env[AUTH_USER_STORAGE_ENV_NAME] = JSON.stringify(store);
-  if (isAuthNeonAvailable()) {
-    for (const user of Object.values(store.users)) {
-      neonUpsertUser(user).catch(() => {});
-    }
-  }
 }
 
 function getAuthStore(): AuthStore {
-  if (!authNeonSeeded && isAuthNeonAvailable()) {
-    authNeonSeeded = true;
-    seedAuthStoreFromNeon().catch(() => { authNeonSeeded = false; });
-  }
-
   const store = parseAuthStore(process.env[AUTH_USER_STORAGE_ENV_NAME] || '');
   const defaults = getDefaultUsers();
 
@@ -204,29 +169,6 @@ function getAuthStore(): AuthStore {
   }
 
   return store;
-}
-
-async function seedAuthStoreFromNeon(): Promise<void> {
-  if (authNeonSeeded || !isAuthNeonAvailable()) return;
-  authNeonSeeded = true;
-
-  try {
-    await neonMigrateLegacyUsers();
-    const neonUsers = await neonListUsers();
-    if (neonUsers.length === 0) return;
-
-    const store = parseAuthStore(process.env[AUTH_USER_STORAGE_ENV_NAME] || '');
-    for (const user of neonUsers) {
-      const key = normalizeEmail(user.email);
-      const existing = store.users[key];
-      if (!existing || existing.allowedWorkspaces.length === 0) {
-        store.users[key] = toAuthUserRecord(user);
-      }
-    }
-    process.env[AUTH_USER_STORAGE_ENV_NAME] = JSON.stringify(store);
-  } catch {
-    authNeonSeeded = false;
-  }
 }
 
 function getDefaultUsers(): AuthUserRecord[] {
@@ -654,20 +596,6 @@ export function authorizeSession(req: any): SessionAuthorizationResult {
   if (sessionToken) {
     const payload = parseSessionToken(sessionToken);
     if (payload && payload.exp > Date.now()) {
-      const store = getAuthStore();
-      const storedUser = store.users[normalizeEmail(payload.email)];
-      if (storedUser) {
-        return {
-          ok: true,
-          accountId: storedUser.accountId || deriveAccountIdFromEmail(storedUser.email),
-          email: storedUser.email,
-          nickname: storedUser.nickname,
-          displayName: storedUser.displayName,
-          allowedWorkspaces: storedUser.allowedWorkspaces,
-          source: 'session',
-        };
-      }
-
       return {
         ok: true,
         accountId: payload.accountId,
@@ -675,6 +603,20 @@ export function authorizeSession(req: any): SessionAuthorizationResult {
         nickname: payload.nickname,
         displayName: payload.displayName,
         allowedWorkspaces: payload.allowedWorkspaces,
+        source: 'session',
+      };
+    }
+
+    const store = getAuthStore();
+    const configuredUser = store.users[normalizeEmail(payload?.email || '')];
+    if (configuredUser && payload?.exp && payload.exp > Date.now()) {
+      return {
+        ok: true,
+        accountId: configuredUser.accountId || deriveAccountIdFromEmail(configuredUser.email),
+        email: configuredUser.email,
+        nickname: configuredUser.nickname,
+        displayName: configuredUser.displayName,
+        allowedWorkspaces: configuredUser.allowedWorkspaces,
         source: 'session',
       };
     }
@@ -739,46 +681,13 @@ export function setAuthCookie(res: any, cookie: string) {
   res.setHeader('Set-Cookie', cookie);
 }
 
-export async function listAllUsers(): Promise<AuthUserRecord[]> {
-  if (isAuthNeonAvailable()) {
-    await seedAuthStoreFromNeon();
-    const neonUsers = await neonListUsers();
-    if (neonUsers.length > 0) return neonUsers.map(toAuthUserRecord);
-  }
-
+export function listAllUsers(): AuthUserRecord[] {
   const store = getAuthStore();
-  const defaultUsers = getDefaultUsers();
-  const merged: Record<string, AuthUserRecord> = {};
-
-  for (const user of defaultUsers) {
-    const key = normalizeEmail(user.email);
-    merged[key] = { ...user };
-  }
-
-  for (const user of Object.values(store.users)) {
-    const key = normalizeEmail(user.email);
-    if (merged[key]) {
-      merged[key] = {
-        ...merged[key],
-        ...user,
-        allowedWorkspaces: Array.from(new Set([...merged[key].allowedWorkspaces, ...user.allowedWorkspaces])),
-      };
-    } else {
-      merged[key] = { ...user };
-    }
-  }
-
-  return Object.values(merged);
+  return Object.values(store.users);
 }
 
-export async function updateUserPermissions(email: string, allowedWorkspaces: ActivationWorkspaceId[]): Promise<AuthUserRecord> {
+export function updateUserPermissions(email: string, allowedWorkspaces: ActivationWorkspaceId[]): AuthUserRecord {
   const normalizedEmail = normalizeEmail(email);
-
-  if (isAuthNeonAvailable()) {
-    const neonResult = await neonUpdatePermissions(normalizedEmail, allowedWorkspaces);
-    if (neonResult) return toAuthUserRecord(neonResult);
-  }
-
   const store = getAuthStore();
   const user = store.users[normalizedEmail];
 
@@ -791,17 +700,11 @@ export async function updateUserPermissions(email: string, allowedWorkspaces: Ac
   return user;
 }
 
-export async function deleteUser(email: string): Promise<void> {
+export function deleteUser(email: string): void {
   const normalizedEmail = normalizeEmail(email);
-
-  if (isAuthNeonAvailable()) {
-    await neonDeleteUserFromDb(normalizedEmail);
-  }
-
   const store = getAuthStore();
 
   if (!store.users[normalizedEmail]) {
-    if (isAuthNeonAvailable()) return;
     throw new Error('用户不存在。');
   }
 
