@@ -31,27 +31,31 @@ function getSql(): AuthSqlClient {
 function ensureSchema(sql?: AuthSqlClient) {
   if (!schemaReady) {
     const client = sql || getSql();
-    schemaReady = client.query(`
-      CREATE TABLE IF NOT EXISTS auth_users (
-        email TEXT PRIMARY KEY,
-        account_id TEXT NOT NULL,
-        nickname TEXT NOT NULL,
-        display_name TEXT NOT NULL,
-        allowed_workspaces JSONB NOT NULL DEFAULT '[]'::jsonb,
-        activation_bound BOOLEAN NOT NULL DEFAULT TRUE,
-        activation_key TEXT NULL,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        last_login_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      );
+    schemaReady = (async () => {
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS auth_users (
+          email TEXT PRIMARY KEY,
+          account_id TEXT NOT NULL,
+          nickname TEXT NOT NULL,
+          display_name TEXT NOT NULL,
+          allowed_workspaces JSONB NOT NULL DEFAULT '[]'::jsonb,
+          activation_bound BOOLEAN NOT NULL DEFAULT TRUE,
+          activation_key TEXT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          last_login_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `);
 
-      CREATE TABLE IF NOT EXISTS auth_challenges (
-        email TEXT PRIMARY KEY,
-        code_hash TEXT NOT NULL,
-        expires_at TIMESTAMPTZ NOT NULL
-      );
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS auth_challenges (
+          email TEXT PRIMARY KEY,
+          code_hash TEXT NOT NULL,
+          expires_at TIMESTAMPTZ NOT NULL
+        )
+      `);
 
-      ALTER TABLE auth_challenges DROP CONSTRAINT IF EXISTS auth_challenges_email_fkey;
-    `).then(() => undefined);
+      await client.query('ALTER TABLE auth_challenges DROP CONSTRAINT IF EXISTS auth_challenges_email_fkey');
+    })();
   }
   return schemaReady;
 }
