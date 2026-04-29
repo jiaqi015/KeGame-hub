@@ -228,17 +228,6 @@ export default function AdminWorkspace() {
                       </option>
                     ))}
                   </select>
-                  <select
-                    value={pageSize}
-                    onChange={(event) => setPageSize(Number(event.target.value) as (typeof PAGE_SIZE_OPTIONS)[number])}
-                    className="h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition focus:border-blue-300 focus:bg-white focus:ring-2 focus:ring-blue-100"
-                  >
-                    {PAGE_SIZE_OPTIONS.map((option) => (
-                      <option key={option} value={option}>
-                        每页 {option}
-                      </option>
-                    ))}
-                  </select>
                 </div>
               </div>
             </div>
@@ -342,7 +331,21 @@ export default function AdminWorkspace() {
                 <div>
                   显示 {pageStartIndex + 1}-{pageEndIndex} / {filteredUsers.length}
                 </div>
-                <div className="flex items-center justify-end gap-2">
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <label className="mr-1 flex items-center gap-2 text-xs font-medium text-slate-500">
+                    <span>每页</span>
+                    <select
+                      value={pageSize}
+                      onChange={(event) => setPageSize(Number(event.target.value) as (typeof PAGE_SIZE_OPTIONS)[number])}
+                      className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                    >
+                      {PAGE_SIZE_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <button
                     disabled={safeCurrentPage <= 1}
                     onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}

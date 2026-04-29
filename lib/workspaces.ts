@@ -61,7 +61,7 @@ export const WORKSPACE_DEFINITIONS = [
   },
   {
     id: 'admin',
-    label: '管理后台',
+    label: '用户中心',
     slug: 'admin',
     legacyCode: '6',
     aliases: ['admin', 'administrator', 'manage'],

@@ -436,7 +436,7 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
     pillClassName: 'bg-slate-100 text-slate-700',
     cardDescription: '管理系统用户和权限配置，控制各工作区的访问范围。',
     highlights: ['查看和管理所有注册用户', '为用户分配工作区访问权限', '支持删除和权限更新操作'],
-    ctaLabel: '进入管理后台',
+    ctaLabel: '进入用户中心',
     sortOrder: 60,
     render: () => <AdminWorkspace />,
   },

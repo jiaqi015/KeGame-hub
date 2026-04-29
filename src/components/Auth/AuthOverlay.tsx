@@ -298,8 +298,35 @@ export function AuthOverlay({
         onMouseLeave={() => setIsOverForm(false)}
         className="relative z-20 mx-auto box-border flex w-full max-w-[520px] flex-col items-stretch overflow-y-auto overflow-x-hidden [overflow-anchor:none] py-2 [scrollbar-gutter:stable] sm:py-4"
       >
-        <div className="group w-full rounded-2xl border border-white/[0.1] bg-zinc-950/80 p-[1px] shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_32px_80px_rgba(0,0,0,0.7)] backdrop-blur-md">
-          <div className="rounded-2xl border border-white/[0.06] bg-[#0a0a0a] px-8 py-8 md:px-10 md:py-10">
+        <div
+          className="group w-full rounded-2xl p-[1px] shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_32px_80px_rgba(0,0,0,0.7)]"
+           style={{
+             background: 'linear-gradient(145deg, rgba(40,40,45,0.3) 0%, rgba(20,20,25,0.4) 50%, rgba(10,10,12,0.35) 100%)',
+             backdropFilter: 'blur(40px) saturate(120%)',
+             WebkitBackdropFilter: 'blur(40px) saturate(120%)',
+           }}
+         >
+           <div
+             className="relative overflow-hidden rounded-2xl px-8 py-8 md:px-10 md:py-10"
+             style={{
+               background: 'linear-gradient(160deg, rgba(18,18,20,0.94) 0%, rgba(10,10,12,0.96) 40%, rgba(5,5,6,0.97) 100%)',
+             }}
+           >
+             <div
+               className="pointer-events-none absolute inset-0 rounded-2xl opacity-30"
+               style={{
+                 background: 'linear-gradient(135deg, rgba(255,255,255,0.08) 0%, transparent 40%, transparent 60%, rgba(100,100,120,0.06) 100%)',
+                 maskImage: 'linear-gradient(to bottom, black 0%, transparent 70%)',
+                 WebkitMaskImage: 'linear-gradient(to bottom, black 0%, transparent 70%)',
+               }}
+             />
+             <div
+               className="pointer-events-none absolute -inset-px rounded-2xl"
+               style={{
+                 border: '1px solid rgba(255,255,255,0.06)',
+                 boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -1px 0 rgba(0,0,0,0.3)',
+               }}
+             />
             <div className="mb-12 flex items-center justify-start gap-6 px-1">
               <div className="relative shrink-0">
                 <KeGameHubMark size={64} className="relative z-10" unframed />
