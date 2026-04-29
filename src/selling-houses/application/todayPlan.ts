@@ -183,7 +183,7 @@ export function getTodayPlanConflictHint(
       return {
         level: 'info',
         kind: 'running-related',
-        message: '这套房已有运行中的产品节点，插单时先确认不要和主链路重复发力。',
+        message: '这套房已有进行中的事项，加入今天前先确认不要重复发力。',
         relatedItemIds: [relatedRun.id],
       };
     }

@@ -857,7 +857,7 @@ function HalfDayAgendaSection({
         )}
 
         {arrangement.fixedItems.length > 0 && (
-          <AgendaGroup title="固定/临时事项" helper="系统已经放进今天；可承接，也可先看房源。">
+          <AgendaGroup title="固定/临时事项" helper="系统已经放进今天；可以现在处理，也可以先看房源。">
             {arrangement.fixedItems.map((item) => (
               <React.Fragment key={item.id}>
                 <FixedArrangementCard

@@ -10,6 +10,7 @@ import { ACTIONS, WEEKLY_ROUTINE } from '../../domain/constants.js';
 import { isScenarioAction } from '../../domain/actions/templates.js';
 import { getActionAvailability } from '../../domain/engine.js';
 import { getActiveOpportunities } from '../../domain/engine/opportunityEngine.js';
+import { deriveCaseRecommendations, type CaseRecommendationTier } from '../../domain/recommendationEngine.js';
 import { average, getDayOfWeek, getRoutine } from '../../domain/utils.js';
 import {
   estimateFixedTodayPlanEnergyReserve,
@@ -219,6 +220,7 @@ export interface CaseDetailProjection {
   nextStepLine: string;
   recentChanges: ProjectionBrief[];
   ownerSummary: {
+    isRevealed: boolean;
     title: string;
     detail: string;
     trust: number;
@@ -657,7 +659,7 @@ function buildFixedArrangementItems(state: GameState): ArrangementItemProjection
       id: `fixed-schedule-${entry.key}`,
       source: 'fixed',
       slot: resolveScheduleEntrySlot(entry),
-      label: entry.source === 'interrupt' ? '插单提示' : entry.source === 'routine' ? '周节奏' : '已安排',
+      label: entry.source === 'interrupt' ? '临时事项' : entry.source === 'routine' ? '周节奏' : '已安排',
       title: displayTitle,
       detail: !isBlockedRoutine && entry.weekdayIntent
         ? `${presentScheduleDetail(entry.note)} ${entry.weekdayIntent}。`
@@ -670,7 +672,7 @@ function buildFixedArrangementItems(state: GameState): ArrangementItemProjection
       actionId: isBlockedRoutine ? undefined : entry.actionId,
       isDisabled: false,
       executionMode: !isBlockedRoutine && entry.actionId && isScenarioAction(entry.actionId) ? 'scenario' : !isBlockedRoutine && entry.actionId ? 'direct' : 'navigate',
-      ctaLabel: entry.actionId ? '承接插单' : '打开房源',
+      ctaLabel: entry.actionId ? '加入今日处理' : '打开房源',
       secondaryLabel: '看客户线',
       conflictHint: entry.source === 'interrupt' && !isBlockedRoutine
         ? getTodayPlanConflictHint(state, {
@@ -728,22 +730,21 @@ function buildCandidateArrangementItems(
   const reservedSlots = { am: 0, pm: 0 };
   let simulatedRemainingEnergy = getTodayPlanRemainingEnergy(state);
 
-  for (const item of todayPriority) {
-    if (!item.caseId || seenCaseIds.has(item.caseId)) {
+  for (const recommendation of deriveCaseRecommendations(state)) {
+    if (seenCaseIds.has(recommendation.caseId)) {
       continue;
     }
-    seenCaseIds.add(item.caseId);
+    seenCaseIds.add(recommendation.caseId);
 
-    const caseItem = state.cases.find((entry) => entry.id === item.caseId);
+    const caseItem = state.cases.find((entry) => entry.id === recommendation.caseId);
     if (!caseItem || caseItem.status !== 'active') {
       continue;
     }
 
-    const detail = caseDetails.find((entry) => entry.caseId === item.caseId) || null;
-    const actionId = pickSuggestedActionId(state, caseItem, item, detail);
+    const actionId = recommendation.primaryAction.actionId;
     const action = actionId ? ACTIONS.find((entry) => entry.id === actionId) || null : null;
-    const linkedMatter = state.matters.find((entry) => entry.caseId === item.caseId && entry.stage === 'pending') || null;
-    const candidateKey = buildTodayPlanKey(action?.id, item.caseId, linkedMatter?.id);
+    const linkedMatter = state.matters.find((entry) => entry.caseId === recommendation.caseId && entry.stage === 'pending') || null;
+    const candidateKey = buildTodayPlanKey(action?.id, recommendation.caseId, linkedMatter?.id);
     const isAlreadyPlanned = reservedKeys.has(candidateKey);
     const isEnergyBlocked = Boolean(action && action.costEnergy > simulatedRemainingEnergy);
     const actionDurationHours = action ? resolveActionDurationHours(action.id) : 1;
@@ -770,21 +771,21 @@ function buildCandidateArrangementItems(
       ? getTodayPlanConflictHint(state, {
           slot,
           actionId: action.id,
-          caseId: item.caseId,
+          caseId: recommendation.caseId,
           durationHours: actionDurationHours,
         })
       : undefined;
     const disabledReason = isEnergyBlocked ? '精力不足，先完成已排。' : undefined;
 
     candidates.push({
-      id: `candidate-${item.id}`,
+      id: `candidate-recommendation-${recommendation.caseId}-${action?.id || 'action'}`,
       source: 'candidate',
       slot,
-      label: item.label,
-      title: action ? `${caseItem.title} · ${action.name}` : `${caseItem.title} · ${item.title}`,
-      detail: action ? appendRhythmHint(state.day, `${caseItem.community} · ${action.name}`) : item.detail,
-      tone: item.tone,
-      caseId: item.caseId,
+      label: '待选',
+      title: action ? `${caseItem.title} · ${action.name}` : `${caseItem.title} · 今日动作`,
+      detail: recommendation.reason,
+      tone: recommendationTierTone(recommendation.tier),
+      caseId: recommendation.caseId,
       matterId: linkedMatter?.id,
       durationHours: actionDurationHours,
       energyCost: actionEnergyCost,
@@ -804,6 +805,12 @@ function buildCandidateArrangementItems(
   }
 
   return candidates.slice(0, 4);
+}
+
+function recommendationTierTone(tier: CaseRecommendationTier): ProjectionTone {
+  if (tier === 'DEFEND') return 'risk';
+  if (tier === 'ACCELERATE') return 'chance';
+  return 'neutral';
 }
 
 function buildPlannedArrangementItems(
@@ -1246,11 +1253,12 @@ export function buildCaseDetailProjection(state: GameState, caseItem: Case): Cas
     nextStepLine: `当前动作：${listingLifecyclePhase.primaryActionLabel}`,
     recentChanges,
     ownerSummary: {
+      isRevealed: caseItem.hasCompletedFirstVisit,
       title: deriveOwnerTitle(caseItem),
       detail: deriveOwnerDetail(state.day, caseItem),
-      trust: Math.round(caseItem.trust),
-      patience: Math.round(caseItem.patience),
-      urgency: Math.round(caseItem.urgency),
+      trust: caseItem.hasCompletedFirstVisit ? Math.round(caseItem.trust) : 0,
+      patience: caseItem.hasCompletedFirstVisit ? Math.round(caseItem.patience) : 0,
+      urgency: caseItem.hasCompletedFirstVisit ? Math.round(caseItem.urgency) : 0,
     },
     customerPoolSummary: {
       title: deriveCustomerPoolTitle(met.length, potential.length, closingCount, atRiskCount),
@@ -1945,6 +1953,7 @@ function buildOpportunityBuckets(
 }
 
 function deriveOwnerTitle(caseItem: Case) {
+  if (!caseItem.hasCompletedFirstVisit) return '业主状态待面访';
   if (caseItem.trust < 52) return '业主开始不放心';
   if (caseItem.patience < 42) return '业主耐心不多';
   if (caseItem.urgency >= 78) return '业主更看重速度';
@@ -1952,6 +1961,7 @@ function deriveOwnerTitle(caseItem: Case) {
 }
 
 function deriveOwnerDetail(currentDay: number, caseItem: Case) {
+  if (!caseItem.hasCompletedFirstVisit) return '首次面访后，业主分型、真实目标和配合状态才会变清楚。';
   const daysSinceOwnerTouched = elapsedDays(currentDay, caseItem.lastOwnerTouchedDay);
   if (daysSinceOwnerTouched >= 4) return `业主反馈空窗 ${daysSinceOwnerTouched} 天。`;
   if (caseItem.trust < 52) return '业主信任偏低，客户和竞品信息还不够清楚。';

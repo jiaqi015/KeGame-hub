@@ -68,6 +68,7 @@ export default function AdminWorkspace() {
   const [editingEmail, setEditingEmail] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [deleteAcknowledged, setDeleteAcknowledged] = useState(false);
 
   const loadUsers = useCallback(async () => {
     try {
@@ -102,11 +103,21 @@ export default function AdminWorkspace() {
     try {
       setError(null);
       await deleteUser(email);
-      setConfirmDelete(null);
+      closeDeleteConfirm();
       await loadUsers();
     } catch (e) {
       setError(e instanceof Error ? e.message : '删除失败');
     }
+  };
+
+  const openDeleteConfirm = (email: string) => {
+    setDeleteAcknowledged(false);
+    setConfirmDelete(email);
+  };
+
+  const closeDeleteConfirm = () => {
+    setDeleteAcknowledged(false);
+    setConfirmDelete(null);
   };
 
   const formatDate = (dateStr: string) => {
@@ -125,7 +136,7 @@ export default function AdminWorkspace() {
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8 sm:px-8">
-      <div className="mx-auto max-w-6xl">
+      <div className="mx-auto max-w-7xl">
         <div className="mb-8">
           <h1 className="text-[28px] font-semibold tracking-[-0.04em] text-[#111111]">用户与权限管理</h1>
           <p className="mt-2 text-[15px] text-[#6E6E73]">管理系统用户的工作区访问权限</p>
@@ -148,19 +159,25 @@ export default function AdminWorkspace() {
         ) : (
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full table-fixed">
+                <colgroup>
+                  <col className="w-[190px]" />
+                  <col />
+                  <col className="w-[120px]" />
+                  <col className="w-[166px]" />
+                </colgroup>
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50">
-                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600 sm:px-6">
                       用户
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600 sm:px-6">
                       权限
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600 sm:px-6">
                       最近登录
                     </th>
-                    <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-600 sm:px-6">
                       操作
                     </th>
                   </tr>
@@ -168,13 +185,13 @@ export default function AdminWorkspace() {
                 <tbody className="divide-y divide-slate-100">
                   {users.map((user) => (
                     <tr key={user.email} className="transition-colors hover:bg-slate-50">
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-5 align-top sm:px-6">
                         <div>
-                          <div className="text-sm font-semibold text-slate-900">{user.displayName}</div>
-                          <div className="text-sm text-slate-500">{user.email}</div>
+                          <div className="truncate text-sm font-semibold text-slate-900">{user.displayName}</div>
+                          <div className="mt-1 truncate text-sm text-slate-500">{user.email}</div>
                         </div>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-5 align-top sm:px-6">
                         {editingEmail === user.email ? (
                           <PermissionEditor
                             user={user}
@@ -183,13 +200,13 @@ export default function AdminWorkspace() {
                             onCancel={() => setEditingEmail(null)}
                           />
                         ) : (
-                          <div className="flex flex-wrap gap-1.5">
+                          <div className="flex flex-wrap gap-2">
                             {user.allowedWorkspaces.map((workspaceId) => (
                               <span
                                 key={workspaceId}
-                                className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700"
+                                className="inline-flex max-w-full items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium leading-5 text-slate-700"
                               >
-                                {getWorkspaceLabel(workspaceId)}
+                                <span className="truncate">{getWorkspaceLabel(workspaceId)}</span>
                               </span>
                             ))}
                             {user.allowedWorkspaces.length === 0 && (
@@ -198,23 +215,23 @@ export default function AdminWorkspace() {
                           </div>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-sm text-slate-500">
+                      <td className="px-4 py-5 align-top text-sm leading-6 text-slate-500 sm:px-6">
                         {formatDate(user.lastLoginAt)}
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-3 py-5 align-top sm:px-4">
                         {editingEmail !== user.email && (
-                          <div className="flex justify-end gap-2">
+                          <div className="flex items-center justify-end gap-2 whitespace-nowrap">
                             <button
                               onClick={() => setEditingEmail(user.email)}
-                              className="rounded-lg px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50"
+                              className="inline-flex items-center justify-center rounded-md border border-blue-100 bg-blue-50 px-2 py-1 text-xs font-medium leading-4 text-blue-700 hover:bg-blue-100"
                             >
                               编辑
                             </button>
                             <button
-                              onClick={() => setConfirmDelete(user.email)}
-                              className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50"
+                              onClick={() => openDeleteConfirm(user.email)}
+                              className="inline-flex items-center justify-center gap-1 rounded-md border border-red-100 bg-red-50 px-2 py-1 text-xs font-medium leading-4 text-red-700 hover:bg-red-100"
                             >
-                              <Trash2 size={14} />
+                              <Trash2 size={12} />
                               删除
                             </button>
                           </div>
@@ -238,19 +255,29 @@ export default function AdminWorkspace() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
             <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
               <div className="mb-4 text-lg font-semibold text-slate-900">确认删除用户</div>
-              <p className="mb-6 text-sm text-slate-600">
+              <p className="text-sm text-slate-600">
                 确定要删除用户 <span className="font-semibold text-slate-900">{confirmDelete}</span> 吗？删除后该用户将无法登录系统。
               </p>
+              <label className="mt-4 flex cursor-pointer items-center gap-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+                <input
+                  type="checkbox"
+                  checked={deleteAcknowledged}
+                  onChange={(event) => setDeleteAcknowledged(event.target.checked)}
+                  className="h-4 w-4 rounded border-red-200 text-red-600 focus:ring-red-500"
+                />
+                <span>我确认删除该用户</span>
+              </label>
               <div className="flex justify-end gap-3">
                 <button
-                  onClick={() => setConfirmDelete(null)}
+                  onClick={closeDeleteConfirm}
                   className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 >
                   取消
                 </button>
                 <button
+                  disabled={!deleteAcknowledged}
                   onClick={() => handleDeleteUser(confirmDelete)}
-                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-200"
                 >
                   确认删除
                 </button>

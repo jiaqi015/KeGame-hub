@@ -5,7 +5,7 @@ import {
   buildOperatingProjection,
   type ProductOpportunityProjection,
 } from '../../application/projections/operatingProjection.js';
-import { buildOwnerPersonaProfile, type OwnerPersonaProfile } from '../../application/projections/ownerPersonaProfile.js';
+import { buildOwnerPersonaProfile } from '../../application/projections/ownerPersonaProfile.js';
 import { ACTIONS, ACTION_CATEGORIES } from '../../domain/constants';
 import { costText, caseSortValue } from '../../domain/utils';
 import { getActiveOpportunities, getActionAvailability } from '../../domain/engine';
@@ -50,6 +50,7 @@ type ActionCategoryGroup = {
 };
 type CaseStageFilter = 'all' | 'pre_visit' | 'packaging' | 'showing' | 'feedback_offer' | 'negotiation' | 'closed';
 type CaseQuickFilter = 'focused' | 'urgent' | 'price' | 'late-stage';
+type CustomerFilter = 'all' | 'comparing' | 'late';
 type SelectedCustomerState = GameState['customerStates'][number];
 type AttentionListingRow = {
   id: string;
@@ -68,6 +69,16 @@ type AttentionListingRow = {
   heat: number;
   strengthLabel: string;
   detail: string;
+};
+type PotentialAudienceProfile = {
+  demandTitle: string;
+  demandDetail: string;
+  sizeLabel: string;
+  sizeTone: 'slate' | 'amber' | 'emerald' | 'rose';
+  shareLabel: string;
+  countLine: string;
+  priceLine: string;
+  evidence: string[];
 };
 const CASE_STAGE_FILTERS: Array<{ id: CaseStageFilter; label: string }> = [
   { id: 'all', label: '全部' },
@@ -142,6 +153,8 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
   const [activeActionTab, setActiveActionTab] = useState<ActionCategoryTab>('feedback');
   const [activeDetailTab, setActiveDetailTab] = useState<CaseDetailTab>('overview');
   const [blockedActionPanelOpen, setBlockedActionPanelOpen] = useState(false);
+  const [activeAttentionListingId, setActiveAttentionListingId] = useState<string | null>(null);
+  const [activeCustomerFilter, setActiveCustomerFilter] = useState<CustomerFilter>('all');
 
   const caseProjection = selectedCase ? caseProjectionById.get(selectedCase.id) || null : null;
   const opportunityModels = useMemo(
@@ -150,6 +163,10 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
   );
   const predictedOpportunities = opportunityModels.filter((model) => model.engagementBand === 'potential');
   const engagedOpportunities = opportunityModels.filter((model) => model.engagementBand !== 'potential');
+  const filteredEngagedOpportunities = useMemo(
+    () => filterCustomerModels(engagedOpportunities, activeCustomerFilter),
+    [activeCustomerFilter, engagedOpportunities],
+  );
   const customerStatesForSelectedCase = selectedCase
     ? state.customerStates
         .filter(entry => entry.activeCaseIds.includes(selectedCase.id))
@@ -167,11 +184,26 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
     () => buildPotentialSignalRows(predictedOpportunities),
     [predictedOpportunities],
   );
+  const potentialAudienceProfile = useMemo(
+    () => (selectedCase ? buildPotentialAudienceProfile(state, selectedCase, predictedOpportunities) : null),
+    [predictedOpportunities, selectedCase, state],
+  );
   const attentionListings = useMemo(
     () => (selectedCase ? buildAttentionListings(state, selectedCase, customerStatesForSelectedCase) : []),
     [customerStatesForSelectedCase, selectedCase, state],
   );
-  const leadAttentionListing = attentionListings[0] || null;
+  const activeAttentionListing = attentionListings.find((row) => row.id === activeAttentionListingId) || attentionListings[0] || null;
+  const activeAttentionRows = activeAttentionListing ? [activeAttentionListing] : attentionListings;
+
+  useEffect(() => {
+    if (attentionListings.length === 0) {
+      setActiveAttentionListingId(null);
+      return;
+    }
+    if (!attentionListings.some((row) => row.id === activeAttentionListingId)) {
+      setActiveAttentionListingId(attentionListings[0].id);
+    }
+  }, [activeAttentionListingId, attentionListings]);
   const actionCards: ActionWorkspaceCard[] = selectedCase
     ? [...ACTIONS]
         .map(action => {
@@ -262,12 +294,7 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
           </div>
         </div>
         <div className="flex-1 space-y-1.5 overflow-y-auto p-2.5">
-        {visibleCases.map(c => {
-          const cardProjection = caseProjectionById.get(c.id) || null;
-          const listingOpportunity = listingOpportunityByCaseId.get(c.id);
-          const communityOpportunity = communityOpportunityByCommunity.get(c.community);
-          const ownerProfile = buildOwnerPersonaProfile(c);
-          return (
+        {visibleCases.map(c => (
           <div
             key={c.id}
             onClick={() => onSelectCase(c.id)}
@@ -283,12 +310,7 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
                 </div>
               )}
             <div className="flex items-start justify-between gap-2">
-              <span className={`rounded-full px-2 py-0.5 text-[8px] font-bold tracking-[0.08em] ${
-                c.isFocused ? 'bg-[var(--seller-accent-soft)] text-[var(--seller-accent)]' : 'bg-[rgba(255,255,255,0.06)] text-[var(--seller-subtle)]'
-              }`}>
-                {c.isFocused ? '本周聚焦' : cardProjection?.listingLifecyclePhase.completionStateLabel || cardProjection?.listingLifecyclePhase.phaseLabel || c.stageLabel}
-              </span>
-              <small className="pt-0.5 text-[9px] font-medium text-[var(--seller-subtle)]">{c.district}</small>
+              <small className="text-[9px] font-medium text-[var(--seller-subtle)]">{c.district}</small>
             </div>
             <strong className="mt-2 block line-clamp-2 text-[14px] font-semibold leading-5 text-[var(--seller-ink)]">{c.title}</strong>
             <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-[var(--seller-muted)]">
@@ -301,34 +323,12 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
               <CaseCardPrice label="市场" value={c.marketPrice} />
               <CaseCardPrice label="底线" value={c.bottomPrice} />
             </div>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              <CompactTag label="剩余" value={deriveListingAgeLabel(c)} tone="amber" />
-              <CompactTag
-                label="阶段"
-                value={cardProjection?.listingLifecyclePhase.phaseLabel || deriveShortCaseState(c, getActiveOpportunities(state, c.id))}
-                tone={deriveHouseScoreTone(c.competitiveness)}
-              />
-              {listingOpportunity?.status === 'triggered' && (
-                <CompactTag label="机会" value="可发起诚意卖" tone="amber" />
-              )}
-              {listingOpportunity?.status === 'accepted' && (
-                <CompactTag label="机会" value="诚意卖进行中" tone="emerald" />
-              )}
-              {communityOpportunity?.status === 'triggered' && (
-                <CompactTag label="机会" value="小区可发起开放日" tone="emerald" />
-              )}
-              {communityOpportunity?.status === 'accepted' && (
-                <CompactTag label="机会" value="开放日进行中" tone="emerald" />
-              )}
-            </div>
             <div className="mt-2.5 flex items-center gap-2">
               <CompactMetric label="业主信任度" val={c.trust} />
               <CompactMetric label="好房分" val={c.competitiveness} />
-              <OwnerPersonaPill profile={ownerProfile} />
-              </div>
             </div>
-          );
-        })}
+            </div>
+        ))}
           {visibleCases.length === 0 && (
             <div className="seller-empty px-4 py-6 text-sm">
               该筛选下暂无房源。
@@ -370,12 +370,6 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
                         <span>{selectedCase.district}</span>
                         <span className="text-[var(--seller-border-strong)]">/</span>
                         <span>{selectedCase.layout} · {selectedCase.area}㎡</span>
-                        {selectedOwnerProfile && (
-                          <>
-                            <span className="text-[var(--seller-border-strong)]">/</span>
-                            <span>{selectedOwnerProfile.label}</span>
-                          </>
-                        )}
                       </div>
                       <div className="mt-3">
                         <div className="seller-label">房源阶段</div>
@@ -417,7 +411,7 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
                   <div className="grid grid-cols-1 gap-1.5">
                     <PriceLine label="挂牌价" value={`${selectedCase.askPrice} 万`} strong />
                     <PriceLine label="市场成交位" value={`${selectedCase.marketPrice} 万`} />
-                    <PriceLine label="业主底线" value={`${selectedCase.bottomPrice} 万`} />
+                    <PriceLine label="业主底线" value={`${selectedCase.bottomPrice} 万`} tone="floor" />
                   </div>
                 </div>
 
@@ -425,62 +419,62 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
 	                  <section className="seller-panel-soft px-3 py-3">
 	                    <div className="seller-label">房源诊断</div>
 	                    <div className="mt-2 grid gap-1.5">
-	                      <DiagnosisBriefRow
-	                        label="阶段"
-	                        value={caseProjection?.listingLifecyclePhase.phaseLabel || selectedCase.stageLabel}
-	                        tone={caseProjection?.listingLifecyclePhase.phaseDelayLevel === 'late' ? 'rose' : 'slate'}
-	                      />
-	                      <DiagnosisBriefRow
-	                        label="业主分型"
-	                        value={selectedOwnerProfile?.label || '未分型'}
-	                        tone={selectedOwnerProfile?.tone === 'risk' ? 'rose' : selectedOwnerProfile?.tone === 'accent' ? 'emerald' : 'slate'}
-	                      />
-	                      <DiagnosisBriefRow
-	                        label="建议动作"
-	                        value={caseProjection?.listingLifecyclePhase.primaryActionLabel || deriveNextFix(selectedCase, activeOpportunities)}
-	                        tone="amber"
-	                      />
+                      <DiagnosisBriefRow
+                        label="阶段"
+                        value={caseProjection?.listingLifecyclePhase.phaseLabel || selectedCase.stageLabel}
+                        tone={caseProjection?.listingLifecyclePhase.phaseDelayLevel === 'late' ? 'rose' : 'slate'}
+                      />
+                      <DiagnosisBriefRow
+                        label="业主分型"
+                        value={selectedOwnerProfile?.label || '未分型'}
+                        tone={selectedOwnerProfile?.tone === 'risk' ? 'rose' : selectedOwnerProfile?.tone === 'accent' ? 'emerald' : 'slate'}
+                      />
+                      <DiagnosisBriefRow
+                        label="建议动作"
+                        value={caseProjection?.listingLifecyclePhase.primaryActionLabel || deriveNextFix(selectedCase, activeOpportunities)}
+                        tone="amber"
+                      />
 	                    </div>
 	                  </section>
 
 	                  <section className="seller-panel-soft relative px-3 py-3">
 	                    <div className="flex items-start justify-between gap-3">
-	                      <div>
-	                        <div className="seller-label">当前动作</div>
-	                        <div className="mt-1 text-[14px] font-semibold leading-5 text-[var(--seller-ink)]">
-	                          {caseProjection?.listingLifecyclePhase.primaryActionLabel || '补关键一步。'}
-	                        </div>
-	                      </div>
-	                      <button
-	                        type="button"
-	                        aria-expanded={blockedActionPanelOpen}
-	                        disabled={blockedActionCount === 0}
-	                        onClick={() => setBlockedActionPanelOpen((open) => !open)}
-	                        className="seller-chip seller-chip-accent disabled:cursor-default disabled:opacity-70"
-	                      >
-	                        可做 {availableActionCount}/{ACTIONS.length} · 暂缓 {blockedActionCount}
-	                      </button>
+                      <div>
+                        <div className="seller-label">当前动作</div>
+                        <div className="mt-1 text-[14px] font-semibold leading-5 text-[var(--seller-ink)]">
+                          {caseProjection?.listingLifecyclePhase.primaryActionLabel || '补关键一步。'}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        aria-expanded={blockedActionPanelOpen}
+                        disabled={blockedActionCount === 0}
+                        onClick={() => setBlockedActionPanelOpen((open) => !open)}
+                        className="seller-chip seller-chip-accent disabled:cursor-default disabled:opacity-70"
+                      >
+                        可做 {availableActionCount}/{ACTIONS.length} · 暂缓 {blockedActionCount}
+                      </button>
 	                    </div>
 
 	                    <div className="mt-3 space-y-2">
-	                      {recommendedActionCard ? (
+                      {recommendedActionCard ? (
                         <CompactActionButton
                           card={recommendedActionCard}
                           onExecute={handleAction}
                           index={0}
                         />
                       ) : (
-	                        <div className="seller-empty px-3 py-4 text-[12px]">这套房眼下还没有能直接执行的动作。</div>
-	                      )}
+                        <div className="seller-empty px-3 py-4 text-[12px]">这套房眼下还没有能直接执行的动作。</div>
+                      )}
 	                    </div>
 
 	                    {blockedActionPanelOpen && activeActionCategory ? (
-	                      <BlockedActionsPopover
-	                        categories={actionCardsByCategory}
-	                        activeCategoryId={activeActionCategory.category.id as ActionCategoryTab}
-	                        onSelectCategory={(categoryId) => setActiveActionTab(categoryId)}
-	                        onClose={() => setBlockedActionPanelOpen(false)}
-	                      />
+                      <BlockedActionsPopover
+                        categories={actionCardsByCategory}
+                        activeCategoryId={activeActionCategory.category.id as ActionCategoryTab}
+                        onSelectCategory={(categoryId) => setActiveActionTab(categoryId)}
+                        onClose={() => setBlockedActionPanelOpen(false)}
+                      />
 	                    ) : null}
 	                  </section>
                 </div>
@@ -502,7 +496,7 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
                       onClick={() => setActiveDetailTab('attention')}
                       className={`seller-tab ${activeDetailTab === 'attention' ? 'seller-tab-active' : ''}`}
                     >
-                      关注房源
+                      竞品PK
                     </button>
                     <button
                       type="button"
@@ -559,11 +553,17 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
                           detail={caseProjection?.ownerSummary.detail || deriveSellerGuidance(selectedCase)}
                           points={[]}
                         />
-                        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                          <ProgressRail label="信任" value={caseProjection?.ownerSummary.trust ?? selectedCase.trust} tone="neutral" />
-                          <ProgressRail label="耐心" value={caseProjection?.ownerSummary.patience ?? selectedCase.patience} tone="chance" />
-                          <ProgressRail label="紧迫" value={caseProjection?.ownerSummary.urgency ?? selectedCase.urgency} tone="risk" />
-                        </div>
+                        {caseProjection?.ownerSummary.isRevealed ? (
+                          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                            <ProgressRail label="信任" value={caseProjection.ownerSummary.trust} tone="neutral" />
+                            <ProgressRail label="耐心" value={caseProjection.ownerSummary.patience} tone="chance" />
+                            <ProgressRail label="紧迫" value={caseProjection.ownerSummary.urgency} tone="risk" />
+                          </div>
+                        ) : (
+                          <div className="mt-2">
+                            <InfoStrip label="状态" value="首次面访后可见" />
+                          </div>
+                        )}
                         <div className="mt-2">
                           <InfoStrip label="沟通方式" value={selectedOwnerProfile?.communicationLabel || deriveCommunicationMode(selectedCase)} />
                         </div>
@@ -571,87 +571,103 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
 	                    </div>
 	                  )}
 
-	                  {activeDetailTab === 'attention' && (
-	                    <div className="grid gap-3 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
-	                      <DeskSection title="关注房源" count={`${attentionListings.length} 套`}>
-	                        <CurrentListingBenchmark caseItem={selectedCase} activeCustomerCount={customerStatesForSelectedCase.length} />
-	                        <div className="mt-2.5 space-y-2">
-	                          {attentionListings.slice(0, 4).map((row) => (
-	                            <div key={row.id}>
-	                              <AttentionListingCard
-	                                row={row}
-	                                onSelectCase={row.targetCaseId ? onSelectCase : undefined}
-	                              />
-	                            </div>
-	                          ))}
-	                          {attentionListings.length === 0 && (
-	                            <div className="seller-empty px-3 py-4 text-[12px]">暂时没有同类竞品露出，先看本房价格和房况位置。</div>
-	                          )}
-	                        </div>
-	                      </DeskSection>
-
-	                      <DeskSection title="本房对比" count={leadAttentionListing?.strengthLabel || '对比'}>
-	                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-	                          <ComparisonMetric
-	                            label="挂牌位置"
-	                            value={deriveAttentionPriceSummary(selectedCase, attentionListings)}
-	                            tone={deriveAttentionPriceTone(selectedCase, attentionListings)}
-	                          />
-	                          <ComparisonMetric
-	                            label="房子条件"
-	                            value={deriveAttentionHouseSummary(selectedCase, attentionListings)}
-	                            tone={deriveAttentionHouseTone(selectedCase, attentionListings)}
-	                          />
-	                          <ComparisonMetric
-	                            label="客户重合"
-	                            value={deriveAttentionOverlapSummary(attentionListings)}
-	                            tone={deriveAttentionOverlapTone(attentionListings)}
-	                          />
-	                        </div>
-	                        <div className="mt-2.5">
-	                          <AttentionComparisonTable caseItem={selectedCase} row={leadAttentionListing} />
-	                        </div>
-	                      </DeskSection>
-	                    </div>
-	                  )}
-
-	                  {activeDetailTab === 'customers' && (
-                    <div className="grid gap-3 lg:grid-cols-[minmax(0,0.98fr)_minmax(0,1.02fr)]">
-                      <DeskSection title="客户情况" count={`${engagedOpportunities.length} 位在跟`}>
-                        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-                          <PoolMetric label="已接上" value={caseProjection?.customerPoolSummary.metCount ?? customerStatesForSelectedCase.length} tone="slate" />
-                          <PoolMetric label="潜在人群" value={caseProjection?.customerPoolSummary.potentialCount ?? predictedOpportunities.length} tone="amber" />
-                          <PoolMetric label="比较中" value={caseProjection?.customerPoolSummary.comparingCount ?? comparingCustomers.length} tone="amber" />
-                          <PoolMetric
-                            label="后段 / 风险"
-                            value={(caseProjection?.customerPoolSummary.closingCount ?? negotiatingCustomers.length) + (caseProjection?.customerPoolSummary.atRiskCount ?? atRiskCustomers.length)}
-                            tone="rose"
-                          />
-                        </div>
-
-                        <div className="mt-2.5 divide-y divide-[color:var(--seller-border)]">
-                          {engagedOpportunities.slice(0, 4).map((model) => (
-                            <div key={model.opportunity.id}>
-                              <OpportunityLine model={model} />
+                  {activeDetailTab === 'attention' && (
+                    <div className="grid gap-3 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+                      <DeskSection title="竞品列表" count={`${attentionListings.length} 套`}>
+                        <div className="mt-2.5 space-y-2">
+                          {attentionListings.slice(0, 4).map((row) => (
+                            <div key={row.id}>
+                              <AttentionListingCard
+                                row={row}
+                                selected={row.id === activeAttentionListing?.id}
+                                onSelect={() => setActiveAttentionListingId(row.id)}
+                              />
                             </div>
                           ))}
-                          {engagedOpportunities.length === 0 && (
-                            <div className="seller-empty px-3 py-4 text-[12px]">目前还没有真正接上的客户。</div>
+                          {attentionListings.length === 0 && (
+                            <div className="seller-empty px-3 py-4 text-[12px]">暂时没有同类竞品露出，先看本房价格和房况位置。</div>
                           )}
                         </div>
                       </DeskSection>
 
-                      <DeskSection title="潜在人群" count={`${predictedOpportunities.length} 组`}>
-                        <div className="space-y-1.5">
-                          {potentialSignalRows.slice(0, 4).map((row) => (
-                            <div key={row.id}>
-                              <PotentialSignalLine row={row} />
+                      <DeskSection title="PK 详情" count={activeAttentionListing?.strengthLabel || '对比'}>
+                        <PkHeader caseItem={selectedCase} row={activeAttentionListing} />
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                          <ComparisonMetric
+                            label="挂牌位置"
+                            value={deriveAttentionPriceSummary(selectedCase, activeAttentionRows)}
+                            tone={deriveAttentionPriceTone(selectedCase, activeAttentionRows)}
+                          />
+                          <ComparisonMetric
+                            label="房子条件"
+                            value={deriveAttentionHouseSummary(selectedCase, activeAttentionRows)}
+                            tone={deriveAttentionHouseTone(selectedCase, activeAttentionRows)}
+                          />
+                          <ComparisonMetric
+                            label="客户重合"
+                            value={deriveAttentionOverlapSummary(activeAttentionRows)}
+                            tone={deriveAttentionOverlapTone(activeAttentionRows)}
+                          />
+                        </div>
+                        <div className="mt-2.5">
+                          <AttentionComparisonTable caseItem={selectedCase} row={activeAttentionListing} />
+                        </div>
+                      </DeskSection>
+                    </div>
+                  )}
+
+	                  {activeDetailTab === 'customers' && (
+                    <div className="grid gap-3 lg:grid-cols-[minmax(0,0.98fr)_minmax(0,1.02fr)]">
+                      <DeskSection title="客户情况" count={`${filteredEngagedOpportunities.length}/${engagedOpportunities.length} 位`}>
+                        <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-3">
+                          <PoolMetric
+                            label="已接上"
+                            value={caseProjection?.customerPoolSummary.metCount ?? customerStatesForSelectedCase.length}
+                            tone="slate"
+                            active={activeCustomerFilter === 'all'}
+                            onClick={() => setActiveCustomerFilter('all')}
+                          />
+                          <PoolMetric
+                            label="比较中"
+                            value={caseProjection?.customerPoolSummary.comparingCount ?? comparingCustomers.length}
+                            tone="amber"
+                            active={activeCustomerFilter === 'comparing'}
+                            onClick={() => setActiveCustomerFilter('comparing')}
+                          />
+                          <PoolMetric
+                            label="后段 / 风险"
+                            value={(caseProjection?.customerPoolSummary.closingCount ?? negotiatingCustomers.length) + (caseProjection?.customerPoolSummary.atRiskCount ?? atRiskCustomers.length)}
+                            tone="rose"
+                            active={activeCustomerFilter === 'late'}
+                            onClick={() => setActiveCustomerFilter('late')}
+                          />
+                        </div>
+
+                        <div className="mt-2.5 divide-y divide-[color:var(--seller-border)]">
+                          {filteredEngagedOpportunities.slice(0, 4).map((model) => (
+                            <div key={model.opportunity.id}>
+                              <OpportunityLine model={model} />
                             </div>
                           ))}
-                          {potentialSignalRows.length === 0 && (
-                            <div className="seller-empty px-3 py-3 text-[11px]">暂时还没有新的潜在人群信号。</div>
+                          {filteredEngagedOpportunities.length === 0 && (
+                            <div className="seller-empty px-3 py-4 text-[12px]">当前筛选下没有客户。</div>
                           )}
                         </div>
+                      </DeskSection>
+
+                      <DeskSection title="潜在客群画像" count={potentialAudienceProfile?.sizeLabel || '待估'}>
+                        {potentialAudienceProfile && (
+                          <PotentialAudiencePanel profile={potentialAudienceProfile} />
+                        )}
+                        {potentialSignalRows.length > 0 && (
+                          <div className="mt-2.5 space-y-1.5">
+                            {potentialSignalRows.slice(0, 4).map((row) => (
+                              <div key={row.id}>
+                                <PotentialSignalLine row={row} />
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </DeskSection>
                     </div>
                   )}
@@ -734,14 +750,6 @@ function CompactMetric({ label, val }: { label: string; val: number }) {
   );
 }
 
-function OwnerPersonaPill({ profile }: { profile: OwnerPersonaProfile }) {
-  return (
-    <span className={`ml-auto shrink-0 rounded-full px-2 py-0.5 text-[8px] font-bold ${ownerPersonaToneClass(profile.tone)}`}>
-      {profile.label}
-    </span>
-  );
-}
-
 function ListingHeroImage({ caseItem }: { caseItem: Case }) {
   const tone = caseItem.d2 >= 70 ? 'good' : caseItem.d1 < 45 || caseItem.d3 < 48 ? 'risk' : 'normal';
   const toneClass = tone === 'good'
@@ -749,7 +757,6 @@ function ListingHeroImage({ caseItem }: { caseItem: Case }) {
     : tone === 'risk'
       ? 'from-amber-500/18 via-rose-500/10 to-white/[0.03]'
       : 'from-cyan-500/18 via-slate-500/10 to-white/[0.03]';
-  const heroLabel = caseItem.area >= 110 ? '资产盘' : caseItem.area <= 70 ? '小户型' : '主力户型';
   const bedroomLabel = caseItem.layout.includes('3室') ? '三房' : caseItem.layout.includes('1室') ? '一房' : '两房';
 
   return (
@@ -758,9 +765,6 @@ function ListingHeroImage({ caseItem }: { caseItem: Case }) {
       <div className="absolute inset-x-0 top-0 h-16 bg-[radial-gradient(circle_at_28%_12%,rgba(255,255,255,0.20),transparent_24%),radial-gradient(circle_at_82%_20%,rgba(73,221,133,0.16),transparent_24%)]" />
       <div className="absolute bottom-0 left-0 right-0 h-16 bg-[linear-gradient(180deg,transparent,rgba(5,9,14,0.78))]" />
 
-      <div className="absolute left-3 top-3 rounded-full border border-white/10 bg-black/20 px-2 py-1 text-[9px] font-bold text-white/68 backdrop-blur-sm">
-        {heroLabel}
-      </div>
       <svg
         viewBox="0 0 172 156"
         role="img"
@@ -893,13 +897,6 @@ function HouseDimensionPosition({ caseItem }: { caseItem: Case }) {
   );
 }
 
-function ownerPersonaToneClass(tone: OwnerPersonaProfile['tone']) {
-  if (tone === 'risk') return 'bg-[var(--seller-risk-soft)] text-[var(--seller-risk)]';
-  if (tone === 'chance') return 'bg-[rgba(102,209,224,0.12)] text-[var(--seller-chance)]';
-  if (tone === 'accent') return 'bg-[var(--seller-accent-soft)] text-[var(--seller-accent)]';
-  return 'bg-[rgba(255,255,255,0.06)] text-[var(--seller-muted)]';
-}
-
 function DiagnosisBriefRow({
   label,
   value,
@@ -928,7 +925,19 @@ function DiagnosisBriefRow({
   );
 }
 
-function PoolMetric({ label, value, tone }: { label: string; value: number; tone: 'slate' | 'emerald' | 'amber' | 'rose' }) {
+function PoolMetric({
+  label,
+  value,
+  tone,
+  active = false,
+  onClick,
+}: {
+  label: string;
+  value: number;
+  tone: 'slate' | 'emerald' | 'amber' | 'rose';
+  active?: boolean;
+  onClick?: () => void;
+}) {
   const toneClass = tone === 'emerald'
     ? 'border-[color:var(--seller-accent)]/24 bg-[var(--seller-accent-soft)] text-[var(--seller-accent)]'
     : tone === 'amber'
@@ -936,10 +945,28 @@ function PoolMetric({ label, value, tone }: { label: string; value: number; tone
       : tone === 'rose'
         ? 'border-[color:var(--seller-risk)]/24 bg-[var(--seller-risk-soft)] text-[var(--seller-risk)]'
         : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] text-[var(--seller-ink)]';
-  return (
-    <div className={`rounded-xl border px-3 py-2.5 ${toneClass}`}>
+  const activeClass = active ? 'ring-1 ring-[var(--seller-chance)]' : '';
+  const content = (
+    <>
       <div className="text-[9px] font-bold uppercase tracking-[0.14em] opacity-70">{label}</div>
       <div className="mt-1 text-[17px] font-semibold">{value}</div>
+    </>
+  );
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-pressed={active}
+        className={`rounded-xl border px-3 py-2.5 text-left transition hover:border-[var(--seller-chance)] ${toneClass} ${activeClass}`}
+      >
+        {content}
+      </button>
+    );
+  }
+  return (
+    <div className={`rounded-xl border px-3 py-2.5 ${toneClass} ${activeClass}`}>
+      {content}
     </div>
   );
 }
@@ -1017,23 +1044,21 @@ function InfoStrip({ label, value }: { label: string; value: string }) {
   );
 }
 
-function CurrentListingBenchmark({ caseItem, activeCustomerCount }: { caseItem: Case; activeCustomerCount: number }) {
+function PkHeader({ caseItem, row }: { caseItem: Case; row: AttentionListingRow | null }) {
   return (
-    <div className="rounded-[16px] border border-[color:var(--seller-accent)]/30 bg-[var(--seller-accent-soft)] px-3 py-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+    <div className="mb-2.5 rounded-[16px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-3">
+      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center">
+        <div className="min-w-0 rounded-[12px] bg-[var(--seller-accent-soft)] px-3 py-2.5">
           <div className="seller-label">本房</div>
-          <div className="mt-1 text-[13px] font-semibold leading-5 text-[var(--seller-ink)]">{caseItem.title}</div>
-          <p className="seller-body mt-1 text-[11px] leading-5">
-            {caseItem.community} · {caseItem.layout} · {caseItem.area}㎡
-          </p>
+          <div className="mt-1 truncate text-[13px] font-semibold text-[var(--seller-ink)]">{caseItem.title}</div>
+          <div className="mt-0.5 text-[10px] text-[var(--seller-muted)]">{caseItem.askPrice} 万 · {formatScoreBand(caseItem.d2)}</div>
         </div>
-        <span className="rounded-full bg-[var(--seller-accent)] px-2 py-0.5 text-[9px] font-bold text-[var(--seller-bg)]">本房</span>
-      </div>
-      <div className="mt-3 grid grid-cols-3 gap-1.5">
-        <MiniCompareCell label="挂牌" value={`${caseItem.askPrice} 万`} />
-        <MiniCompareCell label="房子条件" value={formatScoreBand(caseItem.d2)} />
-        <MiniCompareCell label="准客" value={`${activeCustomerCount} 位`} />
+        <div className="hidden text-[10px] font-bold text-[var(--seller-subtle)] sm:block">PK</div>
+        <div className="min-w-0 rounded-[12px] bg-[rgba(102,209,224,0.08)] px-3 py-2.5">
+          <div className="seller-label">竞品</div>
+          <div className="mt-1 truncate text-[13px] font-semibold text-[var(--seller-ink)]">{row?.title || '暂无竞品'}</div>
+          <div className="mt-0.5 text-[10px] text-[var(--seller-muted)]">{row ? `${row.price} 万 · ${row.houseLabel}` : '等待市场露出'}</div>
+        </div>
       </div>
     </div>
   );
@@ -1041,43 +1066,39 @@ function CurrentListingBenchmark({ caseItem, activeCustomerCount }: { caseItem: 
 
 function AttentionListingCard({
   row,
-  onSelectCase,
+  selected,
+  onSelect,
 }: {
   row: AttentionListingRow;
-  onSelectCase?: (caseId: string) => void;
+  selected: boolean;
+  onSelect: () => void;
 }) {
-  const canSwitchCase = Boolean(row.targetCaseId && onSelectCase);
-  const handleSelect = () => {
-    if (row.targetCaseId && onSelectCase) {
-      onSelectCase(row.targetCaseId);
-    }
-  };
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (!canSwitchCase || (event.key !== 'Enter' && event.key !== ' ')) {
+    if (event.key !== 'Enter' && event.key !== ' ') {
       return;
     }
     event.preventDefault();
-    handleSelect();
+    onSelect();
   };
 
   return (
     <div
-      role={canSwitchCase ? 'button' : undefined}
-      tabIndex={canSwitchCase ? 0 : undefined}
-      onClick={canSwitchCase ? handleSelect : undefined}
+      role="button"
+      tabIndex={0}
+      onClick={onSelect}
       onKeyDown={handleKeyDown}
-      className={`rounded-[14px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-3 transition ${
-        canSwitchCase
-          ? 'cursor-pointer hover:border-[var(--seller-accent)] hover:bg-[rgba(73,221,133,0.07)]'
-          : ''
+      aria-pressed={selected}
+      className={`cursor-pointer rounded-[14px] border px-3 py-3 transition ${
+        selected
+          ? 'border-[color:var(--seller-chance)] bg-[rgba(102,209,224,0.11)] shadow-[inset_0_0_0_1px_rgba(102,209,224,0.12)]'
+          : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] hover:border-[var(--seller-accent)] hover:bg-[rgba(73,221,133,0.07)]'
       }`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="seller-chip">{row.sourceLabel}</span>
-            <span className={attentionToneClass(row.customerOverlap)}>{row.overlapLabel}</span>
-            {canSwitchCase ? <span className="seller-chip seller-chip-accent">点击切换</span> : null}
+            <span className="seller-chip seller-chip-accent">{selected ? '对比中' : '看对比'}</span>
           </div>
           <div className="mt-2 text-[13px] font-semibold leading-5 text-[var(--seller-ink)]">{row.title}</div>
           <p className="seller-body mt-1 text-[11px] leading-5">{row.detail}</p>
@@ -1179,11 +1200,32 @@ function DeskSection({
   );
 }
 
-function PriceLine({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
+function PriceLine({
+  label,
+  value,
+  strong = false,
+  tone = 'default',
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+  tone?: 'default' | 'floor';
+}) {
+  const toneClass = strong
+    ? 'border-[color:var(--seller-accent)]/28 bg-[var(--seller-accent-soft)]'
+    : tone === 'floor'
+      ? 'border-[color:var(--seller-chance)]/24 bg-[rgba(245,158,11,0.10)]'
+      : 'border-[color:var(--seller-border)] bg-[rgba(255,255,255,0.03)]';
+  const valueClass = strong
+    ? 'text-[18px] text-[var(--seller-accent)]'
+    : tone === 'floor'
+      ? 'text-[13px] text-[var(--seller-chance)]'
+      : 'text-[13px] text-[var(--seller-ink)]';
+
   return (
-    <div className={`rounded-[12px] border px-3 py-2.5 ${strong ? 'border-[color:var(--seller-accent)]/28 bg-[var(--seller-accent-soft)]' : 'border-[color:var(--seller-border)] bg-[rgba(255,255,255,0.03)]'}`}>
+    <div className={`rounded-[12px] border px-3 py-2.5 ${toneClass}`}>
       <div className="seller-label text-[9px]">{label}</div>
-      <div className={`mt-1 ${strong ? 'text-[18px] text-[var(--seller-accent)]' : 'text-[13px] text-[var(--seller-ink)]'} font-semibold`}>{value}</div>
+      <div className={`mt-1 ${valueClass} font-semibold`}>{value}</div>
     </div>
   );
 }
@@ -1318,6 +1360,35 @@ function PotentialSignalLine({
           <div className="text-[11px] font-semibold text-[var(--seller-chance)]">{row.count} 组</div>
           <div className="mt-1 text-[10px] text-[var(--seller-subtle)]">{row.urgency}</div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function PotentialAudiencePanel({ profile }: { profile: PotentialAudienceProfile }) {
+  return (
+    <div className="rounded-[16px] border border-[color:var(--seller-chance)]/24 bg-[rgba(102,209,224,0.075)] px-3 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="seller-label">需求画像</div>
+          <div className="mt-1 text-[13px] font-semibold leading-5 text-[var(--seller-ink)]">{profile.demandTitle}</div>
+          <p className="seller-body mt-1 text-[11px] leading-5">{profile.demandDetail}</p>
+        </div>
+        <span className={`seller-chip ${profile.sizeTone === 'emerald' ? 'seller-chip-accent' : profile.sizeTone === 'rose' ? 'seller-chip-risk' : profile.sizeTone === 'amber' ? 'seller-chip-chance' : ''}`}>
+          {profile.sizeLabel}
+        </span>
+      </div>
+      <div className="mt-3 grid grid-cols-1 gap-1.5 sm:grid-cols-3">
+        <MiniCompareCell label="规模预估" value={profile.shareLabel} />
+        <MiniCompareCell label="客户关系" value={profile.countLine} />
+        <MiniCompareCell label="价格带" value={profile.priceLine} />
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {profile.evidence.map((item) => (
+          <span key={item} className="seller-chip">
+            {item}
+          </span>
+        ))}
       </div>
     </div>
   );
@@ -1570,16 +1641,18 @@ function deriveNextFix(caseItem: Case, opportunities: Opportunity[]) {
   return '去推进带看';
 }
 
-function deriveShortCaseState(caseItem: Case, opportunities: Opportunity[]) {
-  if (caseItem.status === 'sold') return '已成交';
-  if (caseItem.status === 'lost_to_rival') return '他处成交';
-  if (caseItem.status === 'withdrawn') return '已核销';
-  if (caseItem.windowDays <= 3 || caseItem.trust < 50) return '有丢盘风险';
-  if (opportunities.some(o => o.visibility !== 'shadow' && o.stageIndex >= 3)) return '快成交';
-  if (opportunities.length === 0) return '缺客户';
-  if (caseItem.askPrice > caseItem.marketPrice * 1.05) return '价格硬';
-  if (caseItem.heat < 45) return '偏冷';
-  return '在跟进';
+function filterCustomerModels(models: OpportunityViewModel[], filter: CustomerFilter) {
+  if (filter === 'comparing') {
+    return models.filter((model) => model.customerState?.status === 'comparing');
+  }
+  if (filter === 'late') {
+    return models.filter((model) => (
+      model.customerState?.status === 'negotiating'
+      || (model.customerState?.churnRisk || 0) >= 60
+      || model.opportunity.stageIndex >= 3
+    ));
+  }
+  return models;
 }
 
 function describeWindowDays(days: number) {
@@ -1620,6 +1693,136 @@ function buildPotentialSignalRows(models: OpportunityViewModel[]) {
       };
     })
     .sort((left, right) => right.score - left.score);
+}
+
+function buildPotentialAudienceProfile(
+  state: GameState,
+  caseItem: Case,
+  predictedModels: OpportunityViewModel[],
+): PotentialAudienceProfile {
+  const totalCustomers = state.customers.length;
+  const scoredCustomers = state.customers.map((customer) => {
+    const customerState = state.customerStates.find((entry) => entry.customerId === customer.id);
+    const runtime = customerState?.caseStates[caseItem.id];
+    return {
+      customer,
+      score: scorePotentialCustomerFit(caseItem, customer, runtime),
+    };
+  });
+  const strongMatches = scoredCustomers.filter((entry) => entry.score >= 66);
+  const possibleMatches = scoredCustomers.filter((entry) => entry.score >= 52);
+  const strongShare = totalCustomers > 0 ? strongMatches.length / totalCustomers : 0;
+  const possibleShare = totalCustomers > 0 ? possibleMatches.length / totalCustomers : 0;
+  const sizeTone = deriveAudienceSizeTone(strongShare, strongMatches.length);
+  const bedroomLabel = deriveBedroomDemandLabel(caseItem);
+  const priceDelta = caseItem.askPrice - caseItem.marketPrice;
+  const demandTitle = deriveDemandTitle(caseItem, priceDelta, bedroomLabel);
+  const predictedBudgetCeiling = predictedModels.length > 0
+    ? Math.round(predictedModels.reduce((sum, model) => sum + model.opportunity.budgetMax, 0) / predictedModels.length)
+    : null;
+
+  return {
+    demandTitle,
+    demandDetail: deriveDemandDetail(caseItem, priceDelta, bedroomLabel, possibleShare),
+    sizeLabel: deriveAudienceSizeLabel(strongShare, strongMatches.length),
+    sizeTone,
+    shareLabel: `${Math.round(strongShare * 100)}% 强匹配`,
+    countLine: `${strongMatches.length}/${Math.max(1, totalCustomers)} 位 ≥66分`,
+    priceLine: predictedBudgetCeiling ? `预算上沿约 ${predictedBudgetCeiling} 万` : derivePricePositionLine(priceDelta),
+    evidence: [
+      `${possibleMatches.length} 位可触达`,
+      `${Math.round(possibleShare * 100)}% 可考虑`,
+      derivePricePositionLine(priceDelta),
+    ],
+  };
+}
+
+function scorePotentialCustomerFit(
+  caseItem: Case,
+  customer: GameState['customers'][number],
+  runtime?: GameState['customerStates'][number]['caseStates'][string],
+) {
+  const priceScore = caseItem.askPrice <= customer.budgetMax
+    ? 30
+    : caseItem.askPrice <= customer.budgetMax * 1.06
+      ? 20
+      : caseItem.askPrice <= customer.budgetMax * 1.12
+        ? 10
+        : 0;
+  const districtScore = customer.targetDistrict === caseItem.district
+    || customer.targetDistrict.includes(caseItem.district)
+    || caseItem.district.includes(customer.targetDistrict)
+    ? 22
+    : 8;
+  const bedroomCount = deriveBedroomCount(caseItem.layout);
+  const layoutScore = customer.layouts.some((layout) => layout.includes(`${bedroomCount}`) || layout.includes(deriveBedroomText(bedroomCount)))
+    ? 18
+    : bedroomCount === 2
+      ? 10
+      : 6;
+  const preferenceText = customer.preferences.join(' ');
+  const preferenceScore = [
+    caseItem.community,
+    caseItem.district,
+    deriveBedroomText(bedroomCount),
+    caseItem.layout,
+  ].some((token) => token && preferenceText.includes(token)) ? 10 : 4;
+  const runtimeScore = runtime
+    ? runtime.fit * 0.28 + runtime.interest * 0.22 + runtime.confidence * 0.16
+    : 0;
+  const activityScore = Math.min(10, Math.round((customer.activity + customer.urgency) / 20));
+  return clampScore(Math.round(priceScore + districtScore + layoutScore + preferenceScore + activityScore + runtimeScore));
+}
+
+function deriveAudienceSizeLabel(strongShare: number, strongCount: number) {
+  if (strongCount >= 6 || strongShare >= 0.34) return '规模很高';
+  if (strongCount >= 4 || strongShare >= 0.24) return '规模高';
+  if (strongCount >= 2 || strongShare >= 0.14) return '规模中';
+  if (strongCount >= 1 || strongShare >= 0.06) return '规模低';
+  return '规模极低';
+}
+
+function deriveAudienceSizeTone(strongShare: number, strongCount: number): PotentialAudienceProfile['sizeTone'] {
+  if (strongCount >= 4 || strongShare >= 0.24) return 'emerald';
+  if (strongCount >= 2 || strongShare >= 0.14) return 'amber';
+  if (strongCount === 0 && strongShare < 0.06) return 'rose';
+  return 'slate';
+}
+
+function deriveDemandTitle(caseItem: Case, priceDelta: number, bedroomLabel: string) {
+  if (caseItem.layout.includes('1室')) return '预算克制的首套 / 过渡客';
+  if (caseItem.layout.includes('3室')) return '家庭改善与一步到位客';
+  if (priceDelta <= -20) return `${bedroomLabel}性价比客`;
+  if (priceDelta >= 30 && caseItem.d2 >= 65) return `${bedroomLabel}品质改善客`;
+  return `${bedroomLabel}首套升级客`;
+}
+
+function deriveDemandDetail(caseItem: Case, priceDelta: number, bedroomLabel: string, possibleShare: number) {
+  const priceText = priceDelta > 0 ? `挂牌高出市场约 ${priceDelta} 万` : priceDelta < 0 ? `挂牌低于市场约 ${Math.abs(priceDelta)} 万` : '挂牌接近市场成交位';
+  const scaleText = possibleShare >= 0.2 ? '可触达客群不薄' : '可触达客群偏窄';
+  return `${caseItem.community} ${caseItem.area}㎡ ${bedroomLabel}，${priceText}，${scaleText}。`;
+}
+
+function derivePricePositionLine(priceDelta: number) {
+  if (priceDelta > 0) return `高市场 ${priceDelta} 万`;
+  if (priceDelta < 0) return `低市场 ${Math.abs(priceDelta)} 万`;
+  return '接近市场价';
+}
+
+function deriveBedroomCount(layout: string) {
+  const match = layout.match(/(\d+)室/);
+  return match ? Number(match[1]) : 2;
+}
+
+function deriveBedroomText(count: number) {
+  if (count <= 1) return '一房';
+  if (count === 2) return '两房';
+  if (count === 3) return '三房';
+  return `${count}房`;
+}
+
+function deriveBedroomDemandLabel(caseItem: Case) {
+  return deriveBedroomText(deriveBedroomCount(caseItem.layout));
 }
 
 function buildAttentionListings(
@@ -1802,12 +2005,6 @@ function deriveAttentionOverlapTone(rows: AttentionListingRow[]): 'slate' | 'amb
   return 'slate';
 }
 
-function attentionToneClass(overlap: number) {
-  if (overlap >= 70) return 'seller-chip-risk';
-  if (overlap >= 45) return 'seller-chip-chance';
-  return 'seller-chip';
-}
-
 function formatPriceDelta(delta: number) {
   if (delta < 0) return `低 ${Math.abs(delta)} 万`;
   if (delta > 0) return `高 ${delta} 万`;
@@ -1821,9 +2018,7 @@ function formatHouseDelta(delta: number) {
 }
 
 function formatOverlapLabel(value: number) {
-  if (value >= 70) return '重合高';
-  if (value >= 45) return '重合中';
-  return '重合低';
+  return `重合 ${Math.round(value)}%`;
 }
 
 function clampScore(value: number) {
@@ -1866,43 +2061,4 @@ function deriveSignalStrengthLabel(value: number) {
   if (value >= 80) return '信号强，值得尽快接触';
   if (value >= 60) return '信号中，适合低成本承接';
   return '信号偏弱，先观察';
-}
-
-function deriveListingAgeLabel(caseItem: Case) {
-  if (caseItem.status === 'sold') return '已成交';
-  if (caseItem.defenseOutcome === 'lost_to_rival') return '他处成交';
-  if (caseItem.status === 'withdrawn') return '已核销';
-  return `${Math.max(0, caseItem.windowDays)}天`;
-}
-
-function deriveHouseScoreTone(score: number): 'emerald' | 'amber' | 'rose' {
-  if (score >= 75) return 'emerald';
-  if (score >= 60) return 'amber';
-  return 'rose';
-}
-
-function CompactTag({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone: 'slate' | 'amber' | 'emerald' | 'rose';
-}) {
-  const toneClass =
-    tone === 'emerald'
-      ? 'bg-[var(--seller-accent-soft)] text-[var(--seller-accent)] border-[color:var(--seller-accent)]/24'
-      : tone === 'amber'
-        ? 'bg-[var(--seller-chance-soft)] text-[var(--seller-chance)] border-[color:var(--seller-chance)]/22'
-        : tone === 'rose'
-          ? 'bg-[var(--seller-risk-soft)] text-[var(--seller-risk)] border-[color:var(--seller-risk)]/24'
-          : 'bg-[rgba(255,255,255,0.03)] text-[var(--seller-muted)] border-[var(--seller-border)]';
-
-  return (
-    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-semibold leading-none ${toneClass}`}>
-      <span className="text-[var(--seller-subtle)]">{label}</span>
-      <span>{value}</span>
-    </span>
-  );
 }

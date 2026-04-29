@@ -143,7 +143,7 @@ export function renderWechatMessage(fact: WechatFact, context: WechatCopyContext
     targetCaseId: fact.caseId,
     targetOpportunityId: fact.opportunityId,
     targetMatterId: fact.matterId,
-    primaryCtaLabel: getMessageCtaLabel(fact),
+    primaryCtaLabel: getMessageCtaLabel(fact, context),
     sourceTrace: {
       source: fact.source,
       factType: fact.type,
@@ -310,12 +310,27 @@ function getMessageUrgency(fact: WechatFact): WechatMessageUrgency {
   return 'low';
 }
 
-function getMessageCtaLabel(fact: WechatFact) {
-  if (fact.type.startsWith('owner_')) return '打开房源';
-  if (fact.type.startsWith('customer_')) return '看客户线';
-  if (fact.type.startsWith('manager_')) return '处理重点';
+function getMessageCtaLabel(fact: WechatFact, context: WechatCopyContext) {
+  if (fact.caseId) {
+    const caseItem = context.state.cases.find((entry) => entry.id === fact.caseId);
+    const actionLabel = caseItem ? deriveWechatCaseActionLabel(caseItem) : null;
+    if (actionLabel) return `去处理：${actionLabel}`;
+    return '去处理';
+  }
+  if (fact.type.startsWith('customer_')) return '去跟进客户';
+  if (fact.type.startsWith('manager_')) return '去处理';
   if (fact.type === 'matter_pending') return '处理事项';
-  return '打开相关房源';
+  return '查看关联对象';
+}
+
+function deriveWechatCaseActionLabel(caseItem: GameState['cases'][number]) {
+  if (caseItem.hasCompletedFirstVisit === false) return '安排面访';
+  if (caseItem.trust < 58 || caseItem.urgency >= 72) return '沟通业主';
+  if (caseItem.askPrice > caseItem.marketPrice * 1.04) return '谈价格';
+  if (caseItem.heat < 52 || caseItem.d1 < 50) return '补客源';
+  if (caseItem.viewings <= 0) return '安排带看';
+  if (caseItem.offers <= 0) return '跟反馈';
+  return '推进成交';
 }
 
 function toPreview(content: string, limit: number) {

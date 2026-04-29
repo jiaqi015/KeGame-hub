@@ -3,6 +3,7 @@ import type { Case } from '../../domain/models.js';
 export type OwnerPersonaTone = 'accent' | 'chance' | 'risk' | 'neutral';
 
 export interface OwnerPersonaProfile {
+  isRevealed: boolean;
   label: string;
   tone: OwnerPersonaTone;
   communicationLabel: string;
@@ -11,6 +12,17 @@ export interface OwnerPersonaProfile {
 }
 
 export function buildOwnerPersonaProfile(caseItem: Case): OwnerPersonaProfile {
+  if (!caseItem.hasCompletedFirstVisit) {
+    return {
+      isRevealed: false,
+      label: '待面访分型',
+      tone: 'neutral',
+      communicationLabel: '首次面访后可见',
+      priceLabel: '价格边界待确认',
+      paceLabel: '节奏待确认',
+    };
+  }
+
   const priceGapRatio = (caseItem.askPrice - caseItem.marketPrice) / Math.max(caseItem.marketPrice, 1);
   const urgentPace = caseItem.urgency >= 78 || caseItem.windowDays <= 5;
   const shortWindow = caseItem.urgency >= 70 || caseItem.windowDays <= 8;
@@ -62,6 +74,7 @@ function buildOwnerPersonaResult(
   longWindow: boolean,
 ): OwnerPersonaProfile {
   return {
+    isRevealed: true,
     label,
     tone,
     communicationLabel: dataDriven ? '数据沟通' : urgentPace ? '结果沟通' : '信任沟通',

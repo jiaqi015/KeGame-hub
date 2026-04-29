@@ -358,7 +358,7 @@ function deriveWeekRhythmSchedule(world: GameState): GameState['schedule'] {
         key: `interrupt-open-day-available-${anchorCase.community}-${world.day}`,
         caseId: anchorCase.id,
         title: '小区突然可办开放日',
-        badge: '插单机会',
+        badge: '临时机会',
         note: `${anchorCase.community} 今天适合把周末带看集中起来；这是机会，不自动占用排程，但值得立刻判断是否发起开放日。`,
         urgency: 91,
         slot: 'pm',
@@ -388,7 +388,7 @@ function deriveWeekRhythmSchedule(world: GameState): GameState['schedule'] {
       key: `interrupt-second-showing-${showingCase.id}-${world.day}`,
       caseId: showingCase.id,
       title: showingOpportunity ? '客户突然要求复看' : '周末集中带看',
-      badge: showingOpportunity ? '插单事件' : '周节奏',
+      badge: showingOpportunity ? '临时事项' : '周节奏',
       note: showingOpportunity
         ? `${showingOpportunity.customerName} 的热度到了周末窗口，先提示冲突，再决定是否挤进今天。`
         : '今天先做带看和真实反馈，优先处理能拿到现场反馈的房源。',
@@ -408,7 +408,7 @@ function deriveWeekRhythmSchedule(world: GameState): GameState['schedule'] {
       key: `interrupt-owner-negotiation-${negotiationOpportunity.id}-${world.day}`,
       caseId: negotiationCase.id,
       title: '协助业主去谈判',
-      badge: '插单事件',
+      badge: '临时事项',
       note: `${negotiationOpportunity.customerName} 已经接近出价，需要把业主底线、客户反馈和谈判口径放到同一张桌上。`,
       urgency: 89,
       slot: 'pm',

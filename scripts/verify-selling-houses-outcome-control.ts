@@ -23,6 +23,7 @@ import {
   resetRivalOutcomeDiagnostics,
   tryClaimRivalMarketDealSlot,
 } from '../src/selling-houses/domain/engine/outcomeControlRuntime.js';
+import { progressCustomerDemand } from '../src/selling-houses/domain/engine/customerEngine.js';
 import type { Settlement } from '../src/selling-houses/domain/actions/templates.js';
 import {
   evaluateOutcomeTarget,
@@ -678,6 +679,64 @@ verify('scenario deltas prefer linked opportunity target', () => {
   assert.equal(nextTarget.confidence, 38, 'linked opportunity confidence should receive scenario delta');
   assert.equal(nextFallback.intent, 90, 'higher-ranked fallback opportunity should not receive target delta');
   assert.equal(nextFallback.confidence, 88, 'higher-ranked fallback confidence should not receive target delta');
+});
+
+verify('customer runtime sync preserves opportunity funnel authority', () => {
+  const state = createGeneratedState('standard', 2026042411);
+  const caseItem = getActiveCase(state, 'customerFunnelAuthorityState');
+  state.cases.forEach((entry) => {
+    if (entry.id !== caseItem.id) {
+      entry.status = 'withdrawn';
+    }
+  });
+  const opportunity = getActiveOpportunityForCase(state, caseItem.id, 'customerFunnelAuthorityState');
+  const customer = state.customers.find((entry) => entry.id === opportunity.customerId);
+  assert.ok(customer, 'target customer profile should exist');
+  customer.targetDistrict = caseItem.district;
+  const customerState = state.customerStates.find((entry) => entry.customerId === opportunity.customerId);
+  assert.ok(customerState, 'target customer runtime should exist');
+
+  opportunity.stageIndex = 6;
+  opportunity.daysLeft = 2;
+  opportunity.intent = 88;
+  opportunity.confidence = 82;
+  customerState.activeCaseIds = [caseItem.id];
+  customerState.lastTouchDay = 0;
+  customerState.caseStates[caseItem.id] = {
+    caseId: caseItem.id,
+    fit: opportunity.fit,
+    interest: 70,
+    confidence: 70,
+    stageIndex: 2,
+    interactions: 1,
+    lastActiveDay: state.day - 1,
+    viewed: false,
+    offered: false,
+    selected: true,
+  };
+
+  progressCustomerDemand(state);
+
+  assert.equal(opportunity.stageIndex, 6, 'customer runtime should not regress opportunity stage 6');
+  assert.equal(opportunity.daysLeft, 2, 'customer runtime should not reset opportunity daysLeft');
+  assertSourceDoesNotInclude('src/selling-houses/domain/engine/customerEngine.ts', [
+    'opportunity.stageIndex = runtime.stageIndex;',
+    'opportunity.daysLeft = clamp(6 - Math.min(4, runtime.stageIndex)',
+  ], 'customer runtime sync should not directly overwrite opportunity funnel');
+});
+
+verify('quick matter overlays complete scenario items instead of only closing', () => {
+  assertSourceIncludes('src/selling-houses/ui/features/matters/DiagnoseMatterView.tsx', [
+    'buildQuickMatterScenarioCompletion',
+    'onComplete(completion.settlement, completion.choices, completion.feedbacks)',
+  ], 'diagnose matter should commit scenario completion');
+  assertSourceIncludes('src/selling-houses/ui/features/matters/ExecuteMatterView.tsx', [
+    'buildQuickMatterScenarioCompletion',
+    'onComplete(completion.settlement, completion.choices, completion.feedbacks)',
+  ], 'execute matter should commit scenario completion');
+  assertSourceDoesNotInclude('src/selling-houses/domain/dealClosing.ts', [
+    'caseItem.trust < 60',
+  ], 'deal closing trust gate should not be hardcoded');
 });
 
 verify('pending closing capacity block preserves customer and owner state', () => {

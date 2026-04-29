@@ -469,7 +469,7 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
   },
   'sincerity-sale': ({ state, caseItem, action, optionId, onMessage }) => {
     touchCaseForAction(caseItem, action.id, state.day);
-    const opportunity = findBestOpportunity(state, caseItem.id, 2);
+    const opportunity = findBestOpportunity(state, caseItem.id, 2, 6);
     if (!opportunity) {
       refundResources(state, action, '当前还没有足够成熟的客户适合进入诚意卖');
       onMessage?.('当前还没有足够成熟的客户适合进入诚意卖。');
@@ -516,7 +516,7 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
   },
   'invite-customer-negotiation': ({ state, caseItem, action, optionId, onMessage }) => {
     touchCaseForAction(caseItem, action.id, state.day);
-    const opportunity = findBestOpportunity(state, caseItem.id, 3);
+    const opportunity = findBestOpportunity(state, caseItem.id, 3, 6);
     if (!opportunity) {
       refundResources(state, action, '当前还没有进入报价阶段的客户');
       onMessage?.('当前还没有进入报价阶段的客户。');
@@ -687,10 +687,10 @@ export function getActionAvailability(
   if (normalizedActionId === 'showing' && !findBestOpportunity(state, caseItem.id, 0, 2)) {
     return { enabled: false, reason: '还没有足够成熟的线索能安排带看。' };
   }
-  if (normalizedActionId === 'sincerity-sale' && !findBestOpportunity(state, caseItem.id, 2)) {
+  if (normalizedActionId === 'sincerity-sale' && !findBestOpportunity(state, caseItem.id, 2, 6)) {
     return { enabled: false, reason: '还没有足够成熟的客户适合进入诚意卖。' };
   }
-  if (normalizedActionId === 'invite-customer-negotiation' && !findBestOpportunity(state, caseItem.id, 3)) {
+  if (normalizedActionId === 'invite-customer-negotiation' && !findBestOpportunity(state, caseItem.id, 3, 6)) {
     return { enabled: false, reason: '还没有进入报价阶段的客户。' };
   }
 

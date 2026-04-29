@@ -25,6 +25,7 @@
     "verify:maintainer-scoring": "tsx scripts/verify-selling-houses-scoring-contract.ts",
     "verify:maintainer-shell": "tsx scripts/verify-selling-houses-shell-contract.ts",
     "verify:maintainer-matters": "tsx scripts/verify-selling-houses-matter-contract.ts",
+    "verify:maintainer-recommendations": "tsx scripts/verify-selling-houses-recommendations-contract.ts",
     "rebuild:maintainer-shadow": "tsx scripts/rebuild-selling-houses-shadow-sync.ts",
     "rebuild:maintainer-file-shadow": "tsx scripts/rebuild-selling-houses-file-shadow-sync.ts",
     "verify:generated-maintainer": "tsx scripts/verify-generated-selling-houses.ts",
