@@ -78,7 +78,6 @@ function markResolvedMatter(existing: MatterEntry, worldDay: number): MatterEntr
   if (existing.stage === 'completed' || existing.stage === 'abandoned') {
     return {
       ...existing,
-      updatedAtDay: worldDay,
       resolvedAtDay: existing.resolvedAtDay ?? worldDay,
     };
   }
@@ -108,6 +107,15 @@ export function deriveMatters(world: GameState): MatterEntry[] {
     const existing = previousById.get(entry.id);
     if (!existing) {
       return entry;
+    }
+
+    if (existing.stage === 'completed' || existing.stage === 'abandoned') {
+      return {
+        ...entry,
+        stage: 'pending' as const,
+        openedAtDay: world.day,
+        updatedAtDay: world.day,
+      };
     }
 
     return {

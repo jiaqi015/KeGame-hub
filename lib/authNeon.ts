@@ -45,10 +45,12 @@ function ensureSchema(sql?: AuthSqlClient) {
       );
 
       CREATE TABLE IF NOT EXISTS auth_challenges (
-        email TEXT PRIMARY KEY REFERENCES auth_users(email) ON DELETE CASCADE,
+        email TEXT PRIMARY KEY,
         code_hash TEXT NOT NULL,
         expires_at TIMESTAMPTZ NOT NULL
       );
+
+      ALTER TABLE auth_challenges DROP CONSTRAINT IF EXISTS auth_challenges_email_fkey;
     `).then(() => undefined);
   }
   return schemaReady;
@@ -180,8 +182,7 @@ export async function neonMigrateLegacyUsers(): Promise<number> {
           WHEN auth_users.allowed_workspaces @> ${JSON.stringify(['admin'])}::jsonb
           THEN auth_users.allowed_workspaces
           ELSE EXCLUDED.allowed_workspaces
-        END,
-        last_login_at = NOW()
+        END
     `;
     migrated++;
   }

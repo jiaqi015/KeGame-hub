@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Trash2, Save, X, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Trash2, Save, X, AlertCircle, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { ActivationWorkspaceId } from '../../types';
 import { fetchUserList, updateUserPermissions, deleteUser, type UserListItem } from '../../services/apiService';
 import { getWorkspaceLabel } from '../../../lib/workspaces.js';
@@ -10,6 +10,8 @@ interface PermissionEditorProps {
   onSave: (allowedWorkspaces: ActivationWorkspaceId[]) => void;
   onCancel: () => void;
 }
+
+const PAGE_SIZE_OPTIONS = [10, 25, 50] as const;
 
 function PermissionEditor({ user, availableWorkspaces, onSave, onCancel }: PermissionEditorProps) {
   const [selected, setSelected] = useState<ActivationWorkspaceId[]>([...user.allowedWorkspaces]);
@@ -69,6 +71,10 @@ export default function AdminWorkspace() {
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [deleteAcknowledged, setDeleteAcknowledged] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [workspaceFilter, setWorkspaceFilter] = useState<'all' | ActivationWorkspaceId>('all');
+  const [pageSize, setPageSize] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(25);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const loadUsers = useCallback(async () => {
     try {
@@ -87,6 +93,10 @@ export default function AdminWorkspace() {
   useEffect(() => {
     loadUsers();
   }, [loadUsers]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, workspaceFilter, pageSize]);
 
   const handleSavePermissions = async (email: string, allowedWorkspaces: ActivationWorkspaceId[]) => {
     try {
@@ -134,6 +144,31 @@ export default function AdminWorkspace() {
     }
   };
 
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const filteredUsers = useMemo(() => {
+    return users.filter((user) => {
+      const matchesSearch = normalizedSearchQuery.length === 0
+        || user.displayName.toLowerCase().includes(normalizedSearchQuery)
+        || user.email.toLowerCase().includes(normalizedSearchQuery)
+        || user.nickname.toLowerCase().includes(normalizedSearchQuery);
+      const matchesWorkspace = workspaceFilter === 'all'
+        || user.allowedWorkspaces.includes(workspaceFilter);
+      return matchesSearch && matchesWorkspace;
+    });
+  }, [normalizedSearchQuery, users, workspaceFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const pageStartIndex = filteredUsers.length === 0 ? 0 : (safeCurrentPage - 1) * pageSize;
+  const pageEndIndex = Math.min(pageStartIndex + pageSize, filteredUsers.length);
+  const visibleUsers = filteredUsers.slice(pageStartIndex, pageEndIndex);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8 sm:px-8">
       <div className="mx-auto max-w-7xl">
@@ -158,40 +193,89 @@ export default function AdminWorkspace() {
           </div>
         ) : (
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="overflow-x-auto">
+            <div className="border-b border-slate-200 bg-white px-4 py-4 sm:px-6">
+              <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                  <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-800">
+                    共 {users.length} 位用户
+                  </span>
+                  {(normalizedSearchQuery || workspaceFilter !== 'all') && (
+                    <span className="rounded-full bg-blue-50 px-3 py-1 font-medium text-blue-700">
+                      筛出 {filteredUsers.length} 位
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-2 md:flex-row md:items-center">
+                  <label className="relative block min-w-[260px]">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <input
+                      value={searchQuery}
+                      onChange={(event) => setSearchQuery(event.target.value)}
+                      placeholder="搜索姓名、邮箱或昵称"
+                      className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-800 outline-none transition focus:border-blue-300 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                    />
+                  </label>
+                  <select
+                    value={workspaceFilter}
+                    onChange={(event) => setWorkspaceFilter(event.target.value as 'all' | ActivationWorkspaceId)}
+                    className="h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition focus:border-blue-300 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                  >
+                    <option value="all">全部权限</option>
+                    {availableWorkspaces.map((workspaceId) => (
+                      <option key={workspaceId} value={workspaceId}>
+                        {getWorkspaceLabel(workspaceId)}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={pageSize}
+                    onChange={(event) => setPageSize(Number(event.target.value) as (typeof PAGE_SIZE_OPTIONS)[number])}
+                    className="h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition focus:border-blue-300 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                  >
+                    {PAGE_SIZE_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        每页 {option}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="max-h-[min(50vh,520px)] overflow-auto">
               <table className="w-full table-fixed">
                 <colgroup>
-                  <col className="w-[190px]" />
+                  <col className="w-[240px]" />
                   <col />
-                  <col className="w-[120px]" />
-                  <col className="w-[166px]" />
+                  <col className="w-[146px]" />
+                  <col className="w-[142px]" />
                 </colgroup>
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50">
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600 sm:px-6">
+                    <th className="sticky top-0 z-10 bg-slate-50 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600 sm:px-6">
                       用户
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600 sm:px-6">
+                    <th className="sticky top-0 z-10 bg-slate-50 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600 sm:px-6">
                       权限
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600 sm:px-6">
+                    <th className="sticky top-0 z-10 bg-slate-50 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600 sm:px-6">
                       最近登录
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-600 sm:px-6">
+                    <th className="sticky top-0 z-10 bg-slate-50 px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-600 sm:px-6">
                       操作
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {users.map((user) => (
+                  {visibleUsers.map((user) => (
                     <tr key={user.email} className="transition-colors hover:bg-slate-50">
-                      <td className="px-4 py-5 align-top sm:px-6">
+                      <td className="px-4 py-4 align-top sm:px-6">
                         <div>
                           <div className="truncate text-sm font-semibold text-slate-900">{user.displayName}</div>
                           <div className="mt-1 truncate text-sm text-slate-500">{user.email}</div>
                         </div>
                       </td>
-                      <td className="px-4 py-5 align-top sm:px-6">
+                      <td className="px-4 py-4 align-top sm:px-6">
                         {editingEmail === user.email ? (
                           <PermissionEditor
                             user={user}
@@ -200,11 +284,11 @@ export default function AdminWorkspace() {
                             onCancel={() => setEditingEmail(null)}
                           />
                         ) : (
-                          <div className="flex flex-wrap gap-2">
+                          <div className="flex max-h-[58px] flex-wrap gap-1 overflow-hidden">
                             {user.allowedWorkspaces.map((workspaceId) => (
                               <span
                                 key={workspaceId}
-                                className="inline-flex max-w-full items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium leading-5 text-slate-700"
+                                className="inline-flex max-w-full items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium leading-4 text-slate-700"
                               >
                                 <span className="truncate">{getWorkspaceLabel(workspaceId)}</span>
                               </span>
@@ -218,7 +302,7 @@ export default function AdminWorkspace() {
                       <td className="px-4 py-5 align-top text-sm leading-6 text-slate-500 sm:px-6">
                         {formatDate(user.lastLoginAt)}
                       </td>
-                      <td className="px-3 py-5 align-top sm:px-4">
+                      <td className="px-3 py-4 align-top sm:px-4">
                         {editingEmail !== user.email && (
                           <div className="flex items-center justify-end gap-2 whitespace-nowrap">
                             <button
@@ -246,6 +330,39 @@ export default function AdminWorkspace() {
             {users.length === 0 && (
               <div className="flex h-64 items-center justify-center text-slate-500">
                 暂无用户数据
+              </div>
+            )}
+            {users.length > 0 && filteredUsers.length === 0 && (
+              <div className="flex h-48 items-center justify-center text-sm text-slate-500">
+                没有匹配的用户
+              </div>
+            )}
+            {filteredUsers.length > 0 && (
+              <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                <div>
+                  显示 {pageStartIndex + 1}-{pageEndIndex} / {filteredUsers.length}
+                </div>
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    disabled={safeCurrentPage <= 1}
+                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                    className="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300 disabled:hover:bg-white"
+                  >
+                    <ChevronLeft size={14} />
+                    上一页
+                  </button>
+                  <span className="min-w-[72px] text-center text-xs font-medium text-slate-500">
+                    {safeCurrentPage} / {totalPages}
+                  </span>
+                  <button
+                    disabled={safeCurrentPage >= totalPages}
+                    onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                    className="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-300 disabled:hover:bg-white"
+                  >
+                    下一页
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
               </div>
             )}
           </div>

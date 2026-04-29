@@ -34,13 +34,12 @@ export function resolveActionEnergyCost(actionId: string) {
   return Math.max(0, action.costEnergy);
 }
 
-function buildItemSignature(item: Pick<TodayArrangementItem, 'linkedActionId' | 'linkedCaseId' | 'linkedCustomerId' | 'linkedOpportunityId' | 'sourceMatterId'>) {
+function buildItemSignature(item: Pick<TodayArrangementItem, 'linkedActionId' | 'linkedCaseId' | 'linkedCustomerId' | 'linkedOpportunityId'>) {
   return [
     item.linkedActionId || '',
     item.linkedCaseId || '',
     item.linkedCustomerId || '',
     item.linkedOpportunityId || '',
-    item.sourceMatterId || '',
   ].join('|');
 }
 
@@ -268,7 +267,6 @@ export function hasTodayPlanDuplicate(state: GameState, draft: TodayPlanDraft) {
     linkedCaseId: draft.linkedCaseId,
     linkedCustomerId: draft.linkedCustomerId,
     linkedOpportunityId: draft.linkedOpportunityId,
-    sourceMatterId: draft.sourceMatterId,
   });
 
   return state.todayPlan.playerItems.some((entry) => (

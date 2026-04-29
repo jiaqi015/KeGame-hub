@@ -1,9 +1,12 @@
-import type { DailyTickResult, GameState } from '../domain/models.js';
+import type { DailyTickResult, GameState, Opportunity } from '../domain/models.js';
 import type { Settlement } from '../domain/actions/templates.js';
 import type { TodayPlanDraft } from './todayPlan.js';
 import { advanceDays, executeAction, spendResources, resolveActionDefinition } from '../domain/engine.js';
 import { getActionAvailability, recordDomainEvent } from '../domain/engine.js';
 import { updateDerivedState } from '../domain/runtimeState.js';
+import { applyActionStageRelation, getActionStageRelation } from '../domain/actionStageRelations.js';
+import { queueDealClosingEvaluation } from '../domain/dealClosing.js';
+import { getOpportunityPriority } from '../domain/utils.js';
 import {
   createProductRun,
   describeRunMilestone,
@@ -146,22 +149,63 @@ export function executeScenarioAction(
       return;
     }
 
-    spendResources(next, action);
-
     const todayPlanItem = todayPlanItemId
       ? next.todayPlan.playerItems.find((entry) => entry.id === todayPlanItemId && entry.day === next.day)
       : null;
+    const executorActionId = action.executorId || action.id;
     const deltaTarget = {
       linkedCustomerId: todayPlanItem?.linkedCustomerId,
       linkedOpportunityId: todayPlanItem?.linkedOpportunityId,
     };
+    const scenarioActionTarget = resolveScenarioActionOpportunity(
+      next,
+      currentCase,
+      executorActionId,
+      deltaTarget,
+    );
+    if (!scenarioActionTarget.ok) {
+      recordDomainEvent(next, {
+        kind: 'journal',
+        actor: '场景动作',
+        title: '场景动作目标失效',
+        detail: scenarioActionTarget.reason,
+        caseId: currentCase.id,
+        tone: 'danger',
+        payload: {
+          actionId,
+          executorId: executorActionId,
+          linkedCustomerId: deltaTarget.linkedCustomerId,
+          linkedOpportunityId: deltaTarget.linkedOpportunityId,
+        },
+      });
+      onMessage?.(scenarioActionTarget.reason);
+      return;
+    }
+
+    spendResources(next, action);
     settlement.stateDeltas.forEach((delta) => {
-      applyScenarioDelta(next, currentCase, delta, actionId, deltaTarget);
+      applyScenarioDelta(
+        next,
+        currentCase,
+        delta,
+        actionId,
+        scenarioActionTarget.opportunity,
+        !scenarioActionTarget.relationOpportunityBound,
+      );
     });
+    applyActionStageRelation(next, currentCase, executorActionId, scenarioActionTarget.opportunity);
+    if (executorActionId === 'invite-customer-negotiation' && scenarioActionTarget.opportunity) {
+      queueDealClosingEvaluation(
+        next,
+        currentCase,
+        scenarioActionTarget.opportunity,
+        settlement.finalOptionId ?? scenarioContext?.choices?.[scenarioContext.choices.length - 1]?.main ?? 'balanced',
+      );
+    }
     currentCase.actionsToday += 1;
     currentCase.touchedToday = true;
     currentCase.lastTouchedDay = next.day;
-    currentCase.lastAction = action.executorId || action.id;
+    currentCase.lastAction = executorActionId;
 
     recordDomainEvent(next, {
       kind: 'action_executed',
@@ -411,15 +455,93 @@ function clamp01to100(value: number) {
   return Math.max(0, Math.min(100, value));
 }
 
-function applyScenarioDelta(
+function resolveScenarioActionOpportunity(
   state: GameState,
   currentCase: GameState['cases'][number],
-  delta: Settlement['stateDeltas'][number],
   actionId: string,
   target?: {
     linkedCustomerId?: string;
     linkedOpportunityId?: string;
   },
+): {
+  ok: boolean;
+  opportunity: Opportunity | null;
+  relationOpportunityBound: boolean;
+  reason: string;
+} {
+  const relation = getActionStageRelation(actionId);
+  if (relation?.availabilityKind !== 'opportunity-bound') {
+    return { ok: true, opportunity: null, relationOpportunityBound: false, reason: '' };
+  }
+
+  const activeOpportunities = state.opportunities
+    .filter((entry) => entry.caseId === currentCase.id && entry.status === 'active');
+  const withinRelationWindow = (opportunity: Opportunity) => {
+    const window = relation.opportunityStageWindow;
+    return !window || (opportunity.stageIndex >= window.min && opportunity.stageIndex <= window.max);
+  };
+
+  const explicitOpportunity = target?.linkedOpportunityId
+    ? activeOpportunities.find((entry) => entry.id === target.linkedOpportunityId) || null
+    : null;
+  if (target?.linkedOpportunityId) {
+    if (!explicitOpportunity) {
+      return {
+        ok: false,
+        opportunity: null,
+        relationOpportunityBound: true,
+        reason: '这条计划绑定的客户线已经不在当前房源的活跃线索里，先刷新今日计划再执行。',
+      };
+    }
+    if (!withinRelationWindow(explicitOpportunity)) {
+      return {
+        ok: false,
+        opportunity: null,
+        relationOpportunityBound: true,
+        reason: '这条计划绑定的客户线已经不适合当前动作，先改排对应阶段的动作。',
+      };
+    }
+    return { ok: true, opportunity: explicitOpportunity, relationOpportunityBound: true, reason: '' };
+  }
+
+  const customerOpportunity = target?.linkedCustomerId
+    ? activeOpportunities.find((entry) => entry.customerId === target.linkedCustomerId && withinRelationWindow(entry)) || null
+    : null;
+  if (target?.linkedCustomerId && !customerOpportunity) {
+    return {
+      ok: false,
+      opportunity: null,
+      relationOpportunityBound: true,
+      reason: '这条计划绑定的客户不在当前动作可推进的阶段里，先刷新今日计划再执行。',
+    };
+  }
+
+  const fallbackOpportunity = [...activeOpportunities]
+    .filter(withinRelationWindow)
+    .sort((left, right) => getOpportunityPriority(right) - getOpportunityPriority(left))[0] || null;
+  if (!customerOpportunity && !fallbackOpportunity) {
+    return {
+      ok: false,
+      opportunity: null,
+      relationOpportunityBound: true,
+      reason: '当前没有适合这个动作推进的活跃客户线。',
+    };
+  }
+  return {
+    ok: true,
+    opportunity: customerOpportunity || fallbackOpportunity,
+    relationOpportunityBound: true,
+    reason: '',
+  };
+}
+
+function applyScenarioDelta(
+  state: GameState,
+  currentCase: GameState['cases'][number],
+  delta: Settlement['stateDeltas'][number],
+  actionId: string,
+  targetOpportunity?: Opportunity | null,
+  allowOpportunityFallback = true,
 ) {
   if (delta.field === 'trust') {
     currentCase.trust = clamp01to100(currentCase.trust + delta.value);
@@ -454,18 +576,13 @@ function applyScenarioDelta(
     return;
   }
   if (delta.field === 'intent' || delta.field === 'confidence') {
-    const activeOpportunities = state.opportunities
-      .filter((entry) => entry.caseId === currentCase.id && entry.status === 'active');
-    const explicitOpportunity = target?.linkedOpportunityId
-      ? activeOpportunities.find((entry) => entry.id === target.linkedOpportunityId)
+    const fallbackOpportunity = allowOpportunityFallback
+      ? [...state.opportunities]
+        .filter((entry) => entry.caseId === currentCase.id && entry.status === 'active')
+        .sort((left, right) => (right.stageIndex + right.intent / 100) - (left.stageIndex + left.intent / 100))[0]
       : null;
-    const customerOpportunity = !explicitOpportunity && target?.linkedCustomerId
-      ? activeOpportunities.find((entry) => entry.customerId === target.linkedCustomerId)
-      : null;
-    const fallbackOpportunity = [...activeOpportunities]
-      .sort((left, right) => (right.stageIndex + right.intent / 100) - (left.stageIndex + left.intent / 100))[0];
-    const targetOpportunity = explicitOpportunity || customerOpportunity || fallbackOpportunity;
-    if (!targetOpportunity) {
+    const writableOpportunity = targetOpportunity || fallbackOpportunity;
+    if (!writableOpportunity) {
       recordDomainEvent(state, {
         kind: 'journal',
         actor: '场景动作',
@@ -478,9 +595,9 @@ function applyScenarioDelta(
       return;
     }
     if (delta.field === 'intent') {
-      targetOpportunity.intent = clamp01to100(targetOpportunity.intent + delta.value);
+      writableOpportunity.intent = clamp01to100(writableOpportunity.intent + delta.value);
     } else {
-      targetOpportunity.confidence = clamp01to100(targetOpportunity.confidence + delta.value);
+      writableOpportunity.confidence = clamp01to100(writableOpportunity.confidence + delta.value);
     }
     return;
   }

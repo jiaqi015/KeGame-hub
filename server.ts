@@ -5,20 +5,20 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import {
-  authorizeSession,
+  authorizeSessionPersisted,
   clearSessionCookie,
-  completeEmailLogin,
-  deleteUser,
+  completeEmailLoginPersisted,
+  deleteUserPersisted,
   isSessionAuthorizationFailure,
-  listAllUsers,
+  listAllUsersPersisted,
   refreshSession,
-  requireAdminPermission,
+  requireAdminPermissionPersisted,
   setAuthCookie,
-  startEmailLogin,
-  updateUserPermissions,
+  startEmailLoginPersisted,
+  updateUserPermissionsPersisted,
 } from "./lib/auth.js";
 import { WORKSPACE_IDS } from "./lib/workspaces.js";
-import { authorizeRequest, validateActivationKey } from "./lib/activation.js";
+import { authorizeRequestPersisted, validateActivationKey } from "./lib/activation.js";
 import { compareModels, streamCompareModel } from "./lib/compare.js";
 import { AVAILABLE_MODELS } from "./lib/models.js";
 import { handleOpenDayCatalog } from "./modules/open-day/interfaces/http/openDayCatalogHandler.js";
@@ -72,7 +72,7 @@ async function startServer() {
   app.post("/api/auth-start", async (req, res) => {
     try {
       const email = typeof req.body?.email === "string" ? req.body.email : "";
-      const result = await startEmailLogin(email);
+      const result = await startEmailLoginPersisted(email);
       return res.json({
         ok: true,
         email: result.email,
@@ -107,7 +107,7 @@ async function startServer() {
 
     try {
       const email = typeof req.body?.email === "string" ? req.body.email : "";
-      const result = await startEmailLogin(email);
+      const result = await startEmailLoginPersisted(email);
       return res.json({
         ok: true,
         email: result.email,
@@ -120,9 +120,9 @@ async function startServer() {
     }
   });
 
-  app.post("/api/auth-complete", (req, res) => {
+  app.post("/api/auth-complete", async (req, res) => {
     try {
-      const result = completeEmailLogin({
+      const result = await completeEmailLoginPersisted({
         email: typeof req.body?.email === "string" ? req.body.email : "",
         code: typeof req.body?.code === "string" ? req.body.code : "",
         activationKey: typeof req.body?.activationKey === "string" ? req.body.activationKey : "",
@@ -134,13 +134,13 @@ async function startServer() {
     }
   });
 
-  app.post("/api/auth", (req, res, next) => {
+  app.post("/api/auth", async (req, res, next) => {
     if (req.query?.mode !== "complete") {
       return next();
     }
 
     try {
-      const result = completeEmailLogin({
+      const result = await completeEmailLoginPersisted({
         email: typeof req.body?.email === "string" ? req.body.email : "",
         code: typeof req.body?.code === "string" ? req.body.code : "",
         activationKey: typeof req.body?.activationKey === "string" ? req.body.activationKey : "",
@@ -152,8 +152,8 @@ async function startServer() {
     }
   });
 
-  app.get("/api/auth-me", (req, res) => {
-    const authorization = authorizeSession(req);
+  app.get("/api/auth-me", async (req, res) => {
+    const authorization = await authorizeSessionPersisted(req);
     if (isSessionAuthorizationFailure(authorization)) {
       return res.status(authorization.status).json({ error: authorization.error });
     }
@@ -185,12 +185,12 @@ async function startServer() {
     });
   });
 
-  app.get("/api/auth", (req, res, next) => {
+  app.get("/api/auth", async (req, res, next) => {
     if (req.query?.mode !== "me") {
       return next();
     }
 
-    const authorization = authorizeSession(req);
+    const authorization = await authorizeSessionPersisted(req);
     if (isSessionAuthorizationFailure(authorization)) {
       return res.status(authorization.status).json({ error: authorization.error });
     }
@@ -228,12 +228,12 @@ async function startServer() {
   });
 
   app.get("/api/users", async (req, res) => {
-    const authorization = requireAdminPermission(req);
+    const authorization = await requireAdminPermissionPersisted(req);
     if (isSessionAuthorizationFailure(authorization)) {
       return res.status(authorization.status).json({ error: authorization.error });
     }
 
-    const users = listAllUsers();
+    const users = await listAllUsersPersisted();
     return res.json({
       users: users.map((user) => ({
         email: user.email,
@@ -248,7 +248,7 @@ async function startServer() {
   });
 
   app.put("/api/users", async (req, res) => {
-    const authorization = requireAdminPermission(req);
+    const authorization = await requireAdminPermissionPersisted(req);
     if (isSessionAuthorizationFailure(authorization)) {
       return res.status(authorization.status).json({ error: authorization.error });
     }
@@ -259,7 +259,7 @@ async function startServer() {
         ? req.body.allowedWorkspaces.filter((w: unknown) => typeof w === "string" && WORKSPACE_IDS.includes(w as any))
         : [];
 
-      const updatedUser = updateUserPermissions(email, allowedWorkspaces);
+      const updatedUser = await updateUserPermissionsPersisted(email, allowedWorkspaces);
 
       return res.json({
         ok: true,
@@ -278,7 +278,7 @@ async function startServer() {
   });
 
   app.delete("/api/users", async (req, res) => {
-    const authorization = requireAdminPermission(req);
+    const authorization = await requireAdminPermissionPersisted(req);
     if (isSessionAuthorizationFailure(authorization)) {
       return res.status(authorization.status).json({ error: authorization.error });
     }
@@ -290,7 +290,7 @@ async function startServer() {
         return res.status(400).json({ error: "不能删除自己。" });
       }
 
-      deleteUser(email);
+      await deleteUserPersisted(email);
 
       return res.json({ ok: true });
     } catch (error) {
@@ -309,7 +309,7 @@ async function startServer() {
     return res.json({ ok: true });
   });
 
-  app.use("/api", (req, res, next) => {
+  app.use("/api", async (req, res, next) => {
     if (
       req.path === "/auth"
       || req.path === "/auth-start"
@@ -320,7 +320,7 @@ async function startServer() {
       return next();
     }
 
-    const authorization = authorizeRequest(req);
+    const authorization = await authorizeRequestPersisted(req);
 
     if (!authorization.ok) {
       return res.status(authorization.status).json({ error: authorization.error });
@@ -422,7 +422,7 @@ async function startServer() {
 
   app.get("/api/maintainer-runs", async (req, res) => {
     try {
-      const authorization = authorizeRequest(req, "selling-houses");
+      const authorization = await authorizeRequestPersisted(req, "selling-houses");
       if (!authorization.ok) {
         return res.status(authorization.status).json({ error: authorization.error });
       }
@@ -452,7 +452,7 @@ async function startServer() {
 
   app.post("/api/maintainer-runs", async (req, res) => {
     try {
-      const authorization = authorizeRequest(req, "selling-houses");
+      const authorization = await authorizeRequestPersisted(req, "selling-houses");
       if (!authorization.ok) {
         return res.status(authorization.status).json({ error: authorization.error });
       }
@@ -466,7 +466,7 @@ async function startServer() {
 
   app.put("/api/maintainer-runs", async (req, res) => {
     try {
-      const authorization = authorizeRequest(req, "selling-houses");
+      const authorization = await authorizeRequestPersisted(req, "selling-houses");
       if (!authorization.ok) {
         return res.status(authorization.status).json({ error: authorization.error });
       }

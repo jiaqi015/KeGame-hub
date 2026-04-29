@@ -3,6 +3,8 @@ import { motion, useMotionValue, useSpring, useTransform } from 'motion/react';
 import { KeyRound, Loader2, Mail, ShieldCheck } from 'lucide-react';
 import { AuthMode, AuthStatus } from '../../app/appReducer';
 import { KeGameHubMark } from '../Brand/KeGameHubMark';
+import { GlitchCanvas } from './GlitchCanvas';
+import { GlitchCursorDot } from './GlitchCursorDot';
 
 const PARTICLES = Array.from({ length: 45 }).map((_, i) => {
   const xOffset1 = Math.random() * 120 - 60;
@@ -107,6 +109,8 @@ export function AuthOverlay({
     rawY.set(e.clientY - top);
   };
 
+  const [isOverForm, setIsOverForm] = useState(false);
+
   const [ripples, setRipples] = useState<{ id: number; x: number; y: number }[]>([]);
   const rippleIdRef = useRef(0);
 
@@ -147,6 +151,8 @@ export function AuthOverlay({
   };
 
   return (
+    <>
+    <GlitchCursorDot hidden={isOverForm} />
     <div 
       ref={containerRef}
       onPointerDownCapture={handlePointerDownCapture}
@@ -156,12 +162,14 @@ export function AuthOverlay({
         mouseY.set(0.5);
       }}
       className="relative flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden bg-black px-4 py-8 text-white sm:px-6 sm:py-10"
+      style={{ cursor: isOverForm ? 'auto' : 'none' }}
     >
-      {/* 极富水纹律动感的互动背景；光晕用外层做居中，避免与 motion 的 x/y 合并 transform 冲突 */}
+      {/* 互动背景：Canvas矩阵动画底层 + 暗角 + 光晕 + 星尘 */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute inset-0 bg-black" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_120%_80%_at_50%_0%,#111111_0%,#000000_55%)]" />
-        
+        <div className="absolute inset-0 bg-[#1a1a1a]" />
+
+        <GlitchCanvas />
+
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
           <motion.div
             style={{ x: outerMoveX, y: outerMoveY, willChange: 'transform' }}
@@ -189,7 +197,6 @@ export function AuthOverlay({
           />
         </div>
 
-        {/* 新增：高亮且细腻的鼠标直随光晕 */}
         <motion.div
           className="absolute left-0 top-0 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.06)_0%,rgba(255,255,255,0)_60%)] mix-blend-screen blur-[40px]"
           style={{ x: slowX, y: slowY, willChange: 'transform' }}
@@ -202,6 +209,10 @@ export function AuthOverlay({
           className="absolute left-0 top-0 h-[120px] w-[120px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.4)_0%,rgba(255,255,255,0)_40%)] mix-blend-screen blur-[8px]"
           style={{ x: exactX, y: exactY, willChange: 'transform' }}
         />
+
+        <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(0,0,0,0) 60%, #000)' }} />
+        <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(0,0,0,.8), rgba(0,0,0,0) 60%)' }} />
+        <div className="absolute inset-0 z-[1] pointer-events-none bg-black/50" />
 
         <svg className="absolute inset-0 h-full w-full opacity-[0.08]" xmlns="http://www.w3.org/2000/svg">
           <path
@@ -224,7 +235,6 @@ export function AuthOverlay({
           />
         </svg>
 
-        {/* 漂浮的星尘粒子 */}
         <div className="absolute inset-0 overflow-hidden mix-blend-screen pointer-events-none opacity-80">
           {PARTICLES.map((p) => (
             <motion.div
@@ -284,6 +294,8 @@ export function AuthOverlay({
       <form
         ref={formRef}
         onSubmit={onSubmit}
+        onMouseEnter={() => setIsOverForm(true)}
+        onMouseLeave={() => setIsOverForm(false)}
         className="relative z-20 mx-auto box-border flex w-full max-w-[520px] flex-col items-stretch overflow-y-auto overflow-x-hidden [overflow-anchor:none] py-2 [scrollbar-gutter:stable] sm:py-4"
       >
         <div className="group w-full rounded-2xl border border-white/[0.1] bg-zinc-950/80 p-[1px] shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_32px_80px_rgba(0,0,0,0.7)] backdrop-blur-md">
@@ -386,5 +398,6 @@ export function AuthOverlay({
         </div>
       </form>
     </div>
+    </>
   );
 }

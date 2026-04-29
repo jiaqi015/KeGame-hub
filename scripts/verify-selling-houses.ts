@@ -115,6 +115,7 @@ function buildWorld() {
     throw new Error('Expected an initial opportunity for showing verification');
   }
 
+  targetCase.hasCompletedFirstVisit = true;
   opportunity.stageIndex = 0;
   opportunity.stageLabel = '了解';
 
@@ -127,6 +128,7 @@ function buildWorld() {
 {
   const world = buildWorld();
   const targetCase = world.cases[0];
+  targetCase.hasCompletedFirstVisit = true;
 
   const first = executeAction(world, 'weekly-feedback', targetCase, null);
   const second = executeAction(world, 'weekly-feedback', targetCase, null);
@@ -138,6 +140,7 @@ function buildWorld() {
 {
   const world = buildWorld();
   const targetCase = world.cases[0];
+  targetCase.hasCompletedFirstVisit = true;
 
   assert.ok(executeAction(world, 'story', targetCase, null), 'Expected first action of the day to execute');
   assert.equal(executeAction(world, 'story', targetCase, null), false, 'Expected repeated story action on the same day to be blocked');
@@ -146,6 +149,7 @@ function buildWorld() {
 {
   const world = buildWorld();
   const targetCase = world.cases[0];
+  targetCase.hasCompletedFirstVisit = true;
 
   assert.ok(executeAction(world, 'showing', targetCase, null), 'Expected first showing to execute');
   assert.equal(executeAction(world, 'showing', targetCase, null), false, 'Expected repeated showing on the same day to be blocked');
@@ -160,6 +164,7 @@ function buildWorld() {
     throw new Error('Expected an initial opportunity for negotiation verification');
   }
 
+  targetCase.hasCompletedFirstVisit = true;
   opportunity.stageIndex = 3;
   opportunity.stageLabel = '再看';
   opportunity.intent = 92;

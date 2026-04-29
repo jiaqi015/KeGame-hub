@@ -6,6 +6,7 @@ import { updateDerivedState, logEvent, recordDomainEvent } from '../runtimeState
 import { recordBudgetChange } from '../budget.js';
 import { applyAuxiliaryStats, getPromotionBudget } from '../runtimeStats.js';
 import { clamp, getDayOfWeek, randomInt } from '../utils.js';
+import { applyActionStageRelation, deriveCaseProgression, getActionStageRelation } from '../actionStageRelations.js';
 import type {
   ActionDefinition,
   Case,
@@ -26,6 +27,7 @@ import {
   refreshOpportunityLabel,
 } from './opportunityEngine.js';
 import { touchCustomersForCase } from './customerEngine.js';
+import { executeActionTransaction } from './actionTransaction.js';
 
 export function spendResources(state: GameState, action: ActionDefinition) {
   state.energy = clamp(state.energy - action.costEnergy, 0, state.maxEnergy);
@@ -59,7 +61,27 @@ type ActionExecutionContext = {
   onMessage?: (msg: string) => void;
 };
 
-type ActionExecutor = (ctx: ActionExecutionContext) => boolean;
+type ActionExecutionResult = boolean | {
+  success: boolean;
+  opportunity?: Opportunity | null;
+};
+
+type ActionExecutor = (ctx: ActionExecutionContext) => ActionExecutionResult;
+
+function actionSuccess(opportunity?: Opportunity | null): ActionExecutionResult {
+  return {
+    success: true,
+    opportunity,
+  };
+}
+
+function isActionExecutionSuccess(result: ActionExecutionResult) {
+  return typeof result === 'boolean' ? result : result.success;
+}
+
+function getActionExecutionOpportunity(result: ActionExecutionResult) {
+  return typeof result === 'boolean' ? null : result.opportunity || null;
+}
 
 export function resolveActionDefinition(actionId: string) {
   return ACTIONS.find((entry) => entry.id === actionId || entry.executorId === actionId);
@@ -68,6 +90,19 @@ export function resolveActionDefinition(actionId: string) {
 function normalizeActionId(actionId: string) {
   const action = resolveActionDefinition(actionId);
   return action?.executorId || action?.id || actionId;
+}
+
+function getOpportunityBoundUnavailableReason(actionId: string) {
+  if (actionId === 'showing') {
+    return '还没有足够成熟的线索能安排带看。';
+  }
+  if (actionId === 'sincerity-sale') {
+    return '还没有足够成熟的客户适合进入诚意卖。';
+  }
+  if (actionId === 'invite-customer-negotiation') {
+    return '还没有进入报价阶段的客户。';
+  }
+  return '当前还没有匹配这个动作的客户机会。';
 }
 
 function findShadowOpportunity(state: GameState, caseId: string) {
@@ -372,7 +407,7 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
     }
 
     onMessage?.(`${caseItem.title} 的带看已经安排并推进。`);
-    return true;
+    return actionSuccess(opportunity);
   },
   'pricing-advice': ({ state, caseItem, action, optionId, onMessage }) => {
     touchCaseForAction(caseItem, action.id, state.day, true);
@@ -512,7 +547,7 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
     refreshOpportunityLabel(opportunity);
     logEvent(state, caseItem.ownerName, `${caseItem.title} 进入诚意卖讨论，交易桌上的确定性开始抬升。`, 'success');
     onMessage?.(`${caseItem.title} 已推进到诚意卖讨论。`);
-    return true;
+    return actionSuccess(opportunity);
   },
   'invite-customer-negotiation': ({ state, caseItem, action, optionId, onMessage }) => {
     touchCaseForAction(caseItem, action.id, state.day);
@@ -524,7 +559,7 @@ const ACTION_EXECUTORS: Record<string, ActionExecutor> = {
     }
 
     resolveNegotiation(state, caseItem, opportunity, optionId, onMessage);
-    return true;
+    return actionSuccess(opportunity);
   },
 };
 
@@ -550,9 +585,16 @@ export function executeAction(
     return false;
   }
 
-  spendResources(state, action);
-  const success = executor({ state, action, caseItem, optionId, onMessage });
-  if (!success) {
+  const transactionResult = executeActionTransaction(state, action, () => {
+    spendResources(state, action);
+    const result = executor({ state, action, caseItem, optionId, onMessage });
+    if (isActionExecutionSuccess(result)) {
+      applyActionStageRelation(state, caseItem, action.executorId || action.id, getActionExecutionOpportunity(result));
+      return result;
+    }
+    return false;
+  });
+  if (!transactionResult.success) {
     return false;
   }
 
@@ -647,6 +689,7 @@ export function getActionAvailability(
   if (!action) return { enabled: false, reason: '未知动作。' };
 
   const normalizedActionId = normalizeActionId(actionId);
+  const stageRelation = getActionStageRelation(normalizedActionId);
 
   if (state.energy < action.costEnergy) {
     return { enabled: false, reason: '精力不够了，先结束今天吧。' };
@@ -655,11 +698,14 @@ export function getActionAvailability(
     return { enabled: false, reason: '推广金不足，先成交回款或者少做高成本动作。' };
   }
 
-  if (['first-visit', 'weekly-feedback', 'deep-diagnosis', 'pricing-advice', 'ask-psychological-price', 'adjust-listing-price', 'focus-meeting-submit'].includes(normalizedActionId) && caseItem.touchedOwnerToday) {
+  if (stageRelation?.touchesOwner && caseItem.touchedOwnerToday) {
     return { enabled: false, reason: '今天已经和业主深聊过一次了，先消化反馈，明天再推进。' };
   }
-  if (normalizedActionId === 'first-visit' && caseItem.hasCompletedFirstVisit) {
+  if (stageRelation?.revealsOwnerState && stageRelation.repeatableAfterCompletion === false && caseItem.hasCompletedFirstVisit) {
     return { enabled: false, reason: '首次面访已经完成了，后续请改用周度反馈或深度诊断继续经营。' };
+  }
+  if (stageRelation && !stageRelation.phaseIds.includes(deriveCaseProgression(state, caseItem).phase)) {
+    return { enabled: false, reason: '这件事现在还接不上当前房源状态。' };
   }
   if (normalizedActionId === 'story' && caseItem.lastAction === 'story') {
     return { enabled: false, reason: '同一天连续改两次卖点收益很低，先拿反馈再继续打磨。' };
@@ -684,14 +730,11 @@ export function getActionAvailability(
       return { enabled: false, reason: '周四聚焦会最多提报 3 套房。' };
     }
   }
-  if (normalizedActionId === 'showing' && !findBestOpportunity(state, caseItem.id, 0, 2)) {
-    return { enabled: false, reason: '还没有足够成熟的线索能安排带看。' };
-  }
-  if (normalizedActionId === 'sincerity-sale' && !findBestOpportunity(state, caseItem.id, 2, 6)) {
-    return { enabled: false, reason: '还没有足够成熟的客户适合进入诚意卖。' };
-  }
-  if (normalizedActionId === 'invite-customer-negotiation' && !findBestOpportunity(state, caseItem.id, 3, 6)) {
-    return { enabled: false, reason: '还没有进入报价阶段的客户。' };
+  if (stageRelation?.availabilityKind === 'opportunity-bound' && stageRelation.opportunityStageWindow) {
+    const { min, max } = stageRelation.opportunityStageWindow;
+    if (!findBestOpportunity(state, caseItem.id, min, max)) {
+      return { enabled: false, reason: getOpportunityBoundUnavailableReason(normalizedActionId) };
+    }
   }
 
   return { enabled: true, reason: '' };

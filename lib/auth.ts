@@ -7,6 +7,19 @@ import {
 } from './activation.js';
 import { sendVerificationEmail } from './email.js';
 import { decodeLegacyWorkspaceCodes } from './workspaces.js';
+import {
+  isAuthNeonAvailable,
+  neonDeleteChallenge,
+  neonDeleteUser,
+  neonGetChallenge,
+  neonGetUser,
+  neonListUsers,
+  neonMigrateLegacyUsers,
+  neonSaveChallenge,
+  neonUpdatePermissions,
+  neonUpsertUser,
+  type AuthNeonUser,
+} from './authNeon.js';
 
 export const AUTH_SESSION_COOKIE_NAME = 'sabrina-session';
 export const AUTH_USER_STORAGE_ENV_NAME = 'AUTH_USER_STORAGE';
@@ -199,6 +212,11 @@ function getBypassEmails(): Set<string> {
 
   const seededUsers = getDefaultUsers().map((user) => normalizeEmail(user.email));
   return new Set([...configured, ...seededUsers]);
+}
+
+function getDefaultUserForEmail(email: string): AuthUserRecord | null {
+  const normalizedEmail = normalizeEmail(email);
+  return getDefaultUsers().find((user) => normalizeEmail(user.email) === normalizedEmail) || null;
 }
 
 function parseConfiguredUsers(rawValue: string, now: string): AuthUserRecord[] {
@@ -457,6 +475,60 @@ function issueSession(store: AuthStore, email: string): LoginCompleteResult {
   };
 }
 
+function neonUserToAuthRecord(user: AuthNeonUser): AuthUserRecord {
+  return {
+    accountId: user.accountId || deriveAccountIdFromEmail(user.email),
+    email: normalizeEmail(user.email),
+    nickname: user.nickname || deriveNicknameFromEmail(user.email),
+    displayName: user.displayName || user.nickname || deriveNicknameFromEmail(user.email),
+    allowedWorkspaces: normalizeAllowedWorkspaces(user.allowedWorkspaces),
+    activationBound: user.activationBound !== false,
+    activationKey: user.activationKey,
+    createdAt: user.createdAt,
+    lastLoginAt: user.lastLoginAt,
+  };
+}
+
+function authRecordToNeonUser(user: AuthUserRecord): AuthNeonUser {
+  return {
+    accountId: user.accountId || deriveAccountIdFromEmail(user.email),
+    email: normalizeEmail(user.email),
+    nickname: user.nickname || deriveNicknameFromEmail(user.email),
+    displayName: user.displayName || user.nickname || deriveNicknameFromEmail(user.email),
+    allowedWorkspaces: user.allowedWorkspaces,
+    activationBound: user.activationBound !== false,
+    activationKey: user.activationKey,
+    createdAt: user.createdAt,
+    lastLoginAt: user.lastLoginAt,
+  };
+}
+
+async function issueNeonSession(user: AuthNeonUser | AuthUserRecord): Promise<LoginCompleteResult> {
+  const now = new Date().toISOString();
+  const authRecord: AuthUserRecord = {
+    accountId: user.accountId || deriveAccountIdFromEmail(user.email),
+    email: normalizeEmail(user.email),
+    nickname: user.nickname || deriveNicknameFromEmail(user.email),
+    displayName: user.displayName || user.nickname || deriveNicknameFromEmail(user.email),
+    allowedWorkspaces: normalizeAllowedWorkspaces(user.allowedWorkspaces),
+    activationBound: user.activationBound !== false,
+    activationKey: user.activationKey,
+    createdAt: user.createdAt || now,
+    lastLoginAt: now,
+  };
+  const persistedUser = authRecordToNeonUser(authRecord);
+  await neonUpsertUser(persistedUser);
+  const refreshedRecord = neonUserToAuthRecord(persistedUser);
+  const sessionToken = createSessionToken(refreshedRecord);
+
+  return {
+    user: refreshedRecord,
+    sessionToken,
+    cookie: buildSessionCookie(sessionToken),
+    expiresAt: buildSessionExpiryIso(),
+  };
+}
+
 export function refreshSession(user: Pick<AuthUserRecord, 'accountId' | 'email' | 'nickname' | 'displayName' | 'allowedWorkspaces'>) {
   const sessionToken = createSessionToken({
     accountId: user.accountId,
@@ -535,6 +607,65 @@ export async function startEmailLogin(emailInput: string): Promise<LoginStartRes
   };
 }
 
+export async function startEmailLoginPersisted(emailInput: string): Promise<LoginStartResult> {
+  if (!isAuthNeonAvailable()) {
+    return startEmailLogin(emailInput);
+  }
+
+  const email = normalizeEmail(emailInput);
+  if (!email) {
+    throw new Error('请输入邮箱。');
+  }
+
+  if (!isKeEmail(email)) {
+    throw new Error('仅支持 @ke.com 邮箱登录。');
+  }
+
+  let existingUser = await neonGetUser(email);
+  const bypassEmails = getBypassEmails();
+
+  if (bypassEmails.has(email)) {
+    if (!existingUser) {
+      const defaultUser = getDefaultUserForEmail(email);
+      const now = new Date().toISOString();
+      existingUser = authRecordToNeonUser(defaultUser || {
+        accountId: deriveAccountIdFromEmail(email),
+        email,
+        nickname: deriveNicknameFromEmail(email),
+        displayName: deriveNicknameFromEmail(email),
+        allowedWorkspaces: [...ACTIVATION_WORKSPACES],
+        activationBound: true,
+        createdAt: now,
+        lastLoginAt: now,
+      });
+      await neonUpsertUser(existingUser);
+    }
+
+    return {
+      email,
+      mode: 'trusted-bypass',
+      user: neonUserToAuthRecord(existingUser),
+    };
+  }
+
+  const code = `${Math.floor(100000 + Math.random() * 900000)}`;
+  const expiresAt = new Date(Date.now() + VERIFICATION_CODE_TTL_MS).toISOString();
+  await neonSaveChallenge(email, hashValue(code), expiresAt);
+  await sendVerificationEmail({
+    to: email,
+    code,
+    expiresAt,
+  });
+
+  return {
+    email,
+    mode: existingUser ? 'verification_required' : 'activation_required',
+    verificationCode: code,
+    expiresAt,
+    user: existingUser ? neonUserToAuthRecord(existingUser) : undefined,
+  };
+}
+
 export function completeEmailLogin(input: {
   email: string;
   code?: string;
@@ -589,6 +720,80 @@ export function completeEmailLogin(input: {
   }
 
   return issueSession(store, email);
+}
+
+export async function completeEmailLoginPersisted(input: {
+  email: string;
+  code?: string;
+  activationKey?: string;
+}): Promise<LoginCompleteResult> {
+  if (!isAuthNeonAvailable()) {
+    return completeEmailLogin(input);
+  }
+
+  const email = normalizeEmail(input.email);
+  if (!email) {
+    throw new Error('缺少邮箱。');
+  }
+
+  const bypassEmails = getBypassEmails();
+  let existingUser = await neonGetUser(email);
+
+  if (!bypassEmails.has(email)) {
+    const challenge = await neonGetChallenge(email);
+    if (!challenge) {
+      throw new Error('验证码不存在或已过期，请重新获取。');
+    }
+
+    if (new Date(challenge.expiresAt).getTime() < Date.now()) {
+      await neonDeleteChallenge(email);
+      throw new Error('验证码已过期，请重新获取。');
+    }
+
+    if (!input.code || !safeCompareHash(input.code.trim(), challenge.codeHash)) {
+      throw new Error('验证码错误。');
+    }
+
+    await neonDeleteChallenge(email);
+  }
+
+  if (!existingUser) {
+    if (bypassEmails.has(email)) {
+      const defaultUser = getDefaultUserForEmail(email);
+      const now = new Date().toISOString();
+      existingUser = authRecordToNeonUser(defaultUser || {
+        accountId: deriveAccountIdFromEmail(email),
+        email,
+        nickname: deriveNicknameFromEmail(email),
+        displayName: deriveNicknameFromEmail(email),
+        allowedWorkspaces: [...ACTIVATION_WORKSPACES],
+        activationBound: true,
+        createdAt: now,
+        lastLoginAt: now,
+      });
+    } else {
+      const activationKey = typeof input.activationKey === 'string' ? input.activationKey.trim() : '';
+      const validation = validateActivationKey(activationKey);
+      if (!validation.ok) {
+        throw new Error(validation.error);
+      }
+
+      const now = new Date().toISOString();
+      existingUser = {
+        accountId: deriveAccountIdFromEmail(email),
+        email,
+        nickname: deriveNicknameFromEmail(email),
+        displayName: deriveNicknameFromEmail(email),
+        allowedWorkspaces: validation.allowedWorkspaces,
+        activationBound: true,
+        activationKey: validation.key,
+        createdAt: now,
+        lastLoginAt: now,
+      };
+    }
+  }
+
+  return issueNeonSession(existingUser);
 }
 
 export function authorizeSession(req: any): SessionAuthorizationResult {
@@ -687,6 +892,67 @@ export function authorizeSession(req: any): SessionAuthorizationResult {
   };
 }
 
+export async function authorizeSessionPersisted(req: any): Promise<SessionAuthorizationResult> {
+  if (!isAuthNeonAvailable()) {
+    return authorizeSession(req);
+  }
+
+  const sessionToken = extractCookieValue(req, AUTH_SESSION_COOKIE_NAME);
+  if (sessionToken) {
+    const payload = parseSessionToken(sessionToken);
+    if (payload && payload.exp > Date.now()) {
+      const storedUser = await neonGetUser(payload.email);
+      if (storedUser) {
+        const authRecord = neonUserToAuthRecord(storedUser);
+        return {
+          ok: true,
+          accountId: authRecord.accountId || deriveAccountIdFromEmail(authRecord.email),
+          email: authRecord.email,
+          nickname: authRecord.nickname,
+          displayName: authRecord.displayName,
+          allowedWorkspaces: authRecord.allowedWorkspaces,
+          source: 'session',
+        };
+      }
+
+      return {
+        ok: false,
+        status: 401,
+        error: '请先登录。',
+      };
+    }
+  }
+
+  const key = getHeaderValue(req, ACTIVATION_HEADER_NAME);
+  if (key) {
+    const validation = validateActivationKey(key);
+    if (validation.ok) {
+      return {
+        ok: true,
+        accountId: 'activation-key-user',
+        email: 'activation-key-user',
+        nickname: 'activation',
+        displayName: 'Activation Key User',
+        allowedWorkspaces: validation.allowedWorkspaces,
+        source: 'activation-key',
+        activationKey: validation.key,
+      };
+    }
+
+    return {
+      ok: false,
+      status: validation.status,
+      error: validation.error,
+    };
+  }
+
+  return {
+    ok: false,
+    status: 401,
+    error: '请先登录。',
+  };
+}
+
 export function clearSessionCookie(): string {
   return `${AUTH_SESSION_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
 }
@@ -698,6 +964,21 @@ export function setAuthCookie(res: any, cookie: string) {
 export function listAllUsers(): AuthUserRecord[] {
   const store = getAuthStore();
   return Object.values(store.users);
+}
+
+export async function listAllUsersPersisted(): Promise<AuthUserRecord[]> {
+  if (!isAuthNeonAvailable()) {
+    return listAllUsers();
+  }
+
+  try {
+    await neonMigrateLegacyUsers();
+  } catch (_error) {
+    // 列表读取不因历史迁移失败而阻断已存在用户。
+  }
+
+  const users = await neonListUsers();
+  return users.map(neonUserToAuthRecord);
 }
 
 export function updateUserPermissions(email: string, allowedWorkspaces: ActivationWorkspaceId[]): AuthUserRecord {
@@ -714,6 +995,22 @@ export function updateUserPermissions(email: string, allowedWorkspaces: Activati
   return user;
 }
 
+export async function updateUserPermissionsPersisted(
+  email: string,
+  allowedWorkspaces: ActivationWorkspaceId[],
+): Promise<AuthUserRecord> {
+  if (!isAuthNeonAvailable()) {
+    return updateUserPermissions(email, allowedWorkspaces);
+  }
+
+  const updatedUser = await neonUpdatePermissions(normalizeEmail(email), allowedWorkspaces);
+  if (!updatedUser) {
+    throw new Error('用户不存在。');
+  }
+
+  return neonUserToAuthRecord(updatedUser);
+}
+
 export function deleteUser(email: string): void {
   const normalizedEmail = normalizeEmail(email);
   const store = getAuthStore();
@@ -726,8 +1023,34 @@ export function deleteUser(email: string): void {
   saveAuthStore(store);
 }
 
+export async function deleteUserPersisted(email: string): Promise<void> {
+  if (!isAuthNeonAvailable()) {
+    deleteUser(email);
+    return;
+  }
+
+  await neonDeleteUser(normalizeEmail(email));
+}
+
 export function requireAdminPermission(req: any): SessionAuthorizationResult {
   const authorization = authorizeSession(req);
+  if (!authorization.ok) {
+    return authorization;
+  }
+
+  if (!authorization.allowedWorkspaces.includes('admin')) {
+    return {
+      ok: false,
+      status: 403,
+      error: '需要管理员权限。',
+    };
+  }
+
+  return authorization;
+}
+
+export async function requireAdminPermissionPersisted(req: any): Promise<SessionAuthorizationResult> {
+  const authorization = await authorizeSessionPersisted(req);
   if (!authorization.ok) {
     return authorization;
   }

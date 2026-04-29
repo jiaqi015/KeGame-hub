@@ -1,5 +1,5 @@
 import './_bootstrap.js';
-import { authorizeRequest } from '../lib/activation.js';
+import { authorizeRequestPersisted } from '../lib/activation.js';
 import {
   hasQueryValue,
   isMaintainerLeaderboardDetailQuery,
@@ -33,7 +33,7 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const authorization = authorizeRequest(req, 'selling-houses');
+  const authorization = await authorizeRequestPersisted(req, 'selling-houses');
   if (!authorization.ok) {
     return res.status(authorization.status).json({ error: authorization.error });
   }

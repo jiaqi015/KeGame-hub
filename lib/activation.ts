@@ -1,5 +1,5 @@
 import {timingSafeEqual} from 'node:crypto';
-import { authorizeSession } from './auth.js';
+import { authorizeSession, authorizeSessionPersisted } from './auth.js';
 import {
   WORKSPACE_IDS,
   WorkspaceId,
@@ -234,6 +234,50 @@ export function validateActivationKey(candidate: string): ActivationValidationRe
 
 export function authorizeRequest(req: any, requiredWorkspace?: ActivationWorkspaceId): ActivationValidationResult {
   const sessionAuthorization = authorizeSession(req);
+  if (sessionAuthorization.ok) {
+    const workspace = requiredWorkspace || inferWorkspaceFromPath(getRequestPath(req));
+    if (workspace && !sessionAuthorization.allowedWorkspaces.includes(workspace)) {
+      return {
+        ok: false,
+        status: 403,
+        error: `当前账号无权访问「${getWorkspaceLabel(workspace)}」。`,
+      };
+    }
+
+    return {
+      ok: true,
+      status: 200,
+      error: '',
+      key: sessionAuthorization.activationKey || 'session-authenticated',
+      allowedWorkspaces: sessionAuthorization.allowedWorkspaces,
+      accountId: sessionAuthorization.accountId,
+      nickname: sessionAuthorization.nickname,
+      displayName: sessionAuthorization.displayName,
+      source: sessionAuthorization.source,
+    };
+  }
+
+  const validation = validateActivationKey(getHeaderValue(req, ACTIVATION_HEADER_NAME));
+
+  if (!validation.ok) {
+    return validation;
+  }
+
+  const workspace = requiredWorkspace || inferWorkspaceFromPath(getRequestPath(req));
+
+  if (workspace && !validation.allowedWorkspaces.includes(workspace)) {
+    return {
+      ok: false,
+      status: 403,
+      error: `当前激活密钥无权访问「${getWorkspaceLabel(workspace)}」。`,
+    };
+  }
+
+  return validation;
+}
+
+export async function authorizeRequestPersisted(req: any, requiredWorkspace?: ActivationWorkspaceId): Promise<ActivationValidationResult> {
+  const sessionAuthorization = await authorizeSessionPersisted(req);
   if (sessionAuthorization.ok) {
     const workspace = requiredWorkspace || inferWorkspaceFromPath(getRequestPath(req));
     if (workspace && !sessionAuthorization.allowedWorkspaces.includes(workspace)) {

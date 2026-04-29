@@ -1,5 +1,5 @@
 import './_bootstrap.js';
-import {authorizeRequest} from '../lib/activation.js';
+import {authorizeRequestPersisted} from '../lib/activation.js';
 import {compareModels, streamCompareModel} from '../lib/compare.js';
 import {AVAILABLE_MODELS} from '../lib/models.js';
 import { isStreamRequested, parseJsonBody } from './_request.js';
@@ -10,7 +10,7 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({error: 'Method Not Allowed'});
   }
 
-  const authorization = authorizeRequest(req, 'sabrina');
+  const authorization = await authorizeRequestPersisted(req, 'sabrina');
 
   if (!authorization.ok) {
     return res.status(authorization.status).json({error: authorization.error});

@@ -1,12 +1,12 @@
 import type { Request, Response } from 'express';
 import type { DisambiguationRequest, DisambiguationCandidate } from '../../domain/openDayDisambiguation.types.js';
 import { OpenDayDisambiguationService } from '../../application/openDayDisambiguationService.js';
-import { authorizeRequest } from '../../../../lib/activation.js';
+import { authorizeRequestPersisted } from '../../../../lib/activation.js';
 
 const disambiguationService = new OpenDayDisambiguationService();
 
 export async function openDayDisambiguationHandler(req: Request, res: Response) {
-  const authorization = authorizeRequest(req, 'open-day');
+  const authorization = await authorizeRequestPersisted(req, 'open-day');
   if (!authorization.ok) {
     res.status(authorization.status).json({ error: authorization.error });
     return;

@@ -18,7 +18,7 @@ import { resolveDashboardSelectedDayAfterStateDayChange } from '../src/selling-h
 import { buildMarketIntelProjection } from '../src/selling-houses/ui/features/marketIntel';
 import { advanceDays, executeAction, seedInitialOpportunities } from '../src/selling-houses/domain/engine';
 import { getScenarioSnapshotById } from '../src/selling-houses/domain/scenarioCatalog';
-import { getSlotRemainingCapacity } from '../src/selling-houses/application/todayPlan';
+import { getSlotRemainingCapacity, hasTodayPlanDuplicate } from '../src/selling-houses/application/todayPlan';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 function buildWorld() {
@@ -185,6 +185,35 @@ function assertMyWechatProjectionContracts(world: ReturnType<typeof buildWorld>)
 
 {
   const world = buildWorld();
+  const caseItem = world.cases[0];
+  assert.ok(caseItem, 'Expected case for today plan duplicate verification');
+  world.todayPlan = {
+    day: world.day,
+    playerItems: [{
+      id: 'verify-source-a',
+      day: world.day,
+      sourceMatterId: 'matter-source-a',
+      linkedActionId: 'weekly-feedback',
+      linkedCaseId: caseItem.id,
+      executionMode: 'direct',
+      status: 'planned',
+    }],
+  };
+
+  assert.equal(
+    hasTodayPlanDuplicate(world, {
+      sourceMatterId: 'matter-source-b',
+      linkedActionId: 'weekly-feedback',
+      linkedCaseId: caseItem.id,
+      executionMode: 'direct',
+    }),
+    true,
+    'Expected today plan duplicate detection to ignore sourceMatterId for executable identity',
+  );
+}
+
+{
+  const world = buildWorld();
   world.day = 10;
   world.energy = 4;
   world.maxEnergy = 4;
@@ -211,6 +240,38 @@ function assertMyWechatProjectionContracts(world: ReturnType<typeof buildWorld>)
     'Expected urgent owner/customer items not to appear as fixed morning arrangements during internal meeting',
   );
   assert.equal(amSlot.candidateItems.length, 0, 'Expected candidate actions not to be assigned to a blocked morning slot');
+}
+
+{
+  const world = buildWorld();
+  const caseItem = world.cases[0];
+  assert.ok(caseItem, 'Expected case for candidate matter linkage verification');
+  caseItem.hasCompletedFirstVisit = false;
+  world.opportunities = [];
+  world.matters = [{
+    id: 'verify-unrelated-negotiation-matter',
+    source: 'negotiation',
+    sourceKey: 'verify-unrelated-opportunity',
+    caseId: caseItem.id,
+    scene: 'negotiation',
+    lifecycleCategory: 'negotiate',
+    title: '无关客户事项',
+    detail: '这条事项不该挂到首次面访待选卡上。',
+    badge: '验证',
+    stage: 'pending',
+    template: 'dialog',
+    presentation: 'detail-page',
+    kind: 'opportunity',
+    openedAtDay: world.day,
+    updatedAtDay: world.day,
+  }];
+
+  const projection = buildOperatingProjection(world);
+  const candidate = projection.dashboard.arrangement.candidateItems.find((entry) => (
+    entry.caseId === caseItem.id && entry.actionId === 'first-visit'
+  ));
+  assert.ok(candidate, 'Expected first-visit recommendation candidate');
+  assert.equal(candidate?.matterId, undefined, 'Expected first-visit candidate not to link an unrelated negotiation matter');
 }
 
 {
@@ -528,6 +589,7 @@ function assertMyWechatProjectionContracts(world: ReturnType<typeof buildWorld>)
   }
 
   caseItem.askPrice = caseItem.marketPrice;
+  caseItem.hasCompletedFirstVisit = true;
   caseItem.trust = 100;
   caseItem.competitiveness = 100;
   opportunity.intent = 100;

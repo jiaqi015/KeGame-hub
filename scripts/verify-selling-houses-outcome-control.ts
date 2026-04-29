@@ -634,6 +634,7 @@ verify('scenario deltas prefer linked opportunity target', () => {
   };
   state.opportunities.unshift(fallbackOpportunity);
 
+  caseItem.hasCompletedFirstVisit = true;
   targetOpportunity.stageIndex = 0;
   targetOpportunity.intent = 20;
   targetOpportunity.confidence = 30;

@@ -43,6 +43,36 @@ const steps: Step[] = [
     args: ['run', 'verify:maintainer-projections'],
   },
   {
+    label: 'Maintainer matters verify',
+    command: 'npm',
+    args: ['run', 'verify:maintainer-matters'],
+  },
+  {
+    label: 'Maintainer recommendations verify',
+    command: 'npm',
+    args: ['run', 'verify:maintainer-recommendations'],
+  },
+  {
+    label: 'Maintainer recommendation calibration verify',
+    command: 'npm',
+    args: ['run', 'verify:maintainer-recommendation-calibration'],
+  },
+  {
+    label: 'Maintainer action-stage relation verify',
+    command: 'npm',
+    args: ['run', 'verify:maintainer-action-stage-relations'],
+  },
+  {
+    label: 'Maintainer scenario action target verify',
+    command: 'npm',
+    args: ['run', 'verify:maintainer-scenario-action-targets'],
+  },
+  {
+    label: 'Maintainer action transaction verify',
+    command: 'npm',
+    args: ['run', 'verify:maintainer-action-transaction'],
+  },
+  {
     label: 'Maintainer deal fact verify',
     command: 'npx',
     args: ['tsx', 'scripts/verify-selling-houses-deal-facts.ts'],

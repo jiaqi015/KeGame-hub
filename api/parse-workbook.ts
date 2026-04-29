@@ -1,6 +1,6 @@
 import './_bootstrap.js';
 import fs from 'node:fs/promises';
-import { authorizeRequest } from '../lib/activation.js';
+import { authorizeRequestPersisted } from '../lib/activation.js';
 import { handleOpenDayWorkbookParse } from '../modules/open-day/interfaces/http/openDayWorkbookParseHandler.js';
 import { getFirstFieldValue, parseMultipartUpload } from './_request.js';
 
@@ -16,7 +16,7 @@ export default async function handler(req: any, res: any) {
     return res.status(405).send('Method Not Allowed');
   }
 
-  const authorization = authorizeRequest(req, 'open-day');
+  const authorization = await authorizeRequestPersisted(req, 'open-day');
   if (!authorization.ok) {
     return res.status(authorization.status).json({ error: authorization.error });
   }

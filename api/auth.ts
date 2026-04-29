@@ -1,5 +1,13 @@
 import './_bootstrap.js';
-import { clearSessionCookie, completeEmailLogin, isSessionAuthorizationFailure, refreshSession, setAuthCookie, startEmailLogin, authorizeSession } from '../lib/auth.js';
+import {
+  authorizeSessionPersisted,
+  clearSessionCookie,
+  completeEmailLoginPersisted,
+  isSessionAuthorizationFailure,
+  refreshSession,
+  setAuthCookie,
+  startEmailLoginPersisted,
+} from '../lib/auth.js';
 import { validateActivationKey } from '../lib/activation.js';
 import { getQueryValue, parseJsonBody } from './_request.js';
 
@@ -40,7 +48,7 @@ export default async function handler(req: any, res: any) {
     try {
       const body = parseJsonBody(req.body);
       const email = typeof body?.email === 'string' ? body.email : '';
-      const result = await startEmailLogin(email);
+      const result = await startEmailLoginPersisted(email);
 
       return res.status(200).json({
         ok: true,
@@ -65,7 +73,7 @@ export default async function handler(req: any, res: any) {
 
     try {
       const body = parseJsonBody(req.body);
-      const result = completeEmailLogin({
+      const result = await completeEmailLoginPersisted({
         email: typeof body?.email === 'string' ? body.email : '',
         code: typeof body?.code === 'string' ? body.code : '',
         activationKey: typeof body?.activationKey === 'string' ? body.activationKey : '',
@@ -91,7 +99,7 @@ export default async function handler(req: any, res: any) {
       return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
-    const authorization = authorizeSession(req);
+    const authorization = await authorizeSessionPersisted(req);
     if (isSessionAuthorizationFailure(authorization)) {
       return res.status(authorization.status).json({ error: authorization.error });
     }

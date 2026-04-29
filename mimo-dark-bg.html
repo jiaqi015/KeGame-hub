@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Dark Background</title>
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 375px;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: #000;
+}
+
+.root {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 0;
+  background: #000;
+}
+
+.hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  overflow: hidden;
+  cursor: none;
+}
+
+.cursorDot {
+  position: fixed;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.85);
+  pointer-events: none;
+  z-index: 9999;
+  transform: translate(-50%, -50%);
+  mix-blend-mode: difference;
+  transition: width 0.15s, height 0.15s, background 0.15s;
+}
+
+.cursorDot.active {
+  width: 48px;
+  height: 48px;
+  background: rgba(0,0,0,0.6);
+  border: 1px solid rgba(255,255,255,0.3);
+}
+
+.heroBg {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: #1a1a1a;
+}
+
+.glitchCanvas {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.mouseGlow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(100vw, 44rem);
+  height: min(100vw, 44rem);
+  border-radius: 50%;
+  background: rgba(113, 113, 122, 0.15);
+  filter: blur(150px);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  will-change: transform;
+  z-index: 0;
+}
+
+.heroVignetteOuter {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(0,0,0,0) 60%, #000);
+}
+
+.heroVignetteCenter {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(0,0,0,.8), rgba(0,0,0,0) 60%);
+}
+
+.heroOverlay {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: rgba(0,0,0,.5);
+}
+
+.rippleContainer {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.ripple {
+  position: absolute;
+  pointer-events: none;
+}
+
+.rippleRing {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.4);
+  background: rgba(255,255,255,0.1);
+  animation: rippleExpand 0.72s cubic-bezier(0.2,0.85,0.2,1) forwards;
+}
+
+.rippleRingOuter {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.2);
+  animation: rippleExpandOuter 0.55s cubic-bezier(0.2,0.85,0.2,1) forwards;
+}
+
+@keyframes rippleExpand {
+  0% { transform: translate(-50%, -50%) scale(0); opacity: 0.7; }
+  100% { transform: translate(-50%, -50%) scale(16); opacity: 0; }
+}
+
+@keyframes rippleExpandOuter {
+  0% { transform: translate(-50%, -50%) scale(0); opacity: 0.45; }
+  100% { transform: translate(-50%, -50%) scale(10); opacity: 0; }
+}
+</style>
+</head>
+<body>
+<div class="cursorDot" id="cursorDot"></div>
+<div class="root">
+  <section class="hero">
+    <div class="heroBg" aria-hidden="true">
+      <canvas class="glitchCanvas"></canvas>
+      <div class="mouseGlow" id="mouseGlow"></div>
+      <div class="heroVignetteOuter"></div>
+      <div class="heroVignetteCenter"></div>
+    </div>
+    <div class="heroOverlay" aria-hidden="true"></div>
+    <div class="rippleContainer" id="rippleContainer"></div>
+  </section>
+</div>
+<script>
+(function () {
+  var dot = document.getElementById('cursorDot');
+  if (!dot) return;
+
+  var SMOOTH = 0.18;
+  var mx = -100, my = -100;
+  var cx = -100, cy = -100;
+
+  function update() {
+    cx += (mx - cx) * SMOOTH;
+    cy += (my - cy) * SMOOTH;
+    dot.style.left = cx + 'px';
+    dot.style.top = cy + 'px';
+    requestAnimationFrame(update);
+  }
+
+  update();
+
+  document.addEventListener('mousemove', function (e) {
+    mx = e.clientX;
+    my = e.clientY;
+  });
+
+  document.addEventListener('mousedown', function () {
+    dot.classList.add('active');
+  });
+
+  document.addEventListener('mouseup', function () {
+    dot.classList.remove('active');
+  });
+
+  document.addEventListener('mouseleave', function () {
+    dot.style.opacity = '0';
+  });
+
+  document.addEventListener('mouseenter', function () {
+    dot.style.opacity = '';
+  });
+})();
+
+(function () {
+  var canvas = document.querySelector('.glitchCanvas');
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  var COLORS = ['#53514D', '#53514D', '#998f84'];
+  var UPDATE_INTERVAL = 50;
+  var ANIMATE = true;
+  var CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$&*()-_+=/[]{};:<>.,0123456789';
+  var FONT_SIZE = 16;
+  var COL_WIDTH = 10;
+  var ROW_HEIGHT = 20;
+
+  var cells = [];
+  var dims = { columns: 0, rows: 0 };
+  var animFrame;
+  var lastUpdate = Date.now();
+
+  function randomChar() {
+    return CHARS[Math.floor(Math.random() * CHARS.length)];
+  }
+
+  function randomColor() {
+    return COLORS[Math.floor(Math.random() * COLORS.length)];
+  }
+
+  function hexToRgb(hex) {
+    var expanded = hex.replace(/^#?([\da-f])([\da-f])([\da-f])$/i, function (m, r, g, b) {
+      return r + r + g + g + b + b;
+    });
+    var result = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(expanded);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : null;
+  }
+
+  function lerpColor(a, b, t) {
+    return 'rgb(' +
+      Math.round(a.r + (b.r - a.r) * t) + ',' +
+      Math.round(a.g + (b.g - a.g) * t) + ',' +
+      Math.round(a.b + (b.b - a.b) * t) + ')';
+  }
+
+  function initGrid(cols, rows) {
+    dims = { columns: cols, rows: rows };
+    cells = [];
+    for (var i = 0; i < cols * rows; i++) {
+      var color = randomColor();
+      cells.push({
+        char: randomChar(),
+        color: color,
+        targetColor: randomColor(),
+        colorProgress: 1
+      });
+    }
+  }
+
+  function render() {
+    if (cells.length === 0) return;
+    var rect = canvas.getBoundingClientRect();
+    ctx.clearRect(0, 0, rect.width, rect.height);
+    ctx.font = FONT_SIZE + 'px monospace';
+    ctx.textBaseline = 'top';
+    for (var i = 0; i < cells.length; i++) {
+      var cell = cells[i];
+      ctx.fillStyle = cell.color;
+      ctx.fillText(cell.char, (i % dims.columns) * COL_WIDTH, Math.floor(i / dims.columns) * ROW_HEIGHT);
+    }
+  }
+
+  function mutate() {
+    if (cells.length === 0) return;
+    var count = Math.max(1, Math.floor(cells.length * 0.05));
+    for (var i = 0; i < count; i++) {
+      var idx = Math.floor(Math.random() * cells.length);
+      cells[idx].char = randomChar();
+      cells[idx].targetColor = randomColor();
+      if (ANIMATE) {
+        cells[idx].colorProgress = 0;
+      } else {
+        cells[idx].color = cells[idx].targetColor;
+        cells[idx].colorProgress = 1;
+      }
+    }
+  }
+
+  function animateColors() {
+    var dirty = false;
+    for (var i = 0; i < cells.length; i++) {
+      var cell = cells[i];
+      if (cell.colorProgress < 1) {
+        cell.colorProgress = Math.min(1, cell.colorProgress + 0.05);
+        var from = hexToRgb(cell.color);
+        var to = hexToRgb(cell.targetColor);
+        if (from && to) {
+          cell.color = lerpColor(from, to, cell.colorProgress);
+          dirty = true;
+        }
+      }
+    }
+    if (dirty) render();
+  }
+
+  function resize() {
+    var parent = canvas.parentElement;
+    if (!parent) return;
+    var dpr = window.devicePixelRatio || 1;
+    var rect = parent.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    initGrid(Math.ceil(rect.width / COL_WIDTH), Math.ceil(rect.height / ROW_HEIGHT));
+    render();
+  }
+
+  function loop() {
+    var now = Date.now();
+    if (now - lastUpdate >= UPDATE_INTERVAL) {
+      mutate();
+      render();
+      lastUpdate = now;
+    }
+    if (ANIMATE) animateColors();
+    animFrame = requestAnimationFrame(loop);
+  }
+
+  resize();
+  loop();
+
+  var resizeTimer;
+  function onResize() {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () {
+      cancelAnimationFrame(animFrame);
+      resize();
+      loop();
+    }, 100);
+  }
+
+  window.addEventListener('resize', onResize);
+})();
+
+(function () {
+  var hero = document.querySelector('.hero');
+  var glow = document.getElementById('mouseGlow');
+  var rippleContainer = document.getElementById('rippleContainer');
+  if (!hero || !glow || !rippleContainer) return;
+
+  var SMOOTH = 0.18;
+  var targetX = 0.5;
+  var targetY = 0.5;
+  var currentX = 0.5;
+  var currentY = 0.5;
+  var glowAnimFrame;
+
+  function updateGlow() {
+    currentX += (targetX - currentX) * SMOOTH;
+    currentY += (targetY - currentY) * SMOOTH;
+    var rect = hero.getBoundingClientRect();
+    var px = currentX * rect.width;
+    var py = currentY * rect.height;
+    glow.style.left = px + 'px';
+    glow.style.top = py + 'px';
+    glow.style.transform = 'translate(-50%, -50%)';
+    glowAnimFrame = requestAnimationFrame(updateGlow);
+  }
+
+  updateGlow();
+
+  hero.addEventListener('mousemove', function (e) {
+    var rect = hero.getBoundingClientRect();
+    targetX = (e.clientX - rect.left) / rect.width;
+    targetY = (e.clientY - rect.top) / rect.height;
+  });
+
+  hero.addEventListener('mouseleave', function () {
+    targetX = 0.5;
+    targetY = 0.5;
+  });
+
+  var rippleId = 0;
+
+  hero.addEventListener('mousedown', function (e) {
+    if (e.button !== 0) return;
+    var rect = hero.getBoundingClientRect();
+    var x = e.clientX - rect.left;
+    var y = e.clientY - rect.top;
+
+    var id = rippleId++;
+    var wrapper = document.createElement('div');
+    wrapper.className = 'ripple';
+    wrapper.style.left = x + 'px';
+    wrapper.style.top = y + 'px';
+
+    var ring = document.createElement('div');
+    ring.className = 'rippleRing';
+    wrapper.appendChild(ring);
+
+    var ringOuter = document.createElement('div');
+    ringOuter.className = 'rippleRingOuter';
+    wrapper.appendChild(ringOuter);
+
+    rippleContainer.appendChild(wrapper);
+
+    setTimeout(function () {
+      if (wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
+    }, 900);
+  });
+})();
+</script>
+</body>
+</html>

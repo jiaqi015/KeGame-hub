@@ -2,6 +2,7 @@ import { CASE_STAGES, WEEKLY_ROUTINE } from './constants.js';
 import { deriveMatters as derivePersistentMatters } from './matterEngine.js';
 import { normalizeOwnerPriceAnchors } from './priceAnchors.js';
 import { calculateUrgency, updateCompetitiveness } from './scoring.js';
+import { deriveCaseProgression } from './actionStageRelations.js';
 import type { Case, DomainEventEntry, DomainEventKind, GameState, GoalTier, MatterEntry, Opportunity, Tone } from './models.js';
 import { getDayOfWeek, getOpportunityPriority, getRoutine, average, clamp } from './utils.js';
 import { syncAuxiliaryMirrors } from './runtimeStats.js';
@@ -132,16 +133,17 @@ export function updateDerivedState(world: GameState) {
     caseItem.bottomPrice = priceAnchors.bottomPrice;
 
     const opportunities = world.opportunities.filter((entry) => entry.caseId === caseItem.id && entry.status === 'active');
-    const highestStage = opportunities.length ? Math.max(...opportunities.map((entry) => entry.stageIndex)) : 0;
+    const progression = deriveCaseProgression(world, caseItem);
 
     if (caseItem.status === 'sold') {
+      caseItem.stageIndex = progression.legacyStageIndex;
       caseItem.stageLabel = '已成交';
     } else if (caseItem.status === 'lost_to_rival') {
       caseItem.stageLabel = '他处成交';
     } else if (caseItem.status === 'withdrawn') {
       caseItem.stageLabel = '已核销';
     } else {
-      caseItem.stageIndex = Math.max(caseItem.stageIndex, highestStage);
+      caseItem.stageIndex = Math.max(Math.min(caseItem.stageIndex, CASE_STAGES.length - 2), progression.legacyStageIndex);
       caseItem.stageLabel = CASE_STAGES[clamp(caseItem.stageIndex, 0, CASE_STAGES.length - 1)];
     }
 
