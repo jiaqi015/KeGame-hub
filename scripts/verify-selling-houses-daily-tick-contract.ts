@@ -25,6 +25,8 @@ if (!negotiationOpportunity) {
 negotiationCase.askPrice = negotiationCase.marketPrice;
 negotiationCase.trust = 100;
 negotiationCase.competitiveness = 100;
+negotiationCase.stageIndex = 4;
+negotiationCase.offers = Math.max(1, negotiationCase.offers || 0);
 negotiationOpportunity.intent = 100;
 negotiationOpportunity.confidence = 100;
 negotiationOpportunity.stageIndex = 4;

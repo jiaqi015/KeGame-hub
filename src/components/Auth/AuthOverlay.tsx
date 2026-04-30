@@ -421,6 +421,12 @@ export function AuthOverlay({
               {footerMessage}
               <div className="h-1 w-1 rounded-full bg-zinc-600" />
             </div>
+
+            <div className="mt-4 flex items-center justify-center gap-3 text-[10px] font-mono tracking-wider text-zinc-700">
+              <span>v{import.meta.env.VITE_APP_VERSION ?? '—'}</span>
+              <span className="text-zinc-800">·</span>
+              <span>{(import.meta.env.VITE_GIT_COMMIT ?? '—').slice(0, 7)}</span>
+            </div>
           </div>
         </div>
       </form>
