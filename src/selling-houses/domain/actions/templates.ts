@@ -1097,6 +1097,24 @@ export const ACTION_TEMPLATES: Record<string, ActionBattleTemplate> = {
       { id: 'vip-circle', title: '走高净值小圈层', note: '量少，但可能带来更强购买力。' },
     ],
   }),
+  'marketing-focus-meeting-submit': buildTemplate({
+    id: 'marketing-focus-meeting-submit',
+    actor: 'market',
+    title: '提报聚焦会',
+    summary: '确定这套房进入周四聚焦会的提报口径。',
+    metricFocus: ['heat', 'trust', 'competitiveness'],
+    buildBody: (state, caseItem) => {
+      const submittedCount = state.focusMeeting.submissionDay === state.day
+        ? state.focusMeeting.submittedCaseIds.length
+        : 0;
+      return `${caseItem.title} 当前热度 ${Math.round(caseItem.heat)}，业主信任 ${Math.round(caseItem.trust)}，今日已提报 ${submittedCount}/3。`;
+    },
+    getStrategies: () => [
+      { id: 'quality-priority', title: '强调房源质量', note: '突出房子本身优势，争取资源倾斜。' },
+      { id: 'owner-readiness', title: '强调业主配合', note: '说明业主愿意配合推进，资源更容易落地。' },
+      { id: 'customer-signal', title: '强调客户信号', note: '用客户反馈和带看线索证明值得重点跟。' },
+    ],
+  }),
   'marketing-open-day': buildTemplate({
     id: 'marketing-open-day',
     actor: 'market',

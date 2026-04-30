@@ -28,7 +28,7 @@ export type ProcessManagerContract = {
   observes: readonly ProcessLifecycleSource[];
   lifecycleOwnership: ProcessTransitionOwnership;
   reads: readonly string[];
-  writes: readonly [];
+  writes: readonly string[];
   transitions: readonly ProcessTransitionView[];
 };
 
@@ -41,7 +41,7 @@ export type ProcessTransitionView = {
   currentStepId: string | null;
   currentStepTitle?: string;
   nextTransitionOwner: ProcessLifecycleOwner;
-  managerCanMutateNow: false;
+  managerCanMutateNow: boolean;
   pendingTransition?: string;
 };
 
@@ -98,4 +98,3 @@ export type ProcessRunReadModel =
   | OpenDayProcessRunReadModel
   | SinceritySaleProcessRunReadModel
   | NegotiationProcessReadModel;
-

@@ -9,6 +9,7 @@ import type {
 } from '../../domain/models.js';
 import { ACTIONS, WEEKLY_ROUTINE } from '../../domain/constants.js';
 import { isScenarioAction } from '../../domain/actions/templates.js';
+import { getActionStageRelation } from '../../domain/actionStageRelations.js';
 import { getActionAvailability } from '../../domain/engine.js';
 import { getActiveOpportunities } from '../../domain/engine/opportunityEngine.js';
 import { deriveCaseRecommendations, type CaseRecommendationTier } from '../../domain/recommendationEngine.js';
@@ -90,6 +91,7 @@ export interface ArrangementItemProjection {
   id: string;
   source: 'fixed' | 'candidate' | 'planned' | 'completed';
   slot?: TodayArrangementSlot;
+  rank?: number;
   label: string;
   title: string;
   detail: string;
@@ -590,7 +592,7 @@ function buildArrangementProjection(
         ? `已安排 ${fixedItems.length} 件。`
       : candidateItems.length > 0
         ? '候选可排。'
-        : '从房源页选一件。',
+        : '今日暂无待选。',
     remainingEnergy,
     remainingEnergyLabel: `可排余量 ${remainingEnergy}/${state.maxEnergy} 小时`,
     plannedEnergy,
@@ -652,6 +654,10 @@ function buildFixedArrangementItems(state: GameState): ArrangementItemProjection
     const linkedCase = entry.caseId ? state.cases.find((item) => item.id === entry.caseId) || null : null;
     const scheduleTitle = presentScheduleTitle(entry.title);
     const isBlockedRoutine = isSlotBlockingRoutine(entry);
+    const isFocusMeetingSubmit = entry.actionId === 'focus-meeting-submit';
+    const actionId = resolveFixedScheduleActionId(state, entry, linkedCase);
+    const shouldExposeAction = Boolean(actionId) && (!isBlockedRoutine || isFocusMeetingSubmit);
+    const shouldExposeCase = !isBlockedRoutine || isFocusMeetingSubmit;
     const durationHours = resolveScheduleEntryDurationHours(entry);
     const displayTitle = isBlockedRoutine
       ? scheduleTitle
@@ -666,14 +672,18 @@ function buildFixedArrangementItems(state: GameState): ArrangementItemProjection
         ? `${presentScheduleDetail(entry.note)} ${entry.weekdayIntent}。`
         : presentScheduleDetail(entry.note),
       tone: entry.urgency >= 82 ? 'risk' : 'neutral',
-      caseId: isBlockedRoutine ? undefined : entry.caseId,
+      caseId: shouldExposeCase ? entry.caseId : undefined,
       durationHours,
       energyCost: durationHours,
       statusLabel: presentScheduleBadge(entry.badge),
-      actionId: isBlockedRoutine ? undefined : entry.actionId,
+      actionId: shouldExposeAction ? actionId : undefined,
       isDisabled: false,
-      executionMode: !isBlockedRoutine && entry.actionId && isScenarioAction(entry.actionId) ? 'scenario' : !isBlockedRoutine && entry.actionId ? 'direct' : 'navigate',
-      ctaLabel: entry.actionId ? '加入今日处理' : '打开房源',
+      executionMode: shouldExposeAction && actionId && isScenarioAction(actionId)
+        ? 'scenario'
+        : shouldExposeAction && actionId
+          ? 'direct'
+          : 'navigate',
+      ctaLabel: isFocusMeetingSubmit ? '提报房源' : actionId ? '进入场景' : '打开房源',
       secondaryLabel: '看客户线',
       conflictHint: entry.source === 'interrupt' && !isBlockedRoutine
         ? getTodayPlanConflictHint(state, {
@@ -707,12 +717,33 @@ function buildFixedArrangementItems(state: GameState): ArrangementItemProjection
       actionId: 'invite-customer-negotiation',
       isDisabled: false,
       executionMode: 'direct',
-      ctaLabel: '开始执行',
+      ctaLabel: '进入场景',
       secondaryLabel: '打开房源',
     };
     });
 
   return [...scheduleItems, ...negotiationItems].slice(0, 3);
+}
+
+function resolveFixedScheduleActionId(
+  state: GameState,
+  entry: GameState['schedule'][number],
+  linkedCase: Case | null,
+) {
+  if (entry.actionId) {
+    return entry.actionId;
+  }
+
+  if (!linkedCase || !entry.opportunityId) {
+    return undefined;
+  }
+
+  const opportunity = state.opportunities.find((item) => item.id === entry.opportunityId && item.status === 'active') || null;
+  const actionCandidates = opportunity && opportunity.stageIndex >= 3
+    ? ['invite-customer-negotiation', 'sincerity-sale', 'showing']
+    : ['showing', 'weekly-feedback'];
+
+  return actionCandidates.find((actionId) => getActionAvailability(state, linkedCase, actionId).enabled);
 }
 
 function buildCandidateArrangementItems(
@@ -728,8 +759,8 @@ function buildCandidateArrangementItems(
       .map((entry) => buildTodayPlanKey(entry.linkedActionId, entry.linkedCaseId)),
   );
   const candidates: ArrangementItemProjection[] = [];
-  const reservedSlots = { am: 0, pm: 0 };
-  let simulatedRemainingEnergy = getTodayPlanRemainingEnergy(state);
+  const remainingEnergy = getTodayPlanRemainingEnergy(state);
+  let rank = 0;
 
   for (const recommendation of deriveCaseRecommendations(state)) {
     if (seenCaseIds.has(recommendation.caseId)) {
@@ -747,7 +778,7 @@ function buildCandidateArrangementItems(
     const linkedMatter = resolveRecommendationLinkedMatter(state, recommendation, action?.id);
     const candidateKey = buildTodayPlanKey(action?.id, recommendation.caseId);
     const isAlreadyPlanned = reservedKeys.has(candidateKey);
-    const isEnergyBlocked = Boolean(action && action.costEnergy > simulatedRemainingEnergy);
+    const isEnergyBlocked = Boolean(action && action.costEnergy > remainingEnergy);
     const actionDurationHours = action ? resolveActionDurationHours(action.id) : 1;
     const actionEnergyCost = action?.costEnergy ?? 1;
 
@@ -755,20 +786,11 @@ function buildCandidateArrangementItems(
       continue;
     }
 
-    const slotSelection = suggestedCandidateSlot(state, actionDurationHours, reservedSlots);
+    rank += 1;
+    const slotSelection = suggestedCandidateSlot(state, actionDurationHours, { am: 0, pm: 0 });
     const isSlotBlocked = Boolean(action && !slotSelection.canFit);
     const slot = slotSelection.slot;
-    if (isSlotBlocked) {
-      continue;
-    }
-    if (isEnergyBlocked) {
-      continue;
-    }
-    if (action && !isEnergyBlocked && !isSlotBlocked) {
-      reservedSlots[slot] += actionDurationHours;
-      simulatedRemainingEnergy = Math.max(0, simulatedRemainingEnergy - actionEnergyCost);
-    }
-    const conflictHint = action
+    const conflictHint = action && !isSlotBlocked && !isEnergyBlocked
       ? getTodayPlanConflictHint(state, {
           slot,
           actionId: action.id,
@@ -776,12 +798,18 @@ function buildCandidateArrangementItems(
           durationHours: actionDurationHours,
         })
       : undefined;
-    const disabledReason = isEnergyBlocked ? '精力不足，先完成已排。' : undefined;
+    const disabledReason = isEnergyBlocked
+      ? '精力不足，先完成已排。'
+      : isSlotBlocked
+        ? '今天两个时段都排不下，先完成已排事项。'
+        : undefined;
+    const isDisabled = isEnergyBlocked || isSlotBlocked;
 
     candidates.push({
       id: `candidate-recommendation-${recommendation.caseId}-${action?.id || 'action'}`,
       source: 'candidate',
       slot,
+      rank,
       label: '待选',
       title: action ? `${caseItem.title} · ${action.name}` : `${caseItem.title} · 今日动作`,
       detail: buildCandidateArrangementDetail(caseItem, action?.name || '今日动作'),
@@ -793,19 +821,21 @@ function buildCandidateArrangementItems(
       statusLabel: action
         ? isEnergyBlocked
           ? '精力不足'
+          : isSlotBlocked
+            ? '今日排不下'
           : '可加入'
         : '待判断',
       actionId: action?.id,
       executionMode: isScenarioAction(action?.id || '') ? 'scenario' : action ? 'direct' : 'navigate',
-      ctaLabel: action ? '加入今天' : '打开房源',
+      ctaLabel: action ? (isDisabled ? '排不下' : slot === 'am' ? '加入上午' : '加入下午') : '打开房源',
       secondaryLabel: action ? '看房源' : '看客户线',
-      isDisabled: isEnergyBlocked,
+      isDisabled,
       disabledReason,
       conflictHint,
     });
   }
 
-  return candidates.slice(0, 4);
+  return candidates;
 }
 
 function recommendationTierTone(tier: CaseRecommendationTier): ProjectionTone {
@@ -961,6 +991,8 @@ function resolveRecommendationLinkedMatter(
 ): MatterEntry | null {
   if (!actionId) return null;
 
+  const actionBoundOpportunities = resolveActionBoundOpportunities(state, recommendation.caseId, actionId);
+
   return state.matters.find((matter) => {
     if (matter.caseId !== recommendation.caseId || matter.stage !== 'pending') {
       return false;
@@ -982,17 +1014,37 @@ function resolveRecommendationLinkedMatter(
     }
 
     if (matter.source === 'negotiation') {
-      return actionId === 'invite-customer-negotiation'
-        && state.opportunities.some((entry) => (
-          entry.id === matter.sourceKey
-          && entry.caseId === recommendation.caseId
-          && entry.status === 'active'
-          && Boolean(entry.pendingClosingEvaluation)
-        ));
+      if (actionId !== 'invite-customer-negotiation') {
+        return false;
+      }
+      const matchedOpportunity = actionBoundOpportunities.find((entry) => (
+        entry.id === matter.sourceKey
+        && Boolean(entry.pendingClosingEvaluation)
+      ));
+      return Boolean(matchedOpportunity) && actionBoundOpportunities.length === 1;
     }
 
     return false;
   }) || null;
+}
+
+function resolveActionBoundOpportunities(
+  state: GameState,
+  caseId: string,
+  actionId: string,
+): Opportunity[] {
+  const relation = getActionStageRelation(actionId);
+  if (relation?.availabilityKind !== 'opportunity-bound') {
+    return [];
+  }
+
+  return state.opportunities.filter((entry) => {
+    if (entry.caseId !== caseId || entry.status !== 'active') {
+      return false;
+    }
+    const window = relation.opportunityStageWindow;
+    return !window || (entry.stageIndex >= window.min && entry.stageIndex <= window.max);
+  });
 }
 
 function buildTodayPlanKey(actionId?: string, caseId?: string) {
@@ -1406,8 +1458,8 @@ function buildCaseFactChain(
       ? `${daysSinceOwnerTouched} 天没做业主反馈，信任和耐心都在下滑边缘。`
       : `当前信任 ${Math.round(caseItem.trust)}，耐心 ${Math.round(caseItem.patience)}，业主还在等明确反馈。`,
     nextStep: daysSinceOwnerTouched >= 4
-        ? '补一次带事实的业主反馈。'
-        : '保持固定频率反馈。',
+        ? '业主反馈已有事实材料。'
+        : '反馈频率稳定。',
     tone: daysSinceOwnerTouched >= 4 || caseItem.trust < 52 || caseItem.patience < 42 ? 'risk' : 'neutral',
   });
 
@@ -1990,7 +2042,7 @@ function buildOpportunityBuckets(
       id: 'met',
       label: '见面准客',
       count: met.length,
-      summary: met.length > 0 ? '可以做阶段管理。' : '还没有稳定接上的客户。',
+      summary: met.length > 0 ? '客户阶段状态清楚。' : '还没有稳定接上的客户。',
     },
     {
       id: 'potential',

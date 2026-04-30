@@ -8,6 +8,7 @@ import type {
   TodayArrangementExecutionMode,
   TodayArrangementSlot,
 } from '../../domain/models.js';
+import type { ReadonlyDeep } from './readOnly.js';
 
 export type WorkspaceRole = 'broker' | 'owner' | 'manager';
 export type WorkspaceProjectionSource = 'legacy-game-state';
@@ -94,8 +95,8 @@ export interface MatterWorkspaceItem {
   readonly title: string;
   readonly detail: string;
   readonly badge?: string;
-  readonly template: MatterTemplate;
-  readonly presentation: MatterPresentation;
+  readonly template: ReadonlyDeep<MatterTemplate>;
+  readonly presentation: ReadonlyDeep<MatterPresentation>;
   readonly kind?: 'case' | 'opportunity';
   readonly urgency: number;
   readonly openedAtDay: number;

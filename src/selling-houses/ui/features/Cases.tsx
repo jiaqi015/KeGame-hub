@@ -7,7 +7,7 @@ import {
 } from '../../application/projections/operatingProjection.js';
 import { buildOwnerPersonaProfile } from '../../application/projections/ownerPersonaProfile.js';
 import { ACTIONS, ACTION_CATEGORIES } from '../../domain/constants';
-import { costText, caseSortValue } from '../../domain/utils';
+import { clamp, costText, caseSortValue } from '../../domain/utils';
 import { getActiveOpportunities, getActionAvailability } from '../../domain/engine';
 import { Star } from 'lucide-react';
 import { buildOpportunityViewModels, type OpportunityViewModel } from './caseOpportunityViewModel';
@@ -354,9 +354,6 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
                       <div className="seller-label">当前房源</div>
                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
                         <h2 className="seller-title text-[17px] leading-5">{selectedCase.title}</h2>
-                        <span className="seller-chip bg-[var(--seller-ink)] text-[var(--seller-bg)]">
-                          {caseProjection?.listingLifecyclePhase.completionStateLabel || caseProjection?.listingLifecyclePhase.phaseLabel || selectedCase.stageLabel}
-                        </span>
                         {selectedCase.isFocused && (
                           <span className="seller-chip seller-chip-accent flex items-center gap-1">
                             <Star size={11} fill="currentColor" />
@@ -797,30 +794,23 @@ function ListingHeroImage({ caseItem }: { caseItem: Case }) {
           <line x1="72" y1="36" x2="122" y2="36" stroke="rgba(102,209,224,0.72)" strokeWidth="2" strokeLinecap="round" />
           <line x1="22" y1="49" x2="22" y2="62" stroke="rgba(73,221,133,0.70)" strokeWidth="2" strokeLinecap="round" />
           <line x1="22" y1="84" x2="22" y2="99" stroke="rgba(73,221,133,0.60)" strokeWidth="2" strokeLinecap="round" />
-          <text x="39" y="58" fill="rgba(255,255,255,0.86)" fontSize="8" fontWeight="700" textAnchor="middle">主卧</text>
-          <text x="39" y="93" fill="rgba(255,255,255,0.78)" fontSize="8" fontWeight="700" textAnchor="middle">次卧</text>
-          <text x="94" y="62" fill="rgba(255,255,255,0.90)" fontSize="9" fontWeight="800" textAnchor="middle">客餐厅</text>
-          <text x="73" y="100" fill="rgba(255,255,255,0.72)" fontSize="7" fontWeight="700" textAnchor="middle">厨房</text>
-          <text x="100" y="100" fill="rgba(255,255,255,0.72)" fontSize="7" fontWeight="700" textAnchor="middle">卫</text>
-          <text x="120" y="100" fill="rgba(102,209,224,0.84)" fontSize="7" fontWeight="700" textAnchor="middle">阳台</text>
         </g>
       </svg>
-      <div className="absolute bottom-3 left-3 right-3">
-        <div className="truncate text-[12px] font-semibold text-white">{caseItem.community}</div>
-        <div className="mt-0.5 text-[10px] font-semibold text-white/56">{bedroomLabel}户型 · {caseItem.layout} · {caseItem.area}㎡</div>
-      </div>
     </div>
   );
 }
 
 function HouseDimensionPosition({ caseItem }: { caseItem: Case }) {
+  const [rotationDeg, setRotationDeg] = useState(-16);
+  const [dragStart, setDragStart] = useState<{ x: number; rotation: number } | null>(null);
   const lead = clampScore(caseItem.d1) / 100;
   const house = clampScore(caseItem.d2) / 100;
   const owner = clampScore(caseItem.d3) / 100;
   const origin = { x: 30, y: 112 };
-  const leadAxis = { x: 102, y: -20 };
+  const rotation = (rotationDeg * Math.PI) / 180;
+  const leadAxis = { x: 102 * Math.cos(rotation), y: 26 * Math.sin(rotation) - 12 };
   const houseAxis = { x: 0, y: -78 };
-  const ownerAxis = { x: 64, y: 27 };
+  const ownerAxis = { x: -64 * Math.sin(rotation), y: 27 * Math.cos(rotation) };
   const point = {
     x: origin.x + leadAxis.x * lead + houseAxis.x * house + ownerAxis.x * owner,
     y: origin.y + leadAxis.y * lead + houseAxis.y * house + ownerAxis.y * owner,
@@ -833,6 +823,20 @@ function HouseDimensionPosition({ caseItem }: { caseItem: Case }) {
   const topB = `${origin.x + leadAxis.x + houseAxis.x},${origin.y + leadAxis.y + houseAxis.y}`;
   const topC = `${origin.x + leadAxis.x + ownerAxis.x + houseAxis.x},${origin.y + leadAxis.y + ownerAxis.y + houseAxis.y}`;
   const topD = `${origin.x + ownerAxis.x + houseAxis.x},${origin.y + ownerAxis.y + houseAxis.y}`;
+  const handlePointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDragStart({ x: event.clientX, rotation: rotationDeg });
+  };
+  const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (!dragStart) return;
+    setRotationDeg(clamp(dragStart.rotation + (event.clientX - dragStart.x) * 0.45, -58, 58));
+  };
+  const handlePointerEnd = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    setDragStart(null);
+  };
 
   return (
     <div className="mt-2 overflow-hidden rounded-[14px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] px-4 py-4">
@@ -848,7 +852,11 @@ function HouseDimensionPosition({ caseItem }: { caseItem: Case }) {
           viewBox="0 0 210 146"
           role="img"
           aria-label="准客情况、房子条件、业主配合三维坐标"
-          className="h-[190px] w-full overflow-visible md:h-[220px]"
+          className="h-[190px] w-full cursor-grab touch-none select-none overflow-visible active:cursor-grabbing md:h-[220px]"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerEnd}
+          onPointerCancel={handlePointerEnd}
         >
           <polygon points={`${floorA} ${floorB} ${floorC} ${floorD}`} fill="rgba(73,221,133,0.06)" stroke="rgba(255,255,255,0.12)" />
           <polygon points={`${topA} ${topB} ${topC} ${topD}`} fill="rgba(102,209,224,0.06)" stroke="rgba(255,255,255,0.10)" />

@@ -25,6 +25,8 @@ export interface RecommendationCalibrationResult {
   runs: number;
   seeds: string;
   executionMode: RecommendationCalibrationExecutionMode;
+  executionStatus: 'executable' | 'execution-risk';
+  executionWarnings: string[];
   qualityStatus: 'healthy' | 'needs-tuning';
   qualityWarnings: string[];
   decisionPoints: number;
@@ -87,13 +89,8 @@ function deriveQualityWarnings(input: {
   averageScore: number;
   coreBadRunRatePct: number;
   lostToRivalRunRatePct: number;
-  top1ExecutionRatePct: number;
-  failedTop1: number;
 }) {
   const warnings: string[] = [];
-  if (input.failedTop1 > 0 || input.top1ExecutionRatePct < 95) {
-    warnings.push('top1-execution-risk');
-  }
   if (input.averageScore < 50) {
     warnings.push('average-score-low');
   }
@@ -102,6 +99,17 @@ function deriveQualityWarnings(input: {
   }
   if (input.lostToRivalRunRatePct > 35) {
     warnings.push('lost-to-rival-rate-high');
+  }
+  return warnings;
+}
+
+function deriveExecutionWarnings(input: {
+  top1ExecutionRatePct: number;
+  failedTop1: number;
+}) {
+  const warnings: string[] = [];
+  if (input.failedTop1 > 0 || input.top1ExecutionRatePct < 95) {
+    warnings.push('top1-execution-risk');
   }
   return warnings;
 }
@@ -214,6 +222,8 @@ export function runRecommendationCalibration(
     averageScore,
     coreBadRunRatePct,
     lostToRivalRunRatePct,
+  });
+  const executionWarnings = deriveExecutionWarnings({
     top1ExecutionRatePct,
     failedTop1: aggregate.top1Failed,
   });
@@ -223,6 +233,8 @@ export function runRecommendationCalibration(
     runs,
     seeds: `${baseSeed}..${baseSeed + runs - 1}`,
     executionMode,
+    executionStatus: executionWarnings.length > 0 ? 'execution-risk' : 'executable',
+    executionWarnings,
     qualityStatus: qualityWarnings.length > 0 ? 'needs-tuning' : 'healthy',
     qualityWarnings,
     decisionPoints: aggregate.decisionPoints,

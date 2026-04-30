@@ -28,9 +28,9 @@ export function WeeklySummaryOverlay({ summary, onContinue }: WeeklySummaryOverl
             <CalendarDays size={17} />
           </div>
           <div className="min-w-0">
-            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/55">周结算</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/55">经营结算</div>
             <h2 className="truncate text-[16px] font-semibold tracking-[-0.02em] text-white sm:text-[18px]">
-              {summary.title || '周经营复盘'} · {summary.dayRangeLabel}
+              {summary.title || '推进复盘'} · {summary.dayRangeLabel}
             </h2>
           </div>
         </div>
@@ -68,7 +68,7 @@ export function WeeklySummaryOverlay({ summary, onContinue }: WeeklySummaryOverl
               <div className="seller-panel-muted p-4">
                 <h4 className="seller-label mb-3 flex items-center gap-2 text-xs">
                   <ClipboardList size={14} className="text-slate-600" />
-                  周内关键事件
+                  推进关键事件
                 </h4>
                 <div className="space-y-2.5">
                   {summary.dailyHighlights.map((entry) => (
@@ -86,7 +86,7 @@ export function WeeklySummaryOverlay({ summary, onContinue }: WeeklySummaryOverl
               <div className="seller-panel-muted p-4">
                 <h4 className="seller-label mb-3 flex items-center gap-2 text-xs">
                   <Target size={14} className="text-emerald-600" />
-                  下周优先动作
+                  接下来优先动作
                 </h4>
                 <div className="space-y-2">
                   {summary.priorityActions.map((action, index) => (

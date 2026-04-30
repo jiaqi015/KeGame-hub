@@ -91,6 +91,7 @@ function visibleText(parts: Array<string | undefined>) {
 
 const FRONTSTAGE_FORBIDDEN_COPY = /\[推进\]|\btier\b|\bscore\b|\bdebug\b|需要|今天要|必须|应该|先处理|推进|后段|值得排前面|经营节奏/i;
 const INSTRUCTIONAL_CANDIDATE_COPY = /^(先|请|快|赶紧|立刻)|先把|要把|要接住|稳住授权|适合推进|直接推进|排前面/;
+const RECOMMENDATION_REASON_COACH_COPY = /可以|更好判断|下一步|做一次/;
 const FRONTSTAGE_VISIBLE_KEYS = new Set([
   'label',
   'title',
@@ -132,6 +133,22 @@ function assertGentleCandidateCopy(items: Array<{ label?: string; title?: string
       !FRONTSTAGE_FORBIDDEN_COPY.test(text) && !INSTRUCTIONAL_CANDIDATE_COPY.test(text),
       `Expected candidate copy to stay factual, not instructive: ${text}`,
     );
+  });
+}
+
+function assertRecommendationReasonCopyClean(label: string, recommendations: ReturnType<typeof deriveCaseRecommendations>) {
+  recommendations.forEach((recommendation) => {
+    const reasons = [
+      recommendation.reason,
+      recommendation.primaryAction.reason,
+      ...recommendation.alternativeActions.map((action) => action.reason),
+    ];
+    reasons.forEach((reason) => {
+      assert.ok(
+        !FRONTSTAGE_FORBIDDEN_COPY.test(reason) && !RECOMMENDATION_REASON_COACH_COPY.test(reason),
+        `Expected ${label} recommendation reason to stay factual: ${reason}`,
+      );
+    });
   });
 }
 
@@ -210,6 +227,7 @@ function assertArrangementCandidatesExecutable(
   updateDerivedState(world);
 
   const recommendations = deriveCaseRecommendations(world);
+  assertRecommendationReasonCopyClean('first-visit', recommendations);
   const lead = recommendations[0];
   assert.ok(lead, 'Expected recommendations to include a lead item');
   assert.equal(lead.caseId, target.id, 'Expected first unvisited listing to be the lead recommendation');
@@ -227,7 +245,12 @@ function assertArrangementCandidatesExecutable(
   assert.ok(!targetProjection?.ownerSummary.detail.includes(target.ownerMood), 'Expected hidden owner summary not to expose owner mood');
 
   const candidates = projection.dashboard.arrangement.candidateItems;
-  assert.ok(candidates.length > 0 && candidates.length <= 4, 'Expected arrangement candidates to render recommendation Top4 only');
+  const recommendedCaseIds = new Set(recommendations.map((recommendation) => recommendation.caseId));
+  assert.equal(candidates.length, recommendedCaseIds.size, 'Expected arrangement candidates to render one ranked action per recommended listing');
+  candidates.forEach((item) => {
+    assert.ok(item.caseId && recommendedCaseIds.has(item.caseId), 'Expected arrangement candidates to come from ranked recommendations');
+    assert.equal(item.rank, candidates.findIndex((candidate) => candidate.id === item.id) + 1, 'Expected arrangement candidate ranks to be sequential');
+  });
   assert.equal(candidates[0]?.caseId, target.id, 'Expected arrangement first candidate to come from the lead recommendation');
   assert.equal(candidates[0]?.actionId, 'first-visit', 'Expected arrangement first candidate to schedule first visit');
   assert.ok(candidates[0]?.detail.includes('业主待面访'), 'Expected arrangement candidate to present factual first-visit state');
@@ -236,6 +259,16 @@ function assertArrangementCandidatesExecutable(
     assert.ok(!/\[(推进|守盘|收口)\]|DEFEND|PROGRESS|ACCELERATE/.test(text), 'Expected candidate copy not to expose recommendation tiers');
   });
   assertNoForbiddenFrontstageCopy('arrangement headline', [{ headline: projection.dashboard.arrangement.headline }]);
+  assertNoForbiddenFrontstageCopy('arrangement summary', [{ detail: projection.dashboard.arrangement.summary }]);
+  assertNoForbiddenFrontstageCopy('arrangement week focus', [{ detail: projection.dashboard.arrangement.weekFocusLabel }]);
+  assert.ok(
+    !/选一件推进|本周按节奏推进/.test(visibleText([
+      projection.dashboard.arrangement.headline,
+      projection.dashboard.arrangement.summary,
+      projection.dashboard.arrangement.weekFocusLabel,
+    ])),
+    'Expected arrangement copy to avoid old schedule-coach phrases',
+  );
   assertNoForbiddenFrontstageCopy('arrangement candidates', candidates);
   assertGentleCandidateCopy(candidates);
   assertArrangementCandidatesExecutable(world, candidates);
@@ -274,7 +307,9 @@ function assertArrangementCandidatesExecutable(
   ];
   updateDerivedState(world);
 
-  const lead = deriveCaseRecommendations(world)[0];
+  const recommendations = deriveCaseRecommendations(world);
+  assertRecommendationReasonCopyClean('unvisited mature opportunity', recommendations);
+  const lead = recommendations[0];
   assert.ok(lead, 'Expected recommendation for unvisited mature-opportunity case');
   assert.equal(lead.caseId, target.id, 'Expected unvisited mature-opportunity case to lead the ranking');
   assert.equal(lead.phase, 'pre_visit', 'Expected recommendation to stay in pre-visit phase until first visit is complete');
@@ -301,7 +336,9 @@ function assertArrangementCandidatesExecutable(
   ];
   updateDerivedState(world);
 
-  const lead = deriveCaseRecommendations(world)[0];
+  const recommendations = deriveCaseRecommendations(world);
+  assertRecommendationReasonCopyClean('hot offer', recommendations);
+  const lead = recommendations[0];
   assert.ok(lead, 'Expected recommendation for hot offer case');
   assert.equal(lead.caseId, offerCase.id, 'Expected opportunity facts to drive the lead recommendation');
   assert.equal(lead.primaryAction.actionId, 'invite-customer-negotiation', 'Expected hot offer to recommend negotiation');
@@ -332,7 +369,9 @@ function assertArrangementCandidatesExecutable(
   ];
   updateDerivedState(world);
 
-  const lead = deriveCaseRecommendations(world)[0];
+  const recommendations = deriveCaseRecommendations(world);
+  assertRecommendationReasonCopyClean('mature opportunity', recommendations);
+  const lead = recommendations[0];
   assert.ok(lead, 'Expected recommendation for mature opportunity case');
   assert.equal(lead.caseId, matureCase.id, 'Expected mature opportunity case to lead the ranking');
   assert.equal(lead.primaryAction.actionId, 'invite-customer-negotiation', 'Expected mature opportunity to outrank routine owner feedback');

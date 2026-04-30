@@ -1,6 +1,7 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import fs from 'fs';
 import {execSync} from 'child_process';
 import {defineConfig} from 'vite';
 
@@ -12,12 +13,23 @@ function getGitCommitHash() {
   }
 }
 
+function getAppVersion() {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8'));
+    return pkg.version || '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+}
+
 export default defineConfig(({mode}) => {
   const commitHash = getGitCommitHash();
+  const appVersion = getAppVersion();
   return {
     plugins: [react(), tailwindcss()],
     define: {
       'import.meta.env.VITE_GIT_COMMIT': JSON.stringify(commitHash),
+      'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
     },
     resolve: {
       alias: {

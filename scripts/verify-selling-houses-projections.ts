@@ -17,8 +17,9 @@ import { resolveRecommendedActionCard } from '../src/selling-houses/ui/features/
 import { resolveDashboardSelectedDayAfterStateDayChange } from '../src/selling-houses/ui/features/Dashboard';
 import { buildMarketIntelProjection } from '../src/selling-houses/ui/features/marketIntel';
 import { advanceDays, executeAction, seedInitialOpportunities } from '../src/selling-houses/domain/engine';
+import { executeGameAction } from '../src/selling-houses/application/gameTransitions';
 import { getScenarioSnapshotById } from '../src/selling-houses/domain/scenarioCatalog';
-import { getSlotRemainingCapacity, hasTodayPlanDuplicate } from '../src/selling-houses/application/todayPlan';
+import { getSlotRemainingCapacity, hasTodayPlanDuplicate, markTodayPlanItemCompletedByActionMutable } from '../src/selling-houses/application/todayPlan';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 function buildWorld() {
@@ -171,15 +172,21 @@ function assertMyWechatProjectionContracts(world: ReturnType<typeof buildWorld>)
   updateDerivedState(world);
 
   const projection = buildOperatingProjection(world);
+  const activeCaseCount = world.cases.filter((entry) => entry.status === 'active').length;
   assert.equal(
     projection.dashboard.arrangement.candidateItems.length,
-    0,
-    'Expected arrangement candidates to exclude items that cannot fit any slot',
+    activeCaseCount,
+    'Expected arrangement candidates to keep one ranked recommendation per active listing even when today is full',
   );
   assert.equal(
-    projection.dashboard.arrangement.slots.am.candidateItems.length + projection.dashboard.arrangement.slots.pm.candidateItems.length,
-    0,
-    'Expected slot candidate lists to exclude capacity-blocked items',
+    projection.dashboard.arrangement.candidateItems.every((entry, index) => (
+      entry.rank === index + 1
+      && entry.isDisabled
+      && entry.ctaLabel === '排不下'
+      && Boolean(entry.disabledReason)
+    )),
+    true,
+    'Expected full-day arrangement candidates to stay visible as disabled ranked recommendations',
   );
 }
 
@@ -209,6 +216,93 @@ function assertMyWechatProjectionContracts(world: ReturnType<typeof buildWorld>)
     }),
     true,
     'Expected today plan duplicate detection to ignore sourceMatterId for executable identity',
+  );
+}
+
+{
+  const world = buildWorld();
+  const caseItem = world.cases[0];
+  assert.ok(caseItem, 'Expected case for today plan executable identity verification');
+  world.todayPlan = {
+    day: world.day,
+    playerItems: [
+      {
+        id: 'verify-customer-a-plan',
+        day: world.day,
+        sourceMatterId: 'matter-source-a',
+        linkedActionId: 'invite-customer-negotiation',
+        linkedCaseId: caseItem.id,
+        linkedCustomerId: 'customer-a',
+        linkedOpportunityId: 'opportunity-a',
+        executionMode: 'scenario',
+        status: 'planned',
+      },
+      {
+        id: 'verify-customer-b-plan',
+        day: world.day,
+        sourceMatterId: 'matter-source-b',
+        linkedActionId: 'invite-customer-negotiation',
+        linkedCaseId: caseItem.id,
+        linkedCustomerId: 'customer-b',
+        linkedOpportunityId: 'opportunity-b',
+        executionMode: 'scenario',
+        status: 'planned',
+      },
+    ],
+  };
+
+  const completed = markTodayPlanItemCompletedByActionMutable(world, 'invite-customer-negotiation', caseItem.id, {
+    linkedCustomerId: 'customer-b',
+    linkedOpportunityId: 'opportunity-b',
+  });
+
+  assert.equal(completed?.id, 'verify-customer-b-plan', 'Expected today plan completion to use action/case/customer/opportunity identity');
+  assert.equal(world.todayPlan.playerItems[0]?.status, 'planned', 'Expected unrelated same-case source matter item to stay planned');
+  assert.equal(world.todayPlan.playerItems[1]?.status, 'completed', 'Expected explicitly targeted item to complete');
+}
+
+{
+  const world = buildWorld();
+  const caseItem = world.cases[0];
+  assert.ok(caseItem, 'Expected case for direct execution fallback identity verification');
+  caseItem.hasCompletedFirstVisit = true;
+  world.todayPlan = {
+    day: world.day,
+    playerItems: [
+      {
+        id: 'verify-targeted-feedback-plan',
+        day: world.day,
+        sourceMatterId: 'matter-source-targeted',
+        linkedActionId: 'weekly-feedback',
+        linkedCaseId: caseItem.id,
+        linkedCustomerId: 'customer-targeted',
+        linkedOpportunityId: 'opportunity-targeted',
+        executionMode: 'direct',
+        status: 'planned',
+      },
+      {
+        id: 'verify-case-feedback-plan',
+        day: world.day,
+        sourceMatterId: 'matter-source-case',
+        linkedActionId: 'weekly-feedback',
+        linkedCaseId: caseItem.id,
+        executionMode: 'direct',
+        status: 'planned',
+      },
+    ],
+  };
+
+  const result = executeGameAction(world, 'weekly-feedback', caseItem.id);
+  assert.equal(result.success, true, 'Expected direct feedback to execute');
+  assert.equal(
+    result.nextState.todayPlan.playerItems.find((entry) => entry.id === 'verify-targeted-feedback-plan')?.status,
+    'planned',
+    'Expected direct fallback completion not to complete a customer-bound item by case/action only',
+  );
+  assert.equal(
+    result.nextState.todayPlan.playerItems.find((entry) => entry.id === 'verify-case-feedback-plan')?.status,
+    'completed',
+    'Expected direct fallback completion to complete only the unbound same action/case item',
   );
 }
 
@@ -272,6 +366,69 @@ function assertMyWechatProjectionContracts(world: ReturnType<typeof buildWorld>)
   ));
   assert.ok(candidate, 'Expected first-visit recommendation candidate');
   assert.equal(candidate?.matterId, undefined, 'Expected first-visit candidate not to link an unrelated negotiation matter');
+}
+
+{
+  const world = buildWorld();
+  const caseItem = world.cases[0];
+  assert.ok(caseItem, 'Expected case for ambiguous negotiation matter linkage verification');
+  caseItem.hasCompletedFirstVisit = true;
+  caseItem.viewings = 2;
+  caseItem.offers = 1;
+  caseItem.stageIndex = 5;
+  caseItem.windowDays = 8;
+  world.cases
+    .filter((entry) => entry.id !== caseItem.id)
+    .forEach((entry) => {
+      entry.status = 'withdrawn';
+    });
+  const baseOpportunity = world.opportunities.find((entry) => entry.caseId === caseItem.id && entry.status === 'active')
+    || world.opportunities[0];
+  assert.ok(baseOpportunity, 'Expected base opportunity for ambiguous linkage verification');
+  world.opportunities = [
+    {
+      ...baseOpportunity,
+      id: 'verify-opportunity-a',
+      customerId: 'verify-customer-a',
+      customerName: '客户甲',
+      caseId: caseItem.id,
+      status: 'active',
+      lifecycleStatus: 'active',
+      visibility: 'revealed',
+      intent: 90,
+      confidence: 90,
+      stageIndex: 5,
+      stageLabel: '见面沟通',
+      daysLeft: 2,
+      pendingClosingEvaluation: true,
+    },
+    {
+      ...baseOpportunity,
+      id: 'verify-opportunity-b',
+      customerId: 'verify-customer-b',
+      customerName: '客户乙',
+      caseId: caseItem.id,
+      status: 'active',
+      lifecycleStatus: 'active',
+      visibility: 'revealed',
+      intent: 88,
+      confidence: 88,
+      stageIndex: 5,
+      stageLabel: '见面沟通',
+      daysLeft: 3,
+      pendingClosingEvaluation: true,
+    },
+  ];
+  updateDerivedState(world);
+  world.schedule = [];
+  world.matters = world.matters.filter((entry) => entry.source === 'negotiation');
+
+  const projection = buildOperatingProjection(world);
+  const candidate = projection.dashboard.arrangement.candidateItems.find((entry) => (
+    entry.caseId === caseItem.id && entry.actionId === 'invite-customer-negotiation'
+  ));
+  assert.ok(candidate, 'Expected negotiation recommendation candidate');
+  assert.equal(candidate?.matterId, undefined, 'Expected ambiguous same-case negotiation matters not to attach a sourceMatterId');
 }
 
 {
@@ -542,8 +699,8 @@ function assertMyWechatProjectionContracts(world: ReturnType<typeof buildWorld>)
     'Expected weekend second-showing interrupt hook to surface as an arrangement hint',
   );
   assert.ok(
-    projection.dashboard.arrangement.fixedItems.some((entry) => entry.conflictHint),
-    'Expected interrupt arrangement to expose a minimal conflict hint',
+    projection.dashboard.arrangement.fixedItems.every((entry) => entry.conflictHint?.kind !== 'fixed-overlap'),
+    'Expected interrupt arrangement not to show a fixed-overlap warning when the slot still has exact capacity',
   );
 }
 

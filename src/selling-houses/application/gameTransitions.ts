@@ -19,11 +19,13 @@ import {
   getTodayPlanRemainingEnergy,
   getSlotRemainingCapacity,
   hasTodayPlanDuplicate,
+  markTodayPlanItemCompletedByActionMutable,
   markTodayPlanItemCompletedMutable,
   resolveActionDurationHours,
   resolveTodayPlanExecutionMode,
   syncTodayPlanForCurrentDayMutable,
 } from './todayPlan.js';
+import { emitDecisionMomentTriggers, advanceFlowProgress } from '../runtime/simulation/decisionMomentEmission.js';
 
 export function cloneGameState(state: GameState): GameState {
   return structuredClone(state);
@@ -98,15 +100,7 @@ export function executeGameAction(
         if (todayPlanItemId) {
           markTodayPlanItemCompletedMutable(next, todayPlanItemId);
         } else {
-          const plannedItem = next.todayPlan.playerItems.find((entry) => (
-            entry.day === next.day
-            && entry.status === 'planned'
-            && entry.linkedActionId === actionId
-            && entry.linkedCaseId === caseId
-          ));
-          if (plannedItem) {
-            plannedItem.status = 'completed';
-          }
+          markTodayPlanItemCompletedByActionMutable(next, actionId, caseId);
         }
       }
     }
@@ -153,10 +147,7 @@ export function executeScenarioAction(
       ? next.todayPlan.playerItems.find((entry) => entry.id === todayPlanItemId && entry.day === next.day)
       : null;
     const executorActionId = action.executorId || action.id;
-    const deltaTarget = {
-      linkedCustomerId: todayPlanItem?.linkedCustomerId,
-      linkedOpportunityId: todayPlanItem?.linkedOpportunityId,
-    };
+    const deltaTarget = resolveScenarioActionTarget(next, todayPlanItem);
     const scenarioActionTarget = resolveScenarioActionOpportunity(
       next,
       currentCase,
@@ -183,6 +174,7 @@ export function executeScenarioAction(
     }
 
     spendResources(next, action);
+    const finalOptionId = settlement.finalOptionId ?? scenarioContext?.choices?.[scenarioContext.choices.length - 1]?.main ?? null;
     settlement.stateDeltas.forEach((delta) => {
       applyScenarioDelta(
         next,
@@ -199,7 +191,7 @@ export function executeScenarioAction(
         next,
         currentCase,
         scenarioActionTarget.opportunity,
-        settlement.finalOptionId ?? scenarioContext?.choices?.[scenarioContext.choices.length - 1]?.main ?? 'balanced',
+        finalOptionId ?? 'balanced',
       );
     }
     currentCase.actionsToday += 1;
@@ -216,7 +208,7 @@ export function executeScenarioAction(
       tone: 'accent',
       payload: {
         actionId,
-        finalOptionId: settlement.finalOptionId ?? scenarioContext?.choices?.[scenarioContext.choices.length - 1]?.main ?? null,
+        finalOptionId,
         settlementOutcome: settlement.outcome,
         settlementTitle: settlement.title,
         stateDeltas: settlement.stateDeltas,
@@ -224,6 +216,9 @@ export function executeScenarioAction(
         feedbacks: scenarioContext?.feedbacks || [],
       },
     });
+
+    emitDecisionMomentTriggers(next, actionId, currentCase, finalOptionId ?? undefined);
+    advanceFlowProgress(next, actionId, currentCase.id);
 
     if (action.id === 'open-day') {
       const targetIds = next.cases
@@ -256,15 +251,7 @@ export function executeScenarioAction(
     if (todayPlanItemId) {
       markTodayPlanItemCompletedMutable(next, todayPlanItemId);
     } else {
-      const plannedItem = next.todayPlan.playerItems.find((entry) => (
-        entry.day === next.day
-        && entry.status === 'planned'
-        && entry.linkedActionId === actionId
-        && entry.linkedCaseId === caseId
-      ));
-      if (plannedItem) {
-        plannedItem.status = 'completed';
-      }
+      markTodayPlanItemCompletedByActionMutable(next, actionId, caseId);
     }
 
     updateDerivedState(next);
@@ -453,6 +440,40 @@ export function executeTodayPlanItem(
 
 function clamp01to100(value: number) {
   return Math.max(0, Math.min(100, value));
+}
+
+function resolveScenarioActionTarget(
+  state: GameState,
+  todayPlanItem?: GameState['todayPlan']['playerItems'][number] | null,
+) {
+  const target = {
+    linkedCustomerId: todayPlanItem?.linkedCustomerId,
+    linkedOpportunityId: todayPlanItem?.linkedOpportunityId,
+  };
+  if (!todayPlanItem?.sourceMatterId || target.linkedOpportunityId) {
+    return target;
+  }
+
+  const sourceMatter = state.matters.find((entry) => entry.id === todayPlanItem.sourceMatterId) || null;
+  if (!sourceMatter) {
+    return target;
+  }
+
+  if (sourceMatter.source === 'schedule') {
+    const scheduleEntry = state.schedule.find((entry) => entry.key === sourceMatter.sourceKey) || null;
+    if (scheduleEntry?.opportunityId) {
+      target.linkedOpportunityId = scheduleEntry.opportunityId;
+    }
+  } else if (sourceMatter.kind === 'opportunity' || sourceMatter.source === 'negotiation') {
+    target.linkedOpportunityId = sourceMatter.sourceKey;
+  }
+
+  if (target.linkedOpportunityId && !target.linkedCustomerId) {
+    const opportunity = state.opportunities.find((entry) => entry.id === target.linkedOpportunityId) || null;
+    target.linkedCustomerId = opportunity?.customerId;
+  }
+
+  return target;
 }
 
 function resolveScenarioActionOpportunity(

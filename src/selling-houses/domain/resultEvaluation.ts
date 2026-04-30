@@ -77,6 +77,8 @@ const EVENT_LABELS: Partial<Record<DomainEventEntry['kind'], string>> = {
   window_extended: '争取到继续推进',
   market_event: '市场事件',
   budget_changed: '推广金变化',
+  decision_moment_triggered: '决策时刻',
+  business_flow_step_advanced: '业务流程推进',
 };
 
 function clampScore(value: number, min: number, max: number) {
@@ -380,6 +382,8 @@ function buildAttributionSummary(events: DomainEventEntry[]): AttributionSummary
       case_lost_to_rival: 0,
       window_extended: 0,
       market_event: 0,
+      decision_moment_triggered: 0,
+      business_flow_step_advanced: 0,
     },
     opportunityAdvancedCount: 0,
     opportunityClosedCount: 0,

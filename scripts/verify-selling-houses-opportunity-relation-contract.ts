@@ -165,14 +165,18 @@ assert.equal(merged.legacyOpportunityId, 'opp-merged');
 assert.equal(merged.customerId, 'customer:customer-merged');
 assert.equal(merged.caseId, 'case-merged');
 assert.equal(merged.assetCaseId, 'asset-case:case-merged');
+assert.equal(merged.fit, 80, 'Expected explicit Opportunity fit to remain primary');
 assert.equal(merged.intent, 82, 'Expected explicit Opportunity intent to remain primary');
 assert.equal(merged.confidence, 74, 'Expected explicit Opportunity confidence to remain primary');
 assert.equal(merged.stageIndex, 3, 'Expected explicit Opportunity stage to remain primary');
 assert.deepEqual(merged.conflictFlags, {
+  fit: true,
   stageIndex: true,
   intent: true,
   confidence: true,
 });
+assert.equal(merged.canonicalOpportunityMetadata?.status, 'active');
+assert.equal(merged.legacyOpportunity?.status, merged.canonicalOpportunityMetadata?.status);
 assert.equal(merged.customerRuntime?.selected, true);
 assert.deepEqual(merged.customerRuntime?.competingAssetCaseIds, ['asset-case:case-runtime-only']);
 
@@ -193,6 +197,7 @@ assert.equal(runtimeOnly.intent, 70);
 assert.equal(runtimeOnly.confidence, 64);
 assert.equal(runtimeOnly.stageIndex, 1);
 assert.deepEqual(runtimeOnly.conflictFlags, {
+  fit: false,
   stageIndex: false,
   intent: false,
   confidence: false,

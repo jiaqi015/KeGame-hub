@@ -8,6 +8,15 @@ export type {
   DecisionSupportSignalSeverity,
 } from './types.js';
 
+export type {
+  DecisionSupportEvaluationBoundaryReadiness,
+  DecisionSupportEvaluationBoundaryReport,
+} from './evaluation-boundary-report.js';
+
+export {
+  buildDecisionSupportEvaluationBoundaryReport,
+} from './evaluation-boundary-report.js';
+
 export {
   buildDecisionSupportContextFromLegacyState,
 } from './legacyAdapter.js';

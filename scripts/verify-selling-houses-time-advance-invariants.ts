@@ -79,6 +79,29 @@ function createWorld(seed: number) {
 }
 
 {
+  const world = createWorld(2026042603);
+  const beforeDay = world.day;
+
+  const summary = advanceGameDaysWithSummary(world, 3);
+  const next = summary.nextState;
+
+  assert.equal(summary.requestedDays, 3, 'Expected future-day jump summary to record requested days');
+  assert.equal(summary.settledDays, 3, 'Expected future-day jump to settle each intervening day');
+  assert.deepEqual(
+    summary.settledResults.map((result) => result.day),
+    [beforeDay, beforeDay + 1, beforeDay + 2],
+    'Expected future-day jump to preserve sequential daily settlement results',
+  );
+  assert.deepEqual(
+    summary.settledResults.map((result) => result.nextDay),
+    [beforeDay + 1, beforeDay + 2, beforeDay + 3],
+    'Expected future-day jump results to point at the next simulated day',
+  );
+  assert.equal(summary.afterDay, beforeDay + 3, 'Expected future-day jump to land on target day');
+  assert.equal(next.day, beforeDay + 3, 'Expected future-day jump state day to match summary afterDay');
+}
+
+{
   const dayTwoSummary = advanceGameDaysWithSummary(createWorld(20260427), 1);
   const dayTwoWorld = dayTwoSummary.nextState;
   assert.equal(dayTwoWorld.day, 2, 'Expected setup world to reach Day 2 before week-advance contract');

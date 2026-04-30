@@ -1259,7 +1259,16 @@ export type DomainEventKind =
   | 'case_withdrawn'
   | 'case_lost_to_rival'
   | 'window_extended'
-  | 'market_event';
+  | 'market_event'
+  | 'decision_moment_triggered'
+  | 'business_flow_step_advanced';
+
+export interface FlowProgressState {
+  flowId: string;
+  activatedDay: number;
+  completedStepIds: string[];
+  currentStepId: string | null;
+}
 
 export interface DomainEventEntry {
   id: string;
@@ -1468,6 +1477,7 @@ export interface GameState {
   matters: MatterEntry[];
   todayPlan: TodayPlanState;
   focusMeeting: FocusMeetingState;
+  flowProgress?: Record<string, FlowProgressState>;
   productRuns: ProductRun[];
   closedDeals: ClosedDealRecord[];
   marketOutcome?: MarketOutcomeState;

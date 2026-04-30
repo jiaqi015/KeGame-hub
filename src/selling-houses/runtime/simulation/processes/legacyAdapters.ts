@@ -38,10 +38,10 @@ function buildProductRunTransitionView(
     status: run.status,
     currentStepId: run.nextMilestone === 'completed' ? null : run.nextMilestone,
     currentStepTitle: currentMilestone?.title,
-    nextTransitionOwner: 'legacy-product-run',
-    managerCanMutateNow: false,
+    nextTransitionOwner: 'runtime-process-manager',
+    managerCanMutateNow: run.status === 'running',
     pendingTransition: run.status === 'running'
-      ? 'legacy advanceProductRunsForDay owns milestone movement'
+      ? 'runtime ProductRunProcessManager owns milestone movement'
       : undefined,
   };
 }
@@ -113,7 +113,7 @@ export function mapPendingClosingOpportunityToNegotiationProcess(
       currentStepTitle: '等待成交结算',
       nextTransitionOwner: 'legacy-opportunity-pending-closing',
       managerCanMutateNow: false,
-      pendingTransition: 'legacy settlePendingDealClosings owns close/fail/capacity outcome',
+      pendingTransition: 'runtime NegotiationProcessManager owns settlement entry; legacy deal closing owns close/fail/capacity outcome',
     },
   };
 }
@@ -158,13 +158,23 @@ function buildContract(
     lifecycleOwnership: {
       currentOwner,
       futureOwner: 'runtime-process-manager',
-      note: 'Read-only boundary: process manager observes legacy lifecycle state now; a later migration can move transition ownership here.',
+      note: currentOwner === 'legacy-product-run'
+        ? 'ProductRunProcessManager owns open-day and sincerity-sale transition mutation; product run outcome ownership remains legacy-backed.'
+        : 'NegotiationProcessManager owns daily settlement entry orchestration; legacy deal closing still owns close/fail/capacity outcomes.',
     },
     reads: currentOwner === 'legacy-product-run'
       ? ['GameState.productRuns']
       : ['GameState.opportunities.pendingClosingEvaluation'],
-    writes: [],
+    writes: currentOwner === 'legacy-product-run'
+      ? [
+        'GameState.productRuns.*.nextMilestone',
+        'GameState.productRuns.*.status',
+        'GameState.productRuns.*.endDay',
+        'GameState.productRuns.*.linkedEventIds',
+        'GameState.eventStore',
+        'GameState.eventLog',
+      ]
+      : [],
     transitions,
   };
 }
-

@@ -792,7 +792,7 @@ verify('weekly summary preserves seven-day operating perception', () => {
   assert.ok(summary.caseStageChanges.length > 0, 'weekly summary should include case stage changes or stable fallback');
   assert.ok(summary.customerIntentChanges.length > 0, 'weekly summary should include customer intent changes or stable fallback');
   assert.ok(summary.ownerPressureChanges.length > 0, 'weekly summary should include owner pressure changes or stable fallback');
-  assert.ok(summary.marketWindow.some((entry) => entry.label === '本周释放'), 'weekly summary should include released market windows');
+  assert.ok(summary.marketWindow.some((entry) => entry.label === '期间释放'), 'weekly summary should include released market windows');
   assert.ok(summary.priorityActions.length > 0, 'weekly summary should include next-week priority actions');
 });
 
@@ -890,6 +890,12 @@ verify('final result shows shared market outcome as short facts', () => {
   assertSourceIncludes('src/selling-houses/ui/features/ResultOverlay.tsx', [
     'projection.marketOutcome',
     'projection.marketOutcome.title',
+    '结算判定',
+    '房源结局',
+    '得分来源',
+    '下局入口',
+    '客户沉淀',
+    'xl:grid-cols-[minmax(0,0.72fr)_minmax(0,1fr)]',
   ], 'result overlay should render short market outcome facts');
 });
 
@@ -900,9 +906,9 @@ verify('weekly overlay is wired only through src selling-houses runtime', () => 
     'summary.settledResults',
   ], 'weekly summary overlay should be shown after multi-day advance');
   assertSourceIncludes('src/selling-houses/ui/features/WeeklySummaryOverlay.tsx', [
-    '周经营复盘',
+    '推进复盘',
     '市场成交窗口',
-    '下周优先动作',
+    '接下来优先动作',
   ], 'weekly summary overlay should show operating perception sections');
 });
 

@@ -6,10 +6,12 @@ import {
   History,
   Home,
   LayoutDashboard,
-  Medal,
   LineChart,
+  Medal,
   MessageSquare,
+  Moon,
   SquareUserRound,
+  Sun,
   Users,
   Wallet,
   Zap,
@@ -58,7 +60,7 @@ type WorkspaceView = 'overview' | 'cases' | 'customers' | 'market' | 'profile';
 type MarketEntryLayer = 'macro' | 'district' | 'competition' | 'listing';
 type DetailPanelType = 'selected-case';
 type ActiveTodayScenario = {
-  todayPlanItemId: string;
+  todayPlanItemId: string | null;
   actionId: string;
   caseId: string;
 };
@@ -135,6 +137,16 @@ export function SellingHousesWorkspace({
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [weeklySummary, setWeeklySummary] = useState<WeeklySummaryPresentation | null>(null);
   const [wechatReadIds, setWechatReadIds] = useState<Set<string>>(() => new Set());
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    try { return (localStorage.getItem('seller-theme') as 'dark' | 'light') || 'dark'; } catch { return 'dark'; }
+  });
+  const toggleTheme = () => {
+    setTheme(prev => {
+      const next = prev === 'dark' ? 'light' : 'dark';
+      try { localStorage.setItem('seller-theme', next); } catch { /* ignore */ }
+      return next;
+    });
+  };
   const mainScrollRef = useRef<HTMLElement | null>(null);
   const workspaceContentRef = useRef<HTMLDivElement | null>(null);
   const advancingLockRef = useRef(false);
@@ -152,7 +164,7 @@ export function SellingHousesWorkspace({
   const activeScenarioConfig = state && activeTodayScenario && activeScenarioCase
     ? buildActionDecisionConfig(state, activeScenarioCase, activeTodayScenario.actionId)
     : null;
-  const activeTodayPlanItem = state && activeTodayScenario
+  const activeTodayPlanItem = state && activeTodayScenario?.todayPlanItemId
     ? state.todayPlan.playerItems.find(item => item.id === activeTodayScenario.todayPlanItemId)
     : null;
   const activeMatter = state && activeTodayPlanItem?.sourceMatterId
@@ -191,6 +203,10 @@ export function SellingHousesWorkspace({
 
   useEffect(() => {
     if (!activeTodayScenario || !state) {
+      return;
+    }
+
+    if (!activeTodayScenario.todayPlanItemId) {
       return;
     }
 
@@ -244,20 +260,30 @@ export function SellingHousesWorkspace({
 
   if (phase === 'setup' || !state) {
     return (
-      <div className="selling-houses-shell relative flex h-full flex-col overflow-hidden text-[var(--seller-ink)]">
-        {!isDefaultProfile && (
-          <div className="absolute right-4 top-4 z-20 flex items-center gap-2 rounded-full border border-[var(--seller-border)] bg-[rgba(11,17,24,0.88)] px-2 py-1 shadow-[var(--seller-shadow-sm)]">
-            <span className="px-2 text-[10px] font-bold text-[var(--seller-chance)]">{storageProfileLabel}</span>
-            <button
-              type="button"
-              onClick={() => { void resetTestProfile(); }}
-              disabled={starting}
-              className="rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.06)] px-2.5 py-1 text-[10px] font-bold text-[var(--seller-ink)] transition hover:bg-[rgba(255,255,255,0.1)] disabled:opacity-50"
-            >
-              重置测试档
-            </button>
-          </div>
-        )}
+      <div data-theme={theme} className="selling-houses-shell relative flex h-full flex-col overflow-hidden text-[var(--seller-ink)]">
+        <div className="absolute right-4 top-4 z-20 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[var(--seller-border)] bg-[rgba(11,17,24,0.88)] text-[var(--seller-muted)] transition-all hover:bg-[rgba(11,17,24,0.96)] hover:text-[var(--seller-ink)]"
+            title={theme === 'dark' ? '切换浅色模式' : '切换深色模式'}
+          >
+            {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+          </button>
+          {!isDefaultProfile && (
+            <div className="flex items-center gap-2 rounded-full border border-[var(--seller-border)] bg-[rgba(11,17,24,0.88)] px-2 py-1 shadow-[var(--seller-shadow-sm)]">
+              <span className="px-2 text-[10px] font-bold text-[var(--seller-chance)]">{storageProfileLabel}</span>
+              <button
+                type="button"
+                onClick={() => { void resetTestProfile(); }}
+                disabled={starting}
+                className="rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.06)] px-2.5 py-1 text-[10px] font-bold text-[var(--seller-ink)] transition hover:bg-[rgba(255,255,255,0.1)] disabled:opacity-50"
+              >
+                重置测试档
+              </button>
+            </div>
+          )}
+        </div>
         <Suspense fallback={viewFallback}>
           <ScenarioSetup
             difficultyOptions={difficultyOptions}
@@ -309,7 +335,7 @@ export function SellingHousesWorkspace({
     const summary = handleAdvanceDaysWithSummary(count, count === 1 ? displayMessage : undefined);
     if (count > 1 && summary) {
       handleClearReport();
-      if (count === 7 && summary.settledDays > 0 && !summary.gameOver) {
+      if (summary.settledDays > 0 && !summary.gameOver) {
         setWeeklySummary(buildWeeklySummaryPresentation(state, summary.nextState, summary.settledResults));
       }
       displayMessage(summary.gameOver
@@ -339,6 +365,25 @@ export function SellingHousesWorkspace({
       return false;
     }
     return handleExecuteAction(actionId, caseItem, null, displayMessage);
+  };
+
+  const enterScenarioByCaseId = (actionId: string, caseId: string) => {
+    const caseItem = state.cases.find((entry) => entry.id === caseId);
+    if (!caseItem) {
+      displayMessage('这套房当前不在场，先刷新一下再试。');
+      return false;
+    }
+    const decision = buildActionDecisionConfig(state, caseItem, actionId);
+    if (!decision) {
+      return handleExecuteAction(actionId, caseItem, null, displayMessage);
+    }
+    releaseWorkspaceFocus();
+    setActiveTodayScenario({
+      todayPlanItemId: null,
+      actionId,
+      caseId,
+    });
+    return true;
   };
 
   const addTodayPlanFromProjection = (item: ArrangementItemProjection, slot: TodayArrangementSlot) => {
@@ -515,6 +560,7 @@ export function SellingHousesWorkspace({
             wechatReadIds={wechatReadIds}
             onSelectCase={handleSelectCase}
             onExecuteAction={executeActionByCaseId}
+            onEnterScenarioAction={enterScenarioByCaseId}
             onAddToToday={addTodayPlanFromProjection}
             onRemoveFromToday={removeTodayPlanItem}
             onExecuteTodayItem={executeTodayPlanItem}
@@ -523,6 +569,7 @@ export function SellingHousesWorkspace({
             onOpenMarket={openMarketView}
             onOpenCaseFromWechat={openCaseFromWechat}
             onMarkWechatRead={markWechatRead}
+            onAdvanceToDay={(targetDay) => advanceByDays(targetDay - state.day)}
           />
         );
       case 'cases':
@@ -561,6 +608,7 @@ export function SellingHousesWorkspace({
             wechatReadIds={wechatReadIds}
             onSelectCase={handleSelectCase}
             onExecuteAction={executeActionByCaseId}
+            onEnterScenarioAction={enterScenarioByCaseId}
             onAddToToday={addTodayPlanFromProjection}
             onRemoveFromToday={removeTodayPlanItem}
             onExecuteTodayItem={executeTodayPlanItem}
@@ -569,6 +617,7 @@ export function SellingHousesWorkspace({
             onOpenMarket={openMarketView}
             onOpenCaseFromWechat={openCaseFromWechat}
             onMarkWechatRead={markWechatRead}
+            onAdvanceToDay={(targetDay) => advanceByDays(targetDay - state.day)}
           />
         );
     }
@@ -596,7 +645,7 @@ export function SellingHousesWorkspace({
   );
 
   return (
-    <div className="selling-houses-shell flex h-full flex-col overflow-hidden font-sans text-[var(--seller-ink)]">
+    <div data-theme={theme} className="selling-houses-shell flex h-full flex-col overflow-hidden font-sans text-[var(--seller-ink)]">
       <div
         ref={workspaceContentRef}
         aria-hidden={isOverlayOpen ? true : undefined}
@@ -654,6 +703,15 @@ export function SellingHousesWorkspace({
                       )}
                     </div>
                   </div>
+                  <div className="seller-separator h-6 w-px shrink-0" />
+                  <button
+                    type="button"
+                    onClick={toggleTheme}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] text-[var(--seller-muted)] transition-all hover:bg-[rgba(255,255,255,0.08)] hover:text-[var(--seller-ink)]"
+                    title={theme === 'dark' ? '切换浅色模式' : '切换深色模式'}
+                  >
+                    {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+                  </button>
                 </div>
               </div>
             </div>
@@ -668,7 +726,7 @@ export function SellingHousesWorkspace({
           </div>
 
           <div className="seller-panel-muted flex flex-wrap items-center justify-between gap-2 p-1.5">
-            <nav className="flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-[15px] bg-[rgba(255,255,255,0.03)] p-1">
+            <nav className="flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-[15px] bg-[rgba(255,255,255,0.03)] p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <NavItem active={activeView === 'overview'} onClick={() => openView('overview')} icon={<LayoutDashboard size={16} />} label="工作台" />
               <NavItem active={activeView === 'cases'} onClick={() => openView('cases')} icon={<Home size={16} />} label="我的房源" />
               <NavItem active={activeView === 'customers'} onClick={() => openView('customers')} icon={<Users size={16} />} label="我的客户" />

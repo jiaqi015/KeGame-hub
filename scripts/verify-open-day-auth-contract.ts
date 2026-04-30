@@ -6,7 +6,7 @@ const handlerPath = path.resolve('modules/open-day/interfaces/http/openDayDisamb
 const source = fs.readFileSync(handlerPath, 'utf8');
 
 assert.ok(
-  source.includes("authorizeRequest(req, 'open-day')"),
+  source.includes("authorizeRequestPersisted(req, 'open-day')"),
   'Expected open-day disambiguation handler to require explicit open-day workspace authorization',
 );
 

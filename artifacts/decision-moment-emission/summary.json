@@ -1,0 +1,33 @@
+{
+  "totalRuns": 20,
+  "distribution": "warmup: 1, easy: 1, standard: 14, advanced: 1, hard: 2, extreme: 1",
+  "averageDurationMs": 10,
+  "baselineDurationMs": 25,
+  "maxDurationMs": 25,
+  "failedRuns": 0,
+  "globalMomentCounts": {
+    "offer-acceptance-negotiation": 66,
+    "sincerity-sale-entry": 20,
+    "open-day-participation": 20,
+    "pricing-strategy-adjustment": 60,
+    "first-visit-owner-discovery": 20
+  },
+  "momentCoverage": {
+    "first-visit-owner-discovery": "covered",
+    "pricing-strategy-adjustment": "covered",
+    "open-day-participation": "covered",
+    "sincerity-sale-entry": "covered",
+    "offer-acceptance-negotiation": "covered"
+  },
+  "flowStats": {
+    "standardSelling_ownerAlignmentCompleted": "20/20"
+  },
+  "consistencyViolations": 0,
+  "passCriteria": {
+    "noCrash": true,
+    "momentCoverage": true,
+    "consistency": true,
+    "flowProgress": true,
+    "performanceBaseline": "baseline=25ms, 1.5x=38ms, max=25ms"
+  }
+}

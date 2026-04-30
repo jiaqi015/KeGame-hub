@@ -30,6 +30,7 @@ import {
   type TodayArrangementSlot,
   type TodayPlanState,
   type FocusMeetingState,
+  type FlowProgressState,
 } from '../domain/models.js';
 import { createInitialBudgetLedger, normalizeBudgetLedger } from '../domain/budget.js';
 import { getBuiltInWorld, resolveScenarioRules } from '../domain/scenarioCatalog.js';
@@ -369,6 +370,7 @@ export function createInitialState(snapshot: ScenarioSnapshot, seedInput: RunSee
       submittedCaseIds: [],
       selectedCaseIds: [],
     },
+    flowProgress: {},
     productRuns: [],
     closedDeals: [],
     marketOutcome: buildInitialMarketOutcomeState(rules, runSeed),
@@ -676,6 +678,25 @@ function normalizeFocusMeeting(input: unknown, currentDay: number): FocusMeeting
   };
 }
 
+function normalizeFlowProgress(input: unknown): Record<string, FlowProgressState> {
+  if (!input || typeof input !== 'object') {
+    return {};
+  }
+  const result: Record<string, FlowProgressState> = {};
+  for (const [flowId, raw] of Object.entries(input as Record<string, any>)) {
+    if (!raw || typeof raw !== 'object') continue;
+    result[flowId] = {
+      flowId: String(raw.flowId || flowId),
+      activatedDay: Math.max(1, Number(raw.activatedDay) || 1),
+      completedStepIds: Array.isArray(raw.completedStepIds)
+        ? raw.completedStepIds.map(String).filter(Boolean)
+        : [],
+      currentStepId: typeof raw.currentStepId === 'string' ? raw.currentStepId : null,
+    };
+  }
+  return result;
+}
+
 function normalizeProductRunMilestoneKind(value: unknown): ProductRunMilestoneKind {
   if (value === 'light_scene') return 'light_scene';
   if (value === 'heavy_scene') return 'heavy_scene';
@@ -895,6 +916,7 @@ export function normalizeLoadedState(parsed: any): GameState | null {
       : [],
     todayPlan: normalizeTodayPlan(parsed?.todayPlan, currentDay),
     focusMeeting: normalizeFocusMeeting(parsed?.focusMeeting, currentDay),
+    flowProgress: normalizeFlowProgress(parsed?.flowProgress),
     productRuns: normalizeProductRuns(parsed?.productRuns, currentDay),
     budgetLedger: normalizeBudgetLedger(parsed?.budgetLedger, Number(parsed?.cash) || 0),
     currentReport: parsed?.currentReport || null,

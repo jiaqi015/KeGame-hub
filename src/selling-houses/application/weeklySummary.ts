@@ -45,8 +45,10 @@ export function buildWeeklySummaryPresentation(
   const rivalDeals = diffMarketNumber(beforeMarket, afterMarket, 'rivalClaimedDeals');
   const missedOpportunities = countNewLostOpportunities(beforeState, afterState);
 
+  const isNaturalWeek = settledResults.length === 7;
+
   return {
-    title: '周经营复盘',
+    title: isNaturalWeek ? '周经营复盘' : '推进复盘',
     dayRangeLabel: `第 ${startDay}-${endDay} 天`,
     settledDays: settledResults.length,
     totals: [
@@ -115,7 +117,7 @@ function buildCaseStageChanges(beforeState: GameState, afterState: GameState): W
     .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
   return changes.length > 0
     ? changes.slice(0, 5)
-    : [{ title: '房源阶段', detail: '本周主要房源阶段保持稳定。', tone: 'accent' }];
+    : [{ title: '房源阶段', detail: '这段时间主要房源阶段保持稳定。', tone: 'accent' }];
 }
 
 function buildCustomerIntentChanges(beforeState: GameState, afterState: GameState): WeeklySummaryChange[] {
@@ -152,7 +154,7 @@ function buildCustomerIntentChanges(beforeState: GameState, afterState: GameStat
     .map(({ score: _score, ...entry }) => entry);
   return changes.length > 0
     ? changes
-    : [{ title: '客户意向', detail: '本周客户意向整体波动不大。', tone: 'accent' }];
+    : [{ title: '客户意向', detail: '这段时间客户意向整体波动不大。', tone: 'accent' }];
 }
 
 function buildOwnerPressureChanges(beforeState: GameState, afterState: GameState): WeeklySummaryChange[] {
@@ -182,7 +184,7 @@ function buildOwnerPressureChanges(beforeState: GameState, afterState: GameState
     .map(({ score: _score, ...entry }) => entry);
   return changes.length > 0
     ? changes
-    : [{ title: '业主侧', detail: '本周业主信任和窗口压力基本稳定。', tone: 'accent' }];
+    : [{ title: '业主侧', detail: '这段时间业主信任和窗口压力基本稳定。', tone: 'accent' }];
 }
 
 function buildMarketWindowLines(
@@ -209,7 +211,7 @@ function buildMarketWindowLines(
   );
 
   return [
-    { label: '本周释放', value: `${releasedDelta} 个`, tone: releasedDelta > 0 ? 'accent' : 'danger' },
+    { label: '期间释放', value: `${releasedDelta} 个`, tone: releasedDelta > 0 ? 'accent' : 'danger' },
     { label: '我方占用', value: `${playerDelta} 个`, tone: playerDelta > 0 ? 'success' : 'accent' },
     { label: '对手占用', value: `${rivalDelta} 个`, tone: rivalDelta > 0 ? 'danger' : 'accent' },
     { label: '开放剩余', value: `${remainingReleased} 个`, tone: remainingReleased > 0 ? 'success' : 'accent' },

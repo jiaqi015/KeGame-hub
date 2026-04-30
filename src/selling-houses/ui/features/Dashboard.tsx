@@ -27,6 +27,7 @@ interface DashboardProps {
   wechatReadIds: Set<string>;
   onSelectCase: (id: string) => void;
   onExecuteAction: (actionId: string, caseId: string) => boolean;
+  onEnterScenarioAction: (actionId: string, caseId: string) => boolean;
   onAddToToday: (item: ArrangementItemProjection, slot: TodayArrangementSlot) => boolean;
   onRemoveFromToday: (itemId: string) => boolean;
   onExecuteTodayItem: (itemId: string) => boolean;
@@ -35,6 +36,7 @@ interface DashboardProps {
   onOpenMarket: (layer?: IntelLayerTab) => void;
   onOpenCaseFromWechat: (caseId: string) => void;
   onMarkWechatRead: (id: string) => void;
+  onAdvanceToDay: (targetDay: number) => void;
 }
 
 type CalendarRelation = 'past' | 'today' | 'future';
@@ -88,6 +90,7 @@ export function Dashboard({
   wechatReadIds,
   onSelectCase,
   onExecuteAction,
+  onEnterScenarioAction,
   onAddToToday,
   onRemoveFromToday,
   onExecuteTodayItem,
@@ -96,6 +99,7 @@ export function Dashboard({
   onOpenMarket,
   onOpenCaseFromWechat,
   onMarkWechatRead,
+  onAdvanceToDay,
 }: DashboardProps) {
   const operatingProjection = useMemo(() => buildOperatingProjection(state), [state]);
   const dashboard = operatingProjection.dashboard;
@@ -212,7 +216,7 @@ export function Dashboard({
                 }}
                 className="seller-button-secondary rounded-full px-3 py-1 text-[10px]"
               >
-                {calendarMode === 'today' ? (showTimelineDetail ? '收起明细' : '看明细') : '回到今天'}
+                {calendarMode === 'today' ? (showTimelineDetail ? '收起历史' : '看历史') : '回到今天'}
               </button>
             </div>
           </div>
@@ -254,9 +258,10 @@ export function Dashboard({
               maxDay={state.maxDay}
               energyLabel={dashboard.resourceSnapshot.energy}
               budgetLabel={dashboard.resourceSnapshot.promotionBudget}
-              onOpenCase={openCase}
-              onExecuteAction={onExecuteAction}
-              onAddToToday={onAddToToday}
+            onOpenCase={openCase}
+            onExecuteAction={onExecuteAction}
+            onEnterScenarioAction={onEnterScenarioAction}
+            onAddToToday={onAddToToday}
               onRemoveFromToday={onRemoveFromToday}
               onExecuteTodayItem={onExecuteTodayItem}
               onUseTool={handleAgendaTool}
@@ -286,6 +291,7 @@ export function Dashboard({
           dateLabel={selectedDateLabel}
           events={selectedDayEvents}
           onBackToday={() => setSelectedDay(state.day)}
+          onAdvanceToDay={onAdvanceToDay}
           onOpenCase={openCase}
         />
       ) : null}
@@ -518,6 +524,7 @@ function AgendaPanel({
   budgetLabel,
   onOpenCase,
   onExecuteAction,
+  onEnterScenarioAction,
   onAddToToday,
   onRemoveFromToday,
   onExecuteTodayItem,
@@ -530,6 +537,7 @@ function AgendaPanel({
   budgetLabel: string;
   onOpenCase: (caseId?: string) => void;
   onExecuteAction: (actionId: string, caseId: string) => boolean;
+  onEnterScenarioAction: (actionId: string, caseId: string) => boolean;
   onAddToToday: (item: ArrangementItemProjection, slot: TodayArrangementSlot) => boolean;
   onRemoveFromToday: (itemId: string) => boolean;
   onExecuteTodayItem: (itemId: string) => boolean;
@@ -624,7 +632,7 @@ function AgendaPanel({
                   </span>
                 </div>
                 <div className="mt-2 text-[10px] font-semibold text-[var(--seller-subtle)]">
-                  我排 {slotArrangement.plannedItems.length} 件 · 可加入 {slotArrangement.candidateItems.length} 件 · 固定 {slotArrangement.fixedItems.length} 件
+                  我排 {slotArrangement.plannedItems.length} 件 · 推荐 {arrangement.candidateItems.length} 件 · 固定 {slotArrangement.fixedItems.length} 件
                 </div>
               </button>
             );
@@ -634,8 +642,10 @@ function AgendaPanel({
           <HalfDayAgendaSection
             slot={activeAgendaSlot}
             arrangement={activeSlotArrangement}
+            candidateItems={arrangement.candidateItems}
             onOpenCase={onOpenCase}
             onExecuteAction={onExecuteAction}
+            onEnterScenarioAction={onEnterScenarioAction}
             onAddToToday={onAddToToday}
             onRemoveFromToday={onRemoveFromToday}
             onExecuteTodayItem={onExecuteTodayItem}
@@ -654,13 +664,16 @@ function ArrangementTitleBlock({ title, size = 'md' }: { title: string; size?: '
   const titleClass = size === 'sm'
     ? 'mt-2 text-[14px] font-semibold text-[var(--seller-ink)]'
     : 'mt-2 text-[16px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]';
+  const matterClass = size === 'sm'
+    ? 'seller-chip'
+    : 'inline-flex items-center rounded-full border border-[var(--seller-border-strong)] bg-[rgba(255,255,255,0.06)] px-2.5 py-1 text-[11px] font-semibold leading-none text-[var(--seller-ink)]';
 
   return (
     <div>
       <div className={titleClass}>{caseTitle}</div>
       {matterTitle ? (
         <div className="mt-1 flex flex-wrap items-center gap-1.5">
-          <span className="seller-chip">事项：{matterTitle}</span>
+          <span className={matterClass}>事项：{matterTitle}</span>
         </div>
       ) : null}
     </div>
@@ -693,6 +706,9 @@ function getArrangementSlotItemCount(slot: ArrangementProjection['slots'][TodayA
 function getDefaultAgendaSlot(arrangement: ArrangementProjection): TodayArrangementSlot {
   if (arrangement.slots.pm.plannedItems.length > 0) return 'pm';
   if (arrangement.slots.am.plannedItems.length > 0) return 'am';
+  if (arrangement.slots.am.candidateItems.length > arrangement.slots.pm.candidateItems.length) return 'am';
+  if (arrangement.slots.pm.candidateItems.length > 0) return 'pm';
+  if (arrangement.slots.am.candidateItems.length > 0) return 'am';
   if (getArrangementSlotItemCount(arrangement.slots.am) > 0) return 'am';
   if (getArrangementSlotItemCount(arrangement.slots.pm) > 0) return 'pm';
   return 'am';
@@ -707,8 +723,8 @@ function buildAgendaSummary(
   if (totalPlanned > 0) {
     return `今天你主动排了 ${totalPlanned} 件事，系统还放进 ${totalFixed} 个固定/临时事项。当前只看${activeSlot.label}，先处理绿色“当前要做”，再切换时段补其他事。`;
   }
-  if (activeSlot.candidateItems.length > 0) {
-    return `${activeSlot.label}有 ${activeSlot.candidateItems.length} 件可加入事项；先判断要不要排进今天，再执行。固定事项是系统已经放进今天的提醒。`;
+  if (arrangement.candidateItems.length > 0) {
+    return `当前有 ${arrangement.candidateItems.length} 件推荐动作；每套房保留一件最优先的事，按钮会标明可加入上午或下午。`;
   }
   return `今天有 ${totalFixed} 个系统固定/临时事项。先按上午/下午切换查看，不需要把两个时段同时摊开处理。`;
 }
@@ -729,11 +745,15 @@ function FixedArrangementCard({
   item,
   onOpenCase,
   onExecuteAction,
+  onEnterScenarioAction,
 }: {
   item: ArrangementItemProjection;
   onOpenCase: (caseId?: string) => void;
   onExecuteAction: (actionId: string, caseId: string) => boolean;
+  onEnterScenarioAction: (actionId: string, caseId: string) => boolean;
 }) {
+  const canEnterAction = Boolean(item.actionId && item.caseId);
+  const actionLabel = item.actionId ? item.ctaLabel : '看房源';
   return (
     <div className={`rounded-[12px] border px-3.5 py-3 ${item.tone === 'risk' ? 'border-[color:var(--seller-risk)]/24 bg-[var(--seller-risk-soft)]' : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)]'}`}>
       <div className="flex flex-wrap items-center gap-2">
@@ -751,13 +771,19 @@ function FixedArrangementCard({
         </p>
       ) : null}
       <div className="mt-3 flex flex-wrap gap-2">
-        {item.actionId && item.caseId ? (
+        {canEnterAction ? (
           <button
             type="button"
-            onClick={() => onExecuteAction(item.actionId!, item.caseId!)}
+            onClick={() => {
+              const didEnterScene = onEnterScenarioAction(item.actionId!, item.caseId!);
+              if (didEnterScene) {
+                return;
+              }
+              onExecuteAction(item.actionId!, item.caseId!);
+            }}
             className="seller-button-primary rounded-[10px] px-3 py-2 text-[11px]"
           >
-            {item.ctaLabel}
+            {actionLabel}
           </button>
         ) : null}
         {item.caseId ? (
@@ -777,8 +803,10 @@ function FixedArrangementCard({
 function HalfDayAgendaSection({
   slot,
   arrangement,
+  candidateItems,
   onOpenCase,
   onExecuteAction,
+  onEnterScenarioAction,
   onAddToToday,
   onRemoveFromToday,
   onExecuteTodayItem,
@@ -788,8 +816,10 @@ function HalfDayAgendaSection({
 }: {
   slot: TodayArrangementSlot;
   arrangement: ArrangementProjection['slots'][TodayArrangementSlot];
+  candidateItems: ArrangementItemProjection[];
   onOpenCase: (caseId?: string) => void;
   onExecuteAction: (actionId: string, caseId: string) => boolean;
+  onEnterScenarioAction: (actionId: string, caseId: string) => boolean;
   onAddToToday: (item: ArrangementItemProjection, slot: TodayArrangementSlot) => boolean;
   onRemoveFromToday: (itemId: string) => boolean;
   onExecuteTodayItem: (itemId: string) => boolean;
@@ -798,7 +828,7 @@ function HalfDayAgendaSection({
   onSelectPlannedItem: (itemKey: string) => void;
 }) {
   const hasAnyItems = arrangement.plannedItems.length > 0
-    || arrangement.candidateItems.length > 0
+    || candidateItems.length > 0
     || arrangement.fixedItems.length > 0
     || arrangement.completedItems.length > 0;
 
@@ -812,11 +842,26 @@ function HalfDayAgendaSection({
           <span className={`seller-chip ${slot === 'am' ? 'seller-chip-accent' : ''}`}>{arrangement.label}</span>
         </div>
         <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">
-          我排 {arrangement.plannedItems.length} 件 · 可加入 {arrangement.candidateItems.length} 件 · 固定 {arrangement.fixedItems.length} 件
+          我排 {arrangement.plannedItems.length} 件 · 推荐 {candidateItems.length} 件 · 固定 {arrangement.fixedItems.length} 件
         </span>
       </div>
 
       <div className="mt-3 space-y-3">
+        {arrangement.fixedItems.length > 0 && (
+          <AgendaGroup title="固定/临时事项" helper="系统已经排进今天；先处理固定，再补自选动作。">
+            {arrangement.fixedItems.map((item) => (
+              <React.Fragment key={item.id}>
+                <FixedArrangementCard
+                  item={item}
+                  onOpenCase={onOpenCase}
+                  onExecuteAction={onExecuteAction}
+                  onEnterScenarioAction={onEnterScenarioAction}
+                />
+              </React.Fragment>
+            ))}
+          </AgendaGroup>
+        )}
+
         {arrangement.plannedItems.length > 0 && (
           <AgendaGroup
             title="我排的动作"
@@ -839,9 +884,9 @@ function HalfDayAgendaSection({
           </AgendaGroup>
         )}
 
-        {arrangement.candidateItems.length > 0 && (
-          <AgendaGroup title="可加入今天" helper={`判断要做，再加入${arrangement.label}。精力不够会禁用。`}>
-            {arrangement.candidateItems.map((item, index) => (
+        {candidateItems.length > 0 && (
+          <AgendaGroup title="推荐动作排行" helper="每套房取当前最推荐的一件事；可加入哪个时段看按钮，排不下会禁用。">
+            {candidateItems.map((item, index) => (
               <React.Fragment key={item.id}>
                 <AgendaItemRow
                   item={item}
@@ -849,21 +894,6 @@ function HalfDayAgendaSection({
                   slot={slot}
                   onOpenCase={onOpenCase}
                   onAddToToday={onAddToToday}
-                  onUseTool={onUseTool}
-                />
-              </React.Fragment>
-            ))}
-          </AgendaGroup>
-        )}
-
-        {arrangement.fixedItems.length > 0 && (
-          <AgendaGroup title="固定/临时事项" helper="系统已经放进今天；可以现在处理，也可以先看房源。">
-            {arrangement.fixedItems.map((item) => (
-              <React.Fragment key={item.id}>
-                <FixedArrangementCard
-                  item={item}
-                  onOpenCase={onOpenCase}
-                  onExecuteAction={onExecuteAction}
                 />
               </React.Fragment>
             ))}
@@ -916,24 +946,14 @@ function AgendaItemRow({
   slot,
   onOpenCase,
   onAddToToday,
-  onUseTool,
 }: {
   item: ArrangementItemProjection;
   index: number;
   slot: TodayArrangementSlot;
   onOpenCase: (caseId?: string) => void;
   onAddToToday: (item: ArrangementItemProjection, slot: TodayArrangementSlot) => boolean;
-  onUseTool: (tool: AgendaTool, caseId?: string) => void;
 }) {
   const [isHovered, setIsHovered] = useState(false);
-  const tools = buildAgendaTools({
-    label: item.label,
-    title: item.title,
-    detail: item.detail,
-    tone: item.tone,
-    caseId: item.caseId,
-    id: item.id,
-  });
   return (
     <article
       className="grid gap-3 py-4 md:grid-cols-[72px_minmax(0,1fr)_auto] md:items-start transition-all rounded-lg hover:bg-[rgba(255,255,255,0.02)]"
@@ -946,10 +966,10 @@ function AgendaItemRow({
             ? 'bg-[var(--seller-accent)] text-[var(--seller-bg)]'
             : 'bg-[rgba(255,255,255,0.06)] text-[var(--seller-muted)]'
         }`}>
-          {index + 1}
+          {item.rank ?? index + 1}
         </div>
         <div className="mt-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">
-          可加入{slot === 'am' ? '上午' : '下午'}
+          排名
         </div>
       </div>
 
@@ -959,30 +979,17 @@ function AgendaItemRow({
           <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${toneChipClass(item.tone)}`}>
             {item.label}
           </span>
-          <span className={`text-[10px] font-medium transition-colors ${isHovered && item.energyCost > 0 ? 'text-red-400 font-bold' : 'text-[var(--seller-subtle)]'}`}>
-            占 {item.durationHours} 小时 · {isHovered && item.energyCost > 0 ? '-' : ''}{item.energyCost} 精力
+          <span className={`text-[10px] font-medium transition-colors ${isHovered && item.energyCost > 0 ? 'text-[var(--seller-ink)] font-bold' : 'text-[var(--seller-subtle)]'}`}>
+            占 {item.durationHours} 小时 · {item.energyCost} 精力
           </span>
           <span className="text-[10px] font-medium text-[var(--seller-subtle)]">{item.statusLabel}</span>
         </div>
         <ArrangementTitleBlock title={item.title} />
-        <p className="mt-1 max-w-[72ch] text-[12px] leading-6 text-[var(--seller-muted)]">{item.detail}</p>
         {item.conflictHint ? (
           <p className={`mt-2 max-w-[72ch] text-[11px] leading-5 ${item.conflictHint.level === 'warning' ? 'text-[var(--seller-risk)]' : 'text-[var(--seller-muted)]'}`}>
             {item.conflictHint.message}
           </p>
         ) : null}
-        <div className="mt-3 flex flex-wrap gap-2">
-          {tools.map((tool) => (
-            <button
-              key={tool.label}
-              type="button"
-              onClick={() => onUseTool(tool, item.caseId)}
-              className="rounded-[8px] border border-[var(--seller-border)] bg-transparent px-2 py-1 text-[10px] font-medium leading-none text-[var(--seller-subtle)] transition hover:border-[var(--seller-border-strong)] hover:bg-white/[0.04] hover:text-[var(--seller-ink)]"
-            >
-              {tool.label}
-            </button>
-          ))}
-        </div>
       </div>
 
       <div className="flex shrink-0 items-start justify-start md:justify-end">
@@ -990,7 +997,7 @@ function AgendaItemRow({
           {item.actionId ? (
             <button
               type="button"
-              onClick={() => onAddToToday(item, slot)}
+              onClick={() => onAddToToday(item, item.slot || slot)}
               disabled={item.isDisabled}
               className={`inline-flex items-center gap-1 rounded-[10px] px-3 py-2 text-[11px] font-semibold ${
                 index === 0
@@ -999,7 +1006,7 @@ function AgendaItemRow({
               } disabled:opacity-50`}
               title={item.disabledReason}
             >
-              {slot === 'am' ? '加入上午' : '加入下午'}
+              {item.ctaLabel}
               <ArrowRight size={12} />
             </button>
           ) : null}
@@ -1224,12 +1231,14 @@ function SelectedDayPanel({
   dateLabel,
   events,
   onBackToday,
+  onAdvanceToDay,
   onOpenCase,
 }: {
   entry: CalendarRailEntry;
   dateLabel: string;
   events: JournalItem[];
   onBackToday: () => void;
+  onAdvanceToDay?: (targetDay: number) => void;
   onOpenCase: (caseId?: string) => void;
 }) {
   const eventSlots = splitJournalItemsBySlot(events);
@@ -1298,10 +1307,16 @@ function SelectedDayPanel({
             </div>
             <button
               type="button"
-              onClick={onBackToday}
+              onClick={() => {
+                if (onAdvanceToDay) {
+                  onAdvanceToDay(entry.day);
+                  return;
+                }
+                onBackToday();
+              }}
               className="seller-button-primary rounded-[10px] px-3 py-2 text-[11px]"
             >
-              回到今天
+              推进到这天
             </button>
           </div>
         </div>

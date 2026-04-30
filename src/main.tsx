@@ -11,6 +11,13 @@ if (import.meta.env.VITE_GIT_COMMIT) {
   document.head.appendChild(meta);
 }
 
+if (import.meta.env.VITE_APP_VERSION) {
+  const meta = document.createElement('meta');
+  meta.name = 'x-app-version';
+  meta.content = import.meta.env.VITE_APP_VERSION;
+  document.head.appendChild(meta);
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryProvider>

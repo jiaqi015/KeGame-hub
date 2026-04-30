@@ -1,16 +1,21 @@
 import type { GameState } from '../../domain/models.js';
 import {
   buildProcessManagerContractsFromLegacyState,
+  buildProcessLifecycleMigrationPlan,
   deriveProcessRunReadModelsFromLegacyState,
+  type ProcessLifecycleMigrationPlan,
 } from '../../runtime/simulation/processes/index.js';
 import type {
   ProcessManagerContract,
   ProcessManagerType,
   ProcessRunReadModel,
 } from '../../runtime/simulation/processes/types.js';
-import { freezeProjection } from './readOnly.js';
+import { freezeProjection, type ReadonlyDeep } from './readOnly.js';
 
 type ProcessCountByType = Readonly<Record<ProcessManagerType, number>>;
+export type ProcessWorkspaceReadModel = ReadonlyDeep<ProcessRunReadModel>;
+export type ProcessWorkspaceManagerContract = ReadonlyDeep<ProcessManagerContract>;
+export type ProcessWorkspaceLifecycleMigrationPlan = ReadonlyDeep<ProcessLifecycleMigrationPlan>;
 
 export interface ProcessWorkspaceProjection {
   readonly projectionKind: 'process_workspace_projection';
@@ -20,8 +25,9 @@ export interface ProcessWorkspaceProjection {
   readonly processCountsByType: ProcessCountByType;
   readonly runningCount: number;
   readonly managerMutableCount: number;
-  readonly processes: readonly ProcessRunReadModel[];
-  readonly contracts: readonly ProcessManagerContract[];
+  readonly processes: readonly ProcessWorkspaceReadModel[];
+  readonly contracts: readonly ProcessWorkspaceManagerContract[];
+  readonly lifecycleMigrationPlan: ProcessWorkspaceLifecycleMigrationPlan;
 }
 
 function emptyCounts(): Record<ProcessManagerType, number> {
@@ -43,6 +49,7 @@ function isRunningProcess(process: ProcessRunReadModel): boolean {
 export function buildProcessWorkspaceProjection(state: Readonly<GameState>): ProcessWorkspaceProjection {
   const processes = deriveProcessRunReadModelsFromLegacyState(state);
   const contracts = buildProcessManagerContractsFromLegacyState(state);
+  const lifecycleMigrationPlan = buildProcessLifecycleMigrationPlan(state);
   const processCountsByType = processes.reduce<Record<ProcessManagerType, number>>((counts, process) => {
     counts[process.processType] += 1;
     return counts;
@@ -58,5 +65,6 @@ export function buildProcessWorkspaceProjection(state: Readonly<GameState>): Pro
     managerMutableCount: processes.filter((process) => process.transitionView.managerCanMutateNow).length,
     processes,
     contracts,
+    lifecycleMigrationPlan,
   }) as ProcessWorkspaceProjection;
 }

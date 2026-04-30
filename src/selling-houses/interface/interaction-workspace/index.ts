@@ -37,6 +37,7 @@ export type {
 
 export type {
   ProcessWorkspaceProjection,
+  ProcessWorkspaceLifecycleMigrationPlan,
 } from './processWorkspaceBoundary.js';
 
 export {

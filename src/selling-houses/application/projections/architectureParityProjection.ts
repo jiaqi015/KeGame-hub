@@ -42,6 +42,7 @@ export interface ProcessParityProjection {
   readonly processViewCount: number;
   readonly runningCount: number;
   readonly managerMutableCount: number;
+  readonly negotiationPendingMigrationCount: number;
 }
 
 export interface ArchitectureParityProjection {
@@ -184,10 +185,15 @@ function buildProcessParity(state: GameState): {
     });
   }
 
-  if (processProjection.managerMutableCount !== 0) {
+  const negotiationPendingMigrationCount = processProjection.processes.filter((process) =>
+    process.processType === 'negotiation' && !process.transitionView.managerCanMutateNow).length;
+  const mutableNegotiationCount = processProjection.processes.filter((process) =>
+    process.processType === 'negotiation' && process.transitionView.managerCanMutateNow).length;
+
+  if (mutableNegotiationCount > 0) {
     warnings.push({
-      code: 'process_manager_mutable_too_early',
-      message: 'Process workspace projection exposed mutable transitions before ownership migration.',
+      code: 'negotiation_process_manager_mutable_too_early',
+      message: 'Negotiation process workspace projection exposed mutable transitions before settlement ownership migration.',
     });
   }
 
@@ -198,6 +204,7 @@ function buildProcessParity(state: GameState): {
       processViewCount: processProjection.processes.length,
       runningCount: processProjection.runningCount,
       managerMutableCount: processProjection.managerMutableCount,
+      negotiationPendingMigrationCount,
     },
     warnings,
   };

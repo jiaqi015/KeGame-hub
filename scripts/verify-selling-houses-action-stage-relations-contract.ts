@@ -9,6 +9,7 @@ import {
 } from '../src/selling-houses/domain/actionStageRelations.js';
 import type { Settlement } from '../src/selling-houses/domain/actions/templates.js';
 import { ACTIONS, OPPORTUNITY_STAGES } from '../src/selling-houses/domain/constants.js';
+import { ACTION_EXECUTOR_CONTRACTS } from '../src/selling-houses/domain/engine/actionExecutorContract.js';
 import { executeAction, getActionAvailability, seedInitialOpportunities } from '../src/selling-houses/domain/engine.js';
 import type { Case, GameState, Opportunity } from '../src/selling-houses/domain/models.js';
 import { getScenarioSnapshotById } from '../src/selling-houses/domain/scenarioCatalog.js';
@@ -80,6 +81,21 @@ function buildOpportunity(world: GameState, caseItem: Case, overrides: Partial<O
 }
 
 {
+  const opportunityBoundContracts = ACTION_EXECUTOR_CONTRACTS.filter((entry) => entry.opportunityBound);
+  opportunityBoundContracts.forEach((contract) => {
+    assert.ok(
+      contract.stageRelation.opportunityStageWindow,
+      `Expected opportunity-bound contract ${contract.executorId} to keep a stage relation window`,
+    );
+  });
+  assert.deepEqual(
+    ACTION_EXECUTOR_CONTRACTS.filter((entry) => entry.revealsOwnerState).map((entry) => entry.executorId),
+    ['first-visit'],
+    'Expected executor contract not to duplicate revealsOwnerState actions',
+  );
+}
+
+{
   const world = buildWorld(20260429, false);
   const caseItem = world.cases[0];
   assert.ok(caseItem, 'Expected a case for first-visit progression');
@@ -93,6 +109,11 @@ function buildOpportunity(world: GameState, caseItem: Case, overrides: Partial<O
   const after = deriveCaseProgression(world, caseItem);
   assert.notEqual(after.phase, 'pre_visit', 'Expected first visit to advance out of pre-visit phase');
   assert.equal(after.ownerStateVisible, true, 'Expected owner state to be visible after first visit');
+  assert.equal(caseItem.hasCompletedFirstVisit, true, 'Expected direct first visit to complete owner visibility gate');
+  assert.equal(caseItem.touchedOwnerToday, true, 'Expected direct first visit to count as owner contact');
+  assert.equal(caseItem.lastOwnerTouchedDay, world.day, 'Expected direct first visit to record owner contact day');
+  assert.equal(caseItem.stageIndex, after.legacyStageIndex, 'Expected direct first visit case stage to match derived progression');
+  assert.equal(caseItem.stageLabel, after.legacyStageLabel, 'Expected direct first visit case label to match derived progression');
   assert.equal(executeAction(world, 'first-visit', caseItem, 'plan-first'), false, 'Expected first visit not to repeat after completion');
 }
 
@@ -210,6 +231,56 @@ function buildOpportunity(world: GameState, caseItem: Case, overrides: Partial<O
   const secondary = world.opportunities.find((entry) => entry.id === 'stage-relation-direct-showing-secondary');
   assert.equal(primary?.stageIndex, 3, 'Expected direct showing to advance the selected opportunity');
   assert.equal(secondary?.stageIndex, 1, 'Expected direct showing relation floor not to advance another opportunity');
+}
+
+{
+  const world = buildWorld(20260441, false);
+  const caseItem = world.cases[0];
+  assert.ok(caseItem, 'Expected a case for failed direct relation verification');
+  caseItem.hasCompletedFirstVisit = true;
+  caseItem.stageIndex = 1;
+  caseItem.viewings = 0;
+  world.opportunities = [];
+  updateDerivedState(world);
+  const beforeEnergy = world.energy;
+
+  assert.equal(executeAction(world, 'showing', caseItem, 'experience-showing'), false, 'Expected direct showing to fail without an opportunity');
+  assert.equal(world.energy, beforeEnergy, 'Expected failed direct showing not to spend energy');
+  assert.equal(caseItem.viewings, 0, 'Expected failed direct showing not to increment viewings');
+  assert.equal(caseItem.stageIndex, 1, 'Expected failed direct showing not to apply the case stage relation floor');
+}
+
+{
+  const world = buildWorld(20260440, false);
+  const caseItem = world.cases[0];
+  assert.ok(caseItem, 'Expected a case for direct negotiation target consistency');
+  caseItem.hasCompletedFirstVisit = true;
+  caseItem.stageIndex = 4;
+  caseItem.offers = 1;
+  const selectedOpportunity = buildOpportunity(world, caseItem, {
+    id: 'stage-relation-direct-negotiation-selected',
+    customerId: 'stage-relation-direct-negotiation-selected-customer',
+    stageIndex: 3,
+    stageLabel: OPPORTUNITY_STAGES[3],
+    intent: 97,
+    confidence: 94,
+  });
+  const otherOpportunity = buildOpportunity(world, caseItem, {
+    id: 'stage-relation-direct-negotiation-other',
+    customerId: 'stage-relation-direct-negotiation-other-customer',
+    stageIndex: 3,
+    stageLabel: OPPORTUNITY_STAGES[3],
+    intent: 58,
+    confidence: 54,
+  });
+  world.opportunities = [otherOpportunity, selectedOpportunity];
+  updateDerivedState(world);
+
+  assert.ok(executeAction(world, 'invite-customer-negotiation', caseItem, 'balanced'), 'Expected direct negotiation invite to execute');
+  assert.equal(selectedOpportunity.pendingClosingEvaluation, true, 'Expected selected opportunity to receive closing evaluation');
+  assert.equal(otherOpportunity.pendingClosingEvaluation, undefined, 'Expected another eligible opportunity not to receive closing evaluation');
+  assert.ok(selectedOpportunity.stageIndex >= 5, `Expected selected opportunity to advance into closing range, got ${selectedOpportunity.stageIndex}`);
+  assert.equal(otherOpportunity.stageIndex, 3, 'Expected relation floor to stay on executor-selected negotiation opportunity');
 }
 
 {

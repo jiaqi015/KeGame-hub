@@ -43,6 +43,13 @@ function buildItemSignature(item: Pick<TodayArrangementItem, 'linkedActionId' | 
   ].join('|');
 }
 
+function matchesExecutableIdentity(
+  item: Pick<TodayArrangementItem, 'linkedActionId' | 'linkedCaseId' | 'linkedCustomerId' | 'linkedOpportunityId'>,
+  draft: Pick<TodayPlanDraft, 'linkedActionId' | 'linkedCaseId' | 'linkedCustomerId' | 'linkedOpportunityId'>,
+) {
+  return buildItemSignature(item) === buildItemSignature(draft);
+}
+
 export function resolveTodayPlanExecutionMode(
   actionId: string,
   fallback?: TodayArrangementExecutionMode,
@@ -155,7 +162,7 @@ export function getTodayPlanConflictHint(
     && (entry.slot || 'am') === slot
   ));
 
-  if (fixedItems.length > 0 && remainingCapacity <= durationHours) {
+  if (fixedItems.length > 0 && remainingCapacity < durationHours) {
     return {
       level: 'warning',
       kind: 'fixed-overlap',
@@ -262,16 +269,9 @@ export function buildTodayPlanItem(state: GameState, draft: TodayPlanDraft): Tod
 }
 
 export function hasTodayPlanDuplicate(state: GameState, draft: TodayPlanDraft) {
-  const signature = buildItemSignature({
-    linkedActionId: draft.linkedActionId,
-    linkedCaseId: draft.linkedCaseId,
-    linkedCustomerId: draft.linkedCustomerId,
-    linkedOpportunityId: draft.linkedOpportunityId,
-  });
-
   return state.todayPlan.playerItems.some((entry) => (
     entry.day === state.day
-    && buildItemSignature(entry) === signature
+    && matchesExecutableIdentity(entry, draft)
   ));
 }
 
@@ -284,12 +284,24 @@ export function markTodayPlanItemCompletedMutable(state: GameState, itemId: stri
   return item;
 }
 
-export function markTodayPlanItemCompletedByActionMutable(state: GameState, actionId: string, caseId: string) {
+export function markTodayPlanItemCompletedByActionMutable(
+  state: GameState,
+  actionId: string,
+  caseId: string,
+  target?: {
+    linkedCustomerId?: string;
+    linkedOpportunityId?: string;
+  },
+) {
   const item = state.todayPlan.playerItems.find((entry) => (
     entry.day === state.day
     && entry.status === 'planned'
-    && entry.linkedActionId === actionId
-    && entry.linkedCaseId === caseId
+    && matchesExecutableIdentity(entry, {
+      linkedActionId: actionId,
+      linkedCaseId: caseId,
+      linkedCustomerId: target?.linkedCustomerId,
+      linkedOpportunityId: target?.linkedOpportunityId,
+    })
   ));
 
   if (!item) {

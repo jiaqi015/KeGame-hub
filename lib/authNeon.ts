@@ -167,7 +167,7 @@ export async function neonMigrateLegacyUsers(): Promise<number> {
   const allWorkspaces: string[] = [...allWorkspacesExceptAdmin, 'admin'];
 
   const rows = await getSql()`
-    SELECT user_id, display_name FROM maintainer_users
+    SELECT user_id, display_name, created_at, last_seen_at FROM maintainer_users
     WHERE user_id LIKE 'acct_%'
   ` as any[];
 
@@ -177,10 +177,12 @@ export async function neonMigrateLegacyUsers(): Promise<number> {
     const allowedWorkspaces = row.display_name === 'yangjiaqi015'
       ? allWorkspaces
       : allWorkspacesExceptAdmin;
+    const createdAt = row.created_at || row.last_seen_at || new Date(0).toISOString();
+    const legacyLastLoginAt = row.last_seen_at || row.created_at || createdAt;
 
     await getSql()`
       INSERT INTO auth_users (email, account_id, nickname, display_name, allowed_workspaces, created_at, last_login_at)
-      VALUES (${email}, ${row.user_id}, ${row.display_name}, ${row.display_name}, ${JSON.stringify(allowedWorkspaces)}, NOW(), NOW())
+      VALUES (${email}, ${row.user_id}, ${row.display_name}, ${row.display_name}, ${JSON.stringify(allowedWorkspaces)}, ${createdAt}, ${legacyLastLoginAt})
       ON CONFLICT (email) DO UPDATE SET
         allowed_workspaces = CASE
           WHEN auth_users.allowed_workspaces @> ${JSON.stringify(['admin'])}::jsonb

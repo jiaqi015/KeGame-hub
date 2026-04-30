@@ -21,24 +21,29 @@ async function main() {
   const allExceptAdmin = ['sabrina','open-day','selling-houses','market-management','rational-owner'];
   const allPerms = [...allExceptAdmin, 'admin'];
 
-  const rows = await sql`SELECT user_id, display_name FROM maintainer_users WHERE user_id LIKE 'acct_%'`;
+  const rows = await sql`
+    SELECT user_id, display_name, created_at, last_seen_at
+    FROM maintainer_users
+    WHERE user_id LIKE 'acct_%'
+  `;
   console.log('found', rows.length, 'legacy users in maintainer_users');
 
   let migrated = 0;
   for (const row of rows) {
     const email = `${row.display_name}@ke.com`;
     const workspaces = row.display_name === 'yangjiaqi015' ? allPerms : allExceptAdmin;
+    const createdAt = row.created_at || row.last_seen_at || new Date(0).toISOString();
+    const legacyLastLoginAt = row.last_seen_at || row.created_at || createdAt;
 
     await sql`
       INSERT INTO auth_users (email, account_id, nickname, display_name, allowed_workspaces, created_at, last_login_at)
-      VALUES (${email}, ${row.user_id}, ${row.display_name}, ${row.display_name}, ${JSON.stringify(workspaces)}, NOW(), NOW())
+      VALUES (${email}, ${row.user_id}, ${row.display_name}, ${row.display_name}, ${JSON.stringify(workspaces)}, ${createdAt}, ${legacyLastLoginAt})
       ON CONFLICT (email) DO UPDATE SET
         allowed_workspaces = CASE
           WHEN auth_users.allowed_workspaces @> ${JSON.stringify(['admin'])}::jsonb
           THEN auth_users.allowed_workspaces
           ELSE ${JSON.stringify(workspaces)}::jsonb
-        END,
-        last_login_at = NOW()
+        END
     `;
     migrated++;
     console.log('  migrated:', email, '→', workspaces);

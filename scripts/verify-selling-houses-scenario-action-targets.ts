@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 
 import { createInitialState, updateDerivedState } from '../src/selling-houses/application/gameState.js';
 import { executeScenarioAction } from '../src/selling-houses/application/gameTransitions.js';
+import { deriveCaseProgression } from '../src/selling-houses/domain/actionStageRelations.js';
 import type { Settlement } from '../src/selling-houses/domain/actions/templates.js';
 import { OPPORTUNITY_STAGES } from '../src/selling-houses/domain/constants.js';
 import { seedInitialOpportunities } from '../src/selling-houses/domain/engine.js';
@@ -62,6 +63,39 @@ const settlement: Settlement = {
   nextActionHint: '',
   finalOptionId: null,
 };
+
+{
+  const state = buildWorld(20260429);
+  const caseItem = state.cases.find((entry) => entry.status === 'active');
+  assert.ok(caseItem, 'Expected an active case');
+  caseItem.hasCompletedFirstVisit = false;
+  caseItem.stageIndex = 0;
+  caseItem.touchedOwnerToday = false;
+  caseItem.lastOwnerTouchedDay = 0;
+  updateDerivedState(state);
+
+  const result = executeScenarioAction(
+    state,
+    'first-visit',
+    caseItem.id,
+    {
+      ...settlement,
+      title: '验证场景首次面访',
+      summary: '验证场景首次面访',
+      stateDeltas: [],
+      finalOptionId: 'plan-first',
+    },
+  );
+
+  assert.equal(result.success, true, 'scenario first visit should execute');
+  const nextCase = result.nextState.cases.find((entry) => entry.id === caseItem.id);
+  assert.ok(nextCase, 'Expected first visit case to remain present');
+  assert.equal(nextCase.hasCompletedFirstVisit, true, 'Scenario first visit should complete the first visit gate');
+  assert.notEqual(deriveCaseProgression(result.nextState, nextCase).phase, 'pre_visit', 'Scenario first visit should leave pre-visit');
+  assert.equal(deriveCaseProgression(result.nextState, nextCase).ownerStateVisible, true, 'Scenario first visit should reveal owner state');
+  assert.equal(nextCase.touchedOwnerToday, true, 'Scenario first visit should touch owner today');
+  assert.equal(nextCase.lastOwnerTouchedDay, result.nextState.day, 'Scenario first visit should record owner touch day');
+}
 
 {
   const state = buildWorld(20260430);
@@ -164,6 +198,10 @@ const settlement: Settlement = {
       status: 'planned',
     }],
   };
+  const beforeEnergy = state.energy;
+  const beforePromotionBudget = state.auxiliaryStats.promotionBudget;
+  const beforeBudgetLedgerLength = state.budgetLedger.length;
+  const beforeActionsToday = caseItem.actionsToday;
 
   const result = executeScenarioAction(
     state,
@@ -185,6 +223,114 @@ const settlement: Settlement = {
   assert.equal(nextFallback.intent, 80, 'Rejected action should not write scenario delta to fallback opportunity');
   assert.equal(nextFallback.confidence, 81, 'Rejected action should not write scenario delta to fallback opportunity');
   assert.equal(nextFallback.stageIndex, 1, 'Rejected action should not stage-floor a different window opportunity');
+  assert.equal(result.nextState.energy, beforeEnergy, 'Rejected target should not spend energy');
+  assert.equal(result.nextState.auxiliaryStats.promotionBudget, beforePromotionBudget, 'Rejected target should not spend promotion budget');
+  assert.equal(result.nextState.budgetLedger.length, beforeBudgetLedgerLength, 'Rejected target should not append budget ledger entries');
+  assert.equal(result.nextState.cases.find((entry) => entry.id === caseItem.id)?.actionsToday, beforeActionsToday, 'Rejected target should not count as an action');
+  assert.equal(
+    result.nextState.todayPlan.playerItems.find((entry) => entry.id === 'planned-showing-outside-window')?.status,
+    'planned',
+    'Rejected target should leave today plan item planned',
+  );
+}
+
+{
+  const state = buildWorld(20260432);
+  const caseItem = state.cases.find((entry) => entry.status === 'active');
+  assert.ok(caseItem, 'Expected an active case');
+  caseItem.hasCompletedFirstVisit = true;
+  caseItem.stageIndex = 1;
+  caseItem.lastAction = '';
+
+  state.opportunities = state.opportunities.filter((entry) => entry.caseId !== caseItem.id);
+  const sourceMatterOutsideWindow = buildOpportunity(state, caseItem, {
+    id: 'source-matter-outside-window',
+    customerId: 'source-matter-customer',
+    customerName: '事项绑定但已过阶段客户',
+    stageIndex: 4,
+    intent: 44,
+    confidence: 45,
+  });
+  const fallbackInsideWindow = buildOpportunity(state, caseItem, {
+    id: 'source-matter-fallback-inside-window',
+    customerId: 'source-matter-other-customer',
+    customerName: '窗口内其他客户',
+    stageIndex: 1,
+    intent: 83,
+    confidence: 84,
+  });
+  state.opportunities.unshift(sourceMatterOutsideWindow, fallbackInsideWindow);
+  state.schedule.unshift({
+    key: 'source-matter-showing-schedule',
+    caseId: caseItem.id,
+    title: '事项绑定带看',
+    badge: '客户',
+    note: '验证 sourceMatter 显式目标',
+    urgency: 96,
+    actionId: 'showing',
+    opportunityId: sourceMatterOutsideWindow.id,
+  });
+  state.matters.unshift({
+    id: 'matter-source-showing-outside-window',
+    source: 'schedule',
+    sourceKey: 'source-matter-showing-schedule',
+    caseId: caseItem.id,
+    scene: 'showing',
+    lifecycleCategory: 'execute',
+    title: '事项绑定带看',
+    detail: '验证 sourceMatter 显式目标',
+    stage: 'pending',
+    template: 'schedule',
+    presentation: 'inline-card',
+    kind: 'opportunity',
+    openedAtDay: state.day,
+  });
+  state.todayPlan = {
+    day: state.day,
+    playerItems: [{
+      id: 'planned-source-matter-showing-outside-window',
+      day: state.day,
+      sourceMatterId: 'matter-source-showing-outside-window',
+      linkedActionId: 'showing',
+      linkedCaseId: caseItem.id,
+      executionMode: 'scenario',
+      status: 'planned',
+    }],
+  };
+  const beforeEnergy = state.energy;
+  const beforePromotionBudget = state.auxiliaryStats.promotionBudget;
+  const beforeBudgetLedgerLength = state.budgetLedger.length;
+  const beforeActionsToday = caseItem.actionsToday;
+
+  const result = executeScenarioAction(
+    state,
+    'showing',
+    caseItem.id,
+    settlement,
+    undefined,
+    'planned-source-matter-showing-outside-window',
+  );
+
+  assert.equal(result.success, false, 'scenario action should reject a sourceMatter target outside its relation window');
+  const nextSourceTarget = result.nextState.opportunities.find((entry) => entry.id === sourceMatterOutsideWindow.id);
+  const nextFallback = result.nextState.opportunities.find((entry) => entry.id === fallbackInsideWindow.id);
+  assert.ok(nextSourceTarget, 'Expected sourceMatter target opportunity to remain present');
+  assert.ok(nextFallback, 'Expected fallback opportunity to remain present');
+  assert.equal(nextSourceTarget.intent, 44, 'Rejected sourceMatter target should not receive scenario delta');
+  assert.equal(nextSourceTarget.confidence, 45, 'Rejected sourceMatter target should not receive scenario delta');
+  assert.equal(nextSourceTarget.stageIndex, 4, 'Rejected sourceMatter target should not be stage-floored');
+  assert.equal(nextFallback.intent, 83, 'Rejected sourceMatter action should not fall back to another opportunity');
+  assert.equal(nextFallback.confidence, 84, 'Rejected sourceMatter action should not fall back to another opportunity');
+  assert.equal(nextFallback.stageIndex, 1, 'Rejected sourceMatter action should not stage-floor fallback opportunity');
+  assert.equal(result.nextState.energy, beforeEnergy, 'Rejected sourceMatter target should not spend energy');
+  assert.equal(result.nextState.auxiliaryStats.promotionBudget, beforePromotionBudget, 'Rejected sourceMatter target should not spend promotion budget');
+  assert.equal(result.nextState.budgetLedger.length, beforeBudgetLedgerLength, 'Rejected sourceMatter target should not append budget ledger entries');
+  assert.equal(result.nextState.cases.find((entry) => entry.id === caseItem.id)?.actionsToday, beforeActionsToday, 'Rejected sourceMatter target should not count as an action');
+  assert.equal(
+    result.nextState.todayPlan.playerItems.find((entry) => entry.id === 'planned-source-matter-showing-outside-window')?.status,
+    'planned',
+    'Rejected sourceMatter target should leave today plan item planned',
+  );
 }
 
 {

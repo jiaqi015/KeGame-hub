@@ -11,6 +11,16 @@ function stableStateJson(world: GameState) {
   return JSON.stringify(world);
 }
 
+function buildSeededWorld(seed: number) {
+  const snapshot = getScenarioSnapshotById('standard-window-chain');
+  assert.ok(snapshot, 'Expected standard-window-chain scenario to exist');
+
+  const world = createInitialState(snapshot, seed);
+  seedInitialOpportunities(world);
+  updateDerivedState(world);
+  return world;
+}
+
 function buildPendingClosingOpportunity(world: GameState): Opportunity {
   const caseItem = world.cases.find((entry) => entry.status === 'active') || world.cases[0];
   assert.ok(caseItem, 'Expected a case to attach pending negotiation');
@@ -44,12 +54,29 @@ function buildPendingClosingOpportunity(world: GameState): Opportunity {
   };
 }
 
-const snapshot = getScenarioSnapshotById('standard-window-chain');
-assert.ok(snapshot, 'Expected standard-window-chain scenario to exist');
+const cleanWorld = buildSeededWorld(20260429);
+const beforeClean = stableStateJson(cleanWorld);
+const cleanProjection = buildArchitectureParityProjection(cleanWorld);
+const afterClean = stableStateJson(cleanWorld);
 
-const world = createInitialState(snapshot, 20260429);
-seedInitialOpportunities(world);
-updateDerivedState(world);
+assert.equal(afterClean, beforeClean, 'Expected clean architecture parity projection not to mutate GameState');
+assert.equal(cleanProjection.projectionKind, 'architecture_parity_projection');
+assert.equal(cleanProjection.source, 'legacy-game-state');
+assert.equal(cleanProjection.readOnly, true);
+assert.equal(cleanProjection.day, cleanWorld.day);
+assert.equal(cleanProjection.status, 'aligned', 'Expected clean parity fixture to be aligned');
+assert.equal(cleanProjection.summary.warnings, 0, 'Expected clean parity fixture to report no warnings');
+assert.deepEqual(cleanProjection.warnings, [], 'Expected clean parity fixture to expose no warnings');
+assert.equal(cleanProjection.opportunityRelationParity.conflictCount, 0, 'Expected clean parity fixture to have no relation conflicts');
+assert.equal(
+  cleanProjection.processParity.processViewCount,
+  cleanProjection.processParity.legacyProductRunCount + cleanProjection.processParity.pendingNegotiationCount,
+  'Expected clean process workspace to cover product runs plus pending negotiations',
+);
+assert.ok(Object.isFrozen(cleanProjection), 'Expected clean architecture parity projection to be frozen');
+assert.ok(Object.isFrozen(cleanProjection.warnings), 'Expected clean architecture parity warnings array to be frozen');
+
+const world = buildSeededWorld(20260429);
 world.productRuns.push(createProductRun(world, 'open-day', [world.cases[0]?.id || 'case-1']));
 const pendingClosingOpportunity = buildPendingClosingOpportunity(world);
 world.opportunities.push(pendingClosingOpportunity);
@@ -115,10 +142,16 @@ assert.ok(
   projection.warnings.some((warning) => warning.code === 'opportunity_relation_conflict_detected'),
   'Expected opportunity relation conflicts to be promoted to architecture parity warnings',
 );
-assert.notEqual(
+assert.equal(
   projection.status,
-  'aligned',
-  'Expected architecture parity status not to be aligned when relation conflicts exist',
+  'watch',
+  'Expected architecture parity status to be watch when relation conflicts are present without hard gaps',
+);
+assert.equal(projection.summary.warnings, projection.warnings.length, 'Expected summary warning count to match warnings');
+assert.deepEqual(
+  projection.warnings.map((warning) => warning.code),
+  ['opportunity_relation_conflict_detected'],
+  'Expected conflict fixture to expose only the relation conflict warning',
 );
 assert.equal(
   projection.processParity.processViewCount,
@@ -127,8 +160,13 @@ assert.equal(
 );
 assert.equal(
   projection.processParity.managerMutableCount,
-  0,
-  'Expected parity projection to preserve read-only process manager ownership',
+  projection.processParity.legacyProductRunCount,
+  'Expected parity projection mutable count to reflect runtime-owned product run transitions',
+);
+assert.equal(
+  projection.processParity.negotiationPendingMigrationCount,
+  projection.processParity.pendingNegotiationCount,
+  'Expected parity projection to keep negotiation transitions pending migration',
 );
 assert.ok(Object.isFrozen(projection), 'Expected architecture parity projection to be frozen');
 assert.ok(Object.isFrozen(projection.recommendationParity), 'Expected recommendation parity section to be frozen');

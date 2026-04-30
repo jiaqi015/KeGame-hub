@@ -401,7 +401,7 @@ function buildActionCandidates(
   if (phase === 'pre_visit') {
     candidates.push(candidate(
       'first-visit',
-      '这套房还没建立经营共识。做一次业主分型，目标和下一步会更清楚。',
+      '这套房还没完成业主分型，真实目标暂不可见。',
       REC_BALANCE.actionRegret.firstVisit,
       'PROGRESS',
       ['first-visit-missing', 'owner-state-hidden'],
@@ -409,7 +409,7 @@ function buildActionCandidates(
     ));
     candidates.push(candidate(
       'deep-diagnosis',
-      '基础事实还没梳理完整，做一次诊断更好判断。',
+      '基础事实还没梳理完整，诊断后事实链更完整。',
       REC_BALANCE.actionRegret.deepDiagnosis,
       'PROGRESS',
       ['first-visit-missing'],
@@ -419,7 +419,7 @@ function buildActionCandidates(
   if (facts.offers > 0 || facts.highestStage >= REC_BALANCE.facts.offerStage) {
     candidates.push(candidate(
       'invite-customer-negotiation',
-      `${hottestOpportunity?.customerName || '客户'}已到出价前后，可以把价格和成交条件放到一张桌上。`,
+      `${hottestOpportunity?.customerName || '客户'}已到出价前后，价格和成交条件已到谈判桌。`,
       REC_BALANCE.actionRegret.offerNegotiation,
       'ACCELERATE',
       ['offer-ready-for-negotiation', 'hot-opportunity-expiring'],
@@ -428,7 +428,7 @@ function buildActionCandidates(
   } else if (facts.highestStage >= REC_BALANCE.phase.closingStage) {
     candidates.push(candidate(
       'invite-customer-negotiation',
-      `${hottestOpportunity?.customerName || '客户'}已到见面沟通阶段，可以聊到明确谈判。`,
+      `${hottestOpportunity?.customerName || '客户'}已到见面沟通阶段，谈判条件开始变清楚。`,
       REC_BALANCE.actionRegret.lateStageNegotiation,
       'ACCELERATE',
       ['offer-ready-for-negotiation'],
@@ -457,7 +457,7 @@ function buildActionCandidates(
   if (facts.viewings > 0 && facts.ownerGapDays >= REC_BALANCE.progressRegret.showingFeedbackGapDays) {
     candidates.push(candidate(
       'weekly-feedback',
-      '已有看房反馈，业主这边还缺一次明确同步。',
+      '已有看房反馈，业主侧同步材料已形成。',
       ownerDefensePressure
         ? REC_BALANCE.actionRegret.showingFeedbackDefense
         : REC_BALANCE.actionRegret.showingFeedbackProgress,
@@ -471,9 +471,9 @@ function buildActionCandidates(
       caseItem.hasCompletedFirstVisit ? 'weekly-feedback' : 'first-visit',
       caseItem.hasCompletedFirstVisit
         ? ownerDefensePressure
-          ? '业主关系有些发紧，用事实反馈补一次同步。'
-          : '业主有一段时间没收到反馈，今天可以补一次轻量同步。'
-        : '这套房还没建立经营共识。做一次业主分型，目标和下一步会更清楚。',
+          ? '业主关系有些发紧，事实反馈已形成同步材料。'
+          : '业主有一段时间没收到反馈，轻量同步已有事实基础。'
+        : '这套房还没完成业主分型，真实目标暂不可见。',
       ownerDefensePressure
         ? REC_BALANCE.actionRegret.ownerDefenseFeedback
         : REC_BALANCE.actionRegret.ownerLongGapFeedback,
@@ -486,7 +486,7 @@ function buildActionCandidates(
   if (facts.priceGapPct > REC_BALANCE.price.adjustListingGapPct && (phase === 'feedback_offer' || phase === 'closing')) {
     candidates.push(candidate(
       'adjust-listing-price',
-      '客户已到谈价阶段，价格差距还卡着成交，可以和业主聊挂牌调整。',
+      '客户已到谈价阶段，价格差距还卡着成交，挂牌调整已有依据。',
       REC_BALANCE.actionRegret.adjustListingPrice,
       'PROGRESS',
       ['pricing-not-aligned', 'offer-ready-for-negotiation'],
@@ -495,7 +495,7 @@ function buildActionCandidates(
   } else if (facts.priceGapPct > REC_BALANCE.price.adviceGapPct) {
     candidates.push(candidate(
       'pricing-advice',
-      '挂牌价和市场反馈有差距，可以把价格站位说清楚。',
+      '挂牌价和市场反馈有差距，价格站位待补清楚。',
       REC_BALANCE.actionRegret.pricingAdvice,
       'PROGRESS',
       ['pricing-not-aligned'],
@@ -508,7 +508,7 @@ function buildActionCandidates(
   ))) {
     candidates.push(candidate(
       'showing',
-      '客户意向已经到可带看状态，可以把线上兴趣变成真实反馈。',
+      '客户意向已经到可带看状态，线上兴趣可转成真实反馈。',
       REC_BALANCE.actionRegret.showing,
       'PROGRESS',
       ['lead-ready-for-showing'],
@@ -518,14 +518,14 @@ function buildActionCandidates(
   if (facts.revealedOpportunities.length === 0 && phase !== 'pre_visit') {
     candidates.push(candidate(
       'broker-broadcast',
-      '这套房客户线偏薄，可以通过合作经纪人补一批待确认客户。',
+      '这套房客户线偏薄，合作经纪人可补一批待确认客户。',
       REC_BALANCE.actionRegret.brokerBroadcast,
       'PROGRESS',
       ['lead-engine-thin'],
     ));
     candidates.push(candidate(
       'xiaohongshu-boost',
-      '当前承接偏薄，可以补一轮公开曝光拉新客。',
+      '当前承接偏薄，公开曝光可补新客。',
       REC_BALANCE.actionRegret.xiaohongshuBoost,
       'PROGRESS',
       ['lead-engine-thin'],
@@ -541,7 +541,7 @@ function buildActionCandidates(
   ) {
     candidates.push(candidate(
       'story',
-      '房源讲法还没站稳，可以重新组织卖点和看房路径。',
+      '房源讲法还没站稳，卖点和看房路径待重组。',
       REC_BALANCE.actionRegret.story,
       'PROGRESS',
       ['story-positioning-thin'],
@@ -555,7 +555,7 @@ function buildActionCandidates(
   ) {
     candidates.push(candidate(
       'sincerity-sale',
-      `${facts.hottestOpportunity.customerName} 已看过房，可以聊一聊诚意和价格边界。`,
+      `${facts.hottestOpportunity.customerName} 已看过房，诚意和价格边界已有沟通基础。`,
       REC_BALANCE.actionRegret.sinceritySale,
       'ACCELERATE',
       ['showing-feedback-ready'],
@@ -565,8 +565,8 @@ function buildActionCandidates(
   candidates.push(candidate(
     caseItem.hasCompletedFirstVisit ? 'weekly-feedback' : 'first-visit',
     caseItem.hasCompletedFirstVisit
-      ? '业主有一段时间没收到反馈，可以补一次轻量同步。'
-      : '这套房还没建立经营共识。做一次业主分型，目标和下一步会更清楚。',
+      ? '业主有一段时间没收到反馈，轻量同步已有事实基础。'
+      : '这套房还没完成业主分型，真实目标暂不可见。',
     REC_BALANCE.actionRegret.lightFeedback,
     caseItem.hasCompletedFirstVisit ? 'PROGRESS' : 'PROGRESS',
     caseItem.hasCompletedFirstVisit ? ['relationship-gap-large'] : ['first-visit-missing'],

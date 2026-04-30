@@ -1,0 +1,30 @@
+{
+  "runId": 16,
+  "seed": 420112,
+  "totalDays": 21,
+  "totalMomentEvents": 7,
+  "momentCounts": {
+    "offer-acceptance-negotiation": 2,
+    "first-visit-owner-discovery": 5
+  },
+  "flowProgress": {
+    "standard-selling": {
+      "completedStepCount": 2,
+      "currentStepId": "price-and-close"
+    },
+    "open-day": {
+      "completedStepCount": 0,
+      "currentStepId": "event-conversion"
+    },
+    "sincerity-sale": {
+      "completedStepCount": 0,
+      "currentStepId": "bid-settlement"
+    },
+    "team-listing-co-sell": {
+      "completedStepCount": 0,
+      "currentStepId": "feedback-loop"
+    }
+  },
+  "error": null,
+  "durationMs": 8
+}

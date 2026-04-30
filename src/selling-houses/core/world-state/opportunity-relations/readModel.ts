@@ -4,13 +4,14 @@ import { clamp } from '../../../domain/utils.js';
 import { toAssetCaseId, toCustomerFromOpportunityId, toCustomerId, toLeadBrokerId } from '../adapters.js';
 import type { WorldEntityId } from '../models.js';
 import type {
+  CanonicalOpportunityRelationMetadata,
   CustomerCaseOpportunityRelationBuildOptions,
   CustomerCaseOpportunityRelationConflictFlags,
   CustomerCaseOpportunityRelationView,
   CustomerRuntimeCaseRelationMetadata,
-  LegacyOpportunityRelationMetadata,
 } from './types.js';
 
+const DEFAULT_FIT_CONFLICT_TOLERANCE = 0;
 const DEFAULT_STAGE_CONFLICT_TOLERANCE = 0;
 const DEFAULT_INTENT_CONFLICT_TOLERANCE = 0;
 const DEFAULT_CONFIDENCE_CONFLICT_TOLERANCE = 0;
@@ -28,7 +29,7 @@ function resolveStageLabel(stageIndex: number) {
   return OPPORTUNITY_STAGES[clamp(stageIndex, 0, OPPORTUNITY_STAGES.length - 1)] || OPPORTUNITY_STAGES[0];
 }
 
-function buildLegacyMetadata(opportunity: Opportunity): LegacyOpportunityRelationMetadata {
+function buildCanonicalOpportunityMetadata(opportunity: Opportunity): CanonicalOpportunityRelationMetadata {
   return {
     status: opportunity.status,
     lifecycleStatus: opportunity.lifecycleStatus,
@@ -74,6 +75,7 @@ function detectConflicts(
 ): CustomerCaseOpportunityRelationConflictFlags {
   if (!opportunity || !runtime) {
     return {
+      fit: false,
       stageIndex: false,
       intent: false,
       confidence: false,
@@ -81,6 +83,7 @@ function detectConflicts(
   }
 
   return {
+    fit: Math.abs(opportunity.fit - runtime.fit) > options.fitConflictTolerance,
     stageIndex: Math.abs(opportunity.stageIndex - runtime.stageIndex) > options.stageConflictTolerance,
     intent: Math.abs(opportunity.intent - runtime.interest) > options.intentConflictTolerance,
     confidence: Math.abs(opportunity.confidence - runtime.confidence) > options.confidenceConflictTolerance,
@@ -94,6 +97,7 @@ function buildOpportunityRelation(
 ): CustomerCaseOpportunityRelationView {
   const runtime = runtimeState?.caseStates[opportunity.caseId];
   const source = runtime ? 'merged' : 'opportunity';
+  const canonicalOpportunityMetadata = buildCanonicalOpportunityMetadata(opportunity);
 
   return {
     id: source === 'merged'
@@ -110,7 +114,8 @@ function buildOpportunityRelation(
     stageIndex: opportunity.stageIndex,
     stageLabel: opportunity.stageLabel,
     conflictFlags: detectConflicts(opportunity, runtime, options),
-    legacyOpportunity: buildLegacyMetadata(opportunity),
+    canonicalOpportunityMetadata,
+    legacyOpportunity: canonicalOpportunityMetadata,
     customerRuntime: runtimeState ? buildRuntimeMetadata(runtimeState, opportunity.caseId) : undefined,
   };
 }
@@ -134,6 +139,7 @@ function buildRuntimeOnlyRelation(
     stageIndex: runtime.stageIndex,
     stageLabel: resolveStageLabel(runtime.stageIndex),
     conflictFlags: {
+      fit: false,
       stageIndex: false,
       intent: false,
       confidence: false,
@@ -147,6 +153,7 @@ export function buildCustomerCaseOpportunityRelationView(
   options: CustomerCaseOpportunityRelationBuildOptions = {},
 ): CustomerCaseOpportunityRelationView[] {
   const resolvedOptions: Required<CustomerCaseOpportunityRelationBuildOptions> = {
+    fitConflictTolerance: options.fitConflictTolerance ?? DEFAULT_FIT_CONFLICT_TOLERANCE,
     stageConflictTolerance: options.stageConflictTolerance ?? DEFAULT_STAGE_CONFLICT_TOLERANCE,
     intentConflictTolerance: options.intentConflictTolerance ?? DEFAULT_INTENT_CONFLICT_TOLERANCE,
     confidenceConflictTolerance: options.confidenceConflictTolerance ?? DEFAULT_CONFIDENCE_CONFLICT_TOLERANCE,

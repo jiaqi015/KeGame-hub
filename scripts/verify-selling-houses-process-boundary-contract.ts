@@ -61,7 +61,8 @@ const openDayProcess = mapLegacyProductRunToProcessReadModel(openDayRun);
 assert.ok(openDayProcess, 'Expected open-day product run to map to a process read model');
 assert.equal(openDayProcess.processType, 'open-day');
 assert.equal(openDayProcess.lifecycleOwner, 'legacy-product-run');
-assert.equal(openDayProcess.transitionView.managerCanMutateNow, false);
+assert.equal(openDayProcess.transitionView.nextTransitionOwner, 'runtime-process-manager');
+assert.equal(openDayProcess.transitionView.managerCanMutateNow, true);
 assert.equal(
   openDayProcess.milestones.length,
   getProductRunTemplates('open-day').length,
@@ -73,6 +74,8 @@ assert.ok(sinceritySaleProcess, 'Expected sincere-sale product run to map to a p
 assert.equal(sinceritySaleProcess.processType, 'sincerity-sale');
 assert.equal(sinceritySaleProcess.legacyProductType, 'sincere-sale');
 assert.equal(sinceritySaleProcess.lifecycleOwner, 'legacy-product-run');
+assert.equal(sinceritySaleProcess.transitionView.nextTransitionOwner, 'runtime-process-manager');
+assert.equal(sinceritySaleProcess.transitionView.managerCanMutateNow, true);
 assert.equal(
   sinceritySaleProcess.milestones.length,
   getProductRunTemplates('sincere-sale').length,
@@ -85,6 +88,7 @@ assert.equal(negotiationProcess.processType, 'negotiation');
 assert.equal(negotiationProcess.lifecycleOwner, 'legacy-opportunity-pending-closing');
 assert.equal(negotiationProcess.pendingClosingEvaluation, true);
 assert.equal(negotiationProcess.transitionView.currentStepId, 'pending-closing-evaluation');
+assert.equal(negotiationProcess.transitionView.nextTransitionOwner, 'legacy-opportunity-pending-closing');
 assert.equal(negotiationProcess.transitionView.managerCanMutateNow, false);
 
 const readModels = deriveProcessRunReadModelsFromLegacyState(state);
@@ -93,12 +97,40 @@ assert.equal(readModels.length, 3, 'Expected two product processes and one negot
 const contracts = buildProcessManagerContractsFromLegacyState(state);
 assert.equal(contracts.length, 3, 'Expected all process manager contracts');
 assert.ok(
-  contracts.every((contract) => contract.writes.length === 0),
-  'Expected process manager boundary contracts to remain read-only',
-);
-assert.ok(
   contracts.every((contract) => contract.lifecycleOwnership.futureOwner === 'runtime-process-manager'),
   'Expected contracts to name the future runtime-process-manager owner',
+);
+assert.ok(
+  contracts
+    .filter((contract) => contract.processType === 'open-day' || contract.processType === 'sincerity-sale')
+    .every((contract) => contract.transitions.every((transition) =>
+      transition.nextTransitionOwner === 'runtime-process-manager'
+      && transition.managerCanMutateNow === true)),
+  'Expected product run process transitions to be runtime-process-manager mutable',
+);
+assert.ok(
+  contracts
+    .filter((contract) => contract.processType === 'open-day' || contract.processType === 'sincerity-sale')
+    .every((contract) => (
+      contract.writes.includes('GameState.productRuns.*.nextMilestone')
+      && contract.writes.includes('GameState.productRuns.*.status')
+      && contract.writes.includes('GameState.eventStore')
+    )),
+  'Expected product run process contracts to declare their runtime-owned legacy mirror writes',
+);
+assert.ok(
+  contracts
+    .filter((contract) => contract.processType === 'negotiation')
+    .every((contract) => contract.transitions.every((transition) =>
+      transition.nextTransitionOwner === 'legacy-opportunity-pending-closing'
+      && transition.managerCanMutateNow === false)),
+  'Expected negotiation process transitions to remain legacy pending',
+);
+assert.ok(
+  contracts
+    .filter((contract) => contract.processType === 'negotiation')
+    .every((contract) => contract.writes.length === 0),
+  'Expected negotiation process contracts not to expose writes before settlement ownership migrates',
 );
 
 const nonPendingOpportunity = {

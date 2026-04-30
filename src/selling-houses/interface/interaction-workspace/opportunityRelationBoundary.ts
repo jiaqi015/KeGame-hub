@@ -1,7 +1,7 @@
 import { buildCustomerCaseOpportunityRelationView } from '../../core/world-state/opportunity-relations/readModel.js';
 import type { CustomerCaseOpportunityRelationView } from '../../core/world-state/opportunity-relations/types.js';
 import type { GameState } from '../../domain/models.js';
-import { freezeProjection } from './readOnly.js';
+import { freezeProjection, type ReadonlyDeep } from './readOnly.js';
 
 export interface OpportunityRelationWorkspaceSummary {
   readonly total: number;
@@ -13,22 +13,29 @@ export interface OpportunityRelationWorkspaceSummary {
   readonly lostOrClosedCount: number;
 }
 
+export type OpportunityRelationWorkspaceEntry = ReadonlyDeep<CustomerCaseOpportunityRelationView>;
+
 export interface OpportunityRelationWorkspaceProjection {
   readonly projectionKind: 'opportunity_relation_adapter_state';
   readonly source: 'legacy-game-state';
   readonly readOnly: true;
   readonly day: number;
   readonly summary: OpportunityRelationWorkspaceSummary;
-  readonly relations: readonly CustomerCaseOpportunityRelationView[];
+  readonly relations: readonly OpportunityRelationWorkspaceEntry[];
 }
 
 function hasConflict(relation: CustomerCaseOpportunityRelationView) {
   return Object.values(relation.conflictFlags).some(Boolean);
 }
 
+function getCanonicalOpportunity(relation: CustomerCaseOpportunityRelationView) {
+  return relation.canonicalOpportunityMetadata ?? relation.legacyOpportunity;
+}
+
 function isLostOrClosedRelation(relation: CustomerCaseOpportunityRelationView) {
-  const status = relation.legacyOpportunity?.status;
-  const lifecycleStatus = relation.legacyOpportunity?.lifecycleStatus;
+  const opportunity = getCanonicalOpportunity(relation);
+  const status = opportunity?.status;
+  const lifecycleStatus = opportunity?.lifecycleStatus;
   return status === 'lost'
     || status === 'closed'
     || lifecycleStatus === 'lost'
@@ -38,9 +45,10 @@ function isLostOrClosedRelation(relation: CustomerCaseOpportunityRelationView) {
 
 function isActiveRelation(relation: CustomerCaseOpportunityRelationView) {
   if (isLostOrClosedRelation(relation)) return false;
-  if (relation.legacyOpportunity) {
-    return relation.legacyOpportunity.status === 'active'
-      || relation.legacyOpportunity.lifecycleStatus === 'active';
+  const opportunity = getCanonicalOpportunity(relation);
+  if (opportunity) {
+    return opportunity.status === 'active'
+      || opportunity.lifecycleStatus === 'active';
   }
   return relation.customerRuntime?.active === true;
 }

@@ -1,17 +1,16 @@
 import './_bootstrap.js';
-import { isSessionAuthorizationFailure, requireAdminPermissionPersisted } from '../lib/auth.js';
 import {
-  isAuthNeonAvailable,
-  neonDeleteUser,
-  neonListUsers,
-  neonMigrateLegacyUsers,
-  neonUpdatePermissions,
-  type AuthNeonUser,
-} from '../lib/authNeon.js';
+  deleteUserPersisted,
+  isSessionAuthorizationFailure,
+  listAllUsersPersisted,
+  requireAdminPermissionPersisted,
+  updateUserPermissionsPersisted,
+  type AuthUserRecord,
+} from '../lib/auth.js';
 import { WORKSPACE_IDS } from '../lib/workspaces.js';
 import { parseJsonBody } from './_request.js';
 
-function toUserPayload(user: AuthNeonUser) {
+function toUserPayload(user: AuthUserRecord) {
   return {
     email: user.email,
     nickname: user.nickname,
@@ -23,24 +22,14 @@ function toUserPayload(user: AuthNeonUser) {
 }
 
 export default async function handler(req: any, res: any) {
-  if (!isAuthNeonAvailable()) {
-    return res.status(503).json({ error: '数据库未配置。' });
-  }
-
   const authorization = await requireAdminPermissionPersisted(req);
   if (isSessionAuthorizationFailure(authorization)) {
     return res.status(authorization.status).json({ error: authorization.error });
   }
 
   try {
-    await neonMigrateLegacyUsers();
-  } catch (_error) {
-    // 后台列表不因历史数据迁移失败而阻断当前已存在用户管理。
-  }
-
-  try {
     if (req.method === 'GET') {
-      const users = await neonListUsers();
+      const users = await listAllUsersPersisted();
       return res.status(200).json({
         users: users.map(toUserPayload),
         availableWorkspaces: WORKSPACE_IDS,
@@ -56,10 +45,7 @@ export default async function handler(req: any, res: any) {
         ))
         : [];
 
-      const updatedUser = await neonUpdatePermissions(email, allowedWorkspaces);
-      if (!updatedUser) {
-        return res.status(404).json({ error: '用户不存在。' });
-      }
+      const updatedUser = await updateUserPermissionsPersisted(email, allowedWorkspaces);
 
       return res.status(200).json({
         ok: true,
@@ -74,11 +60,12 @@ export default async function handler(req: any, res: any) {
         return res.status(400).json({ error: '不能删除自己。' });
       }
 
-      await neonDeleteUser(email);
+      await deleteUserPersisted(email);
       return res.status(200).json({ ok: true });
     }
   } catch (error) {
-    return res.status(400).json({ error: error instanceof Error ? error.message : '操作失败。' });
+    const message = error instanceof Error ? error.message : '操作失败。';
+    return res.status(message === '用户不存在。' ? 404 : 400).json({ error: message });
   }
 
   res.setHeader('Allow', 'GET, PUT, DELETE');
