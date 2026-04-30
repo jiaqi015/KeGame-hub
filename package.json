@@ -1,7 +1,8 @@
 {
   "name": "sabrina-workspace",
   "private": true,
-  "version": "0.0.2",
+  "version": "0.0.3",
+  "versionType": "square",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",

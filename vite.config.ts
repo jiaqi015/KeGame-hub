@@ -22,14 +22,25 @@ function getAppVersion() {
   }
 }
 
+function getVersionType() {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8'));
+    return pkg.versionType || 'square';
+  } catch {
+    return 'square';
+  }
+}
+
 export default defineConfig(({mode}) => {
   const commitHash = getGitCommitHash();
   const appVersion = getAppVersion();
+  const versionType = getVersionType();
   return {
     plugins: [react(), tailwindcss()],
     define: {
       'import.meta.env.VITE_GIT_COMMIT': JSON.stringify(commitHash),
       'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
+      'import.meta.env.VITE_VERSION_TYPE': JSON.stringify(versionType),
     },
     resolve: {
       alias: {
