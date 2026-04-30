@@ -1,14 +1,18 @@
 import fs from 'node:fs';
+import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import ts from 'typescript';
 
-type SellingHousesLayer = 'core' | 'runtime' | 'interface' | 'application' | 'ui';
+type SellingHousesLayer = 'core' | 'domain' | 'runtime' | 'interface' | 'application' | 'ui';
 
 interface ImportReference {
   specifier: string;
   line: number;
+  importedNames: readonly string[];
+  hasOpaqueBinding: boolean;
+  isTypeOnly: boolean;
 }
 
 interface ImportViolation {
@@ -19,13 +23,154 @@ interface ImportViolation {
   line: number;
 }
 
+type LayerImportKey = `${string} -> ${string}`;
+
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const sellingHousesRoot = path.join(repoRoot, 'src', 'selling-houses');
-const checkedSourceLayers: SellingHousesLayer[] = ['core', 'runtime', 'interface'];
-const allLayers: SellingHousesLayer[] = ['core', 'runtime', 'interface', 'application', 'ui'];
+const checkedSourceLayers: SellingHousesLayer[] = ['core', 'domain', 'runtime', 'interface'];
+const allLayers: SellingHousesLayer[] = ['core', 'domain', 'runtime', 'interface', 'application', 'ui'];
+
+const legacyAllowedLayerImports = new Map<LayerImportKey, readonly string[]>([
+  // Core compatibility adapters still read legacy domain shapes until canonical core types are fully authored.
+  [
+    'src/selling-houses/core/business-rules/action-specs/legacyAdapter.ts -> ../../../domain/actions/definitions.js',
+    ['ACTIONS'],
+  ],
+  [
+    'src/selling-houses/core/business-rules/action-specs/types.ts -> ../../../domain/models.js',
+    ['ActionCategoryId', 'ActionMetricKey'],
+  ],
+  [
+    'src/selling-houses/core/business-rules/archetypes/definitions.ts -> ../../../domain/worlds/builtinWorld.js',
+    ['BUILT_IN_WORLD'],
+  ],
+  [
+    'src/selling-houses/core/business-rules/archetypes/types.ts -> ../../../domain/models.js',
+    [
+      'ChannelProfile',
+      'CustomerDecisionStyle',
+      'CustomerProfile',
+      'LeadSourceType',
+      'OwnerArchetype',
+      'RivalListingArchetype',
+      'RivalStoreArchetype',
+    ],
+  ],
+  [
+    'src/selling-houses/core/business-rules/business-flows/types.ts -> ../../../domain/models.js',
+    ['ProductType'],
+  ],
+  [
+    'src/selling-houses/core/business-rules/decision-moments/types.ts -> ../../../domain/models.js',
+    ['ActionMetricKey'],
+  ],
+  [
+    'src/selling-houses/core/evaluation/legacyAdapters.ts -> ../../domain/config/balance.js',
+    ['BALANCE'],
+  ],
+  [
+    'src/selling-houses/core/evaluation/legacyAdapters.ts -> ../../domain/models.js',
+    ['Case', 'GameState', 'Opportunity'],
+  ],
+  [
+    'src/selling-houses/core/evaluation/score-separation/legacyAdapter.ts -> ../../../domain/config/balance.js',
+    ['BALANCE'],
+  ],
+  [
+    'src/selling-houses/core/evaluation/score-separation/legacyAdapter.ts -> ../../../domain/models.js',
+    ['Case', 'GameState', 'Opportunity'],
+  ],
+  [
+    'src/selling-houses/core/world-state/__tests__/legacyAdapter.test.ts -> ../../../domain/models.js',
+    ['Case', 'CompetitionGroup', 'CustomerProfile', 'GameState', 'MarketCell', 'Opportunity', 'ProductRun'],
+  ],
+  [
+    'src/selling-houses/core/world-state/__tests__/legacyCaseOwnedReadModels.test.ts -> ../../../domain/models.js',
+    ['Case'],
+  ],
+  [
+    'src/selling-houses/core/world-state/adapters.ts -> ../../domain/models.js',
+    ['Case', 'CompetitionGroup', 'CustomerProfile', 'DomainEventEntry', 'GameState', 'MarketCell', 'Opportunity', 'ProductRun'],
+  ],
+  [
+    'src/selling-houses/core/world-state/legacy-case-field-ownership.ts -> ../../domain/models.js',
+    ['Case'],
+  ],
+  [
+    'src/selling-houses/core/world-state/legacy-case-owned-read-models.ts -> ../../domain/models.js',
+    ['Case'],
+  ],
+  [
+    'src/selling-houses/core/world-state/legacy-case-segments.ts -> ../../domain/models.js',
+    ['Case'],
+  ],
+  [
+    'src/selling-houses/core/world-state/models.ts -> ../../domain/models.js',
+    [
+      'Case',
+      'CompetitionGroup',
+      'CustomerProfile',
+      'DomainEventKind',
+      'GoalTier',
+      'LeadSourceType',
+      'ListingEndingBucket',
+      'ListingEndingType',
+      'Opportunity',
+      'OwnerSatisfactionState',
+      'ProductRunMilestone',
+      'ProductRunScope',
+      'ProductRunStatus',
+      'StorylineState',
+      'Tone',
+    ],
+  ],
+  [
+    'src/selling-houses/core/world-state/opportunity-relations/readModel.ts -> ../../../domain/constants.js',
+    ['OPPORTUNITY_STAGES'],
+  ],
+  [
+    'src/selling-houses/core/world-state/opportunity-relations/readModel.ts -> ../../../domain/models.js',
+    ['CustomerRuntimeState', 'GameState', 'Opportunity'],
+  ],
+  [
+    'src/selling-houses/core/world-state/opportunity-relations/readModel.ts -> ../../../domain/utils.js',
+    ['clamp'],
+  ],
+  [
+    'src/selling-houses/core/world-state/opportunity-relations/types.ts -> ../../../domain/models.js',
+    ['CustomerCaseRuntime', 'CustomerRuntimeState', 'Opportunity'],
+  ],
+  // Domain debts are transitional shims while runtime/application facades are being introduced.
+  [
+    'src/selling-houses/domain/engine.ts -> ../runtime/simulation/processes/index.js',
+    [
+      'advanceProductRunProcessesForDay',
+      'buildNegotiationProcessResultSummary',
+      'buildProductRunProcessResultSummary',
+      'settleNegotiationProcessesForDay',
+    ],
+  ],
+  [
+    'src/selling-houses/domain/engine/actionResolvers.ts -> ../../runtime/simulation/decisionMomentEmission.js',
+    ['advanceFlowProgress', 'emitDecisionMomentTriggers'],
+  ],
+  [
+    'src/selling-houses/domain/config/difficultyOptions.ts -> ../../application/difficultyPresentation.js',
+    ['buildDifficultyPresentation'],
+  ],
+]);
+
+const allowedCoreRuntimeDomainImports = new Set([
+  'ACTIONS',
+  'BALANCE',
+  'BUILT_IN_WORLD',
+  'OPPORTUNITY_STAGES',
+  'clamp',
+]);
 
 const forbiddenTargetsBySourceLayer: Record<SellingHousesLayer, Set<SellingHousesLayer>> = {
-  core: new Set(['runtime', 'interface', 'application', 'ui']),
+  core: new Set(['domain', 'runtime', 'interface', 'application', 'ui']),
+  domain: new Set(['runtime', 'interface', 'application', 'ui']),
   runtime: new Set(['interface', 'ui']),
   interface: new Set(['ui']),
   application: new Set(),
@@ -38,6 +183,21 @@ function isSellingHousesLayer(value: string): value is SellingHousesLayer {
 
 function toPosixPath(value: string) {
   return value.split(path.sep).join('/');
+}
+
+function toLayerImportKey(filePath: string, specifier: string): LayerImportKey {
+  return `${toPosixPath(path.relative(repoRoot, filePath))} -> ${specifier}`;
+}
+
+function parseLayerImportKey(key: LayerImportKey) {
+  const separator = ' -> ';
+  const separatorIndex = key.indexOf(separator);
+  assert.notEqual(separatorIndex, -1, `Invalid layer import allowlist key ${key}`);
+
+  return {
+    relativeFilePath: key.slice(0, separatorIndex),
+    specifier: key.slice(separatorIndex + separator.length),
+  };
 }
 
 function walkTsFiles(dirPath: string): string[] {
@@ -93,6 +253,46 @@ function classifyTargetLayer(fromFilePath: string, specifier: string): SellingHo
   return classifyBareSpecifierLayer(specifier);
 }
 
+function readImportClauseNames(importClause: ts.ImportClause | undefined): {
+  importedNames: string[];
+  hasOpaqueBinding: boolean;
+} {
+  if (!importClause) {
+    return { importedNames: [], hasOpaqueBinding: true };
+  }
+
+  const importedNames: string[] = [];
+  let hasOpaqueBinding = false;
+
+  if (importClause.name) {
+    hasOpaqueBinding = true;
+  }
+
+  if (importClause.namedBindings) {
+    if (ts.isNamespaceImport(importClause.namedBindings)) {
+      hasOpaqueBinding = true;
+    } else {
+      importClause.namedBindings.elements.forEach((element) => {
+        importedNames.push((element.propertyName || element.name).text);
+      });
+    }
+  }
+
+  return { importedNames, hasOpaqueBinding };
+}
+
+function isLegacyAllowedLayerImport(filePath: string, reference: ImportReference): boolean {
+  const allowedNames = legacyAllowedLayerImports.get(toLayerImportKey(filePath, reference.specifier));
+  if (!allowedNames) {
+    return false;
+  }
+  if (reference.hasOpaqueBinding || reference.importedNames.length === 0) {
+    return false;
+  }
+
+  return reference.importedNames.every((name) => allowedNames.includes(name));
+}
+
 function collectImportReferences(filePath: string): ImportReference[] {
   const sourceText = fs.readFileSync(filePath, 'utf8');
   const sourceFile = ts.createSourceFile(filePath, sourceText, ts.ScriptTarget.Latest, true);
@@ -103,12 +303,22 @@ function collectImportReferences(filePath: string): ImportReference[] {
     references.push({
       specifier: specifierNode.text,
       line: position.line + 1,
+      importedNames: [],
+      hasOpaqueBinding: true,
+      isTypeOnly: false,
     });
   }
 
   function visit(node: ts.Node) {
     if (ts.isImportDeclaration(node) && ts.isStringLiteralLike(node.moduleSpecifier)) {
-      addReference(node.moduleSpecifier);
+      const importNames = readImportClauseNames(node.importClause);
+      references.push({
+        specifier: node.moduleSpecifier.text,
+        line: sourceFile.getLineAndCharacterOfPosition(node.moduleSpecifier.getStart(sourceFile)).line + 1,
+        importedNames: importNames.importedNames,
+        hasOpaqueBinding: importNames.hasOpaqueBinding,
+        isTypeOnly: node.importClause?.isTypeOnly === true,
+      });
     }
 
     if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteralLike(node.moduleSpecifier)) {
@@ -138,6 +348,68 @@ function collectImportReferences(filePath: string): ImportReference[] {
   return references;
 }
 
+function assertLayerBoundaryConfig() {
+  assert.ok(
+    checkedSourceLayers.includes('domain'),
+    'Expected layer import verification to scan domain sources',
+  );
+
+  for (const targetLayer of ['runtime', 'application', 'interface', 'ui'] satisfies SellingHousesLayer[]) {
+    assert.ok(
+      forbiddenTargetsBySourceLayer.domain.has(targetLayer),
+      `Expected domain imports to forbid ${targetLayer}`,
+    );
+  }
+
+  assert.ok(
+    forbiddenTargetsBySourceLayer.core.has('domain'),
+    'Expected core imports to forbid domain unless explicitly allowlisted as compatibility debt',
+  );
+
+  for (const [allowlistKey, allowedNames] of legacyAllowedLayerImports) {
+    assert.ok(allowedNames.length > 0, `Allowed layer import must declare named imports: ${allowlistKey}`);
+    const { relativeFilePath, specifier } = parseLayerImportKey(allowlistKey);
+    const filePath = path.join(repoRoot, relativeFilePath);
+
+    assert.ok(fs.existsSync(filePath), `Allowed layer import source does not exist: ${allowlistKey}`);
+    assert.ok(
+      collectImportReferences(filePath).some((reference) =>
+        reference.specifier === specifier
+        && !reference.hasOpaqueBinding
+        && reference.importedNames.every((name) => allowedNames.includes(name))),
+      `Allowed layer import is not present in source: ${allowlistKey}`,
+    );
+
+    const sourceLayer = classifyPathLayer(filePath);
+    const targetLayer = classifyTargetLayer(filePath, specifier);
+
+    assert.ok(sourceLayer, `Allowed layer import has unknown source layer: ${allowlistKey}`);
+    assert.ok(targetLayer, `Allowed layer import has unknown target layer: ${allowlistKey}`);
+    assert.ok(
+      sourceLayer === 'core' || sourceLayer === 'domain',
+      `Allowed layer import must be core/domain debt: ${allowlistKey}`,
+    );
+    assert.ok(
+      (sourceLayer === 'core' && targetLayer === 'domain')
+      || (sourceLayer === 'domain' && (targetLayer === 'runtime' || targetLayer === 'application')),
+      `Allowed layer debt has unexpected direction: ${allowlistKey}`,
+    );
+    assert.ok(
+      forbiddenTargetsBySourceLayer[sourceLayer].has(targetLayer),
+      `Allowed layer import is not a forbidden boundary debt: ${allowlistKey}`,
+    );
+    if (sourceLayer === 'core') {
+      const references = collectImportReferences(filePath).filter((reference) => reference.specifier === specifier);
+      assert.ok(
+        references.every((reference) =>
+          reference.isTypeOnly
+          || reference.importedNames.every((name) => allowedCoreRuntimeDomainImports.has(name))),
+        `Allowed core->domain import must be type-only unless it is an explicit runtime compatibility value: ${allowlistKey}`,
+      );
+    }
+  }
+}
+
 function findViolations(): ImportViolation[] {
   const filePaths = checkedSourceLayers.flatMap((layer) => walkTsFiles(path.join(sellingHousesRoot, layer)));
   const violations: ImportViolation[] = [];
@@ -148,6 +420,7 @@ function findViolations(): ImportViolation[] {
 
     const forbiddenTargets = forbiddenTargetsBySourceLayer[sourceLayer];
     for (const reference of collectImportReferences(filePath)) {
+      if (isLegacyAllowedLayerImport(filePath, reference)) continue;
       const targetLayer = classifyTargetLayer(filePath, reference.specifier);
       if (!targetLayer || !forbiddenTargets.has(targetLayer)) continue;
 
@@ -163,6 +436,8 @@ function findViolations(): ImportViolation[] {
 
   return violations;
 }
+
+assertLayerBoundaryConfig();
 
 const violations = findViolations();
 

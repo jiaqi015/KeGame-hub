@@ -2,8 +2,10 @@ import type { GameState } from '../../domain/models.js';
 import { deriveCaseRecommendations } from '../../domain/recommendationEngine.js';
 import {
   buildDecisionSupportWorkspaceProjection,
+  buildEventStreamWorkspaceProjection,
   buildOpportunityRelationWorkspaceProjection,
   buildProcessWorkspaceProjection,
+  buildWorldForkWorkspaceProjection,
 } from '../../interface/interaction-workspace/index.js';
 import { freezeProjection } from '../../interface/interaction-workspace/readOnly.js';
 
@@ -45,6 +47,28 @@ export interface ProcessParityProjection {
   readonly negotiationPendingMigrationCount: number;
 }
 
+export interface EventStreamParityProjection {
+  readonly legacyEventStoreCount: number;
+  readonly receiptEventCount: number;
+  readonly workspaceReceiptEventCount: number;
+  readonly recentReceiptEventCount: number;
+  readonly journalEventCount: number;
+  readonly missingEventCount: number;
+}
+
+export interface WorldForkParityProjection {
+  readonly baseCaseCount: number;
+  readonly forkReceiptCaseCount: number;
+  readonly workspaceForkReceiptCaseCount: number;
+  readonly baseOpportunityCount: number;
+  readonly forkReceiptOpportunityCount: number;
+  readonly workspaceForkReceiptOpportunityCount: number;
+  readonly baseEventCount: number;
+  readonly forkReceiptEventCount: number;
+  readonly workspaceForkReceiptEventCount: number;
+  readonly forkMutationPolicy: 'clone-before-simulate';
+}
+
 export interface ArchitectureParityProjection {
   readonly projectionKind: 'architecture_parity_projection';
   readonly source: 'legacy-game-state';
@@ -58,8 +82,12 @@ export interface ArchitectureParityProjection {
   readonly recommendationParity: RecommendationParityProjection;
   readonly opportunityRelationParity: OpportunityRelationParityProjection;
   readonly processParity: ProcessParityProjection;
+  readonly eventStreamParity: EventStreamParityProjection;
+  readonly worldForkParity: WorldForkParityProjection;
   readonly warnings: readonly ArchitectureParityWarning[];
 }
+
+const ARCHITECTURE_PARITY_FIXED_FORK_CREATED_AT = '2026-04-30T00:00:00.000Z';
 
 function activeCases(state: GameState) {
   return state.cases.filter((caseItem) => caseItem.status === 'active');
@@ -210,6 +238,79 @@ function buildProcessParity(state: GameState): {
   };
 }
 
+function buildEventStreamParity(state: GameState): {
+  parity: EventStreamParityProjection;
+  warnings: ArchitectureParityWarning[];
+} {
+  const workspaceProjection = buildEventStreamWorkspaceProjection(state);
+  const workspaceReceipt = workspaceProjection.receipt;
+  const warnings: ArchitectureParityWarning[] = [];
+  const legacyEventStoreCount = state.eventStore.length;
+  const journalEventCount = workspaceReceipt.byKind.journal || 0;
+  const missingEventCount = Math.max(0, legacyEventStoreCount - workspaceReceipt.eventCount);
+
+  if (workspaceReceipt.eventCount !== legacyEventStoreCount) {
+    warnings.push({
+      code: 'event_stream_receipt_count_mismatch',
+      message: `Event stream workspace receipt has ${workspaceReceipt.eventCount} events, expected ${legacyEventStoreCount} legacy events.`,
+    });
+  }
+
+  return {
+    parity: {
+      legacyEventStoreCount,
+      receiptEventCount: workspaceReceipt.eventCount,
+      workspaceReceiptEventCount: workspaceReceipt.eventCount,
+      recentReceiptEventCount: workspaceReceipt.recentEvents.length,
+      journalEventCount,
+      missingEventCount,
+    },
+    warnings,
+  };
+}
+
+function buildWorldForkParity(state: GameState): {
+  parity: WorldForkParityProjection;
+  warnings: ArchitectureParityWarning[];
+} {
+  const forkOptions = {
+    forkCreatedAt: ARCHITECTURE_PARITY_FIXED_FORK_CREATED_AT,
+  };
+  const workspaceProjection = buildWorldForkWorkspaceProjection(state, forkOptions);
+  const workspaceReceipt = workspaceProjection.receipt;
+  const warnings: ArchitectureParityWarning[] = [];
+  const baseCaseCount = state.cases.length;
+  const baseOpportunityCount = state.opportunities.length;
+  const baseEventCount = state.eventStore.length;
+
+  if (
+    workspaceReceipt.caseCount !== baseCaseCount
+    || workspaceReceipt.opportunityCount !== baseOpportunityCount
+    || workspaceReceipt.eventCount !== baseEventCount
+  ) {
+    warnings.push({
+      code: 'world_fork_receipt_count_mismatch',
+      message: `World fork workspace receipt counts cases/opportunities/events as ${workspaceReceipt.caseCount}/${workspaceReceipt.opportunityCount}/${workspaceReceipt.eventCount}, expected ${baseCaseCount}/${baseOpportunityCount}/${baseEventCount}.`,
+    });
+  }
+
+  return {
+    parity: {
+      baseCaseCount,
+      forkReceiptCaseCount: workspaceReceipt.caseCount,
+      workspaceForkReceiptCaseCount: workspaceReceipt.caseCount,
+      baseOpportunityCount,
+      forkReceiptOpportunityCount: workspaceReceipt.opportunityCount,
+      workspaceForkReceiptOpportunityCount: workspaceReceipt.opportunityCount,
+      baseEventCount,
+      forkReceiptEventCount: workspaceReceipt.eventCount,
+      workspaceForkReceiptEventCount: workspaceReceipt.eventCount,
+      forkMutationPolicy: workspaceReceipt.mutationPolicy,
+    },
+    warnings,
+  };
+}
+
 function statusForWarnings(warnings: readonly ArchitectureParityWarning[]): ArchitectureParityStatus {
   if (warnings.length === 0) return 'aligned';
   if (warnings.some((warning) => warning.code.endsWith('_mismatch') || warning.code.includes('dropped'))) {
@@ -222,10 +323,14 @@ export function buildArchitectureParityProjection(state: GameState): Architectur
   const recommendation = buildRecommendationParity(state);
   const opportunityRelation = buildOpportunityRelationParity(state);
   const process = buildProcessParity(state);
+  const eventStream = buildEventStreamParity(state);
+  const worldFork = buildWorldForkParity(state);
   const warnings = [
     ...recommendation.warnings,
     ...opportunityRelation.warnings,
     ...process.warnings,
+    ...eventStream.warnings,
+    ...worldFork.warnings,
   ];
 
   return freezeProjection({
@@ -241,6 +346,8 @@ export function buildArchitectureParityProjection(state: GameState): Architectur
     recommendationParity: recommendation.parity,
     opportunityRelationParity: opportunityRelation.parity,
     processParity: process.parity,
+    eventStreamParity: eventStream.parity,
+    worldForkParity: worldFork.parity,
     warnings,
   }) as ArchitectureParityProjection;
 }

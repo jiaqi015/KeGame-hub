@@ -31,7 +31,10 @@ import {
   type TodayPlanState,
   type FocusMeetingState,
   type FlowProgressState,
+  type DailyTickResult,
+  type DailyProcessResultSummary,
 } from '../domain/models.js';
+import { normalizeDailyProcessResultReadModel } from '../runtime/simulation/dailyProcessResult.js';
 import { createInitialBudgetLedger, normalizeBudgetLedger } from '../domain/budget.js';
 import { getBuiltInWorld, resolveScenarioRules } from '../domain/scenarioCatalog.js';
 import { mergeRules } from '../domain/config/baseRules.js';
@@ -751,6 +754,131 @@ function normalizeProductRuns(input: unknown, currentDay: number): ProductRun[] 
     .filter((entry): entry is ProductRun => Boolean(entry));
 }
 
+function normalizeStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.map(String).filter(Boolean) : [];
+}
+
+function normalizeBoolean(value: unknown): boolean {
+  return value === true;
+}
+
+function normalizeDailyProcessResult(
+  entry: unknown,
+  tickDay: number,
+  nextDay: number,
+  expectedPhase?: DailyProcessResultSummary['phase'],
+): DailyProcessResultSummary | null {
+  const managerId = entry && typeof entry === 'object'
+    ? (entry as { managerId?: unknown }).managerId
+    : undefined;
+  const expectedDay = managerId === 'product-run-process-manager'
+    ? nextDay
+    : managerId === 'negotiation-process-manager'
+      ? tickDay
+      : undefined;
+  const fallbackPhase = expectedPhase
+    ?? (managerId === 'product-run-process-manager' ? 'next-day-setup' : 'settled-day');
+  const readModel = normalizeDailyProcessResultReadModel(entry, {
+    expectedDay,
+    fallbackDay: expectedDay ?? tickDay,
+    fallbackPhase,
+  });
+  if (!readModel) {
+    return null;
+  }
+  if (expectedPhase && readModel.phase !== expectedPhase) {
+    return null;
+  }
+
+  return {
+    managerId: readModel.managerId,
+    owner: readModel.owner,
+    outcomeOwner: readModel.outcomeOwner,
+    day: readModel.day,
+    phase: readModel.phase,
+    processedCount: readModel.processedCount,
+    resolvedCount: readModel.resolvedCount,
+    emittedEventIds: [...readModel.emittedEventIds],
+    closedDealIds: [...readModel.closedDealIds],
+    opportunityIds: [...readModel.opportunityIds],
+    productRunIds: [...readModel.productRunIds],
+  };
+}
+
+function normalizeDailyProcessResultsForTick(
+  input: unknown,
+  tickDay: number,
+  nextDay: number,
+  expectedPhase?: DailyProcessResultSummary['phase'],
+): DailyProcessResultSummary[] {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+
+  return input
+    .map((entry) => normalizeDailyProcessResult(entry, tickDay, nextDay, expectedPhase))
+    .filter((entry): entry is DailyProcessResultSummary => Boolean(entry));
+}
+
+function normalizeLastDailyTickResult(input: unknown): DailyTickResult | null {
+  if (!input || typeof input !== 'object') {
+    return null;
+  }
+
+  const payload = input as DailyTickResult & {
+    processResults?: unknown;
+    settledDayProcessResults?: unknown;
+    nextDaySetupProcessResults?: unknown;
+  };
+  const day = Math.max(1, Number(payload.day) || 1);
+  const parsedNextDay = Number(payload.nextDay);
+  const nextDay = Number.isFinite(parsedNextDay) ? Math.max(day, parsedNextDay) : day + 1;
+  const flatProcessResults = Array.isArray(payload.processResults)
+    ? normalizeDailyProcessResultsForTick(payload.processResults, day, nextDay)
+    : [];
+  const settledDayProcessResults = Array.isArray(payload.settledDayProcessResults)
+    ? normalizeDailyProcessResultsForTick(payload.settledDayProcessResults, day, nextDay, 'settled-day')
+    : flatProcessResults.filter((entry) => entry.phase === 'settled-day');
+  const nextDaySetupProcessResults = Array.isArray(payload.nextDaySetupProcessResults)
+    ? normalizeDailyProcessResultsForTick(payload.nextDaySetupProcessResults, day, nextDay, 'next-day-setup')
+    : flatProcessResults.filter((entry) => entry.phase === 'next-day-setup');
+  const processResults = flatProcessResults.length > 0
+    ? flatProcessResults
+    : [...settledDayProcessResults, ...nextDaySetupProcessResults];
+  const dirtyScopes = payload.dirtyScopes && typeof payload.dirtyScopes === 'object'
+    ? payload.dirtyScopes
+    : {};
+
+  return {
+    ...payload,
+    day,
+    nextDay,
+    report: payload.report || null,
+    emittedEvents: Array.isArray(payload.emittedEvents) ? payload.emittedEvents : [],
+    closedDeals: Array.isArray(payload.closedDeals)
+      ? payload.closedDeals.map(normalizeClosedDeal)
+      : [],
+    processResults,
+    settledDayProcessResults,
+    nextDaySetupProcessResults,
+    dirtyScopes: {
+      cases: normalizeStringArray((dirtyScopes as { cases?: unknown }).cases),
+      opportunities: normalizeStringArray((dirtyScopes as { opportunities?: unknown }).opportunities),
+      customers: normalizeStringArray((dirtyScopes as { customers?: unknown }).customers),
+      owners: normalizeStringArray((dirtyScopes as { owners?: unknown }).owners),
+      districts: normalizeStringArray((dirtyScopes as { districts?: unknown }).districts),
+      marketCells: normalizeStringArray((dirtyScopes as { marketCells?: unknown }).marketCells),
+      matters: normalizeStringArray((dirtyScopes as { matters?: unknown }).matters),
+      market: normalizeBoolean((dirtyScopes as { market?: unknown }).market),
+      dashboard: normalizeBoolean((dirtyScopes as { dashboard?: unknown }).dashboard),
+      result: normalizeBoolean((dirtyScopes as { result?: unknown }).result),
+    },
+    invariantAlerts: Array.isArray(payload.invariantAlerts)
+      ? payload.invariantAlerts
+      : [],
+  };
+}
+
 function resolveParsedAuxiliaryStats(parsed: any) {
   return buildRuntimeAuxiliaryStats({
     cash: Number(parsed?.cash) || 0,
@@ -920,7 +1048,7 @@ export function normalizeLoadedState(parsed: any): GameState | null {
     productRuns: normalizeProductRuns(parsed?.productRuns, currentDay),
     budgetLedger: normalizeBudgetLedger(parsed?.budgetLedger, Number(parsed?.cash) || 0),
     currentReport: parsed?.currentReport || null,
-    lastDailyTickResult: parsed?.lastDailyTickResult || null,
+    lastDailyTickResult: normalizeLastDailyTickResult(parsed?.lastDailyTickResult),
     marketOutcome: normalizeMarketOutcomeState(parsed?.marketOutcome, rules, runSeed, currentDay, {
       playerClaimedDeals: normalizedClosedDeals.filter((entry) => entry.dealType === 'self_closed').length,
     }),

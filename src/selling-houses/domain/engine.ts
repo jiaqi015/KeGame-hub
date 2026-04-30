@@ -1,7 +1,7 @@
 import { WEEKLY_ROUTINE } from './constants.js';
 import { releaseMarketDealSlotsForDay } from './models.js';
 import { recordBudgetChange } from './budget.js';
-import type { DailyTickResult, DirtyScopeSet, GameState, TickInvariantAlert, Tone } from './models.js';
+import type { DailyProcessResultSummary, DailyTickResult, DirtyScopeSet, GameState, TickInvariantAlert, Tone } from './models.js';
 import { addDays, average, clamp, getDayOfWeek, getRoutine } from './utils.js';
 import { evaluateFinalResult } from './resultEvaluation.js';
 import { logEvent, recordDomainEvent, updateDerivedState } from './runtimeState.js';
@@ -18,6 +18,8 @@ import { tickRivalStores } from './rivals/rivalStoreEngine.js';
 import { applyCustomerFeedbackToCases, applyRivalPullOnCustomers, progressCustomerDemand, touchCustomersForCase } from './engine/customerEngine.js';
 import {
   advanceProductRunProcessesForDay,
+  buildNegotiationProcessResultSummary,
+  buildProductRunProcessResultSummary,
   settleNegotiationProcessesForDay,
 } from '../runtime/simulation/processes/index.js';
 import {
@@ -256,6 +258,13 @@ function collectInvariantAlerts(state: GameState): TickInvariantAlert[] {
   return alerts;
 }
 
+function groupProcessResultsByTickPhase(processResults: DailyProcessResultSummary[]) {
+  return {
+    settledDayProcessResults: processResults.filter((entry) => entry.phase === 'settled-day'),
+    nextDaySetupProcessResults: processResults.filter((entry) => entry.phase === 'next-day-setup'),
+  };
+}
+
 function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): DailyTickResult {
   const settledDay = state.day;
   const eventStoreStart = state.eventStore.length;
@@ -268,6 +277,7 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
   const beforeDanger = state.cases.filter((entry) => entry.status === 'active' && (entry.storylineState === 'critical' || entry.storylineState === 'sliding')).length;
 
   const expectations = buildExpectations(state);
+  const processResults: DailyProcessResultSummary[] = [];
 
   releaseMarketDealSlotsForDay(state, settledDay);
   updateMarkets(state);
@@ -286,7 +296,7 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
   applyCustomerFeedbackToCases(state);
   tickCompetition(state);
   fireScheduledEvents(state);
-  settleNegotiationProcessesForDay(state);
+  processResults.push(buildNegotiationProcessResultSummary(settleNegotiationProcessesForDay(state), { day: settledDay }));
   if (state.day >= state.maxDay - 7) {
     tryClaimOpenMarketDealForRivals(state);
   }
@@ -324,15 +334,22 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
     .map((entry) => ({ actor: entry.actor, message: entry.message, tone: entry.tone }));
   const marketNews = randomEvents.map((entry) => entry.message);
 
-  const buildTickResult = (): DailyTickResult => ({
-    day: settledDay,
-    nextDay: state.day,
-    report: state.currentReport,
-    emittedEvents: getNewEntriesAfterUnshift(state.eventStore, eventStoreStart),
-    closedDeals: getNewEntriesAfterUnshift(state.closedDeals, closedDealStart),
-    dirtyScopes: buildDirtyScopes(state, settledDay, eventStoreStart, closedDealStart),
-    invariantAlerts: collectInvariantAlerts(state),
-  });
+  const buildTickResult = (): DailyTickResult => {
+    const processResultGroups = groupProcessResultsByTickPhase(processResults);
+
+    return {
+      day: settledDay,
+      nextDay: state.day,
+      report: state.currentReport,
+      emittedEvents: getNewEntriesAfterUnshift(state.eventStore, eventStoreStart),
+      closedDeals: getNewEntriesAfterUnshift(state.closedDeals, closedDealStart),
+      processResults,
+      settledDayProcessResults: processResultGroups.settledDayProcessResults,
+      nextDaySetupProcessResults: processResultGroups.nextDaySetupProcessResults,
+      dirtyScopes: buildDirtyScopes(state, settledDay, eventStoreStart, closedDealStart),
+      invariantAlerts: collectInvariantAlerts(state),
+    };
+  };
 
   if (state.day >= state.maxDay || !state.cases.some((entry) => entry.status === 'active')) {
     finishGame(state, state.day >= state.maxDay ? `${state.maxDay} 天经营周期结束。` : '所有房源都已经结算。', onMessage);
@@ -343,7 +360,7 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
 
   state.day += 1;
   state.currentDate = addDays(state.currentDate, 1);
-  advanceProductRunProcessesForDay(state);
+  processResults.push(buildProductRunProcessResultSummary(advanceProductRunProcessesForDay(state), { day: state.day }));
   state.todayPlan = {
     day: state.day,
     playerItems: [],

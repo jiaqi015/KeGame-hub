@@ -12,11 +12,24 @@ import type { ReadonlyDeep } from './readOnly.js';
 
 export type WorkspaceRole = 'broker' | 'owner' | 'manager';
 export type WorkspaceProjectionSource = 'legacy-game-state';
+
+/**
+ * Known projection exits exposed by the interaction workspace boundary.
+ * This is a boundary contract for workspace projections, not a UI enum.
+ */
 export type WorkspaceProjectionKind =
   | 'workspace_view'
   | 'pov_adapter_state'
   | 'today_plan_adapter_state'
-  | 'matter_adapter_state';
+  | 'matter_adapter_state'
+  | 'decision_support_adapter_state'
+  | 'opportunity_relation_adapter_state'
+  | 'process_workspace_projection'
+  | 'process_result_adapter_state'
+  | 'daily_tick_receipt_adapter_state'
+  | 'event_stream_adapter_state'
+  | 'world_fork_adapter_state';
+export type WorkspaceProjectionBoundaryKind = WorkspaceProjectionKind;
 
 export type WorkspaceItemTone = 'neutral' | 'chance' | 'risk';
 

@@ -7,8 +7,139 @@ import type { GameState, Opportunity } from '../src/selling-houses/domain/models
 import { createProductRun } from '../src/selling-houses/domain/productRuns.js';
 import { getScenarioSnapshotById } from '../src/selling-houses/domain/scenarioCatalog.js';
 
+type ArchitectureParityProjectionContract = ReturnType<typeof buildArchitectureParityProjection> & {
+  readonly eventStreamParity: {
+    readonly legacyEventStoreCount: number;
+    readonly receiptEventCount: number;
+    readonly workspaceReceiptEventCount: number;
+    readonly recentReceiptEventCount: number;
+    readonly journalEventCount: number;
+    readonly missingEventCount: number;
+  };
+  readonly worldForkParity: {
+    readonly baseCaseCount: number;
+    readonly forkReceiptCaseCount: number;
+    readonly workspaceForkReceiptCaseCount: number;
+    readonly baseOpportunityCount: number;
+    readonly forkReceiptOpportunityCount: number;
+    readonly workspaceForkReceiptOpportunityCount: number;
+    readonly baseEventCount: number;
+    readonly forkReceiptEventCount: number;
+    readonly workspaceForkReceiptEventCount: number;
+    readonly forkMutationPolicy: 'clone-before-simulate';
+  };
+};
+
 function stableStateJson(world: GameState) {
   return JSON.stringify(world);
+}
+
+function assertOwnField(target: object, field: string, message: string) {
+  assert.equal(Object.hasOwn(target, field), true, message);
+}
+
+function assertEventStreamParityContract(projection: ArchitectureParityProjectionContract) {
+  assert.ok(projection.eventStreamParity, 'Expected architecture parity projection to include event stream parity');
+  for (const field of [
+    'legacyEventStoreCount',
+    'receiptEventCount',
+    'workspaceReceiptEventCount',
+    'recentReceiptEventCount',
+    'journalEventCount',
+    'missingEventCount',
+  ]) {
+    assertOwnField(
+      projection.eventStreamParity,
+      field,
+      `Expected event stream parity to expose ${field}`,
+    );
+  }
+  assert.equal(
+    projection.eventStreamParity.legacyEventStoreCount,
+    projection.eventStreamParity.receiptEventCount,
+    'Expected event stream receipt to cover every legacy event store entry',
+  );
+  assert.equal(
+    projection.eventStreamParity.receiptEventCount,
+    projection.eventStreamParity.workspaceReceiptEventCount,
+    'Expected event stream workspace receipt count to match runtime receipt count',
+  );
+  assert.equal(
+    typeof projection.eventStreamParity.journalEventCount,
+    'number',
+    'Expected event stream parity journalEventCount to be numeric',
+  );
+  assert.equal(
+    typeof projection.eventStreamParity.recentReceiptEventCount,
+    'number',
+    'Expected event stream parity recentReceiptEventCount to be numeric',
+  );
+  assert.ok(
+    projection.eventStreamParity.recentReceiptEventCount <= projection.eventStreamParity.receiptEventCount,
+    'Expected event stream recent receipt count not to exceed total receipt event count',
+  );
+  assert.equal(
+    projection.eventStreamParity.missingEventCount,
+    0,
+    'Expected event stream parity to expose no missing events',
+  );
+}
+
+function assertWorldForkParityContract(projection: ArchitectureParityProjectionContract) {
+  assert.ok(projection.worldForkParity, 'Expected architecture parity projection to include world fork parity');
+  for (const field of [
+    'baseCaseCount',
+    'forkReceiptCaseCount',
+    'workspaceForkReceiptCaseCount',
+    'baseOpportunityCount',
+    'forkReceiptOpportunityCount',
+    'workspaceForkReceiptOpportunityCount',
+    'baseEventCount',
+    'forkReceiptEventCount',
+    'workspaceForkReceiptEventCount',
+    'forkMutationPolicy',
+  ]) {
+    assertOwnField(
+      projection.worldForkParity,
+      field,
+      `Expected world fork parity to expose ${field}`,
+    );
+  }
+  assert.equal(
+    projection.worldForkParity.baseCaseCount,
+    projection.worldForkParity.forkReceiptCaseCount,
+    'Expected world fork receipt case count to match base case count',
+  );
+  assert.equal(
+    projection.worldForkParity.forkReceiptCaseCount,
+    projection.worldForkParity.workspaceForkReceiptCaseCount,
+    'Expected world fork workspace receipt case count to match runtime receipt case count',
+  );
+  assert.equal(
+    projection.worldForkParity.baseOpportunityCount,
+    projection.worldForkParity.forkReceiptOpportunityCount,
+    'Expected world fork receipt opportunity count to match base opportunity count',
+  );
+  assert.equal(
+    projection.worldForkParity.forkReceiptOpportunityCount,
+    projection.worldForkParity.workspaceForkReceiptOpportunityCount,
+    'Expected world fork workspace receipt opportunity count to match runtime receipt opportunity count',
+  );
+  assert.equal(
+    projection.worldForkParity.baseEventCount,
+    projection.worldForkParity.forkReceiptEventCount,
+    'Expected world fork receipt event count to match base event count',
+  );
+  assert.equal(
+    projection.worldForkParity.forkReceiptEventCount,
+    projection.worldForkParity.workspaceForkReceiptEventCount,
+    'Expected world fork workspace receipt event count to match runtime receipt event count',
+  );
+  assert.equal(
+    projection.worldForkParity.forkMutationPolicy,
+    'clone-before-simulate',
+    'Expected world fork parity to preserve clone-before-simulate mutation policy',
+  );
 }
 
 function buildSeededWorld(seed: number) {
@@ -56,7 +187,7 @@ function buildPendingClosingOpportunity(world: GameState): Opportunity {
 
 const cleanWorld = buildSeededWorld(20260429);
 const beforeClean = stableStateJson(cleanWorld);
-const cleanProjection = buildArchitectureParityProjection(cleanWorld);
+const cleanProjection = buildArchitectureParityProjection(cleanWorld) as ArchitectureParityProjectionContract;
 const afterClean = stableStateJson(cleanWorld);
 
 assert.equal(afterClean, beforeClean, 'Expected clean architecture parity projection not to mutate GameState');
@@ -73,6 +204,8 @@ assert.equal(
   cleanProjection.processParity.legacyProductRunCount + cleanProjection.processParity.pendingNegotiationCount,
   'Expected clean process workspace to cover product runs plus pending negotiations',
 );
+assertEventStreamParityContract(cleanProjection);
+assertWorldForkParityContract(cleanProjection);
 assert.ok(Object.isFrozen(cleanProjection), 'Expected clean architecture parity projection to be frozen');
 assert.ok(Object.isFrozen(cleanProjection.warnings), 'Expected clean architecture parity warnings array to be frozen');
 
@@ -108,7 +241,7 @@ world.customerStates.push({
 updateDerivedState(world);
 
 const before = stableStateJson(world);
-const projection = buildArchitectureParityProjection(world);
+const projection = buildArchitectureParityProjection(world) as ArchitectureParityProjectionContract;
 const after = stableStateJson(world);
 
 assert.equal(after, before, 'Expected architecture parity projection not to mutate GameState');
@@ -168,6 +301,8 @@ assert.equal(
   projection.processParity.pendingNegotiationCount,
   'Expected parity projection to keep negotiation transitions pending migration',
 );
+assertEventStreamParityContract(projection);
+assertWorldForkParityContract(projection);
 assert.ok(Object.isFrozen(projection), 'Expected architecture parity projection to be frozen');
 assert.ok(Object.isFrozen(projection.recommendationParity), 'Expected recommendation parity section to be frozen');
 

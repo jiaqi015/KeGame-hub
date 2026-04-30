@@ -1180,12 +1180,33 @@ export interface DailyNarrative {
   newHooks: string[];
 }
 
+export interface DailyProcessResultSummary {
+  managerId: 'negotiation-process-manager' | 'product-run-process-manager';
+  owner: 'runtime-process-manager' | 'runtime-process-manager-facade';
+  outcomeOwner?: 'legacy-deal-closing-engine';
+  day: number;
+  phase: 'settled-day' | 'next-day-setup';
+  processedCount: number;
+  resolvedCount: number;
+  emittedEventIds: string[];
+  closedDealIds: string[];
+  opportunityIds: string[];
+  productRunIds: string[];
+}
+
 export interface DailyTickResult {
   day: number;
   nextDay: number;
   report: DailyReport | null;
   emittedEvents: DomainEventEntry[];
   closedDeals: ClosedDealRecord[];
+  /**
+   * Compatibility mirror containing both settled-day and next-day setup process rows.
+   * New consumers should prefer settledDayProcessResults / nextDaySetupProcessResults.
+   */
+  processResults: DailyProcessResultSummary[];
+  settledDayProcessResults: DailyProcessResultSummary[];
+  nextDaySetupProcessResults: DailyProcessResultSummary[];
   dirtyScopes: DirtyScopeSet;
   invariantAlerts: TickInvariantAlert[];
 }

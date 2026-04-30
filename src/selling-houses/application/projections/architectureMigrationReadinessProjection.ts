@@ -1,5 +1,6 @@
 import type { GameState } from '../../domain/models.js';
 import { ACTION_EXECUTOR_CONTRACT_READ_MODEL } from '../../domain/engine/actionExecutorContract.js';
+import { buildLastDailyTickReceiptFromState } from '../../runtime/simulation/dailyTickReceipt.js';
 import { buildProcessLifecycleMigrationPlan } from '../../runtime/simulation/processes/index.js';
 import {
   LEGACY_CASE_COMPATIBILITY_MIRROR_FIELDS,
@@ -8,7 +9,10 @@ import {
   type LegacyCaseDomainFacet,
   type LegacyCaseFieldRole,
 } from '../../core/world-state/index.js';
+import { buildDailyTickReceiptWorkspaceProjection } from '../../interface/interaction-workspace/dailyTickReceiptBoundary.js';
+import { buildEventStreamWorkspaceProjection } from '../../interface/interaction-workspace/eventStreamBoundary.js';
 import { freezeProjection } from '../../interface/interaction-workspace/readOnly.js';
+import { buildWorldForkWorkspaceProjection } from '../../interface/interaction-workspace/worldForkBoundary.js';
 import {
   buildArchitectureParityProjection,
   type ArchitectureParityStatus,
@@ -24,6 +28,9 @@ export type ArchitectureMigrationReadinessWarningSource =
   | 'action-executor'
   | 'process-lifecycle'
   | 'architecture-parity'
+  | 'runtime-receipt-boundary'
+  | 'event-stream-boundary'
+  | 'world-fork-boundary'
   | 'optional-contract';
 
 export type ArchitectureMigrationTargetId =
@@ -31,6 +38,9 @@ export type ArchitectureMigrationTargetId =
   | 'action-resolver-split'
   | 'process-lifecycle-ownership'
   | 'opportunity-authority-cleanup'
+  | 'daily-tick-receipt-boundary'
+  | 'event-stream-boundary'
+  | 'world-fork-boundary'
   | 'evaluation-model-boundary-hardening'
   | 'case-segment-read-model'
   | 'action-boundary-report';
@@ -112,6 +122,46 @@ export interface ProcessLifecycleReadinessProjection {
   readonly pendingProcessTypes: readonly string[];
 }
 
+export interface RuntimeReceiptReadinessProjection {
+  readonly source: 'runtime-simulation-daily-tick-receipt';
+  readonly readOnly: true;
+  readonly readiness: ArchitectureMigrationReadiness;
+  readonly receiptBoundaryLinked: true;
+  readonly workspaceProjectionLinked: true;
+  readonly hasLastDailyTickResult: boolean;
+  readonly hasDailyTickReceipt: boolean;
+  readonly hasWorkspaceReceiptProjection: boolean;
+  readonly processResultCount: number;
+  readonly emittedEventCount: number;
+  readonly closedDealCount: number;
+  readonly maxInvariantLevel: 'none' | 'warning' | 'error';
+}
+
+export interface EventStreamReadinessProjection {
+  readonly source: 'runtime-simulation-event-stream-receipt';
+  readonly readOnly: true;
+  readonly readiness: ArchitectureMigrationReadiness;
+  readonly receiptBoundaryLinked: true;
+  readonly workspaceProjectionLinked: true;
+  readonly eventCount: number;
+  readonly recentEventCount: number;
+  readonly journalEventCount: number;
+  readonly domainEventKindCount: number;
+}
+
+export interface WorldForkReadinessProjection {
+  readonly source: 'runtime-decision-support-world-fork';
+  readonly readOnly: true;
+  readonly readiness: ArchitectureMigrationReadiness;
+  readonly forkBoundaryLinked: true;
+  readonly workspaceProjectionLinked: true;
+  readonly mutationPolicy: 'clone-before-simulate';
+  readonly baseDay: number;
+  readonly caseCount: number;
+  readonly opportunityCount: number;
+  readonly eventCount: number;
+}
+
 export interface OptionalMigrationContractSignal {
   readonly status?: string;
   readonly readiness?: ArchitectureMigrationReadiness;
@@ -152,6 +202,9 @@ export interface ArchitectureMigrationReadinessProjection {
   readonly caseFieldOwnership: LegacyCaseFieldOwnershipReadinessProjection;
   readonly actionExecutor: ActionExecutorReadinessProjection;
   readonly processLifecycle: ProcessLifecycleReadinessProjection;
+  readonly runtimeReceipt: RuntimeReceiptReadinessProjection;
+  readonly eventStream: EventStreamReadinessProjection;
+  readonly worldFork: WorldForkReadinessProjection;
   readonly architectureParity: ArchitectureParityReadinessProjection;
   readonly optionalContracts: {
     readonly caseSegments: OptionalMigrationContractReadiness;
@@ -347,6 +400,138 @@ function buildProcessLifecycleReadiness(state: GameState): {
   };
 }
 
+function buildRuntimeReceiptReadiness(state: Readonly<GameState>): {
+  readonly projection: RuntimeReceiptReadinessProjection;
+  readonly warnings: readonly ArchitectureMigrationReadinessWarning[];
+} {
+  const receipt = buildLastDailyTickReceiptFromState(state);
+  const workspaceProjection = buildDailyTickReceiptWorkspaceProjection(state);
+  const workspaceReceipt = workspaceProjection.receipt;
+  const hasLastDailyTickResult = Boolean(state.lastDailyTickResult);
+  const hasDailyTickReceipt = Boolean(receipt);
+  const hasWorkspaceReceiptProjection = Boolean(workspaceReceipt);
+  const warnings: ArchitectureMigrationReadinessWarning[] = [];
+
+  if (hasLastDailyTickResult && !hasDailyTickReceipt) {
+    warnings.push({
+      code: 'runtime_daily_tick_receipt_missing',
+      message: 'Last daily tick result exists, but the runtime daily tick receipt boundary did not project a receipt.',
+      severity: 'blocking',
+      source: 'runtime-receipt-boundary',
+    });
+  }
+
+  if (hasLastDailyTickResult && !hasWorkspaceReceiptProjection) {
+    warnings.push({
+      code: 'workspace_daily_tick_receipt_missing',
+      message: 'Last daily tick result exists, but the workspace daily tick receipt projection did not expose a receipt.',
+      severity: 'blocking',
+      source: 'runtime-receipt-boundary',
+    });
+  }
+
+  return {
+    projection: {
+      source: 'runtime-simulation-daily-tick-receipt',
+      readOnly: true,
+      readiness: warnings.length > 0
+        ? 'blocked'
+        : hasLastDailyTickResult && hasDailyTickReceipt && hasWorkspaceReceiptProjection
+          ? 'ready'
+          : 'watch',
+      receiptBoundaryLinked: true,
+      workspaceProjectionLinked: true,
+      hasLastDailyTickResult,
+      hasDailyTickReceipt,
+      hasWorkspaceReceiptProjection,
+      processResultCount: receipt?.processResultCount ?? 0,
+      emittedEventCount: receipt?.emittedEventCount ?? 0,
+      closedDealCount: receipt?.closedDealCount ?? 0,
+      maxInvariantLevel: receipt?.maxInvariantLevel ?? 'none',
+    },
+    warnings,
+  };
+}
+
+function buildEventStreamReadiness(state: Readonly<GameState>): {
+  readonly projection: EventStreamReadinessProjection;
+  readonly warnings: readonly ArchitectureMigrationReadinessWarning[];
+} {
+  const workspaceProjection = buildEventStreamWorkspaceProjection(state);
+  const workspaceReceipt = workspaceProjection.receipt;
+  const warnings: ArchitectureMigrationReadinessWarning[] = [];
+  const expectedEventCount = state.eventStore.length;
+
+  if (workspaceReceipt.eventCount !== expectedEventCount) {
+    warnings.push({
+      code: 'event_stream_workspace_event_count_mismatch',
+      message: 'Workspace event stream projection does not cover every legacy event store entry.',
+      severity: 'blocking',
+      source: 'event-stream-boundary',
+    });
+  }
+
+  return {
+    projection: {
+      source: 'runtime-simulation-event-stream-receipt',
+      readOnly: true,
+      readiness: warnings.length > 0 ? 'blocked' : 'ready',
+      receiptBoundaryLinked: true,
+      workspaceProjectionLinked: true,
+      eventCount: workspaceReceipt.eventCount,
+      recentEventCount: workspaceReceipt.recentEvents.length,
+      journalEventCount: workspaceReceipt.byKind.journal || 0,
+      domainEventKindCount: Object.keys(workspaceReceipt.byKind).length,
+    },
+    warnings,
+  };
+}
+
+function buildWorldForkCreatedAt(state: Readonly<GameState>): string {
+  return `${state.currentDate}T00:00:00.000Z`;
+}
+
+function buildWorldForkReadiness(state: Readonly<GameState>): {
+  readonly projection: WorldForkReadinessProjection;
+  readonly warnings: readonly ArchitectureMigrationReadinessWarning[];
+} {
+  const options = { forkCreatedAt: buildWorldForkCreatedAt(state) };
+  const workspaceProjection = buildWorldForkWorkspaceProjection(state, options);
+  const receipt = workspaceProjection.receipt;
+  const warnings: ArchitectureMigrationReadinessWarning[] = [];
+
+  if (
+    receipt.baseRunId !== state.runId
+    || receipt.baseDay !== state.day
+    || receipt.caseCount !== state.cases.length
+    || receipt.opportunityCount !== state.opportunities.length
+    || receipt.eventCount !== state.eventStore.length
+  ) {
+    warnings.push({
+      code: 'world_fork_workspace_receipt_mismatch',
+      message: 'Workspace world fork projection does not match the base run, day, case, opportunity, or event count.',
+      severity: 'blocking',
+      source: 'world-fork-boundary',
+    });
+  }
+
+  return {
+    projection: {
+      source: 'runtime-decision-support-world-fork',
+      readOnly: true,
+      readiness: warnings.length > 0 ? 'blocked' : 'ready',
+      forkBoundaryLinked: true,
+      workspaceProjectionLinked: true,
+      mutationPolicy: receipt.mutationPolicy,
+      baseDay: receipt.baseDay,
+      caseCount: receipt.caseCount,
+      opportunityCount: receipt.opportunityCount,
+      eventCount: receipt.eventCount,
+    },
+    warnings,
+  };
+}
+
 function optionalContract(
   contractName: OptionalMigrationContractReadiness['contractName'],
   signal?: OptionalMigrationContractSignal,
@@ -393,6 +578,9 @@ function buildNextMigrationTargets(
   caseFieldOwnership: LegacyCaseFieldOwnershipReadinessProjection,
   actionExecutor: ActionExecutorReadinessProjection,
   processLifecycle: ProcessLifecycleReadinessProjection,
+  runtimeReceipt: RuntimeReceiptReadinessProjection,
+  eventStream: EventStreamReadinessProjection,
+  worldFork: WorldForkReadinessProjection,
   architectureParity: ArchitectureParityReadinessProjection,
   blockingWarnings: readonly ArchitectureMigrationReadinessWarning[],
   optionalContracts: ArchitectureMigrationReadinessProjection['optionalContracts'],
@@ -431,6 +619,30 @@ function buildNextMigrationTargets(
       blockingWarningCodes: warningCodesForSource(blockingWarnings, 'architecture-parity'),
     },
     {
+      id: 'daily-tick-receipt-boundary',
+      title: 'Daily tick receipt boundary',
+      readiness: runtimeReceipt.readiness,
+      rationale: 'Runtime daily tick receipts and workspace receipt projection are linked before migration readiness can rely on tick outcomes.',
+      dependsOn: ['daily-tick-receipt-contract', 'workspace-daily-tick-receipt-contract'],
+      blockingWarningCodes: warningCodesForSource(blockingWarnings, 'runtime-receipt-boundary'),
+    },
+    {
+      id: 'event-stream-boundary',
+      title: 'Event stream boundary',
+      readiness: eventStream.readiness,
+      rationale: 'Runtime event stream receipts and workspace event stream projection expose the same event count before migration readiness relies on event history.',
+      dependsOn: ['event-stream-receipt-contract', 'workspace-event-stream-contract'],
+      blockingWarningCodes: warningCodesForSource(blockingWarnings, 'event-stream-boundary'),
+    },
+    {
+      id: 'world-fork-boundary',
+      title: 'World fork boundary',
+      readiness: worldFork.readiness,
+      rationale: 'Runtime counterfactual world fork receipts and workspace world fork projection agree on base run, base day, and case count.',
+      dependsOn: ['world-fork-contract', 'workspace-world-fork-contract'],
+      blockingWarningCodes: warningCodesForSource(blockingWarnings, 'world-fork-boundary'),
+    },
+    {
       id: 'evaluation-model-boundary-hardening',
       title: 'Evaluation model boundary hardening',
       readiness: readinessFromOptionalContract(optionalContracts.evaluationModelBoundaries),
@@ -464,11 +676,17 @@ export function buildArchitectureMigrationReadinessProjection(
   const caseFieldOwnership = buildCaseFieldOwnershipReadiness();
   const actionExecutor = buildActionExecutorReadiness();
   const processLifecycle = buildProcessLifecycleReadiness(state);
+  const runtimeReceipt = buildRuntimeReceiptReadiness(state);
+  const eventStream = buildEventStreamReadiness(state);
+  const worldFork = buildWorldForkReadiness(state);
   const architectureParity = buildArchitectureParityReadiness(state);
   const allWarnings = [
     ...caseFieldOwnership.warnings,
     ...actionExecutor.warnings,
     ...processLifecycle.warnings,
+    ...runtimeReceipt.warnings,
+    ...eventStream.warnings,
+    ...worldFork.warnings,
     ...architectureParity.warnings,
   ];
   const blockingWarnings = allWarnings.filter((warning) => warning.severity === 'blocking');
@@ -487,6 +705,9 @@ export function buildArchitectureMigrationReadinessProjection(
     caseFieldOwnership: caseFieldOwnership.projection,
     actionExecutor: actionExecutor.projection,
     processLifecycle: processLifecycle.projection,
+    runtimeReceipt: runtimeReceipt.projection,
+    eventStream: eventStream.projection,
+    worldFork: worldFork.projection,
     architectureParity: architectureParity.projection,
     optionalContracts,
     blockingWarnings,
@@ -494,6 +715,9 @@ export function buildArchitectureMigrationReadinessProjection(
       caseFieldOwnership.projection,
       actionExecutor.projection,
       processLifecycle.projection,
+      runtimeReceipt.projection,
+      eventStream.projection,
+      worldFork.projection,
       architectureParity.projection,
       blockingWarnings,
       optionalContracts,

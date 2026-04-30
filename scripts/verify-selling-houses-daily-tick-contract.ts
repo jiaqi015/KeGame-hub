@@ -50,6 +50,15 @@ assert.ok(result, 'Expected advanceOneDay to return a structured daily tick resu
 assert.equal(result.day, startingDay, 'Expected daily tick result to describe the day that was just settled');
 assert.ok(Array.isArray(result.emittedEvents), 'Expected daily tick result to contain emitted events');
 assert.ok(Array.isArray(result.closedDeals), 'Expected daily tick result to contain closed deals');
+assert.ok(Array.isArray(result.processResults), 'Expected daily tick result to contain process manager summaries');
+assert.ok(
+  Array.isArray(result.settledDayProcessResults),
+  'Expected daily tick result to contain settled-day process manager summaries',
+);
+assert.ok(
+  Array.isArray(result.nextDaySetupProcessResults),
+  'Expected daily tick result to contain next-day setup process manager summaries',
+);
 assert.ok(result.dirtyScopes, 'Expected daily tick result to contain dirty scope summary');
 assert.ok(Array.isArray(result.dirtyScopes.cases), 'Expected daily tick result to expose dirty case ids');
 assert.ok(Array.isArray(result.dirtyScopes.opportunities), 'Expected daily tick result to expose dirty opportunity ids');
@@ -83,6 +92,25 @@ assert.ok(
 assert.ok(
   result.closedDeals.some((entry) => entry.sourceRelationId === negotiationOpportunity.id),
   'Expected daily tick result to expose the closed deal produced by pending negotiation settlement',
+);
+assert.ok(
+  result.processResults.some((entry) =>
+    entry.managerId === 'negotiation-process-manager'
+    && entry.day === result.day
+    && entry.phase === 'settled-day'
+    && entry.opportunityIds.includes(negotiationOpportunity.id)
+    && entry.closedDealIds.some((dealId) => dealId.includes(negotiationCase.id))),
+  'Expected daily tick result to expose the negotiation process manager summary',
+);
+assert.deepEqual(
+  result.settledDayProcessResults.map((entry) => ({ managerId: entry.managerId, day: entry.day, phase: entry.phase })),
+  [{ managerId: 'negotiation-process-manager', day: result.day, phase: 'settled-day' }],
+  'Expected settled-day grouped process results to contain only the negotiation settlement row',
+);
+assert.deepEqual(
+  result.nextDaySetupProcessResults.map((entry) => ({ managerId: entry.managerId, day: entry.day, phase: entry.phase })),
+  [{ managerId: 'product-run-process-manager', day: result.nextDay, phase: 'next-day-setup' }],
+  'Expected next-day setup grouped process results to contain only the product-run setup row',
 );
 assert.equal(world.currentReport?.day, startingDay, 'Expected world current report to stay aligned with settled day');
 assert.equal(world.lastDailyTickResult?.day, startingDay, 'Expected world to retain the latest structured daily tick result');

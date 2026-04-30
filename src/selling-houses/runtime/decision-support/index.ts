@@ -1,7 +1,9 @@
 export type {
   CaseDecisionSupportContext,
+  DecisionSupportActionSpec,
   DecisionSupportContext,
   DecisionSupportContextSource,
+  DecisionSupportDecisionMoment,
   DecisionSupportRecommendationDraft,
   DecisionSupportSignal,
   DecisionSupportSignalKind,
@@ -13,6 +15,12 @@ export type {
   DecisionSupportEvaluationBoundaryReport,
 } from './evaluation-boundary-report.js';
 
+export type {
+  CreateCounterfactualWorldForkOptions,
+  WorldForkDraft,
+  WorldForkReceipt,
+} from './worldFork.js';
+
 export {
   buildDecisionSupportEvaluationBoundaryReport,
 } from './evaluation-boundary-report.js';
@@ -20,3 +28,7 @@ export {
 export {
   buildDecisionSupportContextFromLegacyState,
 } from './legacyAdapter.js';
+
+export {
+  createCounterfactualWorldFork,
+} from './worldFork.js';
