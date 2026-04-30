@@ -3,5 +3,8 @@ export * from './legacy-case-field-ownership.js';
 export * from './legacy-case-migration-plan.js';
 export * from './legacy-case-owned-read-models.js';
 export * from './legacy-case-segments.js';
+export * from './legacy-closed-deal-field-ownership.js';
+export * from './legacy-gamestate-field-ownership.js';
+export * from './legacy-opportunity-field-ownership.js';
 export * from './models.js';
 export * from './opportunity-relations/index.js';
