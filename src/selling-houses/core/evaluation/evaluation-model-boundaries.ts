@@ -64,6 +64,11 @@ export const EVALUATION_MODEL_BOUNDARIES = [
         fields: ['askPrice', 'marketPrice', 'priceGapPct'],
         note: 'Listing price position is allowed as market-facing context for the asset.',
       },
+      {
+        facet: 'competition-service-path',
+        fields: ['d4', 'competitionPressure', 'serviceLock', 'rivalCount'],
+        note: 'D4 competition/service-path advantage is a valid asset-score dimension. Data comes from competition receipts (Agent C).',
+      },
     ],
     forbiddenInputFacets: [
       {

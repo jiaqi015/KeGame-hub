@@ -39,10 +39,32 @@ export interface EvaluationSnapshotBase<
   confidence: number;
 }
 
+export interface AssetScoreDimensionDriver {
+  label: string;
+  value: number | string | boolean;
+  contribution: 'positive' | 'negative' | 'neutral';
+}
+
+export interface AssetScoreDecisionMoment {
+  label: string;
+  trigger: string;
+  urgency: 'high' | 'medium' | 'low';
+}
+
 export interface AssetScoreDimensions {
   d1: EvaluationDimensionSnapshot;
   d2: EvaluationDimensionSnapshot;
   d3: EvaluationDimensionSnapshot;
+  /**
+   * D4 Competition / Service-Path Advantage.
+   *
+   * **Derived projection, not a canonical Case field.** D4 is computed from
+   * CompetitionPressureSnapshot (receipt data produced by Agent C's buffer),
+   * never from Case fields directly. It does NOT participate in `snapshot.score`
+   * (the total remains the legacy D1/D2/D3 weighted sum). D4 may be absent if
+   * competition receipts are not yet available for this tick.
+   */
+  d4?: EvaluationDimensionSnapshot;
 }
 
 export interface AssetScoreInputs extends EvaluationInputs {
@@ -64,12 +86,26 @@ export interface AssetScoreInputs extends EvaluationInputs {
  * 好房分 read model. It mirrors legacy D1/D2/D3/total for compatibility, but does
  * not make owner readiness a Case truth. Legacy D3 still contains owner relation
  * signals; use OwnerDecisionReadinessSnapshot for the separated relationship view.
+ *
+ * Aligned with mother-model GoodHouseScoreSnapshot v1:
+ * - D1 Demand / Opportunity Momentum
+ * - D2 Asset Quality
+ * - D3 Owner-Side Deal Readiness (legacy mixed)
+ * - D4 Competition / Service-Path Advantage (optional, from competition receipts)
+ * - blockers, topDrivers, recommendedDecisionMoments for decision support
  */
 export type AssetScoreSnapshot = EvaluationSnapshotBase<
   'asset-score',
   AssetScoreDimensions,
   AssetScoreInputs
->;
+> & {
+  /** What is blocking this case from closing. Derived from D1-D4 signals. */
+  readonly blockers: readonly string[];
+  /** Top positive drivers ranked by contribution. */
+  readonly topDrivers: readonly AssetScoreDimensionDriver[];
+  /** Decision moments the broker should consider. */
+  readonly recommendedDecisionMoments: readonly AssetScoreDecisionMoment[];
+};
 
 export interface OwnerDecisionReadinessDimensions {
   trust: EvaluationDimensionSnapshot;
@@ -164,3 +200,24 @@ export type SellingHousesEvaluationSnapshot =
   | OwnerDecisionReadinessSnapshot
   | OpportunityScoreSnapshot
   | RegionOpenDayFitSnapshot;
+
+// ---------------------------------------------------------------------------
+// D4 Receipt Coverage
+// ---------------------------------------------------------------------------
+
+export type D4SourceCategory = 'wired' | 'pending' | 'informational';
+
+export interface D4SourceCoverageEntry {
+  readonly source: string;
+  readonly category: D4SourceCategory;
+  readonly present: boolean;
+}
+
+export interface D4ReceiptCoverageReport {
+  readonly sources: readonly D4SourceCoverageEntry[];
+  readonly wiredCount: number;
+  readonly wiredTotal: number;
+  readonly pendingSources: readonly string[];
+  readonly coverage: number;
+  readonly maxConfidence: number;
+}

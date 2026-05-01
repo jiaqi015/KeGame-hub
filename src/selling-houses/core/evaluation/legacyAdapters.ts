@@ -1,7 +1,16 @@
 import { BALANCE } from '../../domain/config/balance.js';
 import type { Case, GameState, Opportunity } from '../../domain/models.js';
 import type {
+  CompetitionPressureSnapshot,
+  PressureReceiptBundle,
+} from '../world-state/competition/models.js';
+import type {
+  AssetScoreDecisionMoment,
+  AssetScoreDimensionDriver,
   AssetScoreSnapshot,
+  D4ReceiptCoverageReport,
+  D4SourceCategory,
+  D4SourceCoverageEntry,
   EvaluationDimensionSnapshot,
   EvaluationSubjectRef,
   OpportunityScoreSnapshot,
@@ -80,6 +89,125 @@ function priceFlexScore(caseItem: Case) {
   return clampScore(priceFlex * BALANCE.scoring.d3Normalization.priceFlexFullScale * 100);
 }
 
+function buildAssetBlockers(
+  caseItem: Case,
+  activeOppCount: number,
+  lateStageOppCount: number,
+): readonly string[] {
+  const blockers: string[] = [];
+  if (activeOppCount === 0) {
+    blockers.push('无活跃客户机会');
+  }
+  if (lateStageOppCount === 0 && activeOppCount > 0) {
+    blockers.push('有活跃机会但无后段漏斗客户');
+  }
+  if (caseItem.heat < 30) {
+    blockers.push('市场热度低');
+  }
+  if (caseItem.trust < 40) {
+    blockers.push('业主信任度不足');
+  }
+  if (caseItem.urgency < 30) {
+    blockers.push('业主紧迫度低');
+  }
+  const priceGap = ((caseItem.askPrice - caseItem.marketPrice) / Math.max(1, caseItem.marketPrice)) * 100;
+  if (priceGap > 15) {
+    blockers.push('报价明显高于市场价');
+  }
+  if (caseItem.storylineState === 'critical') {
+    blockers.push('房源故事线处于危机状态');
+  }
+  return Object.freeze(blockers);
+}
+
+function buildAssetTopDrivers(
+  dimensions: { d1: EvaluationDimensionSnapshot; d2: EvaluationDimensionSnapshot; d3: EvaluationDimensionSnapshot },
+  caseItem: Case,
+): readonly AssetScoreDimensionDriver[] {
+  const drivers: AssetScoreDimensionDriver[] = [];
+
+  if (dimensions.d1.score >= 70) {
+    drivers.push({ label: '客户需求与漏斗', value: dimensions.d1.score, contribution: 'positive' });
+  } else if (dimensions.d1.score < 40) {
+    drivers.push({ label: '客户需求与漏斗', value: dimensions.d1.score, contribution: 'negative' });
+  }
+
+  if (dimensions.d2.score >= 70) {
+    drivers.push({ label: '房源基础资产', value: dimensions.d2.score, contribution: 'positive' });
+  } else if (dimensions.d2.score < 40) {
+    drivers.push({ label: '房源基础资产', value: dimensions.d2.score, contribution: 'negative' });
+  }
+
+  if (dimensions.d3.score >= 70) {
+    drivers.push({ label: '成交条件', value: dimensions.d3.score, contribution: 'positive' });
+  } else if (dimensions.d3.score < 40) {
+    drivers.push({ label: '成交条件', value: dimensions.d3.score, contribution: 'negative' });
+  }
+
+  if (caseItem.heat >= 70) {
+    drivers.push({ label: '市场热度', value: caseItem.heat, contribution: 'positive' });
+  }
+
+  if (caseItem.trust >= 70) {
+    drivers.push({ label: '业主信任', value: caseItem.trust, contribution: 'positive' });
+  }
+
+  return Object.freeze(drivers.sort((a, b) => {
+    const order = { positive: 0, neutral: 1, negative: 2 };
+    return order[a.contribution] - order[b.contribution];
+  }));
+}
+
+function buildAssetDecisionMoments(
+  caseItem: Case,
+  activeOppCount: number,
+): readonly AssetScoreDecisionMoment[] {
+  const moments: AssetScoreDecisionMoment[] = [];
+
+  if (activeOppCount >= 3) {
+    moments.push({
+      label: '多客户关注',
+      trigger: `${activeOppCount}个活跃机会`,
+      urgency: 'high',
+    });
+  }
+
+  if (caseItem.urgency >= 70 && caseItem.trust >= 50) {
+    moments.push({
+      label: '业主配合窗口',
+      trigger: '高紧迫度+中高信任',
+      urgency: 'high',
+    });
+  }
+
+  if (caseItem.heat >= 60 && caseItem.d1 >= 50) {
+    moments.push({
+      label: '市场热度窗口',
+      trigger: '高热度+中高需求',
+      urgency: 'medium',
+    });
+  }
+
+  const priceGap = ((caseItem.askPrice - caseItem.marketPrice) / Math.max(1, caseItem.marketPrice)) * 100;
+  if (priceGap > 10 && caseItem.patience >= 50) {
+    moments.push({
+      label: '建议调价沟通',
+      trigger: '报价偏高+业主有耐心',
+      urgency: 'medium',
+    });
+  }
+
+  if (caseItem.storylineState === 'critical') {
+    moments.push({
+      label: '紧急维护',
+      trigger: '故事线危机',
+      urgency: 'high',
+    });
+  }
+
+  return Object.freeze(moments);
+}
+
 function willingnessToAdjustScore(caseItem: Case) {
   const gapPressure = Number.isFinite(caseItem.priceGapPct)
     ? caseItem.priceGapPct
@@ -145,6 +273,10 @@ export function buildAssetScoreSnapshotFromLegacyCase(
     ),
   };
 
+  const blockers = buildAssetBlockers(caseItem, activeOpportunities.length, lateStageOpportunityCount);
+  const topDrivers = buildAssetTopDrivers(dimensions, caseItem);
+  const recommendedDecisionMoments = buildAssetDecisionMoments(caseItem, activeOpportunities.length);
+
   return {
     subjectRef: caseSubjectRef(caseItem),
     modelId: 'asset-score',
@@ -172,6 +304,9 @@ export function buildAssetScoreSnapshotFromLegacyCase(
       },
     },
     confidence: 0.92,
+    blockers,
+    topDrivers,
+    recommendedDecisionMoments,
   };
 }
 
@@ -412,4 +547,252 @@ export function buildOpportunityEvaluationSnapshotsFromLegacyState(
   return {
     opportunityScore: buildOpportunityScoreSnapshotFromLegacyOpportunity(state, opportunity),
   };
+}
+
+// ---------------------------------------------------------------------------
+// D4 Competition / Service-Path Advantage
+// ---------------------------------------------------------------------------
+
+/**
+ * Derive a D4 dimension snapshot from a CompetitionPressureSnapshot.
+ *
+ * D4 is a penalty-oriented evaluation dimension. It starts at a neutral baseline
+ * (50) and adjusts based on competition signals. This matches the mother model's
+ * intent: D4 answers "how much is competition hurting this case's deal path?"
+ *
+ * Pure function. Does not mutate the input snapshot.
+ */
+export function buildD4CompetitionServicePathDimension(
+  pressure: CompetitionPressureSnapshot,
+): EvaluationDimensionSnapshot {
+  const BASELINE = 50;
+
+  // Trust erosion is the most damaging signal for deal path
+  const trustEffect = pressure.netTrustDelta * 2.0;
+  // Heat loss means losing buyer attention
+  const heatEffect = pressure.netHeatDelta * 1.5;
+  // Urgency shift is a weaker signal
+  const urgencyEffect = pressure.netUrgencyDelta * 1.0;
+
+  // Terminal event: lost to rival
+  const lostPenalty = pressure.lostToRival ? 30 : 0;
+
+  // Significant pressure flag
+  const significantPenalty = pressure.hasSignificantPressure ? 10 : 0;
+
+  // Evidence strength: more evidence means more verifiable pressure
+  const avgEvidenceStrength = pressure.evidence.length > 0
+    ? pressure.evidence.reduce((sum, e) => sum + e.strength, 0) / pressure.evidence.length
+    : 0;
+  const evidenceEffect = avgEvidenceStrength * 0.1;
+
+  const raw = BASELINE + trustEffect + heatEffect + urgencyEffect
+    - lostPenalty - significantPenalty + evidenceEffect;
+
+  const inputs: EvaluationDimensionSnapshot['inputs'] = {
+    netHeatDelta: Math.round(pressure.netHeatDelta * 100) / 100,
+    netTrustDelta: Math.round(pressure.netTrustDelta * 100) / 100,
+    netUrgencyDelta: Math.round(pressure.netUrgencyDelta * 100) / 100,
+    lostToRival: pressure.lostToRival,
+    hasSignificantPressure: pressure.hasSignificantPressure,
+    evidenceCount: pressure.evidence.length,
+    avgEvidenceStrength: Math.round(avgEvidenceStrength),
+  };
+
+  const note = pressure.lostToRival
+    ? 'Case lost to rival — competition pressure is terminal.'
+    : pressure.hasSignificantPressure
+      ? 'Significant competition pressure detected.'
+      : 'Competition pressure evaluated from receipt data.';
+
+  return dimension('d4', 'D4 竞争与服务路径优势', raw, undefined, inputs, note);
+}
+
+/**
+ * Extend an existing AssetScoreSnapshot with a D4 dimension derived from
+ * a CompetitionPressureSnapshot.
+ *
+ * This function wraps buildAssetScoreSnapshotFromLegacyCase and adds D4.
+ * The original function is NOT modified — this is a pure composition.
+ *
+ * The snapshot's total score (competitiveness) does NOT include D4 in Round 1,
+ * because D4 is a new dimension without legacy equivalent. The total remains
+ * the legacy D1/D2/D3 weighted sum for backward compatibility.
+ *
+ * Blockers and topDrivers are updated to reflect D4 signals when present.
+ */
+export function buildAssetScoreSnapshotFromLegacyCaseWithCompetition(
+  state: Pick<GameState, 'day' | 'opportunities'>,
+  caseItem: Case,
+  pressure: CompetitionPressureSnapshot,
+): AssetScoreSnapshot {
+  const baseSnapshot = buildAssetScoreSnapshotFromLegacyCase(state, caseItem);
+  const d4 = buildD4CompetitionServicePathDimension(pressure);
+
+  // Extend blockers with D4 signals
+  const extraBlockers: string[] = [];
+  if (pressure.lostToRival) {
+    extraBlockers.push('已流失给竞品');
+  }
+  if (pressure.hasSignificantPressure && d4.score < 30) {
+    extraBlockers.push('竞争压力严重');
+  }
+
+  // Extend topDrivers with D4
+  const extraDrivers: AssetScoreDimensionDriver[] = [];
+  if (d4.score >= 70) {
+    extraDrivers.push({ label: '竞争与服务路径', value: d4.score, contribution: 'positive' });
+  } else if (d4.score < 30) {
+    extraDrivers.push({ label: '竞争与服务路径', value: d4.score, contribution: 'negative' });
+  }
+
+  // D4 contract: `score` is intentionally NOT recalculated. D4 does not
+  // participate in the total in Round 1 — it's a read-only evaluation signal
+  // derived from C's CompetitionPressureSnapshot, not a Case truth.
+  return {
+    ...baseSnapshot,
+    dimensions: {
+      ...baseSnapshot.dimensions,
+      d4,
+    },
+    blockers: Object.freeze([...baseSnapshot.blockers, ...extraBlockers]),
+    topDrivers: Object.freeze([...baseSnapshot.topDrivers, ...extraDrivers]),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// D4 from live PressureReceiptBundle (DailyTickResult.pressureReceipts)
+// ---------------------------------------------------------------------------
+
+/**
+ * Find the CompetitionPressureSnapshot for a specific case from a
+ * PressureReceiptBundle. Returns undefined if no matching snapshot exists.
+ *
+ * Pure function. Does not mutate the bundle.
+ */
+export function findCompetitionPressureSnapshotForCase(
+  receipts: PressureReceiptBundle | null | undefined,
+  caseId: string,
+): CompetitionPressureSnapshot | undefined {
+  if (!receipts) return undefined;
+  return receipts.snapshots.find((snap) => snap.caseId === caseId);
+}
+
+/**
+ * Build an AssetScoreSnapshot with D4 derived from live pressure receipts
+ * (e.g. DailyTickResult.pressureReceipts).
+ *
+ * Behavior:
+ * - No receipts or no matching snapshot for this case: D4 is undefined
+ * - Matching snapshot found: D4 is computed and attached
+ * - snapshot.score (total) is NOT affected by D4 in Round 1
+ * - Case is NOT mutated
+ *
+ * Pure function. Does not mutate state, caseItem, or receipts.
+ */
+export function buildAssetScoreSnapshotFromLegacyCaseWithPressureReceipts(
+  state: Pick<GameState, 'day' | 'opportunities'>,
+  caseItem: Case,
+  receipts: PressureReceiptBundle | null | undefined,
+): AssetScoreSnapshot {
+  const pressure = findCompetitionPressureSnapshotForCase(receipts, caseItem.id);
+  if (!pressure) {
+    return buildAssetScoreSnapshotFromLegacyCase(state, caseItem);
+  }
+  return buildAssetScoreSnapshotFromLegacyCaseWithCompetition(state, caseItem, pressure);
+}
+
+// ---------------------------------------------------------------------------
+// D4 Receipt Coverage / Confidence
+// ---------------------------------------------------------------------------
+
+/**
+ * Sources that have runtime mutation hooks wired (Agent C).
+ * These are ConstraintSignalSource values (what actually appears in signals),
+ * not PressureInputSource values. The receipt builder maps:
+ *   rival-pressure → rival-listing
+ *   competition-group / competition-rival-loss → competition-group
+ *   (others map 1:1)
+ */
+const D4_WIRED_SOURCES: readonly string[] = [
+  'customer-feedback',
+  'rival-customer-pull',
+  'rival-listing',
+  'competition-group',
+];
+
+/** Sources that have legacy mutation sites but no receipt hooks yet. */
+const D4_PENDING_SOURCES: readonly string[] = [
+  'company-pressure',
+  'random-event',
+  'scripted-event',
+];
+
+/** Sources that are informational-only (no Case/Opportunity mutation). */
+const D4_INFORMATIONAL_SOURCES: readonly string[] = [
+  'market-signal',
+];
+
+/** D4 baseline confidence when all wired sources are present. */
+const D4_BASELINE_CONFIDENCE = 0.75;
+
+/**
+ * Build a coverage report explaining which pressure sources are feeding D4
+ * and which are still missing.
+ *
+ * Pure function. Does not mutate receipts.
+ */
+export function buildD4ReceiptCoverageReport(
+  receipts: PressureReceiptBundle | null | undefined,
+): D4ReceiptCoverageReport {
+  const presentSources = new Set<string>();
+  if (receipts) {
+    for (const snap of receipts.snapshots) {
+      for (const signal of snap.signals) {
+        presentSources.add(signal.source);
+      }
+    }
+  }
+
+  const sources: D4SourceCoverageEntry[] = [];
+  let wiredCount = 0;
+
+  for (const source of D4_WIRED_SOURCES) {
+    const present = presentSources.has(source);
+    if (present) wiredCount++;
+    sources.push({ source, category: 'wired', present });
+  }
+
+  for (const source of D4_PENDING_SOURCES) {
+    sources.push({ source, category: 'pending', present: presentSources.has(source) });
+  }
+
+  for (const source of D4_INFORMATIONAL_SOURCES) {
+    sources.push({ source, category: 'informational', present: presentSources.has(source) });
+  }
+
+  const coverage = wiredCount / D4_WIRED_SOURCES.length;
+
+  return Object.freeze({
+    sources: Object.freeze(sources),
+    wiredCount,
+    wiredTotal: D4_WIRED_SOURCES.length,
+    pendingSources: Object.freeze([...D4_PENDING_SOURCES]),
+    coverage,
+    maxConfidence: D4_BASELINE_CONFIDENCE * coverage,
+  });
+}
+
+/**
+ * Compute the D4 confidence value, capped by receipt coverage.
+ *
+ * D4 confidence = baseline (0.75) × coverage ratio.
+ * This ensures D4 confidence never exceeds what the available data can support.
+ *
+ * Pure function.
+ */
+export function buildD4ConfidenceFromCoverage(
+  coverage: D4ReceiptCoverageReport,
+): number {
+  return coverage.maxConfidence;
 }
