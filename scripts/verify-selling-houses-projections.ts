@@ -12,14 +12,17 @@ import { buildMyWechatProjection } from '../src/selling-houses/application/proje
 import { buildResultProjection } from '../src/selling-houses/application/projections/resultProjection';
 import { buildLeaderboardProjection } from '../src/selling-houses/application/projections/leaderboardProjection';
 import { buildWorkspaceShellProjection } from '../src/selling-houses/application/projections/workspaceShellProjection';
+import { buildWeeklySummaryPresentation } from '../src/selling-houses/application/weeklySummary';
 import { ProfilePanel } from '../src/selling-houses/ui/features/ProfilePanel';
 import { resolveRecommendedActionCard } from '../src/selling-houses/ui/features/Cases';
 import { resolveDashboardSelectedDayAfterStateDayChange } from '../src/selling-houses/ui/features/Dashboard';
 import { buildMarketIntelProjection } from '../src/selling-houses/ui/features/marketIntel';
-import { advanceDays, executeAction, seedInitialOpportunities } from '../src/selling-houses/domain/engine';
-import { executeGameAction } from '../src/selling-houses/application/gameTransitions';
+import { advanceDays, executeAction, progressCustomerDemand, seedInitialOpportunities } from '../src/selling-houses/domain/engine';
+import { executeGameAction, executeScenarioAction } from '../src/selling-houses/application/gameTransitions';
 import { getScenarioSnapshotById } from '../src/selling-houses/domain/scenarioCatalog';
 import { getSlotRemainingCapacity, hasTodayPlanDuplicate, markTodayPlanItemCompletedByActionMutable } from '../src/selling-houses/application/todayPlan';
+import { getActionTemplate, isScenarioAction } from '../src/selling-houses/domain/actions/templates';
+import { ACTION_BY_ID } from '../src/selling-houses/domain/actions/definitions';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 function buildWorld() {
@@ -59,6 +62,7 @@ function assertMyWechatProjectionContracts(world: ReturnType<typeof buildWorld>)
   const projection = buildMyWechatProjection({ state: world, dashboard: operating.dashboard, marketIntel });
   const projectionAgain = buildMyWechatProjection({ state: world, dashboard: operating.dashboard, marketIntel });
   const activeCaseIds = new Set(world.cases.filter((entry) => entry.status === 'active').map((entry) => entry.id));
+  const customerIds = new Set(world.customers.map((entry) => entry.id));
   const opportunityIds = new Set(world.opportunities.map((entry) => entry.id));
   const matterIds = new Set(world.matters.map((entry) => entry.id));
   const leadCaseId = operating.dashboard.todayPriority.find((entry) => entry.caseId)?.caseId
@@ -97,9 +101,24 @@ function assertMyWechatProjectionContracts(world: ReturnType<typeof buildWorld>)
       assert.ok(message.senderName.endsWith('业主'), 'Expected owner sender display to include owner role');
     }
     if (message.senderRole === 'customer') {
+      assert.ok(message.targetCustomerId && customerIds.has(message.targetCustomerId), 'Expected customer message to carry valid targetCustomerId');
+      assert.equal(message.sourceTrace.customerId, message.targetCustomerId, 'Expected customer sourceTrace to preserve customer id');
       assert.ok(
         (message.targetOpportunityId && opportunityIds.has(message.targetOpportunityId)) || (message.targetCaseId && activeCaseIds.has(message.targetCaseId)),
         'Expected customer message to point to valid opportunity or case',
+      );
+      assert.notEqual(message.primaryCtaLabel, '补客源', 'Expected customer message CTA not to use listing-side lead-fill action');
+      assert.notEqual(message.primaryActionId, 'broker-broadcast', 'Expected customer message not to schedule lead-fill action');
+      assert.notEqual(message.primaryActionId, 'xiaohongshu-boost', 'Expected customer message not to schedule lead-fill action');
+    }
+    if (message.targetCustomerId) {
+      assert.ok(customerIds.has(message.targetCustomerId), 'Expected customer-targeted message to carry valid targetCustomerId');
+      assert.notEqual(message.primaryCtaLabel, '补客源', 'Expected customer-targeted message CTA not to use listing-side lead-fill action');
+      assert.notEqual(message.primaryActionId, 'broker-broadcast', 'Expected customer-targeted message not to schedule broker lead-fill action');
+      assert.notEqual(message.primaryActionId, 'xiaohongshu-boost', 'Expected customer-targeted message not to schedule public lead-fill action');
+      assert.ok(
+        !message.targetMatterId || message.targetOpportunityId,
+        'Expected customer-targeted matter messages to keep opportunity identity instead of falling back to case-only work',
       );
     }
     if (message.senderRole === 'district_manager' || message.senderRole === 'store_manager') {
@@ -141,10 +160,273 @@ function assertMyWechatProjectionContracts(world: ReturnType<typeof buildWorld>)
   );
 }
 
+function assertCustomerWorldProjectionContracts(world: ReturnType<typeof buildWorld>) {
+  const projection = buildOperatingProjection(world);
+  const activeOpportunities = world.opportunities.filter((entry) => entry.status === 'active');
+  const activeOpportunityCustomerIds = new Set(activeOpportunities.map((entry) => entry.customerId));
+  const customersWithRuntimeRelations = world.customerStates
+    .filter((entry) => Object.keys(entry.caseStates).length > 0)
+    .map((entry) => entry.customerId);
+
+  assert.ok(world.customers.length >= world.cases.length * 10, 'Expected world customer pool to be at least 10x active case scale');
+  assert.ok(world.customers.every((customer) => !/#\d+/.test(customer.name)), 'Expected expanded customers to use real names instead of template # suffixes');
+  assert.ok(activeOpportunities.length >= world.cases.filter((entry) => entry.status === 'active').length * 3, 'Expected initial world to expose multiple active customer-case relations per listing');
+  assert.ok(projection.opportunities.customers.length >= activeOpportunityCustomerIds.size, 'Expected customer projection to cover all active opportunity customers');
+  assert.ok(
+    projection.opportunities.customers.some((customer) => customer.relations.length >= 2)
+      || customersWithRuntimeRelations.length > activeOpportunityCustomerIds.size,
+    'Expected first-class customer projection to be built from customer runtime, not only active opportunity cards',
+  );
+  projection.opportunities.customers.forEach((customer) => {
+    assert.ok(customer.customerId, 'Expected customer row to carry customerId');
+    assert.ok(customer.name.length > 0, 'Expected customer row to have display name');
+    assert.ok(customer.relations.length > 0, 'Expected customer row to carry case relations');
+    customer.relations.forEach((relation) => {
+      assert.ok(relation.caseId, 'Expected customer relation to carry case id');
+      assert.ok(relation.title.length > 0, 'Expected customer relation to display linked listing title');
+      assert.notEqual(relation.nextActionId, 'broker-broadcast', 'Expected customer relation not to recommend listing-side lead-fill action');
+      assert.notEqual(relation.nextActionId, 'xiaohongshu-boost', 'Expected customer relation not to recommend public lead-fill action');
+    });
+  });
+}
+
+function assertExternalCompetitionContracts(world: ReturnType<typeof buildWorld>) {
+  assert.ok(
+    world.marketShadow.rivalListings.length >= world.cases.filter((entry) => entry.status === 'active').length * 2,
+    'Expected world to seed multiple external rival listings per active listing',
+  );
+
+  progressCustomerDemand(world);
+  updateDerivedState(world);
+
+  const targetCase = world.cases.find((entry) => entry.status === 'active');
+  assert.ok(targetCase, 'Expected active case for external competition contract');
+  if (!targetCase) return;
+  targetCase.hasCompletedFirstVisit = true;
+  targetCase.stageIndex = Math.max(targetCase.stageIndex, 1);
+  targetCase.lastAction = '';
+  updateDerivedState(world);
+
+  const externalRivalIds = new Set(world.marketShadow.rivalListings.map((entry) => entry.id));
+  const customerRuntimes = world.customerStates
+    .map((entry) => entry.caseStates[targetCase.id])
+    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+
+  assert.ok(
+    customerRuntimes.some((runtime) => (runtime.competingCaseIds || []).some((id) => externalRivalIds.has(id))),
+    'Expected customer comparison runtime to reference external rival listings, not only player-owned cases',
+  );
+  assert.ok(
+    customerRuntimes.every((runtime) => (runtime.competingCaseIds || []).every((id) => externalRivalIds.has(id))),
+    'Expected competingCaseIds to avoid treating player-owned cases as external competitors',
+  );
+
+  const caseProjection = buildCaseDetailProjection(world, targetCase);
+  assert.ok(
+    caseProjection.comparisonSummary.rivalListings.length > 0,
+    'Expected case projection to expose external rival listing briefs',
+  );
+  assert.ok(
+    caseProjection.comparisonSummary.rivalListings.every((entry) => entry.label === '同类在卖房'),
+    'Expected comparison summary listing rows to be external comparable listings',
+  );
+  assert.ok(
+    caseProjection.comparisonSummary.comparingCustomers.some((entry) => /正在拿/.test(entry.detail)),
+    'Expected comparison summary to show customers comparing against external rival listings',
+  );
+
+  const showingTemplate = getActionTemplate(ACTION_BY_ID.showing);
+  assert.ok(showingTemplate, 'Expected showing template to exist');
+  if (!showingTemplate) return;
+  assert.equal(isScenarioAction('showing'), true, 'Expected showing to render through the scenario flow, not direct three-button execution');
+  const strategies = showingTemplate.getStrategies(world, targetCase, ACTION_BY_ID.showing);
+  const chosenShowingOption = strategies.find((entry) => entry.id.startsWith('show-customer-'));
+  assert.ok(chosenShowingOption, 'Expected showing strategies to bind a concrete opportunity id');
+  assert.ok(
+    strategies.some((entry) => /^带 .+ 看$/.test(entry.title) || entry.title === '先锁定真实看房客户'),
+    'Expected showing scene to choose a concrete customer, not a generic showing style',
+  );
+  assert.ok(
+    strategies.some((entry) => entry.title.includes('对标') || entry.title === '先补齐同类房对比'),
+    'Expected showing scene to include external comparable-listing preparation',
+  );
+  assert.ok(
+    strategies.some((entry) => entry.title.includes(targetCase.ownerName)),
+    'Expected showing scene to include owner feedback follow-through',
+  );
+  if (chosenShowingOption) {
+    const opportunityId = chosenShowingOption.id.replace('show-customer-', '');
+    const targetOpportunity = world.opportunities.find((entry) => entry.id === opportunityId);
+    assert.ok(targetOpportunity, 'Expected concrete showing strategy id to resolve to an opportunity');
+    if (targetOpportunity) {
+      const result = executeScenarioAction(
+        world,
+        'showing',
+        targetCase.id,
+        {
+          outcome: 'progress',
+          title: '验证带看写回目标',
+          summary: '验证带看写回目标',
+          details: [],
+          stateDeltas: [
+            { field: 'intent', value: 5, label: '意向' },
+            { field: 'confidence', value: 4, label: '信心' },
+            { field: 'viewings', value: 1, label: '带看' },
+          ],
+          nextActionHint: '',
+          finalOptionId: chosenShowingOption.id,
+        },
+        { choices: [{ round: 1, main: chosenShowingOption.id, assist: '' }], feedbacks: [] },
+      );
+      assert.equal(result.success, true, 'Expected concrete showing scenario execution to succeed');
+      const nextTarget = result.nextState.opportunities.find((entry) => entry.id === targetOpportunity.id);
+      assert.ok(nextTarget, 'Expected target showing opportunity to remain present after execution');
+      assert.equal(nextTarget?.customerId, targetOpportunity.customerId, 'Expected showing execution to keep selected customer identity');
+      assert.ok((nextTarget?.stageIndex || 0) >= 2, 'Expected selected showing customer to move into viewing stage');
+    }
+  }
+}
+
+function assertFocusMeetingComparisonContract(world: ReturnType<typeof buildWorld>) {
+  const currentDow = ((world.day - 1) % 7) + 1;
+  const dayDelta = (4 - currentDow + 7) % 7;
+  if (dayDelta > 0) {
+    advanceDays(world, dayDelta);
+  }
+  updateDerivedState(world);
+
+  const candidates = world.cases.filter((entry) => entry.status === 'active').slice(0, 3);
+  assert.ok(candidates.length >= 2, 'Expected at least two active cases for focus meeting comparison');
+  candidates.forEach((caseItem) => {
+    caseItem.hasCompletedFirstVisit = true;
+  });
+  updateDerivedState(world);
+  const submittedCaseIds = candidates.map((entry) => entry.id);
+  const externalRivalListingIds = candidates.flatMap((caseItem) =>
+    buildCaseDetailProjection(world, caseItem).comparisonSummary.rivalListings.map((entry) =>
+      entry.id.replace(`case-${caseItem.id}-rival-listing-`, ''),
+    ),
+  );
+  const comparingCustomerIds = candidates.flatMap((caseItem) =>
+    buildCaseDetailProjection(world, caseItem).comparisonSummary.comparingCustomers.map((entry) =>
+      entry.id.replace(`case-${caseItem.id}-customer-`, ''),
+    ),
+  );
+  assert.ok(externalRivalListingIds.length > 0, 'Expected focus meeting candidates to carry external rival evidence');
+  assert.ok(comparingCustomerIds.length > 0, 'Expected focus meeting candidates to carry comparing customer evidence');
+
+  const result = executeGameAction(
+    world,
+    'focus-meeting-submit',
+    candidates[0].id,
+    'customer-signal',
+    null,
+    undefined,
+    {
+      submittedCaseIds,
+      selectedCaseId: submittedCaseIds[1],
+      recommendationMode: 'customer-signal',
+      externalRivalListingIds,
+      comparingCustomerIds,
+    },
+  );
+  assert.equal(result.success, true, 'Expected focus meeting submit to execute as a multi-candidate process');
+  assert.deepEqual(result.nextState.focusMeeting.comparisonCaseIds, submittedCaseIds, 'Expected focus meeting to preserve compared candidate ids');
+  assert.equal(result.nextState.focusMeeting.selectedCaseId, submittedCaseIds[1], 'Expected focus meeting to preserve final focused case');
+  assert.equal(result.nextState.focusMeeting.recommendationMode, 'customer-signal', 'Expected focus meeting to preserve recommendation mode');
+  assert.ok(
+    (result.nextState.focusMeeting.externalRivalListingIds || []).length > 0,
+    'Expected focus meeting execution to store external rival listing evidence',
+  );
+  assert.ok(
+    (result.nextState.focusMeeting.comparingCustomerIds || []).length > 0,
+    'Expected focus meeting execution to store comparing customer evidence',
+  );
+  const event = result.nextState.eventStore.find((entry) =>
+    entry.kind === 'action_executed'
+    && entry.caseId === candidates[0].id
+    && entry.payload.actionId === 'focus-meeting-submit',
+  );
+  assert.ok(event, 'Expected focus meeting execution event to be recorded');
+  assert.ok(
+    /外部竞品/.test(event?.detail || '') || (result.nextState.focusMeeting.externalRivalListingIds || []).length > 0,
+    'Expected focus meeting event/state to make external comparison auditable',
+  );
+}
+
+function assertWeeklySummaryStageChangesAreCausal(world: ReturnType<typeof buildWorld>) {
+  const before = structuredClone(world);
+  const caseItem = world.cases.find((entry) => entry.status === 'active');
+  assert.ok(caseItem, 'Expected active case for weekly summary contract');
+  if (!caseItem) return;
+  world.eventStore.unshift({
+    id: 'verify-weekly-summary-action',
+    day: world.day,
+    date: world.currentDate,
+    kind: 'action_executed',
+    actor: '经营动作',
+    title: '安排带看',
+    detail: `${caseItem.title} 执行了 安排带看。`,
+    tone: 'accent',
+    caseId: caseItem.id,
+    payload: {
+      actionId: 'showing',
+      settlementTitle: `${caseItem.title} 客户带看已安排`,
+    },
+  });
+  world.eventStore.unshift({
+    id: 'verify-weekly-summary-market',
+    day: world.day,
+    date: world.currentDate,
+    kind: 'market_event',
+    actor: '市场',
+    title: '竞品动作',
+    detail: `${caseItem.title} 附近出现更低总价外部竞品。`,
+    tone: 'danger',
+    caseId: caseItem.id,
+    payload: {},
+  });
+  caseItem.viewings += 1;
+  caseItem.heat += 8;
+  const summary = buildWeeklySummaryPresentation(before, world, [{
+    day: world.day,
+    nextDay: world.day + 1,
+    report: null,
+    emittedEvents: world.eventStore.slice(0, 2),
+    closedDeals: [],
+    processResults: [],
+    settledDayProcessResults: [],
+    nextDaySetupProcessResults: [],
+    dirtyScopes: {
+      cases: [caseItem.id],
+      opportunities: [],
+      customers: [],
+      owners: [],
+      districts: [],
+      marketCells: [],
+      matters: [],
+      market: true,
+      dashboard: true,
+      result: false,
+    },
+    invariantAlerts: [],
+  }]);
+  const line = summary.caseStageChanges.find((entry) => entry.title === caseItem.title);
+  assert.ok(line, 'Expected weekly summary to include changed case');
+  assert.ok(line?.detail.includes('带看链路推进'), 'Expected weekly stage line to name the business movement');
+  assert.ok(line?.detail.includes('带看后沉淀客户反馈'), 'Expected weekly stage line to explain the causal action');
+  assert.equal(
+    line?.detail.includes('未必改名'),
+    false,
+    'Expected weekly stage line not to use generic repeated phase copy',
+  );
+}
+
 {
   const world = buildWorld();
   assertOwnerPriceAnchors(world);
   const projection = buildOperatingProjection(world);
+  assertCustomerWorldProjectionContracts(world);
 
   assert.ok(projection.dashboard.todayHeadline.length > 0, 'Expected dashboard headline');
   assert.ok(projection.dashboard.weekCalendar.length === 7, 'Expected seven-day calendar projection');
@@ -157,6 +439,9 @@ function assertMyWechatProjectionContracts(world: ReturnType<typeof buildWorld>)
   assert.ok(projection.market.headline.length > 0, 'Expected market headline');
   assert.ok(projection.market.summary.length > 0, 'Expected market summary');
   assert.ok(projection.market.districtBoards.length === world.markets.length, 'Expected market board per district');
+  assertExternalCompetitionContracts(world);
+  assertFocusMeetingComparisonContract(world);
+  assertWeeklySummaryStageChangesAreCausal(world);
 }
 
 {

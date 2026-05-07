@@ -11,28 +11,41 @@ import type { ActionExecutorMap } from './actionExecutorTypes.js';
 export const SHOWING_ACTION_EXECUTORS: ActionExecutorMap = {
   showing: ({ state, caseItem, action, optionId, onMessage }) => {
     touchCaseForAction(caseItem, action.id, state.day);
-    const opportunity = findBestOpportunity(state, caseItem.id, 0, 2);
+    const explicitOpportunityId = resolveShowingOpportunityIdFromOption(optionId);
+    const opportunity = explicitOpportunityId
+      ? state.opportunities.find((entry) => (
+          entry.id === explicitOpportunityId
+          && entry.caseId === caseItem.id
+          && entry.status === 'active'
+          && entry.stageIndex >= 0
+          && entry.stageIndex <= 2
+        )) || null
+      : findBestOpportunity(state, caseItem.id, 0, 2);
     if (!opportunity) {
       refundResources(state, action, '当前没有合适的线索可以安排带看');
       onMessage?.('当前没有合适的线索可以安排带看。');
       return false;
     }
 
-    const strategy = optionId || 'experience-showing';
+    const strategy = normalizeShowingStrategy(optionId);
     caseItem.viewings += 1;
-    caseItem.heat = clamp(caseItem.heat + (strategy === 'efficiency-showing' ? 4 : 5), 0, 100);
+    caseItem.heat = clamp(caseItem.heat + (strategy === 'compare-rival-before' ? 6 : 5), 0, 100);
     setOpportunityStageIndexOnState(state, opportunity, Math.max(opportunity.stageIndex + 1, 2), '带看推进阶段', 0, 4);
-    applyOpportunityIntentDeltaOnState(state, opportunity, strategy === 'closing-showing' ? 16 : 12, '带看提升意向', 0, 100);
-    applyOpportunityConfidenceDeltaOnState(state, opportunity, strategy === 'experience-showing' ? 10 : 7, '带看提升置信度', 0, 100);
+    applyOpportunityIntentDeltaOnState(state, opportunity, strategy === 'show-best-fit' ? 15 : 12, '带看提升意向', 0, 100);
+    applyOpportunityConfidenceDeltaOnState(state, opportunity, strategy === 'compare-rival-before' ? 11 : 8, '带看提升置信度', 0, 100);
     setOpportunityDaysLeftOnState(state, opportunity, 4, '带看设定剩余天数');
     setOpportunityTouchedTodayOnState(state, opportunity, true, '带看标记今日触达');
     touchCustomersForCase(state, caseItem.id, {
-      interestDelta: strategy === 'closing-showing' ? 9 : 7,
-      confidenceDelta: strategy === 'experience-showing' ? 8 : 5,
+      interestDelta: strategy === 'show-best-fit' ? 9 : 7,
+      confidenceDelta: strategy === 'compare-rival-before' ? 8 : 6,
       stageAdvance: 1,
       revealShadow: true,
       note: '带看让客户更真实进入决策',
     });
+    if (strategy === 'owner-feedback-after') {
+      caseItem.lastOwnerTouchedDay = state.day;
+      caseItem.touchedOwnerToday = true;
+    }
 
     if (opportunity.visibility === 'shadow') {
       setOpportunityVisibilityOnState(state, opportunity, 'revealed', '带看揭示客户');
@@ -48,9 +61,28 @@ export const SHOWING_ACTION_EXECUTORS: ActionExecutorMap = {
       logEvent(state, opportunity.customerName, `${caseItem.title} 完成一次带看，机会推进到 ${opportunity.stageLabel}。`, 'accent');
     }
 
-    onMessage?.(`${caseItem.title} 的带看已经安排并推进。`);
+    onMessage?.(`${caseItem.title} 的带看已经安排，客户反馈会沉淀到后续经营。`);
     return actionSuccess(opportunity);
   },
 };
+
+function resolveShowingOpportunityIdFromOption(optionId: string | null | undefined) {
+  const prefix = 'show-customer-';
+  if (!optionId?.startsWith(prefix)) {
+    return null;
+  }
+  return optionId.slice(prefix.length) || null;
+}
+
+function normalizeShowingStrategy(optionId: string | null | undefined) {
+  if (resolveShowingOpportunityIdFromOption(optionId)) return 'show-best-fit';
+  if (optionId === 'efficiency-showing') return 'show-best-fit';
+  if (optionId === 'experience-showing') return 'compare-rival-before';
+  if (optionId === 'closing-showing') return 'owner-feedback-after';
+  if (optionId === 'show-best-fit' || optionId === 'compare-rival-before' || optionId === 'owner-feedback-after') {
+    return optionId;
+  }
+  return 'show-best-fit';
+}
 
 export const SHOWING_ACTION_EXECUTOR_IDS = Object.freeze(Object.keys(SHOWING_ACTION_EXECUTORS));

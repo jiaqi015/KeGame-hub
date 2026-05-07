@@ -5,7 +5,7 @@ import { executeScenarioAction } from '../src/selling-houses/application/gameTra
 import { deriveCaseProgression } from '../src/selling-houses/domain/actionStageRelations.js';
 import type { Settlement } from '../src/selling-houses/domain/actions/templates.js';
 import { OPPORTUNITY_STAGES } from '../src/selling-houses/domain/constants.js';
-import { seedInitialOpportunities } from '../src/selling-houses/domain/engine.js';
+import { executeAction, seedInitialOpportunities } from '../src/selling-houses/domain/engine.js';
 import type { Case, GameState, Opportunity } from '../src/selling-houses/domain/models.js';
 import { getScenarioSnapshotById } from '../src/selling-houses/domain/scenarioCatalog.js';
 
@@ -157,6 +157,40 @@ const settlement: Settlement = {
   assert.equal(nextOther.intent, 95, 'Higher-ranked opportunity should not receive linked target delta');
   assert.equal(nextOther.confidence, 96, 'Higher-ranked opportunity should not receive linked target delta');
   assert.equal(nextOther.stageIndex, 2, 'Higher-ranked opportunity should not be advanced by linked target relation floor');
+}
+
+{
+  const state = buildWorld(20260433);
+  const caseItem = state.cases.find((entry) => entry.status === 'active');
+  assert.ok(caseItem, 'Expected an active case');
+  caseItem.hasCompletedFirstVisit = true;
+  caseItem.stageIndex = 1;
+  caseItem.lastAction = '';
+
+  state.opportunities = state.opportunities.filter((entry) => entry.caseId !== caseItem.id);
+  const explicitLowerRank = buildOpportunity(state, caseItem, {
+    id: 'direct-showing-explicit-lower-rank',
+    customerId: 'direct-target-customer',
+    customerName: '指定带看客户',
+    stageIndex: 1,
+    intent: 42,
+    confidence: 43,
+  });
+  const higherRank = buildOpportunity(state, caseItem, {
+    id: 'direct-showing-higher-rank',
+    customerId: 'direct-other-customer',
+    customerName: '更高分但未选择客户',
+    stageIndex: 2,
+    intent: 96,
+    confidence: 97,
+  });
+  state.opportunities.unshift(higherRank, explicitLowerRank);
+
+  const result = executeAction(state, 'showing', caseItem, `show-customer-${explicitLowerRank.id}`);
+  assert.equal(result, true, 'direct showing should execute with concrete selected customer option');
+  assert.ok(explicitLowerRank.stageIndex >= 2, 'direct showing should advance explicitly selected customer');
+  assert.equal(higherRank.stageIndex, 2, 'direct showing should not advance a higher-ranked unselected customer');
+  assert.equal(higherRank.intent, 96, 'direct showing should not write intent to unselected higher-ranked customer');
 }
 
 {

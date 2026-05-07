@@ -54,6 +54,7 @@ import {
   syncAuxiliaryStats,
 } from '../domain/runtimeStats.js';
 import { deriveDefaultGoalTier, seedCase, updateDerivedState as updateDomainDerivedState } from '../domain/runtimeState.js';
+import { OWNER_TYPE_TABLE, type OwnerProfilingMemorySummary, type OwnerProfilingTypeKey } from '../domain/ownerProfilingMemoryTypes.js';
 import { initializeCustomerStates } from '../domain/engine/customerEngine.js';
 import { buildProductRunMilestones } from '../domain/productRuns.js';
 import {
@@ -88,6 +89,26 @@ function cloneWorld(snapshot: ScenarioSnapshot) {
 
 const TARGET_CUSTOMER_CASE_RATIO = 10;
 
+const CUSTOMER_FAMILY_NAMES = [
+  '周', '吴', '郑', '王', '李', '赵', '钱', '孙', '朱', '马', '何', '罗',
+  '梁', '宋', '唐', '许', '沈', '韩', '冯', '曹', '丁', '薛', '顾', '姚',
+];
+
+const CUSTOMER_LIFE_STAGE_LABELS = [
+  '首置客', '新婚客', '改善客', '学区客', '置换客', '资产客', '陪读客', '投资客',
+];
+
+const CUSTOMER_PROFILE_SNIPPETS = [
+  '最近两周看房频率很高',
+  '家里人共同参与决策',
+  '预算边界清楚但愿意比较',
+  '对小区和通勤都比较挑',
+  '关注保值和后续转手',
+  '想先看实物再决定节奏',
+  '手里还有两套备选在比',
+  '需要经纪人持续给判断',
+];
+
 function cloneCustomer(entry: CustomerProfile): CustomerProfile {
   return {
     ...entry,
@@ -100,12 +121,44 @@ function dedupeStrings(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)));
 }
 
+function buildExpandedCustomerName(template: CustomerProfile, usage: number, source: RandomSource) {
+  const familyName = CUSTOMER_FAMILY_NAMES[randomInt(0, CUSTOMER_FAMILY_NAMES.length - 1, source)];
+  const lifeStage = CUSTOMER_LIFE_STAGE_LABELS[randomInt(0, CUSTOMER_LIFE_STAGE_LABELS.length - 1, source)]
+    || extractCustomerLifeStage(template.name);
+  return `${familyName}${lifeStage}`;
+}
+
+function extractCustomerLifeStage(name: string) {
+  const matched = CUSTOMER_LIFE_STAGE_LABELS.find((label) => name.includes(label));
+  return matched || '看房客';
+}
+
+function buildExpandedCustomerProfile(template: CustomerProfile, source: RandomSource) {
+  const snippet = CUSTOMER_PROFILE_SNIPPETS[randomInt(0, CUSTOMER_PROFILE_SNIPPETS.length - 1, source)];
+  const baseProfile = template.profile.replace(/#\d+/g, '').trim();
+  return `${snippet}，${baseProfile}`;
+}
+
+function normalizeExpandedCustomerTemplate(entry: CustomerProfile, source: RandomSource) {
+  const customer = cloneCustomer(entry);
+  if (!/#\d+/.test(customer.name)) {
+    return customer;
+  }
+
+  const usage = Number(customer.name.match(/#(\d+)/)?.[1] || 1);
+  return {
+    ...customer,
+    name: buildExpandedCustomerName(customer, usage, source),
+    profile: buildExpandedCustomerProfile(customer, source),
+  };
+}
+
 function buildExpandedCustomerPool(
   customerTemplates: CustomerProfile[],
   cases: Pick<Case, 'id' | 'district' | 'layout' | 'askPrice' | 'tags'>[],
   source: RandomSource,
 ) {
-  const customers = customerTemplates.map(cloneCustomer);
+  const customers = customerTemplates.map((entry) => normalizeExpandedCustomerTemplate(entry, source));
   const targetCount = Math.max(customers.length, cases.length * TARGET_CUSTOMER_CASE_RATIO);
   if (customers.length >= targetCount || customers.length === 0 || cases.length === 0) {
     return customers;
@@ -140,7 +193,8 @@ function buildExpandedCustomerPool(
     customers.push({
       ...cloneCustomer(template),
       id: `${template.id}-pool-${nextUsage}`,
-      name: `${template.name}#${nextUsage}`,
+      name: buildExpandedCustomerName(template, nextUsage, source),
+      profile: buildExpandedCustomerProfile(template, source),
       budgetMin,
       budgetMax,
       targetDistrict: caseItem.district,
@@ -236,6 +290,98 @@ function normalizeRivalListing(entry: any, index: number): RivalListing {
   };
 }
 
+function hashStringToNumber(input: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function buildBaselineRivalListing(
+  caseItem: Pick<Case, 'id' | 'title' | 'district' | 'marketCellId' | 'marketPrice' | 'askPrice' | 'area' | 'layout'>,
+  store: RivalStore,
+  index: number,
+): RivalListing {
+  const seed = hashStringToNumber(`${caseItem.id}:${index}:${store.id}`);
+  const priceOffsetPct = [-0.05, -0.03, 0.02, 0.04][seed % 4];
+  const priceBase = index % 2 === 0 ? caseItem.marketPrice : caseItem.askPrice;
+  const askPrice = Math.max(100, Math.round(priceBase * (1 + priceOffsetPct)));
+  const layoutLabel = caseItem.layout.replace(/[·｜|].*$/, '').trim() || '同类户型';
+  const sourceLabel = store.type === 'same_company' ? '同公司重点盘' : index % 2 === 0 ? '急售平替盘' : '强卖点竞品';
+
+  return {
+    id: `baseline-rival-${caseItem.id}-${index + 1}`,
+    storeId: store.id,
+    title: `${caseItem.district} ${sourceLabel}`,
+    district: caseItem.district,
+    marketCellId: caseItem.marketCellId,
+    linkedCaseId: caseItem.id,
+    segment: `${layoutLabel} · ${Math.max(30, Math.round(caseItem.area * (0.94 + (seed % 13) / 100)))}㎡`,
+    askPrice,
+    heat: clamp(54 + (seed % 28), 38, 88),
+    freshness: clamp(58 + ((seed >>> 3) % 32), 42, 92),
+    storyStrength: clamp(46 + ((seed >>> 5) % 34), 34, 88),
+    leadSiphonPower: clamp(42 + ((seed >>> 7) % 36), 30, 86),
+    ownerAnchorPower: clamp(38 + ((seed >>> 9) % 34), 28, 82),
+    status: 'active',
+    daysLeft: 6 + (seed % 8),
+    source: 'seed',
+  };
+}
+
+function ensureBaselineRivalListings(
+  shadow: ShadowMarketState,
+  cases: Pick<Case, 'id' | 'title' | 'district' | 'marketCellId' | 'marketPrice' | 'askPrice' | 'area' | 'layout' | 'status'>[],
+) {
+  const activeCases = cases.filter((entry) => entry.status === 'active');
+  if (!activeCases.length) return shadow;
+
+  const stores = shadow.rivalStores.length
+    ? shadow.rivalStores
+    : [
+        normalizeRivalStore({
+          id: 'baseline-rival-store-external',
+          name: '对街门店',
+          type: 'external_company',
+          style: 'aggressive',
+          activityHeat: 52,
+          leadCapturePower: 52,
+          sellerInfluencePower: 46,
+          pricingPressurePower: 50,
+        }, 0),
+      ];
+
+  const listings = [...shadow.rivalListings];
+  const comparableCounts = new Map<string, number>();
+  listings.filter((entry) => entry.status === 'active').forEach((listing) => {
+    activeCases.forEach((caseItem) => {
+      if (
+        listing.linkedCaseId === caseItem.id
+        || listing.marketCellId === caseItem.marketCellId
+        || listing.district === caseItem.district
+      ) {
+        comparableCounts.set(caseItem.id, (comparableCounts.get(caseItem.id) || 0) + 1);
+      }
+    });
+  });
+
+  activeCases.forEach((caseItem, caseIndex) => {
+    const requiredCount = Math.max(0, 2 - (comparableCounts.get(caseItem.id) || 0));
+    for (let index = 0; index < requiredCount; index += 1) {
+      const store = stores[(caseIndex + index) % stores.length];
+      listings.push(buildBaselineRivalListing(caseItem, store, index));
+    }
+  });
+
+  return {
+    ...shadow,
+    rivalStores: stores,
+    rivalListings: listings.slice(0, 36),
+  };
+}
+
 export function createInitialShadowMarket(snapshot: ScenarioSnapshot): ShadowMarketState {
   const scenario = snapshot.scenario;
   const world = snapshot.world;
@@ -250,7 +396,7 @@ export function createInitialShadowMarket(snapshot: ScenarioSnapshot): ShadowMar
     ? scenario.initialRivalListings
     : [];
 
-  return {
+  return ensureBaselineRivalListings({
     rivalStores: seededStores.map(normalizeRivalStore),
     rivalListings: seededListings.map(normalizeRivalListing),
     companyPressure: normalizeCompanyPressure(scenario.companyPressureProfile),
@@ -258,7 +404,7 @@ export function createInitialShadowMarket(snapshot: ScenarioSnapshot): ShadowMar
     dailyMarketEvent: null,
     activeRuleEffects: [],
     inboundQueue: [],
-  };
+  }, instantiateScenarioCases(snapshot, { rngState: normalizeSeed(snapshot.scenario.id.length + snapshot.world.id.length), rngCalls: 0 }));
 }
 
 function normalizeShadowMarket(input: any, snapshot: ScenarioSnapshot): ShadowMarketState {
@@ -267,7 +413,7 @@ function normalizeShadowMarket(input: any, snapshot: ScenarioSnapshot): ShadowMa
     return fallback;
   }
 
-  return {
+  return ensureBaselineRivalListings({
     rivalStores: Array.isArray(input.rivalStores) ? input.rivalStores.map(normalizeRivalStore) : fallback.rivalStores,
     rivalListings: Array.isArray(input.rivalListings) ? input.rivalListings.map(normalizeRivalListing) : fallback.rivalListings,
     companyPressure: normalizeCompanyPressure(input.companyPressure || fallback.companyPressure),
@@ -310,7 +456,7 @@ function normalizeShadowMarket(input: any, snapshot: ScenarioSnapshot): ShadowMa
           payload: entry?.payload && typeof entry.payload === 'object' ? entry.payload : {},
         }))
       : [],
-  };
+  }, instantiateScenarioCases(snapshot, { rngState: normalizeSeed(snapshot.scenario.id.length + snapshot.world.id.length), rngCalls: 0 }));
 }
 
 export function createInitialState(snapshot: ScenarioSnapshot, seedInput: RunSeedInput): GameState {
@@ -375,6 +521,11 @@ export function createInitialState(snapshot: ScenarioSnapshot, seedInput: RunSee
       submissionDay: null,
       submittedCaseIds: [],
       selectedCaseIds: [],
+      comparisonCaseIds: [],
+      recommendationMode: null,
+      selectedCaseId: null,
+      externalRivalListingIds: [],
+      comparingCustomerIds: [],
     },
     flowProgress: {},
     productRuns: [],
@@ -541,6 +692,7 @@ function normalizeCase(caseItem: any): Case {
         : 0,
     hasCompletedFirstVisit: Boolean(caseItem?.hasCompletedFirstVisit)
       || (caseItem?.lastAction === 'first-visit'),
+    ownerProfilingMemory: normalizeOwnerProfilingMemory(caseItem?.ownerProfilingMemory),
     goalTier: deriveDefaultGoalTier(caseItem),
     storylineState: caseItem?.storylineState || 'healthy',
     relativeOutcome: caseItem?.relativeOutcome,
@@ -550,6 +702,169 @@ function normalizeCase(caseItem: any): Case {
     endingBucket: caseItem?.endingBucket,
     endingSummary: caseItem?.endingSummary || '',
   };
+}
+
+function normalizeOwnerProfilingMemory(memory: any) {
+  if (!memory || typeof memory !== 'object') {
+    return undefined;
+  }
+
+  const ownerTypeKey = normalizeOwnerTypeKey(memory.ownerTypeKey, memory.dimensions);
+  const ownerType = OWNER_TYPE_TABLE[ownerTypeKey];
+  if (!ownerType) {
+    return undefined;
+  }
+
+  return {
+    ownerTypeKey,
+    ownerTypeName: ownerType.name,
+    ownerTypeDescription: ownerType.description,
+    ownerTypeTone: ownerType.tone,
+    dimensions: normalizeProfilingDimensions(memory.dimensions),
+    labels: normalizeProfilingLabels(memory.labels),
+    evidenceBank: normalizeProfilingEvidenceBank(memory.evidenceBank),
+    serviceStrategy: normalizeOwnerProfilingServiceStrategy(memory.serviceStrategy),
+    openQuestions: Array.isArray(memory.openQuestions) ? memory.openQuestions.map(String).filter(Boolean).slice(0, 3) : [],
+  } satisfies OwnerProfilingMemorySummary;
+}
+
+function normalizeOwnerTypeKey(ownerTypeKey: unknown, dimensions: unknown): OwnerProfilingTypeKey {
+  if (typeof ownerTypeKey === 'string' && ownerTypeKey in OWNER_TYPE_TABLE) {
+    return ownerTypeKey as OwnerProfilingTypeKey;
+  }
+
+  const inferredKey = inferOwnerTypeKeyFromDimensions(dimensions);
+  return inferredKey || 'weak-long-low-guided_or_joint';
+}
+
+function inferOwnerTypeKeyFromDimensions(dimensions: unknown): OwnerProfilingTypeKey | null {
+  if (!Array.isArray(dimensions)) {
+    return null;
+  }
+
+  const getValue = (key: string) => {
+    const item = dimensions.find((entry) => Boolean(entry) && typeof entry === 'object' && (entry as { key?: unknown }).key === key) as { value?: unknown } | undefined;
+    return item?.value;
+  };
+
+  const priceAnchor = getValue('price_anchor');
+  const timeWindow = getValue('time_window');
+  const transactionExperience = getValue('transaction_experience');
+  const decisionStyle = getValue('decision_style');
+
+  if (
+    (priceAnchor === 'strong' || priceAnchor === 'weak')
+    && (timeWindow === 'short' || timeWindow === 'long')
+    && (transactionExperience === 'low' || transactionExperience === 'high')
+    && (decisionStyle === 'self_decide' || decisionStyle === 'guided_or_joint')
+  ) {
+    const candidate = `${priceAnchor}-${timeWindow}-${transactionExperience}-${decisionStyle}`;
+    if (candidate in OWNER_TYPE_TABLE) {
+      return candidate as OwnerProfilingTypeKey;
+    }
+  }
+
+  return null;
+}
+
+function normalizeProfilingDimensions(dimensions: unknown): OwnerProfilingMemorySummary['dimensions'] {
+  if (!Array.isArray(dimensions)) {
+    return [];
+  }
+
+  return dimensions
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object')
+    .map((entry) => ({
+      key: normalizeProfilingDimensionKey(entry.key),
+      label: String(entry.label || ''),
+      value: normalizeProfilingDimensionValue(entry.value),
+      valueLabel: String(entry.valueLabel || ''),
+      confidence: normalizeProfilingConfidence(entry.confidence),
+      evidenceIds: Array.isArray(entry.evidenceIds) ? entry.evidenceIds.map(String).filter(Boolean) : [],
+    }));
+}
+
+function normalizeProfilingLabels(labels: unknown): OwnerProfilingMemorySummary['labels'] {
+  if (!Array.isArray(labels)) {
+    return [];
+  }
+
+  return labels
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object')
+    .map((entry) => ({
+      name: String(entry.name || ''),
+      value: String(entry.value || ''),
+      confidence: entry.confidence === 'high' || entry.confidence === 'medium' || entry.confidence === 'low'
+        ? entry.confidence
+        : 'low',
+      evidenceIds: Array.isArray(entry.evidenceIds) ? entry.evidenceIds.map(String).filter(Boolean) : [],
+    }));
+}
+
+function normalizeProfilingEvidenceBank(evidenceBank: unknown): OwnerProfilingMemorySummary['evidenceBank'] {
+  if (!Array.isArray(evidenceBank)) {
+    return [];
+  }
+
+  return evidenceBank
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object')
+    .map((entry) => ({
+      id: String(entry.id || ''),
+      sourceType: normalizeProfilingEvidenceSourceType(entry.sourceType),
+      text: String(entry.text || ''),
+      linkedDimensions: Array.isArray(entry.linkedDimensions) ? entry.linkedDimensions.map(String).filter(Boolean) : [],
+      confidence: normalizeProfilingConfidence(entry.confidence),
+    }))
+    .filter((entry) => Boolean(entry.id));
+}
+
+function normalizeOwnerProfilingServiceStrategy(serviceStrategy: unknown): OwnerProfilingMemorySummary['serviceStrategy'] {
+  if (!serviceStrategy || typeof serviceStrategy !== 'object') {
+    return {
+      primaryGoal: '',
+      mainBlocker: '',
+      recommendedNextAction: '',
+      communicationStyle: '',
+    };
+  }
+
+  const record = serviceStrategy as Record<string, unknown>;
+  return {
+    primaryGoal: String(record.primaryGoal || ''),
+    mainBlocker: String(record.mainBlocker || ''),
+    recommendedNextAction: String(record.recommendedNextAction || ''),
+    communicationStyle: String(record.communicationStyle || ''),
+  };
+}
+
+function normalizeProfilingDimensionKey(value: unknown): OwnerProfilingMemorySummary['dimensions'][number]['key'] {
+  return value === 'price_anchor' || value === 'time_window' || value === 'transaction_experience' || value === 'decision_style'
+    ? value
+    : 'price_anchor';
+}
+
+function normalizeProfilingDimensionValue(value: unknown): OwnerProfilingMemorySummary['dimensions'][number]['value'] {
+  return value === 'strong'
+    || value === 'weak'
+    || value === 'short'
+    || value === 'long'
+    || value === 'low'
+    || value === 'high'
+    || value === 'self_decide'
+    || value === 'guided_or_joint'
+    || value === 'unknown'
+    ? value
+    : 'unknown';
+}
+
+function normalizeProfilingConfidence(value: unknown): OwnerProfilingMemorySummary['dimensions'][number]['confidence'] {
+  return value === 'high' || value === 'medium' || value === 'low' ? value : 'low';
+}
+
+function normalizeProfilingEvidenceSourceType(value: unknown): OwnerProfilingMemorySummary['evidenceBank'][number]['sourceType'] {
+  return value === 'interview' || value === 'listing_data' || value === 'market_data' || value === 'manual'
+    ? value
+    : 'manual';
 }
 
 function normalizeOpportunity(opportunity: any) {
@@ -693,6 +1008,11 @@ function normalizeFocusMeeting(input: unknown, currentDay: number): FocusMeeting
     submissionDay?: unknown;
     submittedCaseIds?: unknown;
     selectedCaseIds?: unknown;
+    comparisonCaseIds?: unknown;
+    recommendationMode?: unknown;
+    selectedCaseId?: unknown;
+    externalRivalListingIds?: unknown;
+    comparingCustomerIds?: unknown;
   };
   const submissionDay = Number.isFinite(payload.submissionDay)
     ? Number(payload.submissionDay)
@@ -705,6 +1025,17 @@ function normalizeFocusMeeting(input: unknown, currentDay: number): FocusMeeting
       : [],
     selectedCaseIds: Array.isArray(payload.selectedCaseIds)
       ? payload.selectedCaseIds.map(String).filter(Boolean).slice(0, 3)
+      : [],
+    comparisonCaseIds: Array.isArray(payload.comparisonCaseIds)
+      ? payload.comparisonCaseIds.map(String).filter(Boolean).slice(0, 3)
+      : [],
+    recommendationMode: typeof payload.recommendationMode === 'string' ? payload.recommendationMode : null,
+    selectedCaseId: typeof payload.selectedCaseId === 'string' ? payload.selectedCaseId : null,
+    externalRivalListingIds: Array.isArray(payload.externalRivalListingIds)
+      ? payload.externalRivalListingIds.map(String).filter(Boolean).slice(0, 12)
+      : [],
+    comparingCustomerIds: Array.isArray(payload.comparingCustomerIds)
+      ? payload.comparingCustomerIds.map(String).filter(Boolean).slice(0, 12)
       : [],
   };
 }

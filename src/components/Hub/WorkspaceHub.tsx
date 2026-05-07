@@ -160,7 +160,7 @@ function WorkspaceCard({
   const isPlanned = workspace.status === 'planned';
   const canOpen = isAvailable || isPlanned;
   const footerLabel = canOpen ? workspace.ctaLabel : '未开放，请期待';
-  const statusBadgeLabel = isAvailable ? '正式版' : isPlanned ? '建设中，敬请期待' : '未开放';
+  const statusBadgeLabel = isAvailable ? '测试版' : isPlanned ? '建设中，敬请期待' : '未开放';
   const statusBadgeClassName = isAvailable
     ? workspace.pillClassName
     : isPlanned

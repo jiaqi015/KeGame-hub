@@ -1,3 +1,4 @@
+import type { OwnerProfilingMemorySummary } from './ownerProfilingMemoryTypes.js';
 export type Tone = 'accent' | 'danger' | 'success';
 export type LeadSourceType = 'direct' | 'broker';
 export type ActionCategoryId = 'feedback' | 'marketing' | 'pricing' | 'negotiation';
@@ -890,6 +891,7 @@ export interface Case {
   lastTouchedDay: number;
   lastOwnerTouchedDay: number;
   hasCompletedFirstVisit: boolean;
+  ownerProfilingMemory?: OwnerProfilingMemorySummary;
   lastAction: string;
   lastPriceActionDay: number;
   openDayCooldown: number;
@@ -1019,6 +1021,15 @@ export type DealType =
   | 'external_competitor_closed'
   | 'platform_matched_closed';
 
+/** Category of blocking reason — used for structured consensus collapse reporting. */
+export type BlockingReasonCategory =
+  | 'price_budget'       // soldPrice > opportunity.budgetMax
+  | 'relation_trust'     // trust < trustGate
+  | 'market_capacity'    // no available deal slots
+  | 'player_capacity'    // player claimed deals >= allowed
+  | 'consensus_stage'    // consensus not at contract_ready
+  | 'evidence_weak';     // opportunity intent/confidence too low to reach threshold
+
 export interface DealClosingEvaluation {
   relationId: string;
   caseId: string;
@@ -1029,6 +1040,53 @@ export interface DealClosingEvaluation {
   closeProbability: number;
   blockingReasons: string[];
   supportingReasons: string[];
+  /** Structured source trace — records where each input came from. */
+  sourceTrace: EvaluationSourceTrace;
+  /** Structured blocking reason categories — for consensus collapse reporting. */
+  blockingCategories: BlockingReasonCategory[];
+  /** Evidence chain trace — traces how competition/market/relation flow into the evaluation. */
+  evidenceChain: EvidenceChainTrace;
+}
+
+/**
+ * Evidence chain trace — shows how upstream signals flow into the deal closing evaluation.
+ *
+ * Mother model: competition pressure → market evidence → owner perception → consensus readiness → ContractFact.
+ * This trace records each link in the chain so failures can be attributed to a specific causal link.
+ */
+export interface EvidenceChainTrace {
+  /** Competition pressure level from market cell (0-100). 0 if no competition data. */
+  readonly competitionPressure: number;
+  /** Whether competition data was available for this case. */
+  readonly hasCompetitionData: boolean;
+  /** Case heat (competition-derived signal). */
+  readonly caseHeat: number;
+  /** Case competitiveness score. */
+  readonly caseCompetitiveness: number;
+  /** Opportunity intent (customer evidence). */
+  readonly opportunityIntent: number;
+  /** Opportunity confidence (customer evidence). */
+  readonly opportunityConfidence: number;
+  /** Relation trust value used in evaluation. */
+  readonly relationTrust: number;
+  /** Whether relation trust came from canonical relation or Case fallback. */
+  readonly trustFromRelation: boolean;
+  /** Owner urgency from readiness projection. */
+  readonly ownerUrgency: number;
+  /** Consensus stage at evaluation time. */
+  readonly consensusStage: string;
+  /** Which causal link was weakest (for failure attribution). */
+  readonly weakestLink: 'competition_pressure' | 'case_heat' | 'opportunity_evidence' | 'relation_trust' | 'price_fit' | 'capacity' | 'none';
+}
+
+/** Provenance of inputs used in deal closing evaluation. */
+export interface EvaluationSourceTrace {
+  /** Where trust value came from: 'relation' or 'case-fallback'. */
+  trustSource: string;
+  /** Where readiness (patience/urgency) came from: 'relation' or 'case-fallback'. */
+  readinessSource: string;
+  /** Where owner profile came from: 'profiling' or 'legacy-personality-fallback'. */
+  profileSource: string;
 }
 
 export interface ClosedDealMarketSnapshot {
@@ -1446,6 +1504,11 @@ export interface FocusMeetingState {
   submissionDay: number | null;
   submittedCaseIds: string[];
   selectedCaseIds: string[];
+  comparisonCaseIds?: string[];
+  recommendationMode?: string | null;
+  selectedCaseId?: string | null;
+  externalRivalListingIds?: string[];
+  comparingCustomerIds?: string[];
 }
 
 export interface DerivedMetrics {

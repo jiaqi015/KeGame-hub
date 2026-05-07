@@ -186,6 +186,8 @@ export function mapLegacyCaseToOwnerCaseRelation(caseItem: Case): OwnerCaseRelat
     bottomPrice: caseItem.bottomPrice,
     windowDays: caseItem.windowDays,
     status: caseItem.status,
+    patience: caseItem.patience,
+    urgency: caseItem.urgency,
   };
 }
 

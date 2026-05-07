@@ -27,15 +27,23 @@ export function WeeklySummaryOverlay({ summary, onContinue }: WeeklySummaryOverl
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[11px] bg-[var(--seller-accent)] text-white">
             <CalendarDays size={17} />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/55">经营结算</div>
             <h2 className="truncate text-[16px] font-semibold tracking-[-0.02em] text-white sm:text-[18px]">
               {summary.title || '推进复盘'} · {summary.dayRangeLabel}
             </h2>
           </div>
+          <div className="hidden shrink-0 rounded-[14px] bg-white/10 px-3 py-2 text-right sm:block">
+            <div className="text-[11px] font-bold text-white">{summary.settlementHeadline}</div>
+            <div className="mt-0.5 max-w-[360px] text-[11px] leading-4 text-white/68">{summary.settlementSubline}</div>
+          </div>
         </div>
 
         <div className="max-h-[calc(84vh-56px)] overflow-y-auto p-4 sm:p-5">
+          <div className="mb-4 rounded-[18px] border border-amber-200/70 bg-amber-50 px-4 py-3 text-amber-950 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.18)] sm:hidden">
+            <div className="text-[13px] font-bold">{summary.settlementHeadline}</div>
+            <p className="mt-1 text-[12px] leading-5 opacity-75">{summary.settlementSubline}</p>
+          </div>
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.12fr_0.88fr]">
             <section className="space-y-4">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

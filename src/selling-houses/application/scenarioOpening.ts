@@ -341,7 +341,7 @@ export function buildScenarioOpeningBriefing(opening: ScenarioOpening): Scenario
         tags: [
           goalTierLabel(caseItem.goalTier),
           `热度${scoreBand(caseItem.heat)}`,
-          `${caseItem.windowDays} 天窗口`,
+          `可推进 ${caseItem.windowDays} 天`,
         ],
       } satisfies ScenarioOpeningBriefingCase;
     }),

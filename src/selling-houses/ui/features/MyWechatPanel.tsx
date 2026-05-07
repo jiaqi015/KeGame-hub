@@ -13,16 +13,32 @@ interface MyWechatPanelProps {
   readIds?: Set<string>;
   onMarkRead?: (id: string) => void;
   onSelectCase: (caseId: string) => void;
-  onSelectOpportunity?: (opportunityId: string) => void;
+  onScheduleMessageAction?: (message: WechatMessage) => boolean;
   onOpenMarket?: (layer?: IntelLayerTab) => void;
 }
 
 type WechatTab = 'messages' | 'official';
+type WechatConversation = {
+  key: string;
+  senderName: string;
+  senderRole: WechatMessage['senderRole'];
+  avatarLabel: string;
+  messages: WechatMessage[];
+  unreadCount: number;
+  caseIds: string[];
+  primaryMessage: WechatMessage | null;
+};
 type WechatMessageRowProps = {
-  message: WechatMessage;
+  conversation: WechatConversation;
   read: boolean;
   lead: boolean;
   onClick: () => void;
+  onPrimaryAction?: () => void;
+};
+type RelatedWechatCase = {
+  id: string;
+  title: string;
+  actionMessage: WechatMessage | null;
 };
 type OfficialArticleRowProps = {
   article: OfficialAccountArticle;
@@ -35,10 +51,11 @@ export function MyWechatPanel({
   readIds,
   onMarkRead,
   onSelectCase,
-  onSelectOpportunity,
+  onScheduleMessageAction,
   onOpenMarket,
 }: MyWechatPanelProps) {
   const [activeTab, setActiveTab] = useState<WechatTab>('messages');
+  const [selectedConversationKey, setSelectedConversationKey] = useState<string | null>(null);
   const [localReadIds, setLocalReadIds] = useState<Set<string>>(() => new Set());
   const effectiveReadIds = readIds || localReadIds;
   const visibleIds = useMemo(
@@ -58,11 +75,28 @@ export function MyWechatPanel({
     () => sortUnreadFirst(projection.messages, effectiveReadIds),
     [projection.messages, effectiveReadIds],
   );
+  const conversations = useMemo(
+    () => groupMessagesBySender(sortedMessages, effectiveReadIds),
+    [effectiveReadIds, sortedMessages],
+  );
   const sortedOfficialAccounts = useMemo(
     () => sortUnreadFirst(projection.officialAccounts, effectiveReadIds),
     [projection.officialAccounts, effectiveReadIds],
   );
   const unreadCount = projection.messages.filter((message) => !effectiveReadIds.has(message.id)).length;
+  const selectedConversation = useMemo(
+    () => conversations.find((conversation) => conversation.key === selectedConversationKey) || null,
+    [conversations, selectedConversationKey],
+  );
+
+  useEffect(() => {
+    if (activeTab !== 'messages' || !selectedConversationKey) {
+      return;
+    }
+    if (!conversations.some((conversation) => conversation.key === selectedConversationKey)) {
+      setSelectedConversationKey(null);
+    }
+  }, [activeTab, conversations, selectedConversationKey]);
 
   const markRead = (id: string) => {
     if (onMarkRead) {
@@ -76,15 +110,18 @@ export function MyWechatPanel({
     });
   };
 
-  const openMessage = (message: WechatMessage) => {
+  const openConversation = (conversation: WechatConversation) => {
+    conversation.messages.forEach((message) => markRead(message.id));
+    setSelectedConversationKey(conversation.key);
+  };
+
+  const triggerMessageAction = (message: WechatMessage) => {
     markRead(message.id);
-    if (message.targetCaseId) {
-      onSelectCase(message.targetCaseId);
+    if (message.primaryActionId && onScheduleMessageAction) {
+      onScheduleMessageAction(message);
       return;
     }
-    if (message.targetOpportunityId && onSelectOpportunity) {
-      onSelectOpportunity(message.targetOpportunityId);
-    }
+    setSelectedConversationKey(conversationKeyForMessage(message));
   };
 
   const openArticle = (article: OfficialAccountArticle) => {
@@ -134,14 +171,22 @@ export function MyWechatPanel({
 
       <div className="space-y-2 px-3 py-3">
         {activeTab === 'messages' ? (
-          sortedMessages.length > 0 ? (
-            sortedMessages.map((message) => (
+          selectedConversation ? (
+            <WechatConversationDetail
+              conversation={selectedConversation}
+              onBack={() => setSelectedConversationKey(null)}
+              onSelectCase={onSelectCase}
+              onOpenMessageAction={triggerMessageAction}
+            />
+          ) : conversations.length > 0 ? (
+            conversations.map((conversation) => (
               <WechatMessageRow
-                key={message.id}
-                message={message}
-                read={effectiveReadIds.has(message.id)}
-                lead={message.id === projection.leadCaseMessageId}
-                onClick={() => openMessage(message)}
+                key={conversation.key}
+                conversation={conversation}
+                read={conversation.unreadCount === 0}
+                lead={conversation.messages.some((message) => message.id === projection.leadCaseMessageId)}
+                onClick={() => openConversation(conversation)}
+                onPrimaryAction={conversation.primaryMessage?.primaryActionId ? () => triggerMessageAction(conversation.primaryMessage!) : undefined}
               />
             ))
           ) : (
@@ -167,6 +212,74 @@ function sortUnreadFirst<T extends { id: string }>(items: T[], readIds: Set<stri
       return left.index - right.index;
     })
     .map(({ item }) => item);
+}
+
+function groupMessagesBySender(messages: WechatMessage[], readIds: Set<string>) {
+  const grouped = new Map<string, WechatConversation>();
+
+  messages.forEach((message) => {
+    const key = conversationKeyForMessage(message);
+    const existing = grouped.get(key);
+    if (!existing) {
+      grouped.set(key, {
+        key,
+        senderName: message.senderName,
+        senderRole: message.senderRole,
+        avatarLabel: message.avatarLabel,
+        messages: [message],
+        unreadCount: readIds.has(message.id) ? 0 : 1,
+        caseIds: message.targetCaseId ? [message.targetCaseId] : [],
+        primaryMessage: message.primaryActionId ? message : null,
+      });
+      return;
+    }
+
+    existing.messages.push(message);
+    existing.unreadCount += readIds.has(message.id) ? 0 : 1;
+    if (message.targetCaseId && !existing.caseIds.includes(message.targetCaseId)) {
+      existing.caseIds.push(message.targetCaseId);
+    }
+    if (!existing.primaryMessage && message.primaryActionId) {
+      existing.primaryMessage = message;
+    }
+  });
+
+  return [...grouped.values()];
+}
+
+function conversationKeyForMessage(message: WechatMessage) {
+  return `${message.senderRole}:${message.senderName}`;
+}
+
+function collectRelatedCases(messages: WechatMessage[]): RelatedWechatCase[] {
+  const relatedCases = new Map<string, RelatedWechatCase>();
+  messages.forEach((message) => {
+    if (!message.targetCaseId) return;
+    if (!relatedCases.has(message.targetCaseId)) {
+      relatedCases.set(message.targetCaseId, {
+        id: message.targetCaseId,
+        title: message.targetCaseTitle || '关联房源',
+        actionMessage: message.primaryActionId ? message : null,
+      });
+      return;
+    }
+
+    const relatedCase = relatedCases.get(message.targetCaseId);
+    if (relatedCase && !relatedCase.actionMessage && message.primaryActionId) {
+      relatedCase.actionMessage = message;
+    }
+  });
+  return [...relatedCases.values()];
+}
+
+function senderRoleLabel(role: WechatMessage['senderRole']) {
+  if (role === 'owner') return '业主';
+  if (role === 'customer') return '客户';
+  if (role === 'district_manager') return '张经理';
+  if (role === 'store_manager') return '商圈经理';
+  if (role === 'agent') return '经纪人';
+  if (role === 'official_account') return '公众号';
+  return '系统';
 }
 
 function WechatLogoIcon() {
@@ -212,42 +325,172 @@ function WechatTabButton({
 }
 
 const WechatMessageRow: React.FC<WechatMessageRowProps> = ({
-  message,
+  conversation,
   read,
   lead,
   onClick,
+  onPrimaryAction,
 }) => {
+  const latestMessage = conversation.messages[0];
   return (
-    <button
-      type="button"
+    <div
       data-my-wechat-message-row="true"
       data-my-wechat-read={read ? 'true' : 'false'}
+      role="button"
+      tabIndex={0}
       onClick={onClick}
-      className="group flex w-full gap-2.5 rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] px-3 py-2.5 text-left transition-all hover:border-[color:var(--seller-accent)]/45 hover:bg-[rgba(255,255,255,0.05)]"
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onClick();
+        }
+      }}
+      className="group flex w-full cursor-pointer gap-2.5 rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] px-3 py-2.5 text-left transition-all hover:border-[color:var(--seller-accent)]/45 hover:bg-[rgba(255,255,255,0.05)]"
     >
       <span
         aria-hidden="true"
         className={`mt-2.5 h-2.5 w-2.5 shrink-0 rounded-full ${read ? 'bg-transparent' : 'bg-rose-500 shadow-[0_0_0_2px_var(--seller-panel)]'}`}
       />
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.06)] text-[13px] font-semibold text-[var(--seller-ink)]">
-        {message.avatarLabel}
+        {conversation.avatarLabel}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center justify-between gap-2">
-          <div className="min-w-0 truncate text-[13px] font-semibold text-[var(--seller-ink)]">{message.senderName}</div>
-          <span className="shrink-0 text-[10px] font-medium text-[var(--seller-subtle)]">{message.timeLabel}</span>
+          <div className="min-w-0 truncate text-[13px] font-semibold text-[var(--seller-ink)]">{conversation.senderName}</div>
+          <span className="shrink-0 text-[10px] font-medium text-[var(--seller-subtle)]">{latestMessage.timeLabel}</span>
         </div>
-        <p className="mt-1 line-clamp-2 text-[11px] leading-5 text-[var(--seller-muted)]">{message.preview}</p>
+        <p className="mt-1 line-clamp-2 text-[11px] leading-5 text-[var(--seller-muted)]">{latestMessage.preview}</p>
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${urgencyClassName(message.urgency)}`}>
-            {urgencyLabel(message.urgency)}
+          <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${urgencyClassName(latestMessage.urgency)}`}>
+            {urgencyLabel(latestMessage.urgency)}
           </span>
           {lead && <span className="seller-chip seller-chip-accent">今日重点</span>}
-          {message.primaryCtaLabel && <span className="text-[10px] font-semibold text-[var(--seller-accent)]">{message.primaryCtaLabel}</span>}
+          {latestMessage.primaryCtaLabel && onPrimaryAction ? (
+            <button
+              type="button"
+              data-my-wechat-message-action="true"
+              onClick={(event) => {
+                event.stopPropagation();
+                onPrimaryAction();
+              }}
+              className="rounded-full border border-[color:var(--seller-accent)]/24 bg-[color:var(--seller-accent)]/8 px-1 py-0 text-[8px] font-semibold leading-4 text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/14"
+              title="点击直接安排事项"
+            >
+              {latestMessage.primaryCtaLabel}
+            </button>
+          ) : latestMessage.primaryCtaLabel ? (
+            <span className="text-[10px] font-semibold text-[var(--seller-accent)]">{latestMessage.primaryCtaLabel}</span>
+          ) : null}
         </div>
       </div>
       <ChevronRight size={14} className="mt-3 shrink-0 text-[var(--seller-subtle)] transition-transform group-hover:translate-x-0.5" />
-    </button>
+    </div>
+  );
+};
+
+const WechatConversationDetail: React.FC<{
+  conversation: WechatConversation;
+  onBack: () => void;
+  onSelectCase: (caseId: string) => void;
+  onOpenMessageAction: (message: WechatMessage) => void;
+}> = ({
+  conversation,
+  onBack,
+  onSelectCase,
+  onOpenMessageAction,
+}) => {
+  const relatedCases = collectRelatedCases(conversation.messages);
+
+  return (
+    <div className="flex h-[min(560px,calc(100vh-220px))] min-h-[420px] flex-col overflow-hidden rounded-[14px] border border-[var(--seller-border)] bg-[#0c131c]">
+      <div className="flex shrink-0 items-center gap-2 border-b border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] px-3 py-2.5">
+        <button
+          type="button"
+          onClick={onBack}
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[15px] text-[var(--seller-muted)] transition hover:bg-[rgba(255,255,255,0.06)] hover:text-[var(--seller-ink)]"
+          aria-label="返回消息列表"
+        >
+          ←
+        </button>
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.06)] text-[12px] font-semibold text-[var(--seller-ink)]">
+          {conversation.avatarLabel}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[13px] font-semibold text-[var(--seller-ink)]">{conversation.senderName}</div>
+          <div className="mt-0.5 text-[10px] text-[var(--seller-subtle)]">{senderRoleLabel(conversation.senderRole)}</div>
+        </div>
+        {conversation.messages.length > 1 ? (
+          <span className="shrink-0 rounded-full bg-[rgba(255,255,255,0.06)] px-2 py-0.5 text-[10px] font-semibold text-[var(--seller-muted)]">
+            {conversation.messages.length} 条
+          </span>
+        ) : null}
+      </div>
+
+      <div className="flex-1 space-y-3 overflow-y-auto px-3 py-4">
+        {conversation.messages.map((message) => (
+          <div key={message.id} className="flex items-start gap-2.5">
+            <div className="mt-4 flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] bg-[rgba(255,255,255,0.07)] text-[11px] font-semibold text-[var(--seller-ink)]">
+              {message.avatarLabel}
+            </div>
+            <div className="min-w-0 max-w-[78%]">
+              <div className="mb-1 flex items-center gap-2 text-[10px] text-[var(--seller-subtle)]">
+                <span>{message.timeLabel}</span>
+                {message.urgency !== 'low' ? <span>{urgencyLabel(message.urgency)}</span> : null}
+              </div>
+              <div className="rounded-[16px] rounded-tl-[5px] bg-[rgba(255,255,255,0.08)] px-3 py-2.5 shadow-[0_10px_24px_rgba(0,0,0,0.12)]">
+                <p className="whitespace-pre-wrap text-[12px] leading-5 text-[var(--seller-ink)]">{message.content}</p>
+                {message.primaryCtaLabel && message.primaryActionId && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenMessageAction(message)}
+                    className="mt-2 rounded-full border border-[color:var(--seller-accent)]/24 bg-[color:var(--seller-accent)]/8 px-1 py-0 text-[8px] font-semibold leading-4 text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/14"
+                  >
+                    {message.primaryCtaLabel}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="shrink-0 border-t border-[var(--seller-border)] bg-[rgba(5,8,12,0.72)] px-3 py-2.5">
+        {relatedCases.length > 0 ? (
+          <div className="space-y-2">
+            <div className="text-[10px] font-semibold text-[var(--seller-subtle)]">
+              关联房源 {relatedCases.length} 套
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {relatedCases.map((relatedCase) => (
+                <div
+                  key={relatedCase.id}
+                  className="flex max-w-full items-center gap-1.5 rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] px-2 py-1"
+                >
+                  <button
+                    type="button"
+                    onClick={() => onSelectCase(relatedCase.id)}
+                    className="max-w-[160px] truncate text-[11px] font-semibold text-[var(--seller-ink)] transition hover:text-[var(--seller-accent)]"
+                  >
+                    {relatedCase.title}
+                  </button>
+                  {relatedCase.actionMessage?.primaryCtaLabel ? (
+                    <button
+                      type="button"
+                      onClick={() => onOpenMessageAction(relatedCase.actionMessage!)}
+                      className="rounded-full border border-[color:var(--seller-accent)]/24 bg-[color:var(--seller-accent)]/8 px-1 py-0 text-[8px] font-semibold leading-4 text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/14"
+                    >
+                      {relatedCase.actionMessage.primaryCtaLabel}
+                    </button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="text-center text-[11px] text-[var(--seller-muted)]">暂无关联房源</div>
+        )}
+      </div>
+    </div>
   );
 };
 

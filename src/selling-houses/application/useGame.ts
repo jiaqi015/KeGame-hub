@@ -564,11 +564,12 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
     optionId: string | null = null,
     onMessage?: (msg: string) => void,
     todayPlanItemId: string | null = null,
+    meta?: unknown,
   ) => {
     let success = false;
     setState((prev) => {
       if (!prev) return null;
-      const result = executeGameAction(prev, actionId, caseItem.id, optionId, todayPlanItemId, onMessage);
+      const result = executeGameAction(prev, actionId, caseItem.id, optionId, todayPlanItemId, onMessage, meta);
       success = result.success;
       return result.success ? commitLocalStateChange(result.nextState) : prev;
     });

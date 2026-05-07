@@ -10,6 +10,7 @@ export type ActionExecutionContext = {
   action: ActionDefinition;
   caseItem: Case;
   optionId: string | null;
+  meta?: unknown;
   onMessage?: (msg: string) => void;
 };
 

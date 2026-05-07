@@ -8,6 +8,7 @@ import {
   intersections,
   randomInt,
 } from '../utils.js';
+import { readCaseRelationBusinessContextFromRuntime } from '../../core/world-state/relationReadProjection.js';
 import type { Case, CustomerProfile, GameState, Opportunity, Tone } from '../models.js';
 import {
   ensureCustomerCaseMatchState,
@@ -252,7 +253,7 @@ export function createOpportunity(
     confidence: clamp(
       createBalance.confidenceBase
         + chosen.score * createBalance.fitConfidenceWeight
-        + caseItem.trust * createBalance.trustConfidenceWeight,
+        + readCaseRelationBusinessContextFromRuntime(world, caseItem).trustValue * createBalance.trustConfidenceWeight,
       createBalance.confidenceMin,
       createBalance.confidenceMax,
     ),
@@ -355,9 +356,20 @@ export function refreshOpportunityLabel(state: GameState, opportunity: Opportuni
 
 export function seedInitialOpportunities(world: GameState) {
   world.cases.forEach((caseItem, index) => {
-    createOpportunity(world, caseItem, world.channels[index % world.channels.length].id, 8 + index * 2, true);
-    if (caseItem.heat >= 60 || caseItem.trust >= 70) {
-      createOpportunity(world, caseItem, world.channels[(index + 1) % world.channels.length].id, 14, true);
+    const channelIds = [
+      world.channels[index % world.channels.length]?.id,
+      'private-referral',
+      'xiaohongshu',
+      'broker-network',
+      'open-day',
+    ].filter(Boolean) as string[];
+    const uniqueChannelIds = Array.from(new Set(channelIds));
+    const relationTrust = readCaseRelationBusinessContextFromRuntime(world, caseItem).trustValue;
+    const targetCount = Math.min(MAX_ACTIVE_OPPORTUNITIES_PER_CASE, caseItem.heat >= 60 || relationTrust >= 70 ? 4 : 3);
+
+    for (let attempt = 0; attempt < uniqueChannelIds.length && getActiveOpportunities(world, caseItem.id).length < targetCount; attempt += 1) {
+      const channelId = uniqueChannelIds[attempt];
+      createOpportunity(world, caseItem, channelId, 8 + index * 2 + attempt * 3, true);
     }
   });
 }
@@ -395,8 +407,8 @@ export function findBestOpportunity(state: GameState, caseId: string, minStage: 
     .sort((left, right) => getOpportunityPriority(right) - getOpportunityPriority(left))[0];
 }
 
-export function preferredChannel(caseItem: Case) {
-  if (caseItem.trust >= 68 && caseItem.qualityStory >= 1) {
+export function preferredChannel(state: GameState, caseItem: Case) {
+  if (readCaseRelationBusinessContextFromRuntime(state, caseItem).trustValue >= 68 && caseItem.qualityStory >= 1) {
     return 'private-referral';
   }
   if (caseItem.heat < 55) {

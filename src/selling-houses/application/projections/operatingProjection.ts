@@ -1,5 +1,6 @@
 import type {
   Case,
+  CustomerProfile,
   CustomerRuntimeState,
   GameState,
   MatterEntry,
@@ -37,6 +38,7 @@ import {
   type IntelItem,
   type IntelLayerTab,
 } from '../../ui/features/marketIntel.js';
+import type { OwnerProfilingMemorySummary } from '../../domain/ownerProfilingMemoryTypes.js';
 
 function formatVisibleDaysLeft(daysLeft: number) {
   const value = Number.isFinite(daysLeft) ? Math.max(0, daysLeft) : 0;
@@ -94,11 +96,14 @@ export interface ArrangementItemProjection {
   rank?: number;
   label: string;
   title: string;
+  displayTitle?: string;
+  contextTitle?: string;
   detail: string;
   tone: ProjectionTone;
   caseId?: string;
   matterId?: string;
   customerId?: string;
+  opportunityId?: string;
   durationHours: number;
   energyCost: number;
   statusLabel: string;
@@ -202,6 +207,52 @@ export interface OpportunityBucketProjection {
   summary: string;
 }
 
+export type CustomerRelationTone = 'neutral' | 'chance' | 'risk';
+
+export interface CustomerCaseRelationProjection {
+  id: string;
+  caseId: string;
+  opportunityId?: string;
+  title: string;
+  district: string;
+  stageIndex: number;
+  stageLabel: string;
+  intent: number;
+  confidence: number;
+  fit: number;
+  daysLeft?: number;
+  viewed: boolean;
+  selected: boolean;
+  revealed: boolean;
+  channelName?: string;
+  tone: CustomerRelationTone;
+  nextActionId?: string;
+  nextActionLabel?: string;
+}
+
+export interface CustomerProjection {
+  customerId: string;
+  name: string;
+  profile: string;
+  budgetLine: string;
+  targetDistrict: string;
+  layoutLine: string;
+  statusLabel: string;
+  statusDetail: string;
+  advisorTrust: number;
+  fatigue: number;
+  churnRisk: number;
+  activeRelationCount: number;
+  revealedRelationCount: number;
+  viewedRelationCount: number;
+  topCaseId?: string;
+  topCaseTitle?: string;
+  primaryActionId?: string;
+  primaryActionLabel?: string;
+  rankScore: number;
+  relations: CustomerCaseRelationProjection[];
+}
+
 export interface CaseFactChainProjection {
   id: string;
   lane: 'main' | 'owner' | 'price' | 'pool';
@@ -219,6 +270,14 @@ export interface CaseDetailProjection {
   mainProblemLabel: string;
   currentRiskTags: string[];
   actionReasons: ProjectionBrief[];
+  comparisonSummary: {
+    title: string;
+    detail: string;
+    rivalStores: ProjectionBrief[];
+    rivalListings: ProjectionBrief[];
+    comparingCustomers: ProjectionBrief[];
+    decisionLens: string[];
+  };
   factChain: CaseFactChainProjection[];
   nextStepLine: string;
   recentChanges: ProjectionBrief[];
@@ -230,6 +289,7 @@ export interface CaseDetailProjection {
     patience: number;
     urgency: number;
   };
+  ownerProfiling: OwnerProfilingMemorySummary | null;
   customerPoolSummary: {
     title: string;
     detail: string;
@@ -274,6 +334,7 @@ export interface OpportunityListProjection {
   potential: Opportunity[];
   closing: Opportunity[];
   atRisk: Opportunity[];
+  customers: CustomerProjection[];
   realCustomerSummary: {
     contactedCount: number;
     viewedCount: number;
@@ -652,6 +713,9 @@ function buildFixedArrangementItems(state: GameState): ArrangementItemProjection
 
   const scheduleItems = visibleScheduleEntries.map<ArrangementItemProjection>((entry) => {
     const linkedCase = entry.caseId ? state.cases.find((item) => item.id === entry.caseId) || null : null;
+    const linkedOpportunity = entry.opportunityId
+      ? state.opportunities.find((item) => item.id === entry.opportunityId) || null
+      : null;
     const scheduleTitle = presentScheduleTitle(entry.title);
     const isBlockedRoutine = isSlotBlockingRoutine(entry);
     const isFocusMeetingSubmit = entry.actionId === 'focus-meeting-submit';
@@ -668,6 +732,8 @@ function buildFixedArrangementItems(state: GameState): ArrangementItemProjection
       slot: resolveScheduleEntrySlot(entry),
       label: entry.source === 'interrupt' ? '插单提示' : entry.source === 'routine' ? '周节奏' : '已安排',
       title: displayTitle,
+      displayTitle: !isBlockedRoutine && linkedOpportunity ? linkedOpportunity.customerName : undefined,
+      contextTitle: !isBlockedRoutine && linkedOpportunity && linkedCase ? linkedCase.title : undefined,
       detail: !isBlockedRoutine && entry.weekdayIntent
         ? `${presentScheduleDetail(entry.note)} ${entry.weekdayIntent}。`
         : presentScheduleDetail(entry.note),
@@ -701,16 +767,20 @@ function buildFixedArrangementItems(state: GameState): ArrangementItemProjection
     .slice(0, 1)
     .map<ArrangementItemProjection>((entry) => {
       const linkedCase = state.cases.find((item) => item.id === entry.caseId) || null;
+      const linkedOpportunity = state.opportunities.find((item) => item.id === entry.sourceKey) || null;
       return {
       id: `fixed-matter-${entry.id}`,
       source: 'fixed',
       slot: 'pm',
       label: '已安排',
       title: linkedCase ? `${linkedCase.title} · ${entry.title}` : entry.title,
+      displayTitle: linkedOpportunity?.customerName,
+      contextTitle: linkedCase ? linkedCase.title : undefined,
       detail: sanitizeFrontstageText(entry.detail),
       tone: 'chance',
       caseId: entry.caseId,
       matterId: entry.id,
+      customerId: linkedOpportunity?.customerId,
       durationHours: 1,
       energyCost: 1,
       statusLabel: entry.badge || '今日承接',
@@ -898,6 +968,13 @@ function buildTodayPlanArrangementItem(
   const objectTitle = caseItem
     ? `${caseItem.title} · ${action?.name || matter?.title || caseProjection?.headline || '今日事项'}`
     : action?.name || matter?.title || caseProjection?.headline || '今日事项';
+  const targetOpportunity = entry.linkedOpportunityId
+    ? state.opportunities.find((item) => item.id === entry.linkedOpportunityId) || null
+    : entry.linkedCustomerId
+      ? state.opportunities.find((item) => item.customerId === entry.linkedCustomerId && item.status === 'active') || null
+      : matter?.kind === 'opportunity'
+        ? state.opportunities.find((item) => item.id === matter.sourceKey) || null
+        : null;
   return {
     id: `${source}-${entry.id}`,
     todayPlanItemId: entry.id,
@@ -905,6 +982,8 @@ function buildTodayPlanArrangementItem(
     slot: entry.slot,
     label: source === 'planned' ? '我今天安排的' : '已完成',
     title: objectTitle,
+    displayTitle: targetOpportunity?.customerName,
+    contextTitle: targetOpportunity && caseItem ? caseItem.title : undefined,
     detail: matter?.detail || `${caseItem?.community || '该房源'} · ${caseProjection?.nextStepLine || action?.description || '今天安排的一件事。'}`,
     tone: source === 'completed'
       ? 'chance'
@@ -914,6 +993,7 @@ function buildTodayPlanArrangementItem(
     caseId: entry.linkedCaseId,
     matterId: entry.sourceMatterId,
     customerId: entry.linkedCustomerId,
+    opportunityId: targetOpportunity?.id,
     durationHours: action ? resolveActionDurationHours(action.id) : 1,
     energyCost: action?.costEnergy ?? 1,
     statusLabel: source === 'completed'
@@ -937,6 +1017,7 @@ function presentScheduleTitle(title: string) {
 
 function sanitizeFrontstageText(text: string) {
   return text
+    .replace(/\s*\/\s*[^，。；、·\s]+/g, '')
     .replace(/(\d+(?:\.\d+)?)\s*天/g, (_match, rawDays: string) => formatVisibleDaysLeft(Number(rawDays)))
     .replace(/，今天要把进展讲清楚。/g, '，进展反馈有压力。')
     .replace(/今天要把确定性往成交桌上推/g, '成交条件开始变清楚')
@@ -1346,6 +1427,68 @@ export function buildCaseDetailProjection(state: GameState, caseItem: Case): Cas
   const primaryAction = listingLifecyclePhase.primaryActionId
     ? ACTIONS.find((entry) => entry.id === listingLifecyclePhase.primaryActionId) || null
     : null;
+  const comparableRivalStores = (state.marketShadow?.rivalStores || [])
+    .filter((entry) => entry.districtFocus.includes(caseItem.district) || entry.activityHeat >= 50)
+    .sort((left, right) => right.activityHeat - left.activityHeat)
+    .slice(0, 3)
+    .map((entry) => ({
+      id: `case-${caseItem.id}-rival-store-${entry.id}`,
+      label: entry.type === 'same_company' ? '同公司门店' : '外部门店',
+      title: entry.name,
+      detail: `${entry.activityHeat >= 65 ? '动作很猛' : entry.activityHeat >= 50 ? '动作偏多' : '动作一般'} · 重点盯 ${entry.districtFocus[0] || caseItem.district}`,
+      tone: entry.activityHeat >= 65 ? 'risk' as const : 'neutral' as const,
+      caseId: caseItem.id,
+    }));
+  const comparableRivalListings = rivalListings
+    .slice()
+    .sort((left, right) => right.leadSiphonPower - left.leadSiphonPower)
+    .slice(0, 3)
+    .map((entry) => ({
+      id: `case-${caseItem.id}-rival-listing-${entry.id}`,
+      label: '同类在卖房',
+      title: entry.title,
+      detail: `${entry.district} · ${entry.segment} · ${describeLeadSiphonPower(entry.leadSiphonPower)}。`,
+      tone: entry.leadSiphonPower >= 62 ? 'risk' as const : 'neutral' as const,
+      caseId: caseItem.id,
+    }));
+  const comparingCustomers = customerLinks
+    .filter((entry) => entry.status === 'comparing' || entry.activeCaseIds.length > 0)
+    .sort((left, right) => (
+      (right.status === 'comparing' ? 80 : 0)
+      + right.activeCaseIds.length * 14
+      + (right.churnRisk || 0) * 0.5
+      - ((left.status === 'comparing' ? 80 : 0)
+        + left.activeCaseIds.length * 14
+        + (left.churnRisk || 0) * 0.5)
+    ))
+    .slice(0, 3)
+    .map((entry) => {
+      const customer = state.customers.find((item) => item.id === entry.customerId) || null;
+      const runtime = entry.caseStates[caseItem.id] || null;
+      const externalCompetitors = (runtime?.competingCaseIds || [])
+        .map((competitorId) => state.marketShadow?.rivalListings?.find((rival) => rival.id === competitorId)?.title)
+        .filter(Boolean)
+        .slice(0, 2);
+      const competitorText = externalCompetitors.length > 0
+        ? `正在拿 ${externalCompetitors.join('、')} 比较`
+        : `${entry.activeCaseIds.length} 套在比较`;
+      return {
+        id: `case-${caseItem.id}-customer-${entry.customerId}`,
+        label: entry.status === 'comparing' ? '比较中客户' : '已接上客户',
+        title: customer?.name || entry.customerId,
+        detail: entry.status === 'comparing'
+          ? `${competitorText}，${customer?.targetDistrict || caseItem.district} 的预算和需求还在校准。`
+          : `${entry.activeCaseIds.length} 条关系在场，${customer?.targetDistrict || caseItem.district} 的客源还在承接。`,
+        tone: entry.status === 'comparing' ? 'risk' as const : 'neutral' as const,
+        caseId: caseItem.id,
+      };
+    });
+  const decisionLens = [
+    mainProblemLabel(mainProblem),
+    listingLifecyclePhase.phaseLabel,
+    caseItem.hasCompletedFirstVisit ? '已过面访' : '待面访',
+    rivalListings.length > 0 ? '外部竞品在场' : '当前竞品较少',
+  ];
 
   return {
     caseId: caseItem.id,
@@ -1362,6 +1505,18 @@ export function buildCaseDetailProjection(state: GameState, caseItem: Case): Cas
       tone: listingLifecyclePhase.phaseDelayLevel === 'late' ? 'risk' : 'neutral',
       caseId: caseItem.id,
     }] : [],
+    comparisonSummary: {
+      title: rivalListings.length > 0 || customerLinks.some((entry) => entry.status === 'comparing')
+        ? '要和其他经纪人的同类房比较'
+        : '先把可比较的同类房补出来',
+      detail: rivalListings.length > 0
+        ? `这套房现在有 ${rivalListings.length} 套其他经纪人维护的同类房在抢客户，${customerLinks.filter((entry) => entry.status === 'comparing').length} 位客户还在比较。`
+        : `当前外部竞品还不多，但仍要持续补进同商圈、同户型和同客户线的比较对象。`,
+      rivalStores: comparableRivalStores,
+      rivalListings: comparableRivalListings,
+      comparingCustomers,
+      decisionLens,
+    },
     factChain,
     nextStepLine: `当前动作：${listingLifecyclePhase.primaryActionLabel}`,
     recentChanges,
@@ -1373,6 +1528,7 @@ export function buildCaseDetailProjection(state: GameState, caseItem: Case): Cas
       patience: caseItem.hasCompletedFirstVisit ? Math.round(caseItem.patience) : 0,
       urgency: caseItem.hasCompletedFirstVisit ? Math.round(caseItem.urgency) : 0,
     },
+    ownerProfiling: caseItem.hasCompletedFirstVisit ? caseItem.ownerProfilingMemory ?? null : null,
     customerPoolSummary: {
       title: deriveCustomerPoolTitle(met.length, potential.length, closingCount, atRiskCount),
       detail: deriveCustomerPoolDetail(caseItem, met, potential, comparingCount),
@@ -1406,6 +1562,7 @@ export function buildOpportunityListProjection(state: GameState): OpportunityLis
   const met = active.filter((opportunity) => opportunity.visibility !== 'shadow');
   const closing = met.filter((opportunity) => opportunity.stageIndex >= 4);
   const atRisk = active.filter((opportunity) => opportunity.daysLeft <= 2 || opportunity.intent < 45);
+  const customers = buildCustomerProjections(state, active);
   const customerStates = state.customerStates.filter((entry) => entry.activeCaseIds.length > 0);
   const viewedCaseKeys = new Set(
     customerStates.flatMap((entry) => Object.values(entry.caseStates).filter((runtime) => runtime.viewed).map((runtime) => runtime.caseId)),
@@ -1419,11 +1576,12 @@ export function buildOpportunityListProjection(state: GameState): OpportunityLis
     potential,
     closing,
     atRisk,
+    customers,
     realCustomerSummary: {
-      contactedCount: met.length,
-      viewedCount: viewedCaseKeys.size,
-      comparingCount: customerStates.filter((entry) => entry.status === 'comparing').length,
-      negotiatingCount: customerStates.filter((entry) => entry.status === 'negotiating').length,
+      contactedCount: customers.filter((entry) => entry.revealedRelationCount > 0).length,
+      viewedCount: customers.filter((entry) => entry.viewedRelationCount > 0).length,
+      comparingCount: customers.filter((entry) => entry.statusLabel === '比较中').length,
+      negotiatingCount: customers.filter((entry) => entry.statusLabel === '谈价中').length,
     },
     potentialSummary: {
       caseCount: potentialCaseCount,
@@ -1432,6 +1590,217 @@ export function buildOpportunityListProjection(state: GameState): OpportunityLis
     },
     bucketSummaries: buildOpportunityBuckets(met, potential, closing.length, atRisk.length),
   };
+}
+
+function buildCustomerProjections(state: GameState, activeOpportunities: Opportunity[]): CustomerProjection[] {
+  const activeOpportunityByCustomerCase = new Map<string, Opportunity>();
+  activeOpportunities.forEach((opportunity) => {
+    activeOpportunityByCustomerCase.set(buildCustomerCaseKey(opportunity.customerId, opportunity.caseId), opportunity);
+  });
+
+  const rows = state.customers
+    .map((customer) => {
+      const customerState = state.customerStates.find((entry) => entry.customerId === customer.id);
+      const relations = buildCustomerCaseRelations(state, customer, customerState, activeOpportunityByCustomerCase);
+      if (relations.length === 0 && !customerState) {
+        return null;
+      }
+
+      const activeRelations = relations.filter((entry) => entry.intent >= 24 || entry.revealed);
+      if (activeRelations.length === 0) {
+        return null;
+      }
+
+      const leadRelation = activeRelations[0];
+      const advisorTrust = Math.round(customerState?.advisorTrust ?? 45);
+      const fatigue = Math.round(customerState?.fatigue ?? 0);
+      const churnRisk = Math.round(customerState?.churnRisk ?? 0);
+      const profile = customer.profile || '需求还在确认';
+      const primaryActionId = leadRelation?.nextActionId;
+
+      return {
+        customerId: customer.id,
+        name: customer.name,
+        profile,
+        budgetLine: `${Math.round(customer.budgetMin)}-${Math.round(customer.budgetMax)} 万`,
+        targetDistrict: customer.targetDistrict,
+        layoutLine: customer.layouts.slice(0, 2).join(' / ') || '户型待确认',
+        statusLabel: deriveCustomerProjectionStatusLabel(customerState, leadRelation),
+        statusDetail: deriveCustomerProjectionStatusDetail(customer, customerState, leadRelation, activeRelations),
+        advisorTrust,
+        fatigue,
+        churnRisk,
+        activeRelationCount: activeRelations.length,
+        revealedRelationCount: activeRelations.filter((entry) => entry.revealed).length,
+        viewedRelationCount: activeRelations.filter((entry) => entry.viewed).length,
+        topCaseId: leadRelation?.caseId,
+        topCaseTitle: leadRelation?.title,
+        primaryActionId,
+        primaryActionLabel: primaryActionId ? getActionDisplayName(primaryActionId) : undefined,
+        rankScore: scoreCustomerProjection(customerState, activeRelations),
+        relations: activeRelations,
+      } satisfies CustomerProjection;
+    })
+    .filter(Boolean) as CustomerProjection[];
+
+  return rows.sort((left, right) => right.rankScore - left.rankScore || left.name.localeCompare(right.name, 'zh-Hans-CN'));
+}
+
+function buildCustomerCaseRelations(
+  state: GameState,
+  customer: CustomerProfile,
+  customerState: CustomerRuntimeState | undefined,
+  activeOpportunityByCustomerCase: Map<string, Opportunity>,
+): CustomerCaseRelationProjection[] {
+  const caseIds = new Set<string>(customerState?.activeCaseIds || []);
+  activeOpportunityByCustomerCase.forEach((opportunity) => {
+    if (opportunity.customerId === customer.id) {
+      caseIds.add(opportunity.caseId);
+    }
+  });
+
+  return [...caseIds]
+    .map((caseId) => {
+      const caseItem = state.cases.find((entry) => entry.id === caseId && entry.status === 'active');
+      const runtime = customerState?.caseStates[caseId];
+      const opportunity = activeOpportunityByCustomerCase.get(buildCustomerCaseKey(customer.id, caseId));
+      if (!caseItem || (!runtime && !opportunity)) {
+        return null;
+      }
+
+      const stageIndex = Math.round(opportunity?.stageIndex ?? runtime?.stageIndex ?? 0);
+      const stageLabel = opportunity?.stageLabel || deriveRelationStageLabel(stageIndex);
+      const intent = Math.round(opportunity?.intent ?? runtime?.interest ?? 0);
+      const confidence = Math.round(opportunity?.confidence ?? runtime?.confidence ?? 0);
+      const fit = Math.round(opportunity?.fit ?? runtime?.fit ?? 0);
+      const viewed = Boolean(runtime?.viewed || stageIndex >= 2);
+      const selected = Boolean(runtime?.selected);
+      const revealed = Boolean(opportunity && opportunity.visibility !== 'shadow');
+      const nextActionId = resolveCustomerRelationActionId(state, caseItem, opportunity, runtime);
+
+      return {
+        id: opportunity?.id || `${customer.id}-${caseId}-runtime`,
+        caseId,
+        opportunityId: opportunity?.id,
+        title: caseItem.title,
+        district: caseItem.district,
+        stageIndex,
+        stageLabel,
+        intent,
+        confidence,
+        fit,
+        daysLeft: opportunity?.daysLeft,
+        viewed,
+        selected,
+        revealed,
+        channelName: opportunity?.channelName,
+        tone: resolveCustomerRelationTone(customerState, opportunity, intent),
+        nextActionId,
+        nextActionLabel: nextActionId ? getActionDisplayName(nextActionId) : undefined,
+      } satisfies CustomerCaseRelationProjection;
+    })
+    .filter(Boolean)
+    .sort((left, right) => scoreCustomerRelation(right) - scoreCustomerRelation(left)) as CustomerCaseRelationProjection[];
+}
+
+function buildCustomerCaseKey(customerId: string, caseId: string) {
+  return `${customerId}::${caseId}`;
+}
+
+function deriveRelationStageLabel(stageIndex: number) {
+  if (stageIndex >= 5) return '谈判中';
+  if (stageIndex >= 4) return '反馈出价';
+  if (stageIndex >= 3) return '复看比较';
+  if (stageIndex >= 2) return '已带看';
+  if (stageIndex >= 1) return '已咨询';
+  return '初步匹配';
+}
+
+function resolveCustomerRelationActionId(
+  state: GameState,
+  caseItem: Case,
+  opportunity?: Opportunity,
+  runtime?: CustomerRuntimeState['caseStates'][string],
+) {
+  const stageIndex = Math.round(opportunity?.stageIndex ?? runtime?.stageIndex ?? 0);
+  const candidateActionIds = stageIndex >= 4
+    ? ['invite-customer-negotiation', 'sincerity-sale', 'weekly-feedback']
+    : stageIndex >= 2 || runtime?.viewed
+      ? ['sincerity-sale', 'showing', 'weekly-feedback']
+      : ['showing', 'weekly-feedback'];
+
+  return candidateActionIds.find((actionId) => getActionAvailability(state, caseItem, actionId).enabled);
+}
+
+function getActionDisplayName(actionId: string) {
+  return ACTIONS.find((entry) => entry.id === actionId)?.name || '安排事项';
+}
+
+function resolveCustomerRelationTone(
+  customerState: CustomerRuntimeState | undefined,
+  opportunity: Opportunity | undefined,
+  intent: number,
+): CustomerRelationTone {
+  if ((customerState?.churnRisk || 0) >= 60 || (opportunity?.daysLeft ?? 9) <= 2 || intent < 45) {
+    return 'risk';
+  }
+  if ((opportunity?.stageIndex || 0) >= 4 || intent >= 76) {
+    return 'chance';
+  }
+  return 'neutral';
+}
+
+function deriveCustomerProjectionStatusLabel(
+  customerState: CustomerRuntimeState | undefined,
+  leadRelation?: CustomerCaseRelationProjection,
+) {
+  if ((customerState?.churnRisk || 0) >= 60) return '掉线风险';
+  if (customerState?.status === 'negotiating' || (leadRelation?.stageIndex || 0) >= 4) return '谈价中';
+  if (customerState?.status === 'comparing') return '比较中';
+  if (customerState?.status === 'engaged') return '持续沟通';
+  if (customerState?.status === 'browsing') return '看盘中';
+  if (leadRelation?.revealed) return '已接上';
+  return '潜在人群';
+}
+
+function deriveCustomerProjectionStatusDetail(
+  customer: CustomerProfile,
+  customerState: CustomerRuntimeState | undefined,
+  leadRelation: CustomerCaseRelationProjection | undefined,
+  relations: CustomerCaseRelationProjection[],
+) {
+  if (!leadRelation) return `${customer.targetDistrict} 的潜在客户，还没有形成明确房源关系。`;
+  if ((customerState?.churnRisk || 0) >= 60) return `重点别让 ${leadRelation.title} 这条关系断掉。`;
+  if (customerState?.status === 'comparing' || relations.length >= 2) return `正在比较 ${relations.length} 套，先围绕最匹配的 ${leadRelation.title} 推进。`;
+  if (leadRelation.stageIndex >= 4) return `${leadRelation.title} 已经进入报价或谈价前后。`;
+  if (leadRelation.viewed) return `${leadRelation.title} 已看过房，下一步要把反馈和价格接上。`;
+  return `${leadRelation.title} 已接触，先安排带看或明确下一步。`;
+}
+
+function scoreCustomerProjection(
+  customerState: CustomerRuntimeState | undefined,
+  relations: CustomerCaseRelationProjection[],
+) {
+  const leadScore = relations[0] ? scoreCustomerRelation(relations[0]) : 0;
+  const breadthScore = Math.min(4, relations.length) * 22;
+  const riskScore = Math.max(0, (customerState?.churnRisk || 0) - 45) * 1.4;
+  const statusScore = customerState?.status === 'negotiating' ? 90
+    : customerState?.status === 'engaged' ? 60
+      : customerState?.status === 'comparing' ? 45
+        : 0;
+  return Math.round(leadScore + breadthScore + riskScore + statusScore);
+}
+
+function scoreCustomerRelation(relation: CustomerCaseRelationProjection) {
+  return (
+    relation.stageIndex * 45
+    + relation.intent * 0.9
+    + relation.confidence * 0.7
+    + relation.fit * 0.5
+    + (relation.selected ? 24 : 0)
+    + (relation.viewed ? 30 : 0)
+    - Math.max(0, relation.daysLeft === undefined ? 0 : relation.daysLeft <= 2 ? -30 : relation.daysLeft * 1.8)
+  );
 }
 
 function buildCaseFactChain(

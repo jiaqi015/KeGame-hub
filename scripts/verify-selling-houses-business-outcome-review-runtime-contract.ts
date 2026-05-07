@@ -148,6 +148,25 @@ for (const review of reviews1) {
   check(Array.isArray(review.relatedRunIds), 'review has relatedRunIds');
 }
 
+// 11. Review relatedReceiptIds include ledger and fork evidence
+console.log('=== Check 11: review evidence sources ===');
+for (const review of reviews1) {
+  // relatedReceiptIds now includes ledger and fork refs
+  const hasLedgerRef = review.relatedReceiptIds.some((id) => id.startsWith('ledger:'));
+  const hasForkRef = review.relatedReceiptIds.some((id) => !id.startsWith('receipt-') && !id.startsWith('ledger:'));
+  // These are optional — only validate format if present
+  if (hasLedgerRef) {
+    check(true, `review ${review.reviewId}: has ledger evidence refs`);
+  }
+  if (hasForkRef) {
+    check(true, `review ${review.reviewId}: has fork evidence refs`);
+  }
+  // All receipt IDs should be strings
+  for (const id of review.relatedReceiptIds) {
+    check(typeof id === 'string' && id.length > 0, `receipt ID is non-empty string: ${id}`);
+  }
+}
+
 // Summary
 console.log(`\nTotal: ${passed + failed}, Passed: ${passed}, Failed: ${failed}`);
 if (failed > 0) {

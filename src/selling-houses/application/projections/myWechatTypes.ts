@@ -48,6 +48,7 @@ export interface WechatFact {
   priority: number;
   reason: string;
   caseId?: string;
+  customerId?: string;
   opportunityId?: string;
   matterId?: string;
   eventId?: string;
@@ -68,6 +69,7 @@ export interface WechatSourceTrace {
   source: WechatFactSource;
   factType: WechatFactType;
   caseId?: string;
+  customerId?: string;
   opportunityId?: string;
   matterId?: string;
   eventId?: string;
@@ -85,8 +87,11 @@ export interface WechatMessage {
   unread: boolean;
   urgency: WechatMessageUrgency;
   targetCaseId?: string;
+  targetCaseTitle?: string;
+  targetCustomerId?: string;
   targetOpportunityId?: string;
   targetMatterId?: string;
+  primaryActionId?: string;
   primaryCtaLabel?: string;
   sourceTrace: WechatSourceTrace;
 }

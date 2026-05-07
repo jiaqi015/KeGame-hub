@@ -3,6 +3,7 @@ import {
   ChevronRight,
   CircleDollarSign,
   FastForward,
+  Megaphone,
   History,
   Home,
   LayoutDashboard,
@@ -27,10 +28,11 @@ import {
 import {
   buildWorkspaceShellProjection,
 } from './application/projections/workspaceShellProjection';
+import { buildOperatingProjection } from './application/projections/operatingProjection';
 import { buildWeeklySummaryPresentation, type WeeklySummaryPresentation } from './application/weeklySummary';
 import type { ArrangementItemProjection, ProductOpportunityProjection } from './application/projections/operatingProjection';
 import type { Settlement } from './domain/actions/templates';
-import type { TodayArrangementSlot } from './domain/models';
+import type { Case, TodayArrangementSlot } from './domain/models';
 import { ActionDecisionOverlay, buildActionDecisionConfig } from './ui/features/ActionDecisionOverlay';
 import { DailyJournal } from './ui/widgets/DailyJournal';
 import { WorkspaceUtilityBar } from './ui/widgets/WorkspaceUtilityBar';
@@ -64,6 +66,24 @@ type ActiveTodayScenario = {
   actionId: string;
   caseId: string;
 };
+type FocusMeetingSubmitDraft = {
+  todayPlanItemId: string | null;
+  initialCaseId: string | null;
+};
+type FocusMeetingSubmitResult = {
+  submittedCaseIds: string[];
+  selectedCaseId: string;
+  optionId: string;
+  externalRivalListingIds: string[];
+  comparingCustomerIds: string[];
+};
+type FocusMeetingStage = 'submit' | 'compare' | 'promote';
+type FocusMeetingSubmittedEntry = {
+  caseItem: Case;
+  score: number;
+  summary: ReturnType<typeof buildOperatingProjection>['cases'][number] | null;
+};
+type FocusMeetingCaseSummary = ReturnType<typeof buildOperatingProjection>['cases'][number];
 
 interface SellingHousesWorkspaceProps {
   activationKey: string;
@@ -134,6 +154,7 @@ export function SellingHousesWorkspace({
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [activeTodayScenario, setActiveTodayScenario] = useState<ActiveTodayScenario | null>(null);
+  const [focusMeetingSubmitDraft, setFocusMeetingSubmitDraft] = useState<FocusMeetingSubmitDraft | null>(null);
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [weeklySummary, setWeeklySummary] = useState<WeeklySummaryPresentation | null>(null);
   const [wechatReadIds, setWechatReadIds] = useState<Set<string>>(() => new Set());
@@ -170,6 +191,26 @@ export function SellingHousesWorkspace({
   const activeMatter = state && activeTodayPlanItem?.sourceMatterId
     ? state.matters.find(m => m.id === activeTodayPlanItem.sourceMatterId)
     : undefined;
+  const focusMeetingOptions = useMemo(
+    () => state
+      ? state.cases
+        .filter((caseItem) => caseItem.status === 'active')
+        .map((caseItem) => ({
+          caseItem,
+          score: Math.round(caseItem.heat * 0.42 + caseItem.competitiveness * 0.36 + caseItem.trust * 0.22),
+        }))
+        .sort((left, right) => right.score - left.score)
+      : [],
+    [state],
+  );
+  const focusMeetingProjection = useMemo(
+    () => (state ? buildOperatingProjection(state) : null),
+    [state],
+  );
+  const focusMeetingCaseSummaries = useMemo(
+    () => new Map(focusMeetingProjection?.cases.map((entry) => [entry.caseId, entry]) || []),
+    [focusMeetingProjection],
+  );
 
   const releaseWorkspaceFocus = () => {
     const activeElement = document.activeElement;
@@ -373,6 +414,14 @@ export function SellingHousesWorkspace({
       displayMessage('这套房当前不在场，先刷新一下再试。');
       return false;
     }
+    if (actionId === 'focus-meeting-submit') {
+      releaseWorkspaceFocus();
+      setFocusMeetingSubmitDraft({
+        todayPlanItemId: null,
+        initialCaseId: caseId,
+      });
+      return true;
+    }
     const decision = buildActionDecisionConfig(state, caseItem, actionId);
     if (!decision) {
       return handleExecuteAction(actionId, caseItem, null, displayMessage);
@@ -396,6 +445,7 @@ export function SellingHousesWorkspace({
       linkedActionId: item.actionId,
       linkedCaseId: item.caseId,
       linkedCustomerId: item.customerId,
+      linkedOpportunityId: item.opportunityId,
       executionMode: item.executionMode === 'scenario' ? 'scenario' : 'direct',
       slot,
     }, displayMessage).success;
@@ -425,6 +475,17 @@ export function SellingHousesWorkspace({
     const todayPlanItem = state.todayPlan.playerItems.find((entry) => entry.id === itemId) || null;
     if (
       todayPlanItem?.status === 'planned'
+      && todayPlanItem.linkedActionId === 'focus-meeting-submit'
+    ) {
+      releaseWorkspaceFocus();
+      setFocusMeetingSubmitDraft({
+        todayPlanItemId: itemId,
+        initialCaseId: todayPlanItem.linkedCaseId || null,
+      });
+      return true;
+    }
+    if (
+      todayPlanItem?.status === 'planned'
       && todayPlanItem.executionMode === 'scenario'
       && todayPlanItem.linkedCaseId
     ) {
@@ -442,6 +503,24 @@ export function SellingHousesWorkspace({
   };
 
   const closeTodayScenario = () => setActiveTodayScenario(null);
+  const closeFocusMeetingSubmit = () => setFocusMeetingSubmitDraft(null);
+  const completeFocusMeetingSubmit = (caseItem: Case, result: FocusMeetingSubmitResult) => {
+    handleExecuteAction(
+      'focus-meeting-submit',
+      caseItem,
+      result.optionId,
+      displayMessage,
+      focusMeetingSubmitDraft?.todayPlanItemId || null,
+      {
+        submittedCaseIds: result.submittedCaseIds,
+        selectedCaseId: result.selectedCaseId,
+        recommendationMode: result.optionId,
+        externalRivalListingIds: result.externalRivalListingIds,
+        comparingCustomerIds: result.comparingCustomerIds,
+      },
+    );
+    setFocusMeetingSubmitDraft(null);
+  };
 
   const completeTodayScenario = (
     optionId: string | null,
@@ -876,6 +955,16 @@ export function SellingHousesWorkspace({
           state={state}
           caseItem={activeScenarioCase || undefined}
           matter={activeMatter}
+        />
+      )}
+      {focusMeetingSubmitDraft && (
+        <FocusMeetingSubmitOverlay
+          cases={focusMeetingOptions}
+          caseSummaries={focusMeetingCaseSummaries}
+          initialCaseId={focusMeetingSubmitDraft.initialCaseId}
+          submittedCaseIds={state.focusMeeting.submissionDay === state.day ? state.focusMeeting.submittedCaseIds : []}
+          onSubmit={completeFocusMeetingSubmit}
+          onClose={closeFocusMeetingSubmit}
         />
       )}
       {journalOpen && (
@@ -1436,6 +1525,38 @@ function BudgetMiniStat({
   );
 }
 
+function FocusMeetingExternalRows({ summary }: { summary: FocusMeetingCaseSummary }) {
+  const rows = [
+    ...summary.comparisonSummary.rivalListings,
+    ...summary.comparisonSummary.comparingCustomers,
+  ].slice(0, 3);
+
+  if (!rows.length) {
+    return (
+      <div className="mt-2 rounded-[10px] border border-dashed border-[var(--seller-border)] px-2.5 py-2 text-[10px] leading-4 text-[var(--seller-subtle)]">
+        外部竞品和客户比较还不够，需要先补世界样本再提推广。
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2 space-y-1.5">
+      {rows.map((row) => (
+        <div key={row.id} className="rounded-[10px] bg-[rgba(255,255,255,0.035)] px-2.5 py-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-bold text-[var(--seller-subtle)]">{row.label}</span>
+            <span className={row.tone === 'risk' ? 'text-[10px] font-bold text-[var(--seller-risk)]' : 'text-[10px] font-bold text-[var(--seller-muted)]'}>
+              {row.tone === 'risk' ? '会抢客户' : '可比较'}
+            </span>
+          </div>
+          <div className="mt-0.5 truncate text-[11px] font-semibold text-[var(--seller-ink)]">{row.title}</div>
+          <div className="mt-0.5 line-clamp-2 text-[10px] leading-4 text-[var(--seller-muted)]">{row.detail}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function WorkspacePanelSkeleton() {
   return (
     <div className="min-h-[420px]">
@@ -1457,6 +1578,339 @@ function WorkspaceOverlaySkeleton() {
           {Array.from({ length: 4 }).map((_, index) => (
             <div key={index} className="h-24 rounded-[14px] bg-[rgba(255,255,255,0.05)]" />
           ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FocusMeetingSubmitOverlay({
+  cases,
+  caseSummaries,
+  initialCaseId,
+  submittedCaseIds,
+  onSubmit,
+  onClose,
+}: {
+  cases: Array<{ caseItem: Case; score: number }>;
+  caseSummaries: Map<string, ReturnType<typeof buildOperatingProjection>['cases'][number]>;
+  initialCaseId: string | null;
+  submittedCaseIds: string[];
+  onSubmit: (caseItem: Case, result: FocusMeetingSubmitResult) => void;
+  onClose: () => void;
+}) {
+  const availableCases = cases.filter((entry) => !submittedCaseIds.includes(entry.caseItem.id));
+  const activeCases = availableCases.filter((entry) => entry.caseItem.status === 'active');
+  const remainingSubmissionSlots = Math.max(0, 3 - submittedCaseIds.length);
+  const initialSubmittedIds = activeCases
+    .slice(0, remainingSubmissionSlots)
+    .map((entry) => entry.caseItem.id);
+  const preferredInitialId = initialCaseId && activeCases.some((entry) => entry.caseItem.id === initialCaseId)
+    ? initialCaseId
+    : initialSubmittedIds[0] || null;
+  const [step, setStep] = useState<FocusMeetingStage>('submit');
+  const [selectedCaseIds, setSelectedCaseIds] = useState<string[]>(() => {
+    if (!preferredInitialId) return initialSubmittedIds;
+    return [preferredInitialId, ...initialSubmittedIds.filter((caseId) => caseId !== preferredInitialId)].slice(0, 3);
+  });
+  const [focusedCaseId, setFocusedCaseId] = useState<string | null>(() => preferredInitialId);
+  const [selectedOptionId, setSelectedOptionId] = useState<string>('quality-priority');
+  const submittedEntries = selectedCaseIds
+    .map((caseId) => {
+      const entry = activeCases.find((candidate) => candidate.caseItem.id === caseId);
+      if (!entry) return null;
+      return {
+        ...entry,
+        summary: caseSummaries.get(caseId) || null,
+      };
+    })
+    .filter((entry): entry is FocusMeetingSubmittedEntry => Boolean(entry));
+  const focusedEntry = submittedEntries.find((entry) => entry.caseItem.id === focusedCaseId) || submittedEntries[0] || null;
+  const focusedCase = focusedEntry?.caseItem || null;
+  const focusedSummary = focusedEntry?.summary || null;
+  const topScore = submittedEntries.reduce((max, entry) => Math.max(max, entry.score), 1);
+  const externalRivalListingIds = submittedEntries.flatMap((entry) =>
+    entry.summary?.comparisonSummary.rivalListings.map((row) => row.id.replace(`case-${entry.caseItem.id}-rival-listing-`, '')) || [],
+  );
+  const comparingCustomerIds = submittedEntries.flatMap((entry) =>
+    entry.summary?.comparisonSummary.comparingCustomers.map((row) => row.id.replace(`case-${entry.caseItem.id}-customer-`, '')) || [],
+  );
+
+  const recommendationOptions = [
+    {
+      id: 'quality-priority',
+      title: '主推房源条件',
+      note: focusedCase ? `好房分 ${Math.round(focusedCase.competitiveness)}，会上先讲它为什么值得拿资源。` : '突出房子本身优势。',
+    },
+    {
+      id: 'owner-readiness',
+      title: '主推业主配合',
+      note: focusedCase ? `业主信任 ${Math.round(focusedCase.trust)}，证明推广落下去有人接。` : '说明业主配合度。',
+    },
+    {
+      id: 'customer-signal',
+      title: '主推客户信号',
+      note: focusedCase ? `当前热度 ${Math.round(focusedCase.heat)}，用客户反馈证明值得重点跟。` : '用客户反馈和带看线索证明。',
+    },
+  ];
+
+  const toggleCase = (caseId: string) => {
+    setSelectedCaseIds((current) => {
+      if (current.includes(caseId)) {
+        const next = current.filter((id) => id !== caseId);
+        if (focusedCaseId === caseId) {
+          setFocusedCaseId(next[0] || null);
+        }
+        return next;
+      }
+      if (current.length >= remainingSubmissionSlots) return current;
+      if (!focusedCaseId) setFocusedCaseId(caseId);
+      return [...current, caseId];
+    });
+  };
+
+  const goCompare = () => {
+    if (submittedEntries.length === 0) return;
+    setFocusedCaseId((current) => current && selectedCaseIds.includes(current) ? current : selectedCaseIds[0] || null);
+    setStep('compare');
+  };
+
+  const progressLabel = step === 'submit'
+    ? '第一轮：提报候选'
+    : step === 'compare'
+      ? '第二轮：外部竞品比较'
+      : '第三轮：推进推广';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(5,8,12,0.72)] p-6 backdrop-blur-sm">
+      <div className="w-full max-w-4xl animate-in zoom-in rounded-[24px] border border-[var(--seller-border)] bg-[var(--seller-paper)] p-6 shadow-[var(--seller-shadow-lg)] fade-in duration-200">
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <div>
+            <div className="seller-label flex items-center gap-2">
+              <Megaphone size={13} />
+              {progressLabel}
+            </div>
+            <h3 className="mt-1 text-[18px] font-bold text-[var(--seller-ink)]">提报周四聚焦会</h3>
+            <p className="mt-1 text-[12px] leading-5 text-[var(--seller-muted)]">
+              先提报最多 3 套，再和其他经纪人维护的同类房比较，最后选出 1 套聚焦推广。
+            </p>
+          </div>
+          <span className="rounded-full bg-[rgba(255,255,255,0.06)] px-2.5 py-1 text-[10px] font-semibold text-[var(--seller-muted)]">
+            今日已提报 {submittedCaseIds.length}/3
+          </span>
+        </div>
+
+        <div className="mb-5 grid grid-cols-3 gap-2 text-[11px] font-bold">
+          {[
+            ['submit', '1 提报候选'],
+            ['compare', '2 外部竞品比较'],
+            ['promote', '3 推进推广'],
+          ].map(([id, label]) => (
+            <div
+              key={id}
+              className={`rounded-full px-3 py-2 text-center ${step === id ? 'bg-[var(--seller-accent-soft)] text-[var(--seller-ink)]' : 'bg-[rgba(255,255,255,0.04)] text-[var(--seller-muted)]'}`}
+            >
+              {label}
+            </div>
+          ))}
+        </div>
+
+        {step === 'submit' ? (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-[12px] font-bold text-[var(--seller-ink)]">可提报房源</div>
+              <div className="text-[11px] font-semibold text-[var(--seller-muted)]">已选 {selectedCaseIds.length}/{remainingSubmissionSlots}</div>
+            </div>
+            <div className="grid max-h-[430px] grid-cols-1 gap-2.5 overflow-y-auto pr-1 md:grid-cols-2">
+              {availableCases.map(({ caseItem, score }) => {
+                const selected = selectedCaseIds.includes(caseItem.id);
+                const disabled = caseItem.status !== 'active' || remainingSubmissionSlots <= 0 || (!selected && selectedCaseIds.length >= remainingSubmissionSlots);
+                return (
+                  <button
+                    key={caseItem.id}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => toggleCase(caseItem.id)}
+                    className={`w-full rounded-[14px] border p-3.5 text-left transition disabled:cursor-not-allowed disabled:opacity-45 ${
+                      selected
+                        ? 'border-[color:var(--seller-accent)]/55 bg-[var(--seller-accent-soft)]'
+                        : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] hover:border-[color:var(--seller-accent)]/35 hover:bg-[rgba(255,255,255,0.05)]'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-[13px] font-bold text-[var(--seller-ink)]">{caseItem.title}</div>
+                        <div className="mt-1 text-[11px] text-[var(--seller-muted)]">
+                          热度 {Math.round(caseItem.heat)} · 业主信任 {Math.round(caseItem.trust)} · 好房分 {Math.round(caseItem.competitiveness)}
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {(caseSummaries.get(caseItem.id)?.comparisonSummary.decisionLens || []).slice(0, 3).map((lens) => (
+                            <span key={lens} className="seller-chip">
+                              {lens}
+                            </span>
+                          ))}
+                        </div>
+                        {caseItem.status !== 'active' ? (
+                          <div className="mt-2 text-[10px] font-semibold text-[var(--seller-risk)]">这套房已经不在可提报状态</div>
+                        ) : null}
+                      </div>
+                      <span className="shrink-0 rounded-full bg-[rgba(255,255,255,0.06)] px-2 py-0.5 text-[10px] font-semibold text-[var(--seller-muted)]">
+                        推荐分 {score}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+              {availableCases.length === 0 ? (
+                <div className="rounded-[14px] border border-dashed border-[var(--seller-border)] px-4 py-8 text-center text-[12px] text-[var(--seller-muted)] md:col-span-2">
+                  今天已经没有可提报的房源。
+                </div>
+              ) : null}
+              {availableCases.length > 0 && remainingSubmissionSlots <= 0 ? (
+                <div className="rounded-[14px] border border-dashed border-[var(--seller-border)] px-4 py-8 text-center text-[12px] text-[var(--seller-muted)] md:col-span-2">
+                  今天 3 个提报名额已经用完。
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {step === 'compare' ? (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-[12px] font-bold text-[var(--seller-ink)]">和谁比</div>
+              <div className="text-[11px] font-semibold text-[var(--seller-muted)]">先看其他经纪人维护的同类房，再选 1 套作为本轮聚焦</div>
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              {submittedEntries.map(({ caseItem, score, summary }, index) => {
+                const selected = caseItem.id === focusedEntry?.caseItem.id;
+                const scoreWidth = Math.max(14, Math.round((score / topScore) * 100));
+                return (
+                  <button
+                    key={caseItem.id}
+                    type="button"
+                    onClick={() => setFocusedCaseId(caseItem.id)}
+                    className={`rounded-[18px] border p-4 text-left transition ${
+                      selected
+                        ? 'border-[color:var(--seller-accent)]/60 bg-[var(--seller-accent-soft)]'
+                        : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.05)]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="rounded-full bg-[rgba(255,255,255,0.06)] px-2 py-1 text-[10px] font-bold text-[var(--seller-muted)]">候选 {index + 1}</span>
+                      {selected ? <span className="seller-chip seller-chip-accent">建议聚焦</span> : null}
+                    </div>
+                    <div className="mt-4 text-[14px] font-black text-[var(--seller-ink)]">{caseItem.title}</div>
+                    <div className="mt-2 space-y-1 text-[11px] text-[var(--seller-muted)]">
+                      <div>热度 {Math.round(caseItem.heat)} · 业主信任 {Math.round(caseItem.trust)}</div>
+                      <div>好房分 {Math.round(caseItem.competitiveness)} · 推荐分 {score}</div>
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      <div className="rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-2">
+                        <div className="text-[10px] font-bold text-[var(--seller-subtle)]">比较视角</div>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {(summary?.comparisonSummary.decisionLens || []).slice(0, 3).map((lens) => (
+                            <span key={lens} className="seller-chip">
+                              {lens}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-2">
+                        <div className="text-[10px] font-bold text-[var(--seller-subtle)]">竞品和客户</div>
+                        <div className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">
+                          {summary?.comparisonSummary.detail || '继续补齐其他经纪人维护的同类房和同客户线比较对象。'}
+                        </div>
+                        {summary ? <FocusMeetingExternalRows summary={summary} /> : null}
+                      </div>
+                    </div>
+                    <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[rgba(255,255,255,0.08)]">
+                      <div className="h-full rounded-full bg-[var(--seller-accent)]" style={{ width: `${scoreWidth}%` }} />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
+        {step === 'promote' && focusedCase ? (
+          <div className="space-y-3">
+            <div className="rounded-[16px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-4 py-3">
+              <div className="text-[11px] font-semibold text-[var(--seller-subtle)]">最终聚焦</div>
+              <div className="mt-1 text-[15px] font-black text-[var(--seller-ink)]">{focusedCase.title}</div>
+              <div className="mt-1 text-[11px] text-[var(--seller-muted)]">提交后会进入本轮聚焦，并触发推广推进。</div>
+              {focusedSummary ? (
+                <div className="mt-3 rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-2">
+                  <div className="text-[10px] font-bold text-[var(--seller-subtle)]">比较结论</div>
+                  <div className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">{focusedSummary.comparisonSummary.detail}</div>
+                </div>
+              ) : null}
+            </div>
+            {recommendationOptions.map((option) => {
+              const selected = option.id === selectedOptionId;
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setSelectedOptionId(option.id)}
+                  className={`w-full rounded-[14px] border p-3.5 text-left transition ${
+                    selected
+                      ? 'border-[color:var(--seller-accent)]/55 bg-[var(--seller-accent-soft)]'
+                      : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] hover:border-[color:var(--seller-accent)]/35 hover:bg-[rgba(255,255,255,0.05)]'
+                  }`}
+                >
+                  <div className="text-[13px] font-bold text-[var(--seller-ink)]">{option.title}</div>
+                  <div className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">{option.note}</div>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+
+        <div className="mt-6 flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              if (step === 'promote') {
+                setStep('compare');
+                return;
+              }
+              if (step === 'compare') {
+                setStep('submit');
+                return;
+              }
+              onClose();
+            }}
+            className="rounded-full px-4 py-2 text-[12px] font-bold text-[var(--seller-muted)] transition hover:text-[var(--seller-ink)]"
+          >
+            {step === 'submit' ? '取消' : '上一步'}
+          </button>
+          <button
+            type="button"
+            disabled={submittedEntries.length === 0 || (step !== 'submit' && !focusedCase)}
+            onClick={() => {
+              if (step === 'submit') {
+                goCompare();
+                return;
+              }
+              if (step === 'compare') {
+                setStep('promote');
+                return;
+              }
+              if (!focusedCase) return;
+              onSubmit(focusedCase, {
+                submittedCaseIds: submittedEntries.map((entry) => entry.caseItem.id),
+                selectedCaseId: focusedCase.id,
+                optionId: selectedOptionId,
+                externalRivalListingIds,
+                comparingCustomerIds,
+              });
+            }}
+            className="seller-button-primary rounded-[14px] px-5 py-2.5 text-[13px] font-bold disabled:opacity-40"
+          >
+            {step === 'submit' ? '进入竞品比较' : step === 'compare' ? '确定聚焦房源' : '提交并推进推广'}
+          </button>
         </div>
       </div>
     </div>

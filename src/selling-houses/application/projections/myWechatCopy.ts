@@ -1,4 +1,5 @@
 import type { GameState } from '../../domain/models.js';
+import { getActionAvailability } from '../../domain/engine.js';
 import type {
   OfficialAccountArticle,
   WechatFact,
@@ -141,13 +142,17 @@ export function renderWechatMessage(fact: WechatFact, context: WechatCopyContext
     unread: true,
     urgency: getMessageUrgency(fact),
     targetCaseId: fact.caseId,
+    targetCaseTitle: fact.caseTitle,
+    targetCustomerId: fact.customerId,
     targetOpportunityId: fact.opportunityId,
     targetMatterId: fact.matterId,
+    primaryActionId: getMessagePrimaryActionId(fact, context),
     primaryCtaLabel: getMessageCtaLabel(fact, context),
     sourceTrace: {
       source: fact.source,
       factType: fact.type,
       caseId: fact.caseId,
+      customerId: fact.customerId,
       opportunityId: fact.opportunityId,
       matterId: fact.matterId,
       eventId: fact.eventId,
@@ -177,6 +182,7 @@ export function renderOfficialAccountArticle(fact: WechatFact, context: WechatCo
       source: fact.source,
       factType: fact.type,
       caseId: fact.caseId,
+      customerId: fact.customerId,
       opportunityId: fact.opportunityId,
       matterId: fact.matterId,
       eventId: fact.eventId,
@@ -311,16 +317,57 @@ function getMessageUrgency(fact: WechatFact): WechatMessageUrgency {
 }
 
 function getMessageCtaLabel(fact: WechatFact, context: WechatCopyContext) {
+  const customerActionLabel = deriveWechatCustomerActionLabel(fact, context);
+  if (customerActionLabel) return customerActionLabel;
   if (fact.caseId) {
     const caseItem = context.state.cases.find((entry) => entry.id === fact.caseId);
     const actionLabel = caseItem ? deriveWechatCaseActionLabel(caseItem) : null;
-    if (actionLabel) return `去处理：${actionLabel}`;
-    return '去处理';
+    if (actionLabel) return actionLabel;
+    return '安排事项';
   }
   if (fact.type.startsWith('customer_')) return '去跟进客户';
   if (fact.type.startsWith('manager_')) return '去处理';
   if (fact.type === 'matter_pending') return '处理事项';
   return '查看关联对象';
+}
+
+function getMessagePrimaryActionId(fact: WechatFact, context: WechatCopyContext) {
+  if (!fact.caseId) return undefined;
+  const caseItem = context.state.cases.find((entry) => entry.id === fact.caseId);
+  if (!caseItem) return undefined;
+
+  const candidateActionIds = resolveWechatActionCandidates(fact, caseItem);
+  return candidateActionIds.find((actionId) => getActionAvailability(context.state, caseItem, actionId).enabled);
+}
+
+function resolveWechatActionCandidates(fact: WechatFact, caseItem: GameState['cases'][number]) {
+  const customerCandidates = resolveWechatCustomerActionCandidates(fact);
+  if (customerCandidates.length > 0) {
+    return customerCandidates;
+  }
+  return resolveWechatCaseActionCandidates(caseItem);
+}
+
+function resolveWechatCustomerActionCandidates(fact: WechatFact) {
+  if (!isCustomerTargetedFact(fact)) {
+    return [];
+  }
+  if (fact.type === 'customer_second_showing') return ['showing', 'sincerity-sale', 'weekly-feedback'];
+  if (fact.type === 'customer_comparing') return ['showing', 'sincerity-sale', 'weekly-feedback'];
+  if (fact.type === 'customer_price_sensitive') return ['sincerity-sale', 'showing', 'weekly-feedback'];
+  if (fact.type === 'customer_churn_risk') return ['showing', 'weekly-feedback'];
+  if (fact.type === 'event_followup_needed') return ['showing', 'sincerity-sale', 'weekly-feedback'];
+  return ['showing', 'weekly-feedback'];
+}
+
+function resolveWechatCaseActionCandidates(caseItem: GameState['cases'][number]) {
+  if (caseItem.hasCompletedFirstVisit === false) return ['first-visit'];
+  if (caseItem.trust < 58 || caseItem.urgency >= 72) return ['weekly-feedback', 'deep-diagnosis'];
+  if (caseItem.askPrice > caseItem.marketPrice * 1.04) return ['pricing-advice', 'ask-psychological-price', 'adjust-listing-price'];
+  if (caseItem.heat < 52 || caseItem.d1 < 50) return ['broker-broadcast', 'xiaohongshu-boost', 'private-referral'];
+  if (caseItem.viewings <= 0) return ['showing', 'open-day'];
+  if (caseItem.offers <= 0) return ['weekly-feedback', 'deep-diagnosis', 'invite-customer-negotiation'];
+  return ['invite-customer-negotiation', 'sincerity-sale', 'weekly-feedback'];
 }
 
 function deriveWechatCaseActionLabel(caseItem: GameState['cases'][number]) {
@@ -331,6 +378,27 @@ function deriveWechatCaseActionLabel(caseItem: GameState['cases'][number]) {
   if (caseItem.viewings <= 0) return '安排带看';
   if (caseItem.offers <= 0) return '跟反馈';
   return '推进成交';
+}
+
+function deriveWechatCustomerActionLabel(fact: WechatFact, context: WechatCopyContext) {
+  if (!isCustomerTargetedFact(fact)) {
+    return null;
+  }
+  const primaryActionId = getMessagePrimaryActionId(fact, context);
+  if (primaryActionId === 'showing') return '安排带看';
+  if (primaryActionId === 'sincerity-sale') return '推进诚意';
+  if (primaryActionId === 'invite-customer-negotiation') return '约谈价格';
+  if (primaryActionId === 'weekly-feedback') return '跟进客户';
+  if (fact.type === 'customer_price_sensitive') return '约下一步';
+  if (fact.type === 'customer_churn_risk') return '跟进客户';
+  return '安排事项';
+}
+
+function isCustomerTargetedFact(fact: WechatFact) {
+  return fact.senderRole === 'customer'
+    || fact.type.startsWith('customer_')
+    || Boolean(fact.customerId && fact.opportunityId)
+    || Boolean(fact.customerId && fact.type === 'event_followup_needed');
 }
 
 function toPreview(content: string, limit: number) {

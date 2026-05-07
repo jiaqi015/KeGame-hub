@@ -1,4 +1,4 @@
-import { buildDifficultyPresentation } from '../../application/difficultyPresentation.js';
+import { buildDifficultyPresentation } from './difficultyPresentation.js';
 import type { DifficultyId, DifficultyOption } from '../models.js';
 
 interface DifficultyOptionMeta {

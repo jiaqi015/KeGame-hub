@@ -118,6 +118,10 @@ export const BALANCE = {
         balanced: { priceFactor: 0.99, shift: 4, loss: 8, wordOfMouthBonus: 1 },
         close: { priceFactor: 0.985, shift: 9, loss: 5, wordOfMouthBonus: 2 },
       },
+      /** Deterministic close threshold: closeProbability >= this → deal closes.
+       *  Replaces the former randomInt(0,99) dice roll at the terminal decision.
+       *  Mother model: consensus is a process, not a dice roll. */
+      closeThreshold: 50,
       intentWeight: 0.46,
       confidenceWeight: 0.24,
       urgentTrustWeight: 0.25,

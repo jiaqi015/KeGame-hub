@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import {
   buildOpportunityListProjection,
+  type CustomerCaseRelationProjection,
+  type CustomerProjection,
   type OpportunityBucketId,
 } from '../../application/projections/operatingProjection.js';
 import { buildOwnerPersonaProfile } from '../../application/projections/ownerPersonaProfile.js';
@@ -51,17 +53,16 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
   const [activeTab, setActiveTab] = useState<OpportunityTab>('active');
   const [activeCustomerFilter, setActiveCustomerFilter] = useState<ActiveCustomerFilter>('all');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
-  const metModels = useMemo(() => buildOpportunityViewModels(state, projection.met), [projection.met, state]);
   const potentialModels = useMemo(() => buildOpportunityViewModels(state, projection.potential), [projection.potential, state]);
-  const closingModels = useMemo(() => buildOpportunityViewModels(state, projection.closing), [projection.closing, state]);
-  const atRiskModels = useMemo(() => buildOpportunityViewModels(state, projection.atRisk), [projection.atRisk, state]);
   const potentialPools = useMemo(() => groupPotentialPools(potentialModels), [potentialModels]);
 
-  const viewedModels = metModels.filter((model) => model.hasViewed);
-  const contactedModels = metModels.filter((model) => !model.hasViewed);
-  const comparingModels = metModels.filter((model) => model.customerState?.status === 'comparing');
-  const negotiatingModels = metModels.filter((model) => model.customerState?.status === 'negotiating' || model.opportunity.stageIndex >= 4);
-  const displayedMetModels = filterMetModels(metModels, activeCustomerFilter);
+  const customerRows = projection.customers;
+  const viewedCustomers = customerRows.filter((customer) => customer.viewedRelationCount > 0);
+  const contactedCustomers = customerRows.filter((customer) => customer.revealedRelationCount > 0 && customer.viewedRelationCount === 0);
+  const comparingCustomers = customerRows.filter((customer) => customer.statusLabel === '比较中');
+  const negotiatingCustomers = customerRows.filter((customer) => customer.statusLabel === '谈价中');
+  const riskCustomers = customerRows.filter((customer) => customer.churnRisk >= 60 || customer.relations.some((relation) => relation.tone === 'risk'));
+  const displayedCustomers = filterCustomerRows(customerRows, activeCustomerFilter);
   const showActiveTab = (filter: ActiveCustomerFilter = 'all') => {
     setActiveTab('active');
     setActiveCustomerFilter(filter);
@@ -70,16 +71,14 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
     setActiveCustomerFilter('all');
     setActiveTab(BUCKET_TAB_MAP[bucketId]);
   };
-  const selectedCustomerModels = selectedCustomerId
-    ? metModels.filter((model) => model.opportunity.customerId === selectedCustomerId)
-    : [];
-  const selectedCustomerModel = selectedCustomerModels[0] || null;
+  const selectedCustomer = selectedCustomerId
+    ? customerRows.find((customer) => customer.customerId === selectedCustomerId) || null
+    : null;
 
-  if (selectedCustomerModel) {
+  if (selectedCustomer) {
     return (
       <CustomerDetailPage
-        model={selectedCustomerModel}
-        relatedModels={selectedCustomerModels}
+        customer={selectedCustomer}
         onBack={() => setSelectedCustomerId(null)}
         onOpenCase={(caseId) => openCase(caseId, onSelectCase, onSetView)}
       />
@@ -91,8 +90,8 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
       <section className="seller-panel p-4 lg:p-5">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-3xl">
-            <div className="seller-label">关系推进池</div>
-            <h2 className="seller-title mt-2 text-[20px]">已接上的关系</h2>
+            <div className="seller-label">客户资产池</div>
+            <h2 className="seller-title mt-2 text-[20px]">按人推进客户</h2>
           </div>
 
           <div className="grid min-w-[280px] grid-cols-2 gap-2 md:grid-cols-4">
@@ -128,7 +127,7 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <StageOverviewCard
                 title="已见过面"
-                count={viewedModels.length}
+                count={viewedCustomers.length}
                 detail="看过房，后续多在复看、报价或家人决策。"
                 tone="emerald"
                 active={activeCustomerFilter === 'viewed'}
@@ -136,7 +135,7 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
               />
               <StageOverviewCard
                 title="只接上话"
-                count={contactedModels.length}
+                count={contactedCustomers.length}
                 detail="聊过需求，还没形成看房记录。"
                 tone="slate"
                 active={activeCustomerFilter === 'contacted'}
@@ -147,42 +146,42 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
               <div className="grid grid-cols-2 gap-3 text-[11px] text-[var(--seller-muted)] md:grid-cols-4">
                 <CustomerMetricButton
                   label="在跟准客"
-                  value={metModels.length}
+                  value={customerRows.length}
                   active={activeCustomerFilter === 'all'}
                   onClick={() => showActiveTab()}
                 />
                 <CustomerMetricButton
                   label="比较中"
-                  value={comparingModels.length}
+                  value={comparingCustomers.length}
                   active={activeCustomerFilter === 'comparing'}
                   onClick={() => showActiveTab('comparing')}
                 />
                 <CustomerMetricButton
                   label="谈价中"
-                  value={negotiatingModels.length}
+                  value={negotiatingCustomers.length}
                   active={activeCustomerFilter === 'negotiating'}
                   onClick={() => showActiveTab('negotiating')}
                 />
                 <CustomerMetricButton
                   label="看过房"
-                  value={viewedModels.length}
+                  value={viewedCustomers.length}
                   active={activeCustomerFilter === 'viewed'}
                   onClick={() => showActiveTab('viewed')}
                 />
               </div>
             </div>
             <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-              {displayedMetModels.length > 0 ? displayedMetModels.map((model) => (
-                <React.Fragment key={model.opportunity.id}>
-                  <CustomerOpportunityCard
-                    model={model}
-                    onOpenDetail={() => setSelectedCustomerId(model.opportunity.customerId)}
+              {displayedCustomers.length > 0 ? displayedCustomers.map((customer) => (
+                <React.Fragment key={customer.customerId}>
+                  <CustomerCard
+                    customer={customer}
+                    onOpenDetail={() => setSelectedCustomerId(customer.customerId)}
                   />
                 </React.Fragment>
               )) : (
                 <EmptyState
                   title={activeCustomerFilter === 'all' ? '还没有稳定接上的客户' : '这个分组暂时为空'}
-                  detail={activeCustomerFilter === 'all' ? '房源页还没有形成真人客户记录。' : '可以切回在跟准客看全部客户。'}
+                  detail={activeCustomerFilter === 'all' ? '当前客户池还没形成可推进关系。' : '可以切回在跟准客看全部客户。'}
                 />
               )}
             </div>
@@ -191,13 +190,13 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
 
         {activeTab === 'closing' && (
           <div className="mt-4 space-y-2.5">
-            {closingModels.length > 0 ? closingModels.map((model) => (
-              <React.Fragment key={model.opportunity.id}>
-                <CompactOpportunityCard
-                  model={model}
+            {negotiatingCustomers.length > 0 ? negotiatingCustomers.map((customer) => (
+              <React.Fragment key={customer.customerId}>
+                <CompactCustomerCard
+                  customer={customer}
                   accent="emerald"
                   titleSuffix="已进入报价或谈判"
-                  onOpenDetail={() => setSelectedCustomerId(model.opportunity.customerId)}
+                  onOpenDetail={() => setSelectedCustomerId(customer.customerId)}
                 />
               </React.Fragment>
             )) : (
@@ -212,13 +211,13 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
 
         {activeTab === 'risk' && (
           <div className="mt-4 space-y-2.5">
-            {atRiskModels.length > 0 ? atRiskModels.map((model) => (
-              <React.Fragment key={model.opportunity.id}>
-                <CompactOpportunityCard
-                  model={model}
+            {riskCustomers.length > 0 ? riskCustomers.map((customer) => (
+              <React.Fragment key={customer.customerId}>
+                <CompactCustomerCard
+                  customer={customer}
                   accent="rose"
-                  titleSuffix={model.urgencyLabel}
-                  onOpenDetail={() => setSelectedCustomerId(model.opportunity.customerId)}
+                  titleSuffix="需要尽快接上"
+                  onOpenDetail={() => setSelectedCustomerId(customer.customerId)}
                 />
               </React.Fragment>
             )) : (
@@ -280,12 +279,12 @@ function openCase(caseId: string, onSelectCase: (id: string) => void, onSetView:
   onSetView('cases');
 }
 
-function filterMetModels(models: OpportunityViewModel[], filter: ActiveCustomerFilter) {
-  if (filter === 'viewed') return models.filter((model) => model.hasViewed);
-  if (filter === 'contacted') return models.filter((model) => !model.hasViewed);
-  if (filter === 'comparing') return models.filter((model) => model.customerState?.status === 'comparing');
-  if (filter === 'negotiating') return models.filter((model) => model.customerState?.status === 'negotiating' || model.opportunity.stageIndex >= 4);
-  return models;
+function filterCustomerRows(customers: CustomerProjection[], filter: ActiveCustomerFilter) {
+  if (filter === 'viewed') return customers.filter((customer) => customer.viewedRelationCount > 0);
+  if (filter === 'contacted') return customers.filter((customer) => customer.revealedRelationCount > 0 && customer.viewedRelationCount === 0);
+  if (filter === 'comparing') return customers.filter((customer) => customer.statusLabel === '比较中');
+  if (filter === 'negotiating') return customers.filter((customer) => customer.statusLabel === '谈价中');
+  return customers;
 }
 
 function groupPotentialPools(models: OpportunityViewModel[]): PotentialPoolGroup[] {
@@ -443,22 +442,14 @@ function CustomerMetricButton({
 }
 
 function CustomerDetailPage({
-  model,
-  relatedModels,
+  customer,
   onBack,
   onOpenCase,
 }: {
-  model: OpportunityViewModel;
-  relatedModels: OpportunityViewModel[];
+  customer: CustomerProjection;
   onBack: () => void;
   onOpenCase: (caseId: string) => void;
 }) {
-  const customer = model.customer;
-  const preferences = customer?.preferences?.length ? customer.preferences.join('、') : '偏好还在确认';
-  const layouts = customer?.layouts?.length ? customer.layouts.join(' / ') : '户型待确认';
-  const budgetLine = customer ? `${customer.budgetMin}-${customer.budgetMax} 万` : `上限约 ${model.opportunity.budgetMax} 万`;
-  const districtLine = customer?.targetDistrict || model.caseItem?.district || '片区待确认';
-
   return (
     <div className="space-y-4" data-selling-houses-page="customers">
       <section className="seller-panel p-4 lg:p-5">
@@ -472,15 +463,15 @@ function CustomerDetailPage({
         <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             <div className="seller-label">客户详情</div>
-            <h2 className="seller-title mt-2 text-[24px]">{model.opportunity.customerName}</h2>
+            <h2 className="seller-title mt-2 text-[24px]">{customer.name}</h2>
             <p className="mt-2 text-[12px] leading-6 text-[var(--seller-muted)]">
-              {model.opportunityStatusLabel} · {model.opportunity.channelName}
+              {customer.statusLabel} · {customer.profile}
             </p>
           </div>
           <div className="grid grid-cols-3 gap-2 text-right lg:min-w-[280px]">
-            <MetricPill label="意向" value={`${Math.round(model.opportunity.intent)}`} tone="slate" />
-            <MetricPill label="把握" value={`${Math.round(model.opportunity.confidence)}`} tone="slate" />
-            <MetricPill label="剩余" value={formatOpportunityDaysLeft(model.opportunity.daysLeft)} tone={model.opportunity.daysLeft <= 2 ? 'rose' : 'amber'} />
+            <MetricPill label="信任" value={`${customer.advisorTrust}`} tone="slate" />
+            <MetricPill label="疲劳" value={`${customer.fatigue}`} tone={customer.fatigue >= 65 ? 'rose' : 'slate'} />
+            <MetricPill label="风险" value={`${customer.churnRisk}`} tone={customer.churnRisk >= 60 ? 'rose' : 'amber'} />
           </div>
         </div>
       </section>
@@ -489,23 +480,23 @@ function CustomerDetailPage({
         <StatusPanel
           icon={<Sparkles size={14} />}
           label="信息"
-          title={`${budgetLine} · ${districtLine}`}
-          detail={layouts}
+          title={`${customer.budgetLine} · ${customer.targetDistrict}`}
+          detail={customer.layoutLine}
           tone="slate"
         />
         <StatusPanel
           icon={<Users size={14} />}
           label="画像"
-          title={model.profileDetail}
-          detail={preferences}
+          title={customer.profile}
+          detail={customer.statusDetail}
           tone="amber"
         />
         <StatusPanel
           icon={<MessagesSquare size={14} />}
           label="需求"
-          title={model.customerStatusLabel}
-          detail={model.customerStatusDetail}
-          tone={model.customerState?.status === 'negotiating' ? 'emerald' : 'slate'}
+          title={customer.statusLabel}
+          detail={customer.primaryActionLabel ? `下一步：${customer.primaryActionLabel}` : '先保持跟进，等待更明确关系。'}
+          tone={customer.statusLabel === '谈价中' ? 'emerald' : 'slate'}
         />
       </section>
 
@@ -513,38 +504,37 @@ function CustomerDetailPage({
         <div className="flex flex-col gap-1 border-b border-[var(--seller-border)] pb-3">
           <div className="seller-label">关注房源</div>
           <p className="text-[12px] leading-6 text-[var(--seller-muted)]">
-            {relatedModels.length} 套正在跟进。
+            {customer.relations.length} 套正在形成关系。
           </p>
         </div>
         <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-2">
-          {relatedModels.map((item) => {
-            const ownerProfile = item.caseItem ? buildOwnerPersonaProfile(item.caseItem) : null;
+          {customer.relations.map((relation) => {
             return (
               <button
-                key={item.opportunity.id}
+                key={relation.id}
                 type="button"
-                onClick={() => onOpenCase(item.opportunity.caseId)}
+                onClick={() => onOpenCase(relation.caseId)}
                 className="rounded-[18px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] p-3.5 text-left transition hover:border-[var(--seller-border-strong)] hover:bg-[rgba(255,255,255,0.05)]"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h3 className="truncate text-[14px] font-semibold text-[var(--seller-ink)]">{item.caseItem?.title || '未知房源'}</h3>
-                    <p className="mt-1 text-[11px] leading-5 text-[var(--seller-subtle)]">{item.caseItem?.district || '片区待确认'} · {item.opportunity.channelName}</p>
-                    {ownerProfile && (
-                      <span className="mt-2 inline-flex rounded-full bg-[rgba(255,255,255,0.06)] px-2 py-0.5 text-[10px] font-bold text-[var(--seller-muted)]">
-                        {ownerProfile.label}
-                      </span>
-                    )}
+                    <h3 className="truncate text-[14px] font-semibold text-[var(--seller-ink)]">{relation.title}</h3>
+                    <p className="mt-1 text-[11px] leading-5 text-[var(--seller-subtle)]">{relation.district} · {relation.stageLabel}</p>
+                    <span className="mt-2 inline-flex rounded-full bg-[rgba(255,255,255,0.06)] px-2 py-0.5 text-[10px] font-bold text-[var(--seller-muted)]">
+                      {relation.channelName || (relation.revealed ? '已接触' : '潜在关系')}
+                    </span>
                   </div>
                   <span className="rounded-full bg-[rgba(255,255,255,0.06)] px-2 py-0.5 text-[10px] font-bold text-[var(--seller-subtle)]">
-                    {formatOpportunityDaysLeft(item.opportunity.daysLeft)}
+                    {relation.daysLeft === undefined ? '观察中' : formatOpportunityDaysLeft(relation.daysLeft)}
                   </span>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2">
-                  <MetricPill label="意向" value={`${Math.round(item.opportunity.intent)}`} tone="slate" />
-                  <MetricPill label="把握" value={`${Math.round(item.opportunity.confidence)}`} tone="slate" />
+                  <MetricPill label="意向" value={`${relation.intent}`} tone="slate" />
+                  <MetricPill label="把握" value={`${relation.confidence}`} tone="slate" />
                 </div>
-                <p className="mt-3 text-[11px] leading-5 text-[var(--seller-muted)]">{item.nextStep}</p>
+                <p className="mt-3 text-[11px] leading-5 text-[var(--seller-muted)]">
+                  {relation.nextActionLabel ? `建议安排：${relation.nextActionLabel}` : '继续观察客户和房源匹配。'}
+                </p>
               </button>
             );
           })}
@@ -554,15 +544,15 @@ function CustomerDetailPage({
   );
 }
 
-function CustomerOpportunityCard({
-  model,
+function CustomerCard({
+  customer,
   onOpenDetail,
 }: {
-  model: OpportunityViewModel;
+  customer: CustomerProjection;
   onOpenDetail: () => void;
 }) {
-  const comparing = model.customerState?.status === 'comparing';
-  const atRisk = (model.customerState?.churnRisk || 0) >= 60 || model.opportunity.daysLeft <= 2;
+  const comparing = customer.statusLabel === '比较中';
+  const atRisk = customer.churnRisk >= 60 || customer.relations.some((relation) => relation.tone === 'risk');
 
   return (
     <button
@@ -573,33 +563,35 @@ function CustomerOpportunityCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <strong className="text-[14px] font-semibold text-[var(--seller-ink)]">{model.opportunity.customerName}</strong>
+            <strong className="text-[14px] font-semibold text-[var(--seller-ink)]">{customer.name}</strong>
             <span className="rounded-full bg-[rgba(255,255,255,0.05)] px-2 py-0.5 text-[10px] font-bold text-[var(--seller-subtle)]">
-              {model.opportunityStatusLabel}
+              {customer.statusLabel}
             </span>
             {comparing && <span className="rounded-full bg-[var(--seller-accent-soft)] px-2 py-0.5 text-[10px] font-bold text-[var(--seller-accent)]">比较中</span>}
             {atRisk && <span className="rounded-full bg-[var(--seller-risk-soft)] px-2 py-0.5 text-[10px] font-bold text-[var(--seller-risk)]">掉线风险</span>}
           </div>
-          <p className="mt-1 truncate text-[11px] leading-5 text-[var(--seller-subtle)]">{model.caseItem?.title || '未知房源'} · {model.opportunity.channelName}</p>
-          <p className="mt-2 line-clamp-2 text-[11px] leading-5 text-[var(--seller-muted)]">{model.nextStep}</p>
+          <p className="mt-1 truncate text-[11px] leading-5 text-[var(--seller-subtle)]">
+            {customer.topCaseTitle || '多房源关系'} · {customer.activeRelationCount} 条关系
+          </p>
+          <p className="mt-2 line-clamp-2 text-[11px] leading-5 text-[var(--seller-muted)]">{customer.statusDetail}</p>
         </div>
         <div className="grid w-[210px] shrink-0 grid-cols-3 gap-2 text-right">
-          <MetricPill label="意向" value={`${Math.round(model.opportunity.intent)}`} tone="slate" />
-          <MetricPill label="把握" value={`${Math.round(model.opportunity.confidence)}`} tone="slate" />
-          <MetricPill label="剩余" value={formatOpportunityDaysLeft(model.opportunity.daysLeft)} tone={atRisk ? 'rose' : 'amber'} />
+          <MetricPill label="房源" value={`${customer.activeRelationCount}`} tone="slate" />
+          <MetricPill label="看过" value={`${customer.viewedRelationCount}`} tone="slate" />
+          <MetricPill label="风险" value={`${customer.churnRisk}`} tone={atRisk ? 'rose' : 'amber'} />
         </div>
       </div>
     </button>
   );
 }
 
-function CompactOpportunityCard({
-  model,
+function CompactCustomerCard({
+  customer,
   accent,
   titleSuffix,
   onOpenDetail,
 }: {
-  model: OpportunityViewModel;
+  customer: CustomerProjection;
   accent: 'emerald' | 'rose';
   titleSuffix: string;
   onOpenDetail: () => void;
@@ -616,14 +608,14 @@ function CompactOpportunityCard({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[13px] font-semibold text-[var(--seller-ink)]">{model.opportunity.customerName}</div>
+          <div className="text-[13px] font-semibold text-[var(--seller-ink)]">{customer.name}</div>
           <p className="mt-1 text-[11px] leading-5 text-[var(--seller-subtle)]">
-            {model.caseItem?.title || '未知房源'} · {titleSuffix}
+            {customer.topCaseTitle || '多房源关系'} · {titleSuffix}
           </p>
-          <p className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">{model.nextStep}</p>
+          <p className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">{customer.statusDetail}</p>
         </div>
         <span className="rounded-full bg-[rgba(255,255,255,0.05)] px-2 py-0.5 text-[10px] font-bold text-[var(--seller-subtle)]">
-          {model.opportunity.stageLabel}
+          {customer.primaryActionLabel || customer.statusLabel}
         </span>
       </div>
     </button>

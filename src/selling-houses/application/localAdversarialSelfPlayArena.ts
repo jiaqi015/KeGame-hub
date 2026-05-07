@@ -4,6 +4,8 @@ import { advanceDays, executeAction, findBestOpportunity, getActionAvailability,
 import { getScenarioSnapshotById } from '../domain/scenarioCatalog.js';
 import type { Case, FinalResult, GameState, Opportunity, ScenarioSnapshot } from '../domain/models.js';
 import { getPromotionBudget, resolveFormalSoldCount } from '../domain/runtimeStats.js';
+import { readCaseRelationBusinessContextFromRuntime } from '../core/world-state/relationReadProjection.js';
+import { readOwnerBehaviorDimensions } from '../domain/ownerDecisionProfileHelper.js';
 
 type Severity = 'critical' | 'major' | 'minor';
 
@@ -193,8 +195,9 @@ export class LocalAdversarialSelfPlayArena {
     const lateStageCount = activeOpps.filter((entry) => entry.stageIndex >= 3).length;
     const pricePressure = Math.max(0, caseItem.askPrice - caseItem.marketPrice) / 2;
 
+    const relationTrust = readCaseRelationBusinessContextFromRuntime(state, caseItem).trustValue;
     return (100 - caseItem.windowDays * 8)
-      + (65 - caseItem.trust)
+      + (65 - relationTrust)
       + (58 - caseItem.heat)
       + pricePressure
       + shadowCount * 8
@@ -241,13 +244,14 @@ export class LocalAdversarialSelfPlayArena {
     if (lateOpportunity) {
       candidates.push({
         actionId: 'invite-customer-negotiation',
-        optionId: this.pickNegotiationOption(caseItem, lateOpportunity),
+        optionId: this.pickNegotiationOption(state, caseItem, lateOpportunity),
         rationale: '已经接近成交区间，优先收口高阶段机会。',
         weight: 95,
       });
     }
 
-    if (caseItem.windowDays <= 4 || caseItem.trust < 56) {
+    const relationTrust = readCaseRelationBusinessContextFromRuntime(state, caseItem).trustValue;
+    if (caseItem.windowDays <= 4 || relationTrust < 56) {
       candidates.push({
         actionId: caseItem.hasCompletedFirstVisit ? 'weekly-feedback' : 'first-visit',
         optionId: null,
@@ -259,7 +263,7 @@ export class LocalAdversarialSelfPlayArena {
     if (caseItem.askPrice > caseItem.marketPrice * 1.04 || caseItem.priceGapPct > 5) {
       candidates.push({
         actionId: 'adjust-listing-price',
-        optionId: this.pickPriceOption(caseItem),
+        optionId: this.pickPriceOption(state, caseItem),
         rationale: '价格锚偏高，先处理成交确定性。',
         weight: 88,
       });
@@ -319,7 +323,7 @@ export class LocalAdversarialSelfPlayArena {
       });
     }
 
-    if (getPromotionBudget(state) >= 2 && caseItem.trust >= 62 && caseItem.qualityStory >= 1) {
+    if (getPromotionBudget(state) >= 2 && relationTrust >= 62 && caseItem.qualityStory >= 1) {
       candidates.push({
         actionId: 'private-referral',
         optionId: null,
@@ -352,22 +356,25 @@ export class LocalAdversarialSelfPlayArena {
       .find((entry) => getActionAvailability(state, caseItem, entry.actionId).enabled);
   }
 
-  private pickPriceOption(caseItem: Case) {
+  private pickPriceOption(state: GameState, caseItem: Case) {
     const priceGap = caseItem.askPrice - caseItem.marketPrice;
-    if (caseItem.windowDays <= 4 || caseItem.trust < 45 || priceGap > 35) {
+    const relationTrust = readCaseRelationBusinessContextFromRuntime(state, caseItem).trustValue;
+    const ownerBehavior = readOwnerBehaviorDimensions(caseItem);
+    if (caseItem.windowDays <= 4 || relationTrust < 45 || priceGap > 35) {
       return 'deep-cut';
     }
-    if (priceGap > 10 || caseItem.personality === 'pragmatic' || caseItem.personality === 'urgent') {
+    if (priceGap > 10 || ownerBehavior.priceSensitivity >= 68 || ownerBehavior.timePressure >= 72) {
       return 'small-cut';
     }
     return 'hold-story';
   }
 
-  private pickNegotiationOption(caseItem: Case, opportunity: Opportunity) {
+  private pickNegotiationOption(state: GameState, caseItem: Case, opportunity: Opportunity) {
     if (opportunity.intent >= 90 && opportunity.confidence >= 85) {
       return 'hold';
     }
-    if (caseItem.windowDays <= 3 || caseItem.trust < 52) {
+    const relationTrust = readCaseRelationBusinessContextFromRuntime(state, caseItem).trustValue;
+    if (caseItem.windowDays <= 3 || relationTrust < 52) {
       return 'close';
     }
     return 'balanced';

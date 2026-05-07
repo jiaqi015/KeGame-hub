@@ -36,6 +36,24 @@
 
 ## 多模型PK
 
+- `lib/aiCapabilities.ts`
+  - 项目级 AI 能力目录，按能力抽象 LLM / agent / subagent / tool-use / skill，而不是直接绑定单个业务场景。
+- `lib/aiInvocationContracts.ts`
+  - AI 能力层基础合同，定义执行模式、工具策略、guardrail 和 invocation receipt。
+- `lib/aiAgents.ts`
+  - Agent / subagent 注册表，定义职责、默认模型、skill、tool、handoff 和 guardrail。
+- `lib/aiSkills.ts`
+  - Skill manifest 注册表，承接可复用 instruction、资源引用、脚本引用和可用工具。
+- `lib/aiTools.ts`
+  - Tool manifest 注册表，定义工具类型、输入输出 schema、风险等级和执行策略。
+- `lib/aiPlatform.ts`
+  - 汇总 capability / agent / skill / tool 的平台 manifest。
+- `lib/aiCapabilityRuntime.ts`
+  - AI 能力调用入口，按 capability 选择默认模型并转给统一模型运行层，同时返回 invocation receipt。
+- `lib/modelRuntime.ts`
+  - 统一模型 provider 调度层，多模型PK 和 AI 能力层共用。
+- `api/ai-capabilities.ts`
+  - AI 能力服务端入口，支持能力列表、非流式调用和流式调用。
 - `src/components/Comparison/ComparisonWorkspace.tsx`
   - 模型对比工作区。
 - `src/services/apiService.ts`

@@ -1,5 +1,5 @@
 export type ModelChannel = 'china' | 'global';
-export type ModelProvider = 'ark' | 'ikun' | 'hunyuan' | 'dashscope';
+export type ModelProvider = 'ark' | 'ikun' | 'hunyuan' | 'dashscope' | 'deepseek';
 
 export interface AIModel {
   id: string;
@@ -46,6 +46,17 @@ export const MODEL_CONFIGS: AIModel[] = [
     description: 'DeepSeek 通用模型，代码与推理表现突出',
     provider: 'ark',
     upstreamModel: 'deepseek-v3-1-250821',
+    enabled: true,
+    thinkingStreamMode: 'native',
+  },
+  {
+    id: 'deepseek-v4-pro',
+    name: 'DeepSeek V4 Pro',
+    channel: 'china',
+    category: 'DeepSeek',
+    description: 'DeepSeek 官方高能力模型，适合复杂分析与代码任务',
+    provider: 'deepseek',
+    upstreamModel: 'deepseek-v4-pro',
     enabled: true,
     thinkingStreamMode: 'native',
   },

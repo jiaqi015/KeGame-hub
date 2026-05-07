@@ -2,11 +2,34 @@ import { applyAuxiliaryStats } from '../runtimeStats.js';
 import { logEvent } from '../runtimeState.js';
 import { clamp, getDayOfWeek, randomInt } from '../utils.js';
 import { applyBrokerOwnerTrustDelta } from '../trustWriteHelper.js';
+import { readCaseRelationBusinessContextFromRuntime } from '../../core/world-state/relationReadProjection.js';
 import { touchCustomersForCase } from './customerEngine.js';
 import { touchCaseForAction } from './actionExecutorHelpers.js';
 import { refundResources } from './actionResourceAccounting.js';
 import { adjustCaseOpportunities, createOpportunity } from './opportunityEngine.js';
 import type { ActionExecutorMap } from './actionExecutorTypes.js';
+
+interface FocusMeetingMeta {
+  submittedCaseIds?: unknown;
+  selectedCaseId?: unknown;
+  recommendationMode?: unknown;
+  externalRivalListingIds?: unknown;
+  comparingCustomerIds?: unknown;
+}
+
+function parseFocusMeetingMeta(meta: unknown): FocusMeetingMeta {
+  return meta && typeof meta === 'object' ? meta as FocusMeetingMeta : {};
+}
+
+function uniqueCaseIds(input: unknown) {
+  if (!Array.isArray(input)) return [];
+  return [...new Set(input.map(String).filter(Boolean))].slice(0, 3);
+}
+
+function uniqueIds(input: unknown, limit = 12) {
+  if (!Array.isArray(input)) return [];
+  return [...new Set(input.map(String).filter(Boolean))].slice(0, limit);
+}
 
 export const MARKETING_ACTION_EXECUTORS: ActionExecutorMap = {
   'story': ({ state, caseItem, action, optionId, onMessage }) => {
@@ -71,7 +94,7 @@ export const MARKETING_ACTION_EXECUTORS: ActionExecutorMap = {
     applyBrokerOwnerTrustDelta(state, caseItem, (strategy === 'owner-circle' ? 4 : 2), '私域转介绍提升信任', 0, 100);
     caseItem.heat = clamp(caseItem.heat + (strategy === 'vip-circle' ? 3 : 4), 0, 100);
     createOpportunity(state, caseItem, 'private-referral', strategy === 'vip-circle' ? 15 : 10);
-    if (caseItem.trust >= 68 || caseItem.qualityStory >= 1) {
+    if (readCaseRelationBusinessContextFromRuntime(state, caseItem).trustValue >= 68 || caseItem.qualityStory >= 1) {
       createOpportunity(state, caseItem, 'private-referral', 14);
     }
     touchCustomersForCase(state, caseItem.id, {
@@ -84,34 +107,88 @@ export const MARKETING_ACTION_EXECUTORS: ActionExecutorMap = {
     onMessage?.(`${caseItem.title} 已完成一轮私域转介绍。`);
     return true;
   },
-  'focus-meeting-submit': ({ state, caseItem, action, onMessage }) => {
+  'focus-meeting-submit': ({ state, caseItem, action, optionId, meta, onMessage }) => {
     if (getDayOfWeek(state.day) !== 4) {
       refundResources(state, action, '非周四不可提报聚焦会');
       onMessage?.('周四上午才能提报聚焦会。');
       return false;
     }
+    const focusMeta = parseFocusMeetingMeta(meta);
+    const requestedSubmittedCaseIds = uniqueCaseIds(focusMeta.submittedCaseIds);
+    const requestedSelectedCaseId = typeof focusMeta.selectedCaseId === 'string' ? focusMeta.selectedCaseId : '';
+    const submittedCaseIds = requestedSubmittedCaseIds.length > 0
+      ? requestedSubmittedCaseIds
+      : [caseItem.id];
+    const selectedCaseId = submittedCaseIds.includes(requestedSelectedCaseId)
+      ? requestedSelectedCaseId
+      : caseItem.id;
     if (state.focusMeeting.submissionDay !== state.day) {
       state.focusMeeting = {
         submissionDay: state.day,
         submittedCaseIds: [],
         selectedCaseIds: [],
+        comparisonCaseIds: [],
+        recommendationMode: null,
+        selectedCaseId: null,
+        externalRivalListingIds: [],
+        comparingCustomerIds: [],
       };
     }
-    if (state.focusMeeting.submittedCaseIds.includes(caseItem.id)) {
+    const alreadySubmittedIds = submittedCaseIds.filter((caseId) => state.focusMeeting.submittedCaseIds.includes(caseId));
+    if (alreadySubmittedIds.length > 0) {
       refundResources(state, action, '同一房源当天不可重复提报');
-      onMessage?.('这套房今天已经提报过了。');
+      onMessage?.('有房源今天已经提报过了。');
       return false;
     }
-    if (state.focusMeeting.submittedCaseIds.length >= 3) {
+    if (state.focusMeeting.submittedCaseIds.length + submittedCaseIds.length > 3) {
       refundResources(state, action, '周四聚焦会提报上限为 3 套');
       onMessage?.('周四聚焦会最多提报 3 套房。');
       return false;
     }
-    state.focusMeeting.submittedCaseIds.push(caseItem.id);
-    touchCaseForAction(caseItem, action.id, state.day, true);
-    caseItem.lastOwnerTouchedDay = state.day;
-    logEvent(state, '周四聚焦会', `${caseItem.title} 已完成聚焦会提报（${state.focusMeeting.submittedCaseIds.length}/3）。`, 'accent');
-    onMessage?.(`${caseItem.title} 已提报周四聚焦会。`);
+    const submittedCases = submittedCaseIds
+      .map((caseId) => state.cases.find((entry) => entry.id === caseId))
+      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry) && entry.status === 'active');
+    if (!submittedCases.length) {
+      refundResources(state, action, '没有可提报房源');
+      onMessage?.('今天没有可提报的活跃房源。');
+      return false;
+    }
+    state.focusMeeting.submittedCaseIds.push(...submittedCases.map((entry) => entry.id));
+    const strategy = optionId || 'quality-priority';
+    const strategyLabel = strategy === 'owner-readiness'
+      ? '业主配合'
+      : strategy === 'customer-signal'
+        ? '客户信号'
+        : '房源质量';
+    submittedCases.forEach((entry) => {
+      touchCaseForAction(entry, action.id, state.day, true);
+      entry.lastOwnerTouchedDay = state.day;
+      entry.heat = clamp(entry.heat + (strategy === 'customer-signal' ? 4 : 2), 0, 100);
+      entry.competitiveness = clamp(entry.competitiveness + (strategy === 'quality-priority' ? 3 : 1), 0, 100);
+      applyBrokerOwnerTrustDelta(state, entry, strategy === 'owner-readiness' ? 3 : 1, '聚焦会提报强化资源承接', 0, 100);
+    });
+    const selectedCase = submittedCases.find((entry) => entry.id === selectedCaseId) || submittedCases[0];
+    state.cases.forEach((entry) => {
+      entry.isFocused = entry.id === selectedCase.id;
+    });
+    state.focusMeeting.selectedCaseIds = [selectedCase.id];
+    state.focusMeeting.comparisonCaseIds = submittedCases.map((entry) => entry.id);
+    state.focusMeeting.selectedCaseId = selectedCase.id;
+    state.focusMeeting.recommendationMode = strategy;
+    state.focusMeeting.externalRivalListingIds = uniqueIds(focusMeta.externalRivalListingIds);
+    state.focusMeeting.comparingCustomerIds = uniqueIds(focusMeta.comparingCustomerIds);
+    selectedCase.heat = clamp(selectedCase.heat + 12, 0, 100);
+    selectedCase.competitiveness = clamp(selectedCase.competitiveness + 6, 0, 100);
+    applyBrokerOwnerTrustDelta(state, selectedCase, 5, '聚焦会最终入选并推进推广', 0, 100);
+    createOpportunity(state, selectedCase, 'xiaohongshu', 12);
+    createOpportunity(state, selectedCase, 'broker-network', 10);
+    logEvent(
+      state,
+      '周四聚焦会',
+      `${submittedCases.map((entry) => entry.title).join('、')} 完成提报；最终聚焦 ${selectedCase.title}，参考 ${state.focusMeeting.externalRivalListingIds.length} 个外部竞品和 ${state.focusMeeting.comparingCustomerIds.length} 位比较中客户，按「${strategyLabel}」推进推广。`,
+      'accent',
+    );
+    onMessage?.(`${selectedCase.title} 已定为本轮聚焦房源，开始推进推广。`);
     return true;
   },
 };

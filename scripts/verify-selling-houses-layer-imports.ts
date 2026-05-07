@@ -126,25 +126,11 @@ const legacyAllowedLayerImports = new Map<LayerImportKey, readonly string[]>([
   ],
   // readModel.ts and types.ts no longer import domain — plain shapes used instead.
   // Domain debts are transitional shims while runtime/application facades are being introduced.
-  [
-    'src/selling-houses/domain/engine.ts -> ../runtime/simulation/processes/index.js',
-    [
-      'advanceProductRunProcessesForDay',
-      'buildNegotiationProcessResultSummary',
-      'buildProductRunProcessResultSummary',
-      'settleNegotiationProcessesForDay',
-    ],
-  ],
   // domain -> core/world-state/semantic-receipt is normal direction, no allowlist needed
   // (removed old domain -> runtime/simulation/dailySemanticReceipt allowlist entry)
-  [
-    'src/selling-houses/domain/engine/actionResolvers.ts -> ../../runtime/simulation/decisionMomentEmission.js',
-    ['advanceFlowProgress', 'emitDecisionMomentTriggers'],
-  ],
-  [
-    'src/selling-houses/domain/config/difficultyOptions.ts -> ../../application/difficultyPresentation.js',
-    ['buildDifficultyPresentation'],
-  ],
+  // (removed decisionMomentBridge.ts — calls moved to application layer)
+  // (removed domain/engine.ts -> runtime/simulation/processes — now uses processManagerFacade DI)
+  // (removed domain/config/difficultyOptions.ts -> application/difficultyPresentation — now in domain/config)
 ]);
 
 const allowedCoreRuntimeDomainImports = new Set([

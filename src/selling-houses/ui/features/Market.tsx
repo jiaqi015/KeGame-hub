@@ -969,13 +969,13 @@ function storyMatchesSection(story: MarketStory, activeSection: SectionTab) {
 function buildTickerItems(projection: ReturnType<typeof buildMarketProjection>): TickerItem[] {
   const radarItems: TickerItem[] = projection.radarCards.map((item) => ({
     label: item.label,
-    value: `${item.value}`,
+    value: formatTickerValue(item.value),
     delta: compactTickerDelta(item.label, item.value, item.tone),
     tone: item.tone,
   }));
   const boardItems: TickerItem[] = projection.districtBoards.slice(0, 3).map((board) => ({
     label: board.name,
-    value: `${board.demandHeat}`,
+    value: formatTickerValue(board.demandHeat),
     delta: board.tone === 'chance' ? '+热' : board.tone === 'risk' ? '偏紧' : '平',
     tone: board.tone,
   }));
@@ -987,6 +987,10 @@ function buildTickerItems(projection: ReturnType<typeof buildMarketProjection>):
     { label: '受影响房源', value: `${projection.affectedCases.length}套`, delta: '活跃', tone: 'warm' as const },
     ...boardItems,
   ].slice(0, 12);
+}
+
+function formatTickerValue(value: number) {
+  return Number.isFinite(value) ? `${Math.round(value)}` : '—';
 }
 
 function buildSectionCounts(stories: MarketStory[]): Record<SectionTab, number> {

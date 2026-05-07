@@ -13,16 +13,38 @@ function findShadowOpportunity(state: GameState, caseId: string) {
   return state.opportunities.find((entry) => entry.caseId === caseId && entry.status === 'active' && entry.visibility === 'shadow');
 }
 
+function firstVisitEffectForOption(optionId: string | null | undefined) {
+  const strategy = optionId || 'commit-next-step';
+  if (strategy === 'ask-price-anchor' || strategy === 'test-price-flexibility') {
+    return { trustDelta: 5, patienceDelta: 5, urgencyDelta: -3, heatDelta: 1 };
+  }
+  if (strategy === 'confirm-deadline' || strategy === 'commit-next-step') {
+    return { trustDelta: 7, patienceDelta: 7, urgencyDelta: -5, heatDelta: 1 };
+  }
+  if (strategy === 'map-decision-structure' || strategy === 'confirm-service-rules') {
+    return { trustDelta: 6, patienceDelta: 6, urgencyDelta: -4, heatDelta: 1 };
+  }
+  if (strategy === 'ask-selling-experience') {
+    return { trustDelta: 6, patienceDelta: 5, urgencyDelta: -3, heatDelta: 1 };
+  }
+  if (strategy === 'ask-motive') {
+    return { trustDelta: 6, patienceDelta: 6, urgencyDelta: -4, heatDelta: 1 };
+  }
+  if (strategy === 'rapport-first') {
+    return { trustDelta: 8, patienceDelta: 5, urgencyDelta: -3, heatDelta: 1 };
+  }
+  if (strategy === 'data-first') {
+    return { trustDelta: 5, patienceDelta: 5, urgencyDelta: -3, heatDelta: 2 };
+  }
+  return { trustDelta: 6, patienceDelta: 7, urgencyDelta: -5, heatDelta: 1 };
+}
+
 export const OWNER_ACTION_EXECUTORS: ActionExecutorMap = {
   'first-visit': ({ state, caseItem, action, optionId, onMessage }) => {
     touchCaseForAction(caseItem, action.id, state.day, true);
     caseItem.hasCompletedFirstVisit = true;
     caseItem.lastOwnerTouchedDay = state.day;
-    const strategy = optionId || 'plan-first';
-    const trustDelta = strategy === 'rapport-first' ? 8 : strategy === 'data-first' ? 5 : 6;
-    const patienceDelta = strategy === 'plan-first' ? 7 : 5;
-    const urgencyDelta = strategy === 'plan-first' ? -5 : -3;
-    const heatDelta = strategy === 'data-first' ? 2 : 1;
+    const { trustDelta, patienceDelta, urgencyDelta, heatDelta } = firstVisitEffectForOption(optionId);
     applyBrokerOwnerTrustDelta(state, caseItem, trustDelta, '首次面访建立信任', 0, 100);
     applyOwnerCasePatienceDelta(state, caseItem, patienceDelta, '首次面访建立信任', 0, 100);
     applyOwnerCaseUrgencyDelta(state, caseItem, urgencyDelta, '首次面访建立信任', 0, 100);

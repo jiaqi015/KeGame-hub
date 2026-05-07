@@ -131,8 +131,8 @@ export const LEGACY_CASE_FIELD_OWNERSHIP_REGISTRY: Readonly<
     legacyRole: 'compatibility-mirror',
     domainFacet: 'owner-decision',
     targetOwner: 'owner-case-relation',
-    targetConcept: 'OwnerDecisionReadiness',
-    migrationNote: 'Patience is owner-side decision readiness for selling this case.',
+    targetConcept: 'OwnerCaseRelation.patience',
+    migrationNote: 'Patience is owner-side decision readiness. Read through relationReadProjection.readRelationReadiness() or readCaseRelationBundle().',
   },
   trust: {
     canonicalOwner: 'broker-owner-relation',
@@ -140,7 +140,7 @@ export const LEGACY_CASE_FIELD_OWNERSHIP_REGISTRY: Readonly<
     domainFacet: 'broker-relationship',
     targetOwner: 'broker-owner-relation',
     targetConcept: 'BrokerOwnerRelation.trust',
-    migrationNote: 'Trust is between broker and owner, never an asset-case fact.',
+    migrationNote: 'Trust is between broker and owner, never an asset-case fact. Read through relationReadProjection.readRelationTrust() or readCaseRelationBundle().',
   },
   heat: {
     canonicalOwner: 'asset-case',
@@ -342,6 +342,14 @@ export const LEGACY_CASE_FIELD_OWNERSHIP_REGISTRY: Readonly<
     targetOwner: 'process-mirror',
     targetConcept: 'ListingLifecycle.firstVisitCompleted',
     migrationNote: 'First visit completion is a lifecycle milestone.',
+  },
+  ownerProfilingMemory: {
+    canonicalOwner: 'owner',
+    legacyRole: 'future-migration',
+    domainFacet: 'owner-profile',
+    targetOwner: 'owner',
+    targetConcept: 'OwnerProfilingMemory',
+    migrationNote: 'First-visit profiling memory should eventually live on the owner memory model, but is persisted on legacy Case during migration.',
   },
   lastAction: {
     canonicalOwner: 'runtime-scratch',

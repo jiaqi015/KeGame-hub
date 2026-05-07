@@ -25,8 +25,21 @@ import { OWNER_ACTION_EXECUTORS } from './ownerActionExecutors.js';
 import { PRICING_ACTION_EXECUTORS } from './pricingActionExecutors.js';
 import { SINCERITY_SALE_ACTION_EXECUTORS } from './sinceritySaleActionExecutors.js';
 import { SHOWING_ACTION_EXECUTORS } from './showingActionExecutors.js';
-import { emitDecisionMomentTriggers, advanceFlowProgress } from '../../runtime/simulation/decisionMomentEmission.js';
-import { buildActionReceipt, appendActionReceipt } from '../../runtime/simulation/actionReceiptAdapter.js';
+import { captureActionReceiptSnapshot, type ActionReceiptSnapshot } from './actionReceiptSnapshot.js';
+
+// Module-level pending receipt snapshots for post-action enrichment.
+// The caller reads and clears this after executeAction returns.
+const _pendingReceiptSnapshots: ActionReceiptSnapshot[] = [];
+
+/**
+ * Returns pending receipt snapshots from the last executeAction call.
+ * Caller should clear after reading.
+ */
+export function popPendingActionReceiptSnapshots(): readonly ActionReceiptSnapshot[] {
+  const snapshots = [..._pendingReceiptSnapshots];
+  _pendingReceiptSnapshots.length = 0;
+  return Object.freeze(snapshots);
+}
 
 export function resolveActionDefinition(actionId: string) {
   return ACTIONS.find((entry) => entry.id === actionId || entry.executorId === actionId);
@@ -68,32 +81,21 @@ export function executeAction(
   caseItem: Case | null | undefined,
   optionId: string | null = null,
   onMessage?: (msg: string) => void,
+  meta?: unknown,
 ) {
   const action = resolveActionDefinition(actionId);
   if (!action || !caseItem || caseItem.status !== 'active') return false;
 
   const availability = getActionAvailability(state, caseItem, actionId);
   if (!availability.enabled) {
-    // Non-invasive blocked receipt — records that action was attempted but blocked
-    try {
-      const receipt = buildActionReceipt({
-        day: state.day,
-        caseId: caseItem.id,
-        actionId: actionId,
-        executorId: actionId,
-        optionId,
-        outcome: 'blocked',
-        costEnergy: 0,
-        costPromotionBudget: 0,
-        fieldDeltas: [],
-        outcomeSummary: availability.reason,
-        emittedEventIds: [],
-        affectedOpportunityIds: [],
-      });
-      appendActionReceipt(state, receipt);
-    } catch {
-      // Receipt generation is non-invasive — swallow errors silently
-    }
+    // Capture blocked snapshot for post-action receipt building
+    _pendingReceiptSnapshots.push(
+      captureActionReceiptSnapshot(
+        state, caseItem, actionId, actionId, optionId,
+        'blocked', 0, 0, availability.reason, state.eventStore.length,
+        state.opportunities.filter((o) => o.caseId === caseItem.id && o.status === 'active').length,
+      ),
+    );
     onMessage?.(availability.reason);
     return false;
   }
@@ -119,7 +121,7 @@ export function executeAction(
 
   const transactionResult = executeActionTransaction(state, action, () => {
     spendResources(state, action);
-    const result = executor({ state, action, caseItem, optionId, onMessage });
+    const result = executor({ state, action, caseItem, optionId, meta, onMessage });
     if (isActionExecutionSuccess(result)) {
       applyActionStageRelation(state, caseItem, action.executorId || action.id, getActionExecutionOpportunity(result));
       return result;
@@ -147,51 +149,19 @@ export function executeAction(
       costPromotionBudget: action.costPromotionBudget,
     },
   });
-  emitDecisionMomentTriggers(state, action.id, caseItem, optionId ?? undefined);
-  advanceFlowProgress(state, action.id, caseItem.id);
+  // Decision moment emission and flow progress moved to application layer
+  // (gameTransitions.ts) to enforce domain→runtime boundary.
   updateDerivedState(state);
 
-  // Non-invasive receipt hook: build compressed ActionReceipt after successful execution.
-  // Does NOT alter gameplay, RNG, tick order, or UI.
-  // Deterministic: same state snapshot → same receipt.
-  try {
-    const emittedEventIds = state.eventStore
-      .slice(beforeEventStoreLength)
-      .map((e) => e.id);
-    const affectedOpportunityIds = state.opportunities
-      .filter((o) => o.caseId === caseItem.id && o.status === 'active')
-      .map((o) => o.id);
-    const fieldDeltas: Array<{ field: string; from: number; to: number; delta: number }> = [];
-    const pushDelta = (field: string, from: number, to: number) => {
-      const delta = Math.round((to - from) * 100) / 100;
-      if (delta !== 0) fieldDeltas.push({ field, from, to, delta });
-    };
-    pushDelta('trust', beforeTrust, caseItem.trust);
-    pushDelta('patience', beforePatience, caseItem.patience);
-    pushDelta('urgency', beforeUrgency, caseItem.urgency);
-    pushDelta('heat', beforeHeat, caseItem.heat);
-    pushDelta('competitiveness', beforeCompetitiveness, caseItem.competitiveness);
-    pushDelta('d1', beforeD1, caseItem.d1);
-    pushDelta('windowDays', beforeWindowDays, caseItem.windowDays);
-
-    const receipt = buildActionReceipt({
-      day: state.day,
-      caseId: caseItem.id,
-      actionId: action.id,
-      executorId: action.executorId || action.id,
-      optionId,
-      outcome: 'success',
-      costEnergy: action.costEnergy,
-      costPromotionBudget: action.costPromotionBudget,
-      fieldDeltas,
-      outcomeSummary: `${action.name} 执行成功`,
-      emittedEventIds,
-      affectedOpportunityIds,
-    });
-    appendActionReceipt(state, receipt);
-  } catch {
-    // Receipt generation is non-invasive — swallow errors silently
-  }
+  // Capture success snapshot for post-action receipt building.
+  // Receipt is built by the application layer via runtime adapter.
+  _pendingReceiptSnapshots.push(
+    captureActionReceiptSnapshot(
+      state, caseItem, action.id, action.executorId || action.id, optionId,
+      'success', action.costEnergy, action.costPromotionBudget,
+      `${action.name} 执行成功`, beforeEventStoreLength, beforeOpportunityCount,
+    ),
+  );
 
   return true;
 }

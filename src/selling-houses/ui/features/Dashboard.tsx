@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { GameState, TodayArrangementSlot } from '../../domain/models';
 import { formatDate, getRoutine } from '../../domain/utils';
 import { WEEKLY_ROUTINE } from '../../domain/constants';
+import { ACTIONS } from '../../domain/actions/definitions.js';
 import {
   type ArrangementItemProjection,
   type ArrangementProjection,
@@ -14,6 +15,7 @@ import {
   type ProjectionTone,
 } from '../../application/projections/operatingProjection.js';
 import { buildMyWechatProjection } from '../../application/projections/myWechatProjection.js';
+import type { WechatMessage } from '../../application/projections/myWechatTypes.js';
 import { buildMarketIntelProjection, type IntelLayerTab } from './marketIntel';
 import { MyWechatPanel } from './MyWechatPanel';
 import {
@@ -70,7 +72,7 @@ type AgendaTool = {
   marketLayer?: IntelLayerTab;
 };
 
-const DEFAULT_CALENDAR_WINDOW_DAYS: CalendarWindowDays = 14;
+const DEFAULT_CALENDAR_WINDOW_DAYS: CalendarWindowDays = 7;
 const CALENDAR_WINDOW_OPTIONS: CalendarWindowDays[] = [7, 14];
 const CALENDAR_PAST_CONTEXT_DAYS: Record<CalendarWindowDays, number> = {
   7: 0,
@@ -159,6 +161,58 @@ export function Dashboard({
     }
     onSelectCase(caseId);
     onSetView('cases');
+  };
+
+  const scheduleWechatMessageAction = (message: WechatMessage) => {
+    if (!message.targetCaseId || !message.primaryActionId) {
+      return false;
+    }
+
+    const caseItem = state.cases.find((entry) => entry.id === message.targetCaseId);
+    if (!caseItem) {
+      return false;
+    }
+
+    const action = ACTIONS.find((entry) => entry.id === message.primaryActionId || entry.executorId === message.primaryActionId) || null;
+    if (!action) {
+      return false;
+    }
+
+    const candidateItem = dashboard.arrangement.candidateItems.find(
+      (item) => item.caseId === caseItem.id
+        && item.actionId === action.id
+        && (!message.targetCustomerId || item.customerId === message.targetCustomerId),
+    );
+    const opportunity = message.targetOpportunityId
+      ? state.opportunities.find((entry) => entry.id === message.targetOpportunityId) || null
+      : message.targetCustomerId
+        ? state.opportunities.find((entry) => entry.customerId === message.targetCustomerId && entry.caseId === caseItem.id && entry.status === 'active') || null
+        : null;
+    const slot = candidateItem?.slot || getDefaultAgendaSlot();
+    const arrangementItem: ArrangementItemProjection = candidateItem || {
+      id: `wechat-message-${message.id}-${action.id}`,
+      source: 'candidate',
+      slot,
+      rank: 1,
+      label: '待选',
+      title: `${caseItem.title} · ${action.name}`,
+      detail: `${caseItem.community} · ${action.summary}`,
+      tone: 'neutral',
+      caseId: caseItem.id,
+      customerId: message.targetCustomerId,
+      opportunityId: opportunity?.id,
+      durationHours: action.durationHours,
+      energyCost: action.costEnergy,
+      statusLabel: '可加入',
+      actionId: action.id,
+      executionMode: action.type === 'scenario' ? 'scenario' : 'direct',
+      ctaLabel: slot === 'am' ? '加入上午' : '加入下午',
+      displayTitle: opportunity?.customerName,
+      contextTitle: opportunity ? caseItem.title : undefined,
+      secondaryLabel: opportunity ? '看客户' : '看房源',
+    };
+
+    return onAddToToday(arrangementItem, slot);
   };
 
   const handleAgendaTool = (tool: AgendaTool, caseId?: string) => {
@@ -257,7 +311,6 @@ export function Dashboard({
               day={state.day}
               maxDay={state.maxDay}
               energyLabel={dashboard.resourceSnapshot.energy}
-              budgetLabel={dashboard.resourceSnapshot.promotionBudget}
             onOpenCase={openCase}
             onExecuteAction={onExecuteAction}
             onEnterScenarioAction={onEnterScenarioAction}
@@ -274,12 +327,7 @@ export function Dashboard({
                 readIds={wechatReadIds}
                 onMarkRead={onMarkWechatRead}
                 onSelectCase={onOpenCaseFromWechat}
-                onSelectOpportunity={(opportunityId) => {
-                  const opportunity = state.opportunities.find((entry) => entry.id === opportunityId);
-                  if (opportunity?.caseId) {
-                    onOpenCaseFromWechat(opportunity.caseId);
-                  }
-                }}
+                onScheduleMessageAction={scheduleWechatMessageAction}
                 onOpenMarket={(layer) => onOpenMarket(layer || 'macro')}
               />
             </div>
@@ -521,7 +569,6 @@ function AgendaPanel({
   day,
   maxDay,
   energyLabel,
-  budgetLabel,
   onOpenCase,
   onExecuteAction,
   onEnterScenarioAction,
@@ -534,7 +581,6 @@ function AgendaPanel({
   day: number;
   maxDay: number;
   energyLabel: string;
-  budgetLabel: string;
   onOpenCase: (caseId?: string) => void;
   onExecuteAction: (actionId: string, caseId: string) => boolean;
   onEnterScenarioAction: (actionId: string, caseId: string) => boolean;
@@ -545,7 +591,7 @@ function AgendaPanel({
 }) {
   const slots: TodayArrangementSlot[] = ['am', 'pm'];
   const [activeAgendaSlot, setActiveAgendaSlot] = useState<TodayArrangementSlot>(
-    () => getDefaultAgendaSlot(arrangement),
+    () => getDefaultAgendaSlot(),
   );
   const activeSlotArrangement = arrangement.slots[activeAgendaSlot];
   const plannedItemKeys = useMemo(
@@ -558,8 +604,8 @@ function AgendaPanel({
   );
 
   useEffect(() => {
-    setActiveAgendaSlot(getDefaultAgendaSlot(arrangement));
-  }, [arrangement, day]);
+    setActiveAgendaSlot(getDefaultAgendaSlot());
+  }, [day]);
 
   useEffect(() => {
     setActivePlannedItemKey((current) => (
@@ -583,7 +629,6 @@ function AgendaPanel({
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <span className="seller-chip">{day}/{maxDay}</span>
             <span className="seller-chip seller-chip-accent">今日精力 {energyLabel}</span>
-            <span className="seller-chip">{budgetLabel} 推广金</span>
             <span className="seller-chip">我的安排 {arrangement.plannedEnergy} 小时</span>
             <span className="seller-chip">固定预留 {arrangement.fixedEnergyReserve} 小时</span>
             <span className="seller-chip">可排余量 {arrangement.remainingEnergy} 小时</span>
@@ -659,8 +704,20 @@ function AgendaPanel({
   );
 }
 
-function ArrangementTitleBlock({ title, size = 'md' }: { title: string; size?: 'sm' | 'md' }) {
+function ArrangementTitleBlock({
+  title,
+  displayTitle,
+  contextTitle,
+  size = 'md',
+}: {
+  title: string;
+  displayTitle?: string;
+  contextTitle?: string;
+  size?: 'sm' | 'md';
+}) {
   const { caseTitle, matterTitle } = splitArrangementTitle(title);
+  const visibleTitle = displayTitle || caseTitle;
+  const visibleContextTitle = contextTitle || (displayTitle ? caseTitle : '');
   const titleClass = size === 'sm'
     ? 'mt-2 text-[14px] font-semibold text-[var(--seller-ink)]'
     : 'mt-2 text-[16px] font-semibold tracking-[-0.03em] text-[var(--seller-ink)]';
@@ -670,7 +727,10 @@ function ArrangementTitleBlock({ title, size = 'md' }: { title: string; size?: '
 
   return (
     <div>
-      <div className={titleClass}>{caseTitle}</div>
+      <div className={titleClass}>{visibleTitle}</div>
+      {visibleContextTitle ? (
+        <div className="mt-1 text-[11px] font-medium leading-5 text-[var(--seller-muted)]">{visibleContextTitle}</div>
+      ) : null}
       {matterTitle ? (
         <div className="mt-1 flex flex-wrap items-center gap-1.5">
           <span className={matterClass}>事项：{matterTitle}</span>
@@ -696,21 +756,7 @@ function getArrangementItemShortTitle(item: ArrangementItemProjection) {
   return splitArrangementTitle(item.title).caseTitle;
 }
 
-function getArrangementSlotItemCount(slot: ArrangementProjection['slots'][TodayArrangementSlot]) {
-  return slot.plannedItems.length
-    + slot.candidateItems.length
-    + slot.fixedItems.length
-    + slot.completedItems.length;
-}
-
-function getDefaultAgendaSlot(arrangement: ArrangementProjection): TodayArrangementSlot {
-  if (arrangement.slots.pm.plannedItems.length > 0) return 'pm';
-  if (arrangement.slots.am.plannedItems.length > 0) return 'am';
-  if (arrangement.slots.am.candidateItems.length > arrangement.slots.pm.candidateItems.length) return 'am';
-  if (arrangement.slots.pm.candidateItems.length > 0) return 'pm';
-  if (arrangement.slots.am.candidateItems.length > 0) return 'am';
-  if (getArrangementSlotItemCount(arrangement.slots.am) > 0) return 'am';
-  if (getArrangementSlotItemCount(arrangement.slots.pm) > 0) return 'pm';
+function getDefaultAgendaSlot(): TodayArrangementSlot {
   return 'am';
 }
 
@@ -724,7 +770,7 @@ function buildAgendaSummary(
     return `今天你主动排了 ${totalPlanned} 件事，系统还放进 ${totalFixed} 个固定/临时事项。当前只看${activeSlot.label}，先处理绿色“当前要做”，再切换时段补其他事。`;
   }
   if (arrangement.candidateItems.length > 0) {
-    return `当前有 ${arrangement.candidateItems.length} 件推荐动作；每套房保留一件最优先的事，按钮会标明可加入上午或下午。`;
+    return `当前有 ${arrangement.candidateItems.length} 件推荐动作。`;
   }
   return `今天有 ${totalFixed} 个系统固定/临时事项。先按上午/下午切换查看，不需要把两个时段同时摊开处理。`;
 }
@@ -763,7 +809,7 @@ function FixedArrangementCard({
         <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">{presentFixedStatusLabel(item.statusLabel)}</span>
         <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">占 {item.durationHours} 小时 · {item.energyCost} 精力</span>
       </div>
-      <ArrangementTitleBlock title={item.title} size="sm" />
+      <ArrangementTitleBlock title={item.title} displayTitle={item.displayTitle} contextTitle={item.contextTitle} size="sm" />
       <p className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">{item.detail}</p>
       {item.conflictHint ? (
         <p className={`mt-2 text-[11px] leading-5 ${item.conflictHint.level === 'warning' ? 'text-[var(--seller-risk)]' : 'text-[var(--seller-muted)]'}`}>
@@ -968,9 +1014,6 @@ function AgendaItemRow({
         }`}>
           {item.rank ?? index + 1}
         </div>
-        <div className="mt-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">
-          排名
-        </div>
       </div>
 
       <div className="min-w-0">
@@ -984,7 +1027,7 @@ function AgendaItemRow({
           </span>
           <span className="text-[10px] font-medium text-[var(--seller-subtle)]">{item.statusLabel}</span>
         </div>
-        <ArrangementTitleBlock title={item.title} />
+        <ArrangementTitleBlock title={item.title} displayTitle={item.displayTitle} contextTitle={item.contextTitle} />
         {item.conflictHint ? (
           <p className={`mt-2 max-w-[72ch] text-[11px] leading-5 ${item.conflictHint.level === 'warning' ? 'text-[var(--seller-risk)]' : 'text-[var(--seller-muted)]'}`}>
             {item.conflictHint.message}
@@ -1089,7 +1132,7 @@ function PlannedArrangementCard({
           占 {item.durationHours} 小时 · {isHovered && item.energyCost > 0 ? '-' : ''}{item.energyCost} 精力
         </span>
       </div>
-      <ArrangementTitleBlock title={item.title} size="sm" />
+      <ArrangementTitleBlock title={item.title} displayTitle={item.displayTitle} contextTitle={item.contextTitle} size="sm" />
       <p className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">{item.detail}</p>
       {item.disabledReason ? (
         <p className="mt-2 text-[11px] leading-5 text-[var(--seller-risk)]">{item.disabledReason}</p>
@@ -1165,7 +1208,7 @@ function CompletedArrangementCard({
         <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">{item.statusLabel}</span>
         <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">占 {item.durationHours} 小时 · 已消耗 {item.energyCost} 精力</span>
       </div>
-      <ArrangementTitleBlock title={item.title} size="sm" />
+      <ArrangementTitleBlock title={item.title} displayTitle={item.displayTitle} contextTitle={item.contextTitle} size="sm" />
       <p className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">{item.detail}</p>
       <div className="mt-3">
         <button

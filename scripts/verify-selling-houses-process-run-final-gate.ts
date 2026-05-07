@@ -22,6 +22,8 @@ import { readFileSync } from 'node:fs';
 import { createInitialState, updateDerivedState } from '../src/selling-houses/application/gameState.js';
 import { getScenarioSnapshotById } from '../src/selling-houses/domain/scenarioCatalog.js';
 import { advanceOneDay, executeAction, seedInitialOpportunities } from '../src/selling-houses/domain/engine.js';
+import { popPendingActionReceiptSnapshots } from '../src/selling-houses/domain/engine/actionResolvers.js';
+import { buildActionReceiptFromSnapshot, appendActionReceiptFromSnapshot } from '../src/selling-houses/runtime/simulation/actionReceiptFromSnapshotAdapter.js';
 import type { GameState, DailyTickResult } from '../src/selling-houses/domain/models.js';
 
 import {
@@ -201,8 +203,15 @@ const world = buildWorld(SEED);
 const tick = advanceOneDay(world) as DailyTickResult;
 
 // Derive read-models from legacy state
+// Note: a fresh world may have 0 read-models if no productRuns or
+// pendingClosingEvaluation opportunities exist yet. This is expected.
+// The HARD requirement for non-zero ProcessRun is in Check 5b below.
 const readModels = deriveProcessRunReadModelsFromLegacyState(world);
 check(Array.isArray(readModels), 'readModels is array');
+// Do NOT allow 0 read-models to pass silently — require explanation
+if (readModels.length === 0) {
+  console.log('  [INFO] readModels=0 (fresh world, no productRuns/pendingClosing yet — acceptable for contract check only)');
+}
 
 // Check contracts
 const contracts = buildProcessManagerContractsFromLegacyState(world);
@@ -242,17 +251,25 @@ check(activeCases.length > 0, 'scenario has active cases');
 let receiptsProduced = 0;
 if (activeCases.length > 0) {
   // Execute a sequence of actions on the first active case
-  // to build up a real actionReceiptHistory
+  // to build up a real actionReceiptHistory.
+  // The sequence matches 'owner_waiting_to_commitment' flow pattern:
+  //   trigger: weekly-feedback (0.4 confidence)
+  //   advancing: first-visit (0.1 confidence)
+  //   terminal: pricing-advice (0.2 confidence)
+  //   total: 0.7 > 0.3 threshold
   const targetCase = activeCases[0];
   const actionSequence = [
+    'weekly-feedback',
     'first-visit',
     'pricing-advice',
-    'weekly-feedback',
   ];
 
   for (const actionId of actionSequence) {
     const result = executeAction(realWorld, actionId, targetCase);
-    if (result) {
+    // Process pending receipt snapshots into actionReceiptHistory
+    for (const snap of popPendingActionReceiptSnapshots()) {
+      const receipt = buildActionReceiptFromSnapshot(snap, realWorld);
+      appendActionReceiptFromSnapshot(realWorld, receipt);
       receiptsProduced++;
     }
   }
@@ -407,6 +424,34 @@ check(!processCode.includes('new Date'), 'processes/models: no new Date');
 check(!processCode.includes('let _runSeq'), 'processes/models: no mutable counter');
 
 console.log('  No side effects: PASS');
+
+// ---------------------------------------------------------------------------
+// 10b. Enrichment pipeline collects diagnostics (not silent swallow)
+// ---------------------------------------------------------------------------
+
+console.log('=== Check 10b: Enrichment pipeline diagnostic collection ===');
+
+const pipelineSrc = readFileSync(
+  '/Users/jiaqi/Documents/开放日测算/src/selling-houses/runtime/simulation/dailyTickSemanticEnrichmentPipeline.ts',
+  'utf-8',
+);
+
+// The enrichment function must return diagnostics, not just console.warn.
+check(pipelineSrc.includes('EnrichmentDiagnostic'), 'pipeline: defines EnrichmentDiagnostic type');
+check(pipelineSrc.includes('readonly EnrichmentDiagnostic[]'), 'pipeline: returns readonly EnrichmentDiagnostic[]');
+check(pipelineSrc.includes('diagnostics.push'), 'pipeline: collects diagnostics into array');
+check(pipelineSrc.includes('console.warn'), 'pipeline: still logs to console.warn for visibility');
+
+// Verify the function signature changed from void to returning diagnostics
+check(pipelineSrc.includes('): readonly EnrichmentDiagnostic[]'), 'pipeline: return type is readonly EnrichmentDiagnostic[]');
+check(!pipelineSrc.includes('): void {'), 'pipeline: no longer returns void');
+
+// Verify the diagnostics include step name and day
+check(pipelineSrc.includes("step: step.name"), 'pipeline: diagnostic includes step name');
+check(pipelineSrc.includes("day: settledDay"), 'pipeline: diagnostic includes day');
+check(pipelineSrc.includes("message: msg"), 'pipeline: diagnostic includes message');
+
+console.log('  Enrichment pipeline diagnostic collection: PASS');
 
 // ---------------------------------------------------------------------------
 // 11. Frozen output

@@ -347,13 +347,25 @@ export function compareStrategyForkBranches(
 export function buildNegotiationReplay(input: NegotiationReplayInput): NegotiationReplay {
   const replayId = `replay:${input.caseId}:${input.startedDay}`;
 
+  // Deep-freeze each step to ensure turns and blockers arrays are frozen
+  const frozenSteps = input.steps.map(step => Object.freeze({
+    ...step,
+    turns: Object.freeze(step.turns.map(turn => Object.freeze({
+      ...turn,
+      evidenceRefs: Object.freeze([...turn.evidenceRefs]),
+      beliefChanges: Object.freeze([...turn.beliefChanges]),
+      commitmentChanges: Object.freeze([...turn.commitmentChanges]),
+    }))),
+    blockers: Object.freeze(step.blockers.map(blocker => Object.freeze({...blocker}))),
+  }));
+
   return Object.freeze({
     replayId,
     caseId: input.caseId,
     processRunId: input.processRunId,
     startedDay: input.startedDay,
     endedDay: input.endedDay,
-    steps: Object.freeze([...input.steps]),
+    steps: Object.freeze(frozenSteps),
     outcome: input.outcome,
   });
 }

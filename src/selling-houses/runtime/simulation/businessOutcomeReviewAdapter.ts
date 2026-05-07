@@ -25,6 +25,8 @@ import type {
   ProcessRun,
 } from '../../core/world-state/processes/models.js';
 
+import { readCaseRelationBundleFromRuntime } from '../../core/world-state/relationReadProjection.js';
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -44,11 +46,15 @@ function buildSuccessFactors(
   if (run.status === 'converted_to_contract') {
     factors.push('共识成功转为签约');
   }
-  if (caseObj && caseObj.trust >= 60) {
-    factors.push(`业主信任度良好 (${caseObj.trust}/100)`);
-  }
-  if (caseObj && caseObj.heat >= 50) {
-    factors.push(`房源热度充足 (${caseObj.heat}/100)`);
+  if (caseObj) {
+    const bundle = readCaseRelationBundleFromRuntime(state, caseObj);
+    const trust = bundle.trust?.trust ?? caseObj.trust;
+    if (trust >= 60) {
+      factors.push(`业主信任度良好 (${trust}/100)`);
+    }
+    if (caseObj.heat >= 50) {
+      factors.push(`房源热度充足 (${caseObj.heat}/100)`);
+    }
   }
   if (run.phaseSnapshots.length >= 3) {
     factors.push('流程经历了多个阶段，推进深入');
@@ -74,11 +80,16 @@ function buildFailureFactors(
   if (run.status === 'collapsed') {
     factors.push('共识破裂');
   }
-  if (caseObj && caseObj.trust < 40) {
-    factors.push(`业主信任度过低 (${caseObj.trust}/100)`);
-  }
-  if (caseObj && caseObj.patience < 30) {
-    factors.push(`业主耐心不足 (${caseObj.patience}/100)`);
+  if (caseObj) {
+    const bundle = readCaseRelationBundleFromRuntime(state, caseObj);
+    const trust = bundle.trust?.trust ?? caseObj.trust;
+    const patience = bundle.readiness?.patience ?? caseObj.patience;
+    if (trust < 40) {
+      factors.push(`业主信任度过低 (${trust}/100)`);
+    }
+    if (patience < 30) {
+      factors.push(`业主耐心不足 (${patience}/100)`);
+    }
   }
   const blockedReceipts = (state.actionReceiptHistory ?? []).filter(
     (r) => r.caseId === caseId && r.outcome === 'blocked',
@@ -93,7 +104,71 @@ function buildFailureFactors(
     factors.push('发生承诺撤销');
   }
 
+  // Causal chain analysis: which link in the evidence chain broke?
+  if (run.status === 'collapsed' || run.status === 'resolved') {
+    const chainFactors = buildCausalChainFactors(run, state);
+    factors.push(...chainFactors);
+  }
+
   return freezeArray(factors);
+}
+
+/**
+ * Causal chain analysis — identifies which link in the evidence chain broke.
+ *
+ * Mother model chain: competition pressure → market evidence → owner perception → consensus readiness → ContractFact.
+ * Each factor maps to a specific link so the review can explain "why" not just "what".
+ */
+function buildCausalChainFactors(
+  run: ProcessRun,
+  state: GameState,
+): string[] {
+  const factors: string[] = [];
+  const caseId = run.caseId;
+  const caseObj = state.cases.find((c) => c.id === caseId);
+  if (!caseObj) return factors;
+
+  const bundle = readCaseRelationBundleFromRuntime(state, caseObj);
+  const trust = bundle.trust?.trust ?? caseObj.trust;
+  const patience = bundle.readiness?.patience ?? caseObj.patience;
+  const urgency = bundle.readiness?.urgency ?? caseObj.urgency;
+
+  // Link 1: Competition pressure → case heat
+  if (caseObj.heat < 30) {
+    factors.push(`[竞争→热度] 房源热度极低 (${caseObj.heat}/100)，竞争压力导致关注度不足`);
+  }
+
+  // Link 2: Market evidence → opportunity signals
+  const caseReceipts = (state.actionReceiptHistory ?? []).filter((r) => r.caseId === caseId);
+  const blockedCount = caseReceipts.filter((r) => r.outcome === 'blocked').length;
+  if (blockedCount >= 2) {
+    factors.push(`[市场→机会] 多次动作被阻断 (${blockedCount}次)，市场证据积累不足`);
+  }
+
+  // Link 3: Relation trust → owner perception
+  if (trust < 50) {
+    factors.push(`[关系→业主感知] 业主信任不足 (${trust}/100)，无法推动价格谈判`);
+  }
+  if (patience < 30) {
+    factors.push(`[关系→业主感知] 业主耐心耗尽 (${patience}/100)，窗口即将关闭`);
+  }
+
+  // Link 4: Consensus readiness
+  if (run.status === 'collapsed') {
+    const consensusFormations = state.runtimeConsensusFormations ?? [];
+    const caseConsensus = consensusFormations.find((cf) => cf.caseId === caseId);
+    if (caseConsensus) {
+      const stage = caseConsensus.stage;
+      if (stage !== 'contract_ready' && stage !== 'signed') {
+        factors.push(`[共识→签约] 共识停留在 ${stage} 阶段，未达 contract_ready`);
+      }
+      if (caseConsensus.blockers.length > 0) {
+        factors.push(`[共识→签约] 共识有 ${caseConsensus.blockers.length} 个活跃阻断因素`);
+      }
+    }
+  }
+
+  return factors;
 }
 
 function buildKeyLearnings(
@@ -111,11 +186,25 @@ function buildKeyLearnings(
     learnings.push('需要更早识别并处理共识风险因素');
   }
   if (caseObj) {
-    if (caseObj.personality === 'urgent' && caseObj.patience < 30) {
-      learnings.push('紧迫型业主需要更频繁的沟通和快速决策');
-    }
-    if (caseObj.personality === 'emotional' && caseObj.trust < 50) {
-      learnings.push('情绪化业主需要更多信任建设');
+    const profiling = caseObj.ownerProfilingMemory;
+    const bundle = readCaseRelationBundleFromRuntime(state, caseObj);
+    const trust = bundle.trust?.trust ?? caseObj.trust;
+    const patience = bundle.readiness?.patience ?? caseObj.patience;
+
+    if (profiling) {
+      const priceAnchor = profiling.dimensions.find((d) => d.key === 'price_anchor')?.value;
+      const timeWindow = profiling.dimensions.find((d) => d.key === 'time_window')?.value;
+      const decisionStyle = profiling.dimensions.find((d) => d.key === 'decision_style')?.value;
+
+      if (priceAnchor === 'strong' && trust < 50) {
+        learnings.push(`${profiling.ownerTypeName}：强价格锚定业主需要更多信任积累才能松动预期`);
+      }
+      if (timeWindow === 'short' && patience < 30) {
+        learnings.push(`${profiling.ownerTypeName}：短窗口业主耐心即将耗尽，需要加速推进关键节点`);
+      }
+      if (decisionStyle === 'guided_or_joint' && trust < 50) {
+        learnings.push(`${profiling.ownerTypeName}：共同决策型业主需要同步影响人的预期`);
+      }
     }
   }
 
@@ -136,12 +225,16 @@ function buildRecommendedNextActions(
       reason: '共识破裂后需要深度诊断原因',
       priority: 'high' as const,
     }));
-    if (caseObj && caseObj.trust < 40) {
-      actions.push(Object.freeze({
-        actionId: 'first-visit',
-        reason: '重新建立与业主的信任关系',
-        priority: 'urgent' as const,
-      }));
+    if (caseObj) {
+      const bundle = readCaseRelationBundleFromRuntime(state, caseObj);
+      const trust = bundle.trust?.trust ?? caseObj.trust;
+      if (trust < 40) {
+        actions.push(Object.freeze({
+          actionId: 'first-visit',
+          reason: '重新建立与业主的信任关系',
+          priority: 'urgent' as const,
+        }));
+      }
     }
   }
 
@@ -206,6 +299,31 @@ export function buildBusinessOutcomeReviewFromRun(
   const caseContract = contractFacts.find((cf) => cf.caseId === caseId);
   const contractFactId = caseContract?.contractId ?? null;
 
+  // Enrich with operating ledger data for this case
+  const ledgerDays = state.operatingLedgerDays ?? [];
+  const caseLedgerEntries = ledgerDays.flatMap((day) =>
+    day.entries.filter((e) => e.caseId === caseId),
+  );
+  const ledgerEvidenceRefs: string[] = [];
+  for (const entry of caseLedgerEntries) {
+    ledgerEvidenceRefs.push(`ledger:${caseId}:d${entry.day}`);
+  }
+
+  // Enrich with strategy fork data for this case
+  const strategyForks = state.strategyForkHistory ?? [];
+  const caseForks = strategyForks.filter((f) => f.caseId === caseId);
+  const forkEvidenceRefs: string[] = [];
+  for (const fork of caseForks) {
+    forkEvidenceRefs.push(fork.forkId);
+  }
+
+  // Combine all evidence refs
+  const allRelatedReceiptIds = [
+    ...caseReceipts.map((r) => r.receiptId),
+    ...ledgerEvidenceRefs,
+    ...forkEvidenceRefs,
+  ];
+
   return Object.freeze({
     reviewId: `review:${caseId}:${run.runId}`,
     caseId,
@@ -217,7 +335,7 @@ export function buildBusinessOutcomeReviewFromRun(
     successFactors,
     failureFactors,
     keyLearnings,
-    relatedReceiptIds: freezeArray(caseReceipts.map((r) => r.receiptId)),
+    relatedReceiptIds: freezeArray(allRelatedReceiptIds),
     relatedSettlementIds: freezeArray(caseSettlements.map((s) => s.settlementId)),
     relatedRunIds: freezeArray([run.runId]),
     contractFactId,

@@ -160,6 +160,7 @@ function extractCustomerFacts(input: ExtractMyWechatFactsInput): WechatFact[] {
         source: 'customer_opportunity',
         type: 'customer_comparing',
         caseId: caseItem.id,
+        customerId: opportunity.customerId,
         opportunityId: opportunity.id,
         priority: 10 + priorityBoost,
         reason: `${opportunity.customerName} 正在拿同类房比较，需要把这套房的优势讲清楚。`,
@@ -177,6 +178,7 @@ function extractCustomerFacts(input: ExtractMyWechatFactsInput): WechatFact[] {
         source: 'customer_opportunity',
         type: 'customer_price_sensitive',
         caseId: caseItem.id,
+        customerId: opportunity.customerId,
         opportunityId: opportunity.id,
         priority: 12 + priorityBoost + riskScore(opportunity.priceSensitivity, 58),
         reason: `${opportunity.customerName} 对总价和业主底线很敏感，继续推进前要先确认价格空间。`,
@@ -195,6 +197,7 @@ function extractCustomerFacts(input: ExtractMyWechatFactsInput): WechatFact[] {
         source: 'customer_opportunity',
         type: 'customer_second_showing',
         caseId: caseItem.id,
+        customerId: opportunity.customerId,
         opportunityId: opportunity.id,
         priority: 18 + priorityBoost,
         reason: `${opportunity.customerName} 仍有明确兴趣，适合尽快约复看或带家人再确认。`,
@@ -212,6 +215,7 @@ function extractCustomerFacts(input: ExtractMyWechatFactsInput): WechatFact[] {
         source: 'customer_opportunity',
         type: 'customer_churn_risk',
         caseId: caseItem.id,
+        customerId: opportunity.customerId,
         opportunityId: opportunity.id,
         priority: 15 + priorityBoost + riskScore(customerState?.churnRisk || 0, 48),
         reason: `${opportunity.customerName} 有流失风险，今天不能等客户自然回头。`,
@@ -229,6 +233,7 @@ function extractCustomerFacts(input: ExtractMyWechatFactsInput): WechatFact[] {
         source: 'customer_opportunity',
         type: 'agent_lead_referral',
         caseId: caseItem.id,
+        customerId: opportunity.customerId,
         opportunityId: opportunity.id,
         priority: 8 + priorityBoost,
         reason: `${opportunity.channelName} 有客户线索，需要先给同事明确卖点和业主节奏。`,
@@ -369,6 +374,7 @@ function extractMatterFacts(input: ExtractMyWechatFactsInput): WechatFact[] {
         source: 'matter',
         type: 'matter_pending',
         caseId,
+        customerId: opportunity?.customerId,
         opportunityId: opportunity?.id,
         matterId: matter.id,
         priority: 12 + Math.round(matter.urgency || 0) / 2 + (matter.openedAtDay < state.day ? 8 : 0),
@@ -402,6 +408,7 @@ export function extractFactsFromEventStore(eventStore: DomainEventEntry[], state
         source: event.kind === 'action_executed' ? 'action_result' : 'event_store',
         type: 'event_followup_needed',
         caseId,
+        customerId: event.customerId || opportunity?.customerId,
         opportunityId: event.opportunityId,
         eventId: event.id,
         priority: 10 + (event.tone === 'danger' ? 10 : event.tone === 'success' ? 4 : 0),
@@ -424,6 +431,7 @@ function buildFact(args: Omit<WechatFact, 'id' | 'day'> & { state: GameState }):
       source: fact.source,
       type: fact.type,
       caseId: fact.caseId,
+      customerId: fact.customerId,
       opportunityId: fact.opportunityId,
       matterId: fact.matterId,
       eventId: fact.eventId,
@@ -437,6 +445,7 @@ export function buildWechatFactId(input: {
   source: WechatFactSource;
   type: WechatFactType;
   caseId?: string;
+  customerId?: string;
   opportunityId?: string;
   matterId?: string;
   eventId?: string;
@@ -447,6 +456,7 @@ export function buildWechatFactId(input: {
     input.source,
     input.type,
     input.caseId ?? 'none',
+    input.customerId ?? 'none',
     input.opportunityId ?? 'none',
     input.matterId ?? 'none',
     input.eventId ?? 'none',

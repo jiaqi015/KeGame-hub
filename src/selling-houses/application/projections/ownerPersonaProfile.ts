@@ -1,84 +1,67 @@
 import type { Case } from '../../domain/models.js';
+import type { OwnerProfilingTone } from '../../domain/ownerProfilingMemoryTypes.js';
+import { buildOwnerProfilingMemorySummary } from './ownerProfilingMemory.js';
+import type { OwnerProfileProjection } from '../../core/world-state/relationReadProjection.js';
+import { readOwnerProfile } from '../../core/world-state/relationReadProjection.js';
 
-export type OwnerPersonaTone = 'accent' | 'chance' | 'risk' | 'neutral';
+export type OwnerPersonaTone = OwnerProfilingTone;
 
 export interface OwnerPersonaProfile {
   isRevealed: boolean;
+  /** Authoritative label from 16-type profiling. */
   label: string;
   tone: OwnerPersonaTone;
   communicationLabel: string;
   priceLabel: string;
   paceLabel: string;
+  /** Legacy 4-type personality — compatibility mirror only. */
+  legacyPersonality: Case['personality'];
+  /** Whether this profile was derived from profiling memory vs fallback. */
+  source: 'profiling-memory' | 'derived-from-signals' | 'legacy-fallback';
 }
 
+/**
+ * Build owner persona profile using relation projection boundary.
+ *
+ * 16-type profiling is the authoritative owner type source.
+ * 4-type `personality` is a legacy compatibility mirror.
+ * When profiling memory is missing but hasCompletedFirstVisit is true,
+ * we derive from signals (ownerProfilingMemory.ts) as a bridge — not from personality.
+ */
 export function buildOwnerPersonaProfile(caseItem: Case): OwnerPersonaProfile {
-  if (!caseItem.hasCompletedFirstVisit) {
-    return {
+  const projection = readOwnerProfile(caseItem);
+
+  if (!projection.isRevealed) {
+    return Object.freeze({
       isRevealed: false,
       label: '待面访分型',
       tone: 'neutral',
       communicationLabel: '首次面访后可见',
       priceLabel: '价格边界待确认',
       paceLabel: '节奏待确认',
-    };
+      legacyPersonality: projection.legacyPersonality,
+      source: 'legacy-fallback',
+    });
   }
 
-  const priceGapRatio = (caseItem.askPrice - caseItem.marketPrice) / Math.max(caseItem.marketPrice, 1);
-  const urgentPace = caseItem.urgency >= 78 || caseItem.windowDays <= 5;
-  const shortWindow = caseItem.urgency >= 70 || caseItem.windowDays <= 8;
-  const longWindow = caseItem.urgency <= 62 && caseItem.windowDays >= 10;
-  const anchoredPrice = priceGapRatio >= 0.035
-    || caseItem.ownerArchetypeId === 'fair-value'
-    || caseItem.ownerArchetypeId === 'game-player';
-  const flexiblePrice = priceGapRatio <= 0.015
-    || caseItem.ownerArchetypeId === 'anxious';
-  const lowRelation = caseItem.trust < 56 || caseItem.patience < 45;
-  const dataDriven = caseItem.personality === 'pragmatic'
-    || caseItem.ownerArchetypeId === 'fair-value'
-    || caseItem.ownerArchetypeId === 'game-player';
-  const heatSensitive = caseItem.ownerArchetypeId === 'trial-balloon'
-    || caseItem.personality === 'emotional'
-    || caseItem.heat < 52;
+  // Authoritative path: derive from profiling memory or signals
+  const profiling = projection.profiling ?? buildOwnerProfilingMemorySummary(caseItem);
+  const source: OwnerPersonaProfile['source'] = projection.profiling
+    ? 'profiling-memory'
+    : 'derived-from-signals';
 
-  if (lowRelation) {
-    return buildOwnerPersonaResult('信任修复型', 'risk', dataDriven, anchoredPrice, flexiblePrice, urgentPace, longWindow);
-  }
-  if (urgentPace && flexiblePrice) {
-    return buildOwnerPersonaResult('急售好谈型', 'risk', dataDriven, anchoredPrice, flexiblePrice, urgentPace, longWindow);
-  }
-  if (urgentPace && anchoredPrice) {
-    return buildOwnerPersonaResult('急售锚定型', 'risk', dataDriven, anchoredPrice, flexiblePrice, urgentPace, longWindow);
-  }
-  if (shortWindow) {
-    return buildOwnerPersonaResult('期限压力型', 'accent', dataDriven, anchoredPrice, flexiblePrice, urgentPace, longWindow);
-  }
-  if (anchoredPrice && dataDriven) {
-    return buildOwnerPersonaResult('数据锚定型', 'accent', dataDriven, anchoredPrice, flexiblePrice, urgentPace, longWindow);
-  }
-  if (heatSensitive) {
-    return buildOwnerPersonaResult('热度敏感型', 'chance', dataDriven, anchoredPrice, flexiblePrice, urgentPace, longWindow);
-  }
-  if (longWindow || caseItem.ownerArchetypeId === 'trial-balloon') {
-    return buildOwnerPersonaResult('观望试水型', 'neutral', dataDriven, anchoredPrice, flexiblePrice, urgentPace, longWindow);
-  }
-  return buildOwnerPersonaResult('稳价慢谈型', 'neutral', dataDriven, anchoredPrice, flexiblePrice, urgentPace, longWindow);
-}
+  const priceAnchor = profiling.dimensions.find((d) => d.key === 'price_anchor')?.valueLabel || '价格待确认';
+  const timeWindow = profiling.dimensions.find((d) => d.key === 'time_window')?.valueLabel || '节奏待确认';
+  const decisionStyle = profiling.dimensions.find((d) => d.key === 'decision_style')?.valueLabel || '决策待确认';
 
-function buildOwnerPersonaResult(
-  label: string,
-  tone: OwnerPersonaTone,
-  dataDriven: boolean,
-  anchoredPrice: boolean,
-  flexiblePrice: boolean,
-  urgentPace: boolean,
-  longWindow: boolean,
-): OwnerPersonaProfile {
-  return {
+  return Object.freeze({
     isRevealed: true,
-    label,
-    tone,
-    communicationLabel: dataDriven ? '数据沟通' : urgentPace ? '结果沟通' : '信任沟通',
-    priceLabel: flexiblePrice ? '价格好谈' : anchoredPrice ? '价格有锚点' : '价格可沟通',
-    paceLabel: urgentPace ? '急迫' : longWindow ? '观望' : '常规',
-  };
+    label: profiling.ownerTypeName,
+    tone: profiling.ownerTypeTone,
+    communicationLabel: profiling.serviceStrategy.communicationStyle,
+    priceLabel: priceAnchor,
+    paceLabel: `${timeWindow} · ${decisionStyle}`,
+    legacyPersonality: projection.legacyPersonality,
+    source,
+  });
 }

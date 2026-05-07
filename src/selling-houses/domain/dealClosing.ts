@@ -8,6 +8,9 @@ import type {
   Case,
   ClosedDealRecord,
   DealClosingEvaluation,
+  EvaluationSourceTrace,
+  EvidenceChainTrace,
+  BlockingReasonCategory,
   GameState,
   Opportunity,
 } from './models.js';
@@ -16,12 +19,14 @@ import { recordBudgetChange } from './budget.js';
 import { applyAuxiliaryStats } from './runtimeStats.js';
 import { logEvent, recordDomainEvent } from './runtimeState.js';
 import { closeOpportunity, refreshOpportunityLabel } from './engine/opportunityEngine.js';
-import { clamp, randomInt } from './utils.js';
+import { clamp } from './utils.js';
 import { applyBrokerOwnerTrustDelta } from './trustWriteHelper.js';
 import { markCaseSold } from './caseOutcome.js';
 import { applyOpportunityIntentDeltaOnState, applyOpportunityConfidenceDeltaOnState, setOpportunityDaysLeftOnState, setOpportunityTouchedTodayOnState, setOpportunityPendingClosingOnState, setOpportunityStatusOnState, findBrokeredStateForOpportunity, findMatchStateForPair, ensureCustomerCaseMatchState, ensureBrokeredOpportunityState } from './opportunitySplitHelper.js';
 import { ensureConsensusFormation, setConsensusEvaluationOnState, setConsensusStageOnState, markConsensusSignedOnState, markConsensusCollapsedOnState, ensureConsensusRuntime, createContractFactOnState, createOpportunityClosureOnState, findContractForCase } from './consensusFormationHelper.js';
 import { buildConsensusFormationId } from '../core/world-state/consensus/writeSource.js';
+import { readOwnerDecisionProfile, type OwnerDecisionProfile } from './ownerDecisionProfileHelper.js';
+import { getMarketCell } from './engine/opportunityEngine.js';
 
 function resolveNegotiationStrategy(strategyId?: string | null) {
   const strategies = BALANCE.actions.negotiation.strategies;
@@ -32,18 +37,60 @@ function clearPendingDealClosing(state: GameState, opportunity: Opportunity) {
   setOpportunityPendingClosingOnState(state, opportunity, false, '', 0, '清空待结算状态');
 }
 
+// ---------------------------------------------------------------------------
+// Relation-layer reads with Case fallback
+// ---------------------------------------------------------------------------
+
+/**
+ * Read trust from runtime broker-owner relation state.
+ * Falls back to Case.trust when relation state is not populated.
+ *
+ * Mother model: trust belongs to BrokerOwnerRelation, not AssetCase.
+ */
+function readRelationTrustForCase(state: GameState, caseItem: Case): number {
+  const relations = state.runtimeBrokerOwnerRelations;
+  if (relations) {
+    const match = relations.find(r => r.ownerId === `owner:${caseItem.id}` || r.ownerId === caseItem.ownerName);
+    if (match) return match.trust;
+  }
+  return caseItem.trust;
+}
+
+interface RelationReadiness {
+  readonly patience: number;
+  readonly urgency: number;
+  /** Source: 'relation' when runtime state available, 'case-fallback' otherwise. */
+  readonly source: 'relation' | 'case-fallback';
+}
+
+/**
+ * Read patience/urgency from runtime owner-case readiness state.
+ * Falls back to Case.patience / Case.urgency when relation state is not populated.
+ *
+ * Mother model: patience/urgency belong to OwnerCaseRelation, not AssetCase.
+ */
+function readRelationReadinessForCase(state: GameState, caseItem: Case): RelationReadiness {
+  const states = state.runtimeOwnerCaseReadinessStates;
+  if (states) {
+    const match = states.find(s => s.assetCaseId === caseItem.id);
+    if (match) return { patience: match.patience, urgency: match.urgency, source: 'relation' };
+  }
+  return { patience: caseItem.patience, urgency: caseItem.urgency, source: 'case-fallback' };
+}
+
 function calculateNegotiationSuccessScore(
   caseItem: Case,
   opportunity: Opportunity,
-  strategyId?: string | null,
+  strategyId: string | null | undefined,
+  trust: number,
+  ownerProfile: OwnerDecisionProfile,
 ) {
   const negotiationBalance = BALANCE.actions.negotiation;
   const strategy = resolveNegotiationStrategy(strategyId);
-  const isUrgent = caseItem.personality === 'urgent';
 
   return opportunity.intent * negotiationBalance.intentWeight
     + opportunity.confidence * negotiationBalance.confidenceWeight
-    + caseItem.trust * (isUrgent ? negotiationBalance.urgentTrustWeight : negotiationBalance.defaultTrustWeight)
+    + trust * (ownerProfile.isUrgent ? negotiationBalance.urgentTrustWeight : negotiationBalance.defaultTrustWeight)
     + caseItem.competitiveness * negotiationBalance.competitivenessWeight
     - Math.max(0, caseItem.askPrice - caseItem.marketPrice) * negotiationBalance.askPricePenaltyWeight
     + strategy.shift;
@@ -53,10 +100,12 @@ function calculateScaledCloseProbability(
   state: GameState,
   caseItem: Case,
   opportunity: Opportunity,
-  strategyId?: string | null,
+  strategyId: string | null | undefined,
+  trust: number,
+  ownerProfile: OwnerDecisionProfile,
 ) {
   return clamp(
-    Math.round(calculateNegotiationSuccessScore(caseItem, opportunity, strategyId) * state.rules.outcomeControl.playerDealClosingScale),
+    Math.round(calculateNegotiationSuccessScore(caseItem, opportunity, strategyId, trust, ownerProfile) * state.rules.outcomeControl.playerDealClosingScale),
     0,
     95,
   );
@@ -218,31 +267,34 @@ function resolveFailedPendingClosing(
   state: GameState,
   caseItem: Case,
   opportunity: Opportunity,
-  strategyId?: string | null,
+  strategyId: string | null | undefined,
+  ownerProfile: OwnerDecisionProfile,
+  evaluation: DealClosingEvaluation,
 ) {
   const negotiationBalance = BALANCE.actions.negotiation;
   const strategy = resolveNegotiationStrategy(strategyId);
-  const isUrgent = caseItem.personality === 'urgent';
-  const isPragmatic = caseItem.personality === 'pragmatic';
-  const isEmotional = caseItem.personality === 'emotional';
 
   applyOpportunityIntentDeltaOnState(state, opportunity, -strategy.loss, '谈判失败意向下降', 0, 100);
   applyOpportunityConfidenceDeltaOnState(state, opportunity, -negotiationBalance.confidenceLossOnFailure, '谈判失败置信度下降', 0, 100);
   setOpportunityDaysLeftOnState(state, opportunity, negotiationBalance.failureDaysLeft, '谈判失败设定剩余天数');
   setOpportunityTouchedTodayOnState(state, opportunity, true, '谈判失败标记今日触达');
   const trustHit = strategy.priceFactor === 1
-    ? (isUrgent ? negotiationBalance.trustHit.hold.urgent : isPragmatic ? negotiationBalance.trustHit.hold.pragmatic : negotiationBalance.trustHit.hold.default)
+    ? (ownerProfile.isUrgent ? negotiationBalance.trustHit.hold.urgent : ownerProfile.isPragmatic ? negotiationBalance.trustHit.hold.pragmatic : negotiationBalance.trustHit.hold.default)
     : strategyId === 'close'
-      ? (isUrgent ? negotiationBalance.trustHit.close.urgent : isEmotional ? negotiationBalance.trustHit.close.emotional : negotiationBalance.trustHit.close.default)
-      : (isUrgent ? negotiationBalance.trustHit.balanced.urgent : isPragmatic ? negotiationBalance.trustHit.balanced.pragmatic : negotiationBalance.trustHit.balanced.default);
+      ? (ownerProfile.isUrgent ? negotiationBalance.trustHit.close.urgent : ownerProfile.isEmotional ? negotiationBalance.trustHit.close.emotional : negotiationBalance.trustHit.close.default)
+      : (ownerProfile.isUrgent ? negotiationBalance.trustHit.balanced.urgent : ownerProfile.isPragmatic ? negotiationBalance.trustHit.balanced.pragmatic : negotiationBalance.trustHit.balanced.default);
   applyBrokerOwnerTrustDelta(state, caseItem, -trustHit, '谈判失败信任受损', 0, 100);
 
   clearPendingDealClosing(state, opportunity);
 
-  // Mark consensus as collapsed on failure
+  // Mark consensus as collapsed with structured explainable reason
   const failedBrokered = findBrokeredStateForOpportunity(state, opportunity.id);
   if (failedBrokered) {
-    markConsensusCollapsedOnState(state, failedBrokered.brokeredOpportunityId, state.day, 'negotiation failed');
+    // Build structured collapse reason from evaluation blockers
+    const collapseReason = evaluation.blockingCategories.length > 0
+      ? `consensus collapsed: ${evaluation.blockingCategories.join(', ')} (readiness=${evaluation.closeReadiness}, probability=${evaluation.closeProbability})`
+      : `consensus collapsed: below threshold (readiness=${evaluation.closeReadiness}, probability=${evaluation.closeProbability}, threshold=${BALANCE.actions.negotiation.closeThreshold})`;
+    markConsensusCollapsedOnState(state, failedBrokered.brokeredOpportunityId, state.day, collapseReason);
   }
 
   if (opportunity.intent < negotiationBalance.lostIntentThreshold) {
@@ -383,7 +435,11 @@ export function settlePendingDealClosings(state: GameState) {
       resolveCapacityBlockedPendingClosing(state, caseItem, opportunity);
       return;
     }
-    const canClose = evaluation.isEligible && randomInt(0, 99, state) < evaluation.closeProbability;
+    // Deterministic close: consensus is a process, not a dice roll.
+    // closeProbability already encodes accumulated evidence (intent, confidence,
+    // trust, competitiveness, price gap, strategy). If it meets the threshold,
+    // the deal closes. Randomness lives in upstream daily tick mutations, not here.
+    const canClose = evaluation.isEligible && evaluation.closeProbability >= BALANCE.actions.negotiation.closeThreshold;
 
     if (canClose) {
       if (claimPlayerMarketDealSlot(state)) {
@@ -398,7 +454,8 @@ export function settlePendingDealClosings(state: GameState) {
       return;
     }
 
-    resolveFailedPendingClosing(state, caseItem, opportunity, strategyId);
+    const ownerProfileForFailure = readOwnerDecisionProfile(caseItem);
+    resolveFailedPendingClosing(state, caseItem, opportunity, strategyId, ownerProfileForFailure, evaluation);
   });
 }
 
@@ -409,34 +466,88 @@ export function buildDealClosingEvaluation(
   soldPrice: number,
   strategyId?: string | null,
 ): DealClosingEvaluation {
+  // Read trust from relation layer (canonical), fallback to Case
+  const trust = readRelationTrustForCase(state, caseItem);
+  const trustSource: EvaluationSourceTrace['trustSource'] =
+    state.runtimeBrokerOwnerRelations?.find(r => r.ownerId === `owner:${caseItem.id}` || r.ownerId === caseItem.ownerName)
+      ? 'relation' : 'case-fallback';
+  const readiness = readRelationReadinessForCase(state, caseItem);
+  const ownerProfile = readOwnerDecisionProfile(caseItem);
+
+  // Read competition-derived evidence (read-only, does not change outcome directly)
+  const cell = getMarketCell(state, caseItem.marketCellId);
+  const competitionPressure = cell?.competitivePressure ?? 0;
+
   const closeReadiness = clamp(
     Math.round(
       opportunity.intent * 0.34
       + opportunity.confidence * 0.26
-      + caseItem.trust * 0.2
+      + trust * 0.2
       + caseItem.competitiveness * 0.12
       + Math.max(0, 100 - Math.max(0, soldPrice - opportunity.budgetMax) * 0.25) * 0.08,
     ),
     0,
     100,
   );
-  const rawCloseProbability = calculateScaledCloseProbability(state, caseItem, opportunity, strategyId);
+  const rawCloseProbability = calculateScaledCloseProbability(state, caseItem, opportunity, strategyId, trust, ownerProfile);
 
   const blockingReasons: string[] = [];
+  const blockingCategories: BlockingReasonCategory[] = [];
   if (soldPrice > opportunity.budgetMax) {
     blockingReasons.push('你报的价格直接把客户吓退了，超预算太多');
+    blockingCategories.push('price_budget');
   }
-  if (caseItem.trust < BALANCE.actions.negotiation.trustGate) {
+  if (trust < BALANCE.actions.negotiation.trustGate) {
     blockingReasons.push('业主觉得你办事不靠谱，根本不听你的压价');
+    blockingCategories.push('relation_trust');
   }
   const marketOutcome = ensureMarketOutcomeState(state);
   if (getAvailableMarketDealSlots(state) <= 0) {
     blockingReasons.push('今天释放的市场成交名额已经被消耗，需要继续推进下一批客户');
+    blockingCategories.push('market_capacity');
   }
   if (marketOutcome.playerClaimedDeals >= getPlayerAllowedMarketDeals(state)) {
     blockingReasons.push('本局可争取的自成交空间已用完，除非经营表现再上一个台阶');
+    blockingCategories.push('player_capacity');
   }
-  const closeProbability = blockingReasons.length > 0 ? 0 : rawCloseProbability;
+  // Evidence weakness: opportunity signals too low to reach threshold even without hard blockers
+  if (blockingReasons.length === 0 && rawCloseProbability < BALANCE.actions.negotiation.closeThreshold) {
+    blockingReasons.push(`共识证据不足：综合评估 ${rawCloseProbability} 未达成交阈值 ${BALANCE.actions.negotiation.closeThreshold}`);
+    blockingCategories.push('evidence_weak');
+  }
+  const closeProbability = blockingReasons.length === 0 ? rawCloseProbability : 0;
+
+  const sourceTrace: EvaluationSourceTrace = {
+    trustSource,
+    readinessSource: readiness.source,
+    profileSource: ownerProfile.source,
+  };
+
+  // Determine weakest link in the evidence chain for failure attribution
+  const weakestLink: EvidenceChainTrace['weakestLink'] =
+    blockingCategories.includes('price_budget') ? 'price_fit'
+    : blockingCategories.includes('relation_trust') ? 'relation_trust'
+    : blockingCategories.includes('market_capacity') || blockingCategories.includes('player_capacity') ? 'capacity'
+    : blockingCategories.includes('evidence_weak')
+      ? (opportunity.intent < 40 || opportunity.confidence < 40 ? 'opportunity_evidence'
+        : caseItem.heat < 30 ? 'case_heat'
+        : competitionPressure > 60 ? 'competition_pressure'
+        : 'opportunity_evidence')
+    : 'none';
+
+  const evidenceChain: EvidenceChainTrace = {
+    competitionPressure: Math.round(competitionPressure),
+    hasCompetitionData: cell !== undefined,
+    caseHeat: caseItem.heat,
+    caseCompetitiveness: caseItem.competitiveness,
+    opportunityIntent: opportunity.intent,
+    opportunityConfidence: opportunity.confidence,
+    relationTrust: trust,
+    trustFromRelation: trustSource === 'relation',
+    ownerUrgency: readiness.urgency,
+    consensusStage: 'evaluated',
+    weakestLink,
+  };
 
   return {
     relationId: opportunity.id,
@@ -450,8 +561,11 @@ export function buildDealClosingEvaluation(
     supportingReasons: [
       `${opportunity.customerName} 已经坐到了桌前，进入 ${opportunity.stageLabel}`,
       `客户两眼放光，意向 ${Math.round(opportunity.intent)}，但对房子信心 ${Math.round(opportunity.confidence)}`,
-      `业主跟你交了底（信任 ${Math.round(caseItem.trust)}），而且房子确实能打（竞争力 ${Math.round(caseItem.competitiveness)}）`,
+      `业主跟你交了底（信任 ${Math.round(trust)}），而且房子确实能打（竞争力 ${Math.round(caseItem.competitiveness)}）`,
     ],
+    sourceTrace,
+    blockingCategories,
+    evidenceChain,
   };
 }
 
@@ -487,6 +601,10 @@ export function buildClosedDealRecord(
     customerName: opportunity.customerName,
     ownerName: caseItem.ownerName,
     maintainerName: caseItem.maintainerName,
+    // marketSnapshot: frozen point-in-time compatibility mirror for display.
+    // NOT a truth source. Trust/competitiveness here are bare Case field snapshots
+    // at deal time; canonical trust is in BrokerOwnerRelation, canonical readiness
+    // is in OwnerCaseRelation. Use ContractFact for deal truth.
     marketSnapshot: {
       askPrice: caseItem.askPrice,
       marketPrice: caseItem.marketPrice,

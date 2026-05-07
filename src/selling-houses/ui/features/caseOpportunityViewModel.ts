@@ -242,7 +242,10 @@ function deriveUrgencyLabel(
 
 function deriveCompetitorSummary(state: GameState, runtime?: CustomerCaseRuntime) {
   const competitors = (runtime?.competingCaseIds || [])
-    .map((caseId) => state.cases.find((entry) => entry.id === caseId)?.title)
+    .map((competitorId) => (
+      state.marketShadow?.rivalListings?.find((entry) => entry.id === competitorId)?.title
+      || state.cases.find((entry) => entry.id === competitorId)?.title
+    ))
     .filter(Boolean)
     .slice(0, 2);
 

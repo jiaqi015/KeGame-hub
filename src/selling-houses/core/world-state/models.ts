@@ -129,6 +129,10 @@ export interface OwnerCaseRelation {
   bottomPrice: number;
   windowDays: number;
   status: AssetCaseStatus;
+  /** Owner-side decision readiness: how long owner will wait before acting. */
+  patience: number;
+  /** Owner-side decision pressure: how urgently owner wants to sell. */
+  urgency: number;
 }
 
 export interface CustomerCaseOpportunity {

@@ -50,7 +50,8 @@ export function AuthOverlay({
   onChange,
   onSubmit,
 }: AuthOverlayProps) {
-  const isBusy = authStatus === 'checking' || authStatus === 'submitting';
+  const isRestoring = authStatus === 'checking' && !authError;
+  const isBusy = isRestoring || authStatus === 'submitting';
   const shouldShowActivationInput = authMode === 'activate' || authError.includes('激活密钥');
   const isRememberedEmail = Boolean(rememberedEmail.trim())
     && loginEmail.trim().toLowerCase() === rememberedEmail.trim().toLowerCase();
@@ -61,7 +62,7 @@ export function AuthOverlay({
     : authMode === 'verify'
       ? '验证并登录'
       : '完成首登';
-  const footerMessage = authStatus === 'checking'
+  const footerMessage = isRestoring
     ? '正在恢复已登录状态'
     : isRememberedEmail && authMode === 'email'
       ? '已记住账号，会话有效会自动进入'
@@ -400,7 +401,7 @@ export function AuthOverlay({
                 className="mt-4 inline-flex w-full items-center justify-center gap-3 rounded-[26px] bg-white px-5 py-5 text-[15px] font-bold text-[#050505] shadow-[0_25px_50px_-12px_rgba(255,255,255,0.15)] transition-all disabled:cursor-not-allowed disabled:bg-zinc-800 disabled:text-zinc-500"
               >
                 {authStatus === 'submitting' ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShieldCheck className="h-5 w-5" />}
-                <span className="tracking-wide">{authStatus === 'checking' ? '正在恢复会话' : authStatus === 'submitting' ? '处理中...' : submitLabel}</span>
+                <span className="tracking-wide">{isRestoring ? '正在恢复会话' : authStatus === 'submitting' ? '处理中...' : submitLabel}</span>
               </motion.button>
             </div>
 

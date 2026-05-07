@@ -2,8 +2,10 @@ import { logEvent, recordDomainEvent } from '../runtimeState.js';
 import { BALANCE } from '../config/balance.js';
 import type { GameState } from '../models.js';
 import { clamp, randomInt, wave, average } from '../utils.js';
-import { applyBrokerOwnerTrustDelta } from '../trustWriteHelper.js';
+import { applyBrokerOwnerTrustDelta, clampBrokerOwnerTrust } from '../trustWriteHelper.js';
 import { applyOwnerCasePatienceDelta, applyOwnerCaseUrgencyDelta } from '../ownerCaseReadinessHelper.js';
+import { readOwnerBehaviorDimensions, readOwnerDecisionProfile } from '../ownerDecisionProfileHelper.js';
+import { readCaseRelationBusinessContextFromRuntime } from '../../core/world-state/relationReadProjection.js';
 import { withdrawCase } from './actionResolvers.js';
 import { getMarketCell } from './opportunityEngine.js';
 
@@ -92,17 +94,21 @@ export function tickCases(world: GameState) {
     caseItem.openDayCooldown = Math.max(0, caseItem.openDayCooldown - 1);
     caseItem.windowDays -= 1;
 
-    const isPragmatic = caseItem.personality === 'pragmatic';
-    const isEmotional = caseItem.personality === 'emotional';
-    const isUrgent = caseItem.personality === 'urgent';
-    const ownerArchetype = world.runContext.scenarioSnapshot.world.ownerArchetypes.find((entry) => entry.id === caseItem.ownerArchetypeId);
+    // Owner behavior from 16-type profiling (with legacy personality fallback before first visit).
+    const ownerDecisionProfile = readOwnerDecisionProfile(caseItem);
+    const ownerBehavior = readOwnerBehaviorDimensions(caseItem);
+    const relationContext = readCaseRelationBusinessContextFromRuntime(world, caseItem);
+    const isUrgent = ownerDecisionProfile.isUrgent || relationContext.urgencyValue >= 72 || ownerBehavior.timePressure >= 72;
+    const isPragmatic = ownerDecisionProfile.isPragmatic || ownerBehavior.priceSensitivity >= 68;
+    const isEmotional = ownerDecisionProfile.isEmotional || ownerBehavior.communicationNeed >= 68;
     const priceGapPct = ((caseItem.askPrice - caseItem.marketPrice) / Math.max(caseItem.marketPrice, 1)) * 100;
 
     if (!caseItem.touchedOwnerToday) {
-      const trustLoss = caseItem.urgency > 70
+      const relationUrgency = relationContext.urgencyValue;
+      const trustLoss = relationUrgency > 70
         ? world.rules.urgentOwnerUntouchedTrustLoss
         : world.rules.ownerUntouchedTrustLoss;
-      const decayMultiplier = ownerArchetype?.trustDecayMultiplier || 1;
+      const decayMultiplier = ownerBehavior.trustDecayMultiplier;
       applyBrokerOwnerTrustDelta(world, caseItem, -(trustLoss * decayMultiplier), '业主未被触达信任衰减', 0, 100);
       if (world.day - (caseItem.lastOwnerTouchedDay ?? caseItem.lastTouchedDay ?? 0) > world.rules.ownerPatienceDecayAfterDays) {
         applyOwnerCasePatienceDelta(world, caseItem, -world.rules.ownerPatienceDecayAmount, '业主未被触达耐心衰减', 0, 100);
@@ -113,29 +119,29 @@ export function tickCases(world: GameState) {
 
     if (!caseItem.touchedToday) {
       caseItem.heat -= isEmotional
-        ? caseTickBalance.untouchedHeatLossEmotionalBase + (ownerArchetype?.heatSensitivity || 0)
+        ? caseTickBalance.untouchedHeatLossEmotionalBase + Math.round(ownerBehavior.heatSensitivity / 20)
         : caseTickBalance.untouchedHeatLossDefault;
     }
 
     if (isPragmatic) {
       if (priceGapPct < caseTickBalance.pragmaticPriceGapLowPct) {
-        applyBrokerOwnerTrustDelta(world, caseItem, caseTickBalance.pragmaticTightPriceTrustGain, '务实型业主价格紧凑信任增益', 0, 100);
+        applyBrokerOwnerTrustDelta(world, caseItem, caseTickBalance.pragmaticTightPriceTrustGain, '价格敏感型业主价格紧凑信任增益', 0, 100);
       } else if (priceGapPct > caseTickBalance.pragmaticPriceGapHighPct) {
-        applyBrokerOwnerTrustDelta(world, caseItem, -caseTickBalance.pragmaticWidePriceTrustLoss, '务实型业主价格宽松信任损失', 0, 100);
+        applyBrokerOwnerTrustDelta(world, caseItem, -caseTickBalance.pragmaticWidePriceTrustLoss, '价格敏感型业主价格宽松信任损失', 0, 100);
       }
     }
 
     if (caseItem.askPrice > caseItem.marketPrice * caseTickBalance.overpricedAskRate) {
       const overpricedTrustLoss = isPragmatic
         ? caseTickBalance.overpricedPragmaticTrustLoss
-        : caseTickBalance.overpricedElasticityBasePenalty + Math.max(0, (ownerArchetype?.priceElasticity || 1) - 1);
+        : caseTickBalance.overpricedElasticityBasePenalty + Math.max(0, Math.round((ownerBehavior.priceSensitivity - 50) / 30));
       applyBrokerOwnerTrustDelta(world, caseItem, -overpricedTrustLoss, '溢价过高信任损失', 0, 100);
       caseItem.heat -= caseTickBalance.overpricedHeatLoss;
       applyOwnerCasePatienceDelta(world, caseItem, -caseTickBalance.overpricedPatienceLoss, '溢价过高耐心损失', 0, 100);
     }
 
     if (isEmotional && caseItem.heat < caseTickBalance.emotionalLowHeatThreshold) {
-      applyBrokerOwnerTrustDelta(world, caseItem, -caseTickBalance.emotionalLowHeatTrustLoss, '情绪型业主低热度信任损失', 0, 100);
+      applyBrokerOwnerTrustDelta(world, caseItem, -caseTickBalance.emotionalLowHeatTrustLoss, '热度敏感型业主低热度信任损失', 0, 100);
     }
 
     const urgencyGrowth = isUrgent
@@ -146,11 +152,12 @@ export function tickCases(world: GameState) {
     applyOwnerCaseUrgencyDelta(world, caseItem, urgencyDelta, '日度紧迫增长', 18, 96);
 
     caseItem.heat = clamp(caseItem.heat, 10, 100);
-    caseItem.trust = clamp(caseItem.trust, 10, 100); // Boundary clamp only, no delta — allowed
+    clampBrokerOwnerTrust(world, caseItem, '边界夹紧', 10, 100);
 
     if (caseItem.windowDays <= 0) {
+      const relationTrust = relationContext.trustValue;
       if (
-        caseItem.trust >= caseTickBalance.renewalTrustThreshold
+        relationTrust >= caseTickBalance.renewalTrustThreshold
         && caseItem.ownerSatisfaction !== 'unhappy'
         && caseItem.d3 >= caseTickBalance.renewalD3Threshold
       ) {
@@ -165,7 +172,7 @@ export function tickCases(world: GameState) {
           caseId: caseItem.id,
           payload: {
             windowDays: caseItem.windowDays,
-            trust: caseItem.trust,
+            trust: relationContext.trustValue,
           },
         });
         logEvent(world, caseItem.ownerName, `${caseItem.title} 的业主被安抚后又给了 4 天操作空间。`, 'accent');

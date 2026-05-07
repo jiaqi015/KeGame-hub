@@ -126,7 +126,7 @@ export const WEEKLY_ROUTINE = [
   {
     day: 1,
     label: "周一",
-    theme: "业主反馈 / 给业主讲清楚",
+    theme: "业主反馈",
     energy: 8,
     rhythmKind: "owner_feedback",
     slotHints: { am: "整理周末市场反馈", pm: "和业主形成下一步共识" },
@@ -135,7 +135,7 @@ export const WEEKLY_ROUTINE = [
   {
     day: 2,
     label: "周二",
-    theme: "休假整理 / 只补关键漏",
+    theme: "休假整理",
     energy: 1,
     rhythmKind: "rest_light_ops",
     slotHints: { am: "只处理高危补漏", pm: "恢复和整理" },
@@ -144,7 +144,7 @@ export const WEEKLY_ROUTINE = [
   {
     day: 3,
     label: "周三",
-    theme: "内部会议 / 判断先后顺序",
+    theme: "内部会议",
     energy: 4,
     rhythmKind: "internal_judgment_meeting",
     slotHints: { am: "内部会判断房源和客户线", pm: "补获客和包装动作" },
@@ -153,7 +153,7 @@ export const WEEKLY_ROUTINE = [
   {
     day: 4,
     label: "周四",
-    theme: "聚焦会 / 选出主推房源",
+    theme: "聚焦会",
     energy: 3,
     rhythmKind: "focus_resource_meeting",
     slotHints: { am: "聚焦会提报", pm: "承接资源倾斜" },
@@ -162,7 +162,7 @@ export const WEEKLY_ROUTINE = [
   {
     day: 5,
     label: "周五",
-    theme: "找带看 / 先锁周末客",
+    theme: "找带看",
     energy: 5,
     rhythmKind: "prospecting_booking",
     slotHints: { am: "补客户和邀约", pm: "锁定周末带看" },
@@ -171,7 +171,7 @@ export const WEEKLY_ROUTINE = [
   {
     day: 6,
     label: "周六",
-    theme: "集中带看 / 拿到真实反馈",
+    theme: "集中带看",
     energy: 6,
     rhythmKind: "showing_market_feedback",
     slotHints: { am: "集中带看", pm: "沉淀现场反馈" },
@@ -180,7 +180,7 @@ export const WEEKLY_ROUTINE = [
   {
     day: 0,
     label: "周日",
-    theme: "集中带看 / 拿到真实反馈",
+    theme: "集中带看",
     energy: 6,
     rhythmKind: "showing_market_feedback",
     slotHints: { am: "继续带看", pm: "准备周一业主反馈" },

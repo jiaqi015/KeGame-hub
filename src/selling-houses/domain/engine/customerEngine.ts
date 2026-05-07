@@ -1,4 +1,4 @@
-import type { Case, CustomerProfile, CustomerRuntimeState, GameState, Opportunity } from '../models.js';
+import type { Case, CustomerProfile, CustomerRuntimeState, GameState, Opportunity, RivalListing } from '../models.js';
 import { BALANCE } from '../config/balance.js';
 import { logEvent } from '../runtimeState.js';
 import { chance, clamp, intersections, randomInt } from '../utils.js';
@@ -109,11 +109,50 @@ function deriveCustomerStatus(customerState: CustomerRuntimeState) {
     customerState.status = 'engaged';
     return;
   }
+  if ((lead.competingCaseIds?.length || 0) > 0 && lead.interest >= 42) {
+    customerState.status = 'comparing';
+    return;
+  }
   if (activeEntries.length >= 2 && Math.abs((activeEntries[0]?.interest || 0) - (activeEntries[1]?.interest || 0)) <= 12) {
     customerState.status = 'comparing';
     return;
   }
   customerState.status = 'browsing';
+}
+
+function scoreExternalCompetitorForCustomer(
+  customer: CustomerProfile,
+  caseItem: Case,
+  rival: RivalListing,
+) {
+  const sameCell = rival.marketCellId === caseItem.marketCellId ? 34 : 0;
+  const sameDistrict = rival.district === caseItem.district || rival.district === customer.targetDistrict ? 20 : 0;
+  const budgetGapRatio = Math.abs(rival.askPrice - Math.min(customer.budgetMax, caseItem.askPrice)) / Math.max(customer.budgetMax, 1);
+  const budgetFit = Math.max(0, 22 - Math.round(budgetGapRatio * 120));
+  const pull = rival.leadSiphonPower * 0.24 + rival.heat * 0.18 + rival.freshness * 0.12;
+  return sameCell + sameDistrict + budgetFit + pull;
+}
+
+function getExternalCompetingListingIds(
+  state: GameState,
+  customer: CustomerProfile,
+  caseItem: Case,
+) {
+  return (state.marketShadow?.rivalListings || [])
+    .filter((rival) => rival.status === 'active')
+    .filter((rival) => (
+      rival.marketCellId === caseItem.marketCellId
+      || rival.district === caseItem.district
+      || rival.district === customer.targetDistrict
+    ))
+    .map((rival) => ({
+      rival,
+      score: scoreExternalCompetitorForCustomer(customer, caseItem, rival),
+    }))
+    .filter((entry) => entry.score >= 52)
+    .sort((left, right) => right.score - left.score)
+    .slice(0, 3)
+    .map((entry) => entry.rival.id);
 }
 
 function applyCustomerDay(state: GameState, customer: CustomerProfile, customerState: CustomerRuntimeState) {
@@ -139,10 +178,7 @@ function applyCustomerDay(state: GameState, customer: CustomerProfile, customerS
 
   ranked.forEach(({ caseItem }) => {
     const runtime = ensureCustomerCaseLink(state, customer, customerState, caseItem);
-    runtime.competingCaseIds = ranked
-      .map((entry) => entry.caseItem.id)
-      .filter((id) => id !== caseItem.id)
-      .slice(0, 2);
+    runtime.competingCaseIds = getExternalCompetingListingIds(state, customer, caseItem);
     const caseHeatBoost = (caseItem.heat - 55) / 10;
     const trustBoost = (customerState.advisorTrust - 50) / 12;
     const fatiguePenalty = (customerState.fatigue / 14) * stagnationScale;

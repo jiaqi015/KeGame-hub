@@ -19,6 +19,8 @@ import {
 } from "./lib/auth.js";
 import { WORKSPACE_IDS } from "./lib/workspaces.js";
 import { authorizeRequestPersisted, validateActivationKey } from "./lib/activation.js";
+import { callAiCapability, getAiPlatformOverview, getAvailableAiCapabilities, streamAiCapability } from "./lib/aiCapabilityRuntime.js";
+import type { AiCapabilityWorkspace } from "./lib/aiCapabilities.js";
 import { compareModels, streamCompareModel } from "./lib/compare.js";
 import { AVAILABLE_MODELS } from "./lib/models.js";
 import { handleOpenDayCatalog } from "./modules/open-day/interfaces/http/openDayCatalogHandler.js";
@@ -61,6 +63,14 @@ import {
 
 dotenv.config({ path: ".env.local", override: false });
 dotenv.config({ path: ".env", override: false });
+
+function resolveAiCapabilityWorkspace(rawValue: unknown): AiCapabilityWorkspace {
+  return rawValue === "sabrina"
+    || rawValue === "open-day"
+    || rawValue === "selling-houses"
+    ? rawValue
+    : "global";
+}
 
 async function startServer() {
   const app = express();
@@ -498,6 +508,102 @@ async function startServer() {
 
   app.get("/api/compare", (_req, res) => {
     res.json({ models: AVAILABLE_MODELS });
+  });
+
+  app.get("/api/ai-capabilities", (req, res) => {
+    const requestWorkspace = resolveAiCapabilityWorkspace(req.query?.workspace);
+    res.json({
+      capabilities: getAvailableAiCapabilities(requestWorkspace),
+      platform: getAiPlatformOverview(requestWorkspace),
+    });
+  });
+
+  app.post("/api/ai-capabilities", async (req, res) => {
+    const requestWorkspace = resolveAiCapabilityWorkspace(req.body?.workspace);
+    const authorization = await authorizeRequestPersisted(
+      req,
+      requestWorkspace === "global" ? undefined : requestWorkspace,
+    );
+
+    if (!authorization.ok) {
+      return res.status(authorization.status).json({ error: authorization.error });
+    }
+
+    const prompt = typeof req.body?.prompt === "string" ? req.body.prompt.trim() : "";
+    const capabilityId = typeof req.body?.capabilityId === "string" ? req.body.capabilityId.trim() : "";
+    const modelId = typeof req.body?.modelId === "string" ? req.body.modelId.trim() : undefined;
+    const streamRequested = isStreamRequested(req.query, req.body);
+
+    if (!prompt || !capabilityId) {
+      return res.status(400).json({ error: "Invalid request parameters" });
+    }
+
+    if (streamRequested) {
+      const controller = new AbortController();
+      req.on("close", () => controller.abort());
+
+      res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+      res.setHeader("Cache-Control", "no-cache, no-transform");
+      res.setHeader("Connection", "keep-alive");
+      res.flushHeaders?.();
+
+      const writeEvent = (payload: Record<string, unknown> | "[DONE]") => {
+        if (res.writableEnded) {
+          return;
+        }
+
+        const data = payload === "[DONE]" ? payload : JSON.stringify(payload);
+        res.write(`data: ${data}\n\n`);
+      };
+
+      try {
+        const result = await streamAiCapability({ capabilityId, prompt, modelId }, {
+          signal: controller.signal,
+          onDelta: async (delta, channel) => {
+            writeEvent({ type: "delta", delta, channel });
+          },
+        });
+
+        if (!controller.signal.aborted) {
+          if (result.status === "completed") {
+            writeEvent({
+              type: "completed",
+              result: result.result,
+              reasoning: result.reasoning,
+              capability: result.capability,
+              modelId: result.modelId,
+              receipt: result.receipt,
+            });
+          } else {
+            writeEvent({
+              type: "error",
+              error: result.result,
+              reasoning: result.reasoning,
+              capability: result.capability,
+              modelId: result.modelId,
+              receipt: result.receipt,
+            });
+          }
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          writeEvent({
+            type: "error",
+            error: error instanceof Error ? error.message : "AI 能力调用失败。",
+          });
+        }
+      } finally {
+        if (!res.writableEnded) {
+          writeEvent("[DONE]");
+          res.end();
+        }
+      }
+
+      return;
+    }
+
+    const result = await callAiCapability({ capabilityId, prompt, modelId });
+    return res.status(result.status === "completed" ? 200 : 400).json({ result });
   });
 
   app.post("/api/compare", async (req, res) => {

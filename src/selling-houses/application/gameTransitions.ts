@@ -2,13 +2,23 @@ import type { DailyTickResult, GameState, Opportunity } from '../domain/models.j
 import type { Settlement } from '../domain/actions/templates.js';
 import type { TodayPlanDraft } from './todayPlan.js';
 import { advanceDays, executeAction, spendResources, resolveActionDefinition } from '../domain/engine.js';
-import { getActionAvailability, recordDomainEvent } from '../domain/engine.js';
+import { getActionAvailability, recordDomainEvent, refreshOpportunityLabel } from '../domain/engine.js';
+import { enrichStateWithDailyTickSemantics } from '../runtime/simulation/dailyTickSemanticEnrichmentPipeline.js';
+import { popPendingActionReceiptSnapshots } from '../domain/engine/actionResolvers.js';
+import { buildActionReceiptFromSnapshot, appendActionReceiptFromSnapshot } from '../runtime/simulation/actionReceiptFromSnapshotAdapter.js';
 import { updateDerivedState } from '../domain/runtimeState.js';
 import { applyActionStageRelation, getActionStageRelation } from '../domain/actionStageRelations.js';
 import { queueDealClosingEvaluation } from '../domain/dealClosing.js';
 import { getOpportunityPriority } from '../domain/utils.js';
 import { setBrokerOwnerTrust } from '../domain/trustWriteHelper.js';
-import { applyOpportunityIntentDeltaOnState, applyOpportunityConfidenceDeltaOnState } from '../domain/opportunitySplitHelper.js';
+import {
+  applyOpportunityIntentDeltaOnState,
+  applyOpportunityConfidenceDeltaOnState,
+  setOpportunityDaysLeftOnState,
+  setOpportunityStageIndexOnState,
+  setOpportunityTouchedTodayOnState,
+  setOpportunityVisibilityOnState,
+} from '../domain/opportunitySplitHelper.js';
 import { applyPatienceDelta, applyUrgencyDelta } from '../domain/ownerCaseReadinessWriteHelper.js';
 import {
   createProductRun,
@@ -29,6 +39,27 @@ import {
   syncTodayPlanForCurrentDayMutable,
 } from './todayPlan.js';
 import { emitDecisionMomentTriggers, advanceFlowProgress } from '../runtime/simulation/decisionMomentEmission.js';
+import { buildOwnerProfilingMemorySummary } from './projections/ownerProfilingMemory.js';
+import { registerProcessManagers } from '../domain/engine/processManagerFacade.js';
+import {
+  settleNegotiationProcessesForDay,
+  advanceProductRunProcessesForDay,
+} from '../runtime/simulation/processes/index.js';
+import {
+  buildNegotiationProcessResultSummary,
+  buildProductRunProcessResultSummary,
+} from '../runtime/simulation/processes/processResultSummary.js';
+
+// Register runtime process managers into domain facade.
+// This breaks the domain→runtime reverse dependency.
+// consensusReceipts is computed in resolveOneDay from processResults array,
+// not from the negotiation result directly.
+registerProcessManagers({
+  settleNegotiationProcesses: (state) =>
+    buildNegotiationProcessResultSummary(settleNegotiationProcessesForDay(state), { day: state.day }),
+  advanceProductRunProcesses: (state) =>
+    buildProductRunProcessResultSummary(advanceProductRunProcessesForDay(state), { day: state.day }),
+});
 
 export function cloneGameState(state: GameState): GameState {
   return structuredClone(state);
@@ -52,6 +83,8 @@ export interface AdvanceGameDaysSummary {
   gameOver: boolean;
   lastResult: DailyTickResult | null;
   settledResults: DailyTickResult[];
+  /** Diagnostics from enrichment pipeline failures. Empty = all succeeded. */
+  enrichmentDiagnostics: readonly import('../runtime/simulation/dailyTickSemanticEnrichmentPipeline.js').EnrichmentDiagnostic[];
 }
 
 export function advanceGameDaysWithSummary(
@@ -61,8 +94,25 @@ export function advanceGameDaysWithSummary(
 ): AdvanceGameDaysSummary {
   const beforeDay = state.day;
   let settledResults: DailyTickResult[] = [];
+  const allDiagnostics: import('../runtime/simulation/dailyTickSemanticEnrichmentPipeline.js').EnrichmentDiagnostic[] = [];
   const nextState = transitionGameState(state, (next) => {
-    settledResults = advanceDays(next, count, onMessage);
+    settledResults = advanceDays(next, count, onMessage, (tickState, tickResult) => {
+      // Runtime enrichment: semantic receipts, ledger, process runs, etc.
+      // Runs after each tick, before the next day starts.
+      // Does NOT alter gameplay, rngCalls, or tick order.
+      const diagnostics = enrichStateWithDailyTickSemantics({
+        state: tickState,
+        tickResult,
+        activeCaseIdsAtEnd: tickState.cases
+          .filter((c) => c.status === 'active')
+          .map((c) => c.id)
+          .sort(),
+        settledDayClosedDeals: tickResult.closedDeals,
+        settledDayEmittedEvents: tickResult.emittedEvents,
+        isGameOver: tickState.gameOver,
+      });
+      allDiagnostics.push(...diagnostics);
+    });
     syncTodayPlanForCurrentDayMutable(next);
   });
 
@@ -75,6 +125,7 @@ export function advanceGameDaysWithSummary(
     gameOver: nextState.gameOver,
     lastResult: settledResults[settledResults.length - 1] || null,
     settledResults,
+    enrichmentDiagnostics: allDiagnostics,
   };
 }
 
@@ -93,12 +144,31 @@ export function executeGameAction(
   optionId: string | null = null,
   todayPlanItemId: string | null = null,
   onMessage?: (msg: string) => void,
+  meta?: unknown,
 ) {
   let success = false;
   const nextState = transitionGameState(state, (next) => {
     const currentCase = next.cases.find((entry) => entry.id === caseId);
     if (currentCase) {
-      success = executeAction(next, actionId, currentCase, optionId, onMessage);
+      success = executeAction(next, actionId, currentCase, optionId, onMessage, meta);
+      // Runtime enrichment after domain execution:
+      // 1. Decision moment emission and flow progress (moved from domain/actionResolvers)
+      if (success) {
+        emitDecisionMomentTriggers(next, actionId, currentCase, optionId ?? undefined);
+        advanceFlowProgress(next, actionId, currentCase.id);
+      }
+      // 2. Build action receipts from domain snapshots
+      try {
+        for (const snapshot of popPendingActionReceiptSnapshots()) {
+          const receipt = buildActionReceiptFromSnapshot(snapshot, next);
+          appendActionReceiptFromSnapshot(next, receipt);
+        }
+      } catch (err: unknown) {
+        // Receipt building is non-invasive — must not crash gameplay.
+        // Diagnostic: log warning so failures are not invisible.
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`[ActionReceipt building failed] action=${actionId}: ${msg}`);
+      }
       if (success) {
         if (todayPlanItemId) {
           markTodayPlanItemCompletedMutable(next, todayPlanItemId);
@@ -150,7 +220,22 @@ export function executeScenarioAction(
       ? next.todayPlan.playerItems.find((entry) => entry.id === todayPlanItemId && entry.day === next.day)
       : null;
     const executorActionId = action.executorId || action.id;
+    const finalOptionId = settlement.finalOptionId ?? scenarioContext?.choices?.[scenarioContext.choices.length - 1]?.main ?? null;
     const deltaTarget = resolveScenarioActionTarget(next, todayPlanItem);
+    const selectedShowingOpportunityId = executorActionId === 'showing'
+      ? resolveShowingOpportunityIdFromOption(finalOptionId)
+      : null;
+    if (selectedShowingOpportunityId && !deltaTarget.linkedOpportunityId) {
+      const selectedOpportunity = next.opportunities.find((entry) =>
+        entry.id === selectedShowingOpportunityId
+        && entry.caseId === currentCase.id
+        && entry.status === 'active',
+      ) || null;
+      if (selectedOpportunity) {
+        deltaTarget.linkedOpportunityId = selectedOpportunity.id;
+        deltaTarget.linkedCustomerId = selectedOpportunity.customerId;
+      }
+    }
     const scenarioActionTarget = resolveScenarioActionOpportunity(
       next,
       currentCase,
@@ -177,7 +262,6 @@ export function executeScenarioAction(
     }
 
     spendResources(next, action);
-    const finalOptionId = settlement.finalOptionId ?? scenarioContext?.choices?.[scenarioContext.choices.length - 1]?.main ?? null;
     settlement.stateDeltas.forEach((delta) => {
       applyScenarioDelta(
         next,
@@ -201,6 +285,12 @@ export function executeScenarioAction(
     currentCase.touchedToday = true;
     currentCase.lastTouchedDay = next.day;
     currentCase.lastAction = executorActionId;
+    const ownerProfilingMemory = actionId === 'first-visit'
+      ? buildOwnerProfilingMemorySummary(currentCase, scenarioContext?.choices || [])
+      : undefined;
+    if (ownerProfilingMemory) {
+      currentCase.ownerProfilingMemory = ownerProfilingMemory;
+    }
 
     recordDomainEvent(next, {
       kind: 'action_executed',
@@ -217,6 +307,7 @@ export function executeScenarioAction(
         stateDeltas: settlement.stateDeltas,
         choices: scenarioContext?.choices || [],
         feedbacks: scenarioContext?.feedbacks || [],
+        ownerProfilingMemory,
       },
     });
 
@@ -445,6 +536,14 @@ function clamp01to100(value: number) {
   return Math.max(0, Math.min(100, value));
 }
 
+function resolveShowingOpportunityIdFromOption(optionId: string | null | undefined) {
+  const prefix = 'show-customer-';
+  if (!optionId?.startsWith(prefix)) {
+    return null;
+  }
+  return optionId.slice(prefix.length) || null;
+}
+
 function resolveScenarioActionTarget(
   state: GameState,
   todayPlanItem?: GameState['todayPlan']['playerItems'][number] | null,
@@ -600,6 +699,33 @@ function applyScenarioDelta(
   }
   if (delta.field === 'askPrice') {
     currentCase.askPrice += delta.value;
+    return;
+  }
+  if (delta.field === 'viewings') {
+    currentCase.viewings = Math.max(0, currentCase.viewings + Math.round(delta.value));
+    if (targetOpportunity) {
+      setOpportunityVisibilityOnState(state, targetOpportunity, 'revealed', '情景带看揭示客户');
+      setOpportunityStageIndexOnState(state, targetOpportunity, Math.max(targetOpportunity.stageIndex, 2), '情景带看推进阶段', 0, 4);
+      setOpportunityDaysLeftOnState(state, targetOpportunity, 4, '情景带看设定剩余天数');
+      setOpportunityTouchedTodayOnState(state, targetOpportunity, true, '情景带看标记今日触达');
+      refreshOpportunityLabel(state, targetOpportunity);
+      const customerState = state.customerStates.find((entry) => entry.customerId === targetOpportunity.customerId);
+      const runtime = customerState?.caseStates[currentCase.id];
+      if (runtime) {
+        runtime.viewed = true;
+        runtime.interactions += 1;
+        runtime.stageIndex = Math.max(runtime.stageIndex, Math.min(4, targetOpportunity.stageIndex));
+        runtime.lastActiveDay = state.day;
+        runtime.selected = true;
+        customerState.lastTouchDay = state.day;
+        customerState.lastActionNote = '完成带看';
+      }
+    }
+    return;
+  }
+  if (delta.field === 'ownerTouch') {
+    currentCase.touchedOwnerToday = true;
+    currentCase.lastOwnerTouchedDay = state.day;
     return;
   }
   if (delta.field === 'intent' || delta.field === 'confidence') {

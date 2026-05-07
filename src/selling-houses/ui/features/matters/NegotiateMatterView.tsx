@@ -193,7 +193,7 @@ export function NegotiateMatterView({ config, matter, onChoose, onComplete, onCl
                   </div>
                   <h3 className="text-2xl font-bold text-white mb-2">谈判已崩盘</h3>
                   <p className="text-red-200 mb-8 max-w-md">
-                    “{feedbacks[feedbacks.length - 1]?.message}”
+                    {feedbacks[feedbacks.length - 1]?.message}
                     <br/><br/>
                     你触碰了对方的绝对底线，当前博弈窗口已关闭。
                   </p>
@@ -224,7 +224,7 @@ export function NegotiateMatterView({ config, matter, onChoose, onComplete, onCl
                     对方反馈
                   </div>
                   <div className="text-[20px] font-bold text-white text-center leading-relaxed italic mb-8 max-w-lg">
-                    "{feedbacks[feedbacks.length - 1].message}"
+                    {feedbacks[feedbacks.length - 1].message}
                   </div>
                   <button onClick={handleContinue} className="seller-button-primary px-8 py-3 rounded-full font-bold">
                     {currentRound < totalRounds ? '准备下一轮出牌' : '查看最终结果'}

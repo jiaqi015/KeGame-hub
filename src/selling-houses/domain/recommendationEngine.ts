@@ -6,6 +6,9 @@ import {
 } from './actionStageRelations.js';
 import { getActionAvailability } from './engine/actionResolvers.js';
 import type { Case, GameState, Opportunity } from './models.js';
+import { readCaseRelationBundleFromRuntime } from '../core/world-state/relationReadProjection.js';
+import type { OwnerProfilingMemorySummary } from './ownerProfilingMemoryTypes.js';
+import { readOwnerBehaviorDimensions } from './ownerDecisionProfileHelper.js';
 
 export type CaseRecommendationTier = 'DEFEND' | 'PROGRESS' | 'ACCELERATE';
 
@@ -65,6 +68,14 @@ interface CaseRecommendationFacts {
   ownerGapDays: number;
   trustDecayMultiplier: number;
   priceGapPct: number;
+  /** Authoritative trust from relation bundle (not bare Case field). */
+  trust: number;
+  /** Authoritative patience from relation bundle (not bare Case field). */
+  patience: number;
+  /** Authoritative urgency from relation bundle (not bare Case field). */
+  urgency: number;
+  /** 16-type profiling memory (authoritative owner type source). Null if not yet revealed. */
+  profiling: OwnerProfilingMemorySummary | null;
 }
 
 export const REC_BALANCE = {
@@ -185,34 +196,59 @@ function elapsedDays(currentDay: number, lastTouchedDay: number) {
   return Math.max(0, currentDay - lastTouchedDay);
 }
 
-function optionForFirstVisit(caseItem: Case) {
-  if (caseItem.ownerArchetypeId === 'anxious' || caseItem.ownerArchetypeId === 'trial-balloon') {
-    return 'rapport-first';
+function optionForFirstVisit(
+  caseItem: Case,
+  profiling: OwnerProfilingMemorySummary | null,
+) {
+  // Use 16-type profiling dimensions when available (authoritative)
+  if (profiling) {
+    const priceAnchor = profiling.dimensions.find((d) => d.key === 'price_anchor')?.value;
+    const decisionStyle = profiling.dimensions.find((d) => d.key === 'decision_style')?.value;
+    // Strong price anchor or guided decision → rapport-first (need trust before data)
+    if (priceAnchor === 'strong' || decisionStyle === 'guided_or_joint') {
+      return 'rapport-first';
+    }
+    // High experience + self-decide → data-first (trust evidence)
+    const experience = profiling.dimensions.find((d) => d.key === 'transaction_experience')?.value;
+    if (experience === 'high' && decisionStyle === 'self_decide') {
+      return 'data-first';
+    }
   }
-  if (caseItem.ownerArchetypeId === 'game-player') {
-    return 'data-first';
-  }
+  // Default when profiling not available: plan-first (neutral)
   return 'plan-first';
 }
 
-function optionForPriceAction(world: GameState, caseItem: Case) {
-  const archetype = world.runContext.scenarioSnapshot.world.ownerArchetypes
-    .find((entry) => entry.id === caseItem.ownerArchetypeId);
-  return archetype?.preferredTactic || 'small-cut';
+function optionForPriceAction(caseItem: Case, profiling: OwnerProfilingMemorySummary | null) {
+  // Derive pricing tactic from 16-type profiling dimensions (authoritative)
+  if (profiling) {
+    const priceAnchor = profiling.dimensions.find((d) => d.key === 'price_anchor')?.value;
+    const decisionStyle = profiling.dimensions.find((d) => d.key === 'decision_style')?.value;
+    const experience = profiling.dimensions.find((d) => d.key === 'transaction_experience')?.value;
+    // Strong anchor or guided decision → hold price, use story
+    if (priceAnchor === 'strong' || decisionStyle === 'guided_or_joint') {
+      return 'hold-story';
+    }
+    // Weak anchor + low experience → owner flexible, can cut deeper
+    if (priceAnchor === 'weak' && experience === 'low') {
+      return 'deep-cut';
+    }
+  }
+  // Default when profiling not available
+  return 'small-cut';
 }
 
 function hasOwnerDefensePressure(caseItem: Case, facts: CaseRecommendationFacts) {
   return caseItem.storylineState === 'critical'
-    || caseItem.trust < REC_BALANCE.ownerRegret.lowTrustThreshold
-    || caseItem.patience < REC_BALANCE.ownerRegret.defensePatienceThreshold
+    || facts.trust < REC_BALANCE.ownerRegret.lowTrustThreshold
+    || facts.patience < REC_BALANCE.ownerRegret.defensePatienceThreshold
     || caseItem.windowDays <= REC_BALANCE.ownerRegret.defenseWindowDays
     || (
       facts.ownerGapDays >= REC_BALANCE.ownerRegret.defenseUrgentGapDays
-      && caseItem.urgency >= REC_BALANCE.ownerRegret.urgentThreshold
+      && facts.urgency >= REC_BALANCE.ownerRegret.urgentThreshold
     )
     || (
       facts.ownerGapDays >= REC_BALANCE.ownerRegret.relationshipGapLargeDays
-      && caseItem.trust < REC_BALANCE.ownerRegret.defenseLongGapTrustThreshold
+      && facts.trust < REC_BALANCE.ownerRegret.defenseLongGapTrustThreshold
     );
 }
 
@@ -232,8 +268,10 @@ function getCaseFacts(world: GameState, caseItem: Case): CaseRecommendationFacts
   const highestStage = revealedOpportunities.length
     ? Math.max(...revealedOpportunities.map((entry) => entry.stageIndex))
     : 0;
-  const ownerArchetype = world.runContext.scenarioSnapshot.world.ownerArchetypes
-    .find((entry) => entry.id === caseItem.ownerArchetypeId);
+  // Authoritative read: trust/patience/urgency from relation bundle
+  const bundle = readCaseRelationBundleFromRuntime(world, caseItem);
+  // Authoritative read: behavioral dimensions from profiling
+  const behaviorDims = readOwnerBehaviorDimensions(caseItem);
 
   return {
     opportunities,
@@ -249,10 +287,14 @@ function getCaseFacts(world: GameState, caseItem: Case): CaseRecommendationFacts
       revealedOpportunities.filter((entry) => entry.stageIndex >= REC_BALANCE.facts.offerStage).length,
     ),
     ownerGapDays: elapsedDays(world.day, caseItem.lastOwnerTouchedDay),
-    trustDecayMultiplier: ownerArchetype?.trustDecayMultiplier || 1,
+    trustDecayMultiplier: behaviorDims.trustDecayMultiplier,
     priceGapPct: Number.isFinite(caseItem.priceGapPct)
       ? caseItem.priceGapPct
       : Math.round(((caseItem.askPrice - caseItem.marketPrice) / Math.max(1, caseItem.marketPrice)) * 1000) / 10,
+    trust: bundle.trust?.trust ?? caseItem.trust,
+    patience: bundle.readiness?.patience ?? caseItem.patience,
+    urgency: bundle.readiness?.urgency ?? caseItem.urgency,
+    profiling: bundle.ownerProfile.profiling ?? caseItem.ownerProfilingMemory ?? null,
   };
 }
 
@@ -285,12 +327,12 @@ function buildSignals(caseItem: Case, facts: CaseRecommendationFacts, phase: Cas
   } else if (caseItem.windowDays <= REC_BALANCE.ownerRegret.windowClosingMidDays) {
     addSignal(signals, 'window-closing', REC_BALANCE.ownerRegret.windowClosingMidWeight, '经营窗口开始收紧');
   }
-  if (caseItem.trust < REC_BALANCE.ownerRegret.lowTrustThreshold && facts.ownerGapDays >= REC_BALANCE.ownerRegret.lowTrustGapDays) {
+  if (facts.trust < REC_BALANCE.ownerRegret.lowTrustThreshold && facts.ownerGapDays >= REC_BALANCE.ownerRegret.lowTrustGapDays) {
     addSignal(signals, 'relationship-gap-large', REC_BALANCE.ownerRegret.lowTrustGapWeight, '业主几天没有收到明确反馈');
   } else if (facts.ownerGapDays >= REC_BALANCE.ownerRegret.relationshipGapLargeDays) {
     addSignal(signals, 'relationship-gap-large', REC_BALANCE.ownerRegret.relationshipGapLargeWeight, '业主反馈空窗偏长');
   }
-  if (facts.ownerGapDays >= REC_BALANCE.ownerRegret.urgentGapDays && caseItem.urgency >= REC_BALANCE.ownerRegret.urgentThreshold) {
+  if (facts.ownerGapDays >= REC_BALANCE.ownerRegret.urgentGapDays && facts.urgency >= REC_BALANCE.ownerRegret.urgentThreshold) {
     addSignal(signals, 'relationship-gap-large', REC_BALANCE.ownerRegret.urgentGapWeight, '业主着急度高且反馈空窗已出现');
   }
   if (
@@ -329,7 +371,7 @@ function buildSignals(caseItem: Case, facts: CaseRecommendationFacts, phase: Cas
   if (
     facts.hottestOpportunity
     && facts.hottestOpportunity.intent >= REC_BALANCE.opportunityRegret.lowTrustBlockingIntent
-    && caseItem.trust < REC_BALANCE.opportunityRegret.lowTrustBlockingTrust
+    && facts.trust < REC_BALANCE.opportunityRegret.lowTrustBlockingTrust
   ) {
     addSignal(signals, 'low-trust-blocking-deal', REC_BALANCE.opportunityRegret.lowTrustBlockingWeight, '高意向客户可能被业主信任不足卡住');
   }
@@ -405,7 +447,7 @@ function buildActionCandidates(
       REC_BALANCE.actionRegret.firstVisit,
       'PROGRESS',
       ['first-visit-missing', 'owner-state-hidden'],
-      optionForFirstVisit(caseItem),
+      optionForFirstVisit(caseItem, facts.profiling),
     ));
     candidates.push(candidate(
       'deep-diagnosis',
@@ -479,7 +521,7 @@ function buildActionCandidates(
         : REC_BALANCE.actionRegret.ownerLongGapFeedback,
       ownerDefensePressure ? 'DEFEND' : 'PROGRESS',
       ['owner-trust-eroding', 'relationship-gap-large', 'window-closing'],
-      caseItem.hasCompletedFirstVisit ? undefined : optionForFirstVisit(caseItem),
+      caseItem.hasCompletedFirstVisit ? undefined : optionForFirstVisit(caseItem, facts.profiling),
     ));
   }
 
@@ -490,7 +532,7 @@ function buildActionCandidates(
       REC_BALANCE.actionRegret.adjustListingPrice,
       'PROGRESS',
       ['pricing-not-aligned', 'offer-ready-for-negotiation'],
-      optionForPriceAction(world, caseItem),
+      optionForPriceAction(caseItem, facts.profiling),
     ));
   } else if (facts.priceGapPct > REC_BALANCE.price.adviceGapPct) {
     candidates.push(candidate(
@@ -570,7 +612,7 @@ function buildActionCandidates(
     REC_BALANCE.actionRegret.lightFeedback,
     caseItem.hasCompletedFirstVisit ? 'PROGRESS' : 'PROGRESS',
     caseItem.hasCompletedFirstVisit ? ['relationship-gap-large'] : ['first-visit-missing'],
-    caseItem.hasCompletedFirstVisit ? undefined : optionForFirstVisit(caseItem),
+    caseItem.hasCompletedFirstVisit ? undefined : optionForFirstVisit(caseItem, facts.profiling),
   ));
 
   return candidates

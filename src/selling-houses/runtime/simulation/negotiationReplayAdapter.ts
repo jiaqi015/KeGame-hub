@@ -117,7 +117,8 @@ export function buildNegotiationReplayFromRun(
   // Sort turn points by day
   turnPoints.sort((a, b) => a.day - b.day);
 
-  // Build evidence chain
+  // Build evidence chain from action receipts, commitment settlements,
+  // and operating ledger entries for the case's active days
   const evidenceChain: NegotiationReplaySummary['evidenceChain'][number][] = [];
   for (const r of caseReceipts) {
     evidenceChain.push(Object.freeze({
@@ -135,6 +136,34 @@ export function buildNegotiationReplayFromRun(
       summary: `${s.commitmentKind} ${s.trigger}: ${s.reason}`,
     }));
   }
+
+  // Add operating ledger entries for this case as evidence
+  const ledgerDays = state.operatingLedgerDays ?? [];
+  for (const ledgerDay of ledgerDays) {
+    const caseEntry = ledgerDay.entries.find((e) => e.caseId === caseId);
+    if (caseEntry) {
+      evidenceChain.push(Object.freeze({
+        refType: 'operating_ledger',
+        refId: `ledger:${caseId}:d${ledgerDay.day}`,
+        day: ledgerDay.day,
+        summary: caseEntry.movementSummary || `urgency=${caseEntry.urgencyScore}`,
+      }));
+    }
+  }
+
+  // Add strategy fork receipts for this case as evidence
+  const strategyForks = state.strategyForkHistory ?? [];
+  for (const fork of strategyForks) {
+    if (fork.caseId === caseId) {
+      evidenceChain.push(Object.freeze({
+        refType: 'strategy_fork',
+        refId: fork.forkId,
+        day: fork.day,
+        summary: `策略分叉: ${fork.recommendationRationale ?? '无推荐'} (${fork.branches.length} branches)`,
+      }));
+    }
+  }
+
   evidenceChain.sort((a, b) => a.day - b.day);
 
   // Find contract fact if any

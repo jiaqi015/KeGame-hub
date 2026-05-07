@@ -4,6 +4,7 @@ import type { Case, GameState } from '../models.js';
 import { chance, clamp, randomInt } from '../utils.js';
 import { applyBrokerOwnerTrustDelta } from '../trustWriteHelper.js';
 import { applyOwnerCaseUrgencyDelta } from '../ownerCaseReadinessHelper.js';
+import { readCaseRelationBusinessContextFromRuntime } from '../../core/world-state/relationReadProjection.js';
 import { getMarketCell } from './opportunityEngine.js';
 import { sellVisibleRivalForCase } from '../rivals/rivalListingEngine.js';
 import { getRivalOutcomeControl } from './outcomeControlRuntime.js';
@@ -40,9 +41,10 @@ function shouldLoseToRival(world: GameState, caseItem: Case, groupPricePremiumRa
   const pressureOverLine = Math.max(0, cell.competitivePressure - world.rules.competitionPressureThreshold);
   const relationshipGap = caseItem.lastOwnerTouchedDay <= 0 ? world.day : world.day - caseItem.lastOwnerTouchedDay;
   const urgentOpening = caseItem.windowDays <= 1 || brokerShadowLeads >= 2;
+  const relationTrust = readCaseRelationBusinessContextFromRuntime(world, caseItem).trustValue;
   const relationshipOpening = relationshipGap >= rivalLossBalance.relationshipOpeningDays
-    && caseItem.trust <= rivalLossBalance.relationshipOpeningTrustThreshold;
-  const trustCollapse = caseItem.trust <= rivalLossBalance.trustCollapseThreshold;
+    && relationTrust <= rivalLossBalance.relationshipOpeningTrustThreshold;
+  const trustCollapse = relationTrust <= rivalLossBalance.trustCollapseThreshold;
   const coldAndNeglected = caseItem.heat <= rivalLossBalance.coldHeatThreshold
     && relationshipGap >= rivalLossBalance.coldRelationshipDays;
   const pipelineOpening = (
@@ -58,12 +60,12 @@ function shouldLoseToRival(world: GameState, caseItem: Case, groupPricePremiumRa
     || groupPricePremiumRatio >= rivalLossBalance.priceTrapPremiumThreshold
     || priceGapRatio >= rivalLossBalance.priceTrapPriceGapThreshold
   ) && (
-    caseItem.trust <= rivalLossBalance.priceTrapTrustThreshold
+    relationTrust <= rivalLossBalance.priceTrapTrustThreshold
     || relationshipGap >= rivalLossBalance.priceTrapRelationshipDays
     || caseItem.windowDays <= rivalLossBalance.priceTrapWindowDays
   );
   const recentlyMaintained = relationshipGap <= rivalLossBalance.recentlyMaintainedDays
-    && caseItem.trust >= rivalLossBalance.recentlyMaintainedTrustThreshold;
+    && relationTrust >= rivalLossBalance.recentlyMaintainedTrustThreshold;
   const visibleSlip = urgentOpening
     || relationshipOpening
     || trustCollapse

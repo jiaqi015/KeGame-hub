@@ -6,6 +6,7 @@ import {
   type ProductOpportunityProjection,
 } from '../../application/projections/operatingProjection.js';
 import { buildOwnerPersonaProfile } from '../../application/projections/ownerPersonaProfile.js';
+import type { OwnerProfilingTone } from '../../domain/ownerProfilingMemoryTypes.js';
 import { ACTIONS, ACTION_CATEGORIES } from '../../domain/constants';
 import { clamp, costText, caseSortValue } from '../../domain/utils';
 import { getActiveOpportunities, getActionAvailability } from '../../domain/engine';
@@ -69,6 +70,14 @@ type AttentionListingRow = {
   heat: number;
   strengthLabel: string;
   detail: string;
+  behaviorTimeline: AttentionBehaviorEvent[];
+};
+type AttentionBehaviorEvent = {
+  id: string;
+  day: number;
+  title: string;
+  detail: string;
+  tone: 'neutral' | 'chance' | 'risk';
 };
 type PotentialAudienceProfile = {
   demandTitle: string;
@@ -157,6 +166,7 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
   const [activeCustomerFilter, setActiveCustomerFilter] = useState<CustomerFilter>('all');
 
   const caseProjection = selectedCase ? caseProjectionById.get(selectedCase.id) || null : null;
+  const ownerProfiling = caseProjection?.ownerProfiling || null;
   const opportunityModels = useMemo(
     () => buildOpportunityViewModels(state, activeOpportunities),
     [activeOpportunities, state],
@@ -559,13 +569,14 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
                         <div className="mt-2">
                           <InfoStrip label="沟通方式" value={selectedOwnerProfile?.communicationLabel || deriveCommunicationMode(selectedCase)} />
                         </div>
+                        <OwnerProfilingCard profiling={ownerProfiling} hasCompletedFirstVisit={selectedCase.hasCompletedFirstVisit} />
                       </DeskSection>
 	                    </div>
 	                  )}
 
                   {activeDetailTab === 'attention' && (
                     <div className="grid gap-3 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
-                      <DeskSection title="竞品列表" count={`${attentionListings.length} 套`}>
+                      <DeskSection title="外部比较" count={`${attentionListings.length} 套`}>
                         <div className="mt-2.5 space-y-2">
                           {attentionListings.slice(0, 4).map((row) => (
                             <div key={row.id}>
@@ -577,12 +588,17 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
                             </div>
                           ))}
                           {attentionListings.length === 0 && (
-                            <div className="seller-empty px-3 py-4 text-[12px]">暂时没有同类竞品露出，先看本房价格和房况位置。</div>
+                            <div className="seller-empty px-3 py-4 text-[12px]">
+                              现在还没有显式竞品露出，世界会继续补进同商圈和同户型的对比盘。
+                            </div>
                           )}
                         </div>
                       </DeskSection>
 
-                      <DeskSection title="PK 详情" count={activeAttentionListing?.strengthLabel || '对比'}>
+                      <DeskSection title="比较详情" count={activeAttentionListing?.strengthLabel || '对比'}>
+                        {caseProjection ? (
+                          <ComparisonWorldBrief summary={caseProjection.comparisonSummary} />
+                        ) : null}
                         <PkHeader caseItem={selectedCase} row={activeAttentionListing} />
                         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                           <ComparisonMetric
@@ -603,6 +619,9 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
                         </div>
                         <div className="mt-2.5">
                           <AttentionComparisonTable caseItem={selectedCase} row={activeAttentionListing} />
+                        </div>
+                        <div className="mt-2.5">
+                          <AttentionBehaviorTimeline row={activeAttentionListing} />
                         </div>
                       </DeskSection>
                     </div>
@@ -1075,6 +1094,160 @@ function InfoStrip({ label, value }: { label: string; value: string }) {
   );
 }
 
+function OwnerProfilingCard({
+  profiling,
+  hasCompletedFirstVisit,
+}: {
+  profiling: ReturnType<typeof buildCaseDetailProjection>['ownerProfiling'];
+  hasCompletedFirstVisit: boolean;
+}) {
+  if (!hasCompletedFirstVisit) {
+    return (
+      <div className="mt-2 rounded-[14px] border border-dashed border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] px-3 py-3">
+        <div className="seller-label text-[9px]">业主分型</div>
+        <p className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">
+          完成首次面访后，会生成价格锚点、时间窗口、交易经验和决策方式四维分型。
+        </p>
+      </div>
+    );
+  }
+
+  if (!profiling) {
+    return (
+      <div className="mt-2 rounded-[14px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] px-3 py-3">
+        <div className="seller-label text-[9px]">业主分型</div>
+        <p className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">
+          已完成面访，但还没有沉淀出分型分析；再进入一次面访情景补齐信息。
+        </p>
+      </div>
+    );
+  }
+
+  const evidenceById = new Map(profiling.evidenceBank.map((entry) => [entry.id, entry]));
+
+  return (
+    <div className="mt-2 space-y-2 rounded-[16px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] p-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="seller-label text-[9px]">业主分型</div>
+          <div className="mt-1 text-[15px] font-black tracking-[-0.03em] text-[var(--seller-ink)]">{profiling.ownerTypeName}</div>
+          <p className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">{profiling.ownerTypeDescription}</p>
+        </div>
+        <span className={`seller-chip ${ownerProfilingToneClass(profiling.ownerTypeTone)}`}>
+          {ownerProfilingToneLabel(profiling.ownerTypeTone)}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        {profiling.dimensions.map((dimension) => {
+          const evidence = dimension.evidenceIds
+            .map((id) => evidenceById.get(id)?.text)
+            .find(Boolean);
+          return (
+            <div key={dimension.key} className="rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="seller-label text-[8px]">{dimension.label}</div>
+                <div className="text-[9px] font-semibold text-[var(--seller-subtle)]">{confidenceLabel(dimension.confidence)}</div>
+              </div>
+              <div className="mt-1 text-[12px] font-bold text-[var(--seller-ink)]">{dimension.valueLabel}</div>
+              {evidence ? (
+                <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-[var(--seller-muted)]">{evidence}</p>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        <InfoStrip label="服务目标" value={profiling.serviceStrategy.primaryGoal} />
+        <InfoStrip label="主要卡点" value={profiling.serviceStrategy.mainBlocker} />
+        <InfoStrip label="下一步" value={profiling.serviceStrategy.recommendedNextAction} />
+        <InfoStrip label="沟通方式" value={profiling.serviceStrategy.communicationStyle} />
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        <div className="rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-2.5">
+          <div className="seller-label text-[9px]">标签</div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {profiling.labels.slice(0, 5).map((label) => (
+              <span key={`${label.name}-${label.value}`} className="seller-chip seller-chip-accent">
+                {label.value}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-2.5">
+          <div className="seller-label text-[9px]">还要补问</div>
+          <ul className="mt-1 space-y-1">
+            {(profiling.openQuestions.length ? profiling.openQuestions : ['下一次沟通里验证价格拍板人和真实期限。']).slice(0, 3).map((question) => (
+              <li key={question} className="text-[10px] leading-4 text-[var(--seller-muted)]">• {question}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function confidenceLabel(confidence: 'high' | 'medium' | 'low') {
+  if (confidence === 'high') return '高置信';
+  if (confidence === 'medium') return '中置信';
+  return '低置信';
+}
+
+function ownerProfilingToneClass(tone: OwnerProfilingTone) {
+  if (tone === 'risk') return 'seller-chip-risk';
+  if (tone === 'chance') return 'seller-chip-chance';
+  if (tone === 'accent') return 'seller-chip-accent';
+  return '';
+}
+
+function ownerProfilingToneLabel(tone: OwnerProfilingTone) {
+  if (tone === 'risk') return '高风险';
+  if (tone === 'chance') return '机会';
+  if (tone === 'accent') return '强特征';
+  return '观察';
+}
+
+function ComparisonWorldBrief({
+  summary,
+}: {
+  summary: ReturnType<typeof buildCaseDetailProjection>['comparisonSummary'];
+}) {
+  const rows = [
+    ...summary.rivalStores,
+    ...summary.rivalListings,
+    ...summary.comparingCustomers,
+  ].slice(0, 5);
+
+  return (
+    <div className="mb-2.5 rounded-[14px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] px-3 py-2.5">
+      <div className="text-[12px] font-bold text-[var(--seller-ink)]">{summary.title}</div>
+      <p className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">{summary.detail}</p>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {summary.decisionLens.slice(0, 4).map((item) => (
+          <span key={item} className="seller-chip">
+            {item}
+          </span>
+        ))}
+      </div>
+      {rows.length > 0 ? (
+        <div className="mt-2 space-y-1.5">
+          {rows.map((row) => (
+            <div key={row.id} className="flex items-start justify-between gap-3 rounded-[10px] bg-[rgba(255,255,255,0.03)] px-2.5 py-2">
+              <div className="min-w-0">
+                <div className="text-[10px] font-bold text-[var(--seller-subtle)]">{row.label}</div>
+                <div className="mt-0.5 truncate text-[11px] font-semibold text-[var(--seller-ink)]">{row.title}</div>
+              </div>
+              <div className="max-w-[48%] text-right text-[10px] leading-4 text-[var(--seller-muted)]">{row.detail}</div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function PkHeader({ caseItem, row }: { caseItem: Case; row: AttentionListingRow | null }) {
   return (
     <div className="mb-2.5 rounded-[16px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-3">
@@ -1200,6 +1373,43 @@ function AttentionComparisonTable({ caseItem, row }: { caseItem: Case; row: Atte
       ))}
     </div>
   );
+}
+
+function AttentionBehaviorTimeline({ row }: { row: AttentionListingRow | null }) {
+  const events = row?.behaviorTimeline || [];
+
+  return (
+    <div className="rounded-[14px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] px-3 py-3">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="seller-label">竞品行为</div>
+        <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">最近 {events.length || 0} 条</span>
+      </div>
+      {events.length > 0 ? (
+        <div className="space-y-2">
+          {events.map((event, index) => (
+            <div key={event.id} className="grid grid-cols-[54px_minmax(0,1fr)] gap-2">
+              <div className="pt-0.5 text-[10px] font-semibold text-[var(--seller-subtle)]">D{event.day}</div>
+              <div className="relative border-l border-[var(--seller-border)] pl-3">
+                <span className={`absolute -left-[5px] top-1.5 h-2.5 w-2.5 rounded-full ${attentionBehaviorDotClass(event.tone)}`} />
+                <div className={`rounded-[12px] border px-3 py-2 ${index === 0 ? 'border-[color:var(--seller-chance)]/30 bg-[rgba(102,209,224,0.08)]' : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)]'}`}>
+                  <div className="text-[11px] font-bold text-[var(--seller-ink)]">{event.title}</div>
+                  <p className="mt-0.5 text-[10px] leading-4 text-[var(--seller-muted)]">{event.detail}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="seller-empty px-3 py-3 text-[11px]">还没有捕捉到竞品行为。</div>
+      )}
+    </div>
+  );
+}
+
+function attentionBehaviorDotClass(tone: AttentionBehaviorEvent['tone']) {
+  if (tone === 'risk') return 'bg-[var(--seller-risk)]';
+  if (tone === 'chance') return 'bg-[var(--seller-chance)]';
+  return 'bg-[var(--seller-muted)]';
 }
 
 function MiniCompareCell({ label, value }: { label: string; value: string }) {
@@ -1645,9 +1855,9 @@ function deriveSellerGuidance(caseItem: Case) {
 }
 
 function deriveCommunicationMode(caseItem: Case) {
-  if (caseItem.personality === 'pragmatic') return '带看反馈 / 同类房数据';
-  if (caseItem.personality === 'emotional') return '情绪安抚 / 事实同步';
-  if (caseItem.personality === 'urgent') return '速度 / 明确结果';
+  if (caseItem.personality === 'pragmatic') return '数据驱动 / 带看反馈';
+  if (caseItem.personality === 'emotional') return '热度敏感 / 情绪安抚';
+  if (caseItem.personality === 'urgent') return '时间压力 / 明确结果';
   return '统一口径';
 }
 
@@ -1871,17 +2081,8 @@ function buildAttentionListings(
   const rowsById = new Map<string, AttentionListingRow>();
 
   activeRivals.forEach((rival) => {
-    rowsById.set(rival.id, buildRivalAttentionRow(caseItem, rival, customerStatesForSelectedCase));
+    rowsById.set(rival.id, buildRivalAttentionRow(state, caseItem, rival, customerStatesForSelectedCase));
   });
-
-  state.cases
-    .filter((entry) => entry.id !== caseItem.id && entry.status === 'active')
-    .filter((entry) => entry.marketCellId === caseItem.marketCellId || entry.district === caseItem.district)
-    .forEach((entry) => {
-      if (!rowsById.has(entry.id)) {
-        rowsById.set(entry.id, buildCaseAttentionRow(caseItem, entry, customerStatesForSelectedCase));
-      }
-    });
 
   return [...rowsById.values()]
     .sort((left, right) => (
@@ -1893,6 +2094,7 @@ function buildAttentionListings(
 }
 
 function buildRivalAttentionRow(
+  state: GameState,
   caseItem: Case,
   rival: RivalListing,
   customerStatesForSelectedCase: SelectedCustomerState[],
@@ -1918,38 +2120,125 @@ function buildRivalAttentionRow(
     heat: rival.heat,
     strengthLabel: formatOverlapLabel(customerOverlap),
     detail: `${rival.district} · ${rival.segment} · ${actualOverlapCount > 0 ? `${actualOverlapCount} 位准客也在看` : `吸客 ${formatScoreBand(rival.leadSiphonPower)}`}。`,
+    behaviorTimeline: buildAttentionBehaviorTimeline(state, caseItem, rival, priceDelta, actualOverlapCount),
   };
 }
 
-function buildCaseAttentionRow(
+function buildAttentionBehaviorTimeline(
+  state: GameState,
   caseItem: Case,
-  competitor: Case,
-  customerStatesForSelectedCase: SelectedCustomerState[],
-): AttentionListingRow {
-  const actualOverlapCount = countCustomerOverlap(customerStatesForSelectedCase, competitor.id);
-  const sameMarketCell = competitor.marketCellId === caseItem.marketCellId;
-  const sameLayout = competitor.layout === caseItem.layout;
-  const priceDelta = competitor.askPrice - caseItem.askPrice;
-  const customerOverlap = deriveCaseOverlapScore(caseItem, competitor, actualOverlapCount, customerStatesForSelectedCase.length);
+  rival: RivalListing,
+  priceDelta: number,
+  actualOverlapCount: number,
+): AttentionBehaviorEvent[] {
+  const matchedLogEvents = state.eventStore
+    .filter((event) => event.detail.includes(rival.title) || event.detail.includes(rival.district))
+    .filter((event) => /入场|降价|成交|撤出|分流|比较|抢走|竞品|同类房/.test(`${event.title}${event.detail}${event.actor}`))
+    .map<AttentionBehaviorEvent>((event) => ({
+      id: `event-${event.id}`,
+      day: event.day,
+      title: event.title || event.actor,
+      detail: event.detail,
+      tone: event.tone === 'danger' ? 'risk' : event.tone === 'success' ? 'chance' : 'neutral',
+    }));
 
-  return {
-    id: competitor.id,
-    targetCaseId: competitor.id,
-    title: competitor.title,
-    sourceLabel: sameMarketCell ? '同商圈' : '同区房源',
-    price: competitor.askPrice,
-    priceDelta,
-    priceDeltaLabel: formatPriceDelta(priceDelta),
-    houseScore: clampScore(Math.round(competitor.d2)),
-    houseDelta: competitor.d2 - caseItem.d2,
-    houseLabel: formatHouseDelta(competitor.d2 - caseItem.d2),
-    customerOverlap,
-    overlapLabel: formatOverlapLabel(customerOverlap),
-    actualOverlapCount,
-    heat: competitor.heat,
-    strengthLabel: formatOverlapLabel(customerOverlap),
-    detail: `${competitor.community} · ${competitor.layout} · ${sameLayout ? '户型接近' : `${competitor.area}㎡`}。`,
-  };
+  const syntheticEvents: AttentionBehaviorEvent[] = [
+    {
+      id: `${rival.id}-listed`,
+      day: estimateRivalListedDay(state.day, rival),
+      title: rival.source === 'seed' ? '持续在场' : '竞品入场',
+      detail: `${rival.title} 进入同板块比较，当前挂牌 ${rival.askPrice} 万。`,
+      tone: 'neutral',
+    },
+    ...buildPriceBehaviorEvents(state.day, rival, priceDelta),
+    ...buildCustomerBehaviorEvents(state.day, rival, actualOverlapCount),
+    ...buildHeatBehaviorEvents(state.day, rival),
+    ...buildDeadlineBehaviorEvents(state.day, rival),
+  ];
+
+  return dedupeAttentionBehaviorEvents([...matchedLogEvents, ...syntheticEvents])
+    .filter((event) => event.day <= state.day)
+    .filter((event) => event.day >= Math.max(1, state.day - 10) || event.id.endsWith('-listed'))
+    .sort((left, right) => right.day - left.day)
+    .slice(0, 4)
+    .map((event) => ({
+      ...event,
+      detail: event.detail.replace(caseItem.title, '本房'),
+    }));
+}
+
+function buildPriceBehaviorEvents(currentDay: number, rival: RivalListing, priceDelta: number): AttentionBehaviorEvent[] {
+  if (priceDelta >= -5) {
+    return [];
+  }
+
+  return [{
+    id: `${rival.id}-price-cut`,
+    day: Math.max(1, currentDay - Math.max(1, Math.min(4, Math.ceil((100 - rival.freshness) / 25)))),
+    title: '价格动作',
+    detail: `${rival.title} 当前比本房低 ${Math.abs(priceDelta)} 万，已经在压同类房的报价预期。`,
+    tone: 'risk',
+  }];
+}
+
+function buildCustomerBehaviorEvents(currentDay: number, rival: RivalListing, actualOverlapCount: number): AttentionBehaviorEvent[] {
+  if (actualOverlapCount <= 0 && rival.leadSiphonPower < 62) {
+    return [];
+  }
+
+  return [{
+    id: `${rival.id}-lead-siphon`,
+    day: Math.max(1, currentDay - 1),
+    title: actualOverlapCount > 0 ? '客户比较' : '吸客升温',
+    detail: actualOverlapCount > 0
+      ? `${actualOverlapCount} 位准客也在看这套竞品，需要把价格和卖点讲得更硬。`
+      : `${rival.title} 吸客强度 ${formatScoreBand(rival.leadSiphonPower)}，正在分流同板块注意力。`,
+    tone: 'risk',
+  }];
+}
+
+function buildHeatBehaviorEvents(currentDay: number, rival: RivalListing): AttentionBehaviorEvent[] {
+  if (rival.heat < 68 && rival.freshness < 68) {
+    return [];
+  }
+
+  return [{
+    id: `${rival.id}-freshness`,
+    day: Math.max(1, currentDay - 2),
+    title: rival.freshness >= 68 ? '新鲜度高' : '热度抬升',
+    detail: `${rival.title} 最近曝光还在，热度 ${Math.round(rival.heat)}、新鲜度 ${Math.round(rival.freshness)}。`,
+    tone: 'neutral',
+  }];
+}
+
+function buildDeadlineBehaviorEvents(currentDay: number, rival: RivalListing): AttentionBehaviorEvent[] {
+  if (rival.daysLeft > 3) {
+    return [];
+  }
+
+  return [{
+    id: `${rival.id}-closing-window`,
+    day: currentDay,
+    title: '窗口收紧',
+    detail: `${rival.title} 只剩 ${Math.max(0, Math.round(rival.daysLeft))} 天，容易出现成交或撤出动作。`,
+    tone: 'risk',
+  }];
+}
+
+function estimateRivalListedDay(currentDay: number, rival: RivalListing) {
+  const ageByFreshness = Math.max(0, Math.round((100 - rival.freshness) / 8));
+  const ageByWindow = Math.max(0, 10 - Math.round(rival.daysLeft));
+  return Math.max(1, currentDay - Math.max(ageByFreshness, ageByWindow));
+}
+
+function dedupeAttentionBehaviorEvents(events: AttentionBehaviorEvent[]) {
+  const seen = new Set<string>();
+  return events.filter((event) => {
+    const key = `${event.day}-${event.title}-${event.detail}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function countCustomerOverlap(customerStatesForSelectedCase: SelectedCustomerState[], competitorId: string) {
@@ -1963,25 +2252,6 @@ function deriveRivalOverlapScore(rival: RivalListing, actualOverlapCount: number
   const directOverlap = selectedCustomerCount > 0 ? (actualOverlapCount / selectedCustomerCount) * 100 : 0;
   const marketPull = rival.leadSiphonPower * 0.55 + rival.heat * 0.28 + rival.freshness * 0.17;
   return clampScore(Math.round(actualOverlapCount > 0 ? Math.max(directOverlap, marketPull, 58) : marketPull));
-}
-
-function deriveCaseOverlapScore(
-  caseItem: Case,
-  competitor: Case,
-  actualOverlapCount: number,
-  selectedCustomerCount: number,
-) {
-  const directOverlap = selectedCustomerCount > 0 ? (actualOverlapCount / selectedCustomerCount) * 100 : 0;
-  const priceGapRatio = Math.abs(competitor.askPrice - caseItem.askPrice) / Math.max(1, caseItem.askPrice);
-  const areaGapRatio = Math.abs(competitor.area - caseItem.area) / Math.max(1, caseItem.area);
-  const similarityScore = 28
-    + (competitor.marketCellId === caseItem.marketCellId ? 22 : 10)
-    + (competitor.layout === caseItem.layout ? 16 : 0)
-    + Math.max(0, 20 - Math.round(priceGapRatio * 220))
-    + Math.max(0, 14 - Math.round(areaGapRatio * 120))
-    + Math.round(competitor.heat * 0.12);
-
-  return clampScore(Math.round(Math.max(directOverlap, similarityScore)));
 }
 
 function deriveAttentionPriceSummary(caseItem: Case, rows: AttentionListingRow[]) {

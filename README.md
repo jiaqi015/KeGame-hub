@@ -144,6 +144,7 @@ http://localhost:3000
 ### API
 
 - 多模型PK（内部 id：sabrina）：
+  - `/api/ai-capabilities`
   - `/api/auth?mode=activate`
   - `/api/compare`
   - `/api/compare-stream`
@@ -157,6 +158,18 @@ http://localhost:3000
 - 我是王牌资产顾问（内部 API 仍沿用 maintainer）：
   - `/api/maintainer-runs`
   - `/api/selling-houses-scenarios`
+
+### AI capability platform
+
+- 模型 PK 仍然保留多模型对比；业务场景优先走 `/api/ai-capabilities`。
+- 除模型 PK 外，核心 AI 能力默认使用 `deepseek-v4-pro`。
+- AI 底层已拆成 capability / agent / skill / tool / handoff / receipt：
+  - capability 是业务入口。
+  - agent / subagent 定义职责、默认模型和边界。
+  - skill 定义可复用 instruction、资源和脚本引用。
+  - tool 定义服务端可见能力、schema、风险等级和执行策略。
+  - receipt 记录每次调用的能力、agent、模型、skill、tool、guardrail 和 trace。
+- 当前 tool 默认只注册和规划，不由模型自动执行；真实执行必须进入服务端白名单和业务权限校验。
 
 ### Design Constraints
 
@@ -294,6 +307,9 @@ npm run selfplay:lab
 - `IKUN_API_KEY`
 - `HUNYUAN_API_KEY`
 - `DASHSCOPE_API_KEY`
+- `DEEPSEEK_API_KEY`
+- `DEEPSEEK_BASE_URL`
+- `DEEPSEEK_REQUEST_TIMEOUT_MS`
 
 ### Optional for persistence and deployment
 

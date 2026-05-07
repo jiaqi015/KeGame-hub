@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { GameState, Case } from '../../domain/models';
+import type { GameState, Case, ActionDefinition } from '../../domain/models';
 import { ACTIONS } from '../../domain/actions/definitions';
 import { getActionTemplate, getScenarioMode, getScenarioTemplate, isScenarioAction } from '../../domain/actions/templates';
 import type { ScenarioChoice as DomainScenarioChoice } from '../../domain/actions/templates';
@@ -8,6 +8,7 @@ import { ReportMatterView } from './matters/ReportMatterView';
 import { DiagnoseMatterView } from './matters/DiagnoseMatterView';
 import { ExecuteMatterView } from './matters/ExecuteMatterView';
 import { NegotiateMatterView } from './matters/NegotiateMatterView';
+import { buildOwnerProfilingMemorySummary } from '../../application/projections/ownerProfilingMemory.js';
 
 export type CharacterFeedback = {
   actor: 'owner' | 'customer' | 'market';
@@ -45,10 +46,52 @@ export type ActionDecisionConfig = {
   strategies?: { main: any[]; assist: any[] };
 };
 
+function MemoryLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[12px] bg-[rgba(255,255,255,0.04)] px-3 py-2">
+      <div className="text-[10px] font-semibold text-[var(--seller-subtle)]">{label}</div>
+      <div className="mt-1 text-[12px] leading-5 text-[var(--seller-ink)]">{value}</div>
+    </div>
+  );
+}
+
 function deriveActorLabel(template: any) {
   if (template.actor === 'owner') return '这次主要在和业主博弈';
   if (template.actor === 'customer') return '这次主要在和客户博弈';
   return '这次主要在和市场博弈';
+}
+
+function buildScenarioRoundsForConfig(
+  template: any,
+  state: GameState,
+  caseItem: Case,
+  action: ActionDefinition,
+) {
+  const rounds = template.rounds?.map((round: any) => ({
+    ...round,
+    mainStrategies: [...(round.mainStrategies || [])],
+    assistStrategies: [...(round.assistStrategies || [])],
+  }));
+  if (!rounds || action.id !== 'showing') {
+    return rounds;
+  }
+
+  const options = template.getStrategies(state, caseItem, action);
+  const customerOptions = options.filter((option: any) => String(option.id).startsWith('show-customer'));
+  const compareOptions = options.filter((option: any) => String(option.id).startsWith('compare-rival'));
+  const ownerOptions = options.filter((option: any) => option.id === 'owner-feedback-after');
+  if (rounds[0]) {
+    rounds[0].mainStrategies = customerOptions.length
+      ? customerOptions
+      : [{ id: 'show-customer', title: '先锁定真实看房客户', note: '先选出最接近真实看房的客户，不做空泛带看。' }];
+  }
+  if (rounds[1]) {
+    rounds[1].mainStrategies = [
+      ...(compareOptions.length ? compareOptions : [{ id: 'compare-rival', title: '先补齐竞品对比', note: '先把其他经纪人维护的同商圈、同户型、同预算房源补出来。' }]),
+      ...(ownerOptions.length ? ownerOptions : []),
+    ];
+  }
+  return rounds;
 }
 
 export function buildActionDecisionConfig(
@@ -82,7 +125,7 @@ export function buildActionDecisionConfig(
     isScenario,
     scenarioMode: scenarioTemplate.scenarioMode,
     contextBullets: scenarioTemplate.getContextBullets?.(state, caseItem),
-    rounds: scenarioTemplate.rounds,
+    rounds: isScenario ? buildScenarioRoundsForConfig(scenarioTemplate, state, caseItem, action) : scenarioTemplate.rounds,
     strategies: scenarioTemplate.strategies,
   };
 }
@@ -140,14 +183,15 @@ export function ActionDecisionOverlay({
 
   const currentRoundConfig = getCurrentRound();
   const selectedMain = selectedMainIds[0] || null;
-  const mainSelectionLimitReached = selectedMainIds.length >= MAX_MAIN_TOPIC_SELECTIONS;
+  const mainSelectionLimit = config.actionId === 'showing' ? 1 : MAX_MAIN_TOPIC_SELECTIONS;
+  const mainSelectionLimitReached = selectedMainIds.length >= mainSelectionLimit;
 
   const toggleMainTopic = (optionId: string) => {
     setSelectedMainIds((current) => {
       if (current.includes(optionId)) {
         return current.filter((id) => id !== optionId);
       }
-      if (current.length >= MAX_MAIN_TOPIC_SELECTIONS) {
+      if (current.length >= mainSelectionLimit) {
         return current;
       }
       return [...current, optionId];
@@ -259,19 +303,6 @@ export function ActionDecisionOverlay({
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(5,8,12,0.72)] p-6 backdrop-blur-sm">
         <div className="max-w-lg w-full animate-in zoom-in rounded-[24px] border border-[var(--seller-border)] bg-[var(--seller-paper)] p-6 shadow-[var(--seller-shadow-lg)] fade-in duration-200">
           <h3 className="mb-2 text-[16px] font-bold text-[var(--seller-ink)]">{config.title}</h3>
-          <div className="mb-4 flex flex-wrap gap-2 text-[10px] font-bold uppercase tracking-[0.14em]">
-            <span className="rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] px-3 py-1 text-[var(--seller-muted)]">
-              {config.actorLabel}
-            </span>
-            {config.metricFocus.map((metric) => (
-              <span
-                key={metric}
-                className="rounded-full border border-[color:var(--seller-accent)]/22 bg-[var(--seller-accent-soft)] px-3 py-1 text-[var(--seller-accent)]"
-              >
-                {metric}
-              </span>
-            ))}
-          </div>
           <p className="mb-2 text-[13px] font-semibold leading-relaxed text-[var(--seller-ink)]">{config.summary}</p>
           <p className="mb-5 text-[12px] leading-relaxed text-[var(--seller-muted)]">{config.body}</p>
           <div className="space-y-3">
@@ -309,6 +340,9 @@ export function ActionDecisionOverlay({
     'stall': { bg: 'bg-[var(--seller-muted)]', text: 'text-[var(--seller-muted)]', emoji: '🤷', label: '暂无变化' },
     'regress': { bg: 'bg-[var(--seller-risk)]', text: 'text-[var(--seller-risk)]', emoji: '⚠️', label: '关系后退' },
   };
+  const ownerProfileMemory = phase === 'result' && result && config.actionId === 'first-visit' && state && caseItem
+    ? buildOwnerProfilingMemorySummary(caseItem, choices)
+    : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(5,8,12,0.72)] p-4 backdrop-blur-sm">
@@ -359,7 +393,7 @@ export function ActionDecisionOverlay({
               <div className="mb-5">
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--seller-muted)]">主要话题</div>
-                  <div className="text-[10px] font-semibold text-[var(--seller-subtle)]">最多选 {MAX_MAIN_TOPIC_SELECTIONS} 个</div>
+                  <div className="text-[10px] font-semibold text-[var(--seller-subtle)]">最多选 {mainSelectionLimit} 个</div>
                 </div>
                 <div className="space-y-2.5">
                   {currentRoundConfig.mainStrategies.map((option: any) => {
@@ -449,7 +483,7 @@ export function ActionDecisionOverlay({
 
               <div className="seller-note mb-5 rounded-[16px] p-4">
                 <p className="text-[14px] leading-relaxed text-[var(--seller-ink)] italic">
-                  "{feedbacks[feedbacks.length - 1].message}"
+                  {feedbacks[feedbacks.length - 1].message}
                 </p>
               </div>
 
@@ -533,6 +567,86 @@ export function ActionDecisionOverlay({
                   )}
                 </div>
               </div>
+
+              {ownerProfileMemory ? (
+                <div className="mb-4 rounded-[18px] border border-[color:var(--seller-accent)]/24 bg-[color:var(--seller-accent)]/8 p-4">
+                  <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--seller-accent)]">业主分型记忆</div>
+                      <h5 className="mt-1 text-[18px] font-black tracking-[-0.04em] text-[var(--seller-ink)]">
+                        {ownerProfileMemory.ownerTypeName}
+                      </h5>
+                      <p className="mt-1 max-w-[68ch] text-[12px] leading-5 text-[var(--seller-muted)]">
+                        {ownerProfileMemory.ownerTypeDescription}
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-[color:var(--seller-accent)]/25 bg-[var(--seller-paper)] px-3 py-1 text-[10px] font-bold text-[var(--seller-accent)]">
+                      skill: owner-profiling-memory
+                    </span>
+                  </div>
+
+                  <div className="grid gap-3 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+                    <div className="rounded-[14px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] p-3">
+                      <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">四维判断</div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {ownerProfileMemory.dimensions.map((dimension) => (
+                          <div key={dimension.key} className="rounded-[12px] bg-[rgba(255,255,255,0.04)] px-3 py-2">
+                            <div className="text-[10px] text-[var(--seller-subtle)]">{dimension.label}</div>
+                            <div className="mt-1 text-[13px] font-bold text-[var(--seller-ink)]">{dimension.valueLabel}</div>
+                            <div className="mt-1 text-[10px] text-[var(--seller-muted)]">{dimension.confidence === 'medium' ? '中置信' : dimension.confidence === 'high' ? '高置信' : '低置信'}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-[14px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] p-3">
+                      <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">服务策略</div>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <MemoryLine label="主目标" value={ownerProfileMemory.serviceStrategy.primaryGoal} />
+                        <MemoryLine label="卡点" value={ownerProfileMemory.serviceStrategy.mainBlocker} />
+                        <MemoryLine label="沟通方式" value={ownerProfileMemory.serviceStrategy.communicationStyle} />
+                        <MemoryLine label="下一步" value={ownerProfileMemory.serviceStrategy.recommendedNextAction} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+                    <div className="rounded-[14px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] p-3">
+                      <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">标签</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {ownerProfileMemory.labels.map((label) => (
+                          <span key={`${label.name}-${label.value}`} className="seller-chip seller-chip-accent">
+                            {label.value}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-[14px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] p-3">
+                      <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">还要补问</div>
+                      <ul className="space-y-1.5">
+                        {ownerProfileMemory.openQuestions.map((question) => (
+                          <li key={question} className="text-[12px] leading-5 text-[var(--seller-muted)]">• {question}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 rounded-[14px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] p-3">
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--seller-subtle)]">证据</div>
+                      <div className="text-[10px] font-semibold text-[var(--seller-muted)]">每个判断可追溯</div>
+                    </div>
+                    <div className="grid gap-2 md:grid-cols-3">
+                      {ownerProfileMemory.evidenceBank.slice(0, 3).map((evidence) => (
+                        <div key={evidence.id} className="rounded-[12px] bg-[rgba(255,255,255,0.035)] px-3 py-2">
+                          <div className="mb-1 text-[10px] font-bold text-[var(--seller-accent)]">{evidence.id}</div>
+                          <p className="text-[11px] leading-5 text-[var(--seller-muted)]">{evidence.text}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
 
               <div className="mb-4 grid grid-cols-2 gap-4">
                 <div className="seller-panel-soft rounded-[16px] p-4">
