@@ -1,12 +1,12 @@
 {
   "totalRuns": 20,
   "distribution": "warmup: 1, easy: 1, standard: 14, advanced: 1, hard: 2, extreme: 1",
-  "averageDurationMs": 10,
-  "baselineDurationMs": 25,
-  "maxDurationMs": 25,
+  "averageDurationMs": 13,
+  "baselineDurationMs": 32,
+  "maxDurationMs": 32,
   "failedRuns": 0,
   "globalMomentCounts": {
-    "offer-acceptance-negotiation": 66,
+    "offer-acceptance-negotiation": 51,
     "sincerity-sale-entry": 20,
     "open-day-participation": 20,
     "pricing-strategy-adjustment": 60,
@@ -28,6 +28,6 @@
     "momentCoverage": true,
     "consistency": true,
     "flowProgress": true,
-    "performanceBaseline": "baseline=25ms, 1.5x=38ms, max=25ms"
+    "performanceBaseline": "baseline=32ms, 1.5x=48ms, max=32ms"
   }
 }

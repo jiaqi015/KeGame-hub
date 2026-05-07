@@ -1076,6 +1076,12 @@ export interface ClosedDealRecord {
   maintainerName?: string;
   marketSnapshot?: ClosedDealMarketSnapshot;
   priceSnapshot?: ClosedDealPriceSnapshot;
+  /** Canonical consensus formation id (bridge to runtimeConsensusFormations). */
+  consensusId?: string;
+  /** Canonical contract fact id (bridge to runtimeContractFacts). */
+  contractId?: string;
+  /** Canonical opportunity closure set id (bridge to runtimeOpportunityClosureSets). */
+  closureSetId?: string;
 }
 
 export interface Opportunity {
@@ -1209,6 +1215,10 @@ export interface DailyTickResult {
   nextDaySetupProcessResults: DailyProcessResultSummary[];
   dirtyScopes: DirtyScopeSet;
   invariantAlerts: TickInvariantAlert[];
+  /** Read-only pressure receipts for this tick. Undefined when no buffer was used. */
+  pressureReceipts?: import('../core/world-state/competition/models.js').PressureReceiptBundle;
+  /** Read-only semantic receipt summaries for this tick. Optional for backward compatibility. */
+  semanticReceipts?: import('../core/world-state/semantic-receipt/models.js').DailySemanticReceiptBundle;
 }
 
 export interface DirtyScopeSet {
@@ -1447,6 +1457,251 @@ export interface DerivedMetrics {
   topConversion: string;
 }
 
+// ---------------------------------------------------------------------------
+// ActionReceipt / CommitmentSettlement — compressed audit trail
+// ---------------------------------------------------------------------------
+
+export type ActionReceiptOutcome =
+  | 'success'           // action executed and produced visible effect
+  | 'blocked'           // action attempted but blocked (e.g., no opportunity)
+  | 'no_effect'         // action executed but no visible change
+  | 'failed'            // action execution failed (e.g., transaction rollback)
+  | 'partial';          // action partially succeeded
+
+export type CommitmentSettlementTrigger =
+  | 'created'           // commitment established
+  | 'advanced'          // commitment progressed (stage forward)
+  | 'expired'           // commitment expired (daysLeft reached 0)
+  | 'revoked'           // commitment revoked by actor
+  | 'signed'            // commitment became ContractFact
+  | 'collapsed'         // commitment collapsed (consensus failed)
+  | 'merged';           // commitment merged into another
+
+export interface ActionReceiptFieldDelta {
+  readonly field: string;
+  readonly from: number | string | boolean;
+  readonly to: number | string | boolean;
+  readonly delta?: number;
+}
+
+export interface ActionReceipt {
+  /** Deterministic ID: receipt-${caseId}-${actionId}-${day} */
+  readonly receiptId: string;
+  /** Day of execution */
+  readonly day: number;
+  /** Action definition ID */
+  readonly actionId: string;
+  /** Executor ID (may differ from actionId for aliases) */
+  readonly executorId: string;
+  /** Case this action targeted */
+  readonly caseId: string;
+  /** Option chosen by player (null if no option) */
+  readonly optionId: string | null;
+  /** Outcome of the action */
+  readonly outcome: ActionReceiptOutcome;
+  /** Energy cost actually spent */
+  readonly costEnergy: number;
+  /** Promotion budget cost actually spent */
+  readonly costPromotionBudget: number;
+  /** Key field deltas produced by this action */
+  readonly fieldDeltas: readonly ActionReceiptFieldDelta[];
+  /** Business-level outcome description (compressed) */
+  readonly outcomeSummary: string;
+  /** IDs of domain events emitted by this action */
+  readonly emittedEventIds: readonly string[];
+  /** IDs of opportunities affected by this action */
+  readonly affectedOpportunityIds: readonly string[];
+  /** ID of linked opportunity (if action is opportunity-bound) */
+  readonly linkedOpportunityId?: string;
+}
+
+export interface CommitmentSettlement {
+  /** Deterministic ID: settlement-${caseId}-${kind}-${day} */
+  readonly settlementId: string;
+  /** Day of settlement */
+  readonly day: number;
+  /** Case this settlement relates to */
+  readonly caseId: string;
+  /** Commitment type */
+  readonly commitmentKind: string;
+  /** Commitment scope */
+  readonly commitmentScope: string;
+  /** What happened */
+  readonly trigger: CommitmentSettlementTrigger;
+  /** Entity that owns the commitment (owner/customer/broker) */
+  readonly ownerEntity: string;
+  /** Strength before (0-100) */
+  readonly strengthBefore: number;
+  /** Strength after (0-100) */
+  readonly strengthAfter: number;
+  /** Business reason (compressed) */
+  readonly reason: string;
+  /** IDs of related domain events */
+  readonly relatedEventIds: readonly string[];
+  /** IDs of related action receipts */
+  readonly relatedReceiptIds: readonly string[];
+}
+
+// ---------------------------------------------------------------------------
+// OwnerDecisionMoment — structural observation of owner decision nodes
+// ---------------------------------------------------------------------------
+
+export type OwnerDecisionMomentKind =
+  | 'trust_threshold'
+  | 'patience_exhausted'
+  | 'urgency_spike'
+  | 'price_anchor_shift'
+  | 'commitment_formed'
+  | 'commitment_revoked'
+  | 'consensus_advance'
+  | 'consensus_collapse'
+  | 'pressure_response'
+  | 'window_closing';
+
+export type OwnerDecisionMomentSignificance =
+  | 'critical'
+  | 'important'
+  | 'informational';
+
+export interface OwnerDecisionMomentFactor {
+  readonly factorKind: string;
+  readonly label: string;
+  readonly value: number;
+  readonly threshold: number;
+  readonly direction: 'above' | 'below';
+  readonly weight: number;
+}
+
+export interface OwnerDecisionMoment {
+  readonly momentId: string;
+  readonly day: number;
+  readonly caseId: string;
+  readonly kind: OwnerDecisionMomentKind;
+  readonly significance: OwnerDecisionMomentSignificance;
+  readonly description: string;
+  readonly factors: readonly OwnerDecisionMomentFactor[];
+  readonly relatedReceiptIds: readonly string[];
+  readonly relatedSettlementIds: readonly string[];
+  readonly relatedRunIds: readonly string[];
+  readonly ownerEntity: string;
+  readonly recommendedResponse: string;
+}
+
+// ---------------------------------------------------------------------------
+// StrategyForkSummary — read-only fork branch summary
+// ---------------------------------------------------------------------------
+
+export interface StrategyForkBranch {
+  readonly branchId: string;
+  readonly strategyLabel: string;
+  readonly caseId: string;
+  readonly policySummary: string;
+  readonly snapshotDay: number;
+  readonly actionsProposed: readonly string[];
+  readonly outcomeForecast: string;
+  readonly confidence: number; // 0..1
+  readonly evidenceRefs: readonly string[];
+}
+
+export interface StrategyForkSummary {
+  readonly forkId: string;
+  readonly day: number;
+  readonly baseSeed: number;
+  readonly caseId: string;
+  readonly branches: readonly StrategyForkBranch[];
+  readonly recommendedBranchId: string | null;
+  readonly recommendationRationale: string;
+}
+
+// ---------------------------------------------------------------------------
+// ManagerInterventionReceipt — manager intervention ActionReceipt
+// ---------------------------------------------------------------------------
+
+export interface ManagerInterventionReceipt {
+  readonly receiptId: string;
+  readonly day: number;
+  readonly caseId: string;
+  readonly interventionKind: 'focus_meeting_selection' | 'manager_draft' | 'escalation';
+  readonly focusMeetingSubmittedCaseIds: readonly string[];
+  readonly focusMeetingSelectedCaseIds: readonly string[];
+  readonly drafts: readonly {
+    readonly draftId: string;
+    readonly actionSpecId: string;
+    readonly reason: string;
+  }[];
+  readonly evidenceRefs: readonly string[];
+  readonly recommendedActionId: string | null;
+  readonly recommendationReason: string;
+}
+
+// ---------------------------------------------------------------------------
+// NegotiationReplaySummary — replay from consensus/contract/receipts
+// ---------------------------------------------------------------------------
+
+export interface NegotiationReplayPhase {
+  readonly phaseId: string;
+  readonly label: string;
+  readonly enteredDay: number;
+  readonly exitedDay: number | null;
+  readonly triggerReceiptId: string | null;
+  readonly triggerSettlementId: string | null;
+  readonly description: string;
+}
+
+export interface NegotiationReplayTurnPoint {
+  readonly turnPointId: string;
+  readonly day: number;
+  readonly description: string;
+  readonly relatedReceiptId: string | null;
+  readonly relatedSettlementId: string | null;
+  readonly impact: 'positive' | 'negative' | 'neutral';
+}
+
+export interface NegotiationReplaySummary {
+  readonly replayId: string;
+  readonly caseId: string;
+  readonly customerId: string;
+  readonly templateKind: string;
+  readonly startedDay: number;
+  readonly endedDay: number | null;
+  readonly finalStatus: string;
+  readonly phases: readonly NegotiationReplayPhase[];
+  readonly turnPoints: readonly NegotiationReplayTurnPoint[];
+  readonly evidenceChain: readonly {
+    readonly refType: string;
+    readonly refId: string;
+    readonly day: number;
+    readonly summary: string;
+  }[];
+  readonly contractFactId: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// BusinessOutcomeReview — structured review from ended ProcessRun
+// ---------------------------------------------------------------------------
+
+export interface BusinessOutcomeReview {
+  readonly reviewId: string;
+  readonly caseId: string;
+  readonly templateKind: string;
+  readonly startedDay: number;
+  readonly endedDay: number;
+  readonly finalStatus: string;
+  readonly outcomeDescription: string;
+  readonly successFactors: readonly string[];
+  readonly failureFactors: readonly string[];
+  readonly keyLearnings: readonly string[];
+  readonly relatedReceiptIds: readonly string[];
+  readonly relatedSettlementIds: readonly string[];
+  readonly relatedRunIds: readonly string[];
+  readonly contractFactId: string | null;
+  readonly recommendedNextActions: readonly {
+    readonly actionId: string;
+    readonly reason: string;
+    readonly priority: 'urgent' | 'high' | 'medium' | 'low';
+  }[];
+}
+
 export type GameSaveSource = 'local' | 'cloud' | 'manual' | 'system';
 
 export interface GameState {
@@ -1505,6 +1760,80 @@ export interface GameState {
   metrics: DerivedMetrics;
   currentReport: DailyReport | null;
   lastDailyTickResult?: DailyTickResult | null;
+  /** Optional runtime BrokerOwnerRelation trust states. Canonical trust write source. */
+  runtimeBrokerOwnerRelations?: import('../core/world-state/trustWriteSource.js').BrokerOwnerRelationTrustState[];
+  /** Optional runtime OwnerCaseRelation readiness states. Canonical patience/urgency write source. */
+  runtimeOwnerCaseReadinessStates?: import('../core/world-state/ownerCaseReadinessWriteSource.js').OwnerCaseReadinessState[];
+  /** Optional runtime CustomerCaseMatch states. Canonical match write source. */
+  runtimeCustomerCaseMatches?: import('../core/world-state/opportunity-relations/writeSource.js').CustomerCaseMatchState[];
+  /** Optional runtime BrokeredOpportunity states. Canonical opportunity write source. */
+  runtimeBrokeredOpportunities?: import('../core/world-state/opportunity-relations/writeSource.js').BrokeredOpportunityState[];
+  /** Optional runtime ConsensusFormation states. Canonical consensus write source. */
+  runtimeConsensusFormations?: import('../core/world-state/consensus/writeSource.js').ConsensusFormationState[];
+  /** Optional runtime ContractFact states. Canonical contract write source. */
+  runtimeContractFacts?: import('../core/world-state/consensus/writeSource.js').ContractFactState[];
+  /** Optional runtime OpportunityClosureSet states. Canonical closure write source. */
+  runtimeOpportunityClosureSets?: import('../core/world-state/consensus/writeSource.js').OpportunityClosureSetState[];
+  /**
+   * Optional daily operating ledger — one entry per settled day.
+   * Lightweight per-day operating summaries for historical replay and review.
+   * Does NOT contain raw GameState/Case/Opportunity — only compressed summaries.
+   * Old saves without this field work normally (empty array fallback).
+   */
+  operatingLedgerDays?: import('../core/world-state/semantic-receipt/dailyOperatingLedger.js').DailyOperatingLedgerDaySummary[];
+  /**
+   * Optional action receipt history — compressed audit trail of action executions.
+   * Each receipt records what action was chosen, what happened, and key field deltas.
+   * Does NOT contain raw GameState/Case/Opportunity — only compressed summaries.
+   * Old saves without this field work normally (empty array fallback).
+   */
+  actionReceiptHistory?: ActionReceipt[];
+  /**
+   * Optional commitment settlement history — compressed audit trail of commitment changes.
+   * Each settlement records a commitment state transition (created/advanced/expired/revoked/signed).
+   * Does NOT contain raw GameState/Case/Opportunity — only compressed summaries.
+   * Old saves without this field work normally (empty array fallback).
+   */
+  commitmentSettlementHistory?: CommitmentSettlement[];
+  /**
+   * Optional process run history — aggregated multi-day business process instances.
+   * Derived from actionReceiptHistory and commitmentSettlementHistory.
+   * Does NOT contain raw GameState/Case/Opportunity — only compressed summaries.
+   * Old saves without this field work normally (empty array fallback).
+   */
+  processRunHistory?: import('../core/world-state/processes/models.js').ProcessRun[];
+  /**
+   * Optional owner decision moment history — structural observations of owner decision nodes.
+   * Derived from readiness, trust, pressure, commitment, and price signals.
+   * Does NOT contain raw GameState/Case/Opportunity — only compressed summaries.
+   * Old saves without this field work normally (empty array fallback).
+   */
+  ownerDecisionMomentHistory?: OwnerDecisionMoment[];
+  /**
+   * Optional strategy fork history — read-only fork branch summaries.
+   * Derived from structuredClone + seed. Does NOT alter main world.
+   * Old saves without this field work normally (empty array fallback).
+   */
+  strategyForkHistory?: StrategyForkSummary[];
+  /**
+   * Optional manager intervention receipt history.
+   * Generated when focus meeting selects cases or manager drafts appear.
+   * Does NOT contain raw GameState/Case/Opportunity — only compressed summaries.
+   * Old saves without this field work normally (empty array fallback).
+   */
+  managerInterventionReceiptHistory?: ManagerInterventionReceipt[];
+  /**
+   * Optional negotiation replay history — replay summaries from consensus/contract/receipts.
+   * Derived from processRunHistory, consensusFormations, contractFacts, actionReceipts.
+   * Does NOT re-roll dice. Old saves without this field work normally (empty array fallback).
+   */
+  negotiationReplayHistory?: NegotiationReplaySummary[];
+  /**
+   * Optional business outcome review history — structured reviews from ended ProcessRuns.
+   * Derived from processRunHistory with success/failure factors.
+   * Does NOT create ContractFact. Old saves without this field work normally (empty array fallback).
+   */
+  businessOutcomeReviewHistory?: BusinessOutcomeReview[];
   marketShadow: ShadowMarketState;
   expectationStore?: Expectation[];
   foreshadowingStore?: ForeshadowingHook[];

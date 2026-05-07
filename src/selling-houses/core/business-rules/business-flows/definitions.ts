@@ -1,7 +1,21 @@
 import type { BusinessFlowDefinition } from './types.js';
 
-export const BUSINESS_FLOWS: BusinessFlowDefinition[] = [
-  {
+function deepFreeze<T>(obj: T): Readonly<T> {
+  for (const value of Object.values(obj as Record<string, unknown>)) {
+    if (Array.isArray(value)) {
+      Object.freeze(value);
+      for (const item of value) {
+        if (item && typeof item === 'object' && !Array.isArray(item)) {
+          deepFreeze(item);
+        }
+      }
+    }
+  }
+  return Object.freeze(obj);
+}
+
+export const BUSINESS_FLOWS: readonly BusinessFlowDefinition[] = Object.freeze([
+  deepFreeze({
     id: 'standard-selling',
     name: '标准售卖',
     summary: '从首次面访、卖点经营、持续反馈到价格沟通和最终斡旋的基础房源经营链路。',
@@ -29,8 +43,8 @@ export const BUSINESS_FLOWS: BusinessFlowDefinition[] = [
         decisionMomentIds: ['pricing-strategy-adjustment', 'offer-acceptance-negotiation'],
       },
     ],
-  },
-  {
+  } satisfies BusinessFlowDefinition),
+  deepFreeze({
     id: 'open-day',
     name: '开放日',
     summary: '以社区或重点房源为单位集中邀约、集中带看，并把活动热度转成后续转化动作。',
@@ -58,8 +72,8 @@ export const BUSINESS_FLOWS: BusinessFlowDefinition[] = [
         actionIds: ['showing', 'weekly-feedback', 'pricing-advice', 'invite-customer-negotiation'],
       },
     ],
-  },
-  {
+  } satisfies BusinessFlowDefinition),
+  deepFreeze({
     id: 'sincerity-sale',
     name: '诚意卖',
     summary: '用隐藏成交价和诚意机制把成熟客户推进到更确定的成交窗口。',
@@ -88,8 +102,8 @@ export const BUSINESS_FLOWS: BusinessFlowDefinition[] = [
         decisionMomentIds: ['offer-acceptance-negotiation'],
       },
     ],
-  },
-  {
+  } satisfies BusinessFlowDefinition),
+  deepFreeze({
     id: 'team-listing-co-sell',
     name: '团队房源 / 合作售卖',
     summary: '轻量描述同店、合作经纪人或团队资源协作时的房源经营边界。',
@@ -109,9 +123,9 @@ export const BUSINESS_FLOWS: BusinessFlowDefinition[] = [
         actionIds: ['weekly-feedback', 'deep-diagnosis', 'pricing-advice'],
       },
     ],
-  },
-];
+  } satisfies BusinessFlowDefinition),
+]);
 
-export const BUSINESS_FLOW_BY_ID = Object.fromEntries(
+export const BUSINESS_FLOW_BY_ID = Object.freeze(Object.fromEntries(
   BUSINESS_FLOWS.map((flow) => [flow.id, flow]),
-) as Record<BusinessFlowDefinition['id'], BusinessFlowDefinition>;
+)) as Record<BusinessFlowDefinition['id'], BusinessFlowDefinition>;

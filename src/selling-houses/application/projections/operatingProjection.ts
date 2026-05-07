@@ -683,7 +683,7 @@ function buildFixedArrangementItems(state: GameState): ArrangementItemProjection
         : shouldExposeAction && actionId
           ? 'direct'
           : 'navigate',
-      ctaLabel: isFocusMeetingSubmit ? '提报房源' : actionId ? '进入场景' : '打开房源',
+      ctaLabel: isFocusMeetingSubmit ? '提报房源' : actionId ? '进入情景' : '打开房源',
       secondaryLabel: '看客户线',
       conflictHint: entry.source === 'interrupt' && !isBlockedRoutine
         ? getTodayPlanConflictHint(state, {
@@ -717,7 +717,7 @@ function buildFixedArrangementItems(state: GameState): ArrangementItemProjection
       actionId: 'invite-customer-negotiation',
       isDisabled: false,
       executionMode: 'direct',
-      ctaLabel: '进入场景',
+      ctaLabel: '进入情景',
       secondaryLabel: '打开房源',
     };
     });
@@ -923,7 +923,7 @@ function buildTodayPlanArrangementItem(
         : '已排进今天',
     actionId: action?.id,
     executionMode: entry.executionMode,
-    ctaLabel: entry.executionMode === 'scenario' ? '进入情境' : '开始执行',
+    ctaLabel: entry.executionMode === 'scenario' ? '进入情景' : '开始执行',
     secondaryLabel: source === 'completed' ? '打开房源' : '移出今天',
     isDisabled: source === 'planned' ? availability?.enabled === false : false,
     disabledReason: source === 'planned' && availability && !availability.enabled ? availability.reason : undefined,

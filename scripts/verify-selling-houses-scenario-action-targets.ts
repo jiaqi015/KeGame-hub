@@ -24,8 +24,8 @@ function buildOpportunity(world: GameState, caseItem: Case, overrides: Partial<O
     id: overrides.id || `scenario-action-target-${caseItem.id}`,
     caseId: caseItem.id,
     customerId: overrides.customerId || `scenario-action-customer-${caseItem.id}`,
-    customerName: overrides.customerName || '场景目标客户',
-    profile: overrides.profile || '用于场景动作目标一致性验证',
+    customerName: overrides.customerName || '情景目标客户',
+    profile: overrides.profile || '用于情景动作目标一致性验证',
     channelId: overrides.channelId || 'private-referral',
     channelName: overrides.channelName || '私域转介绍',
     fit: overrides.fit ?? 86,
@@ -53,8 +53,8 @@ function buildOpportunity(world: GameState, caseItem: Case, overrides: Partial<O
 
 const settlement: Settlement = {
   outcome: 'progress',
-  title: '验证场景动作目标',
-  summary: '验证场景动作目标',
+  title: '验证情景动作目标',
+  summary: '验证情景动作目标',
   details: [],
   stateDeltas: [
     { field: 'intent', value: 7, label: '意向' },
@@ -80,8 +80,8 @@ const settlement: Settlement = {
     caseItem.id,
     {
       ...settlement,
-      title: '验证场景首次面访',
-      summary: '验证场景首次面访',
+      title: '验证情景首次面访',
+      summary: '验证情景首次面访',
       stateDeltas: [],
       finalOptionId: 'plan-first',
     },
@@ -346,7 +346,7 @@ const settlement: Settlement = {
   const negotiationTarget = buildOpportunity(state, caseItem, {
     id: 'scenario-negotiation-target',
     customerId: 'scenario-negotiation-customer',
-    customerName: '场景议价客户',
+    customerName: '情景议价客户',
     stageIndex: 4,
     intent: 94,
     confidence: 88,
@@ -368,8 +368,8 @@ const settlement: Settlement = {
 
   const negotiationSettlement: Settlement = {
     outcome: 'progress',
-    title: '验证场景议价',
-    summary: '验证场景议价',
+    title: '验证情景议价',
+    summary: '验证情景议价',
     details: [],
     stateDeltas: [],
     nextActionHint: '',

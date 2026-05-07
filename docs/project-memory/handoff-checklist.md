@@ -1,6 +1,6 @@
 # 接手清单
 
-最后整理：2026-04-21
+最后整理：2026-05-06
 
 这份清单只讲“重新接手时先做什么”，不重复解释长期规则和项目背景。
 
@@ -9,7 +9,7 @@
 1. 读 [MEMORY.md](/Users/jiaqi/Documents/开放日测算/MEMORY.md)
 2. 看 `git status --short`
 3. 读 [模块地图](module-map.md)
-4. 如果本轮是卖房架构，先读 [卖房总设计](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-total-design.md)、[卖房总纲](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-master.md) 和 [业务事实总表](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-business-facts.md)
+4. 如果本轮是卖房架构，先读 [卖房总设计](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-total-design.md)、[卖房总纲](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-master.md)、[业务事实总表](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-business-facts.md) 和 [母模型迁移工作板](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-mother-model-agent-workplan.md)
 5. 根据任务类型再补看对应业务文档
 
 ## 第一步要确认什么
@@ -44,6 +44,7 @@
 
 先确认当前目标更偏哪一侧：
 
+- 母模型迁移 / Daily Decision Bridge
 - 玩法结构
 - 剧本生成
 - 云同步
@@ -54,24 +55,26 @@
 
 1. `docs/selling-houses-master.md`
 2. `docs/selling-houses-total-design.md`
-3. `docs/selling-houses-implementation-contracts.md`
-4. `docs/selling-houses-information-architecture.md`
-5. `docs/selling-houses-design-system.md`
-6. `docs/platform-account-player-run-score-architecture.md`
-7. `docs/selling-houses-business-facts.md`
-8. `docs/selling-houses-business-language-guide.md`
-9. `docs/selling-houses-domain-architecture-v1.md`
-10. `docs/selling-houses-customer-opportunity-architecture.md`
-11. `docs/selling-houses-deal-fact-and-closing-model.md`
-12. `docs/selling-houses-competition-and-cosale-architecture.md`
-13. `docs/selling-houses-matter-template-architecture.md`
-14. `docs/selling-houses-projection-architecture.md`
-15. `docs/selling-houses-interface-detail-design.md`
-16. `docs/selling-houses-organization-acn-model.md`
-17. `docs/selling-houses-daily-tick-design.md`
-18. `docs/selling-houses-architecture-diagrams.md`
-19. `src/selling-houses/domain/`
-20. `src/selling-houses/ui/features/`
+3. `docs/selling-houses-business-facts.md`
+4. `docs/selling-houses-mother-model-agent-workplan.md`
+5. `/Users/jiaqi/.codex/memories/projects/users-jiaqi-documents-开放日测算/topics/selling-houses-world-model-mother-model.md`
+6. `docs/selling-houses-implementation-contracts.md`
+7. `docs/selling-houses-information-architecture.md`
+8. `docs/selling-houses-design-system.md`
+9. `docs/platform-account-player-run-score-architecture.md`
+10. `docs/selling-houses-business-language-guide.md`
+11. `docs/selling-houses-domain-architecture-v1.md`
+12. `docs/selling-houses-customer-opportunity-architecture.md`
+13. `docs/selling-houses-deal-fact-and-closing-model.md`
+14. `docs/selling-houses-competition-and-cosale-architecture.md`
+15. `docs/selling-houses-matter-template-architecture.md`
+16. `docs/selling-houses-projection-architecture.md`
+17. `docs/selling-houses-interface-detail-design.md`
+18. `docs/selling-houses-organization-acn-model.md`
+19. `docs/selling-houses-daily-tick-design.md`
+20. `docs/selling-houses-architecture-diagrams.md`
+21. `src/selling-houses/domain/`
+22. `src/selling-houses/ui/features/`
 
 ### 如果要继续做统一入口
 

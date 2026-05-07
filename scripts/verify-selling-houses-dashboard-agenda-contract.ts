@@ -43,9 +43,9 @@ const fixedActionLabels = dashboard.arrangement.fixedItems
   .map((item) => item.ctaLabel);
 
 assert.ok(fixedWithAction, 'Expected fixed agenda item to expose an action entry');
-assert.equal(fixedWithAction?.ctaLabel, '进入场景', 'Expected fixed agenda action to open a scene entry');
+assert.equal(fixedWithAction?.ctaLabel, '进入情景', 'Expected fixed agenda action to open a scene entry');
 assert.ok(
-  fixedActionLabels.length > 0 && fixedActionLabels.every((label) => label === '进入场景'),
+  fixedActionLabels.length > 0 && fixedActionLabels.every((label) => label === '进入情景'),
   'Expected fixed agenda action entries to use scene-entry copy',
 );
 
@@ -77,6 +77,6 @@ assert.ok(
   fixedIndex < recommendedIndex,
   'Expected fixed agenda group to render before recommendation group',
 );
-assert.ok(markup.includes('进入场景'), 'Expected fixed agenda card to render scene entry copy');
+assert.ok(markup.includes('进入情景'), 'Expected fixed agenda card to render scene entry copy');
 
 console.log('selling-houses dashboard agenda contract verification passed');

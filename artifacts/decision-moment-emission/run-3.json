@@ -2,10 +2,10 @@
   "runId": 3,
   "difficulty": "standard",
   "seed": 420021,
-  "totalDays": 21,
-  "totalMomentEvents": 8,
+  "totalDays": 16,
+  "totalMomentEvents": 10,
   "momentCounts": {
-    "offer-acceptance-negotiation": 2,
+    "offer-acceptance-negotiation": 4,
     "sincerity-sale-entry": 1,
     "open-day-participation": 1,
     "pricing-strategy-adjustment": 3,
@@ -31,5 +31,5 @@
   },
   "error": null,
   "consistencyViolations": [],
-  "durationMs": 9
+  "durationMs": 16
 }

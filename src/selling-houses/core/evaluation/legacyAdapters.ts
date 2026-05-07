@@ -4,6 +4,38 @@ import type {
   CompetitionPressureSnapshot,
   PressureReceiptBundle,
 } from '../world-state/competition/models.js';
+import {
+  readTrust,
+  readTrustFromState,
+  findRelationTrustForCase,
+  type TrustRelationShape,
+  type TrustReadResult,
+  type StateWithRelations,
+} from './trustReadBoundary.js';
+import {
+  readPatience,
+  readUrgency,
+  readOwnerCaseValues,
+  findOwnerCaseRelationForCase,
+  type OwnerRelationShape,
+  type OwnerCaseReadResult,
+  type StateWithOwnerCaseRelations,
+} from './ownerCaseReadBoundary.js';
+import {
+  readOpportunityScoreInputs,
+  toReadableLegacyOpportunity,
+  type OpportunityScoreReadResult,
+} from './opportunityScoreReadBoundary.js';
+import {
+  readOpportunityIntent,
+  readOpportunityConfidence,
+  readOpportunityStage,
+  findCustomerCaseMatchFromState,
+  findBrokeredOpportunityFromState,
+  type ReadableStateLike,
+  type ReadableLegacyOpportunity,
+  type OpportunityReadResult,
+} from '../world-state/opportunity-relations/readBoundary.js';
 import type {
   AssetScoreDecisionMoment,
   AssetScoreDimensionDriver,
@@ -231,7 +263,12 @@ function decisionLoadScore(caseItem: Case, day: number) {
 export function buildAssetScoreSnapshotFromLegacyCase(
   state: Pick<GameState, 'day' | 'opportunities'>,
   caseItem: Case,
+  relation?: TrustRelationShape | null,
+  ownerRelation?: OwnerRelationShape | null,
 ): AssetScoreSnapshot {
+  const trustRead = readTrust(caseItem, relation);
+  const patienceRead = readPatience(caseItem, ownerRelation);
+  const urgencyRead = readUrgency(caseItem, ownerRelation);
   const activeOpportunities = state.opportunities.filter(
     (entry) => entry.caseId === caseItem.id && entry.status === 'active',
   );
@@ -265,11 +302,14 @@ export function buildAssetScoreSnapshotFromLegacyCase(
       weights.d3,
       {
         priceFlexScore: priceFlexScore(caseItem),
-        patience: caseItem.patience,
-        urgency: caseItem.urgency,
-        trust: caseItem.trust,
+        patience: patienceRead.value,
+        patienceSource: patienceRead.source,
+        urgency: urgencyRead.value,
+        urgencySource: urgencyRead.source,
+        trust: trustRead.value,
+        trustSource: trustRead.source,
       },
-      'Legacy D3 currently mixes pricing flexibility with owner relation signals; owner readiness is evaluated separately.',
+      'Legacy D3 currently mixes pricing flexibility with owner relation signals; read from canonical owner-case relation with fallback to Case mirror.',
     ),
   };
 
@@ -297,10 +337,12 @@ export function buildAssetScoreSnapshotFromLegacyCase(
       axisScores: { ...axisScores },
       activeOpportunityCount: activeOpportunities.length,
       lateStageOpportunityCount,
+      trustSource: trustRead.source,
       legacyD3OwnerRelationSignals: {
         patience: caseItem.patience,
         urgency: caseItem.urgency,
-        trust: caseItem.trust,
+        trust: trustRead.value,
+        trustSource: trustRead.source,
       },
     },
     confidence: 0.92,
@@ -313,14 +355,19 @@ export function buildAssetScoreSnapshotFromLegacyCase(
 export function buildOwnerDecisionReadinessSnapshotFromLegacyCase(
   state: Pick<GameState, 'day'>,
   caseItem: Case,
+  relation?: TrustRelationShape | null,
+  ownerRelation?: OwnerRelationShape | null,
 ): OwnerDecisionReadinessSnapshot {
+  const trustRead = readTrust(caseItem, relation);
+  const patienceRead = readPatience(caseItem, ownerRelation);
+  const urgencyRead = readUrgency(caseItem, ownerRelation);
   const gapDays = ownerGapDays(state.day, caseItem.lastOwnerTouchedDay);
   const willingnessToAdjust = willingnessToAdjustScore(caseItem);
   const decisionLoad = decisionLoadScore(caseItem, state.day);
   const dimensions = {
-    trust: dimension('trust', '信任', caseItem.trust),
-    urgency: dimension('urgency', '紧迫度', caseItem.urgency),
-    patience: dimension('patience', '耐心', caseItem.patience),
+    trust: dimension('trust', '信任', trustRead.value, undefined, { trustSource: trustRead.source }),
+    urgency: dimension('urgency', '紧迫度', urgencyRead.value, undefined, { urgencySource: urgencyRead.source }),
+    patience: dimension('patience', '耐心', patienceRead.value, undefined, { patienceSource: patienceRead.source }),
     willingnessToAdjust: dimension(
       'willingnessToAdjust',
       '调价/配合意愿',
@@ -363,9 +410,12 @@ export function buildOwnerDecisionReadinessSnapshotFromLegacyCase(
     total: 100,
     dimensions,
     inputs: {
-      trust: caseItem.trust,
-      urgency: caseItem.urgency,
-      patience: caseItem.patience,
+      trust: trustRead.value,
+      trustSource: trustRead.source,
+      urgency: urgencyRead.value,
+      urgencySource: urgencyRead.source,
+      patience: patienceRead.value,
+      patienceSource: patienceRead.source,
       askPrice: caseItem.askPrice,
       marketPrice: caseItem.marketPrice,
       bottomPrice: caseItem.bottomPrice,
@@ -382,36 +432,43 @@ export function buildOwnerDecisionReadinessSnapshotFromLegacyCase(
 }
 
 export function buildOpportunityScoreSnapshotFromLegacyOpportunity(
-  state: Pick<GameState, 'day' | 'cases'>,
+  state: Pick<GameState, 'day' | 'cases'> & Partial<ReadableStateLike>,
   opportunity: Opportunity,
 ): OpportunityScoreSnapshot {
   const caseItem = state.cases.find((entry) => entry.id === opportunity.caseId) || null;
+
+  // Read opportunity fields through canonical boundary when available
+  const readableOpp = toReadableLegacyOpportunity(opportunity);
+  const scoreRead = readOpportunityScoreInputs(state, readableOpp, { budgetMax: opportunity.budgetMax });
+  const inputs = scoreRead.inputs;
+
   const priceBudgetFit = caseItem
-    ? Math.max(0, 100 - Math.max(0, caseItem.askPrice - opportunity.budgetMax) * 0.25)
+    ? Math.max(0, 100 - Math.max(0, caseItem.askPrice - inputs.budgetMax) * 0.25)
     : 50;
   const closeReadiness = caseItem
     ? Math.round(
-      opportunity.intent * 0.34
-      + opportunity.confidence * 0.26
+      inputs.intent * 0.34
+      + inputs.confidence * 0.26
       + caseItem.trust * 0.2
       + caseItem.competitiveness * 0.12
       + priceBudgetFit * 0.08,
     )
-    : Math.round(opportunity.intent * 0.45 + opportunity.confidence * 0.35 + opportunity.fit * 0.2);
+    : Math.round(inputs.intent * 0.45 + inputs.confidence * 0.35 + inputs.fit * 0.2);
 
   const dimensions = {
-    fit: dimension('fit', '匹配度', opportunity.fit),
-    intent: dimension('intent', '意向', opportunity.intent),
-    confidence: dimension('confidence', '成交把握', opportunity.confidence),
+    fit: dimension('fit', '匹配度', inputs.fit, undefined, { readSource: scoreRead.readSources.fit }),
+    intent: dimension('intent', '意向', inputs.intent, undefined, { readSource: scoreRead.readSources.intent }),
+    confidence: dimension('confidence', '成交把握', inputs.confidence, undefined, { readSource: scoreRead.readSources.confidence }),
     closeReadiness: dimension(
       'closeReadiness',
       '收口准备度',
       closeReadiness,
       undefined,
       {
-        stageIndex: opportunity.stageIndex,
-        daysLeft: opportunity.daysLeft,
+        stageIndex: inputs.stageIndex,
+        daysLeft: inputs.daysLeft,
         priceBudgetFit,
+        readSource: scoreRead.readSources.stage,
       },
     ),
   };
@@ -433,14 +490,22 @@ export function buildOpportunityScoreSnapshotFromLegacyOpportunity(
     inputs: {
       opportunityId: opportunity.id,
       caseId: opportunity.caseId,
-      stageIndex: opportunity.stageIndex,
-      daysLeft: opportunity.daysLeft,
-      status: opportunity.status,
-      budgetMax: opportunity.budgetMax,
+      stageIndex: inputs.stageIndex,
+      daysLeft: inputs.daysLeft,
+      status: inputs.status,
+      budgetMax: inputs.budgetMax,
       askPrice: caseItem?.askPrice ?? null,
       caseTrust: caseItem?.trust ?? null,
       caseCompetitiveness: caseItem?.competitiveness ?? null,
-      pendingClosingEvaluation: Boolean(opportunity.pendingClosingEvaluation),
+      pendingClosingEvaluation: inputs.pendingClosingEvaluation,
+      // Read source markers
+      fitReadSource: scoreRead.readSources.fit,
+      intentReadSource: scoreRead.readSources.intent,
+      confidenceReadSource: scoreRead.readSources.confidence,
+      stageReadSource: scoreRead.readSources.stage,
+      lifecycleReadSource: scoreRead.readSources.lifecycle,
+      daysLeftReadSource: scoreRead.readSources.daysLeft,
+      pendingClosingReadSource: scoreRead.readSources.pendingClosing,
     },
     confidence: caseItem ? 0.88 : 0.7,
   };
@@ -537,6 +602,25 @@ export function buildCaseEvaluationSnapshotsFromLegacyState(
   return {
     assetScore: buildAssetScoreSnapshotFromLegacyCase(state, caseItem),
     ownerDecisionReadiness: buildOwnerDecisionReadinessSnapshotFromLegacyCase(state, caseItem),
+  };
+}
+
+/**
+ * State-aware version that auto-resolves BrokerOwnerRelation trust from
+ * state.runtimeBrokerOwnerRelations before building snapshots.
+ *
+ * Falls back to Case.trust (legacy_case_mirror) when no relation is found.
+ * Pure function. No mutation.
+ */
+export function buildCaseEvaluationSnapshotsFromLegacyStateWithRelations(
+  state: Pick<GameState, 'day' | 'opportunities'> & StateWithRelations & StateWithOwnerCaseRelations,
+  caseItem: Case,
+) {
+  const trustRelation = findRelationTrustForCase(state, caseItem.id, caseItem.maintainerName);
+  const ownerRelation = findOwnerCaseRelationForCase(state, caseItem.id);
+  return {
+    assetScore: buildAssetScoreSnapshotFromLegacyCase(state, caseItem, trustRelation, ownerRelation),
+    ownerDecisionReadiness: buildOwnerDecisionReadinessSnapshotFromLegacyCase(state, caseItem, trustRelation, ownerRelation),
   };
 }
 
@@ -719,14 +803,13 @@ const D4_WIRED_SOURCES: readonly string[] = [
   'rival-customer-pull',
   'rival-listing',
   'competition-group',
-];
-
-/** Sources that have legacy mutation sites but no receipt hooks yet. */
-const D4_PENDING_SOURCES: readonly string[] = [
   'company-pressure',
   'random-event',
   'scripted-event',
 ];
+
+/** Sources that have legacy mutation sites but no receipt hooks yet. */
+const D4_PENDING_SOURCES: readonly string[] = [];
 
 /** Sources that are informational-only (no Case/Opportunity mutation). */
 const D4_INFORMATIONAL_SOURCES: readonly string[] = [
@@ -795,4 +878,43 @@ export function buildD4ConfidenceFromCoverage(
   coverage: D4ReceiptCoverageReport,
 ): number {
   return coverage.maxConfidence;
+}
+
+// ---------------------------------------------------------------------------
+// Opportunity read boundary integration (additive, no behavior change)
+// ---------------------------------------------------------------------------
+
+// Note: ReadableStateLike, ReadableLegacyOpportunity, OpportunityReadResult
+// are already imported from '../world-state/opportunity-relations/readBoundary.js'
+// at the top of this file.
+
+export interface OpportunityReadBoundaryResult {
+  readonly intent: OpportunityReadResult<number>;
+  readonly confidence: OpportunityReadResult<number>;
+  readonly stage: OpportunityReadResult<{ stageIndex: number; stageLabel: string }>;
+  readonly source: 'canonical_match' | 'canonical_brokered_opportunity' | 'legacy_opportunity_mirror';
+}
+
+/**
+ * Reads opportunity scores via the read boundary (canonical-first).
+ * Returns source markers for each dimension.
+ * Additive — does not change existing evaluation logic.
+ */
+export function readOpportunityScoresWithBoundary(
+  stateLike: ReadableStateLike,
+  legacyOpp: ReadableLegacyOpportunity,
+): OpportunityReadBoundaryResult {
+  const intent = readOpportunityIntent(stateLike, legacyOpp);
+  const confidence = readOpportunityConfidence(stateLike, legacyOpp);
+  const stage = readOpportunityStage(stateLike, legacyOpp);
+
+  // Source is the "best" source across all reads
+  const sources = [intent.source, confidence.source, stage.source];
+  const source = sources.includes('canonical_match')
+    ? 'canonical_match'
+    : sources.includes('canonical_brokered_opportunity')
+      ? 'canonical_brokered_opportunity'
+      : 'legacy_opportunity_mirror';
+
+  return { intent, confidence, stage, source };
 }

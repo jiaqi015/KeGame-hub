@@ -1,8 +1,11 @@
 import { logEvent } from '../runtimeState.js';
 import { clamp } from '../utils.js';
+import { applyBrokerOwnerTrustDelta } from '../trustWriteHelper.js';
+import { applyOwnerCasePatienceDelta, applyOwnerCaseUrgencyDelta } from '../ownerCaseReadinessHelper.js';
 import { touchCustomersForCase } from './customerEngine.js';
 import { touchCaseForAction } from './actionExecutorHelpers.js';
 import { adjustCaseOpportunities, refreshOpportunityLabel } from './opportunityEngine.js';
+import { applyOpportunityIntentDeltaOnState, applyOpportunityConfidenceDeltaOnState, setOpportunityVisibilityOnState } from '../opportunitySplitHelper.js';
 import type { ActionExecutorMap } from './actionExecutorTypes.js';
 import type { GameState } from '../models.js';
 
@@ -20,9 +23,9 @@ export const OWNER_ACTION_EXECUTORS: ActionExecutorMap = {
     const patienceDelta = strategy === 'plan-first' ? 7 : 5;
     const urgencyDelta = strategy === 'plan-first' ? -5 : -3;
     const heatDelta = strategy === 'data-first' ? 2 : 1;
-    caseItem.trust = clamp(caseItem.trust + trustDelta, 0, 100);
-    caseItem.patience = clamp(caseItem.patience + patienceDelta, 0, 100);
-    caseItem.urgency = clamp(caseItem.urgency + urgencyDelta, 0, 100);
+    applyBrokerOwnerTrustDelta(state, caseItem, trustDelta, '首次面访建立信任', 0, 100);
+    applyOwnerCasePatienceDelta(state, caseItem, patienceDelta, '首次面访建立信任', 0, 100);
+    applyOwnerCaseUrgencyDelta(state, caseItem, urgencyDelta, '首次面访建立信任', 0, 100);
     caseItem.windowDays = Math.min(caseItem.windowDays + 1, 14);
     caseItem.heat = clamp(caseItem.heat + heatDelta, 0, 100);
     adjustCaseOpportunities(state, caseItem.id, 4, 3);
@@ -43,9 +46,9 @@ export const OWNER_ACTION_EXECUTORS: ActionExecutorMap = {
     const trustDelta = strategy === 'show-progress' ? 6 : strategy === 'show-risk' ? 3 : 5;
     const patienceDelta = strategy === 'show-plan' ? 6 : 3;
     const urgencyDelta = strategy === 'show-risk' ? 1 : -2;
-    caseItem.trust = clamp(caseItem.trust + trustDelta, 0, 100);
-    caseItem.patience = clamp(caseItem.patience + patienceDelta, 0, 100);
-    caseItem.urgency = clamp(caseItem.urgency + urgencyDelta, 0, 100);
+    applyBrokerOwnerTrustDelta(state, caseItem, trustDelta, '周度反馈提升信任', 0, 100);
+    applyOwnerCasePatienceDelta(state, caseItem, patienceDelta, '周度反馈提升信任', 0, 100);
+    applyOwnerCaseUrgencyDelta(state, caseItem, urgencyDelta, '周度反馈提升信任', 0, 100);
     caseItem.windowDays = Math.min(caseItem.windowDays + 1, 14);
     adjustCaseOpportunities(state, caseItem.id, 3, 3);
     touchCustomersForCase(state, caseItem.id, {
@@ -62,7 +65,7 @@ export const OWNER_ACTION_EXECUTORS: ActionExecutorMap = {
     touchCaseForAction(caseItem, action.id, state.day, true);
     caseItem.lastOwnerTouchedDay = state.day;
     const strategy = optionId || 'customer-dive';
-    caseItem.trust = clamp(caseItem.trust + (strategy === 'decision-dive' ? 3 : 5), 0, 100);
+    applyBrokerOwnerTrustDelta(state, caseItem, (strategy === 'decision-dive' ? 3 : 5), '深度诊断提升信任', 0, 100);
     caseItem.competitiveness = clamp(caseItem.competitiveness + 4, 0, 100);
     caseItem.heat = clamp(caseItem.heat + 2, 0, 100);
     adjustCaseOpportunities(state, caseItem.id, 5, 5);
@@ -75,10 +78,10 @@ export const OWNER_ACTION_EXECUTORS: ActionExecutorMap = {
     });
     const shadowOpportunity = findShadowOpportunity(state, caseItem.id);
     if (shadowOpportunity) {
-      shadowOpportunity.visibility = 'revealed';
-      shadowOpportunity.intent = clamp(shadowOpportunity.intent + 6, 0, 100);
-      shadowOpportunity.confidence = clamp(shadowOpportunity.confidence + 8, 0, 100);
-      refreshOpportunityLabel(shadowOpportunity);
+      setOpportunityVisibilityOnState(state, shadowOpportunity, 'revealed', '诊断揭示影子机会');
+      applyOpportunityIntentDeltaOnState(state, shadowOpportunity, 6, '诊断提升意向', 0, 100);
+      applyOpportunityConfidenceDeltaOnState(state, shadowOpportunity, 8, '诊断提升信心', 0, 100);
+      refreshOpportunityLabel(state, shadowOpportunity);
       logEvent(state, '诊断反馈', `${caseItem.title} 的诊断过程中，你顺带摸清了一位待确认客户的真实需求。`, 'success');
     }
     logEvent(state, caseItem.ownerName, `${caseItem.title} 完成一轮深度诊断，业主开始更理解这套房现在到底卡在哪。`, 'accent');

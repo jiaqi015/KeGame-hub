@@ -13,8 +13,8 @@
   },
   "flowProgress": {
     "standard-selling": {
-      "completedStepCount": 1,
-      "currentStepId": "price-and-close"
+      "completedStepCount": 2,
+      "currentStepId": "demand-generation"
     },
     "open-day": {
       "completedStepCount": 1,

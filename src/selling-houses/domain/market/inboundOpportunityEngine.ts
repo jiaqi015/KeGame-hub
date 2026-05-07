@@ -3,6 +3,7 @@ import type { GameState, InboundOpportunity, MarketSignal } from '../models.js';
 import { clamp, randomInt } from '../utils.js';
 import { createOpportunity } from '../engine/opportunityEngine.js';
 import { createRivalListing } from '../rivals/rivalListingEngine.js';
+import { setOpportunityVisibilityOnState, applyOpportunityIntentDeltaOnState } from '../opportunitySplitHelper.js';
 
 function activeCaseForInbound(state: GameState) {
   const activeCases = state.cases.filter((entry) => entry.status === 'active');
@@ -41,9 +42,9 @@ function createCustomerOpportunity(state: GameState, inbound: InboundOpportunity
       : 'xiaohongshu';
   const opportunity = createOpportunity(state, caseItem, channelId, Number(inbound.payload.bonus) || 10, true);
   if (!opportunity) return;
-  opportunity.visibility = inbound.source === 'same_company' ? 'shadow' : opportunity.visibility;
-  opportunity.leadSource = inbound.source === 'same_company' ? 'broker' : opportunity.leadSource;
-  opportunity.intent = clamp(opportunity.intent + 4, 0, 100);
+  setOpportunityVisibilityOnState(state, opportunity, inbound.source === 'same_company' ? 'shadow' : opportunity.visibility, '内部线索来源');
+  opportunity.leadSource = inbound.source === 'same_company' ? 'broker' : opportunity.leadSource; // leadSource is not a canonical field
+  applyOpportunityIntentDeltaOnState(state, opportunity, 4, '回流线索提升意向', 0, 100);
   logEvent(state, '客户回流', `${inbound.message || `${opportunity.customerName} 回流到你的线索池。`}`, 'success');
 }
 

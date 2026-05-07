@@ -78,6 +78,9 @@ function buildAssetScoreSnapshot(inputs: AssetScoreSnapshot['inputs']): AssetSco
     },
     inputs,
     confidence: 0.9,
+    blockers: [],
+    topDrivers: [],
+    recommendedDecisionMoments: [],
   };
 }
 

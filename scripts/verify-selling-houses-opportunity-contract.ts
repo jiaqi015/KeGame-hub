@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 
 import { createInitialState, updateDerivedState } from '../src/selling-houses/application/gameState.js';
 import { OPPORTUNITY_STAGES } from '../src/selling-houses/domain/constants.js';
-import { seedInitialOpportunities, refreshOpportunityLabel } from '../src/selling-houses/domain/engine.js';
+import { seedInitialOpportunities } from '../src/selling-houses/domain/engine.js';
+import { resolveOpportunityLifecycleLabel } from '../src/selling-houses/domain/opportunitySplitHelper.js';
 import type { Opportunity } from '../src/selling-houses/domain/models.js';
 import { getScenarioSnapshotById } from '../src/selling-houses/domain/scenarioCatalog.js';
 
@@ -64,16 +65,14 @@ const sample: Opportunity = {
   history: [],
 };
 
-refreshOpportunityLabel(sample);
-assert.equal(sample.lifecycleStatus, 'closed_by_deal', 'expected won legacy status to map to closed_by_deal');
-assert.notEqual(sample.stageLabel, '成交', 'expected closed-by-deal label to avoid pretending stage equals deal');
+const wonResolved = resolveOpportunityLifecycleLabel('won', sample.lifecycleStatus, sample.stageIndex);
+assert.equal(wonResolved.lifecycleStatus, 'closed_by_deal', 'expected won legacy status to map to closed_by_deal');
+assert.notEqual(wonResolved.stageLabel, '成交', 'expected closed-by-deal label to avoid pretending stage equals deal');
 
-sample.status = 'closed';
-refreshOpportunityLabel(sample);
-assert.equal(sample.lifecycleStatus, 'closed_by_case', 'expected closed legacy status to map to closed_by_case');
+const closedResolved = resolveOpportunityLifecycleLabel('closed', sample.lifecycleStatus, sample.stageIndex);
+assert.equal(closedResolved.lifecycleStatus, 'closed_by_case', 'expected closed legacy status to map to closed_by_case');
 
-sample.status = 'lost';
-refreshOpportunityLabel(sample);
-assert.equal(sample.lifecycleStatus, 'lost', 'expected lost status to remain lost in canonical lifecycle');
+const lostResolved = resolveOpportunityLifecycleLabel('lost', sample.lifecycleStatus, sample.stageIndex);
+assert.equal(lostResolved.lifecycleStatus, 'lost', 'expected lost status to remain lost in canonical lifecycle');
 
 console.log('selling-houses opportunity contract verification passed');

@@ -23,6 +23,7 @@ assert.ok(opportunity, 'Expected seeded opportunity for target case');
 caseItem.askPrice = caseItem.marketPrice;
 caseItem.trust = 100;
 caseItem.competitiveness = 100;
+caseItem.hasCompletedFirstVisit = true;
 opportunity.intent = 100;
 opportunity.confidence = 100;
 opportunity.stageIndex = 4;
@@ -52,8 +53,9 @@ assert.equal(deal.caseTitle, caseItem.title, 'Expected deal to retain case title
 assert.equal(deal.customerName, opportunity.customerName, 'Expected deal to retain customer name for downstream projections');
 assert.equal(deal.ownerName, caseItem.ownerName, 'Expected deal to retain owner name for downstream projections');
 assert.equal(deal.maintainerName, caseItem.maintainerName, 'Expected deal to retain advisor name for downstream projections');
-assert.equal(deal.marketSnapshot?.askPrice, caseItem.askPrice, 'Expected deal to retain market snapshot ask price');
-assert.equal(deal.marketSnapshot?.marketPrice, caseItem.marketPrice, 'Expected deal to retain market snapshot market price');
+assert.equal(deal.marketSnapshot?.askPrice, deal.priceSnapshot?.askPrice, 'Expected deal market and price snapshots to agree on ask price');
+assert.equal(deal.marketSnapshot?.marketPrice, deal.priceSnapshot?.marketPrice, 'Expected deal market and price snapshots to agree on market price');
+assert.equal(deal.marketSnapshot?.bottomPrice, deal.priceSnapshot?.bottomPrice, 'Expected deal market and price snapshots to agree on bottom price');
 assert.equal(deal.priceSnapshot?.soldPrice, caseItem.soldPrice, 'Expected deal to retain price snapshot sold price');
 assert.ok(
   world.eventStore.some((entry) => entry.kind === 'case_sold' && entry.payload.dealId === deal.dealId),

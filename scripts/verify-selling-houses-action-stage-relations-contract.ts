@@ -146,8 +146,8 @@ function buildOpportunity(world: GameState, caseItem: Case, overrides: Partial<O
 
   const settlement: Settlement = {
     outcome: 'progress',
-    title: '验证场景首次面访',
-    summary: '验证场景首次面访',
+    title: '验证情景首次面访',
+    summary: '验证情景首次面访',
     details: [],
     stateDeltas: [],
     nextActionHint: '',
@@ -347,8 +347,8 @@ function buildOpportunity(world: GameState, caseItem: Case, overrides: Partial<O
 
   const settlement: Settlement = {
     outcome: 'progress',
-    title: '验证场景带看',
-    summary: '验证场景带看',
+    title: '验证情景带看',
+    summary: '验证情景带看',
     details: [],
     stateDeltas: [],
     nextActionHint: '',
@@ -411,8 +411,8 @@ function buildOpportunity(world: GameState, caseItem: Case, overrides: Partial<O
 
   const settlement: Settlement = {
     outcome: 'progress',
-    title: '验证场景带看目标',
-    summary: '验证场景带看目标',
+    title: '验证情景带看目标',
+    summary: '验证情景带看目标',
     details: [],
     stateDeltas: [{ field: 'intent', value: 5, label: '客户意向' }],
     nextActionHint: '',

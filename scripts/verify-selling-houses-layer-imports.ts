@@ -124,22 +124,7 @@ const legacyAllowedLayerImports = new Map<LayerImportKey, readonly string[]>([
       'Tone',
     ],
   ],
-  [
-    'src/selling-houses/core/world-state/opportunity-relations/readModel.ts -> ../../../domain/constants.js',
-    ['OPPORTUNITY_STAGES'],
-  ],
-  [
-    'src/selling-houses/core/world-state/opportunity-relations/readModel.ts -> ../../../domain/models.js',
-    ['CustomerRuntimeState', 'GameState', 'Opportunity'],
-  ],
-  [
-    'src/selling-houses/core/world-state/opportunity-relations/readModel.ts -> ../../../domain/utils.js',
-    ['clamp'],
-  ],
-  [
-    'src/selling-houses/core/world-state/opportunity-relations/types.ts -> ../../../domain/models.js',
-    ['CustomerCaseRuntime', 'CustomerRuntimeState', 'Opportunity'],
-  ],
+  // readModel.ts and types.ts no longer import domain — plain shapes used instead.
   // Domain debts are transitional shims while runtime/application facades are being introduced.
   [
     'src/selling-houses/domain/engine.ts -> ../runtime/simulation/processes/index.js',
@@ -150,6 +135,8 @@ const legacyAllowedLayerImports = new Map<LayerImportKey, readonly string[]>([
       'settleNegotiationProcessesForDay',
     ],
   ],
+  // domain -> core/world-state/semantic-receipt is normal direction, no allowlist needed
+  // (removed old domain -> runtime/simulation/dailySemanticReceipt allowlist entry)
   [
     'src/selling-houses/domain/engine/actionResolvers.ts -> ../../runtime/simulation/decisionMomentEmission.js',
     ['advanceFlowProgress', 'emitDecisionMomentTriggers'],

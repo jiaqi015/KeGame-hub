@@ -1,4 +1,3 @@
-import type { CustomerCaseRuntime, CustomerRuntimeState, Opportunity } from '../../../domain/models.js';
 import type { LegacyEntityId, WorldEntityId } from '../models.js';
 
 export type CustomerCaseOpportunityRelationSource = 'opportunity' | 'customer-runtime' | 'merged';
@@ -13,10 +12,11 @@ export interface CustomerCaseOpportunityRelationConflictFlags {
 /**
  * Runtime case state is a mirror/signal source for interaction state and conflict detection.
  * It must not replace canonical Opportunity values on merged relations.
+ * Plain shape — no domain import.
  */
 export interface CustomerRuntimeCaseRelationMetadata {
-  readonly status: CustomerRuntimeState['status'];
-  readonly decisionStyle: CustomerRuntimeState['decisionStyle'];
+  readonly status: string;
+  readonly decisionStyle: string;
   readonly advisorTrust: number;
   readonly fatigue: number;
   readonly churnRisk: number;
@@ -32,12 +32,13 @@ export interface CustomerRuntimeCaseRelationMetadata {
 /**
  * Metadata copied from the legacy Opportunity row that remains the canonical
  * customer-case relation source for read models.
+ * Plain shape — no domain import.
  */
 export interface CanonicalOpportunityRelationMetadata {
-  readonly status: Opportunity['status'];
-  readonly lifecycleStatus: Opportunity['lifecycleStatus'];
-  readonly leadSource: Opportunity['leadSource'];
-  readonly visibility: Opportunity['visibility'];
+  readonly status: string;
+  readonly lifecycleStatus: string;
+  readonly leadSource: string;
+  readonly visibility: string;
   readonly channelId: string;
   readonly channelName: string;
   readonly createdDay: number;
@@ -77,4 +78,19 @@ export interface CustomerCaseOpportunityRelationBuildOptions {
   confidenceConflictTolerance?: number;
 }
 
-export type CustomerCaseRuntimeEntry = CustomerCaseRuntime;
+/**
+ * Plain shape for CustomerCaseRuntime — no domain import.
+ */
+export interface CustomerCaseRuntimeEntry {
+  readonly caseId: string;
+  readonly fit: number;
+  readonly interest: number;
+  readonly confidence: number;
+  readonly stageIndex: number;
+  readonly interactions: number;
+  readonly lastActiveDay: number;
+  readonly viewed: boolean;
+  readonly offered: boolean;
+  readonly selected: boolean;
+  readonly competingCaseIds?: readonly string[];
+}

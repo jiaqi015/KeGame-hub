@@ -3,6 +3,7 @@ import { markCaseWithdrawn } from '../caseOutcome.js';
 import { updateDerivedState, logEvent, recordDomainEvent } from '../runtimeState.js';
 import { applyAuxiliaryStats, getPromotionBudget } from '../runtimeStats.js';
 import { clamp, getDayOfWeek } from '../utils.js';
+import { setOpportunityStatusOnState } from '../opportunitySplitHelper.js';
 import { applyActionStageRelation, deriveCaseProgression, getActionStageRelation } from '../actionStageRelations.js';
 import type { Case, GameState } from '../models.js';
 import {
@@ -25,6 +26,7 @@ import { PRICING_ACTION_EXECUTORS } from './pricingActionExecutors.js';
 import { SINCERITY_SALE_ACTION_EXECUTORS } from './sinceritySaleActionExecutors.js';
 import { SHOWING_ACTION_EXECUTORS } from './showingActionExecutors.js';
 import { emitDecisionMomentTriggers, advanceFlowProgress } from '../../runtime/simulation/decisionMomentEmission.js';
+import { buildActionReceipt, appendActionReceipt } from '../../runtime/simulation/actionReceiptAdapter.js';
 
 export function resolveActionDefinition(actionId: string) {
   return ACTIONS.find((entry) => entry.id === actionId || entry.executorId === actionId);
@@ -72,6 +74,26 @@ export function executeAction(
 
   const availability = getActionAvailability(state, caseItem, actionId);
   if (!availability.enabled) {
+    // Non-invasive blocked receipt — records that action was attempted but blocked
+    try {
+      const receipt = buildActionReceipt({
+        day: state.day,
+        caseId: caseItem.id,
+        actionId: actionId,
+        executorId: actionId,
+        optionId,
+        outcome: 'blocked',
+        costEnergy: 0,
+        costPromotionBudget: 0,
+        fieldDeltas: [],
+        outcomeSummary: availability.reason,
+        emittedEventIds: [],
+        affectedOpportunityIds: [],
+      });
+      appendActionReceipt(state, receipt);
+    } catch {
+      // Receipt generation is non-invasive — swallow errors silently
+    }
     onMessage?.(availability.reason);
     return false;
   }
@@ -81,6 +103,19 @@ export function executeAction(
     onMessage?.('这个动作暂时还没有接好执行逻辑。');
     return false;
   }
+
+  // Snapshot key fields before execution for receipt delta computation
+  const beforeTrust = caseItem.trust;
+  const beforePatience = caseItem.patience;
+  const beforeUrgency = caseItem.urgency;
+  const beforeHeat = caseItem.heat;
+  const beforeCompetitiveness = caseItem.competitiveness;
+  const beforeD1 = caseItem.d1;
+  const beforeWindowDays = caseItem.windowDays;
+  const beforeEventStoreLength = state.eventStore.length;
+  const beforeOpportunityCount = state.opportunities.filter(
+    (o) => o.caseId === caseItem.id && o.status === 'active',
+  ).length;
 
   const transactionResult = executeActionTransaction(state, action, () => {
     spendResources(state, action);
@@ -115,6 +150,49 @@ export function executeAction(
   emitDecisionMomentTriggers(state, action.id, caseItem, optionId ?? undefined);
   advanceFlowProgress(state, action.id, caseItem.id);
   updateDerivedState(state);
+
+  // Non-invasive receipt hook: build compressed ActionReceipt after successful execution.
+  // Does NOT alter gameplay, RNG, tick order, or UI.
+  // Deterministic: same state snapshot → same receipt.
+  try {
+    const emittedEventIds = state.eventStore
+      .slice(beforeEventStoreLength)
+      .map((e) => e.id);
+    const affectedOpportunityIds = state.opportunities
+      .filter((o) => o.caseId === caseItem.id && o.status === 'active')
+      .map((o) => o.id);
+    const fieldDeltas: Array<{ field: string; from: number; to: number; delta: number }> = [];
+    const pushDelta = (field: string, from: number, to: number) => {
+      const delta = Math.round((to - from) * 100) / 100;
+      if (delta !== 0) fieldDeltas.push({ field, from, to, delta });
+    };
+    pushDelta('trust', beforeTrust, caseItem.trust);
+    pushDelta('patience', beforePatience, caseItem.patience);
+    pushDelta('urgency', beforeUrgency, caseItem.urgency);
+    pushDelta('heat', beforeHeat, caseItem.heat);
+    pushDelta('competitiveness', beforeCompetitiveness, caseItem.competitiveness);
+    pushDelta('d1', beforeD1, caseItem.d1);
+    pushDelta('windowDays', beforeWindowDays, caseItem.windowDays);
+
+    const receipt = buildActionReceipt({
+      day: state.day,
+      caseId: caseItem.id,
+      actionId: action.id,
+      executorId: action.executorId || action.id,
+      optionId,
+      outcome: 'success',
+      costEnergy: action.costEnergy,
+      costPromotionBudget: action.costPromotionBudget,
+      fieldDeltas,
+      outcomeSummary: `${action.name} 执行成功`,
+      emittedEventIds,
+      affectedOpportunityIds,
+    });
+    appendActionReceipt(state, receipt);
+  } catch {
+    // Receipt generation is non-invasive — swallow errors silently
+  }
+
   return true;
 }
 
@@ -130,8 +208,8 @@ export function withdrawCase(world: GameState, caseItem: Case, reason: string) {
   });
   world.opportunities.forEach((entry) => {
     if (entry.caseId === caseItem.id && entry.status === 'active') {
-      entry.status = 'closed';
-      refreshOpportunityLabel(entry);
+      setOpportunityStatusOnState(world, entry, 'closed', '房源撤回关闭机会');
+      refreshOpportunityLabel(world, entry);
     }
   });
   world.customerStates.forEach((customerState) => {

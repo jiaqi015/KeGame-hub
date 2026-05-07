@@ -9,6 +9,23 @@ import {
   randomInt,
 } from '../utils.js';
 import type { Case, CustomerProfile, GameState, Opportunity, Tone } from '../models.js';
+import {
+  ensureCustomerCaseMatchState,
+  ensureBrokeredOpportunityState,
+  applyMatchIntentDelta,
+  applyMatchConfidenceDelta,
+  setOpportunityStageViaSplit,
+  setOpportunityLifecycleViaSplit,
+  setOpportunityPendingClosingViaSplit,
+  applyOpportunityProgressDeltaViaSplit,
+  setOpportunityStagnationTicks,
+  setOpportunityTouchedTodayViaSplit,
+  closeOpportunityViaSplit,
+  resetOpportunityPendingClosingViaSplit,
+  findBrokeredStateForOpportunity,
+  findMatchStateForPair,
+  refreshOpportunityLabelViaCanonical,
+} from '../opportunitySplitHelper.js';
 
 export const MAX_ACTIVE_OPPORTUNITIES_PER_CASE = BALANCE.opportunities.maxActivePerCase;
 
@@ -46,42 +63,81 @@ export function tickOpportunities(world: GameState) {
       return;
     }
 
-    opportunity.daysLeft -= stagnationScale;
-    opportunity.stagnationTicks += stagnationScale;
-    opportunity.lifecycleStatus = opportunity.stagnationTicks >= 3 ? 'stagnated' : 'active';
+    // Ensure canonical state exists
+    const match = ensureCustomerCaseMatchState(
+      world, opportunity.customerId, opportunity.caseId,
+      opportunity.fit, opportunity.intent, opportunity.confidence,
+      opportunity.budgetMax, opportunity.priceSensitivity,
+    );
+    const brokered = ensureBrokeredOpportunityState(world, opportunity, match.matchId);
 
+    // Progress delta: daysLeft and stagnationTicks
+    applyOpportunityProgressDeltaViaSplit(world, brokered, {
+      daysLeftDelta: -stagnationScale,
+      stagnationTicksDelta: stagnationScale,
+    }, world.day, 'daily tick');
+
+    // Re-read brokered state after mutation
+    const brokeredAfterProgress = findBrokeredStateForOpportunity(world, opportunity.id)!;
+    const newStagnation = brokeredAfterProgress.stagnationTicks;
+    setOpportunityLifecycleViaSplit(
+      world, brokeredAfterProgress,
+      'active', newStagnation >= 3 ? 'stagnated' : 'active',
+      world.day, 'lifecycle update',
+    );
+
+    // Intent update: compute delta, then apply via helper
     const pricePenalty = Math.max(0, caseItem.askPrice - opportunity.budgetMax) / tickBalance.pricePenaltyDivisor;
-    opportunity.intent = clamp(
-      opportunity.intent
-        + (caseItem.heat - tickBalance.intentHeatOffset) / tickBalance.intentHeatScale
-        + (caseItem.d1 - tickBalance.intentD1Offset) / tickBalance.intentD1Scale
-        + randomInt(tickBalance.intentRandomMin, tickBalance.intentRandomMax, world)
-        - pricePenalty,
-      8,
-      98,
+    const intentDelta = (
+      (caseItem.heat - tickBalance.intentHeatOffset) / tickBalance.intentHeatScale
+      + (caseItem.d1 - tickBalance.intentD1Offset) / tickBalance.intentD1Scale
+      + randomInt(tickBalance.intentRandomMin, tickBalance.intentRandomMax, world)
+      - pricePenalty
     );
-    opportunity.confidence = clamp(
-      opportunity.confidence
-        + (caseItem.d3 - tickBalance.confidenceD3Offset) / tickBalance.confidenceD3Scale
-        + randomInt(tickBalance.confidenceRandomMin, tickBalance.confidenceRandomMax, world),
-      10,
-      98,
-    );
-
-    if (!opportunity.touchedToday) {
-      opportunity.intent = clamp(opportunity.intent - tickBalance.untouchedIntentLoss * stagnationScale, 0, 100);
+    // Compute target intent and apply delta
+    const targetIntent = clamp(opportunity.intent + intentDelta, 8, 98);
+    const intentDeltaApplied = targetIntent - opportunity.intent;
+    if (intentDeltaApplied !== 0) {
+      const matchAfterIntent = findMatchStateForPair(world, opportunity.customerId, opportunity.caseId)!;
+      applyMatchIntentDelta(world, matchAfterIntent, intentDeltaApplied, world.day, 'tick intent');
     }
 
+    // Confidence update: compute delta, then apply via helper
+    const confidenceDelta = (
+      (caseItem.d3 - tickBalance.confidenceD3Offset) / tickBalance.confidenceD3Scale
+      + randomInt(tickBalance.confidenceRandomMin, tickBalance.confidenceRandomMax, world)
+    );
+    const targetConfidence = clamp(opportunity.confidence + confidenceDelta, 10, 98);
+    const confidenceDeltaApplied = targetConfidence - opportunity.confidence;
+    if (confidenceDeltaApplied !== 0) {
+      const matchAfterConf = findMatchStateForPair(world, opportunity.customerId, opportunity.caseId)!;
+      applyMatchConfidenceDelta(world, matchAfterConf, confidenceDeltaApplied, world.day, 'tick confidence');
+    }
+
+    // Untouched decay
+    if (!opportunity.touchedToday) {
+      const decayDelta = -tickBalance.untouchedIntentLoss * stagnationScale;
+      if (decayDelta !== 0) {
+        const matchAfterDecay = findMatchStateForPair(world, opportunity.customerId, opportunity.caseId)!;
+        applyMatchIntentDelta(world, matchAfterDecay, decayDelta, world.day, 'untouched decay');
+      }
+    }
+
+    // Stage advance
     if (
       opportunity.stageIndex < 6
       && opportunity.intent >= tickBalance.stageAdvanceIntentThreshold
       && chance(clamp(tickBalance.stageAdvanceChance * funnelProgressionScale, 0, 0.95), world)
     ) {
-      opportunity.stageIndex += 1;
-      opportunity.stagnationTicks = 0;
+      const brokeredForStage = findBrokeredStateForOpportunity(world, opportunity.id)!;
+      setOpportunityStageViaSplit(world, brokeredForStage, opportunity.stageIndex + 1, world.day, 'stage advance');
+      setOpportunityStagnationTicks(world, findBrokeredStateForOpportunity(world, opportunity.id)!, 0, 'reset stagnation on advance');
       opportunity.history.push({ day: world.day, stage: OPPORTUNITY_STAGES[opportunity.stageIndex] });
-      refreshOpportunityLabel(opportunity);
-      opportunity.daysLeft = tickBalance.stageAdvanceResetDaysLeft;
+      refreshOpportunityLabel(world, opportunity);
+      const brokeredForDays = findBrokeredStateForOpportunity(world, opportunity.id)!;
+      applyOpportunityProgressDeltaViaSplit(world, brokeredForDays, {
+        daysLeftDelta: tickBalance.stageAdvanceResetDaysLeft - opportunity.daysLeft,
+      }, world.day, 'reset days on advance');
       recordDomainEvent(world, {
         kind: 'opportunity_advanced',
         actor: opportunity.customerName,
@@ -110,7 +166,11 @@ export function tickOpportunities(world: GameState) {
       return;
     }
 
-    opportunity.touchedToday = false;
+    // Reset touchedToday
+    const brokeredForTouch = findBrokeredStateForOpportunity(world, opportunity.id);
+    if (brokeredForTouch) {
+      setOpportunityTouchedTodayViaSplit(world, brokeredForTouch, false, world.day, 'daily reset');
+    }
   });
 }
 
@@ -256,11 +316,21 @@ export function closeOpportunity(
   reason: string = '',
   tone: Tone = 'accent',
 ) {
-  opportunity.status = status;
-  opportunity.pendingClosingEvaluation = false;
-  opportunity.pendingClosingStrategyId = undefined;
-  opportunity.pendingClosingRequestedDay = undefined;
-  refreshOpportunityLabel(opportunity);
+  // Ensure canonical state exists
+  const match = ensureCustomerCaseMatchState(
+    world, opportunity.customerId, opportunity.caseId,
+    opportunity.fit, opportunity.intent, opportunity.confidence,
+    opportunity.budgetMax, opportunity.priceSensitivity,
+  );
+  const brokered = ensureBrokeredOpportunityState(world, opportunity, match.matchId);
+
+  // Use helpers for canonical writes
+  closeOpportunityViaSplit(world, brokered, status, reason || 'opportunity closed');
+  const brokeredAfterClose = findBrokeredStateForOpportunity(world, opportunity.id);
+  if (brokeredAfterClose) {
+    resetOpportunityPendingClosingViaSplit(world, brokeredAfterClose, 'clear pending on close');
+  }
+  refreshOpportunityLabel(world, opportunity);
   recordDomainEvent(world, {
     kind: 'opportunity_closed',
     actor: opportunity.customerName,
@@ -279,26 +349,8 @@ export function closeOpportunity(
   if (reason) logEvent(world, opportunity.customerName, reason, tone);
 }
 
-export function refreshOpportunityLabel(opportunity: Opportunity) {
-  if (opportunity.status === 'won') {
-    opportunity.lifecycleStatus = 'closed_by_deal';
-    opportunity.stageLabel = '已成交';
-    return;
-  }
-  if (opportunity.status === 'lost') {
-    opportunity.lifecycleStatus = 'lost';
-    opportunity.stageLabel = '已流失';
-    return;
-  }
-  if (opportunity.status === 'closed') {
-    opportunity.lifecycleStatus = 'closed_by_case';
-    opportunity.stageLabel = '已关闭';
-    return;
-  }
-  if (opportunity.lifecycleStatus !== 'stagnated') {
-    opportunity.lifecycleStatus = 'active';
-  }
-  opportunity.stageLabel = OPPORTUNITY_STAGES[clamp(opportunity.stageIndex, 0, OPPORTUNITY_STAGES.length - 1)];
+export function refreshOpportunityLabel(state: GameState, opportunity: Opportunity) {
+  refreshOpportunityLabelViaCanonical(state, opportunity, 'refresh label');
 }
 
 export function seedInitialOpportunities(world: GameState) {
@@ -312,9 +364,28 @@ export function seedInitialOpportunities(world: GameState) {
 
 export function adjustCaseOpportunities(state: GameState, caseId: string, intentDelta: number, confidenceDelta: number) {
   getActiveOpportunities(state, caseId).forEach((entry) => {
-    entry.intent = clamp(entry.intent + intentDelta, 0, 100);
-    entry.confidence = clamp(entry.confidence + confidenceDelta, 0, 100);
-    entry.touchedToday = true;
+    // Ensure canonical state
+    const match = ensureCustomerCaseMatchState(
+      state, entry.customerId, caseId,
+      entry.fit, entry.intent, entry.confidence,
+      entry.budgetMax, entry.priceSensitivity,
+    );
+
+    // Apply deltas via helpers
+    if (intentDelta !== 0) {
+      const matchForIntent = findMatchStateForPair(state, entry.customerId, caseId)!;
+      applyMatchIntentDelta(state, matchForIntent, intentDelta, state.day, 'adjust case opportunities');
+    }
+    if (confidenceDelta !== 0) {
+      const matchForConf = findMatchStateForPair(state, entry.customerId, caseId)!;
+      applyMatchConfidenceDelta(state, matchForConf, confidenceDelta, state.day, 'adjust case opportunities');
+    }
+
+    // Mark touched via helper
+    const brokered = findBrokeredStateForOpportunity(state, entry.id);
+    if (brokered) {
+      setOpportunityTouchedTodayViaSplit(state, brokered, true, state.day, 'adjust case opportunities');
+    }
   });
 }
 

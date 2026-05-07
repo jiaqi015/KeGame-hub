@@ -19,6 +19,30 @@ export type {
 } from './types.js';
 
 export type {
+  BrokerPOVWorkspaceProjection,
+  OwnerPOVWorkspaceProjection,
+  PovActionCommandDraftSummary,
+  PovBeliefConflictSummary,
+  PovBeliefSummary,
+  PovCaseSummary,
+  PovChoiceAlternativeSummary,
+  PovChoiceConstraintSummary,
+  PovChoiceSetSummary,
+  PovCommitmentSummary,
+  PovCommitmentTraceSummary,
+  PovDecisionMomentSummary,
+  PovNoDecisionSummary,
+  PovPressureSummaryView,
+  PovSignalTraceSummary,
+  PovWaitingStateSummary,
+} from './povBoundary.js';
+
+export {
+  buildBrokerPOVWorkspaceProjection,
+  buildOwnerPOVWorkspaceProjection,
+} from './povBoundary.js';
+
+export type {
   DecisionSupportWorkspaceCaseProjection,
   DecisionSupportWorkspaceDecisionMomentSummary,
   DecisionSupportWorkspaceDecisionSupportSummary,
@@ -52,6 +76,30 @@ export type {
 export type {
   DailyTickReceiptWorkspaceProjection,
 } from './dailyTickReceiptBoundary.js';
+
+export type {
+  SemanticInteractionSceneSummary,
+  SemanticLlmOptionalitySummary,
+  SemanticNarrativePackSummary,
+  SemanticNarrativePackInput,
+  SemanticSceneInput,
+  SemanticPressureSummary,
+  SemanticPressureInput,
+  SemanticConsensusSummary,
+  SemanticConsensusInput,
+  SemanticWorkspaceInput,
+  SemanticWorkspaceProjection,
+} from './semanticReceiptBoundary.js';
+
+export {
+  buildSemanticWorkspaceProjection,
+  buildEmptySemanticWorkspaceProjection,
+} from './semanticReceiptBoundary.js';
+
+export {
+  buildSemanticWorkspaceProjectionFromDailyTickResult,
+  buildSemanticWorkspaceProjectionFromState,
+} from './semanticWorkspaceComposer.js';
 
 export type {
   BuildEventStreamWorkspaceProjectionOptions,

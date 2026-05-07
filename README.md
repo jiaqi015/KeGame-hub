@@ -31,7 +31,7 @@
 | 产品形态 | 统一入口产品，而不是单功能工具 |
 | 最成熟模块 | `开放日选址` |
 | 增长最快模块 | `我是王牌资产顾问` |
-| 当前主战场 | 统一入口收口、开放日领域化、资产顾问架构与信息架构落地 |
+| 当前主战场 | 资产顾问母模型迁移、Daily Decision Bridge、语义合同与运行收口 |
 | 文档权威入口 | [MEMORY.md](MEMORY.md) 与 `docs/project-memory/` |
 
 ## Product Surfaces
@@ -40,7 +40,7 @@
 | --- | --- | --- |
 | `多模型PK` | 同题多模型回答对比、提炼核心差异 | 已接入统一入口，接口链路稳定 |
 | `开放日选址` | 候选小区评分、排序、参数调优、历史分析 | 当前最成熟，主流程闭环最完整 |
-| `我是王牌资产顾问` | 房源经营模拟、开放日与带看决策、经营反馈 | 正在快速向云同步、排行榜、剧本生成演进 |
+| `我是王牌资产顾问` | 房源经营模拟、开放日与带看决策、经营反馈 | 正在向母模型、Daily Decision Bridge、语义 receipt 和只读投影收口 |
 
 ## Highlights
 
@@ -91,7 +91,7 @@ http://localhost:3000
 2. 读 [接手清单](docs/project-memory/handoff-checklist.md)
 3. 读 [模块地图](docs/project-memory/module-map.md)
 4. 看 `git status --short`，确认当前未提交改动主要落在哪条业务线
-5. 如果本轮是资产顾问，先读 [卖房总设计](docs/selling-houses-total-design.md)、[卖房总纲](docs/selling-houses-master.md) 和 [业务事实总表](docs/selling-houses-business-facts.md)
+5. 如果本轮是资产顾问，先读 [卖房总设计](docs/selling-houses-total-design.md)、[卖房总纲](docs/selling-houses-master.md)、[业务事实总表](docs/selling-houses-business-facts.md) 和 [母模型迁移工作板](docs/selling-houses-mother-model-agent-workplan.md)
 
 如果你只想 30 秒内判断这轮工作重点，优先读：
 
@@ -133,6 +133,7 @@ http://localhost:3000
 - 主模块：`src/selling-houses/`
 - 运行真相入口：`index.html` -> `src/main.tsx` -> `src/App.tsx` -> `src/workspaces/workspaceRegistry.tsx` -> `src/selling-houses/SellingHousesWorkspace.tsx`
 - `selling-houses-workspace/` 当前为并行/迁移参考目录，默认不作为功能改动落点
+- `selling-houses-workspace/docs/` 不再保留重复文档，卖房文档统一读根目录 `docs/`
 - 已有方向：
   - 本地玩法状态与规则引擎
   - 云同步状态与客户端
@@ -189,6 +190,7 @@ http://localhost:3000
 - [卖房总设计](docs/selling-houses-total-design.md)
 - [卖房总纲](docs/selling-houses-master.md)
 - [业务事实总表](docs/selling-houses-business-facts.md)
+- [母模型迁移工作板](docs/selling-houses-mother-model-agent-workplan.md)
 - [领域架构](docs/selling-houses-domain-architecture-v1.md)
 - [信息架构](docs/selling-houses-information-architecture.md)
 - [界面详细设计](docs/selling-houses-interface-detail-design.md)
@@ -199,6 +201,11 @@ http://localhost:3000
 - [游戏定位](docs/selling-houses-game-positioning.md)
 - [房源生命周期设计](docs/selling-houses-listing-lifecycle-design.md)
 - [评分系统](docs/selling-houses-scoring-system.md)
+
+### 设计与理论参考
+
+- [王牌顾问 · 系统设计鉴赏](王牌顾问-系统设计鉴赏.docx)
+- [王牌顾问 · 世界模型理论分析](王牌顾问-世界模型理论分析.docx)
 
 ## Repository Guide
 

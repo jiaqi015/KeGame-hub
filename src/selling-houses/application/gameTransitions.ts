@@ -7,6 +7,9 @@ import { updateDerivedState } from '../domain/runtimeState.js';
 import { applyActionStageRelation, getActionStageRelation } from '../domain/actionStageRelations.js';
 import { queueDealClosingEvaluation } from '../domain/dealClosing.js';
 import { getOpportunityPriority } from '../domain/utils.js';
+import { setBrokerOwnerTrust } from '../domain/trustWriteHelper.js';
+import { applyOpportunityIntentDeltaOnState, applyOpportunityConfidenceDeltaOnState } from '../domain/opportunitySplitHelper.js';
+import { applyPatienceDelta, applyUrgencyDelta } from '../domain/ownerCaseReadinessWriteHelper.js';
 import {
   createProductRun,
   describeRunMilestone,
@@ -157,8 +160,8 @@ export function executeScenarioAction(
     if (!scenarioActionTarget.ok) {
       recordDomainEvent(next, {
         kind: 'journal',
-        actor: '场景动作',
-        title: '场景动作目标失效',
+        actor: '情景动作',
+        title: '情景动作目标失效',
         detail: scenarioActionTarget.reason,
         caseId: currentCase.id,
         tone: 'danger',
@@ -201,7 +204,7 @@ export function executeScenarioAction(
 
     recordDomainEvent(next, {
       kind: 'action_executed',
-      actor: '场景动作',
+      actor: '情景动作',
       title: `执行 ${actionId}`,
       detail: settlement.title,
       caseId,
@@ -565,11 +568,13 @@ function applyScenarioDelta(
   allowOpportunityFallback = true,
 ) {
   if (delta.field === 'trust') {
-    currentCase.trust = clamp01to100(currentCase.trust + delta.value);
+    // Write to canonical BrokerOwnerRelation, sync to Case mirror
+    setBrokerOwnerTrust(state, currentCase, clamp01to100(currentCase.trust + delta.value), `scenario:${actionId}`);
     return;
   }
   if (delta.field === 'patience') {
-    currentCase.patience = clamp01to100(currentCase.patience + delta.value);
+    // Write to canonical OwnerCaseRelation, sync to Case mirror
+    applyPatienceDelta(state, currentCase, delta.value, `scenario:${actionId}`, 0, 100);
     return;
   }
   if (delta.field === 'd1') {
@@ -589,7 +594,8 @@ function applyScenarioDelta(
     return;
   }
   if (delta.field === 'urgency') {
-    currentCase.urgency = clamp01to100(currentCase.urgency + delta.value);
+    // Write to canonical OwnerCaseRelation, sync to Case mirror
+    applyUrgencyDelta(state, currentCase, delta.value, `scenario:${actionId}`, 0, 100);
     return;
   }
   if (delta.field === 'askPrice') {
@@ -606,7 +612,7 @@ function applyScenarioDelta(
     if (!writableOpportunity) {
       recordDomainEvent(state, {
         kind: 'journal',
-        actor: '场景动作',
+        actor: '情景动作',
         title: '结算字段未写回',
         detail: `${actionId} 结算包含 ${delta.field}，但当前没有可写回的活跃客户线。`,
         caseId: currentCase.id,
@@ -616,15 +622,15 @@ function applyScenarioDelta(
       return;
     }
     if (delta.field === 'intent') {
-      writableOpportunity.intent = clamp01to100(writableOpportunity.intent + delta.value);
+      applyOpportunityIntentDeltaOnState(state, writableOpportunity, delta.value, '情景结算意向', 0, 100);
     } else {
-      writableOpportunity.confidence = clamp01to100(writableOpportunity.confidence + delta.value);
+      applyOpportunityConfidenceDeltaOnState(state, writableOpportunity, delta.value, '情景结算信心', 0, 100);
     }
     return;
   }
   recordDomainEvent(state, {
     kind: 'journal',
-    actor: '场景动作',
+    actor: '情景动作',
     title: '结算字段未支持',
     detail: `${actionId} 结算字段 ${delta.field} 暂未支持写回，已忽略。`,
     caseId: currentCase.id,

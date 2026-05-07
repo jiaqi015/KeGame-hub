@@ -2,10 +2,10 @@
   "runId": 18,
   "difficulty": "hard",
   "seed": 420126,
-  "totalDays": 21,
-  "totalMomentEvents": 9,
+  "totalDays": 15,
+  "totalMomentEvents": 8,
   "momentCounts": {
-    "offer-acceptance-negotiation": 3,
+    "offer-acceptance-negotiation": 2,
     "sincerity-sale-entry": 1,
     "open-day-participation": 1,
     "pricing-strategy-adjustment": 3,
@@ -31,5 +31,5 @@
   },
   "error": null,
   "consistencyViolations": [],
-  "durationMs": 7
+  "durationMs": 9
 }

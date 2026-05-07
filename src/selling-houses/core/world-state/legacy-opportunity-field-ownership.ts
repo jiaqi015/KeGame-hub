@@ -1,6 +1,32 @@
-import type { Opportunity } from '../../domain/models.js';
-
-export type LegacyOpportunityField = keyof Opportunity;
+/** Local field union — avoids core→domain import. Must match Opportunity keys. */
+export type LegacyOpportunityField =
+  | 'id'
+  | 'caseId'
+  | 'customerId'
+  | 'customerName'
+  | 'profile'
+  | 'channelId'
+  | 'channelName'
+  | 'fit'
+  | 'intent'
+  | 'confidence'
+  | 'stageIndex'
+  | 'stageLabel'
+  | 'status'
+  | 'lifecycleStatus'
+  | 'leadSource'
+  | 'visibility'
+  | 'brokerName'
+  | 'createdDay'
+  | 'daysLeft'
+  | 'touchedToday'
+  | 'budgetMax'
+  | 'priceSensitivity'
+  | 'stagnationTicks'
+  | 'pendingClosingEvaluation'
+  | 'pendingClosingStrategyId'
+  | 'pendingClosingRequestedDay'
+  | 'history';
 
 export type LegacyOpportunityCanonicalOwner =
   | 'customer-case-match'
@@ -10,7 +36,7 @@ export type LegacyOpportunityCanonicalOwner =
   | 'broker-opportunity-relation'
   | 'opportunity-lifecycle'
   | 'runtime-scratch'
-  | 'closing-evaluation'
+  | 'consensus-formation'
   | 'deprecated-legacy';
 
 export type LegacyOpportunityFieldRole =
@@ -26,7 +52,7 @@ export type LegacyOpportunityDomainFacet =
   | 'lifecycle'
   | 'broker-relation'
   | 'runtime'
-  | 'closing'
+  | 'consensus'
   | 'legacy';
 
 export interface LegacyOpportunityFieldOwnership {
@@ -206,25 +232,25 @@ export const LEGACY_OPPORTUNITY_FIELD_OWNERSHIP_REGISTRY: Readonly<
     migrationNote: 'Stagnation ticks mirror offer thread inactivity tracking.',
   },
   pendingClosingEvaluation: {
-    canonicalOwner: 'closing-evaluation',
+    canonicalOwner: 'consensus-formation',
     legacyRole: 'future-migration',
-    domainFacet: 'closing',
-    targetConcept: 'ConsensusFormation.pendingEvaluation',
-    migrationNote: 'Pending closing evaluation flag is consensus formation process state.',
+    domainFacet: 'consensus',
+    targetConcept: 'ConsensusFormationV0.pendingEvaluation',
+    migrationNote: 'Pending closing evaluation flag is consensus formation process state. See consensus/models.ts.',
   },
   pendingClosingStrategyId: {
-    canonicalOwner: 'closing-evaluation',
+    canonicalOwner: 'consensus-formation',
     legacyRole: 'future-migration',
-    domainFacet: 'closing',
-    targetConcept: 'ConsensusFormation.pendingStrategyId',
-    migrationNote: 'Pending strategy id is consensus formation process state.',
+    domainFacet: 'consensus',
+    targetConcept: 'ConsensusFormationV0.pendingStrategyId',
+    migrationNote: 'Pending strategy id is consensus formation process state. See consensus/models.ts.',
   },
   pendingClosingRequestedDay: {
-    canonicalOwner: 'closing-evaluation',
+    canonicalOwner: 'consensus-formation',
     legacyRole: 'future-migration',
-    domainFacet: 'closing',
-    targetConcept: 'ConsensusFormation.pendingRequestedDay',
-    migrationNote: 'Pending requested day is consensus formation process state.',
+    domainFacet: 'consensus',
+    targetConcept: 'ConsensusFormationV0.pendingRequestedDay',
+    migrationNote: 'Pending requested day is consensus formation process state. See consensus/models.ts.',
   },
   history: {
     canonicalOwner: 'opportunity-lifecycle',

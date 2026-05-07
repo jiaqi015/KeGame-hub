@@ -1,6 +1,7 @@
 import { logEvent } from '../runtimeState.js';
 import { getAvailableMarketDealSlots } from '../models.js';
 import type { Case, GameState, RivalListing, RivalListingArchetype, RivalStore } from '../models.js';
+import type { PressureReceiptSink } from '../../core/world-state/competition/models.js';
 import { loseCaseToRival } from '../caseLifecycle.js';
 import {
   getRivalOutcomeControl,
@@ -15,7 +16,9 @@ import {
   tryClaimRivalMarketDealSlot,
 } from '../engine/outcomeControlRuntime.js';
 import { chance, clamp, randomInt } from '../utils.js';
+import { applyBrokerOwnerTrustDelta } from '../trustWriteHelper.js';
 import { getMarketCell } from '../engine/opportunityEngine.js';
+import { applyOpportunityIntentDeltaOnState, applyOpportunityConfidenceDeltaOnState } from '../opportunitySplitHelper.js';
 
 type CreateRivalListingOptions = {
   linkedCaseId?: string;
@@ -290,7 +293,7 @@ export function tryClaimOpenMarketDealForRivals(state: GameState) {
   return claimedCount;
 }
 
-export function applyRivalPressure(state: GameState) {
+export function applyRivalPressure(state: GameState, sink?: PressureReceiptSink) {
   const { rivalOwnerPressureScale } = getRivalOutcomeControl(state);
   const activeRivals = state.marketShadow.rivalListings.filter((entry) => entry.status === 'active');
   if (!activeRivals.length) return;
@@ -309,20 +312,63 @@ export function applyRivalPressure(state: GameState) {
     const adjustedPressure = nearestPressure * rivalOwnerPressureScale;
     if (adjustedPressure < 34) return;
 
-    const heatLoss = (adjustedPressure / 100) * state.rules.rivalPressureHeatImpact;
-    const trustLoss = (adjustedPressure / 100) * state.rules.rivalPressureTrustImpact;
-    caseItem.heat = clamp(caseItem.heat - heatLoss, 10, 100);
-    caseItem.trust = clamp(caseItem.trust - trustLoss, 10, 100);
+    const leadRival = rivals.reduce((best, listing) => listing.heat > best.heat ? listing : best, rivals[0]);
+    const rivalLabel = `${leadRival.district} ${leadRival.segment}`;
+
+    const heatDelta = -(adjustedPressure / 100) * state.rules.rivalPressureHeatImpact;
+    const trustDelta = -(adjustedPressure / 100) * state.rules.rivalPressureTrustImpact;
+    caseItem.heat = clamp(caseItem.heat + heatDelta, 10, 100);
+    applyBrokerOwnerTrustDelta(state, caseItem, trustDelta, '竞品压力影响信任', 10, 100);
+
+    sink?.collectPressure({
+      source: 'rival-pressure',
+      caseId: caseItem.id,
+      day: state.day,
+      dimension: 'heat',
+      magnitude: Math.round(heatDelta * 100) / 100,
+      evidence: `${caseItem.title} 被 ${rivalLabel} 等 ${rivals.length} 个竞品压制，热度下降。`,
+      sourceEntityId: leadRival.id,
+      sourceEntityLabel: rivalLabel,
+      evidenceKind: 'rival-price-overlap',
+      evidenceStrength: Math.min(100, Math.round(adjustedPressure)),
+    });
+    sink?.collectPressure({
+      source: 'rival-pressure',
+      caseId: caseItem.id,
+      day: state.day,
+      dimension: 'trust',
+      magnitude: Math.round(trustDelta * 100) / 100,
+      evidence: `${caseItem.title} 被竞品持续压制，业主信心下降。`,
+      sourceEntityId: leadRival.id,
+      sourceEntityLabel: rivalLabel,
+      evidenceKind: 'rival-owner-anchor',
+      evidenceStrength: Math.min(100, Math.round(adjustedPressure * 0.8)),
+    });
 
     state.opportunities
       .filter((entry) => entry.caseId === caseItem.id && entry.status === 'active')
       .forEach((entry) => {
-        entry.intent = clamp(entry.intent - adjustedPressure / 85, 0, 100);
-        entry.confidence = clamp(entry.confidence - adjustedPressure / 110, 0, 100);
+        const intentDelta = -adjustedPressure / 85;
+        const confidenceDelta = -adjustedPressure / 110;
+        applyOpportunityIntentDeltaOnState(state, entry, intentDelta, '竞品压力降低意向', 0, 100);
+        applyOpportunityConfidenceDeltaOnState(state, entry, confidenceDelta, '竞品压力降低信心', 0, 100);
+
+        sink?.collectPressure({
+          source: 'rival-pressure',
+          caseId: caseItem.id,
+          day: state.day,
+          dimension: 'intent',
+          magnitude: Math.round(intentDelta * 100) / 100,
+          evidence: `${entry.customerName} 对 ${caseItem.title} 的意向被竞品分流。`,
+          sourceEntityId: leadRival.id,
+          sourceEntityLabel: rivalLabel,
+          evidenceKind: 'rival-lead-siphon',
+          evidenceStrength: Math.min(100, Math.round(adjustedPressure * 0.7)),
+          opportunityIds: [entry.id],
+        });
       });
 
     if (adjustedPressure >= 58 && chance(scaleProbability(0.18, rivalOwnerPressureScale, 0.85), state)) {
-      const leadRival = rivals.sort((left, right) => right.heat - left.heat)[0];
       logEvent(state, '竞品压制', `${leadRival.title} 正在抢走 ${caseItem.title} 的一部分注意力。`, 'danger');
     }
   });

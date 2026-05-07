@@ -2,6 +2,8 @@ import { logEvent, recordDomainEvent } from '../runtimeState.js';
 import { BALANCE } from '../config/balance.js';
 import type { GameState } from '../models.js';
 import { clamp, randomInt, wave, average } from '../utils.js';
+import { applyBrokerOwnerTrustDelta } from '../trustWriteHelper.js';
+import { applyOwnerCasePatienceDelta, applyOwnerCaseUrgencyDelta } from '../ownerCaseReadinessHelper.js';
 import { withdrawCase } from './actionResolvers.js';
 import { getMarketCell } from './opportunityEngine.js';
 
@@ -101,9 +103,9 @@ export function tickCases(world: GameState) {
         ? world.rules.urgentOwnerUntouchedTrustLoss
         : world.rules.ownerUntouchedTrustLoss;
       const decayMultiplier = ownerArchetype?.trustDecayMultiplier || 1;
-      caseItem.trust -= trustLoss * decayMultiplier;
+      applyBrokerOwnerTrustDelta(world, caseItem, -(trustLoss * decayMultiplier), '业主未被触达信任衰减', 0, 100);
       if (world.day - (caseItem.lastOwnerTouchedDay ?? caseItem.lastTouchedDay ?? 0) > world.rules.ownerPatienceDecayAfterDays) {
-        caseItem.patience = clamp(caseItem.patience - world.rules.ownerPatienceDecayAmount, 0, 100);
+        applyOwnerCasePatienceDelta(world, caseItem, -world.rules.ownerPatienceDecayAmount, '业主未被触达耐心衰减', 0, 100);
       }
     } else {
       caseItem.lastOwnerTouchedDay = world.day;
@@ -117,37 +119,34 @@ export function tickCases(world: GameState) {
 
     if (isPragmatic) {
       if (priceGapPct < caseTickBalance.pragmaticPriceGapLowPct) {
-        caseItem.trust += caseTickBalance.pragmaticTightPriceTrustGain;
+        applyBrokerOwnerTrustDelta(world, caseItem, caseTickBalance.pragmaticTightPriceTrustGain, '务实型业主价格紧凑信任增益', 0, 100);
       } else if (priceGapPct > caseTickBalance.pragmaticPriceGapHighPct) {
-        caseItem.trust -= caseTickBalance.pragmaticWidePriceTrustLoss;
+        applyBrokerOwnerTrustDelta(world, caseItem, -caseTickBalance.pragmaticWidePriceTrustLoss, '务实型业主价格宽松信任损失', 0, 100);
       }
     }
 
     if (caseItem.askPrice > caseItem.marketPrice * caseTickBalance.overpricedAskRate) {
-      caseItem.trust -= isPragmatic
+      const overpricedTrustLoss = isPragmatic
         ? caseTickBalance.overpricedPragmaticTrustLoss
         : caseTickBalance.overpricedElasticityBasePenalty + Math.max(0, (ownerArchetype?.priceElasticity || 1) - 1);
+      applyBrokerOwnerTrustDelta(world, caseItem, -overpricedTrustLoss, '溢价过高信任损失', 0, 100);
       caseItem.heat -= caseTickBalance.overpricedHeatLoss;
-      caseItem.patience = clamp(caseItem.patience - caseTickBalance.overpricedPatienceLoss, 0, 100);
+      applyOwnerCasePatienceDelta(world, caseItem, -caseTickBalance.overpricedPatienceLoss, '溢价过高耐心损失', 0, 100);
     }
 
     if (isEmotional && caseItem.heat < caseTickBalance.emotionalLowHeatThreshold) {
-      caseItem.trust -= caseTickBalance.emotionalLowHeatTrustLoss;
+      applyBrokerOwnerTrustDelta(world, caseItem, -caseTickBalance.emotionalLowHeatTrustLoss, '情绪型业主低热度信任损失', 0, 100);
     }
 
     const urgencyGrowth = isUrgent
       ? caseTickBalance.urgentGrowthFixed
       : randomInt(caseTickBalance.defaultUrgencyGrowthMin, caseTickBalance.defaultUrgencyGrowthMax, world);
-    caseItem.urgency = clamp(
-      caseItem.urgency
-        + urgencyGrowth
-        + (caseItem.windowDays < caseTickBalance.shortWindowThreshold ? caseTickBalance.shortWindowUrgencyBonus : 0),
-      18,
-      96,
-    );
+    const urgencyDelta = urgencyGrowth
+      + (caseItem.windowDays < caseTickBalance.shortWindowThreshold ? caseTickBalance.shortWindowUrgencyBonus : 0);
+    applyOwnerCaseUrgencyDelta(world, caseItem, urgencyDelta, '日度紧迫增长', 18, 96);
 
     caseItem.heat = clamp(caseItem.heat, 10, 100);
-    caseItem.trust = clamp(caseItem.trust, 10, 100);
+    caseItem.trust = clamp(caseItem.trust, 10, 100); // Boundary clamp only, no delta — allowed
 
     if (caseItem.windowDays <= 0) {
       if (
@@ -156,7 +155,7 @@ export function tickCases(world: GameState) {
         && caseItem.d3 >= caseTickBalance.renewalD3Threshold
       ) {
         caseItem.windowDays = caseTickBalance.renewalWindowDays;
-        caseItem.trust = clamp(caseItem.trust - caseTickBalance.renewalTrustLoss, 0, 100);
+        applyBrokerOwnerTrustDelta(world, caseItem, -caseTickBalance.renewalTrustLoss, '续期信任损失', 0, 100);
         recordDomainEvent(world, {
           kind: 'window_extended',
           actor: caseItem.ownerName,

@@ -78,6 +78,20 @@ export type DailyTickReceipt = ReadonlyDeep<{
   processOpportunityIds: string[];
   processProductRunIds: string[];
   maxInvariantLevel: DailyTickReceiptInvariantLevel;
+  /** Semantic receipt summary. Undefined when not available (old saves). */
+  semanticReceiptSummary?: {
+    readonly sceneCount: number;
+    readonly sceneTypes: readonly string[];
+    readonly narrativePackId: string;
+    readonly narrativePackHash: string;
+    readonly sourceRefCount: number;
+    readonly evidenceRefCount: number;
+    readonly pressureAvailable: boolean;
+    readonly pressureSnapshotCount: number;
+    readonly consensusAvailable: boolean;
+    readonly consensusFormationCount: number;
+    readonly llmReady: boolean;
+  };
 }>;
 
 function buildReceiptProcessResult(result: DailyProcessResultReadModel): DailyTickReceiptProcessResult {
@@ -164,6 +178,32 @@ function maxInvariantLevel(alerts: readonly Partial<TickInvariantAlert>[]): Dail
   return 'none';
 }
 
+function buildSemanticReceiptSummary(result: DailyTickReceiptSource): DailyTickReceipt['semanticReceiptSummary'] {
+  const semantic = readObject(result.semanticReceipts);
+  if (!semantic || typeof semantic.day !== 'number') {
+    return undefined;
+  }
+
+  const interactionScenes = readObject(semantic.interactionScenes);
+  const narrativeSignalPack = readObject(semantic.narrativeSignalPack);
+  const pressureReceipts = readObject(semantic.pressureReceipts);
+  const consensusReceipts = readObject(semantic.consensusReceipts);
+
+  return {
+    sceneCount: readNumber(interactionScenes.sceneCount),
+    sceneTypes: readArray<string>(interactionScenes.sceneTypes),
+    narrativePackId: readString(narrativeSignalPack.packId),
+    narrativePackHash: readString(narrativeSignalPack.packHash),
+    sourceRefCount: readNumber(narrativeSignalPack.sourceRefCount),
+    evidenceRefCount: readNumber(narrativeSignalPack.evidenceRefCount),
+    pressureAvailable: readBoolean(pressureReceipts.available),
+    pressureSnapshotCount: readNumber(pressureReceipts.snapshotCount),
+    consensusAvailable: readBoolean(consensusReceipts.available),
+    consensusFormationCount: readNumber(consensusReceipts.formationCount),
+    llmReady: readBoolean(semantic.llmReady),
+  };
+}
+
 export function buildDailyTickReceipt(result: DailyTickReceiptSource): DailyTickReceipt {
   const processResults = readDailyProcessResultReadModels(result);
   const processResultGroups = groupDailyProcessResultsByPhase(processResults);
@@ -192,6 +232,7 @@ export function buildDailyTickReceipt(result: DailyTickReceiptSource): DailyTick
     processOpportunityIds: processResults.flatMap((entry) => copyIds(entry.opportunityIds)),
     processProductRunIds: processResults.flatMap((entry) => copyIds(entry.productRunIds)),
     maxInvariantLevel: maxInvariantLevel(invariantAlerts),
+    semanticReceiptSummary: buildSemanticReceiptSummary(result),
   } satisfies DailyTickReceipt);
 }
 

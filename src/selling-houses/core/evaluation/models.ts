@@ -80,6 +80,8 @@ export interface AssetScoreInputs extends EvaluationInputs {
   activeOpportunityCount: number;
   lateStageOpportunityCount: number;
   legacyD3OwnerRelationSignals: Record<string, number | string | boolean | null>;
+  /** Source of trust value: 'canonical_relation' | 'legacy_case_mirror' | 'missing' */
+  trustSource?: string;
 }
 
 /**
@@ -117,8 +119,14 @@ export interface OwnerDecisionReadinessDimensions {
 
 export interface OwnerDecisionReadinessInputs extends EvaluationInputs {
   trust: number;
+  /** Source of trust value: 'canonical_relation' | 'legacy_case_mirror' | 'missing' */
+  trustSource?: string;
   urgency: number;
+  /** Source of urgency value: 'canonical_owner_case_relation' | 'legacy_case_mirror' | 'missing' */
+  urgencySource?: string;
   patience: number;
+  /** Source of patience value: 'canonical_owner_case_relation' | 'legacy_case_mirror' | 'missing' */
+  patienceSource?: string;
   askPrice: number;
   marketPrice: number;
   bottomPrice: number;

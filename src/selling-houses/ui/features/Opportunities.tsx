@@ -91,8 +91,8 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
       <section className="seller-panel p-4 lg:p-5">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-3xl">
-            <div className="seller-label">我的客户</div>
-            <h2 className="seller-title mt-2 text-[20px]">我的客户</h2>
+            <div className="seller-label">关系推进池</div>
+            <h2 className="seller-title mt-2 text-[20px]">已接上的关系</h2>
           </div>
 
           <div className="grid min-w-[280px] grid-cols-2 gap-2 md:grid-cols-4">
@@ -135,7 +135,7 @@ export function Opportunities({ state, onSelectCase, onSetView }: OpportunitiesP
                 onClick={() => showActiveTab('viewed')}
               />
               <StageOverviewCard
-                title="咨询过"
+                title="只接上话"
                 count={contactedModels.length}
                 detail="聊过需求，还没形成看房记录。"
                 tone="slate"

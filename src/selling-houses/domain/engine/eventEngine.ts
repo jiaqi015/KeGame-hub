@@ -2,8 +2,12 @@ import { logEvent, recordDomainEvent } from '../runtimeState.js';
 import { MARKET_EVENT_LABELS, MARKET_EVENT_PROBABILITY } from '../constants.js';
 import type { GameState } from '../models.js';
 import { chance, clamp, pickWeighted, randomInt } from '../utils.js';
+import { applyBrokerOwnerTrustDelta } from '../trustWriteHelper.js';
+import { applyOwnerCaseUrgencyDelta } from '../ownerCaseReadinessHelper.js';
+import { applyOpportunityConfidenceDeltaOnState } from '../opportunitySplitHelper.js';
+import type { PressureReceiptSink } from '../../core/world-state/competition/models.js';
 
-export function triggerRandomEvent(world: GameState) {
+export function triggerRandomEvent(world: GameState, sink?: PressureReceiptSink) {
   if (!chance(world.rules.randomEventProbability || MARKET_EVENT_PROBABILITY, world)) {
     return;
   }
@@ -26,7 +30,22 @@ export function triggerRandomEvent(world: GameState) {
   if (selected.templateId === 'policy-shift') {
     world.opportunities.forEach((opportunity) => {
       if (opportunity.status === 'active') {
-        opportunity.confidence = clamp(opportunity.confidence - 10, 10, 100);
+        const delta = -10;
+        applyOpportunityConfidenceDeltaOnState(world, opportunity, delta, '政策利空降低置信度', 10, 100);
+
+        sink?.collectPressure({
+          source: 'random-event',
+          caseId: opportunity.caseId,
+          day: world.day,
+          dimension: 'confidence',
+          magnitude: delta,
+          evidence: '利率上行预期强化，成交置信度回落。',
+          sourceEntityId: 'random-event:policy-shift',
+          sourceEntityLabel: '宏观政策利空',
+          evidenceKind: 'random-event-policy-shift',
+          evidenceStrength: 80,
+          opportunityIds: [opportunity.id],
+        });
       }
     });
     recordDomainEvent(world, {
@@ -48,8 +67,35 @@ export function triggerRandomEvent(world: GameState) {
     world.cases
       .filter((caseItem) => caseItem.marketCellId === luckyMarket.id)
       .forEach((caseItem) => {
-        caseItem.heat = clamp(caseItem.heat + 18, 0, 100);
-        caseItem.trust = clamp(caseItem.trust + 2, 0, 100);
+        const heatDelta = 18;
+        const trustDelta = 2;
+        caseItem.heat = clamp(caseItem.heat + heatDelta, 0, 100);
+        applyBrokerOwnerTrustDelta(world, caseItem, trustDelta, '学区升级消息提升信任', 0, 100);
+
+        sink?.collectPressure({
+          source: 'random-event',
+          caseId: caseItem.id,
+          day: world.day,
+          dimension: 'heat',
+          magnitude: heatDelta,
+          evidence: `${luckyMarket.name} 学区升级消息，区域热度被点燃。`,
+          sourceEntityId: 'random-event:school-boom',
+          sourceEntityLabel: '学区利好',
+          evidenceKind: 'random-event-school-boom',
+          evidenceStrength: 75,
+        });
+        sink?.collectPressure({
+          source: 'random-event',
+          caseId: caseItem.id,
+          day: world.day,
+          dimension: 'trust',
+          magnitude: trustDelta,
+          evidence: `${luckyMarket.name} 学区升级消息，业主信心提升。`,
+          sourceEntityId: 'random-event:school-boom',
+          sourceEntityLabel: '学区利好',
+          evidenceKind: 'random-event-school-boom',
+          evidenceStrength: 60,
+        });
     });
     luckyMarket.sentiment = clamp(luckyMarket.sentiment + 12, 0, 100);
     recordDomainEvent(world, {
@@ -67,13 +113,28 @@ export function triggerRandomEvent(world: GameState) {
     return;
   }
 
+  // Default: competitor-activity
   world.markets.forEach((market) => {
     market.competitivePressure = clamp(market.competitivePressure + 18, 0, 100);
   });
   world.cases
     .filter((caseItem) => caseItem.status === 'active')
     .forEach((caseItem) => {
-      caseItem.heat = clamp(caseItem.heat - 4, 10, 100);
+      const heatDelta = -4;
+      caseItem.heat = clamp(caseItem.heat + heatDelta, 10, 100);
+
+      sink?.collectPressure({
+        source: 'random-event',
+        caseId: caseItem.id,
+        day: world.day,
+        dimension: 'heat',
+        magnitude: heatDelta,
+        evidence: '周边竞品突然降价，区域竞争压力抬升。',
+        sourceEntityId: 'random-event:competitor-activity',
+        sourceEntityLabel: '竞对博弈',
+        evidenceKind: 'random-event-competitor-activity',
+        evidenceStrength: 70,
+      });
     });
   recordDomainEvent(world, {
     kind: 'market_event',
@@ -88,7 +149,7 @@ export function triggerRandomEvent(world: GameState) {
   logEvent(world, '市场', `【${MARKET_EVENT_LABELS.competitorActivity}】周边竞品突然降价，区域竞争压力显著抬升。`, 'danger');
 }
 
-export function fireScheduledEvents(world: GameState) {
+export function fireScheduledEvents(world: GameState, sink?: PressureReceiptSink) {
   const todaysEvents = world.scheduledEvents.filter((entry) => entry.day === world.day);
   if (!todaysEvents.length) {
     return;
@@ -101,11 +162,57 @@ export function fireScheduledEvents(world: GameState) {
     if (event.targetCaseId) {
       const caseItem = world.cases.find((entry) => entry.id === event.targetCaseId);
       if (caseItem) {
-        caseItem.trust = clamp(caseItem.trust + (event.trustDelta || 0) * scale, 0, 100);
-        caseItem.heat = clamp(caseItem.heat + (event.heatDelta || 0) * scale, 0, 100);
-        caseItem.urgency = clamp(caseItem.urgency + (event.urgencyDelta || 0) * scale, 0, 100);
+        const trustDelta = (event.trustDelta || 0) * scale;
+        const heatDelta = (event.heatDelta || 0) * scale;
+        const urgencyDelta = (event.urgencyDelta || 0) * scale;
+        applyBrokerOwnerTrustDelta(world, caseItem, trustDelta, '脚本事件影响信任', 0, 100);
+        caseItem.heat = clamp(caseItem.heat + heatDelta, 0, 100);
+        applyOwnerCaseUrgencyDelta(world, caseItem, urgencyDelta, '脚本事件影响紧迫', 0, 100);
         caseItem.askPrice = Math.max(caseItem.bottomPrice, Math.round(caseItem.askPrice + (event.askPriceDelta || 0) * scale));
         caseItem.windowDays = Math.max(1, caseItem.windowDays + (event.windowDaysDelta || 0));
+
+        if (trustDelta !== 0) {
+          sink?.collectPressure({
+            source: 'scripted-event',
+            caseId: caseItem.id,
+            day: world.day,
+            dimension: 'trust',
+            magnitude: Math.round(trustDelta * 100) / 100,
+            evidence: `【${event.title}】${event.message}`,
+            sourceEntityId: `scripted-event:${event.id}`,
+            sourceEntityLabel: event.title,
+            evidenceKind: 'scripted-event-effect',
+            evidenceStrength: Math.min(100, Math.round(Math.abs(trustDelta) * 5)),
+          });
+        }
+        if (heatDelta !== 0) {
+          sink?.collectPressure({
+            source: 'scripted-event',
+            caseId: caseItem.id,
+            day: world.day,
+            dimension: 'heat',
+            magnitude: Math.round(heatDelta * 100) / 100,
+            evidence: `【${event.title}】${event.message}`,
+            sourceEntityId: `scripted-event:${event.id}`,
+            sourceEntityLabel: event.title,
+            evidenceKind: 'scripted-event-effect',
+            evidenceStrength: Math.min(100, Math.round(Math.abs(heatDelta) * 5)),
+          });
+        }
+        if (urgencyDelta !== 0) {
+          sink?.collectPressure({
+            source: 'scripted-event',
+            caseId: caseItem.id,
+            day: world.day,
+            dimension: 'urgency',
+            magnitude: Math.round(urgencyDelta * 100) / 100,
+            evidence: `【${event.title}】${event.message}`,
+            sourceEntityId: `scripted-event:${event.id}`,
+            sourceEntityLabel: event.title,
+            evidenceKind: 'scripted-event-effect',
+            evidenceStrength: Math.min(100, Math.round(Math.abs(urgencyDelta) * 5)),
+          });
+        }
       }
     }
 
@@ -119,10 +226,25 @@ export function fireScheduledEvents(world: GameState) {
     }
 
     if (event.confidenceDelta) {
+      const confDelta = event.confidenceDelta * scale;
       world.opportunities
         .filter((entry) => entry.status === 'active')
         .forEach((entry) => {
-          entry.confidence = clamp(entry.confidence + event.confidenceDelta * scale, 0, 100);
+          applyOpportunityConfidenceDeltaOnState(world, entry, confDelta, `脚本事件影响置信度:${event.title}`, 0, 100);
+
+          sink?.collectPressure({
+            source: 'scripted-event',
+            caseId: entry.caseId,
+            day: world.day,
+            dimension: 'confidence',
+            magnitude: Math.round(confDelta * 100) / 100,
+            evidence: `【${event.title}】${event.message}`,
+            sourceEntityId: `scripted-event:${event.id}`,
+            sourceEntityLabel: event.title,
+            evidenceKind: 'scripted-event-effect',
+            evidenceStrength: Math.min(100, Math.round(Math.abs(confDelta) * 5)),
+            opportunityIds: [entry.id],
+          });
         });
     }
 

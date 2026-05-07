@@ -6,6 +6,7 @@ import { refundResources } from './actionResourceAccounting.js';
 import { touchCustomersForCase } from './customerEngine.js';
 import { findBestOpportunity, refreshOpportunityLabel } from './opportunityEngine.js';
 import { startActionProductRunIfNeeded } from './productRunActionLifecycle.js';
+import { applyOpportunityIntentDeltaOnState, applyOpportunityConfidenceDeltaOnState, setOpportunityDaysLeftOnState, setOpportunityTouchedTodayOnState } from '../opportunitySplitHelper.js';
 import type { ActionExecutorMap } from './actionExecutorTypes.js';
 
 export const SINCERITY_SALE_ACTION_EXECUTORS: ActionExecutorMap = {
@@ -21,10 +22,10 @@ export const SINCERITY_SALE_ACTION_EXECUTORS: ActionExecutorMap = {
     const strategy = optionId || 'balanced-sincerity';
     const priceFactor = strategy === 'strict-sincerity' ? 0.998 : strategy === 'balanced-sincerity' ? 0.993 : 0.988;
     caseItem.askPrice = Math.max(Math.round(caseItem.bottomPrice), Math.round(caseItem.askPrice * priceFactor));
-    opportunity.intent = clamp(opportunity.intent + (strategy === 'fast-sincerity' ? 12 : 8), 0, 100);
-    opportunity.confidence = clamp(opportunity.confidence + (strategy === 'strict-sincerity' ? 6 : 10), 0, 100);
-    opportunity.daysLeft = 3;
-    opportunity.touchedToday = true;
+    applyOpportunityIntentDeltaOnState(state, opportunity, strategy === 'fast-sincerity' ? 12 : 8, '诚意卖推进意向', 0, 100);
+    applyOpportunityConfidenceDeltaOnState(state, opportunity, strategy === 'strict-sincerity' ? 6 : 10, '诚意卖提升置信度', 0, 100);
+    setOpportunityDaysLeftOnState(state, opportunity, 3, '诚意卖设定剩余天数');
+    setOpportunityTouchedTodayOnState(state, opportunity, true, '诚意卖标记今日触达');
     touchCustomersForCase(state, caseItem.id, {
       interestDelta: strategy === 'fast-sincerity' ? 8 : 5,
       confidenceDelta: strategy === 'strict-sincerity' ? 5 : 8,
@@ -32,7 +33,7 @@ export const SINCERITY_SALE_ACTION_EXECUTORS: ActionExecutorMap = {
       note: '诚意卖把客户推向报价与谈判',
     });
     startActionProductRunIfNeeded(state, caseItem, 'sincere-sale');
-    refreshOpportunityLabel(opportunity);
+    refreshOpportunityLabel(state, opportunity);
     logEvent(state, caseItem.ownerName, `${caseItem.title} 进入诚意卖讨论，交易桌上的确定性开始抬升。`, 'success');
     onMessage?.(`${caseItem.title} 已推进到诚意卖讨论。`);
     return actionSuccess(opportunity);

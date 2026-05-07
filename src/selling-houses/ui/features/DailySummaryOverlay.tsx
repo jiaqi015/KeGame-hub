@@ -139,7 +139,7 @@ export function DailySummaryOverlay({ report, tickResult, onContinue }: DailySum
                       <div className="seller-tablet px-4 py-4">
                         <div className="seller-label mb-3 flex items-center gap-2">
                           <MapPinned size={12} className="text-emerald-600" />
-                          今日影响明细
+                          今天影响到哪里
                         </div>
                         <div className="space-y-2">
                           {impactRows.map((row) => (
@@ -154,7 +154,7 @@ export function DailySummaryOverlay({ report, tickResult, onContinue }: DailySum
                     <div className="seller-tablet mt-3 px-4 py-4">
                       <div className="seller-label mb-3 flex items-center gap-2">
                         <ShieldAlert size={12} className={riskRows.length > 0 ? 'text-rose-500' : 'text-emerald-600'} />
-                        今日风险
+                        系统提醒
                       </div>
                       {riskRows.length > 0 ? (
                         <div className="space-y-2.5">
@@ -328,11 +328,12 @@ function buildImpactRows(tickResult?: DailyTickResult | null): SummaryImpactRow[
   const customerLabels = buildCustomerScopeLabels(tickResult);
 
   tickResult.closedDeals.forEach((deal) => {
+    const district = tickResult.dirtyScopes.districts[0];
     addRow({
       id: `deal-${deal.dealId}`,
       label: '成交',
       title: deal.caseTitle || deal.caseId,
-      detail: `${deal.customerName || '客户'} · ${Math.round(deal.dealPrice || deal.price)} 万成交。`,
+      detail: `${district ? `${district} · ` : ''}${deal.customerName || '客户'} · ${Math.round(deal.dealPrice || deal.price)} 万成交。`,
       tone: 'success',
     });
   });
@@ -354,11 +355,12 @@ function buildImpactRows(tickResult?: DailyTickResult | null): SummaryImpactRow[
   tickResult.dirtyScopes.cases.slice(0, 3).forEach((caseId) => {
     const label = caseLabels.get(caseId);
     if (label) {
+      const district = tickResult.dirtyScopes.districts[0];
       addRow({
         id: `dirty-case-${caseId}`,
         label: '房源',
         title: label,
-        detail: '状态、窗口或客户推进发生变化。',
+        detail: district ? `${district} · 状态、窗口或客户推进发生变化。` : '状态、窗口或客户推进发生变化。',
         tone: 'accent',
       });
     }

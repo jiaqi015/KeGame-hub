@@ -4,3 +4,7 @@ export * from './action-split-plan.js';
 export * from './dailyTickReceipt.js';
 export * from './dailyProcessResult.js';
 export * from './eventStreamReceipt.js';
+export * from './semanticReceiptEnrichment.js';
+export * from './semanticReceiptInputComposer.js';
+export * from './dailyDecisionBridgeAdapter.js';
+export * from './dailyOperatingLedgerAdapter.js';

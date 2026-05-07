@@ -3,9 +3,9 @@
   "difficulty": "standard",
   "seed": 420084,
   "totalDays": 21,
-  "totalMomentEvents": 11,
+  "totalMomentEvents": 9,
   "momentCounts": {
-    "offer-acceptance-negotiation": 5,
+    "offer-acceptance-negotiation": 3,
     "sincerity-sale-entry": 1,
     "open-day-participation": 1,
     "pricing-strategy-adjustment": 3,
@@ -31,5 +31,5 @@
   },
   "error": null,
   "consistencyViolations": [],
-  "durationMs": 8
+  "durationMs": 10
 }

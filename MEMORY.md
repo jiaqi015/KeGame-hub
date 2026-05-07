@@ -1,6 +1,6 @@
 # 项目记忆
 
-最后整理：2026-04-19
+最后整理：2026-05-06
 
 这份记忆放在项目内，作为这个仓库的人类可读入口。它不是原始对话转储，而是把已经稳定下来的项目背景、约束、架构方向和接手路径整理成可持续维护的文档。
 
@@ -20,8 +20,8 @@
 2. 需要快速接手时，读 [接手清单](docs/project-memory/handoff-checklist.md)。
 3. 需要知道代码落点时，读 [模块地图](docs/project-memory/module-map.md)。
 4. 需要做架构或产品延续时，读 [稳定决策](docs/project-memory/durable-decisions.md)。
-5. 如果本轮是卖房玩法，先读 [卖房总设计](docs/selling-houses-total-design.md)、[卖房总纲](docs/selling-houses-master.md) 和 [业务事实总表](docs/selling-houses-business-facts.md)。
-6. 如果本轮是 4 小时并行开发，读 [并行开发总控计划](docs/dev-session-selling-houses-2026-04-19.md) 和 [线程任务入口](docs/dev-session-thread-briefs.md)。
+5. 如果本轮是卖房玩法，先读 [卖房总设计](docs/selling-houses-total-design.md)、[卖房总纲](docs/selling-houses-master.md)、[业务事实总表](docs/selling-houses-business-facts.md) 和 [母模型迁移工作板](docs/selling-houses-mother-model-agent-workplan.md)。
+6. 如果本轮涉及母模型、世界观、架构源头或提示词分发，再读 Codex 私有母模型源：`/Users/jiaqi/.codex/memories/projects/users-jiaqi-documents-开放日测算/topics/selling-houses-world-model-mother-model.md`。
 
 ## 项目是什么
 
@@ -56,7 +56,7 @@
   - 前端是 `Vite + React + TypeScript`，本地服务入口是 `server.ts`。
   - `Neon Postgres`、`Vercel Runtime Cache`、`Vercel Blob` 是明确的演进方向，但允许本地文件/内存回退。
 - 当前主战场：
-  - 项目重点已经扩展到“资产顾问玩法架构 + 信息架构 + 并行开发收口”。
+  - 项目重点已经扩展到“资产顾问母模型迁移 + Daily Decision Bridge + 语义合同/receipt/只读投影收口”。
   - 开放日模块是当前完成度最高、最稳的一条业务线。
 - 协作约定：
   - 关键背景优先沉淀在仓库内文档。
@@ -79,7 +79,8 @@
 - [卖房总设计](docs/selling-houses-total-design.md)
 - [卖房总纲](docs/selling-houses-master.md)
 - [卖房业务事实总表](docs/selling-houses-business-facts.md)
-- [并行开发总控计划](docs/dev-session-selling-houses-2026-04-19.md)
+- [母模型迁移工作板](docs/selling-houses-mother-model-agent-workplan.md)
+- [历史：并行开发总控计划](docs/dev-session-selling-houses-2026-04-19.md)
 
 ## 私有记忆映射
 

@@ -1,6 +1,9 @@
 import {
   STORAGE_KEY,
 } from '../domain/constants.js';
+import { initializeTrustRelations } from '../domain/trustWriteHelper.js';
+import { initializeReadinessStates } from '../domain/ownerCaseReadinessHelper.js';
+import { initializeOpportunityRelations } from '../domain/opportunitySplitHelper.js';
 import { buildScopedStorageKey } from './storageScope.js';
 import {
   clamp,
@@ -388,9 +391,34 @@ export function createInitialState(snapshot: ScenarioSnapshot, seedInput: RunSee
     currentReport: null,
     lastDailyTickResult: null,
     marketShadow: createInitialShadowMarket(snapshot),
+    operatingLedgerDays: [],
+    actionReceiptHistory: [],
+    commitmentSettlementHistory: [],
+    processRunHistory: [],
+    ownerDecisionMomentHistory: [],
+    strategyForkHistory: [],
+    managerInterventionReceiptHistory: [],
+    negotiationReplayHistory: [],
+    businessOutcomeReviewHistory: [],
   };
 
+  // Initialize runtimeBrokerOwnerRelations from generated cases
+  initializeTrustRelations(state);
+
+  // Initialize runtimeOwnerCaseReadinessStates from generated cases
+  initializeReadinessStates(state);
+
   initializeCustomerStates(state);
+
+  // Initialize runtimeCustomerCaseMatches and runtimeBrokeredOpportunities
+  // from opportunities + customerStates (after customerStates are initialized)
+  initializeOpportunityRelations(state);
+
+  // Initialize consensus runtime arrays (empty at start, populated during play)
+  state.runtimeConsensusFormations = [];
+  state.runtimeContractFacts = [];
+  state.runtimeOpportunityClosureSets = [];
+
   syncAuxiliaryStats(state);
   return state;
 }
@@ -1054,6 +1082,56 @@ export function normalizeLoadedState(parsed: any): GameState | null {
     }),
     marketShadow: normalizeShadowMarket(parsed?.marketShadow, snapshot),
   } as GameState;
+
+  // Ensure consensus runtime arrays exist for old saves
+  if (!state.runtimeConsensusFormations) state.runtimeConsensusFormations = [];
+  if (!state.runtimeContractFacts) state.runtimeContractFacts = [];
+  if (!state.runtimeOpportunityClosureSets) state.runtimeOpportunityClosureSets = [];
+
+  // Ensure operating ledger exists for old saves (optional field, empty fallback)
+  if (!Array.isArray(state.operatingLedgerDays)) {
+    state.operatingLedgerDays = [];
+  }
+
+  // Ensure action receipt history exists for old saves (optional field, empty fallback)
+  if (!Array.isArray(state.actionReceiptHistory)) {
+    state.actionReceiptHistory = [];
+  }
+
+  // Ensure commitment settlement history exists for old saves (optional field, empty fallback)
+  if (!Array.isArray(state.commitmentSettlementHistory)) {
+    state.commitmentSettlementHistory = [];
+  }
+
+  // Ensure process run history exists for old saves (optional field, empty fallback)
+  if (!Array.isArray(state.processRunHistory)) {
+    state.processRunHistory = [];
+  }
+
+  // Ensure owner decision moment history exists for old saves (optional field, empty fallback)
+  if (!Array.isArray(state.ownerDecisionMomentHistory)) {
+    state.ownerDecisionMomentHistory = [];
+  }
+
+  // Ensure strategy fork history exists for old saves (optional field, empty fallback)
+  if (!Array.isArray(state.strategyForkHistory)) {
+    state.strategyForkHistory = [];
+  }
+
+  // Ensure manager intervention receipt history exists for old saves (optional field, empty fallback)
+  if (!Array.isArray(state.managerInterventionReceiptHistory)) {
+    state.managerInterventionReceiptHistory = [];
+  }
+
+  // Ensure negotiation replay history exists for old saves (optional field, empty fallback)
+  if (!Array.isArray(state.negotiationReplayHistory)) {
+    state.negotiationReplayHistory = [];
+  }
+
+  // Ensure business outcome review history exists for old saves (optional field, empty fallback)
+  if (!Array.isArray(state.businessOutcomeReviewHistory)) {
+    state.businessOutcomeReviewHistory = [];
+  }
 
   if (!state.customerStates.length) {
     initializeCustomerStates(state);

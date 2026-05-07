@@ -2,10 +2,10 @@
   "runId": 20,
   "difficulty": "extreme",
   "seed": 420140,
-  "totalDays": 20,
-  "totalMomentEvents": 8,
+  "totalDays": 16,
+  "totalMomentEvents": 7,
   "momentCounts": {
-    "offer-acceptance-negotiation": 2,
+    "offer-acceptance-negotiation": 1,
     "sincerity-sale-entry": 1,
     "open-day-participation": 1,
     "pricing-strategy-adjustment": 3,
@@ -13,8 +13,8 @@
   },
   "flowProgress": {
     "standard-selling": {
-      "completedStepCount": 1,
-      "currentStepId": "price-and-close"
+      "completedStepCount": 2,
+      "currentStepId": "demand-generation"
     },
     "open-day": {
       "completedStepCount": 1,
@@ -31,5 +31,5 @@
   },
   "error": null,
   "consistencyViolations": [],
-  "durationMs": 14
+  "durationMs": 10
 }

@@ -659,8 +659,8 @@ verify('scenario deltas prefer linked opportunity target', () => {
 
   const settlement: Settlement = {
     outcome: 'progress',
-    title: '验证场景结算',
-    summary: '验证场景结算',
+    title: '验证情景结算',
+    summary: '验证情景结算',
     details: [],
     stateDeltas: [
       { field: 'intent', value: 7, label: '意向' },
@@ -848,10 +848,12 @@ verify('rival-side outcome scales are observable in engine sources', () => {
     'state.maxDay - 7',
   ], 'late-window rival open-slot claiming should be wired through daily tick');
   const engineSource = readFileSync('src/selling-houses/domain/engine.ts', 'utf8');
-  const pendingClosingIndex = engineSource.indexOf('settlePendingDealClosings(state)');
+  const processManagerSource = readFileSync('src/selling-houses/runtime/simulation/processes/negotiationProcessManager.ts', 'utf8');
+  const pendingClosingIndex = engineSource.indexOf('settleNegotiationProcessesForDay(state)');
   const openClaimIndex = engineSource.indexOf('tryClaimOpenMarketDealForRivals(state)');
-  assert.ok(pendingClosingIndex >= 0, 'daily tick should settle pending closings');
-  assert.ok(openClaimIndex > pendingClosingIndex, 'player pending closing should run before rival open-slot claim');
+  assert.ok(pendingClosingIndex >= 0, 'daily tick should settle negotiation processes that wrap pending closings');
+  assert.ok(processManagerSource.includes('settlePendingDealClosings(state)'), 'negotiation process manager should wrap pending closing settlement');
+  assert.ok(openClaimIndex > pendingClosingIndex, 'player negotiation settlement should run before rival open-slot claim');
   assertSourceIncludes('src/selling-houses/domain/engine/customerEngine.ts', [
     'rivalCustomerPullScale',
   ], 'rival customer pull control');

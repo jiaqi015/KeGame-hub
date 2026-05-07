@@ -1,5 +1,7 @@
 import { logEvent } from '../runtimeState.js';
 import { clamp } from '../utils.js';
+import { applyBrokerOwnerTrustDelta } from '../trustWriteHelper.js';
+import { applyOwnerCasePatienceDelta, applyOwnerCaseUrgencyDelta } from '../ownerCaseReadinessHelper.js';
 import { touchCustomersForCase } from './customerEngine.js';
 import { touchCaseForAction } from './actionExecutorHelpers.js';
 import { adjustCaseOpportunities } from './opportunityEngine.js';
@@ -12,8 +14,8 @@ export const PRICING_ACTION_EXECUTORS: ActionExecutorMap = {
     const strategy = optionId || 'client-view';
     const trustDelta = strategy === 'client-view' ? 5 : strategy === 'compete-view' ? 3 : 4;
     const urgencyDelta = strategy === 'window-view' ? 3 : 1;
-    caseItem.trust = clamp(caseItem.trust + trustDelta, 0, 100);
-    caseItem.urgency = clamp(caseItem.urgency + urgencyDelta, 0, 100);
+    applyBrokerOwnerTrustDelta(state, caseItem, trustDelta, '价格沟通提升信任', 0, 100);
+    applyOwnerCaseUrgencyDelta(state, caseItem, urgencyDelta, '价格沟通影响紧迫', 0, 100);
     caseItem.competitiveness = clamp(caseItem.competitiveness + 2, 0, 100);
     adjustCaseOpportunities(state, caseItem.id, strategy === 'client-view' ? 5 : 3, 4);
     touchCustomersForCase(state, caseItem.id, {
@@ -29,8 +31,8 @@ export const PRICING_ACTION_EXECUTORS: ActionExecutorMap = {
     touchCaseForAction(caseItem, action.id, state.day, true);
     caseItem.lastOwnerTouchedDay = state.day;
     const strategy = optionId || 'soft-anchor';
-    caseItem.trust = clamp(caseItem.trust + (strategy === 'bottom-anchor' ? -1 : strategy === 'soft-anchor' ? 4 : 2), 0, 100);
-    caseItem.patience = clamp(caseItem.patience + 2, 0, 100);
+    applyBrokerOwnerTrustDelta(state, caseItem, (strategy === 'bottom-anchor' ? -1 : strategy === 'soft-anchor' ? 4 : 2), '心理价试探影响信任', 0, 100);
+    applyOwnerCasePatienceDelta(state, caseItem, 2, '心理价试探影响耐心', 0, 100);
     caseItem.bottomPrice = Math.max(
       Math.round(caseItem.marketPrice * (strategy === 'soft-anchor' ? 0.95 : strategy === 'data-anchor' ? 0.93 : 0.91)),
       caseItem.bottomPrice,
@@ -54,7 +56,7 @@ export const PRICING_ACTION_EXECUTORS: ActionExecutorMap = {
     const strategy = optionId || 'small-cut';
 
     if (strategy === 'hold-story') {
-      caseItem.trust = clamp(caseItem.trust + (isPragmatic ? 1 : 3), 0, 100);
+      applyBrokerOwnerTrustDelta(state, caseItem, (isPragmatic ? 1 : 3), '守价换讲法信任', 0, 100);
       caseItem.competitiveness = clamp(caseItem.competitiveness + 6, 0, 100);
       caseItem.heat = clamp(caseItem.heat + 3, 0, 100);
       adjustCaseOpportunities(state, caseItem.id, 5, 4);
@@ -70,7 +72,7 @@ export const PRICING_ACTION_EXECUTORS: ActionExecutorMap = {
 
     if (strategy === 'small-cut') {
       caseItem.askPrice = Math.max(Math.round(caseItem.marketPrice * 0.95), Math.round(caseItem.askPrice * 0.985));
-      caseItem.trust = clamp(caseItem.trust + (isPragmatic ? 8 : isUrgent ? 6 : 4), 0, 100);
+      applyBrokerOwnerTrustDelta(state, caseItem, (isPragmatic ? 8 : isUrgent ? 6 : 4), '小幅调价提升信任', 0, 100);
       caseItem.competitiveness = clamp(caseItem.competitiveness + 9, 0, 100);
       caseItem.heat = clamp(caseItem.heat + 6, 0, 100);
       adjustCaseOpportunities(state, caseItem.id, 8, 6);
@@ -85,7 +87,7 @@ export const PRICING_ACTION_EXECUTORS: ActionExecutorMap = {
     }
 
     caseItem.askPrice = Math.max(Math.round(caseItem.marketPrice * 0.92), Math.round(caseItem.askPrice * 0.97));
-    caseItem.trust = clamp(caseItem.trust + (isUrgent ? 12 : isPragmatic ? 6 : 7), 0, 100);
+    applyBrokerOwnerTrustDelta(state, caseItem, (isUrgent ? 12 : isPragmatic ? 6 : 7), '明显调价提升信任', 0, 100);
     caseItem.competitiveness = clamp(caseItem.competitiveness + 14, 0, 100);
     caseItem.heat = clamp(caseItem.heat + 10, 0, 100);
     adjustCaseOpportunities(state, caseItem.id, 12, 8);

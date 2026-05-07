@@ -578,13 +578,13 @@ function AgendaPanel({
         <div className="min-w-0">
           <div className="seller-label flex items-center gap-2">
             <Clock3 size={13} />
-            今日日程
+            今日安排
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <span className="seller-chip">{day}/{maxDay}</span>
             <span className="seller-chip seller-chip-accent">今日精力 {energyLabel}</span>
             <span className="seller-chip">{budgetLabel} 推广金</span>
-            <span className="seller-chip">我排占用 {arrangement.plannedEnergy} 小时</span>
+            <span className="seller-chip">我的安排 {arrangement.plannedEnergy} 小时</span>
             <span className="seller-chip">固定预留 {arrangement.fixedEnergyReserve} 小时</span>
             <span className="seller-chip">可排余量 {arrangement.remainingEnergy} 小时</span>
             <span className="seller-chip seller-chip-accent">
@@ -606,7 +606,7 @@ function AgendaPanel({
         <div className="flex items-center justify-between gap-3">
           <div className="seller-label">今天要处理什么</div>
           <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">
-            固定 {arrangement.fixedItems.length} 件 · 我排 {arrangement.plannedItems.length} 件 · 已完成 {arrangement.completedItems.length} 件
+            已安排 {arrangement.fixedItems.length + arrangement.plannedItems.length} 件 · 已完成 {arrangement.completedItems.length} 件
           </span>
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2">
@@ -867,7 +867,7 @@ function HalfDayAgendaSection({
             title="我排的动作"
             helper={arrangement.plannedItems.length > 1
               ? '点击卡片或“切到这件”切换当前日程。'
-              : '当前日程可直接进入情境处理。'}
+              : '当前日程可直接进入情景处理。'}
           >
             {arrangement.plannedItems.map((item) => (
               <React.Fragment key={item.id}>
@@ -1079,7 +1079,7 @@ function PlannedArrangementCard({
         {isActive ? <span className="seller-chip seller-chip-accent">当前要做</span> : <span className="seller-chip">待处理</span>}
         <span className="seller-chip">{item.slot === 'pm' ? '下午' : '上午'}</span>
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${toneChipClass(item.tone)}`}>
-          {item.executionMode === 'scenario' ? '情境' : '直接处理'}
+          {item.executionMode === 'scenario' ? '情景' : '直接处理'}
         </span>
         {isWaiting && (
           <span className="seller-chip bg-[rgba(255,255,255,0.1)] text-[var(--seller-muted)] animate-pulse">⏳ 等待回复</span>
@@ -1108,7 +1108,7 @@ function PlannedArrangementCard({
             className="seller-button-primary rounded-[10px] px-3 py-2 text-[11px] disabled:opacity-50"
             title={item.disabledReason}
           >
-            {item.executionMode === 'scenario' ? '进入情境' : '立即处理'}
+            {item.executionMode === 'scenario' ? '进入情景' : '立即处理'}
           </button>
         ) : (
           <button

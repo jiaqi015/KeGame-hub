@@ -2,8 +2,11 @@ import type { Case, CustomerProfile, CustomerRuntimeState, GameState, Opportunit
 import { BALANCE } from '../config/balance.js';
 import { logEvent } from '../runtimeState.js';
 import { chance, clamp, intersections, randomInt } from '../utils.js';
+import { applyBrokerOwnerTrustDelta } from '../trustWriteHelper.js';
 import { getActiveOpportunities, MAX_ACTIVE_OPPORTUNITIES_PER_CASE, refreshOpportunityLabel } from './opportunityEngine.js';
 import { getRivalOutcomeControl, scaleProbability } from './outcomeControlRuntime.js';
+import { applyOpportunityIntentDeltaOnState, applyOpportunityConfidenceDeltaOnState, setOpportunityDaysLeftOnState, setOpportunityTouchedTodayOnState, setOpportunityVisibilityOnState, setOpportunityStatusOnState, setOpportunityLifecycleStatusOnState, setOpportunityStageIndexOnState, setOpportunityFit, findMatchStateForPair, ensureCustomerCaseMatchState } from '../opportunitySplitHelper.js';
+import type { PressureReceiptSink } from '../../core/world-state/competition/models.js';
 
 function buildDecisionStyle(customer: CustomerProfile): CustomerRuntimeState['decisionStyle'] {
   if (customer.urgency >= 76 && customer.activity >= 72) {
@@ -242,8 +245,8 @@ function syncOpportunityFromCustomer(
   const shouldBeVisible = runtime.interest >= 30 && runtime.confidence >= 24 && runtime.stageIndex >= 0;
   if (!shouldBeVisible) {
     if (opportunity) {
-      opportunity.status = 'lost';
-      refreshOpportunityLabel(opportunity);
+      setOpportunityStatusOnState(state, opportunity, 'lost', '客户不可见标记丢失');
+      refreshOpportunityLabel(state, opportunity);
     }
     return;
   }
@@ -291,17 +294,29 @@ function syncOpportunityFromCustomer(
   const previousStageIndex = opportunity.stageIndex;
   const previousDaysLeft = opportunity.daysLeft;
 
-  opportunity.fit = Math.round(runtime.fit);
-  opportunity.intent = Math.round(runtime.interest);
-  opportunity.confidence = Math.round(runtime.confidence);
-  opportunity.stageIndex = Math.max(opportunity.stageIndex, runtime.stageIndex);
+  // Sync from customer runtime to opportunity via helpers
+  // Ensure canonical match state exists, then write through helper
+  const match = ensureCustomerCaseMatchState(
+    state,
+    opportunity.customerId,
+    opportunity.caseId,
+    Math.round(runtime.fit),
+    Math.round(runtime.interest),
+    Math.round(runtime.confidence),
+    opportunity.budgetMax,
+    opportunity.priceSensitivity,
+  );
+  setOpportunityFit(state, match, Math.round(runtime.fit), '客户运行态同步匹配度');
+  applyOpportunityIntentDeltaOnState(state, opportunity, Math.round(runtime.interest) - opportunity.intent, '客户运行时同步意向', 0, 100);
+  applyOpportunityConfidenceDeltaOnState(state, opportunity, Math.round(runtime.confidence) - opportunity.confidence, '客户运行时同步置信度', 0, 100);
+  setOpportunityStageIndexOnState(state, opportunity, Math.max(opportunity.stageIndex, runtime.stageIndex), '客户运行时同步阶段');
   runtime.stageIndex = Math.max(runtime.stageIndex, Math.min(5, opportunity.stageIndex));
-  opportunity.lifecycleStatus = runtime.interactions > 0 ? 'active' : opportunity.lifecycleStatus;
+  setOpportunityLifecycleStatusOnState(state, opportunity, runtime.interactions > 0 ? 'active' : opportunity.lifecycleStatus, '客户运行时同步生命周期');
   if (previousStageIndex === opportunity.stageIndex) {
-    opportunity.daysLeft = previousDaysLeft;
+    setOpportunityDaysLeftOnState(state, opportunity, previousDaysLeft, '客户运行时同步剩余天数');
   }
-  opportunity.touchedToday = customerState.lastTouchDay === state.day;
-  refreshOpportunityLabel(opportunity);
+  setOpportunityTouchedTodayOnState(state, opportunity, customerState.lastTouchDay === state.day, '客户运行时同步今日触达');
+  refreshOpportunityLabel(state, opportunity);
 }
 
 export function initializeCustomerStates(state: GameState) {
@@ -339,7 +354,7 @@ export function progressCustomerDemand(state: GameState) {
   });
 }
 
-export function applyRivalPullOnCustomers(state: GameState) {
+export function applyRivalPullOnCustomers(state: GameState, sink?: PressureReceiptSink) {
   const { rivalCustomerPullScale } = getRivalOutcomeControl(state);
   const activeRivals = state.marketShadow.rivalListings.filter((entry) => entry.status === 'active');
   if (!activeRivals.length) return;
@@ -359,9 +374,27 @@ export function applyRivalPullOnCustomers(state: GameState) {
     const pressure = ((rival.leadSiphonPower + rival.heat + rival.freshness) / 3) * rivalCustomerPullScale;
     if (pressure < 58) return;
 
-    leadRuntime.interest = clamp(leadRuntime.interest - pressure / 18, 0, 100);
-    leadRuntime.confidence = clamp(leadRuntime.confidence - pressure / 24, 0, 100);
-    customerState.churnRisk = clamp(customerState.churnRisk + pressure / 22, 0, 100);
+    const interestDelta = -pressure / 18;
+    const confidenceDelta = -pressure / 24;
+    const churnDelta = pressure / 22;
+    leadRuntime.interest = clamp(leadRuntime.interest + interestDelta, 0, 100);
+    leadRuntime.confidence = clamp(leadRuntime.confidence + confidenceDelta, 0, 100);
+    customerState.churnRisk = clamp(customerState.churnRisk + churnDelta, 0, 100);
+
+    // Receipt: collect pressure input for rival customer pull
+    sink?.collectPressure({
+      source: 'rival-customer-pull',
+      caseId: leadCaseId,
+      day: state.day,
+      dimension: 'intent',
+      magnitude: Math.round(interestDelta * 100) / 100,
+      evidence: `客户注意力被竞品 ${rival.title} 分流（压力值 ${Math.round(pressure)}）。`,
+      sourceEntityId: rival.id,
+      sourceEntityLabel: rival.title,
+      evidenceKind: 'rival-customer-pull-attention',
+      evidenceStrength: Math.min(100, Math.round(pressure)),
+      customerRuntimeIds: [customerState.customerId],
+    });
 
     if (leadRuntime.interest < 42 && chance(scaleProbability(0.16, rivalCustomerPullScale, 0.85), state)) {
       customerState.status = 'comparing';
@@ -425,7 +458,7 @@ function pickLeadCaseId(
     .sort((left, right) => right[1] - left[1])[0]?.[0] || null;
 }
 
-export function applyCustomerFeedbackToCases(state: GameState) {
+export function applyCustomerFeedbackToCases(state: GameState, sink?: PressureReceiptSink) {
   const caseSummaries = new Map<string, {
     activeCustomers: number;
     highIntentCustomers: number;
@@ -464,14 +497,40 @@ export function applyCustomerFeedbackToCases(state: GameState) {
     if (caseItem.status !== 'active') return;
     const summary = caseSummaries.get(caseItem.id);
     if (!summary) {
+      const oldHeat = caseItem.heat;
+      const oldTrust = caseItem.trust;
       caseItem.heat = clamp(caseItem.heat - 3, 0, 100);
-      caseItem.trust = clamp(caseItem.trust - 1.5, 0, 100);
+      applyBrokerOwnerTrustDelta(state, caseItem, -1.5, '无活跃客户信任自然下降', 0, 100);
       caseItem.offers = 0;
+
+      // Receipt: no active customer feedback
+      sink?.collectPressure({
+        source: 'customer-feedback',
+        caseId: caseItem.id,
+        day: state.day,
+        dimension: 'heat',
+        magnitude: Math.round((caseItem.heat - oldHeat) * 100) / 100,
+        evidence: `${caseItem.title} 无活跃客户，热度自然下降。`,
+        evidenceKind: 'customer-no-active-leads',
+        evidenceStrength: 40,
+      });
+      sink?.collectPressure({
+        source: 'customer-feedback',
+        caseId: caseItem.id,
+        day: state.day,
+        dimension: 'trust',
+        magnitude: Math.round((caseItem.trust - oldTrust) * 100) / 100,
+        evidence: `${caseItem.title} 无活跃客户，业主信心下降。`,
+        evidenceKind: 'customer-no-active-leads',
+        evidenceStrength: 30,
+      });
       return;
     }
 
     const avgInterest = summary.totalInterest / Math.max(1, summary.activeCustomers);
     const avgConfidence = summary.totalConfidence / Math.max(1, summary.activeCustomers);
+    const oldHeat = caseItem.heat;
+    const oldTrust = caseItem.trust;
     caseItem.heat = clamp(
       caseItem.heat
         + (avgInterest - 52) / 10
@@ -481,15 +540,51 @@ export function applyCustomerFeedbackToCases(state: GameState) {
       0,
       100,
     );
-    caseItem.trust = clamp(
-      caseItem.trust
-        + (avgConfidence - 50) / 14
-        + summary.negotiatingCustomers * 0.7
-        + summary.selectedCustomers * 0.5
-        - summary.comparingCustomers * 0.45,
-      0,
-      100,
-    );
+    const trustDeltaExpr = (avgConfidence - 50) / 14
+      + summary.negotiatingCustomers * 0.7
+      + summary.selectedCustomers * 0.5
+      - summary.comparingCustomers * 0.45;
+    applyBrokerOwnerTrustDelta(state, caseItem, trustDeltaExpr, '客户反馈影响信任', 0, 100);
+
+    // Receipt: customer feedback effect on heat/trust
+    const heatDelta = Math.round((caseItem.heat - oldHeat) * 100) / 100;
+    const trustDelta = Math.round((caseItem.trust - oldTrust) * 100) / 100;
+    if (Math.abs(heatDelta) >= 0.01 || Math.abs(trustDelta) >= 0.01) {
+      const dominantSignal = summary.negotiatingCustomers > 0
+        ? 'customer-high-intent-feedback'
+        : summary.comparingCustomers > 0
+          ? 'customer-comparing'
+          : 'customer-no-active-leads';
+      const dominantStrength = summary.negotiatingCustomers > 0
+        ? 65
+        : summary.comparingCustomers > 0
+          ? 50
+          : 40;
+      if (Math.abs(heatDelta) >= 0.01) {
+        sink?.collectPressure({
+          source: 'customer-feedback',
+          caseId: caseItem.id,
+          day: state.day,
+          dimension: 'heat',
+          magnitude: heatDelta,
+          evidence: `${caseItem.title} 客户反馈：${summary.activeCustomers} 活跃 / ${summary.negotiatingCustomers} 谈判中 / ${summary.comparingCustomers} 比较中。`,
+          evidenceKind: dominantSignal,
+          evidenceStrength: dominantStrength,
+        });
+      }
+      if (Math.abs(trustDelta) >= 0.01) {
+        sink?.collectPressure({
+          source: 'customer-feedback',
+          caseId: caseItem.id,
+          day: state.day,
+          dimension: 'trust',
+          magnitude: trustDelta,
+          evidence: `${caseItem.title} 客户反馈影响业主信心：${summary.activeCustomers} 活跃 / ${summary.negotiatingCustomers} 谈判中。`,
+          evidenceKind: dominantSignal,
+          evidenceStrength: dominantStrength,
+        });
+      }
+    }
     caseItem.viewings = Math.max(caseItem.viewings, summary.activeCustomers);
     caseItem.offers = Math.max(caseItem.offers, summary.negotiatingCustomers > 0 ? 1 : 0);
 
@@ -544,14 +639,14 @@ export function touchCustomersForCase(
     );
     if (opportunity) {
       if (effect.revealShadow) {
-        opportunity.visibility = 'revealed';
+        setOpportunityVisibilityOnState(state, opportunity, 'revealed', '客户触达揭示');
       }
-      opportunity.touchedToday = true;
-      opportunity.intent = Math.round(runtime.interest);
-      opportunity.confidence = Math.round(runtime.confidence);
-      opportunity.stageIndex = Math.max(opportunity.stageIndex, runtime.stageIndex);
+      setOpportunityTouchedTodayOnState(state, opportunity, true, '客户触达标记');
+      applyOpportunityIntentDeltaOnState(state, opportunity, Math.round(runtime.interest) - opportunity.intent, '客户触达同步意向', 0, 100);
+      applyOpportunityConfidenceDeltaOnState(state, opportunity, Math.round(runtime.confidence) - opportunity.confidence, '客户触达同步置信度', 0, 100);
+      setOpportunityStageIndexOnState(state, opportunity, Math.max(opportunity.stageIndex, runtime.stageIndex), '客户触达同步阶段');
       runtime.stageIndex = Math.max(runtime.stageIndex, Math.min(5, opportunity.stageIndex));
-      refreshOpportunityLabel(opportunity);
+      refreshOpportunityLabel(state, opportunity);
     }
   });
 }

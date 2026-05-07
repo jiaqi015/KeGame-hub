@@ -67,7 +67,7 @@ function withSaveFields(state: GameState, input: Partial<Pick<GameState, 'runId'
   const targetCase = world.cases[0];
   assert.ok(targetCase, 'Expected case for action revision verification');
 
-  const result = executeGameAction(world, 'story', targetCase.id);
+  const result = executeGameAction(world, 'first-visit', targetCase.id);
   assert.equal(result.success, true, 'Expected executable action for revision verification');
 
   const changed = markLocalStateChange(result.nextState);

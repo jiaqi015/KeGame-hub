@@ -30,5 +30,11 @@ export {
 } from './legacyAdapter.js';
 
 export {
+  buildBrokerPOVSnapshot,
+  buildOwnerPOVSnapshot,
+  buildPressureReceiptSummary,
+} from './povAdapter.js';
+
+export {
   createCounterfactualWorldFork,
 } from './worldFork.js';

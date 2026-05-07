@@ -3,6 +3,8 @@ import { releaseMarketDealSlotsForDay } from './models.js';
 import { recordBudgetChange } from './budget.js';
 import type { DailyProcessResultSummary, DailyTickResult, DirtyScopeSet, GameState, TickInvariantAlert, Tone } from './models.js';
 import { addDays, average, clamp, getDayOfWeek, getRoutine } from './utils.js';
+import { applyBrokerOwnerTrustDelta } from './trustWriteHelper.js';
+import { applyOwnerCasePatienceDelta } from './ownerCaseReadinessHelper.js';
 import { evaluateFinalResult } from './resultEvaluation.js';
 import { logEvent, recordDomainEvent, updateDerivedState } from './runtimeState.js';
 import { getPromotionBudget } from './runtimeStats.js';
@@ -22,6 +24,16 @@ import {
   buildProductRunProcessResultSummary,
   settleNegotiationProcessesForDay,
 } from '../runtime/simulation/processes/index.js';
+import { buildLiveSemanticReceipt } from '../core/world-state/semantic-receipt/models.js';
+import { enrichSemanticReceiptWithDecisionBridge } from '../runtime/simulation/semanticReceiptEnrichment.js';
+import { buildDailyOperatingLedgerFromTickResult, enrichStateWithDailyOperatingLedger, enrichLedgerWithActionReceipts } from '../runtime/simulation/dailyOperatingLedgerAdapter.js';
+import { buildActionReceiptsForDay, buildCommitmentSettlementsForDay } from '../runtime/simulation/actionReceiptAdapter.js';
+import { buildProcessRunsFromState, enrichStateWithProcessRuns } from '../runtime/simulation/processRunAdapter.js';
+import { buildOwnerDecisionMomentsFromState, enrichStateWithOwnerDecisionMoments } from '../runtime/simulation/ownerDecisionMomentAdapter.js';
+import { buildStrategyForksFromState, enrichStateWithStrategyForks } from '../runtime/simulation/strategyForkAdapter.js';
+import { buildManagerInterventionFromFocusMeeting, enrichStateWithManagerInterventions } from '../runtime/simulation/managerInterventionAdapter.js';
+import { buildNegotiationReplaysFromState, enrichStateWithNegotiationReplays } from '../runtime/simulation/negotiationReplayAdapter.js';
+import { buildBusinessOutcomeReviewsFromState, enrichStateWithBusinessOutcomeReviews } from '../runtime/simulation/businessOutcomeReviewAdapter.js';
 import {
   adjustCaseOpportunities,
   closeOpportunity,
@@ -40,6 +52,7 @@ import {
 import { buildExpectations } from './engine/expectationEngine.js';
 import { checkForeshadowing, buryNewForeshadowings } from './engine/foreshadowingEngine.js';
 import { generateDailyNarrative, updateTopicHistory } from './engine/narrativeEngine.js';
+import { createPressureCollectionBuffer, buildPressureReceiptsFromBuffer } from '../core/world-state/competition/pressureBuffer.js';
 
 export {
   adjustCaseOpportunities,
@@ -278,6 +291,7 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
 
   const expectations = buildExpectations(state);
   const processResults: DailyProcessResultSummary[] = [];
+  const pressureBuffer = createPressureCollectionBuffer(settledDay);
 
   releaseMarketDealSlotsForDay(state, settledDay);
   updateMarkets(state);
@@ -286,23 +300,24 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
   applyDailyMarketEvent(state);
   tickRivalStores(state);
   tickRivalListings(state);
-  applyRivalPressure(state);
+  applyRivalPressure(state, pressureBuffer);
   tickCompanyPressure(state);
-  applyCompanyPressure(state);
+  applyCompanyPressure(state, pressureBuffer);
   updateCustomers(state);
   progressCustomerDemand(state);
-  applyRivalPullOnCustomers(state);
+  applyRivalPullOnCustomers(state, pressureBuffer);
   tickOpportunities(state);
-  applyCustomerFeedbackToCases(state);
-  tickCompetition(state);
-  fireScheduledEvents(state);
-  processResults.push(buildNegotiationProcessResultSummary(settleNegotiationProcessesForDay(state), { day: settledDay }));
+  applyCustomerFeedbackToCases(state, pressureBuffer);
+  tickCompetition(state, pressureBuffer);
+  fireScheduledEvents(state, pressureBuffer);
+  const negotiationResult = settleNegotiationProcessesForDay(state);
+  processResults.push(buildNegotiationProcessResultSummary(negotiationResult, { day: settledDay }));
   if (state.day >= state.maxDay - 7) {
     tryClaimOpenMarketDealForRivals(state);
   }
   tickCases(state);
   spawnPassiveLeads(state);
-  triggerRandomEvent(state);
+  triggerRandomEvent(state, pressureBuffer);
   settleMarketSignals(state);
 
   if (state.day % 7 === 0) {
@@ -334,6 +349,142 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
     .map((entry) => ({ actor: entry.actor, message: entry.message, tone: entry.tone }));
   const marketNews = randomEvents.map((entry) => entry.message);
 
+  const pressureReceipts = buildPressureReceiptsFromBuffer(pressureBuffer);
+
+  const semanticReceipts = buildLiveSemanticReceipt({
+    day: settledDay,
+    pressureReceipts: pressureReceipts
+      ? {
+          snapshotCount: pressureReceipts.snapshots.length,
+          decisionDeltaCount: pressureReceipts.decisionDeltas.length,
+          inputCount: pressureReceipts.inputCount,
+          day: pressureReceipts.day,
+        }
+      : undefined,
+    consensusReceipts: {
+      formationCount: negotiationResult.consensusReceipts.formations.length,
+      signedCount: negotiationResult.consensusReceipts.signedCount,
+      collapsedCount: negotiationResult.consensusReceipts.collapsedCount,
+      blockedCount: negotiationResult.consensusReceipts.blockedCount,
+      stillPendingCount: negotiationResult.consensusReceipts.stillPendingCount,
+      day: settledDay,
+    },
+  });
+
+  // Non-invasive bridge hook: enrich semantic receipt with daily decision bridge.
+  // Reads GameState only through established decision-support adapter boundaries
+  // (buildDecisionSupportContextFromLegacyState → buildBrokerPOVSnapshot).
+  // Does NOT alter rngCalls, cases, opportunities, closedDeals, eventStore,
+  // eventLog, or processResults. Preserves existing pressureReceipts and
+  // consensusReceipts. Deterministic: same state → same bridge.
+  const enrichedSemanticReceipts = enrichSemanticReceiptWithDecisionBridge(state, semanticReceipts);
+
+  // Non-invasive ledger hook: build per-day operating ledger from tick data.
+  // Reads only the already-computed enriched semantic receipt and dirty scopes.
+  // Does NOT alter rngCalls, cases, opportunities, closedDeals, eventStore,
+  // eventLog, or processResults. Upserts by day (no duplicates).
+  // Same state → same ledger entry (deterministic).
+  const activeCaseIdsAtEnd = state.cases
+    .filter((entry) => entry.status === 'active')
+    .map((entry) => entry.id)
+    .sort();
+  const settledDayDirtyScopes = buildDirtyScopes(state, settledDay, eventStoreStart, closedDealStart);
+  const settledDayClosedDeals = getNewEntriesAfterUnshift(state.closedDeals, closedDealStart);
+  const settledDayEmittedEvents = getNewEntriesAfterUnshift(state.eventStore, eventStoreStart);
+  const isGameOver = state.gameOver;
+
+  const ledgerDayEntry = buildDailyOperatingLedgerFromTickResult(
+    {
+      day: settledDay,
+      nextDay: state.day,
+      report: state.currentReport,
+      emittedEvents: settledDayEmittedEvents,
+      closedDeals: settledDayClosedDeals,
+      processResults,
+      settledDayProcessResults: [],
+      nextDaySetupProcessResults: [],
+      dirtyScopes: settledDayDirtyScopes,
+      invariantAlerts: collectInvariantAlerts(state),
+      pressureReceipts,
+      semanticReceipts: enrichedSemanticReceipts,
+    },
+    activeCaseIdsAtEnd,
+    isGameOver,
+  );
+
+  // Enrich ledger with action receipt and commitment settlement evidence.
+  // Reads from already-computed state arrays. Does NOT alter gameplay.
+  const dayActionReceipts = buildActionReceiptsForDay(state, settledDay);
+  const dayCommitmentSettlements = buildCommitmentSettlementsForDay(state, settledDay);
+  const enrichedLedger = enrichLedgerWithActionReceipts(
+    ledgerDayEntry,
+    dayActionReceipts,
+    dayCommitmentSettlements,
+  );
+  enrichStateWithDailyOperatingLedger(state, enrichedLedger);
+
+  // Non-invasive ProcessRun hook: aggregate action receipts into multi-day process runs.
+  // Reads from already-computed actionReceiptHistory. Does NOT alter gameplay.
+  // Upsert by runId (no duplicates). Deterministic: same state → same runs.
+  try {
+    const processRuns = buildProcessRunsFromState(state);
+    enrichStateWithProcessRuns(state, processRuns);
+  } catch {
+    // ProcessRun enrichment is non-invasive — swallow errors silently
+  }
+
+  // Non-invasive OwnerDecisionMoment hook: identify owner decision nodes.
+  // Reads from already-computed receipt/settlement/run history. Does NOT alter gameplay.
+  // Upsert by momentId (no duplicates). Deterministic: same state → same moments.
+  try {
+    const ownerMoments = buildOwnerDecisionMomentsFromState(state);
+    enrichStateWithOwnerDecisionMoments(state, ownerMoments);
+  } catch {
+    // OwnerDecisionMoment enrichment is non-invasive — swallow errors silently
+  }
+
+  // Non-invasive ManagerIntervention hook: generate manager intervention receipt
+  // when focus meeting selects cases. Reads only from FocusMeetingState.
+  // Does NOT alter rngCalls, cases, opportunities, closedDeals, eventStore.
+  try {
+    const managerReceipt = buildManagerInterventionFromFocusMeeting(state);
+    if (managerReceipt) {
+      enrichStateWithManagerInterventions(state, [managerReceipt]);
+    }
+  } catch {
+    // ManagerIntervention enrichment is non-invasive — swallow errors silently
+  }
+
+  // Non-invasive StrategyFork hook: generate read-only fork branch summaries.
+  // Reads from already-computed receipt/run history. Does NOT alter gameplay.
+  // Does NOT pollute main world. Deterministic: same state → same forks.
+  try {
+    const forks = buildStrategyForksFromState(state);
+    enrichStateWithStrategyForks(state, forks);
+  } catch {
+    // StrategyFork enrichment is non-invasive — swallow errors silently
+  }
+
+  // Non-invasive NegotiationReplay hook: generate replay summaries from
+  // consensus_to_contract ProcessRuns. Does NOT re-roll dice.
+  // Does NOT alter gameplay. Deterministic: same state → same replays.
+  try {
+    const replays = buildNegotiationReplaysFromState(state);
+    enrichStateWithNegotiationReplays(state, replays);
+  } catch {
+    // NegotiationReplay enrichment is non-invasive — swallow errors silently
+  }
+
+  // Non-invasive BusinessOutcomeReview hook: generate structured reviews
+  // from ended ProcessRuns. Does NOT create ContractFact.
+  // Does NOT alter gameplay. Deterministic: same state → same reviews.
+  try {
+    const reviews = buildBusinessOutcomeReviewsFromState(state);
+    enrichStateWithBusinessOutcomeReviews(state, reviews);
+  } catch {
+    // BusinessOutcomeReview enrichment is non-invasive — swallow errors silently
+  }
+
   const buildTickResult = (): DailyTickResult => {
     const processResultGroups = groupProcessResultsByTickPhase(processResults);
 
@@ -348,6 +499,8 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
       nextDaySetupProcessResults: processResultGroups.nextDaySetupProcessResults,
       dirtyScopes: buildDirtyScopes(state, settledDay, eventStoreStart, closedDealStart),
       invariantAlerts: collectInvariantAlerts(state),
+      pressureReceipts,
+      semanticReceipts: enrichedSemanticReceipts,
     };
   };
 
@@ -387,8 +540,8 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
     selected.forEach((entry) => {
       entry.isFocused = true;
       entry.heat = clamp(entry.heat + 12, 0, 100);
-      entry.trust = clamp(entry.trust + 4, 0, 100);
-      entry.patience = clamp(entry.patience + 3, 0, 100);
+      applyBrokerOwnerTrustDelta(state, entry, 4, '周四聚焦会入选');
+      applyOwnerCasePatienceDelta(state, entry, 3, '周四聚焦会入选', 0, 100);
       entry.touchedToday = true;
       entry.touchedOwnerToday = true;
       entry.lastTouchedDay = state.day;

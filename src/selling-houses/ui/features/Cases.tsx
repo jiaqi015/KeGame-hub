@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { GameState, Case, type Opportunity, type RivalListing } from '../../domain/models';
 import {
   buildCaseDetailProjection,
@@ -351,7 +351,7 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
                   <div className="grid min-w-0 gap-3 sm:grid-cols-[154px_minmax(0,1fr)]">
                     <ListingHeroImage caseItem={selectedCase} />
                     <div className="min-w-0">
-                      <div className="seller-label">当前房源</div>
+                      <div className="seller-label">单房决策 · 当前房源</div>
                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
                         <h2 className="seller-title text-[17px] leading-5">{selectedCase.title}</h2>
                         {selectedCase.isFocused && (
@@ -437,7 +437,7 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
 	                  <section className="seller-panel-soft relative px-3 py-3">
 	                    <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="seller-label">当前动作</div>
+                        <div className="seller-label">执行清单 · 当前动作</div>
                         <div className="mt-1 text-[14px] font-semibold leading-5 text-[var(--seller-ink)]">
                           {caseProjection?.listingLifecyclePhase.primaryActionLabel || '补关键一步。'}
                         </div>
@@ -449,7 +449,7 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
                         onClick={() => setBlockedActionPanelOpen((open) => !open)}
                         className="seller-chip seller-chip-accent disabled:cursor-default disabled:opacity-70"
                       >
-                        可做 {availableActionCount}/{ACTIONS.length} · 暂缓 {blockedActionCount}
+                        当前可做 {availableActionCount} / {ACTIONS.length} · 暂缓 {blockedActionCount}
                       </button>
 	                    </div>
 
@@ -526,11 +526,6 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
                         <SummaryPanel
                           title={deriveStrongPoint(selectedCase)}
                           detail={deriveWeakPoint(selectedCase)}
-                          points={[
-                            `准客情况 ${formatScoreBand(selectedCase.d1)}`,
-                            `房子条件 ${formatScoreBand(selectedCase.d2)}`,
-                            `业主配合 ${formatScoreBand(selectedCase.d3)}`,
-                          ]}
                         />
                         <HouseDimensionPosition caseItem={selectedCase} />
                         <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -801,16 +796,16 @@ function ListingHeroImage({ caseItem }: { caseItem: Case }) {
 }
 
 function HouseDimensionPosition({ caseItem }: { caseItem: Case }) {
-  const [rotationDeg, setRotationDeg] = useState(-16);
-  const [dragStart, setDragStart] = useState<{ x: number; rotation: number } | null>(null);
+  const [yawDeg, setYawDeg] = useState(26);
+  const [pitchDeg, setPitchDeg] = useState(-18);
+  const dragStartRef = useRef<{ x: number; y: number; yaw: number; pitch: number } | null>(null);
   const lead = clampScore(caseItem.d1) / 100;
   const house = clampScore(caseItem.d2) / 100;
   const owner = clampScore(caseItem.d3) / 100;
   const origin = { x: 30, y: 112 };
-  const rotation = (rotationDeg * Math.PI) / 180;
-  const leadAxis = { x: 102 * Math.cos(rotation), y: 26 * Math.sin(rotation) - 12 };
-  const houseAxis = { x: 0, y: -78 };
-  const ownerAxis = { x: -64 * Math.sin(rotation), y: 27 * Math.cos(rotation) };
+  const leadAxis = projectDimensionAxis({ x: 1, y: 0, z: 0 }, yawDeg, pitchDeg, 104);
+  const houseAxis = projectDimensionAxis({ x: 0, y: 1, z: 0 }, yawDeg, pitchDeg, 80);
+  const ownerAxis = projectDimensionAxis({ x: 0, y: 0, z: -1 }, yawDeg, pitchDeg, 68);
   const point = {
     x: origin.x + leadAxis.x * lead + houseAxis.x * house + ownerAxis.x * owner,
     y: origin.y + leadAxis.y * lead + houseAxis.y * house + ownerAxis.y * owner,
@@ -825,17 +820,21 @@ function HouseDimensionPosition({ caseItem }: { caseItem: Case }) {
   const topD = `${origin.x + ownerAxis.x + houseAxis.x},${origin.y + ownerAxis.y + houseAxis.y}`;
   const handlePointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
     event.currentTarget.setPointerCapture(event.pointerId);
-    setDragStart({ x: event.clientX, rotation: rotationDeg });
+    dragStartRef.current = { x: event.clientX, y: event.clientY, yaw: yawDeg, pitch: pitchDeg };
   };
   const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
+    const dragStart = dragStartRef.current;
     if (!dragStart) return;
-    setRotationDeg(clamp(dragStart.rotation + (event.clientX - dragStart.x) * 0.45, -58, 58));
+    const deltaX = event.clientX - dragStart.x;
+    const deltaY = event.clientY - dragStart.y;
+    setYawDeg(clamp(dragStart.yaw + deltaX * 0.38, -62, 62));
+    setPitchDeg(clamp(dragStart.pitch - deltaY * 0.22, -42, 26));
   };
   const handlePointerEnd = (event: React.PointerEvent<SVGSVGElement>) => {
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-    setDragStart(null);
+    dragStartRef.current = null;
   };
 
   return (
@@ -903,6 +902,29 @@ function HouseDimensionPosition({ caseItem }: { caseItem: Case }) {
       </div>
     </div>
   );
+}
+
+function projectDimensionAxis(
+  axis: { x: number; y: number; z: number },
+  yawDeg: number,
+  pitchDeg: number,
+  length: number,
+) {
+  const yaw = (yawDeg * Math.PI) / 180;
+  const pitch = (pitchDeg * Math.PI) / 180;
+  const cosYaw = Math.cos(yaw);
+  const sinYaw = Math.sin(yaw);
+  const cosPitch = Math.cos(pitch);
+  const sinPitch = Math.sin(pitch);
+
+  const rotatedX = axis.x * cosYaw + axis.z * sinYaw;
+  const rotatedZ = -axis.x * sinYaw + axis.z * cosYaw;
+  const rotatedY = axis.y * cosPitch - rotatedZ * sinPitch;
+
+  return {
+    x: rotatedX * length,
+    y: -rotatedY * length,
+  };
 }
 
 function DiagnosisBriefRow({
@@ -986,15 +1008,16 @@ function SummaryPanel({
 }: {
   title: string;
   detail: string;
-  points: string[];
+  points?: string[];
 }) {
+  const pointList = points || [];
   return (
     <div className="seller-tablet px-3 py-2.5">
       <div className="text-[12px] font-semibold leading-5 text-[var(--seller-ink)]">{title}</div>
       <p className="seller-body mt-1 text-[11px] leading-5">{detail}</p>
-      {points.length > 0 && (
+      {pointList.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5">
-          {points.map((point) => (
+          {pointList.map((point) => (
             <span key={`${title}-${point}`} className="seller-chip">
               {point}
             </span>

@@ -17,17 +17,19 @@ import { applyAuxiliaryStats } from './runtimeStats.js';
 import { logEvent, recordDomainEvent } from './runtimeState.js';
 import { closeOpportunity, refreshOpportunityLabel } from './engine/opportunityEngine.js';
 import { clamp, randomInt } from './utils.js';
+import { applyBrokerOwnerTrustDelta } from './trustWriteHelper.js';
 import { markCaseSold } from './caseOutcome.js';
+import { applyOpportunityIntentDeltaOnState, applyOpportunityConfidenceDeltaOnState, setOpportunityDaysLeftOnState, setOpportunityTouchedTodayOnState, setOpportunityPendingClosingOnState, setOpportunityStatusOnState, findBrokeredStateForOpportunity, findMatchStateForPair, ensureCustomerCaseMatchState, ensureBrokeredOpportunityState } from './opportunitySplitHelper.js';
+import { ensureConsensusFormation, setConsensusEvaluationOnState, setConsensusStageOnState, markConsensusSignedOnState, markConsensusCollapsedOnState, ensureConsensusRuntime, createContractFactOnState, createOpportunityClosureOnState, findContractForCase } from './consensusFormationHelper.js';
+import { buildConsensusFormationId } from '../core/world-state/consensus/writeSource.js';
 
 function resolveNegotiationStrategy(strategyId?: string | null) {
   const strategies = BALANCE.actions.negotiation.strategies;
   return strategies[strategyId === 'hold' || strategyId === 'close' || strategyId === 'balanced' ? strategyId : 'balanced'];
 }
 
-function clearPendingDealClosing(opportunity: Opportunity) {
-  opportunity.pendingClosingEvaluation = false;
-  opportunity.pendingClosingStrategyId = undefined;
-  opportunity.pendingClosingRequestedDay = undefined;
+function clearPendingDealClosing(state: GameState, opportunity: Opportunity) {
+  setOpportunityPendingClosingOnState(state, opportunity, false, '', 0, '清空待结算状态');
 }
 
 function calculateNegotiationSuccessScore(
@@ -69,15 +71,60 @@ function finalizeClosedDeal(
   wordOfMouthBonus: number,
 ) {
   if (state.closedDeals.some((entry) => entry.caseId === caseItem.id)) {
-    clearPendingDealClosing(opportunity);
+    clearPendingDealClosing(state, opportunity);
     return;
   }
+
+  // Mark consensus as signed on successful close, then create canonical artifacts
+  const signedBrokered = findBrokeredStateForOpportunity(state, opportunity.id);
+  const consensusId = signedBrokered
+    ? buildConsensusFormationId(signedBrokered.brokeredOpportunityId)
+    : undefined;
+  if (signedBrokered) {
+    markConsensusSignedOnState(state, signedBrokered.brokeredOpportunityId, state.day, 'deal closed');
+  }
+
+  // Create ContractFact (canonical terminal fact — guarded against duplicates)
+  const contractFact = consensusId
+    ? createContractFactOnState(
+        state,
+        consensusId,
+        signedBrokered!.brokeredOpportunityId,
+        caseItem.id,
+        opportunity.customerId,
+        soldPrice,
+        'self_closed',
+        state.day,
+        `deal-${caseItem.id}-${opportunity.customerId}-${state.day}`,
+        evaluation.closeReadiness,
+        evaluation.closeProbability,
+        evaluation.blockingReasons,
+        evaluation.supportingReasons,
+      )
+    : undefined;
+
+  // Create OpportunityClosureSet (one contract closes many opportunities)
+  const closureSet = contractFact
+    ? createOpportunityClosureOnState(
+        state,
+        contractFact.contractId,
+        opportunity.id,
+        state.opportunities
+          .filter((e) => e.caseId === caseItem.id)
+          .map((e) => e.id),
+        state.opportunities
+          .filter((e) => e.caseId === caseItem.id && e.customerId !== opportunity.customerId)
+          .map((e) => e.customerId),
+        'deal closed — related opportunities closed',
+        state.day,
+      )
+    : undefined;
 
   const saleBalance = BALANCE.actions.sale;
   caseItem.status = 'sold';
   caseItem.soldPrice = soldPrice;
   caseItem.stageLabel = '已成交';
-  caseItem.trust = clamp(caseItem.trust + saleBalance.soldTrustBonus, 0, 100);
+  applyBrokerOwnerTrustDelta(state, caseItem, saleBalance.soldTrustBonus, '成交信任奖励', 0, 100);
   caseItem.heat = clamp(caseItem.heat + saleBalance.soldHeatBonus, 0, 100);
 
   markCaseSold(caseItem, soldPrice);
@@ -108,12 +155,16 @@ function finalizeClosedDeal(
     if (entry.caseId !== caseItem.id || entry.status !== 'active') {
       return;
     }
-    entry.status = entry.id === opportunity.id ? 'won' : 'closed';
-    clearPendingDealClosing(entry);
-    refreshOpportunityLabel(entry);
+    setOpportunityStatusOnState(state, entry, entry.id === opportunity.id ? 'won' : 'closed', '成交结算');
+    clearPendingDealClosing(state, entry);
+    refreshOpportunityLabel(state, entry);
   });
 
   const closedDeal = buildClosedDealRecord(state, caseItem, opportunity, soldPrice, evaluation);
+  // Attach canonical traceability bridge IDs (optional, non-breaking)
+  if (consensusId) closedDeal.consensusId = consensusId;
+  if (contractFact) closedDeal.contractId = contractFact.contractId;
+  if (closureSet) closedDeal.closureSetId = closureSet.closureSetId;
   state.closedDeals.unshift(closedDeal);
 
   state.customerStates.forEach((customerState) => {
@@ -175,18 +226,25 @@ function resolveFailedPendingClosing(
   const isPragmatic = caseItem.personality === 'pragmatic';
   const isEmotional = caseItem.personality === 'emotional';
 
-  opportunity.intent = clamp(opportunity.intent - strategy.loss, 0, 100);
-  opportunity.confidence = clamp(opportunity.confidence - negotiationBalance.confidenceLossOnFailure, 0, 100);
-  opportunity.daysLeft = negotiationBalance.failureDaysLeft;
-  opportunity.touchedToday = true;
+  applyOpportunityIntentDeltaOnState(state, opportunity, -strategy.loss, '谈判失败意向下降', 0, 100);
+  applyOpportunityConfidenceDeltaOnState(state, opportunity, -negotiationBalance.confidenceLossOnFailure, '谈判失败置信度下降', 0, 100);
+  setOpportunityDaysLeftOnState(state, opportunity, negotiationBalance.failureDaysLeft, '谈判失败设定剩余天数');
+  setOpportunityTouchedTodayOnState(state, opportunity, true, '谈判失败标记今日触达');
   const trustHit = strategy.priceFactor === 1
     ? (isUrgent ? negotiationBalance.trustHit.hold.urgent : isPragmatic ? negotiationBalance.trustHit.hold.pragmatic : negotiationBalance.trustHit.hold.default)
     : strategyId === 'close'
       ? (isUrgent ? negotiationBalance.trustHit.close.urgent : isEmotional ? negotiationBalance.trustHit.close.emotional : negotiationBalance.trustHit.close.default)
       : (isUrgent ? negotiationBalance.trustHit.balanced.urgent : isPragmatic ? negotiationBalance.trustHit.balanced.pragmatic : negotiationBalance.trustHit.balanced.default);
-  caseItem.trust = clamp(caseItem.trust - trustHit, 0, 100);
+  applyBrokerOwnerTrustDelta(state, caseItem, -trustHit, '谈判失败信任受损', 0, 100);
 
-  clearPendingDealClosing(opportunity);
+  clearPendingDealClosing(state, opportunity);
+
+  // Mark consensus as collapsed on failure
+  const failedBrokered = findBrokeredStateForOpportunity(state, opportunity.id);
+  if (failedBrokered) {
+    markConsensusCollapsedOnState(state, failedBrokered.brokeredOpportunityId, state.day, 'negotiation failed');
+  }
+
   if (opportunity.intent < negotiationBalance.lostIntentThreshold) {
     closeOpportunity(state, opportunity, 'lost', `${opportunity.customerName} 最后没崩住，摔门走了，这单彻底黄了。`, 'danger');
     return;
@@ -209,8 +267,14 @@ function resolveCapacityBlockedPendingClosing(
   caseItem: Case,
   opportunity: Opportunity,
 ) {
-  clearPendingDealClosing(opportunity);
-  refreshOpportunityLabel(opportunity);
+  // Mark consensus as collapsed on capacity block
+  const blockedBrokered = findBrokeredStateForOpportunity(state, opportunity.id);
+  if (blockedBrokered) {
+    markConsensusCollapsedOnState(state, blockedBrokered.brokeredOpportunityId, state.day, 'market capacity blocked');
+  }
+
+  clearPendingDealClosing(state, opportunity);
+  refreshOpportunityLabel(state, opportunity);
   const feedback = '今日成交窗口已被占满，客户意向仍在，建议明天优先跟进确认。';
   recordDomainEvent(state, {
     kind: 'journal',
@@ -235,12 +299,33 @@ export function queueDealClosingEvaluation(
   opportunity: Opportunity,
   strategyId?: string | null,
 ) {
-  opportunity.pendingClosingEvaluation = true;
-  opportunity.pendingClosingStrategyId = strategyId || 'balanced';
-  opportunity.pendingClosingRequestedDay = state.day;
-  opportunity.touchedToday = true;
-  opportunity.daysLeft = Math.max(opportunity.daysLeft, 2);
-  refreshOpportunityLabel(opportunity);
+  // Ensure canonical state exists
+  const match = ensureCustomerCaseMatchState(
+    state, opportunity.customerId, opportunity.caseId,
+    opportunity.fit, opportunity.intent, opportunity.confidence,
+    opportunity.budgetMax, opportunity.priceSensitivity,
+  );
+  const brokered = ensureBrokeredOpportunityState(state, opportunity, match.matchId);
+
+  // Create ConsensusFormation for this opportunity
+  ensureConsensusFormation(
+    state,
+    brokered.brokeredOpportunityId,
+    match.matchId,
+    caseItem.id,
+    opportunity.customerId,
+    strategyId || 'balanced',
+    state.day,
+  );
+
+  // Advance consensus stage to at least price_gap_visible
+  setConsensusStageOnState(state, brokered.brokeredOpportunityId, 'price_gap_visible', state.day, 'queue closing evaluation');
+
+  // Legacy mirror writes (preserved for backward compatibility)
+  setOpportunityPendingClosingOnState(state, opportunity, true, strategyId || 'balanced', state.day, '请求结算评估');
+  setOpportunityTouchedTodayOnState(state, opportunity, true, '请求结算标记今日触达');
+  setOpportunityDaysLeftOnState(state, opportunity, Math.max(opportunity.daysLeft, 2), '请求结算确保剩余天数');
+  refreshOpportunityLabel(state, opportunity);
   logEvent(state, opportunity.customerName, `${caseItem.title} 马上要见真章了。今晚关门算总账，看看底牌能不能碰上。`, 'accent');
 }
 
@@ -249,11 +334,11 @@ export function settlePendingDealClosings(state: GameState) {
   pendingOpportunities.forEach((opportunity) => {
     const caseItem = state.cases.find((entry) => entry.id === opportunity.caseId);
     if (!caseItem || caseItem.status !== 'active') {
-      clearPendingDealClosing(opportunity);
+      clearPendingDealClosing(state, opportunity);
       return;
     }
     if (state.closedDeals.some((entry) => entry.caseId === caseItem.id)) {
-      clearPendingDealClosing(opportunity);
+      clearPendingDealClosing(state, opportunity);
       return;
     }
 
@@ -261,7 +346,40 @@ export function settlePendingDealClosings(state: GameState) {
     const strategy = resolveNegotiationStrategy(strategyId);
     const soldPrice = Math.round(caseItem.askPrice * strategy.priceFactor);
     const evaluation = buildDealClosingEvaluation(state, caseItem, opportunity, soldPrice, strategyId);
+
+    // Write evaluation into ConsensusFormation (canonical)
+    const match = findMatchStateForPair(state, opportunity.customerId, opportunity.caseId);
+    const brokered = match ? findBrokeredStateForOpportunity(state, opportunity.id) : undefined;
+    if (match && brokered) {
+      // Ensure consensus exists and write evaluation
+      const consensus = ensureConsensusFormation(
+        state,
+        brokered.brokeredOpportunityId,
+        match.matchId,
+        caseItem.id,
+        opportunity.customerId,
+        strategyId,
+        state.day,
+      );
+      setConsensusEvaluationOnState(state, brokered.brokeredOpportunityId, {
+        closeReadiness: evaluation.closeReadiness,
+        closeProbability: evaluation.closeProbability,
+        blockers: evaluation.blockingReasons,
+        supportingFactors: evaluation.supportingReasons,
+        strategyId,
+      }, state.day, 'settle evaluation');
+
+      // Advance stage based on evaluation
+      const hasBlockers = evaluation.blockingReasons.length > 0;
+      const nextStage = hasBlockers ? 'negotiable_zone' : 'contract_ready';
+      setConsensusStageOnState(state, brokered.brokeredOpportunityId, nextStage, state.day, 'evaluation stage advance');
+    }
+
     if (isClosingBlockedByMarketCapacity(state, evaluation)) {
+      // Mark consensus as collapsed on capacity block
+      if (brokered) {
+        markConsensusCollapsedOnState(state, brokered.brokeredOpportunityId, state.day, 'market capacity blocked');
+      }
       resolveCapacityBlockedPendingClosing(state, caseItem, opportunity);
       return;
     }
@@ -269,6 +387,10 @@ export function settlePendingDealClosings(state: GameState) {
 
     if (canClose) {
       if (claimPlayerMarketDealSlot(state)) {
+        // Mark consensus as signed before finalizing (canonical write)
+        if (brokered) {
+          markConsensusSignedOnState(state, brokered.brokeredOpportunityId, state.day, 'deal closed');
+        }
         finalizeClosedDeal(state, caseItem, opportunity, soldPrice, evaluation, strategy.wordOfMouthBonus);
       } else {
         resolveCapacityBlockedPendingClosing(state, caseItem, opportunity);
@@ -340,7 +462,8 @@ export function buildClosedDealRecord(
   soldPrice: number,
   evaluation: DealClosingEvaluation,
 ): ClosedDealRecord {
-  const closedAt = new Date().toISOString();
+  // Deterministic closedAt: derive from state.currentDate (replay-safe, no wall clock)
+  const closedAt = `${state.currentDate}T00:00:00.000Z`;
   const discountToAskPct = Math.round(((soldPrice - caseItem.askPrice) / Math.max(caseItem.askPrice, 1)) * 1000) / 10;
   const premiumToMarketPct = Math.round(((soldPrice - caseItem.marketPrice) / Math.max(caseItem.marketPrice, 1)) * 1000) / 10;
 

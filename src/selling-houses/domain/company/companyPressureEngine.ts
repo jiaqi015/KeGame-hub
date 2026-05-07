@@ -2,6 +2,8 @@ import { logEvent } from '../runtimeState.js';
 import type { GameState, InboundOpportunity } from '../models.js';
 import { chance, clamp, randomInt } from '../utils.js';
 import { applyInboundOpportunity } from '../market/inboundOpportunityEngine.js';
+import { applyOpportunityIntentDeltaOnState, applyOpportunityConfidenceDeltaOnState } from '../opportunitySplitHelper.js';
+import type { PressureReceiptSink } from '../../core/world-state/competition/models.js';
 
 export function tickCompanyPressure(state: GameState) {
   const pressure = state.marketShadow.companyPressure;
@@ -21,7 +23,7 @@ export function tickCompanyPressure(state: GameState) {
   );
 }
 
-export function applyCompanyPressure(state: GameState) {
+export function applyCompanyPressure(state: GameState, sink?: PressureReceiptSink) {
   const pressure = state.marketShadow.companyPressure;
   const activeOpps = state.opportunities.filter((entry) => entry.status === 'active');
 
@@ -29,8 +31,37 @@ export function applyCompanyPressure(state: GameState) {
     activeOpps
       .filter((entry) => entry.leadSource === 'broker' || entry.visibility === 'shadow')
       .forEach((entry) => {
-        entry.intent = clamp(entry.intent - pressure.sharedLeadPressure / 95, 0, 100);
-        entry.confidence = clamp(entry.confidence - pressure.internalCompetitionHeat / 120, 0, 100);
+        const intentDelta = -pressure.sharedLeadPressure / 95;
+        const confidenceDelta = -pressure.internalCompetitionHeat / 120;
+        applyOpportunityIntentDeltaOnState(state, entry, intentDelta, '公司内部共享线索压力', 0, 100);
+        applyOpportunityConfidenceDeltaOnState(state, entry, confidenceDelta, '公司内部竞争热度', 0, 100);
+
+        sink?.collectPressure({
+          source: 'company-pressure',
+          caseId: entry.caseId,
+          day: state.day,
+          dimension: 'intent',
+          magnitude: Math.round(intentDelta * 100) / 100,
+          evidence: `公司内部共享线索压力（${Math.round(pressure.sharedLeadPressure)}）导致 ${entry.customerName} 意向下降。`,
+          sourceEntityId: 'company-pressure-state',
+          sourceEntityLabel: '公司内部竞争',
+          evidenceKind: 'company-shared-lead-pressure',
+          evidenceStrength: Math.min(100, Math.round(pressure.sharedLeadPressure)),
+          opportunityIds: [entry.id],
+        });
+        sink?.collectPressure({
+          source: 'company-pressure',
+          caseId: entry.caseId,
+          day: state.day,
+          dimension: 'confidence',
+          magnitude: Math.round(confidenceDelta * 100) / 100,
+          evidence: `公司内部竞争热度（${Math.round(pressure.internalCompetitionHeat)}）导致 ${entry.customerName} 置信度下降。`,
+          sourceEntityId: 'company-pressure-state',
+          sourceEntityLabel: '公司内部竞争',
+          evidenceKind: 'company-internal-competition',
+          evidenceStrength: Math.min(100, Math.round(pressure.internalCompetitionHeat)),
+          opportunityIds: [entry.id],
+        });
       });
 
     if (chance(0.16, state)) {

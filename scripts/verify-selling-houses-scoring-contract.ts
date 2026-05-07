@@ -46,7 +46,7 @@ function scoreForStage(stageIndex: number) {
       stagnationTicks: 0,
       history: [{ day: world.day, stage: OPPORTUNITY_STAGES[stageIndex] }],
     };
-    refreshOpportunityLabel(entry);
+    refreshOpportunityLabel(world, entry);
     return entry;
   });
 

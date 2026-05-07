@@ -1,5 +1,6 @@
 import { logEvent } from '../runtimeState.js';
 import { clamp } from '../utils.js';
+import { applyBrokerOwnerTrustDelta } from '../trustWriteHelper.js';
 import {
   adjustCaseOpportunities,
   createOpportunity,
@@ -15,7 +16,7 @@ export const OPEN_DAY_ACTION_EXECUTORS: ActionExecutorMap = {
     const strategy = optionId || 'quality-open-day';
     caseItem.openDayCooldown = 4;
     caseItem.heat = clamp(caseItem.heat + (strategy === 'heat-open-day' ? 18 : strategy === 'quality-open-day' ? 14 : 16), 0, 100);
-    caseItem.trust = clamp(caseItem.trust + (strategy === 'conversion-open-day' ? 4 : 3), 0, 100);
+    applyBrokerOwnerTrustDelta(state, caseItem, (strategy === 'conversion-open-day' ? 4 : 3), '开放日提升信任', 0, 100);
     caseItem.viewings += 1;
     adjustCaseOpportunities(state, caseItem.id, strategy === 'quality-open-day' ? 10 : 8, strategy === 'conversion-open-day' ? 8 : 6);
     createOpportunity(state, caseItem, 'open-day', strategy === 'quality-open-day' ? 18 : 15);

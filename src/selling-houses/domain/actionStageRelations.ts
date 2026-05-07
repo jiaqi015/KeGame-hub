@@ -1,6 +1,7 @@
 import { CASE_STAGES, OPPORTUNITY_STAGES } from './constants.js';
 import type { Case, GameState, Opportunity } from './models.js';
 import { clamp, getOpportunityPriority } from './utils.js';
+import { setOpportunityStageIndexOnState, setOpportunityTouchedTodayOnState } from './opportunitySplitHelper.js';
 
 export type CaseProgressPhase =
   | 'pre_visit'
@@ -297,12 +298,8 @@ function findRelationOpportunity(
 
 function applyOpportunityStageFloor(world: GameState, opportunity: Opportunity, floor: number) {
   const nextStageIndex = clamp(Math.max(opportunity.stageIndex, floor), 0, OPPORTUNITY_STAGES.length - 1);
-  if (nextStageIndex === opportunity.stageIndex) {
-    opportunity.stageLabel = OPPORTUNITY_STAGES[nextStageIndex];
-    return;
-  }
-  opportunity.stageIndex = nextStageIndex;
-  opportunity.stageLabel = OPPORTUNITY_STAGES[nextStageIndex];
+  // Always sync stageLabel via helper (even if index unchanged, label may need refresh)
+  setOpportunityStageIndexOnState(world, opportunity, nextStageIndex, '阶段下限推进');
   opportunity.history.push({ day: world.day, stage: opportunity.stageLabel });
 }
 
@@ -328,7 +325,7 @@ export function applyActionStageRelation(
   const targetOpportunity = opportunity || findRelationOpportunity(world, caseItem.id, relation);
   if (targetOpportunity && Number.isFinite(relation.opportunityStageFloor)) {
     applyOpportunityStageFloor(world, targetOpportunity, relation.opportunityStageFloor || 0);
-    targetOpportunity.touchedToday = true;
+    setOpportunityTouchedTodayOnState(world, targetOpportunity, true, '阶段关系推进标记触达');
   }
 
   if (Number.isFinite(relation.caseStageFloor)) {

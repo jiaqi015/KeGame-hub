@@ -1,6 +1,6 @@
 # 模块地图
 
-最后整理：2026-04-21
+最后整理：2026-05-06
 
 这份文件只回答一个问题：要改某块功能，第一站该去哪里看。
 
@@ -18,6 +18,8 @@
   - 业务架构、数据模型、迁移文档和项目记忆。
   - `docs/global-persistence-dba-unified-design.md`
     - 全局持久化与 DBA 统一设计总纲。
+  - `docs/selling-houses-mother-model-agent-workplan.md`
+    - 资产顾问母模型迁移、Daily Decision Bridge、A/B/C/D 任务和验收口径的当前总控。
 - `server.ts`
   - 本地开发服务入口，承接前端开发服务和本地 API。
 
@@ -126,6 +128,8 @@
 
 ### 领域层
 
+- `src/selling-houses/core/`
+  - 母模型迁移的核心收口区，包括 world-state、evaluation、decision、narrative、LLM boundary、semantic receipt 等只读合同和适配层。
 - `src/selling-houses/domain/models.ts`
   - 核心模型。
 - `src/selling-houses/domain/engine.ts`
@@ -189,6 +193,8 @@
 
 - `docs/selling-houses-master.md`
   - 卖房总纲与旧文档处置锚点。
+- `docs/selling-houses-mother-model-agent-workplan.md`
+  - 当前母模型迁移工作板。A/B/C/D 提示词、Daily Decision Bridge 轮次、gate、报告和 P1/P2 清单以这里为准。
 - `docs/selling-houses-total-design.md`
   - 卖房总设计稿，把业务、世界模型、引擎、页面、结算和落地闭环收成一份可读总说明。
 - `docs/selling-houses-domain-architecture-v1.md`

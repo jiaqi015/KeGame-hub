@@ -47,6 +47,7 @@ export {
   buildAssetScoreSnapshotFromLegacyCaseWithCompetition,
   buildAssetScoreSnapshotFromLegacyCaseWithPressureReceipts,
   buildCaseEvaluationSnapshotsFromLegacyState,
+  buildCaseEvaluationSnapshotsFromLegacyStateWithRelations,
   buildD4CompetitionServicePathDimension,
   buildD4ConfidenceFromCoverage,
   buildD4ReceiptCoverageReport,
@@ -70,3 +71,38 @@ export type {
   LegacyDimensionMapping,
   OwnerReadinessComparison,
 } from './comparison-helpers.js';
+
+export {
+  readTrust,
+  readTrustValue,
+  readTrustFromState,
+  findRelationTrustForCase,
+  buildCaseRelationId,
+} from './trustReadBoundary.js';
+
+export type {
+  TrustReadResult,
+  TrustReadSource,
+  TrustCaseShape,
+  TrustRelationShape,
+  BrokerOwnerRelationTrustStateShape,
+  StateWithRelations,
+} from './trustReadBoundary.js';
+
+export {
+  readPatience,
+  readUrgency,
+  readOwnerCaseValues,
+  readOwnerCaseValuesFromState,
+  findOwnerCaseRelationForCase,
+} from './ownerCaseReadBoundary.js';
+
+export type {
+  OwnerCaseReadResult,
+  OwnerCaseReadSource,
+  OwnerCaseShape,
+  OwnerRelationShape,
+  OwnerCaseReadResults,
+  OwnerCaseRelationReadinessShape,
+  StateWithOwnerCaseRelations,
+} from './ownerCaseReadBoundary.js';

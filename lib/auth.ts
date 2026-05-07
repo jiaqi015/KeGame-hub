@@ -901,7 +901,22 @@ export async function authorizeSessionPersisted(req: any): Promise<SessionAuthor
   if (sessionToken) {
     const payload = parseSessionToken(sessionToken);
     if (payload && payload.exp > Date.now()) {
-      const storedUser = await neonGetUser(payload.email);
+      let storedUser: AuthNeonUser | null = null;
+      try {
+        storedUser = await neonGetUser(payload.email);
+      } catch (error) {
+        console.warn('[auth] Neon session lookup failed; falling back to signed session payload.', error);
+        return {
+          ok: true,
+          accountId: payload.accountId || deriveAccountIdFromEmail(payload.email),
+          email: payload.email,
+          nickname: payload.nickname,
+          displayName: payload.displayName,
+          allowedWorkspaces: payload.allowedWorkspaces,
+          source: 'session',
+        };
+      }
+
       if (storedUser) {
         const authRecord = neonUserToAuthRecord(storedUser);
         return {

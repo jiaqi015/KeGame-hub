@@ -1,6 +1,26 @@
-import type { ClosedDealRecord } from '../../domain/models.js';
-
-export type LegacyClosedDealField = keyof ClosedDealRecord;
+/** Local field union — avoids core→domain import. Must match ClosedDealRecord keys. */
+export type LegacyClosedDealField =
+  | 'dealId'
+  | 'caseId'
+  | 'customerId'
+  | 'sourceRelationId'
+  | 'opportunityId'
+  | 'dayIndex'
+  | 'day'
+  | 'closedAt'
+  | 'dealType'
+  | 'dealPrice'
+  | 'price'
+  | 'closeReadiness'
+  | 'closeProbability'
+  | 'blockingReasons'
+  | 'supportingReasons'
+  | 'caseTitle'
+  | 'customerName'
+  | 'ownerName'
+  | 'maintainerName'
+  | 'marketSnapshot'
+  | 'priceSnapshot';
 
 export type LegacyClosedDealCanonicalOwner =
   | 'contract-fact'
@@ -117,29 +137,29 @@ export const LEGACY_CLOSED_DEAL_FIELD_OWNERSHIP_REGISTRY: Readonly<
     canonicalOwner: 'consensus-outcome',
     legacyRole: 'compatibility-mirror',
     domainFacet: 'consensus',
-    targetConcept: 'ConsensusFormationReceipt.closeReadiness',
-    migrationNote: 'Close readiness mirrors consensus formation outcome at time of deal.',
+    targetConcept: 'ConsensusFormationReceipt.closeReadiness / ContractFact.closeReadiness',
+    migrationNote: 'Close readiness mirrors consensus formation outcome at time of deal. See consensus/models.ts.',
   },
   closeProbability: {
     canonicalOwner: 'consensus-outcome',
     legacyRole: 'compatibility-mirror',
     domainFacet: 'consensus',
-    targetConcept: 'ConsensusFormationReceipt.closeProbability',
-    migrationNote: 'Close probability mirrors consensus formation outcome at time of deal.',
+    targetConcept: 'ConsensusFormationReceipt.closeProbability / ContractFact.closeProbability',
+    migrationNote: 'Close probability mirrors consensus formation outcome at time of deal. See consensus/models.ts.',
   },
   blockingReasons: {
     canonicalOwner: 'consensus-outcome',
     legacyRole: 'compatibility-mirror',
     domainFacet: 'consensus',
-    targetConcept: 'ConsensusFormationReceipt.blockers',
-    migrationNote: 'Blocking reasons mirror consensus formation blockers at time of deal.',
+    targetConcept: 'ConsensusFormationReceipt.blockers / ConsensusBlocker[]',
+    migrationNote: 'Blocking reasons mirror consensus formation blockers. Parsed into typed ConsensusBlocker[]. See consensus/legacyAdapter.ts.',
   },
   supportingReasons: {
     canonicalOwner: 'consensus-outcome',
     legacyRole: 'compatibility-mirror',
     domainFacet: 'consensus',
     targetConcept: 'ConsensusFormationReceipt.supportingFactors',
-    migrationNote: 'Supporting reasons mirror consensus formation supporting factors at time of deal.',
+    migrationNote: 'Supporting reasons mirror consensus formation supporting factors. See consensus/models.ts.',
   },
   caseTitle: {
     canonicalOwner: 'deprecated-legacy',

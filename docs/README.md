@@ -1,6 +1,6 @@
 # 文档总索引
 
-最后整理：2026-04-21
+最后整理：2026-05-06
 
 这份索引只解决一个问题：
 
@@ -24,6 +24,8 @@
    先分清哪些是主文、哪些是辅助文、哪些只是过程稿。
 5. [卖房总设计](selling-houses-total-design.md)
    如果本轮和资产顾问有关，先读这份。
+6. [母模型迁移工作板](selling-houses-mother-model-agent-workplan.md)
+   如果本轮涉及母模型、世界观、架构源头、A/B/C/D 提示词或 Daily Decision Bridge，读这份当前总控。
 
 ## 当前 canonical 主文
 
@@ -49,6 +51,8 @@
    当前平台身份链、局层主键链、结果与榜单主文。
 6. [卖房架构总纲](selling-houses-master.md)
    架构决策、不可违反约束、旧文档处置锚点。
+7. [母模型迁移工作板](selling-houses-mother-model-agent-workplan.md)
+   当前 A/B/C/D 协作总控、Daily Decision Bridge 提示词、验收口径和历史报告板。
 
 ### 开放日选址
 
@@ -128,8 +132,8 @@
 
 这些文档对当前推进有效，但它们是阶段主控或线程 brief，不是长期 canonical 合同。
 
-- [平台审计与第一轮改造总控](dev-session-platform-audit-2026-04-21.md)
-- [平台审计线程 Brief（2026-04-21）](dev-session-platform-thread-briefs-2026-04-21.md)
+- [母模型迁移工作板](selling-houses-mother-model-agent-workplan.md)
+  当前以 2026-05-06 Daily Decision Bridge Round 为准。S 负责检查和收口，A/B/C/D 是 worker；旧的 2026-05-01 A/B/C Controller Round 只作历史上下文。
 
 ## 历史 / 诊断 / 图示附录
 
@@ -138,9 +142,20 @@
 - [架构与模拟深度诊断](selling-houses-architecture-diagnosis.md)
 - [世界-视口架构详细论证](selling-houses-world-viewport-architecture.md)
 - [6 周执行手册](selling-houses-iteration-plan.md)
+- [平台审计与第一轮改造总控](dev-session-platform-audit-2026-04-21.md)
+- [平台审计线程 Brief（2026-04-21）](dev-session-platform-thread-briefs-2026-04-21.md)
 - [卖房工作台 4 小时并行开发总控计划](dev-session-selling-houses-2026-04-19.md)
 - [并行线程任务入口](dev-session-thread-briefs.md)
 - [卖房平台层到世界层物理表设计](selling-houses-physical-schema-design.md)
+
+## 已清理的镜像文档
+
+这些目录不再保留重复 md，避免出现第二真相源：
+
+- `selling-houses-workspace/docs/`
+  原有 44 个文件与根目录 `docs/` 字节级重复，已删除。卖房文档统一读根目录 `docs/`。
+- `core-workspaces/open-day/docs/`
+  原有开放日镜像文档已删除。开放日文档统一读根目录 `docs/open-day-*.md`。
 
 ## 已删除的旧文档
 

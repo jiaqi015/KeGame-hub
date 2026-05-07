@@ -43,7 +43,7 @@ function advanceOppsForCase(state: GameState, caseId: string, targetStage: numbe
     if (opp.caseId === caseId && opp.status === 'active') {
       hasActiveOpportunity = true;
       opp.stageIndex = Math.max(opp.stageIndex, targetStage);
-      refreshOpportunityLabel(opp);
+      refreshOpportunityLabel(state, opp);
     }
   }
   if (!hasActiveOpportunity) {
@@ -53,7 +53,7 @@ function advanceOppsForCase(state: GameState, caseId: string, targetStage: numbe
       throw new Error(`Could not create opportunity for ${caseId}`);
     }
     opportunity.stageIndex = Math.max(opportunity.stageIndex, targetStage);
-    refreshOpportunityLabel(opportunity);
+    refreshOpportunityLabel(state, opportunity);
   }
 }
 

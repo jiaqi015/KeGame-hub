@@ -95,7 +95,7 @@ function forceUnlockAction(state: GameState, actionId: string): boolean {
       for (const opp of state.opportunities) {
         if (opp.caseId === caseItem.id && opp.status === 'active') {
           opp.stageIndex = Math.max(opp.stageIndex, 4);
-          refreshOpportunityLabel(opp);
+          refreshOpportunityLabel(state, opp);
         }
       }
     }
@@ -106,7 +106,7 @@ function forceUnlockAction(state: GameState, actionId: string): boolean {
       for (const opp of state.opportunities) {
         if (opp.caseId === caseItem.id && opp.status === 'active') {
           opp.stageIndex = Math.max(opp.stageIndex, 5);
-          refreshOpportunityLabel(opp);
+          refreshOpportunityLabel(state, opp);
         }
       }
     }

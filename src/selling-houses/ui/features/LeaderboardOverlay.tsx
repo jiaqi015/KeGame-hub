@@ -120,18 +120,18 @@ function LeaderboardEntryCard({
     <div
       className={`relative overflow-hidden rounded-[20px] border px-4 py-4 ${
         topThree
-          ? 'border-[#eadfcd]/50 bg-[linear-gradient(180deg,#f3efe8_0%,#ffffff_100%)]'
+          ? 'border-[#b88745]/70 bg-[linear-gradient(135deg,#fff5df_0%,#efd3a7_100%)] shadow-[0_12px_28px_rgba(43,31,18,0.18)]'
           : 'border-white/10 bg-[linear-gradient(180deg,rgba(23,32,43,0.95),rgba(16,24,33,0.95))]'
       }`}
     >
       <div
-        className={`pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[42px] font-semibold tracking-[-0.05em] ${
-          topThree ? 'text-[#d9cdb7]/55' : 'text-white/10'
+        className={`pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[42px] font-black tracking-[-0.05em] ${
+          topThree ? 'text-[#8a5a1f]/38' : 'text-white/10'
         }`}
       >
         {valueText}
       </div>
-      <div className="flex items-start justify-between gap-4">
+      <div className="relative z-10 flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-center gap-4">
           <div
             className={`relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] text-sm font-bold ${
@@ -150,7 +150,7 @@ function LeaderboardEntryCard({
             <div className="flex flex-wrap items-center gap-2">
               <div
                 className={`truncate text-[20px] font-semibold tracking-[-0.03em] ${
-                  topThree ? 'text-[#d9d2c5]' : 'text-white'
+                  topThree ? 'text-[#243042]' : 'text-white'
                 }`}
               >
                 {entry.playerName}
@@ -158,7 +158,7 @@ function LeaderboardEntryCard({
               {entry.badge && (
                 <span
                   className={`rounded-full px-2.5 py-1 text-[10px] font-semibold tracking-[0.02em] ${
-                    topThree ? 'bg-[#2a3340] text-white/78' : 'bg-white/8 text-white/62'
+                    topThree ? 'bg-[#243042] text-white' : 'bg-white/8 text-white/62'
                   }`}
                 >
                   {entry.badge}
@@ -167,7 +167,7 @@ function LeaderboardEntryCard({
             </div>
             <div
               className={`mt-1 text-[12px] leading-6 ${
-                topThree ? 'text-[#b4aca0]' : 'text-white/52'
+                topThree ? 'text-[#5d554b]' : 'text-white/52'
               }`}
             >
               {buildEntryDetail(tabId, entry.valueLabel, entry.note)}

@@ -55,7 +55,10 @@ function ensureSchema(sql?: AuthSqlClient) {
       `);
 
       await client.query('ALTER TABLE auth_challenges DROP CONSTRAINT IF EXISTS auth_challenges_email_fkey');
-    })();
+    })().catch((error) => {
+      schemaReady = null;
+      throw error;
+    });
   }
   return schemaReady;
 }

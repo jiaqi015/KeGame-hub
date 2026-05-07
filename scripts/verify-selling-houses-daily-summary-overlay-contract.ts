@@ -25,6 +25,7 @@ if (!opportunity) {
 caseItem.askPrice = caseItem.marketPrice;
 caseItem.trust = 100;
 caseItem.competitiveness = 100;
+caseItem.hasCompletedFirstVisit = true;
 opportunity.intent = 100;
 opportunity.confidence = 100;
 opportunity.stageIndex = 4;

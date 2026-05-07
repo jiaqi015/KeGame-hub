@@ -1,6 +1,3 @@
-import { OPPORTUNITY_STAGES } from '../../../domain/constants.js';
-import type { CustomerRuntimeState, GameState, Opportunity } from '../../../domain/models.js';
-import { clamp } from '../../../domain/utils.js';
 import { toAssetCaseId, toCustomerFromOpportunityId, toCustomerId, toLeadBrokerId } from '../adapters.js';
 import type { WorldEntityId } from '../models.js';
 import type {
@@ -10,6 +7,78 @@ import type {
   CustomerCaseOpportunityRelationView,
   CustomerRuntimeCaseRelationMetadata,
 } from './types.js';
+
+// ---------------------------------------------------------------------------
+// Plain shapes (no domain import)
+// ---------------------------------------------------------------------------
+
+/** OPPORTUNITY_STAGES from domain/constants.js — inlined to avoid domain import. */
+const OPPORTUNITY_STAGES: readonly string[] = [
+  '初步接触', '需求确认', '带看匹配', '深度沟通', '价格谈判', '意向确认', '成交推进',
+];
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, Math.round(value)));
+}
+
+interface PlainOpportunity {
+  readonly id: string;
+  readonly caseId: string;
+  readonly customerId: string;
+  readonly customerName: string;
+  readonly fit: number;
+  readonly intent: number;
+  readonly confidence: number;
+  readonly stageIndex: number;
+  readonly stageLabel: string;
+  readonly status: string;
+  readonly lifecycleStatus: string;
+  readonly leadSource: string;
+  readonly visibility: string;
+  readonly brokerName?: string;
+  readonly channelId: string;
+  readonly channelName: string;
+  readonly createdDay: number;
+  readonly daysLeft: number;
+  readonly touchedToday: boolean;
+  readonly stagnationTicks: number;
+}
+
+interface PlainCaseRuntime {
+  readonly caseId: string;
+  readonly fit: number;
+  readonly interest: number;
+  readonly confidence: number;
+  readonly stageIndex: number;
+  readonly interactions: number;
+  readonly lastActiveDay: number;
+  readonly viewed: boolean;
+  readonly offered: boolean;
+  readonly selected: boolean;
+  readonly competingCaseIds?: readonly string[];
+}
+
+interface PlainCustomerRuntimeState {
+  readonly customerId: string;
+  readonly status: string;
+  readonly decisionStyle: string;
+  readonly advisorTrust: number;
+  readonly fatigue: number;
+  readonly churnRisk: number;
+  readonly activeCaseIds: readonly string[];
+  readonly caseStates: Record<string, PlainCaseRuntime>;
+  readonly lastTouchDay: number;
+  readonly lastActionNote?: string;
+}
+
+interface PlainGameState {
+  readonly opportunities: readonly PlainOpportunity[];
+  readonly customerStates: readonly PlainCustomerRuntimeState[];
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 const DEFAULT_FIT_CONFLICT_TOLERANCE = 0;
 const DEFAULT_STAGE_CONFLICT_TOLERANCE = 0;
@@ -29,7 +98,7 @@ function resolveStageLabel(stageIndex: number) {
   return OPPORTUNITY_STAGES[clamp(stageIndex, 0, OPPORTUNITY_STAGES.length - 1)] || OPPORTUNITY_STAGES[0];
 }
 
-function buildCanonicalOpportunityMetadata(opportunity: Opportunity): CanonicalOpportunityRelationMetadata {
+function buildCanonicalOpportunityMetadata(opportunity: PlainOpportunity): CanonicalOpportunityRelationMetadata {
   return {
     status: opportunity.status,
     lifecycleStatus: opportunity.lifecycleStatus,
@@ -46,7 +115,7 @@ function buildCanonicalOpportunityMetadata(opportunity: Opportunity): CanonicalO
 }
 
 function buildRuntimeMetadata(
-  customerState: CustomerRuntimeState,
+  customerState: PlainCustomerRuntimeState,
   caseId: string,
 ): CustomerRuntimeCaseRelationMetadata | undefined {
   const runtime = customerState.caseStates[caseId];
@@ -69,8 +138,8 @@ function buildRuntimeMetadata(
 }
 
 function detectConflicts(
-  opportunity: Opportunity | undefined,
-  runtime: CustomerRuntimeState['caseStates'][string] | undefined,
+  opportunity: PlainOpportunity | undefined,
+  runtime: PlainCaseRuntime | undefined,
   options: Required<CustomerCaseOpportunityRelationBuildOptions>,
 ): CustomerCaseOpportunityRelationConflictFlags {
   if (!opportunity || !runtime) {
@@ -91,8 +160,8 @@ function detectConflicts(
 }
 
 function buildOpportunityRelation(
-  opportunity: Opportunity,
-  runtimeState: CustomerRuntimeState | undefined,
+  opportunity: PlainOpportunity,
+  runtimeState: PlainCustomerRuntimeState | undefined,
   options: Required<CustomerCaseOpportunityRelationBuildOptions>,
 ): CustomerCaseOpportunityRelationView {
   const runtime = runtimeState?.caseStates[opportunity.caseId];
@@ -121,7 +190,7 @@ function buildOpportunityRelation(
 }
 
 function buildRuntimeOnlyRelation(
-  customerState: CustomerRuntimeState,
+  customerState: PlainCustomerRuntimeState,
   caseId: string,
 ): CustomerCaseOpportunityRelationView | undefined {
   const runtime = customerState.caseStates[caseId];
@@ -149,7 +218,7 @@ function buildRuntimeOnlyRelation(
 }
 
 export function buildCustomerCaseOpportunityRelationView(
-  state: GameState,
+  state: PlainGameState,
   options: CustomerCaseOpportunityRelationBuildOptions = {},
 ): CustomerCaseOpportunityRelationView[] {
   const resolvedOptions: Required<CustomerCaseOpportunityRelationBuildOptions> = {
@@ -158,7 +227,7 @@ export function buildCustomerCaseOpportunityRelationView(
     intentConflictTolerance: options.intentConflictTolerance ?? DEFAULT_INTENT_CONFLICT_TOLERANCE,
     confidenceConflictTolerance: options.confidenceConflictTolerance ?? DEFAULT_CONFIDENCE_CONFLICT_TOLERANCE,
   };
-  const runtimeStatesByRelationKey = new Map<string, CustomerRuntimeState>();
+  const runtimeStatesByRelationKey = new Map<string, PlainCustomerRuntimeState>();
   const consumedRuntimeKeys = new Set<string>();
 
   (state.customerStates || []).forEach((customerState) => {

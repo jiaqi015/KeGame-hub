@@ -214,8 +214,8 @@ export function findMilestoneById(run: ProductRun, milestoneId: string) {
 }
 
 export function milestoneKindLabel(kind: ProductRunMilestoneKind) {
-  if (kind === 'heavy_scene') return '重场景';
-  if (kind === 'light_scene') return '轻场景';
+  if (kind === 'heavy_scene') return '重情景';
+  if (kind === 'light_scene') return '轻情景';
   return '普通事件';
 }
 

@@ -1,7 +1,7 @@
 {
   "name": "sabrina-workspace",
   "private": true,
-  "version": "0.0.4",
+  "version": "0.0.5",
   "versionType": "square",
   "type": "module",
   "scripts": {
@@ -32,6 +32,8 @@
     "verify:maintainer-scenario-action-targets": "tsx scripts/verify-selling-houses-scenario-action-targets.ts",
     "verify:maintainer-action-transaction": "tsx scripts/verify-selling-houses-action-transaction-contract.ts",
     "verify:maintainer-architecture-boundaries": "tsx scripts/verify-selling-houses-architecture-boundaries.ts",
+    "verify:maintainer-evaluation-contract": "tsx scripts/verify-selling-houses-evaluation-contract.ts",
+    "verify:maintainer-evaluation-d4": "tsx scripts/verify-selling-houses-evaluation-d4-contract.ts",
     "rebuild:maintainer-shadow": "tsx scripts/rebuild-selling-houses-shadow-sync.ts",
     "rebuild:maintainer-file-shadow": "tsx scripts/rebuild-selling-houses-file-shadow-sync.ts",
     "verify:generated-maintainer": "tsx scripts/verify-generated-selling-houses.ts",

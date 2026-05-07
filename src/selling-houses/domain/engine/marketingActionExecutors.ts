@@ -1,6 +1,7 @@
 import { applyAuxiliaryStats } from '../runtimeStats.js';
 import { logEvent } from '../runtimeState.js';
 import { clamp, getDayOfWeek, randomInt } from '../utils.js';
+import { applyBrokerOwnerTrustDelta } from '../trustWriteHelper.js';
 import { touchCustomersForCase } from './customerEngine.js';
 import { touchCaseForAction } from './actionExecutorHelpers.js';
 import { refundResources } from './actionResourceAccounting.js';
@@ -13,7 +14,7 @@ export const MARKETING_ACTION_EXECUTORS: ActionExecutorMap = {
     const strategy = optionId || 'product-angle';
     caseItem.competitiveness = clamp(caseItem.competitiveness + (strategy === 'certainty-angle' ? 7 : 8), 0, 100);
     caseItem.heat = clamp(caseItem.heat + (strategy === 'value-angle' ? 5 : 4), 0, 100);
-    caseItem.trust = clamp(caseItem.trust + 2, 0, 100);
+    applyBrokerOwnerTrustDelta(state, caseItem, 2, '卖点重构提升信任', 0, 100);
     caseItem.qualityStory += 1;
     adjustCaseOpportunities(state, caseItem.id, strategy === 'value-angle' ? 7 : 6, 4);
     touchCustomersForCase(state, caseItem.id, {
@@ -67,7 +68,7 @@ export const MARKETING_ACTION_EXECUTORS: ActionExecutorMap = {
   'private-referral': ({ state, caseItem, action, optionId, onMessage }) => {
     touchCaseForAction(caseItem, action.id, state.day);
     const strategy = optionId || 'old-client-circle';
-    caseItem.trust = clamp(caseItem.trust + (strategy === 'owner-circle' ? 4 : 2), 0, 100);
+    applyBrokerOwnerTrustDelta(state, caseItem, (strategy === 'owner-circle' ? 4 : 2), '私域转介绍提升信任', 0, 100);
     caseItem.heat = clamp(caseItem.heat + (strategy === 'vip-circle' ? 3 : 4), 0, 100);
     createOpportunity(state, caseItem, 'private-referral', strategy === 'vip-circle' ? 15 : 10);
     if (caseItem.trust >= 68 || caseItem.qualityStory >= 1) {
