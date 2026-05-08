@@ -89,6 +89,10 @@ type PotentialAudienceProfile = {
   priceLine: string;
   evidence: string[];
 };
+type SuggestedActionCopy = {
+  title: string;
+  detail: string;
+};
 const CASE_STAGE_FILTERS: Array<{ id: CaseStageFilter; label: string }> = [
   { id: 'all', label: '全部' },
   { id: 'pre_visit', label: '面访' },
@@ -247,6 +251,9 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
     actionCards,
     caseProjection?.listingLifecyclePhase.primaryActionId,
   );
+  const suggestedActionCopy = selectedCase
+    ? buildSuggestedActionCopy(caseProjection, selectedCase, activeOpportunities)
+    : { title: '选择房源', detail: '先选一套房源，再看下一步动作。' };
 
   useEffect(() => {
     setActiveActionTab('feedback');
@@ -331,7 +338,7 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
             <div className="mt-2 grid grid-cols-3 gap-1.5">
               <CaseCardPrice label="挂牌" value={c.askPrice} strong />
               <CaseCardPrice label="市场" value={c.marketPrice} />
-              <CaseCardPrice label="底线" value={c.bottomPrice} />
+              <CaseCardPrice label="业主预期" value={c.bottomPrice} />
             </div>
             <div className="mt-2.5 flex items-center gap-2">
               <CompactMetric label="业主信任度" val={c.trust} />
@@ -358,10 +365,9 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
             <div className="flex min-h-0 flex-col gap-3">
               <section className="seller-workbench overflow-visible">
                 <div className="grid gap-3 border-b border-[var(--seller-border)] px-3.5 py-3 xl:grid-cols-[minmax(0,1fr)_228px]">
-                  <div className="grid min-w-0 gap-3 sm:grid-cols-[154px_minmax(0,1fr)]">
+                  <div className="grid min-w-0 gap-3 sm:grid-cols-[178px_minmax(0,1fr)]">
                     <ListingHeroImage caseItem={selectedCase} />
                     <div className="min-w-0">
-                      <div className="seller-label">单房决策 · 当前房源</div>
                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
                         <h2 className="seller-title text-[17px] leading-5">{selectedCase.title}</h2>
                         {selectedCase.isFocused && (
@@ -417,8 +423,8 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
 
                   <div className="grid grid-cols-1 gap-1.5">
                     <PriceLine label="挂牌价" value={`${selectedCase.askPrice} 万`} strong />
-                    <PriceLine label="市场成交位" value={`${selectedCase.marketPrice} 万`} />
-                    <PriceLine label="业主底线" value={`${selectedCase.bottomPrice} 万`} tone="floor" />
+                    <PriceLine label="市场合理价" value={`${selectedCase.marketPrice} 万`} />
+                    <PriceLine label="业主预期" value={`${selectedCase.bottomPrice} 万`} tone="floor" />
                   </div>
                 </div>
 
@@ -432,14 +438,10 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
                         tone={caseProjection?.listingLifecyclePhase.phaseDelayLevel === 'late' ? 'rose' : 'slate'}
                       />
                       <DiagnosisBriefRow
-                        label="业主分型"
-                        value={selectedOwnerProfile?.label || '未分型'}
-                        tone={selectedOwnerProfile?.tone === 'risk' ? 'rose' : selectedOwnerProfile?.tone === 'accent' ? 'emerald' : 'slate'}
-                      />
-                      <DiagnosisBriefRow
                         label="建议动作"
-                        value={caseProjection?.listingLifecyclePhase.primaryActionLabel || deriveNextFix(selectedCase, activeOpportunities)}
+                        value={`${suggestedActionCopy.title}\n${suggestedActionCopy.detail}`}
                         tone="amber"
+                        multiLine
                       />
 	                    </div>
 	                  </section>
@@ -448,8 +450,8 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
 	                    <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="seller-label">执行清单 · 当前动作</div>
-                        <div className="mt-1 text-[14px] font-semibold leading-5 text-[var(--seller-ink)]">
-                          {caseProjection?.listingLifecyclePhase.primaryActionLabel || '补关键一步。'}
+                        <div className="mt-1 max-w-[42ch] text-[11px] leading-5 text-[var(--seller-muted)]">
+                          {suggestedActionCopy.detail}
                         </div>
                       </div>
                       <button
@@ -761,7 +763,17 @@ function CompactMetric({ label, val }: { label: string; val: number }) {
   );
 }
 
+type ListingHeroViewId = 'plan' | 'three-d' | 'community';
+
+const LISTING_HERO_VIEWS: Array<{ id: ListingHeroViewId; label: string }> = [
+  { id: 'plan', label: '平面' },
+  { id: 'three-d', label: '3D' },
+  { id: 'community', label: '环境' },
+];
+
 function ListingHeroImage({ caseItem }: { caseItem: Case }) {
+  const [activeView, setActiveView] = useState<ListingHeroViewId>('plan');
+  const hoverPausedRef = useRef(false);
   const tone = caseItem.d2 >= 70 ? 'good' : caseItem.d1 < 45 || caseItem.d3 < 48 ? 'risk' : 'normal';
   const toneClass = tone === 'good'
     ? 'from-emerald-500/24 via-cyan-500/12 to-white/[0.03]'
@@ -769,48 +781,371 @@ function ListingHeroImage({ caseItem }: { caseItem: Case }) {
       ? 'from-amber-500/18 via-rose-500/10 to-white/[0.03]'
       : 'from-cyan-500/18 via-slate-500/10 to-white/[0.03]';
   const bedroomLabel = caseItem.layout.includes('3室') ? '三房' : caseItem.layout.includes('1室') ? '一房' : '两房';
+  const scene = getListingHeroScene(activeView);
+  const sceneKey = `${caseItem.id}-${activeView}`;
+
+  useEffect(() => {
+    setActiveView('plan');
+  }, [caseItem.id]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (hoverPausedRef.current) return;
+      setActiveView((current) => nextListingHeroView(current));
+    }, 4600);
+
+    return () => window.clearInterval(timer);
+  }, []);
 
   return (
-    <div className="relative min-h-[164px] overflow-hidden rounded-[18px] border border-[var(--seller-border)] bg-[#101822] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+    <div
+      className="relative min-h-[188px] overflow-hidden rounded-[18px] border border-[var(--seller-border)] bg-[#101822] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+      onPointerEnter={() => {
+        hoverPausedRef.current = true;
+      }}
+      onPointerLeave={() => {
+        hoverPausedRef.current = false;
+      }}
+    >
       <div className={`absolute inset-0 bg-gradient-to-br ${toneClass}`} />
       <div className="absolute inset-x-0 top-0 h-16 bg-[radial-gradient(circle_at_28%_12%,rgba(255,255,255,0.20),transparent_24%),radial-gradient(circle_at_82%_20%,rgba(73,221,133,0.16),transparent_24%)]" />
-      <div className="absolute bottom-0 left-0 right-0 h-16 bg-[linear-gradient(180deg,transparent,rgba(5,9,14,0.78))]" />
+      <div className="absolute bottom-0 left-0 right-0 h-[72px] bg-[linear-gradient(180deg,transparent,rgba(5,9,14,0.82))]" />
 
-      <svg
-        viewBox="0 0 172 156"
-        role="img"
-        aria-label={`${caseItem.community}${bedroomLabel}模拟3D户型图`}
-        className="absolute inset-x-1 top-7 h-[118px] w-[calc(100%-0.5rem)] overflow-visible"
-      >
-        <defs>
-          <linearGradient id={`floor-fill-${caseItem.id}`} x1="0%" x2="100%" y1="0%" y2="100%">
-            <stop offset="0%" stopColor="rgba(118,221,255,0.20)" />
-            <stop offset="100%" stopColor="rgba(73,221,133,0.15)" />
-          </linearGradient>
-          <filter id={`plan-shadow-${caseItem.id}`} x="-20%" y="-20%" width="140%" height="150%">
-            <feDropShadow dx="0" dy="12" stdDeviation="7" floodColor="rgba(0,0,0,0.42)" />
-          </filter>
-        </defs>
-        <g transform="translate(10 18) rotate(-8 76 62)" filter={`url(#plan-shadow-${caseItem.id})`}>
-          <polygon points="18,34 136,34 146,44 28,44" fill="rgba(255,255,255,0.10)" />
-          <polygon points="136,34 146,44 146,123 136,113" fill="rgba(7,13,21,0.74)" />
-          <polygon points="28,113 146,123 136,113 18,103" fill="rgba(5,9,14,0.78)" />
-          <rect x="18" y="34" width="118" height="79" rx="4" fill={`url(#floor-fill-${caseItem.id})`} stroke="rgba(255,255,255,0.34)" strokeWidth="3" />
-          <rect x="22" y="38" width="34" height="34" rx="2" fill="rgba(23,38,54,0.92)" stroke="rgba(255,255,255,0.28)" strokeWidth="2" />
-          <rect x="22" y="72" width="34" height="37" rx="2" fill="rgba(19,34,50,0.92)" stroke="rgba(255,255,255,0.28)" strokeWidth="2" />
-          <rect x="56" y="38" width="76" height="44" rx="2" fill="rgba(17,55,57,0.82)" stroke="rgba(255,255,255,0.28)" strokeWidth="2" />
-          <rect x="56" y="82" width="35" height="27" rx="2" fill="rgba(36,49,41,0.9)" stroke="rgba(255,255,255,0.24)" strokeWidth="2" />
-          <rect x="91" y="82" width="18" height="27" rx="2" fill="rgba(34,42,56,0.94)" stroke="rgba(255,255,255,0.24)" strokeWidth="2" />
-          <rect x="109" y="82" width="23" height="27" rx="2" fill="rgba(28,47,58,0.86)" stroke="rgba(102,209,224,0.34)" strokeWidth="2" />
-          <path d="M56 61 Q69 61 69 48" fill="none" stroke="rgba(255,255,255,0.26)" strokeWidth="1.5" />
-          <path d="M56 94 Q66 94 66 84" fill="none" stroke="rgba(255,255,255,0.24)" strokeWidth="1.5" />
-          <path d="M91 96 Q99 96 99 88" fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth="1.5" />
-          <line x1="72" y1="36" x2="122" y2="36" stroke="rgba(102,209,224,0.72)" strokeWidth="2" strokeLinecap="round" />
-          <line x1="22" y1="49" x2="22" y2="62" stroke="rgba(73,221,133,0.70)" strokeWidth="2" strokeLinecap="round" />
-          <line x1="22" y1="84" x2="22" y2="99" stroke="rgba(73,221,133,0.60)" strokeWidth="2" strokeLinecap="round" />
-        </g>
-      </svg>
+      <div className="absolute inset-x-3 top-3 flex items-start justify-between gap-2">
+        <div className="rounded-full border border-[var(--seller-border)] bg-[rgba(8,13,20,0.68)] px-2.5 py-1 text-[9px] font-semibold text-[var(--seller-muted)] backdrop-blur">
+          {scene.badge}
+        </div>
+        <div className="rounded-full border border-[var(--seller-border)] bg-[rgba(8,13,20,0.68)] px-2.5 py-1 text-[9px] font-semibold text-[var(--seller-subtle)] backdrop-blur">
+          {scene.helper}
+        </div>
+      </div>
+
+      <div className="absolute inset-x-1 top-10 h-[130px]">
+        {renderListingHeroScene({
+          activeView,
+          bedroomLabel,
+          caseItem,
+          sceneKey,
+        })}
+      </div>
+
+      <div className="absolute inset-x-2 bottom-2 flex items-end justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[var(--seller-subtle)]">
+            {scene.caption}
+          </div>
+          <div className="mt-0.5 truncate text-[10px] font-semibold text-[var(--seller-ink)]">
+            {scene.title}
+          </div>
+        </div>
+        <div className="inline-flex shrink-0 rounded-full border border-[var(--seller-border)] bg-[rgba(8,13,20,0.72)] p-0.5 backdrop-blur">
+          {LISTING_HERO_VIEWS.map((view) => (
+            <button
+              key={view.id}
+              type="button"
+              aria-pressed={activeView === view.id}
+              onClick={() => setActiveView(view.id)}
+              className={`rounded-full px-2 py-0.5 text-[9px] font-semibold leading-4 transition ${
+                activeView === view.id
+                  ? 'bg-[var(--seller-ink)] text-[var(--seller-bg)]'
+                  : 'text-[var(--seller-muted)] hover:bg-[rgba(255,255,255,0.06)] hover:text-[var(--seller-ink)]'
+              }`}
+            >
+              {view.label}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
+  );
+}
+
+function getListingHeroScene(view: ListingHeroViewId) {
+  switch (view) {
+    case 'three-d':
+      return {
+        badge: '3D 户型',
+        title: '立体层次',
+        caption: '3D / 空间感',
+        helper: '看层次',
+      };
+    case 'community':
+      return {
+        badge: '小区环境',
+        title: '楼栋与配套',
+        caption: '环境 / 周边关系',
+        helper: '看关系',
+      };
+    case 'plan':
+    default:
+      return {
+        badge: '平面图',
+        title: '房间布局',
+        caption: '平面 / 动线',
+        helper: '一眼看布局',
+      };
+  }
+}
+
+function nextListingHeroView(current: ListingHeroViewId): ListingHeroViewId {
+  const currentIndex = LISTING_HERO_VIEWS.findIndex((view) => view.id === current);
+  return LISTING_HERO_VIEWS[(currentIndex + 1) % LISTING_HERO_VIEWS.length].id;
+}
+
+function renderListingHeroScene({
+  activeView,
+  bedroomLabel,
+  caseItem,
+  sceneKey,
+}: {
+  activeView: ListingHeroViewId;
+  bedroomLabel: string;
+  caseItem: Case;
+  sceneKey: string;
+}) {
+  if (activeView === 'three-d') {
+    return renderListingHero3dScene({ caseItem, bedroomLabel, sceneKey });
+  }
+  if (activeView === 'community') {
+    return renderListingHeroCommunityScene({ caseItem, sceneKey });
+  }
+  return renderListingHeroPlanScene({ caseItem, bedroomLabel, sceneKey });
+}
+
+function renderListingHeroPlanScene({
+  caseItem,
+  bedroomLabel,
+  sceneKey,
+}: {
+  caseItem: Case;
+  bedroomLabel: string;
+  sceneKey: string;
+}) {
+  return (
+    <svg
+      viewBox="0 0 172 132"
+      role="img"
+      aria-label={`${caseItem.community}${bedroomLabel}平面图`}
+      className="h-full w-full overflow-visible"
+    >
+      <defs>
+        <linearGradient id={`hero-plan-wash-${sceneKey}`} x1="0%" x2="100%" y1="0%" y2="100%">
+          <stop offset="0%" stopColor="rgba(118,221,255,0.18)" />
+          <stop offset="55%" stopColor="rgba(73,221,133,0.10)" />
+          <stop offset="100%" stopColor="rgba(255,255,255,0.04)" />
+        </linearGradient>
+        <linearGradient id={`hero-plan-room-${sceneKey}`} x1="0%" x2="100%" y1="0%" y2="100%">
+          <stop offset="0%" stopColor="rgba(255,255,255,0.08)" />
+          <stop offset="100%" stopColor="rgba(255,255,255,0.02)" />
+        </linearGradient>
+        <filter id={`hero-plan-shadow-${sceneKey}`} x="-18%" y="-18%" width="136%" height="150%">
+          <feDropShadow dx="0" dy="10" stdDeviation="7" floodColor="rgba(0,0,0,0.42)" />
+        </filter>
+      </defs>
+
+      <rect x="7" y="10" width="158" height="110" rx="16" fill="rgba(255,255,255,0.018)" stroke="rgba(255,255,255,0.06)" />
+      <g opacity="0.28" stroke="rgba(255,255,255,0.12)" strokeWidth="1">
+        <line x1="18" y1="24" x2="152" y2="24" />
+        <line x1="18" y1="42" x2="152" y2="42" />
+        <line x1="18" y1="60" x2="152" y2="60" />
+        <line x1="18" y1="78" x2="152" y2="78" />
+        <line x1="18" y1="96" x2="152" y2="96" />
+        <line x1="36" y1="16" x2="36" y2="110" />
+        <line x1="68" y1="16" x2="68" y2="110" />
+        <line x1="100" y1="16" x2="100" y2="110" />
+        <line x1="132" y1="16" x2="132" y2="110" />
+      </g>
+
+      <g transform="translate(18 15) rotate(-4 56 41)" filter={`url(#hero-plan-shadow-${sceneKey})`}>
+        <rect x="0" y="0" width="120" height="86" rx="8" fill={`url(#hero-plan-wash-${sceneKey})`} stroke="rgba(255,255,255,0.24)" strokeWidth="2.2" />
+        <rect x="6" y="6" width="36" height="28" rx="4" fill={`url(#hero-plan-room-${sceneKey})`} stroke="rgba(255,255,255,0.26)" strokeWidth="1.6" />
+        <rect x="42" y="6" width="72" height="44" rx="4" fill="rgba(17,57,58,0.84)" stroke="rgba(255,255,255,0.22)" strokeWidth="1.6" />
+        <rect x="6" y="34" width="36" height="46" rx="4" fill="rgba(18,32,48,0.92)" stroke="rgba(255,255,255,0.22)" strokeWidth="1.6" />
+        <rect x="42" y="50" width="36" height="30" rx="4" fill="rgba(36,52,42,0.92)" stroke="rgba(255,255,255,0.22)" strokeWidth="1.6" />
+        <rect x="78" y="50" width="16" height="30" rx="4" fill="rgba(34,43,58,0.92)" stroke="rgba(255,255,255,0.22)" strokeWidth="1.6" />
+        <rect x="94" y="50" width="20" height="30" rx="4" fill="rgba(31,52,63,0.90)" stroke="rgba(102,209,224,0.30)" strokeWidth="1.6" />
+
+        <path d="M42 26 H114" stroke="rgba(102,209,224,0.72)" strokeWidth="1.8" strokeLinecap="round" />
+        <path d="M6 52 H39" stroke="rgba(73,221,133,0.62)" strokeWidth="1.8" strokeLinecap="round" />
+        <path d="M42 66 H78" stroke="rgba(255,255,255,0.22)" strokeWidth="1.4" strokeLinecap="round" />
+        <path d="M78 67 H94" stroke="rgba(255,255,255,0.20)" strokeWidth="1.4" strokeLinecap="round" />
+        <path d="M94 67 H114" stroke="rgba(255,255,255,0.20)" strokeWidth="1.4" strokeLinecap="round" />
+
+        <rect x="14" y="14" width="16" height="8" rx="4" fill="rgba(255,255,255,0.16)" />
+        <rect x="53" y="14" width="28" height="14" rx="6" fill="rgba(255,255,255,0.10)" />
+        <rect x="86" y="17" width="18" height="6" rx="3" fill="rgba(255,255,255,0.12)" />
+        <circle cx="23" cy="58" r="7" fill="rgba(73,221,133,0.18)" />
+        <rect x="50" y="56" width="20" height="14" rx="4" fill="rgba(255,255,255,0.10)" />
+        <rect x="81" y="57" width="10" height="12" rx="3" fill="rgba(255,255,255,0.12)" />
+        <rect x="98" y="58" width="8" height="10" rx="2" fill="rgba(102,209,224,0.24)" />
+      </g>
+
+      <g transform="translate(128 18)">
+        <rect x="0" y="0" width="22" height="22" rx="6" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.16)" />
+        <line x1="11" y1="18" x2="11" y2="30" stroke="rgba(255,255,255,0.25)" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M11 6 L14 12 H8 Z" fill="rgba(255,255,255,0.84)" />
+      </g>
+    </svg>
+  );
+}
+
+function renderListingHero3dScene({
+  caseItem,
+  bedroomLabel,
+  sceneKey,
+}: {
+  caseItem: Case;
+  bedroomLabel: string;
+  sceneKey: string;
+}) {
+  return (
+    <svg
+      viewBox="0 0 172 132"
+      role="img"
+      aria-label={`${caseItem.community}${bedroomLabel}3D户型`}
+      className="h-full w-full overflow-visible"
+    >
+      <defs>
+        <linearGradient id={`hero-3d-top-${sceneKey}`} x1="0%" x2="100%" y1="0%" y2="100%">
+          <stop offset="0%" stopColor="rgba(255,255,255,0.18)" />
+          <stop offset="100%" stopColor="rgba(73,221,133,0.18)" />
+        </linearGradient>
+        <linearGradient id={`hero-3d-side-${sceneKey}`} x1="0%" x2="100%" y1="0%" y2="100%">
+          <stop offset="0%" stopColor="rgba(12,29,40,0.88)" />
+          <stop offset="100%" stopColor="rgba(7,16,24,0.96)" />
+        </linearGradient>
+        <linearGradient id={`hero-3d-front-${sceneKey}`} x1="0%" x2="100%" y1="0%" y2="100%">
+          <stop offset="0%" stopColor="rgba(20,59,64,0.88)" />
+          <stop offset="100%" stopColor="rgba(11,30,34,0.96)" />
+        </linearGradient>
+        <radialGradient id={`hero-3d-glow-${sceneKey}`} cx="50%" cy="42%" r="58%">
+          <stop offset="0%" stopColor="rgba(102,209,224,0.18)" />
+          <stop offset="100%" stopColor="rgba(102,209,224,0)" />
+        </radialGradient>
+        <filter id={`hero-3d-shadow-${sceneKey}`} x="-24%" y="-24%" width="148%" height="164%">
+          <feDropShadow dx="0" dy="12" stdDeviation="8" floodColor="rgba(0,0,0,0.48)" />
+        </filter>
+      </defs>
+
+      <rect x="7" y="10" width="158" height="110" rx="16" fill="rgba(255,255,255,0.016)" stroke="rgba(255,255,255,0.06)" />
+      <ellipse cx="86" cy="97" rx="52" ry="10" fill="rgba(0,0,0,0.26)" />
+      <circle cx="90" cy="48" r="42" fill={`url(#hero-3d-glow-${sceneKey})`} />
+      <g opacity="0.24" stroke="rgba(255,255,255,0.10)" strokeWidth="1">
+        <line x1="18" y1="31" x2="154" y2="31" />
+        <line x1="18" y1="58" x2="154" y2="58" />
+        <line x1="18" y1="85" x2="154" y2="85" />
+      </g>
+
+      <g transform="translate(19 14)" filter={`url(#hero-3d-shadow-${sceneKey})`}>
+        <polygon points="26,18 93,18 111,29 44,29" fill={`url(#hero-3d-top-${sceneKey})`} stroke="rgba(255,255,255,0.26)" strokeWidth="1.8" />
+        <polygon points="93,18 111,29 111,83 93,72" fill={`url(#hero-3d-side-${sceneKey})`} stroke="rgba(255,255,255,0.10)" strokeWidth="1.4" />
+        <polygon points="44,29 111,29 111,83 44,83" fill={`url(#hero-3d-front-${sceneKey})`} stroke="rgba(255,255,255,0.16)" strokeWidth="1.6" />
+        <polygon points="18,33 44,29 44,83 18,88" fill="rgba(8,18,29,0.78)" stroke="rgba(255,255,255,0.10)" strokeWidth="1.2" />
+        <polygon points="26,18 44,29 18,33 0,21" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.10)" strokeWidth="1.2" />
+
+        <polygon points="44,29 70,29 76,45 51,45" fill="rgba(255,255,255,0.06)" />
+        <polygon points="70,29 92,29 98,44 76,45" fill="rgba(73,221,133,0.12)" />
+        <rect x="49" y="33" width="18" height="18" rx="3" fill="rgba(24,40,58,0.94)" stroke="rgba(255,255,255,0.18)" />
+        <rect x="67" y="33" width="20" height="29" rx="3" fill="rgba(19,61,62,0.88)" stroke="rgba(255,255,255,0.18)" />
+        <rect x="49" y="51" width="18" height="24" rx="3" fill="rgba(19,33,50,0.90)" stroke="rgba(255,255,255,0.16)" />
+        <rect x="67" y="62" width="18" height="13" rx="3" fill="rgba(36,48,39,0.94)" stroke="rgba(255,255,255,0.16)" />
+        <rect x="85" y="62" width="18" height="13" rx="3" fill="rgba(30,46,58,0.94)" stroke="rgba(102,209,224,0.28)" />
+        <rect x="52" y="50" width="10" height="5" rx="2.5" fill="rgba(255,255,255,0.14)" />
+        <rect x="61" y="51" width="18" height="11" rx="4" fill="rgba(102,209,224,0.16)" />
+        <rect x="81" y="52" width="10" height="18" rx="3" fill="rgba(255,255,255,0.12)" />
+        <rect x="52" y="70" width="14" height="8" rx="3" fill="rgba(73,221,133,0.16)" />
+        <rect x="80" y="71" width="14" height="8" rx="3" fill="rgba(255,255,255,0.10)" />
+
+        <path d="M49 42 H103" stroke="rgba(102,209,224,0.74)" strokeWidth="1.6" strokeLinecap="round" />
+        <path d="M49 66 H85" stroke="rgba(73,221,133,0.64)" strokeWidth="1.6" strokeLinecap="round" />
+        <path d="M85 68 H103" stroke="rgba(255,255,255,0.18)" strokeWidth="1.4" strokeLinecap="round" />
+
+        <ellipse cx="60" cy="77" rx="44" ry="8" fill="rgba(0,0,0,0.20)" />
+      </g>
+      <g transform="translate(124 18)" opacity="0.9">
+        <circle cx="12" cy="12" r="11" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.12)" />
+        <path d="M12 3 A9 9 0 0 1 20 12" fill="none" stroke="rgba(255,255,255,0.36)" strokeWidth="1.3" strokeLinecap="round" />
+        <path d="M12 21 A9 9 0 0 1 4 12" fill="none" stroke="rgba(73,221,133,0.42)" strokeWidth="1.3" strokeLinecap="round" />
+        <path d="M16 6 L20 11 L15 11 Z" fill="rgba(255,255,255,0.8)" />
+      </g>
+    </svg>
+  );
+}
+
+function renderListingHeroCommunityScene({
+  caseItem,
+  sceneKey,
+}: {
+  caseItem: Case;
+  sceneKey: string;
+}) {
+  return (
+    <svg
+      viewBox="0 0 172 132"
+      role="img"
+      aria-label={`${caseItem.community}小区环境`}
+      className="h-full w-full overflow-visible"
+    >
+      <defs>
+        <linearGradient id={`hero-community-sky-${sceneKey}`} x1="0%" x2="100%" y1="0%" y2="100%">
+          <stop offset="0%" stopColor="rgba(102,209,224,0.14)" />
+          <stop offset="100%" stopColor="rgba(73,221,133,0.10)" />
+        </linearGradient>
+        <linearGradient id={`hero-community-build-${sceneKey}`} x1="0%" x2="100%" y1="0%" y2="100%">
+          <stop offset="0%" stopColor="rgba(255,255,255,0.10)" />
+          <stop offset="100%" stopColor="rgba(255,255,255,0.02)" />
+        </linearGradient>
+        <filter id={`hero-community-shadow-${sceneKey}`} x="-18%" y="-18%" width="136%" height="150%">
+          <feDropShadow dx="0" dy="8" stdDeviation="7" floodColor="rgba(0,0,0,0.42)" />
+        </filter>
+      </defs>
+
+      <rect x="7" y="10" width="158" height="110" rx="16" fill={`url(#hero-community-sky-${sceneKey})`} stroke="rgba(255,255,255,0.06)" />
+      <g opacity="0.24" stroke="rgba(255,255,255,0.12)" strokeWidth="1">
+        <path d="M19 95 C36 78, 52 74, 70 72 S107 69, 155 42" fill="none" />
+        <path d="M21 44 C42 54, 55 57, 79 58 S122 54, 151 69" fill="none" />
+        <path d="M20 77 H154" fill="none" />
+      </g>
+
+      <g transform="translate(14 18)" filter={`url(#hero-community-shadow-${sceneKey})`}>
+        <rect x="8" y="22" width="128" height="58" rx="12" fill="rgba(13,22,30,0.68)" stroke="rgba(255,255,255,0.10)" />
+        <rect x="22" y="31" width="20" height="37" rx="7" fill={`url(#hero-community-build-${sceneKey})`} stroke="rgba(255,255,255,0.18)" />
+        <rect x="46" y="26" width="24" height="42" rx="7" fill="rgba(19,35,50,0.90)" stroke="rgba(255,255,255,0.14)" />
+        <rect x="74" y="29" width="18" height="39" rx="7" fill="rgba(24,48,41,0.86)" stroke="rgba(255,255,255,0.16)" />
+        <rect x="96" y="33" width="28" height="33" rx="7" fill="rgba(16,43,43,0.92)" stroke="rgba(255,255,255,0.14)" />
+        <path d="M12 79 H132" stroke="rgba(255,255,255,0.12)" strokeWidth="1.4" strokeLinecap="round" />
+        <path d="M18 22 H68" stroke="rgba(102,209,224,0.58)" strokeWidth="2" strokeLinecap="round" />
+        <circle cx="35" cy="20" r="7" fill="rgba(73,221,133,0.20)" />
+        <circle cx="48" cy="18" r="5" fill="rgba(73,221,133,0.24)" />
+        <circle cx="113" cy="24" r="6" fill="rgba(102,209,224,0.18)" />
+
+        <g fill="rgba(73,221,133,0.26)">
+          <circle cx="14" cy="62" r="5" />
+          <circle cx="18" cy="52" r="4" />
+          <circle cx="125" cy="44" r="4" />
+          <circle cx="131" cy="52" r="5" />
+          <circle cx="114" cy="71" r="4" />
+          <circle cx="28" cy="72" r="4.5" />
+        </g>
+
+        <path d="M57 30 C67 25, 81 23, 92 29" fill="none" stroke="rgba(255,255,255,0.16)" strokeWidth="1.4" />
+        <path d="M78 30 C89 25, 101 26, 110 33" fill="none" stroke="rgba(255,255,255,0.16)" strokeWidth="1.4" />
+
+        <circle cx="79" cy="48" r="12" fill="rgba(73,221,133,0.18)" />
+        <circle cx="79" cy="48" r="5" fill="rgba(73,221,133,0.88)" stroke="rgba(255,255,255,0.8)" strokeWidth="1.5" />
+        <path d="M79 39 L83 45 L79 58 L75 45 Z" fill="rgba(255,255,255,0.88)" />
+
+        <rect x="18" y="82" width="20" height="7" rx="3.5" fill="rgba(255,255,255,0.08)" />
+        <rect x="44" y="82" width="26" height="7" rx="3.5" fill="rgba(102,209,224,0.12)" />
+        <rect x="76" y="82" width="18" height="7" rx="3.5" fill="rgba(73,221,133,0.12)" />
+      </g>
+
+      <g transform="translate(115 17)">
+        <rect x="0" y="0" width="38" height="22" rx="11" fill="rgba(8,13,20,0.58)" stroke="rgba(255,255,255,0.10)" />
+        <path d="M19 6 L23 12 L19 19 L15 12 Z" fill="rgba(255,255,255,0.84)" />
+        <circle cx="19" cy="12" r="2.3" fill="rgba(8,13,20,0.9)" />
+      </g>
+    </svg>
   );
 }
 
@@ -950,10 +1285,12 @@ function DiagnosisBriefRow({
   label,
   value,
   tone,
+  multiLine = false,
 }: {
   label: string;
   value: string;
   tone: 'slate' | 'amber' | 'emerald' | 'rose';
+  multiLine?: boolean;
 }) {
   const toneClass =
     tone === 'emerald'
@@ -965,9 +1302,14 @@ function DiagnosisBriefRow({
           : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)]';
 
   return (
-    <div className={`grid grid-cols-[64px_minmax(0,1fr)] items-center gap-3 rounded-[12px] border px-3 py-2.5 ${toneClass}`}>
+    <div className={`grid grid-cols-[64px_minmax(0,1fr)] gap-3 rounded-[12px] border px-3 py-2.5 ${toneClass} ${multiLine ? 'items-start' : 'items-center'}`}>
       <div className="seller-label text-[9px]">{label}</div>
-      <div className="truncate text-[12px] font-semibold leading-5 text-[var(--seller-ink)]" title={value}>
+      <div
+        className={multiLine
+          ? 'whitespace-pre-line text-[12px] font-semibold leading-5 text-[var(--seller-ink)]'
+          : 'truncate text-[12px] font-semibold leading-5 text-[var(--seller-ink)]'}
+        title={value}
+      >
         {value}
       </div>
     </div>
@@ -1598,7 +1940,7 @@ function PotentialSignalLine({
           <div className="mt-1 text-[10px] text-[var(--seller-muted)]">{row.budgetLine}</div>
         </div>
         <div className="shrink-0 text-right">
-          <div className="text-[11px] font-semibold text-[var(--seller-chance)]">{row.count} 组</div>
+          <div className="text-[11px] font-semibold text-[var(--seller-chance)]">{row.count} 批客源</div>
           <div className="mt-1 text-[10px] text-[var(--seller-subtle)]">{row.urgency}</div>
         </div>
       </div>
@@ -1760,7 +2102,7 @@ function deriveActionHint(actionId: string, caseItem: Case, opportunities: Oppor
   if (actionId === 'story') return caseItem.d2 < 70 ? '房子卖点还没讲透。'
     : '房子卖点基础不错。';
   if (actionId === 'pricing-advice') return `挂牌 ${caseItem.askPrice} 万，对比市场常见成交价 ${caseItem.marketPrice} 万。`;
-  if (actionId === 'ask-psychological-price') return `底价 ${caseItem.bottomPrice} 万，业主心理价还没说透。`;
+  if (actionId === 'ask-psychological-price') return `业主预期 ${caseItem.bottomPrice} 万，业主心理价还没说透。`;
   if (actionId === 'adjust-listing-price') return caseItem.askPrice > caseItem.marketPrice * 1.03 ? '挂牌价明显高于市场常见成交价。'
     : '挂牌价和市场常见成交价差距较小。';
   if (actionId === 'xiaohongshu-boost') return opportunities.length > 0 ? '现在有客户在看，投放能继续放大热度。': '现在客户少，更需要拉新客。';
@@ -1869,7 +2211,7 @@ function deriveStrongPoint(caseItem: Case) {
 }
 
 function deriveWeakPoint(caseItem: Case) {
-  if (caseItem.askPrice > caseItem.marketPrice * 1.05) return '价格高于市场成交位。';
+  if (caseItem.askPrice > caseItem.marketPrice * 1.05) return '价格高于市场合理价。';
   if (caseItem.d1 < 45) return '准客情况偏薄。';
   if (caseItem.d3 < 50) return '业主配合度偏低。';
   return '还没有明显优势';
@@ -1880,6 +2222,55 @@ function deriveNextFix(caseItem: Case, opportunities: Opportunity[]) {
   if (opportunities.some(o => o.visibility === 'shadow')) return '去核实客户';
   if (caseItem.askPrice > caseItem.marketPrice * 1.05) return '去谈价格';
   return '去推进带看';
+}
+
+function buildSuggestedActionCopy(
+  caseProjection: { listingLifecyclePhase?: { phaseCode?: string; primaryActionLabel?: string; phaseRiskHint?: string } | null } | null,
+  caseItem: Case,
+  opportunities: Opportunity[],
+): SuggestedActionCopy {
+  const title = caseProjection?.listingLifecyclePhase?.primaryActionLabel || deriveNextFix(caseItem, opportunities);
+  const phaseCode = caseProjection?.listingLifecyclePhase?.phaseCode;
+
+  if (phaseCode === 'pre_visit') {
+    return {
+      title,
+      detail: '先把业主顾虑、时间窗口和合作基础摸清。',
+    };
+  }
+
+  if (phaseCode === 'packaging') {
+    return {
+      title,
+      detail: '先把房源讲清，再把曝光和节奏推起来。',
+    };
+  }
+
+  if (phaseCode === 'showing') {
+    return {
+      title,
+      detail: '先把带看节奏拉起来，再把客户反馈收回来。',
+    };
+  }
+
+  if (phaseCode === 'feedback_offer') {
+    return {
+      title,
+      detail: '把反馈翻成报价动作，不要只停在看房。',
+    };
+  }
+
+  if (phaseCode === 'negotiation') {
+    return {
+      title,
+      detail: '把价格、条件和时间窗口一起收口。',
+    };
+  }
+
+  return {
+    title,
+    detail: caseProjection?.listingLifecyclePhase?.phaseRiskHint || '把下一步接上。',
+  };
 }
 
 function filterCustomerModels(models: OpportunityViewModel[], filter: CustomerFilter) {
@@ -1929,7 +2320,7 @@ function buildPotentialSignalRows(models: OpportunityViewModel[]) {
         count: items.length,
         budgetLine: describePotentialBudgetRange(budgets),
         confidenceLabel: deriveSignalStrengthLabel(maxConfidence),
-        urgency: `${soonestDaysLeft} 天内不接，这波会散`,
+        urgency: `${soonestDaysLeft} 天内要跟进，不然这批客源会流失`,
         score: items.length * 20 + maxConfidence - soonestDaysLeft * 3,
       };
     })
@@ -2039,7 +2430,7 @@ function deriveDemandTitle(caseItem: Case, priceDelta: number, bedroomLabel: str
 }
 
 function deriveDemandDetail(caseItem: Case, priceDelta: number, bedroomLabel: string, possibleShare: number) {
-  const priceText = priceDelta > 0 ? `挂牌高出市场约 ${priceDelta} 万` : priceDelta < 0 ? `挂牌低于市场约 ${Math.abs(priceDelta)} 万` : '挂牌接近市场成交位';
+  const priceText = priceDelta > 0 ? `挂牌高出市场约 ${priceDelta} 万` : priceDelta < 0 ? `挂牌低于市场约 ${Math.abs(priceDelta)} 万` : '挂牌接近市场合理价';
   const scaleText = possibleShare >= 0.2 ? '可触达客群不薄' : '可触达客群偏窄';
   return `${caseItem.community} ${caseItem.area}㎡ ${bedroomLabel}，${priceText}，${scaleText}。`;
 }

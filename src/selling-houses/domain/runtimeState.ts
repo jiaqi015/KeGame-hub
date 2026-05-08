@@ -411,7 +411,7 @@ function deriveWeekRhythmSchedule(world: GameState): GameState['schedule'] {
       caseId: negotiationCase.id,
       title: '协助业主去谈判',
       badge: '临时事项',
-      note: `${negotiationOpportunity.customerName} 已经接近出价，需要把业主底线、客户反馈和谈判口径放到同一张桌上。`,
+      note: `${negotiationOpportunity.customerName} 已经接近出价，需要把业主预期、客户反馈和谈判口径放到同一张桌上。`,
       urgency: 89,
       slot: 'pm',
       source: 'interrupt',

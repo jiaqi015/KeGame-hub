@@ -181,7 +181,7 @@ function extractCustomerFacts(input: ExtractMyWechatFactsInput): WechatFact[] {
         customerId: opportunity.customerId,
         opportunityId: opportunity.id,
         priority: 12 + priorityBoost + riskScore(opportunity.priceSensitivity, 58),
-        reason: `${opportunity.customerName} 对总价和业主底线很敏感，继续推进前要先确认价格空间。`,
+        reason: `${opportunity.customerName} 对总价和业主预期很敏感，继续推进前要先确认价格空间。`,
         senderRole: 'customer',
         senderName: opportunity.customerName,
         customerName: opportunity.customerName,

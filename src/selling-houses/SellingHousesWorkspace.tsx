@@ -1368,7 +1368,7 @@ function SelectedCaseDetailSheet({
           chips={[
             `挂牌 ${projection.priceSummary.askPrice} 万`,
             `市场 ${projection.priceSummary.marketPrice} 万`,
-            `底价 ${projection.priceSummary.bottomPrice} 万`,
+            `业主预期 ${projection.priceSummary.bottomPrice} 万`,
           ]}
         />
         <DetailMetricCard

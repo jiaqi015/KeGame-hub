@@ -47,7 +47,7 @@ const CUSTOMER_MESSAGE_TEMPLATES: Record<string, readonly string[]> = {
     '{customerName}：我家里人觉得另一套也可以，主要是装修省心一点。你这套还有什么优势我想再听听。',
   ],
   customer_price_sensitive: [
-    '{customerName}：这套我还没完全放弃，主要是预算有点卡。你帮我再确认下业主底线。',
+    '{customerName}：这套我还没完全放弃，主要是预算有点卡。你帮我再确认下业主预期。',
     '{customerName}：位置我能接受，就是总价压力有点大。业主那边如果一点空间没有，我可能就先放放。',
     '{customerName}：如果能谈到我预算附近，我愿意再认真看一次。你先帮我摸一下业主态度。',
   ],

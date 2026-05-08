@@ -418,8 +418,8 @@ export class LocalAdversarialSelfPlayArena {
         if (entry.askPrice < entry.bottomPrice) {
           this.findings.push({
             severity: 'major',
-            title: '报价跌破底价',
-            detail: `${entry.title} 当前报价 ${entry.askPrice} 低于底价 ${entry.bottomPrice}。`,
+            title: '报价跌破预期',
+            detail: `${entry.title} 当前报价 ${entry.askPrice} 低于业主预期 ${entry.bottomPrice}。`,
             day: state.day,
           });
         }

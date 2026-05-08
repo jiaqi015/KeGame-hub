@@ -1837,7 +1837,7 @@ function buildCaseFactChain(
     lane: 'price',
     title: '价格站位',
     fact: priceGap > 0
-      ? `挂牌比市场常见成交价高 ${priceGap} 万，当前底价 ${caseItem.bottomPrice} 万。`
+      ? `挂牌比市场常见成交价高 ${priceGap} 万，当前业主预期 ${caseItem.bottomPrice} 万。`
       : `挂牌与市场常见成交价基本贴近，当前更看执行和客户承接。`,
     nextStep: priceGap > 0
         ? '价格说法已统一，复看或报价更顺。'
@@ -2476,7 +2476,7 @@ function derivePriceTitle(caseItem: Case) {
 function derivePriceDetail(caseItem: Case) {
   const gap = caseItem.askPrice - caseItem.marketPrice;
   if (gap <= 0) return `挂牌 ${caseItem.askPrice} 万，低于或接近市场常见成交价。`;
-  return `挂牌 ${caseItem.askPrice} 万，比市场常见成交价高 ${gap} 万，底价 ${caseItem.bottomPrice} 万。`;
+  return `挂牌 ${caseItem.askPrice} 万，比市场常见成交价高 ${gap} 万，业主预期 ${caseItem.bottomPrice} 万。`;
 }
 
 function deriveCompetitionTitle(rivalCount: number, pressure: number) {

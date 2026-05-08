@@ -233,7 +233,7 @@ function deriveUrgencyLabel(
   customerState: CustomerRuntimeState | undefined,
 ) {
   const daysLeftLabel = formatOpportunityDaysLeft(opportunity.daysLeft);
-  if (opportunity.visibility === 'shadow') return `${daysLeftLabel}内不接，这波人群会散`;
+  if (opportunity.visibility === 'shadow') return `${daysLeftLabel}内要跟进，不然这批客源会流失`;
   if ((customerState?.churnRisk || 0) >= 60) return `${daysLeftLabel}内不跟，客户很容易流失`;
   if (opportunity.stageIndex >= 4) return `${daysLeftLabel}内要把价格谈实`;
   if (opportunity.stageIndex >= 2) return `${daysLeftLabel}内要接住看房热度`;

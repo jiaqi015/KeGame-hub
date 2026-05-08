@@ -46,7 +46,7 @@ export const MODEL_CONFIGS: AIModel[] = [
     description: 'DeepSeek 通用模型，代码与推理表现突出',
     provider: 'ark',
     upstreamModel: 'deepseek-v3-1-250821',
-    enabled: true,
+    enabled: false,
     thinkingStreamMode: 'native',
   },
   {

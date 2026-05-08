@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { LogOut, CheckCircle2, ArrowRight, HardHat, Sparkles, Globe2, type LucideIcon } from 'lucide-react';
+import { LogOut, CheckCircle2, ArrowRight, HardHat, Sparkles, Globe2, ExternalLink, type LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import { ActivationWorkspaceId } from '../../types';
 import { WORKSPACE_REGISTRY, type WorkspaceRegistryItem } from '../../workspaces/workspaceRegistry';
@@ -106,11 +106,22 @@ export function WorkspaceHub({
                 className="rounded-[32px] border border-black/[0.04] bg-white/55 p-4 shadow-[0_10px_34px_rgba(15,23,42,0.035)] sm:p-5"
               >
                 <div className="mb-4 flex flex-col gap-1.5 px-1 sm:flex-row sm:items-end sm:justify-between">
-                  <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#8E8E93]">
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#8E8E93]">
                     <span className={`flex h-5 w-5 items-center justify-center rounded-full ${section.iconClassName}`}>
                       <SectionIcon className="h-3 w-3" strokeWidth={2.4} />
                     </span>
-                    {section.label}
+                    <span>{section.label}</span>
+                    {section.id === 'selling-world' ? (
+                      <a
+                        href="https://beike.feishu.cn/wiki/I8ALwnEZgibgojkZ3xjcr4y2no2"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 rounded-full border border-black/5 bg-white px-2.5 py-1 text-[10px] font-semibold normal-case tracking-normal text-[#2457E7] transition hover:border-black/10 hover:bg-[#F5F7FF]"
+                      >
+                        设计理念
+                        <ExternalLink className="h-3 w-3" strokeWidth={2.4} />
+                      </a>
+                    ) : null}
                   </div>
                   <p className="max-w-[28rem] text-[12px] leading-5 text-[#6E6E73] sm:text-right">{section.description}</p>
                 </div>

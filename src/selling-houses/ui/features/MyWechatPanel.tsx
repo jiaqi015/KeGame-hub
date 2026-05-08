@@ -419,11 +419,6 @@ const WechatConversationDetail: React.FC<{
           <div className="truncate text-[13px] font-semibold text-[var(--seller-ink)]">{conversation.senderName}</div>
           <div className="mt-0.5 text-[10px] text-[var(--seller-subtle)]">{senderRoleLabel(conversation.senderRole)}</div>
         </div>
-        {conversation.messages.length > 1 ? (
-          <span className="shrink-0 rounded-full bg-[rgba(255,255,255,0.06)] px-2 py-0.5 text-[10px] font-semibold text-[var(--seller-muted)]">
-            {conversation.messages.length} 条
-          </span>
-        ) : null}
       </div>
 
       <div className="flex-1 space-y-3 overflow-y-auto px-3 py-4">
