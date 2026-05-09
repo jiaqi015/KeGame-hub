@@ -35,6 +35,7 @@ import type { Settlement } from './domain/actions/templates';
 import type { Case, TodayArrangementSlot } from './domain/models';
 import { ActionDecisionOverlay, buildActionDecisionConfig } from './ui/features/ActionDecisionOverlay';
 import { DailyJournal } from './ui/widgets/DailyJournal';
+import { LiquidGlassSurface } from './ui/widgets/LiquidGlassSurface';
 import { WorkspaceUtilityBar } from './ui/widgets/WorkspaceUtilityBar';
 
 const Dashboard = lazy(() => import('./ui/features/Dashboard').then((module) => ({ default: module.Dashboard })));
@@ -655,6 +656,7 @@ export function SellingHousesWorkspace({
         return (
           <Cases
             state={state}
+            theme={theme}
             selectedCaseIdOverride={selectedCaseIdOverride}
             onSelectCase={(caseId) => {
               setSelectedCaseIdOverride(null);
@@ -734,7 +736,14 @@ export function SellingHousesWorkspace({
       >
       <header className="shrink-0 border-b border-[var(--seller-border)] bg-[rgba(11,17,24,0.96)] px-4 py-2 backdrop-blur-xl">
         <div className="flex flex-col gap-2.5">
-          <div className="seller-band flex flex-wrap items-center justify-between gap-3 px-3 py-2">
+          <LiquidGlassIfLight
+            enabled={theme === 'light'}
+            preset="toolbar"
+            className="w-full"
+            glassClassName="rounded-[18px]"
+            contentClassName="seller-band flex flex-wrap items-center justify-between gap-3 px-3 py-2"
+            fallbackClassName="seller-band flex flex-wrap items-center justify-between gap-3 px-3 py-2"
+          >
             <div className="flex min-w-0 flex-1">
               <div className="flex min-w-0 flex-1 items-center gap-3">
                 <ConfirmBackButton
@@ -802,9 +811,16 @@ export function SellingHousesWorkspace({
                 onOpenLeaderboard={openLeaderboard}
               />
             </div>
-          </div>
+          </LiquidGlassIfLight>
 
-          <div className="seller-panel-muted flex flex-wrap items-center justify-between gap-2 p-1.5">
+          <LiquidGlassIfLight
+            enabled={theme === 'light'}
+            preset="toolbar"
+            className="w-full"
+            glassClassName="rounded-[18px]"
+            contentClassName="seller-panel-muted flex flex-wrap items-center justify-between gap-2 p-1.5"
+            fallbackClassName="seller-panel-muted flex flex-wrap items-center justify-between gap-2 p-1.5"
+          >
             <nav className="flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-[15px] bg-[rgba(255,255,255,0.03)] p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <NavItem active={activeView === 'overview'} onClick={() => openView('overview')} icon={<LayoutDashboard size={16} />} label="工作台" />
               <NavItem active={activeView === 'cases'} onClick={() => openView('cases')} icon={<Home size={16} />} label="我的房源" />
@@ -889,7 +905,7 @@ export function SellingHousesWorkspace({
                 </button>
               </div>
             </div>
-          </div>
+          </LiquidGlassIfLight>
         </div>
       </header>
 
@@ -1461,6 +1477,39 @@ function NavItem({
       {icon}
       <span>{label}</span>
     </button>
+  );
+}
+
+function LiquidGlassIfLight({
+  children,
+  contentClassName,
+  enabled,
+  fallbackClassName,
+  glassClassName,
+  className,
+  preset,
+}: {
+  children: React.ReactNode;
+  contentClassName: string;
+  enabled: boolean;
+  fallbackClassName: string;
+  glassClassName?: string;
+  className?: string;
+  preset: 'panel' | 'hero' | 'toolbar' | 'button';
+}) {
+  if (!enabled) {
+    return <div className={fallbackClassName}>{children}</div>;
+  }
+
+  return (
+    <LiquidGlassSurface
+      preset={preset}
+      className={className}
+      glassClassName={glassClassName}
+      contentClassName={contentClassName}
+    >
+      {children}
+    </LiquidGlassSurface>
   );
 }
 

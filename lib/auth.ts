@@ -27,7 +27,9 @@ export const AUTH_DEFAULT_USERS_ENV_NAME = 'AUTH_DEFAULT_USERS';
 export const AUTH_VERIFICATION_BYPASS_ENV_NAME = 'AUTH_VERIFICATION_BYPASS_EMAILS';
 export const AUTH_LOCAL_WHITELIST_ENV_NAME = 'AUTH_LOCAL_WHITELIST';
 export const AUTH_SESSION_SECRET_ENV_NAME = 'AUTH_SESSION_SECRET';
-export const AUTH_EMAIL_DOMAIN = '@ke.com';
+export const AUTH_EMAIL_DOMAINS = ['@ke.com', '@lianjia.com'] as const;
+export const AUTH_EMAIL_DOMAIN = AUTH_EMAIL_DOMAINS[0];
+const AUTH_EMAIL_DOMAIN_LABEL = AUTH_EMAIL_DOMAINS.join(' 或 ');
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 14;
 const VERIFICATION_CODE_TTL_MS = 1000 * 60 * 10;
 
@@ -339,8 +341,15 @@ function isAllWorkspacesToken(value: string): boolean {
   return normalized === 'all' || normalized === '12345';
 }
 
-function isKeEmail(email: string): boolean {
-  return normalizeEmail(email).endsWith(AUTH_EMAIL_DOMAIN);
+export function isAllowedAuthEmail(email: string): boolean {
+  const normalizedEmail = normalizeEmail(email);
+  return AUTH_EMAIL_DOMAINS.some((domain) => normalizedEmail.endsWith(domain));
+}
+
+function assertAllowedAuthEmail(email: string) {
+  if (!isAllowedAuthEmail(email)) {
+    throw new Error(`仅支持 ${AUTH_EMAIL_DOMAIN_LABEL} 邮箱登录。`);
+  }
 }
 
 function buildSessionCookie(sessionToken: string): string {
@@ -554,9 +563,7 @@ export async function startEmailLogin(emailInput: string): Promise<LoginStartRes
     throw new Error('请输入邮箱。');
   }
 
-  if (!isKeEmail(email)) {
-    throw new Error('仅支持 @ke.com 邮箱登录。');
-  }
+  assertAllowedAuthEmail(email);
 
   const store = getAuthStore();
   const existingUser = store.users[email];
@@ -617,9 +624,7 @@ export async function startEmailLoginPersisted(emailInput: string): Promise<Logi
     throw new Error('请输入邮箱。');
   }
 
-  if (!isKeEmail(email)) {
-    throw new Error('仅支持 @ke.com 邮箱登录。');
-  }
+  assertAllowedAuthEmail(email);
 
   let existingUser = await neonGetUser(email);
   const bypassEmails = getBypassEmails();
@@ -675,6 +680,7 @@ export function completeEmailLogin(input: {
   if (!email) {
     throw new Error('缺少邮箱。');
   }
+  assertAllowedAuthEmail(email);
 
   const store = getAuthStore();
   const bypassEmails = getBypassEmails();
@@ -735,6 +741,7 @@ export async function completeEmailLoginPersisted(input: {
   if (!email) {
     throw new Error('缺少邮箱。');
   }
+  assertAllowedAuthEmail(email);
 
   const bypassEmails = getBypassEmails();
   let existingUser = await neonGetUser(email);

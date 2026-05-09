@@ -594,13 +594,13 @@ select {
 /* ── selling-houses 浅色主题 ─────────────────────────────────────── */
 
 .selling-houses-shell[data-theme="light"] {
-  --seller-bg: #f5f5f7;
-  --seller-bg-strong: #ececee;
-  --seller-paper: #ffffff;
-  --seller-paper-soft: #fafafa;
-  --seller-panel-alt: #f0f0f2;
-  --seller-border: rgba(0,0,0,0.08);
-  --seller-border-strong: rgba(0,0,0,0.15);
+  --seller-bg: #eaf1f5;
+  --seller-bg-strong: #dfe9ee;
+  --seller-paper: rgba(255, 255, 255, 0.54);
+  --seller-paper-soft: rgba(255, 255, 255, 0.42);
+  --seller-panel-alt: rgba(255, 255, 255, 0.3);
+  --seller-border: rgba(33, 53, 70, 0.13);
+  --seller-border-strong: rgba(33, 53, 70, 0.24);
   --seller-ink: #1d1d1f;
   --seller-muted: #424245;
   --seller-subtle: #86868b;
@@ -611,9 +611,17 @@ select {
   --seller-risk-soft: rgba(220,38,38,0.06);
   --seller-chance: #0891b2;
   --seller-chance-soft: rgba(8,145,178,0.08);
-  --seller-shadow-sm: 0 1px 4px rgba(0,0,0,0.06);
-  --seller-shadow-md: 0 4px 16px rgba(0,0,0,0.08);
-  --seller-shadow-lg: 0 8px 32px rgba(0,0,0,0.1);
+  --seller-glass-bg: linear-gradient(145deg, rgba(255,255,255,0.78), rgba(255,255,255,0.44) 48%, rgba(232,244,255,0.34));
+  --seller-glass-bg-soft: linear-gradient(145deg, rgba(255,255,255,0.58), rgba(255,255,255,0.32) 52%, rgba(220,241,255,0.22));
+  --seller-glass-bg-strong: linear-gradient(145deg, rgba(255,255,255,0.88), rgba(255,255,255,0.56) 48%, rgba(226,242,255,0.38));
+  --seller-glass-highlight: rgba(255,255,255,0.82);
+  --seller-glass-edge: rgba(255,255,255,0.68);
+  --seller-glass-shadow: 0 18px 48px rgba(34, 53, 74, 0.12), 0 2px 10px rgba(34, 53, 74, 0.06);
+  --seller-glass-shadow-lg: 0 28px 80px rgba(34, 53, 74, 0.16), 0 8px 22px rgba(34, 53, 74, 0.08);
+  --seller-glass-inset: inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -1px 0 rgba(255,255,255,0.36);
+  --seller-shadow-sm: var(--seller-glass-shadow);
+  --seller-shadow-md: 0 22px 58px rgba(34, 53, 74, 0.14), 0 4px 12px rgba(34, 53, 74, 0.06);
+  --seller-shadow-lg: var(--seller-glass-shadow-lg);
   color-scheme: light;
 }
 
@@ -769,80 +777,85 @@ select {
 }
 
 .selling-houses-shell[data-theme="light"] [class*="backdrop-blur"] {
-  backdrop-filter: blur(8px) !important;
+  backdrop-filter: blur(26px) saturate(1.38) contrast(1.02) !important;
 }
 
 /* ── 浅色主题 · 壳背景 & 组件类 ────────────────────────────────── */
 
 .selling-houses-shell[data-theme="light"] {
   background:
-    radial-gradient(circle at top right, rgba(10, 143, 76, 0.06), transparent 24%),
-    radial-gradient(circle at bottom left, rgba(8, 145, 178, 0.04), transparent 22%),
+    radial-gradient(circle at 14% 2%, rgba(255, 255, 255, 0.98), transparent 24%),
+    radial-gradient(circle at 88% 9%, rgba(10, 143, 76, 0.2), transparent 26%),
+    radial-gradient(circle at 18% 94%, rgba(8, 145, 178, 0.18), transparent 30%),
+    linear-gradient(115deg, rgba(255,255,255,0.52) 0 1px, transparent 1px 82px),
+    linear-gradient(22deg, transparent 0 46%, rgba(255,255,255,0.35) 46% 48%, transparent 48% 100%),
     var(--seller-bg) !important;
 }
 
 .selling-houses-shell[data-theme="light"] .seller-panel {
-  background: var(--seller-paper) !important;
+  background: var(--seller-glass-bg) !important;
 }
 
 .selling-houses-shell[data-theme="light"] .seller-panel-muted {
-  background: var(--seller-paper-soft) !important;
+  background: var(--seller-glass-bg-soft) !important;
 }
 
 .selling-houses-shell[data-theme="light"] .seller-panel-soft {
-  background: var(--seller-panel-alt) !important;
+  background: var(--seller-glass-bg-soft) !important;
 }
 
 .selling-houses-shell[data-theme="light"] .seller-panel-strong {
   background:
-    radial-gradient(circle at top right, rgba(10, 143, 76, 0.06), transparent 34%),
-    var(--seller-paper) !important;
+    radial-gradient(circle at top right, rgba(10, 143, 76, 0.13), transparent 34%),
+    var(--seller-glass-bg-strong) !important;
 }
 
 .selling-houses-shell[data-theme="light"] .seller-band {
-  background: var(--seller-paper) !important;
+  background: var(--seller-glass-bg) !important;
 }
 
 .selling-houses-shell[data-theme="light"] .seller-workbench {
   background:
-    radial-gradient(circle at top right, rgba(10, 143, 76, 0.04), transparent 38%),
-    var(--seller-paper) !important;
+    radial-gradient(circle at top right, rgba(10, 143, 76, 0.1), transparent 38%),
+    var(--seller-glass-bg-strong) !important;
 }
 
 .selling-houses-shell[data-theme="light"] .seller-workbench-dark {
   background:
-    radial-gradient(circle at top right, rgba(10, 143, 76, 0.04), transparent 34%),
-    var(--seller-paper) !important;
+    radial-gradient(circle at top right, rgba(10, 143, 76, 0.1), transparent 34%),
+    var(--seller-glass-bg-strong) !important;
 }
 
 .selling-houses-shell[data-theme="light"] .seller-right-rail {
-  background: var(--seller-paper-soft) !important;
+  background: linear-gradient(180deg, rgba(255,255,255,0.52), rgba(255,255,255,0.34)) !important;
+  backdrop-filter: blur(30px) saturate(1.32);
 }
 
 .selling-houses-shell[data-theme="light"] .seller-tablet {
-  background: var(--seller-paper-soft) !important;
+  background: var(--seller-glass-bg-soft) !important;
 }
 
 .selling-houses-shell[data-theme="light"] .seller-note {
-  background: var(--seller-panel-alt) !important;
+  background: rgba(255, 255, 255, 0.42) !important;
   color: var(--seller-muted) !important;
 }
 
 .selling-houses-shell[data-theme="light"] .seller-empty {
-  background: var(--seller-panel-alt) !important;
+  background: rgba(255, 255, 255, 0.34) !important;
   color: var(--seller-muted) !important;
 }
 
 .selling-houses-shell[data-theme="light"] .seller-chip {
-  background: rgba(0, 0, 0, 0.04) !important;
+  background: rgba(255, 255, 255, 0.38) !important;
 }
 
 .selling-houses-shell[data-theme="light"] .seller-fact-row {
-  background: rgba(0, 0, 0, 0.02) !important;
+  background: rgba(255, 255, 255, 0.32) !important;
 }
 
 .selling-houses-shell[data-theme="light"] .seller-tabbar {
-  background: var(--seller-panel-alt) !important;
+  background: rgba(255, 255, 255, 0.36) !important;
+  backdrop-filter: blur(22px) saturate(1.35);
 }
 
 .selling-houses-shell[data-theme="light"] .seller-tab:hover {
@@ -850,7 +863,7 @@ select {
 }
 
 .selling-houses-shell[data-theme="light"] .seller-button-secondary {
-  background: rgba(0, 0, 0, 0.03) !important;
+  background: rgba(255, 255, 255, 0.36) !important;
 }
 
 .selling-houses-shell[data-theme="light"] .seller-button-secondary:hover {
@@ -862,7 +875,7 @@ select {
 }
 
 .selling-houses-shell[data-theme="light"] .seller-tone-neutral {
-  background: var(--seller-panel-alt) !important;
+  background: rgba(255, 255, 255, 0.36) !important;
 }
 
 .selling-houses-shell[data-theme="light"] .seller-workbench-line {
@@ -871,6 +884,201 @@ select {
 
 .selling-houses-shell[data-theme="light"] .seller-separator {
   background: linear-gradient(180deg, transparent 0%, var(--seller-border) 10%, var(--seller-border) 90%, transparent 100%) !important;
+}
+
+.selling-houses-shell[data-theme="light"] .seller-panel,
+.selling-houses-shell[data-theme="light"] .seller-panel-muted,
+.selling-houses-shell[data-theme="light"] .seller-panel-soft,
+.selling-houses-shell[data-theme="light"] .seller-panel-strong,
+.selling-houses-shell[data-theme="light"] .seller-band,
+.selling-houses-shell[data-theme="light"] .seller-workbench,
+.selling-houses-shell[data-theme="light"] .seller-workbench-dark,
+.selling-houses-shell[data-theme="light"] .seller-tablet,
+.selling-houses-shell[data-theme="light"] .seller-note,
+.selling-houses-shell[data-theme="light"] .seller-empty,
+.selling-houses-shell[data-theme="light"] .seller-tabbar {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-color: rgba(255, 255, 255, 0.56) !important;
+  box-shadow:
+    0 18px 44px rgba(34, 53, 74, 0.11),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86),
+    inset 0 -1px 0 rgba(35, 65, 84, 0.08) !important;
+  backdrop-filter: blur(18px) saturate(1.18);
+  -webkit-backdrop-filter: blur(18px) saturate(1.18);
+}
+
+.selling-houses-shell[data-theme="light"] .seller-workbench.overflow-visible,
+.selling-houses-shell[data-theme="light"] .seller-workbench-dark.overflow-visible {
+  overflow: visible;
+}
+
+.selling-houses-shell[data-theme="light"] .seller-workbench,
+.selling-houses-shell[data-theme="light"] .seller-workbench-dark,
+.selling-houses-shell[data-theme="light"] .seller-panel-strong {
+  box-shadow:
+    0 28px 72px rgba(34, 53, 74, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(35, 65, 84, 0.08) !important;
+}
+
+.selling-houses-shell[data-theme="light"] .seller-chip,
+.selling-houses-shell[data-theme="light"] .seller-fact-row,
+.selling-houses-shell[data-theme="light"] .seller-button-secondary,
+.selling-houses-shell[data-theme="light"] .seller-button-ghost {
+  border-color: rgba(255,255,255,0.54) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.72), 0 5px 14px rgba(34, 53, 74, 0.06);
+  backdrop-filter: blur(14px) saturate(1.16);
+  -webkit-backdrop-filter: blur(14px) saturate(1.16);
+}
+
+.selling-houses-shell[data-theme="light"] .seller-tab-active {
+  background: rgba(255, 255, 255, 0.72) !important;
+  color: var(--seller-ink) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.88), 0 8px 18px rgba(34, 53, 74, 0.1);
+}
+
+.selling-houses-shell[data-theme="light"] .seller-liquid-root {
+  position: relative;
+  isolation: isolate;
+  overflow: visible;
+  border-radius: inherit;
+}
+
+.selling-houses-shell[data-theme="light"] .seller-liquid-scene {
+  position: absolute;
+  inset: -14px;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 18% 18%, rgba(255,255,255,0.98), transparent 25%),
+    radial-gradient(circle at 82% 22%, rgba(18,167,97,0.2), transparent 28%),
+    radial-gradient(circle at 18% 88%, rgba(24,154,190,0.18), transparent 30%),
+    linear-gradient(135deg, rgba(255,255,255,0.92), rgba(218,235,241,0.66) 46%, rgba(255,255,255,0.38));
+}
+
+.selling-houses-shell[data-theme="light"] .seller-liquid-root::before {
+  position: absolute;
+  inset: -20px;
+  z-index: 0;
+  pointer-events: none;
+  content: "";
+  border-radius: inherit;
+  background:
+    linear-gradient(118deg, transparent 8%, rgba(255,255,255,0.72) 18%, transparent 31%),
+    linear-gradient(302deg, transparent 56%, rgba(255,255,255,0.48) 69%, transparent 82%);
+  opacity: 0.76;
+  filter: blur(0.2px);
+}
+
+.selling-houses-shell[data-theme="light"] .seller-liquid-surface {
+  position: relative;
+  z-index: 1;
+  overflow: visible;
+  border: 1px solid rgba(255,255,255,0.5);
+  background: rgba(255,255,255,0.16);
+  box-shadow:
+    0 20px 46px rgba(34,53,74,0.14),
+    inset 0 1px 0 rgba(255,255,255,0.74),
+    inset 0 -1px 0 rgba(35,65,84,0.08);
+}
+
+.selling-houses-shell[data-theme="light"] .seller-liquid-surface > canvas {
+  z-index: 0;
+  opacity: 0.96;
+  mix-blend-mode: normal;
+}
+
+.selling-houses-shell[data-theme="light"] .seller-liquid-content {
+  position: relative;
+  z-index: 1;
+}
+
+.selling-houses-shell[data-theme="light"] .seller-liquid-toolbar .seller-liquid-content,
+.selling-houses-shell[data-theme="light"] .seller-liquid-hero .seller-liquid-content {
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.selling-houses-shell[data-theme="light"] .seller-liquid-hero {
+  min-height: 188px;
+  border-radius: 18px;
+}
+
+.selling-houses-shell[data-theme="light"] .seller-liquid-root:has(.seller-liquid-hero) .seller-liquid-scene {
+  background:
+    radial-gradient(circle at 18% 16%, rgba(255,255,255,0.98), transparent 25%),
+    radial-gradient(circle at 76% 22%, rgba(14,156,90,0.22), transparent 27%),
+    radial-gradient(circle at 26% 84%, rgba(34,153,184,0.18), transparent 32%),
+    linear-gradient(138deg, rgba(251,255,255,0.94), rgba(208,229,238,0.68) 46%, rgba(255,255,255,0.42));
+}
+
+.selling-houses-shell[data-theme="light"] .seller-listing-hero {
+  background:
+    radial-gradient(circle at 27% 18%, rgba(255,255,255,0.88), transparent 34%),
+    radial-gradient(circle at 74% 36%, rgba(10,143,76,0.14), transparent 30%),
+    linear-gradient(145deg, rgba(240,250,253,0.64), rgba(201,224,235,0.38)) !important;
+  border-color: rgba(255,255,255,0.42) !important;
+  box-shadow: none !important;
+}
+
+.selling-houses-shell[data-theme="light"] .seller-listing-hero-tone {
+  opacity: 0.34;
+  mix-blend-mode: multiply;
+}
+
+.selling-houses-shell[data-theme="light"] .seller-listing-hero-light {
+  background:
+    radial-gradient(circle at 22% 10%, rgba(255,255,255,0.72), transparent 28%),
+    radial-gradient(circle at 84% 18%, rgba(10,143,76,0.15), transparent 26%) !important;
+}
+
+.selling-houses-shell[data-theme="light"] .seller-listing-hero-shade {
+  height: 92px;
+  background: linear-gradient(180deg, transparent, rgba(221, 239, 244, 0.56)) !important;
+}
+
+.selling-houses-shell[data-theme="light"] .seller-listing-hero-stage svg {
+  color: #234154;
+  filter: saturate(1.14) contrast(1.04) drop-shadow(0 12px 16px rgba(35,65,84,0.16));
+}
+
+.selling-houses-shell[data-theme="light"] .seller-listing-hero-visual {
+  --listing-hero-glass-panel: rgba(255,255,255,0.46);
+  --listing-hero-room-strong: rgba(92,131,146,0.46);
+  --listing-hero-room-deep: rgba(81,120,138,0.54);
+  --listing-hero-line: rgba(35,65,84,0.2);
+  --listing-hero-shadow: rgba(35,65,84,0.2);
+  --listing-hero-ground: rgba(35,65,84,0.16);
+}
+
+.selling-houses-shell[data-theme="light"] .seller-listing-hero-plan .seller-listing-hero-stage svg,
+.selling-houses-shell[data-theme="light"] .seller-listing-hero-community .seller-listing-hero-stage svg {
+  opacity: 0.94;
+}
+
+.selling-houses-shell[data-theme="light"] .seller-listing-hero-three-d .seller-listing-hero-stage svg {
+  opacity: 0.98;
+}
+
+.selling-houses-shell[data-theme="light"] .seller-listing-hero-pill,
+.selling-houses-shell[data-theme="light"] .seller-listing-hero-switch {
+  background: rgba(255, 255, 255, 0.5) !important;
+  border-color: rgba(255, 255, 255, 0.52) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.86), 0 6px 16px rgba(34,53,74,0.08);
+  color: var(--seller-muted) !important;
+}
+
+.selling-houses-shell[data-theme="light"] .seller-listing-hero-switch button[aria-pressed="true"] {
+  background: rgba(35, 65, 84, 0.9) !important;
+  color: rgba(255,255,255,0.92) !important;
+}
+
+.selling-houses-shell[data-theme="light"] .seller-listing-hero-switch button[aria-pressed="false"] {
+  color: rgba(35, 65, 84, 0.66) !important;
 }
 
 /* ── 浅色主题 · border-white 覆盖 ──────────────────────────────── */

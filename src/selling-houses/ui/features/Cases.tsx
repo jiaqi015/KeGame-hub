@@ -12,6 +12,7 @@ import { clamp, costText, caseSortValue } from '../../domain/utils';
 import { getActiveOpportunities, getActionAvailability } from '../../domain/engine';
 import { Star } from 'lucide-react';
 import { buildOpportunityViewModels, type OpportunityViewModel } from './caseOpportunityViewModel';
+import { LiquidGlassSurface } from '../widgets/LiquidGlassSurface';
 import {
   ActionDecisionOverlay,
   buildActionDecisionConfig,
@@ -24,6 +25,7 @@ import {
 interface CasesProps {
   state: GameState;
   selectedCaseIdOverride?: string | null;
+  theme?: 'dark' | 'light';
   onSelectCase: (id: string) => void;
   onExecuteAction: (actionId: string, caseItem: Case, optionId?: string | null) => boolean;
   onCaptureOpportunity: (opportunity: ProductOpportunityProjection) => boolean;
@@ -124,7 +126,7 @@ export function resolveRecommendedActionCard<T extends RecommendedActionCardLike
     || null;
 }
 
-export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAction, onCaptureOpportunity, onExecuteScenarioAction }: CasesProps) {
+export function Cases({ state, selectedCaseIdOverride, theme = 'dark', onSelectCase, onExecuteAction, onCaptureOpportunity, onExecuteScenarioAction }: CasesProps) {
   const { cases, selectedCaseId } = state;
   const [stageFilter, setStageFilter] = useState<CaseStageFilter>('all');
   const [quickFilter, setQuickFilter] = useState<CaseQuickFilter | null>(null);
@@ -366,7 +368,7 @@ export function Cases({ state, selectedCaseIdOverride, onSelectCase, onExecuteAc
               <section className="seller-workbench overflow-visible">
                 <div className="grid gap-3 border-b border-[var(--seller-border)] px-3.5 py-3 xl:grid-cols-[minmax(0,1fr)_228px]">
                   <div className="grid min-w-0 gap-3 sm:grid-cols-[178px_minmax(0,1fr)]">
-                    <ListingHeroImage caseItem={selectedCase} />
+                    <ListingHeroImage caseItem={selectedCase} theme={theme} />
                     <div className="min-w-0">
                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
                         <h2 className="seller-title text-[17px] leading-5">{selectedCase.title}</h2>
@@ -771,7 +773,7 @@ const LISTING_HERO_VIEWS: Array<{ id: ListingHeroViewId; label: string }> = [
   { id: 'community', label: '环境' },
 ];
 
-function ListingHeroImage({ caseItem }: { caseItem: Case }) {
+function ListingHeroImage({ caseItem, theme }: { caseItem: Case; theme: 'dark' | 'light' }) {
   const [activeView, setActiveView] = useState<ListingHeroViewId>('plan');
   const hoverPausedRef = useRef(false);
   const tone = caseItem.d2 >= 70 ? 'good' : caseItem.d1 < 45 || caseItem.d3 < 48 ? 'risk' : 'normal';
@@ -797,9 +799,9 @@ function ListingHeroImage({ caseItem }: { caseItem: Case }) {
     return () => window.clearInterval(timer);
   }, []);
 
-  return (
+  const content = (
     <div
-      className="relative min-h-[188px] overflow-hidden rounded-[18px] border border-[var(--seller-border)] bg-[#101822] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+      className={`seller-listing-hero seller-listing-hero-${activeView} relative min-h-[188px] overflow-hidden rounded-[18px] border border-[var(--seller-border)] bg-[#101822] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]`}
       onPointerEnter={() => {
         hoverPausedRef.current = true;
       }}
@@ -807,20 +809,17 @@ function ListingHeroImage({ caseItem }: { caseItem: Case }) {
         hoverPausedRef.current = false;
       }}
     >
-      <div className={`absolute inset-0 bg-gradient-to-br ${toneClass}`} />
-      <div className="absolute inset-x-0 top-0 h-16 bg-[radial-gradient(circle_at_28%_12%,rgba(255,255,255,0.20),transparent_24%),radial-gradient(circle_at_82%_20%,rgba(73,221,133,0.16),transparent_24%)]" />
-      <div className="absolute bottom-0 left-0 right-0 h-[72px] bg-[linear-gradient(180deg,transparent,rgba(5,9,14,0.82))]" />
+      <div className={`seller-listing-hero-tone absolute inset-0 bg-gradient-to-br ${toneClass}`} />
+      <div className="seller-listing-hero-light absolute inset-x-0 top-0 h-16 bg-[radial-gradient(circle_at_28%_12%,rgba(255,255,255,0.20),transparent_24%),radial-gradient(circle_at_82%_20%,rgba(73,221,133,0.16),transparent_24%)]" />
+      <div className="seller-listing-hero-shade absolute bottom-0 left-0 right-0 h-[72px] bg-[linear-gradient(180deg,transparent,rgba(5,9,14,0.82))]" />
 
       <div className="absolute inset-x-3 top-3 flex items-start justify-between gap-2">
-        <div className="rounded-full border border-[var(--seller-border)] bg-[rgba(8,13,20,0.68)] px-2.5 py-1 text-[9px] font-semibold text-[var(--seller-muted)] backdrop-blur">
+        <div className="seller-listing-hero-pill rounded-full border border-[var(--seller-border)] bg-[rgba(8,13,20,0.68)] px-2.5 py-1 text-[9px] font-semibold text-[var(--seller-muted)] backdrop-blur">
           {scene.badge}
-        </div>
-        <div className="rounded-full border border-[var(--seller-border)] bg-[rgba(8,13,20,0.68)] px-2.5 py-1 text-[9px] font-semibold text-[var(--seller-subtle)] backdrop-blur">
-          {scene.helper}
         </div>
       </div>
 
-      <div className="absolute inset-x-1 top-10 h-[130px]">
+      <div className="seller-listing-hero-stage absolute inset-x-1 top-10 h-[130px]">
         {renderListingHeroScene({
           activeView,
           bedroomLabel,
@@ -830,15 +829,7 @@ function ListingHeroImage({ caseItem }: { caseItem: Case }) {
       </div>
 
       <div className="absolute inset-x-2 bottom-2 flex items-end justify-between gap-2">
-        <div className="min-w-0">
-          <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[var(--seller-subtle)]">
-            {scene.caption}
-          </div>
-          <div className="mt-0.5 truncate text-[10px] font-semibold text-[var(--seller-ink)]">
-            {scene.title}
-          </div>
-        </div>
-        <div className="inline-flex shrink-0 rounded-full border border-[var(--seller-border)] bg-[rgba(8,13,20,0.72)] p-0.5 backdrop-blur">
+        <div className="seller-listing-hero-switch ml-auto inline-flex shrink-0 rounded-full border border-[var(--seller-border)] bg-[rgba(8,13,20,0.72)] p-0.5 backdrop-blur">
           {LISTING_HERO_VIEWS.map((view) => (
             <button
               key={view.id}
@@ -858,6 +849,21 @@ function ListingHeroImage({ caseItem }: { caseItem: Case }) {
       </div>
     </div>
   );
+
+  if (theme !== 'light') {
+    return content;
+  }
+
+  return (
+    <LiquidGlassSurface
+      preset="hero"
+      className="block w-full"
+      glassClassName="rounded-[18px]"
+      config={{ radius: 0.2, thickness: 0.74 }}
+    >
+      {content}
+    </LiquidGlassSurface>
+  );
 }
 
 function getListingHeroScene(view: ListingHeroViewId) {
@@ -865,24 +871,15 @@ function getListingHeroScene(view: ListingHeroViewId) {
     case 'three-d':
       return {
         badge: '3D 户型',
-        title: '立体层次',
-        caption: '3D / 空间感',
-        helper: '看层次',
       };
     case 'community':
       return {
         badge: '小区环境',
-        title: '楼栋与配套',
-        caption: '环境 / 周边关系',
-        helper: '看关系',
       };
     case 'plan':
     default:
       return {
         badge: '平面图',
-        title: '房间布局',
-        caption: '平面 / 动线',
-        helper: '一眼看布局',
       };
   }
 }
@@ -926,7 +923,7 @@ function renderListingHeroPlanScene({
       viewBox="0 0 172 132"
       role="img"
       aria-label={`${caseItem.community}${bedroomLabel}平面图`}
-      className="h-full w-full overflow-visible"
+      className="seller-listing-hero-visual h-full w-full overflow-visible"
     >
       <defs>
         <linearGradient id={`hero-plan-wash-${sceneKey}`} x1="0%" x2="100%" y1="0%" y2="100%">
@@ -939,12 +936,12 @@ function renderListingHeroPlanScene({
           <stop offset="100%" stopColor="rgba(255,255,255,0.02)" />
         </linearGradient>
         <filter id={`hero-plan-shadow-${sceneKey}`} x="-18%" y="-18%" width="136%" height="150%">
-          <feDropShadow dx="0" dy="10" stdDeviation="7" floodColor="rgba(0,0,0,0.42)" />
+          <feDropShadow dx="0" dy="10" stdDeviation="7" floodColor="var(--listing-hero-shadow, rgba(0,0,0,0.42))" />
         </filter>
       </defs>
 
-      <rect x="7" y="10" width="158" height="110" rx="16" fill="rgba(255,255,255,0.018)" stroke="rgba(255,255,255,0.06)" />
-      <g opacity="0.28" stroke="rgba(255,255,255,0.12)" strokeWidth="1">
+      <rect x="7" y="10" width="158" height="110" rx="16" fill="var(--listing-hero-glass-panel, rgba(255,255,255,0.018))" stroke="var(--listing-hero-line, rgba(255,255,255,0.06))" />
+      <g opacity="0.28" stroke="var(--listing-hero-line, rgba(255,255,255,0.12))" strokeWidth="1">
         <line x1="18" y1="24" x2="152" y2="24" />
         <line x1="18" y1="42" x2="152" y2="42" />
         <line x1="18" y1="60" x2="152" y2="60" />
@@ -957,32 +954,32 @@ function renderListingHeroPlanScene({
       </g>
 
       <g transform="translate(18 15) rotate(-4 56 41)" filter={`url(#hero-plan-shadow-${sceneKey})`}>
-        <rect x="0" y="0" width="120" height="86" rx="8" fill={`url(#hero-plan-wash-${sceneKey})`} stroke="rgba(255,255,255,0.24)" strokeWidth="2.2" />
-        <rect x="6" y="6" width="36" height="28" rx="4" fill={`url(#hero-plan-room-${sceneKey})`} stroke="rgba(255,255,255,0.26)" strokeWidth="1.6" />
-        <rect x="42" y="6" width="72" height="44" rx="4" fill="rgba(17,57,58,0.84)" stroke="rgba(255,255,255,0.22)" strokeWidth="1.6" />
-        <rect x="6" y="34" width="36" height="46" rx="4" fill="rgba(18,32,48,0.92)" stroke="rgba(255,255,255,0.22)" strokeWidth="1.6" />
-        <rect x="42" y="50" width="36" height="30" rx="4" fill="rgba(36,52,42,0.92)" stroke="rgba(255,255,255,0.22)" strokeWidth="1.6" />
-        <rect x="78" y="50" width="16" height="30" rx="4" fill="rgba(34,43,58,0.92)" stroke="rgba(255,255,255,0.22)" strokeWidth="1.6" />
-        <rect x="94" y="50" width="20" height="30" rx="4" fill="rgba(31,52,63,0.90)" stroke="rgba(102,209,224,0.30)" strokeWidth="1.6" />
+        <rect x="0" y="0" width="120" height="86" rx="8" fill={`url(#hero-plan-wash-${sceneKey})`} stroke="var(--listing-hero-line, rgba(255,255,255,0.24))" strokeWidth="2.2" />
+        <rect x="6" y="6" width="36" height="28" rx="4" fill={`url(#hero-plan-room-${sceneKey})`} stroke="var(--listing-hero-line, rgba(255,255,255,0.26))" strokeWidth="1.6" />
+        <rect x="42" y="6" width="72" height="44" rx="4" fill="var(--listing-hero-room-deep, rgba(17,57,58,0.84))" stroke="var(--listing-hero-line, rgba(255,255,255,0.22))" strokeWidth="1.6" />
+        <rect x="6" y="34" width="36" height="46" rx="4" fill="var(--listing-hero-room-strong, rgba(18,32,48,0.92))" stroke="var(--listing-hero-line, rgba(255,255,255,0.22))" strokeWidth="1.6" />
+        <rect x="42" y="50" width="36" height="30" rx="4" fill="var(--listing-hero-room-strong, rgba(36,52,42,0.92))" stroke="var(--listing-hero-line, rgba(255,255,255,0.22))" strokeWidth="1.6" />
+        <rect x="78" y="50" width="16" height="30" rx="4" fill="var(--listing-hero-room-strong, rgba(34,43,58,0.92))" stroke="var(--listing-hero-line, rgba(255,255,255,0.22))" strokeWidth="1.6" />
+        <rect x="94" y="50" width="20" height="30" rx="4" fill="var(--listing-hero-room-deep, rgba(31,52,63,0.90))" stroke="rgba(102,209,224,0.30)" strokeWidth="1.6" />
 
         <path d="M42 26 H114" stroke="rgba(102,209,224,0.72)" strokeWidth="1.8" strokeLinecap="round" />
         <path d="M6 52 H39" stroke="rgba(73,221,133,0.62)" strokeWidth="1.8" strokeLinecap="round" />
-        <path d="M42 66 H78" stroke="rgba(255,255,255,0.22)" strokeWidth="1.4" strokeLinecap="round" />
-        <path d="M78 67 H94" stroke="rgba(255,255,255,0.20)" strokeWidth="1.4" strokeLinecap="round" />
-        <path d="M94 67 H114" stroke="rgba(255,255,255,0.20)" strokeWidth="1.4" strokeLinecap="round" />
+        <path d="M42 66 H78" stroke="var(--listing-hero-line, rgba(255,255,255,0.22))" strokeWidth="1.4" strokeLinecap="round" />
+        <path d="M78 67 H94" stroke="var(--listing-hero-line, rgba(255,255,255,0.20))" strokeWidth="1.4" strokeLinecap="round" />
+        <path d="M94 67 H114" stroke="var(--listing-hero-line, rgba(255,255,255,0.20))" strokeWidth="1.4" strokeLinecap="round" />
 
-        <rect x="14" y="14" width="16" height="8" rx="4" fill="rgba(255,255,255,0.16)" />
-        <rect x="53" y="14" width="28" height="14" rx="6" fill="rgba(255,255,255,0.10)" />
-        <rect x="86" y="17" width="18" height="6" rx="3" fill="rgba(255,255,255,0.12)" />
+        <rect x="14" y="14" width="16" height="8" rx="4" fill="var(--listing-hero-glass-panel, rgba(255,255,255,0.16))" />
+        <rect x="53" y="14" width="28" height="14" rx="6" fill="var(--listing-hero-glass-panel, rgba(255,255,255,0.10))" />
+        <rect x="86" y="17" width="18" height="6" rx="3" fill="var(--listing-hero-glass-panel, rgba(255,255,255,0.12))" />
         <circle cx="23" cy="58" r="7" fill="rgba(73,221,133,0.18)" />
-        <rect x="50" y="56" width="20" height="14" rx="4" fill="rgba(255,255,255,0.10)" />
-        <rect x="81" y="57" width="10" height="12" rx="3" fill="rgba(255,255,255,0.12)" />
+        <rect x="50" y="56" width="20" height="14" rx="4" fill="var(--listing-hero-glass-panel, rgba(255,255,255,0.10))" />
+        <rect x="81" y="57" width="10" height="12" rx="3" fill="var(--listing-hero-glass-panel, rgba(255,255,255,0.12))" />
         <rect x="98" y="58" width="8" height="10" rx="2" fill="rgba(102,209,224,0.24)" />
       </g>
 
       <g transform="translate(128 18)">
-        <rect x="0" y="0" width="22" height="22" rx="6" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.16)" />
-        <line x1="11" y1="18" x2="11" y2="30" stroke="rgba(255,255,255,0.25)" strokeWidth="1.5" strokeLinecap="round" />
+        <rect x="0" y="0" width="22" height="22" rx="6" fill="var(--listing-hero-glass-panel, rgba(255,255,255,0.05))" stroke="var(--listing-hero-line, rgba(255,255,255,0.16))" />
+        <line x1="11" y1="18" x2="11" y2="30" stroke="var(--listing-hero-line, rgba(255,255,255,0.25))" strokeWidth="1.5" strokeLinecap="round" />
         <path d="M11 6 L14 12 H8 Z" fill="rgba(255,255,255,0.84)" />
       </g>
     </svg>
@@ -1003,7 +1000,7 @@ function renderListingHero3dScene({
       viewBox="0 0 172 132"
       role="img"
       aria-label={`${caseItem.community}${bedroomLabel}3D户型`}
-      className="h-full w-full overflow-visible"
+      className="seller-listing-hero-visual h-full w-full overflow-visible"
     >
       <defs>
         <linearGradient id={`hero-3d-top-${sceneKey}`} x1="0%" x2="100%" y1="0%" y2="100%">
@@ -1011,59 +1008,59 @@ function renderListingHero3dScene({
           <stop offset="100%" stopColor="rgba(73,221,133,0.18)" />
         </linearGradient>
         <linearGradient id={`hero-3d-side-${sceneKey}`} x1="0%" x2="100%" y1="0%" y2="100%">
-          <stop offset="0%" stopColor="rgba(12,29,40,0.88)" />
-          <stop offset="100%" stopColor="rgba(7,16,24,0.96)" />
+          <stop offset="0%" stopColor="var(--listing-hero-room-deep, rgba(12,29,40,0.88))" />
+          <stop offset="100%" stopColor="var(--listing-hero-room-strong, rgba(7,16,24,0.96))" />
         </linearGradient>
         <linearGradient id={`hero-3d-front-${sceneKey}`} x1="0%" x2="100%" y1="0%" y2="100%">
-          <stop offset="0%" stopColor="rgba(20,59,64,0.88)" />
-          <stop offset="100%" stopColor="rgba(11,30,34,0.96)" />
+          <stop offset="0%" stopColor="var(--listing-hero-room-deep, rgba(20,59,64,0.88))" />
+          <stop offset="100%" stopColor="var(--listing-hero-room-strong, rgba(11,30,34,0.96))" />
         </linearGradient>
         <radialGradient id={`hero-3d-glow-${sceneKey}`} cx="50%" cy="42%" r="58%">
           <stop offset="0%" stopColor="rgba(102,209,224,0.18)" />
           <stop offset="100%" stopColor="rgba(102,209,224,0)" />
         </radialGradient>
         <filter id={`hero-3d-shadow-${sceneKey}`} x="-24%" y="-24%" width="148%" height="164%">
-          <feDropShadow dx="0" dy="12" stdDeviation="8" floodColor="rgba(0,0,0,0.48)" />
+          <feDropShadow dx="0" dy="12" stdDeviation="8" floodColor="var(--listing-hero-shadow, rgba(0,0,0,0.48))" />
         </filter>
       </defs>
 
-      <rect x="7" y="10" width="158" height="110" rx="16" fill="rgba(255,255,255,0.016)" stroke="rgba(255,255,255,0.06)" />
-      <ellipse cx="86" cy="97" rx="52" ry="10" fill="rgba(0,0,0,0.26)" />
+      <rect x="7" y="10" width="158" height="110" rx="16" fill="var(--listing-hero-glass-panel, rgba(255,255,255,0.016))" stroke="var(--listing-hero-line, rgba(255,255,255,0.06))" />
+      <ellipse cx="86" cy="97" rx="52" ry="10" fill="var(--listing-hero-ground, rgba(0,0,0,0.26))" />
       <circle cx="90" cy="48" r="42" fill={`url(#hero-3d-glow-${sceneKey})`} />
-      <g opacity="0.24" stroke="rgba(255,255,255,0.10)" strokeWidth="1">
+      <g opacity="0.24" stroke="var(--listing-hero-line, rgba(255,255,255,0.10))" strokeWidth="1">
         <line x1="18" y1="31" x2="154" y2="31" />
         <line x1="18" y1="58" x2="154" y2="58" />
         <line x1="18" y1="85" x2="154" y2="85" />
       </g>
 
       <g transform="translate(19 14)" filter={`url(#hero-3d-shadow-${sceneKey})`}>
-        <polygon points="26,18 93,18 111,29 44,29" fill={`url(#hero-3d-top-${sceneKey})`} stroke="rgba(255,255,255,0.26)" strokeWidth="1.8" />
-        <polygon points="93,18 111,29 111,83 93,72" fill={`url(#hero-3d-side-${sceneKey})`} stroke="rgba(255,255,255,0.10)" strokeWidth="1.4" />
-        <polygon points="44,29 111,29 111,83 44,83" fill={`url(#hero-3d-front-${sceneKey})`} stroke="rgba(255,255,255,0.16)" strokeWidth="1.6" />
-        <polygon points="18,33 44,29 44,83 18,88" fill="rgba(8,18,29,0.78)" stroke="rgba(255,255,255,0.10)" strokeWidth="1.2" />
-        <polygon points="26,18 44,29 18,33 0,21" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.10)" strokeWidth="1.2" />
+        <polygon points="26,18 93,18 111,29 44,29" fill={`url(#hero-3d-top-${sceneKey})`} stroke="var(--listing-hero-line, rgba(255,255,255,0.26))" strokeWidth="1.8" />
+        <polygon points="93,18 111,29 111,83 93,72" fill={`url(#hero-3d-side-${sceneKey})`} stroke="var(--listing-hero-line, rgba(255,255,255,0.10))" strokeWidth="1.4" />
+        <polygon points="44,29 111,29 111,83 44,83" fill={`url(#hero-3d-front-${sceneKey})`} stroke="var(--listing-hero-line, rgba(255,255,255,0.16))" strokeWidth="1.6" />
+        <polygon points="18,33 44,29 44,83 18,88" fill="var(--listing-hero-room-strong, rgba(8,18,29,0.78))" stroke="var(--listing-hero-line, rgba(255,255,255,0.10))" strokeWidth="1.2" />
+        <polygon points="26,18 44,29 18,33 0,21" fill="var(--listing-hero-glass-panel, rgba(255,255,255,0.08))" stroke="var(--listing-hero-line, rgba(255,255,255,0.10))" strokeWidth="1.2" />
 
-        <polygon points="44,29 70,29 76,45 51,45" fill="rgba(255,255,255,0.06)" />
+        <polygon points="44,29 70,29 76,45 51,45" fill="var(--listing-hero-glass-panel, rgba(255,255,255,0.06))" />
         <polygon points="70,29 92,29 98,44 76,45" fill="rgba(73,221,133,0.12)" />
-        <rect x="49" y="33" width="18" height="18" rx="3" fill="rgba(24,40,58,0.94)" stroke="rgba(255,255,255,0.18)" />
-        <rect x="67" y="33" width="20" height="29" rx="3" fill="rgba(19,61,62,0.88)" stroke="rgba(255,255,255,0.18)" />
-        <rect x="49" y="51" width="18" height="24" rx="3" fill="rgba(19,33,50,0.90)" stroke="rgba(255,255,255,0.16)" />
-        <rect x="67" y="62" width="18" height="13" rx="3" fill="rgba(36,48,39,0.94)" stroke="rgba(255,255,255,0.16)" />
-        <rect x="85" y="62" width="18" height="13" rx="3" fill="rgba(30,46,58,0.94)" stroke="rgba(102,209,224,0.28)" />
-        <rect x="52" y="50" width="10" height="5" rx="2.5" fill="rgba(255,255,255,0.14)" />
+        <rect x="49" y="33" width="18" height="18" rx="3" fill="var(--listing-hero-room-strong, rgba(24,40,58,0.94))" stroke="var(--listing-hero-line, rgba(255,255,255,0.18))" />
+        <rect x="67" y="33" width="20" height="29" rx="3" fill="var(--listing-hero-room-deep, rgba(19,61,62,0.88))" stroke="var(--listing-hero-line, rgba(255,255,255,0.18))" />
+        <rect x="49" y="51" width="18" height="24" rx="3" fill="var(--listing-hero-room-strong, rgba(19,33,50,0.90))" stroke="var(--listing-hero-line, rgba(255,255,255,0.16))" />
+        <rect x="67" y="62" width="18" height="13" rx="3" fill="var(--listing-hero-room-strong, rgba(36,48,39,0.94))" stroke="var(--listing-hero-line, rgba(255,255,255,0.16))" />
+        <rect x="85" y="62" width="18" height="13" rx="3" fill="var(--listing-hero-room-strong, rgba(30,46,58,0.94))" stroke="rgba(102,209,224,0.28)" />
+        <rect x="52" y="50" width="10" height="5" rx="2.5" fill="var(--listing-hero-glass-panel, rgba(255,255,255,0.14))" />
         <rect x="61" y="51" width="18" height="11" rx="4" fill="rgba(102,209,224,0.16)" />
-        <rect x="81" y="52" width="10" height="18" rx="3" fill="rgba(255,255,255,0.12)" />
+        <rect x="81" y="52" width="10" height="18" rx="3" fill="var(--listing-hero-glass-panel, rgba(255,255,255,0.12))" />
         <rect x="52" y="70" width="14" height="8" rx="3" fill="rgba(73,221,133,0.16)" />
-        <rect x="80" y="71" width="14" height="8" rx="3" fill="rgba(255,255,255,0.10)" />
+        <rect x="80" y="71" width="14" height="8" rx="3" fill="var(--listing-hero-glass-panel, rgba(255,255,255,0.10))" />
 
         <path d="M49 42 H103" stroke="rgba(102,209,224,0.74)" strokeWidth="1.6" strokeLinecap="round" />
         <path d="M49 66 H85" stroke="rgba(73,221,133,0.64)" strokeWidth="1.6" strokeLinecap="round" />
-        <path d="M85 68 H103" stroke="rgba(255,255,255,0.18)" strokeWidth="1.4" strokeLinecap="round" />
+        <path d="M85 68 H103" stroke="var(--listing-hero-line, rgba(255,255,255,0.18))" strokeWidth="1.4" strokeLinecap="round" />
 
-        <ellipse cx="60" cy="77" rx="44" ry="8" fill="rgba(0,0,0,0.20)" />
+        <ellipse cx="60" cy="77" rx="44" ry="8" fill="var(--listing-hero-ground, rgba(0,0,0,0.20))" />
       </g>
       <g transform="translate(124 18)" opacity="0.9">
-        <circle cx="12" cy="12" r="11" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.12)" />
+        <circle cx="12" cy="12" r="11" fill="var(--listing-hero-glass-panel, rgba(255,255,255,0.05))" stroke="var(--listing-hero-line, rgba(255,255,255,0.12))" />
         <path d="M12 3 A9 9 0 0 1 20 12" fill="none" stroke="rgba(255,255,255,0.36)" strokeWidth="1.3" strokeLinecap="round" />
         <path d="M12 21 A9 9 0 0 1 4 12" fill="none" stroke="rgba(73,221,133,0.42)" strokeWidth="1.3" strokeLinecap="round" />
         <path d="M16 6 L20 11 L15 11 Z" fill="rgba(255,255,255,0.8)" />
@@ -1084,7 +1081,7 @@ function renderListingHeroCommunityScene({
       viewBox="0 0 172 132"
       role="img"
       aria-label={`${caseItem.community}小区环境`}
-      className="h-full w-full overflow-visible"
+      className="seller-listing-hero-visual h-full w-full overflow-visible"
     >
       <defs>
         <linearGradient id={`hero-community-sky-${sceneKey}`} x1="0%" x2="100%" y1="0%" y2="100%">
@@ -1096,24 +1093,24 @@ function renderListingHeroCommunityScene({
           <stop offset="100%" stopColor="rgba(255,255,255,0.02)" />
         </linearGradient>
         <filter id={`hero-community-shadow-${sceneKey}`} x="-18%" y="-18%" width="136%" height="150%">
-          <feDropShadow dx="0" dy="8" stdDeviation="7" floodColor="rgba(0,0,0,0.42)" />
+          <feDropShadow dx="0" dy="8" stdDeviation="7" floodColor="var(--listing-hero-shadow, rgba(0,0,0,0.42))" />
         </filter>
       </defs>
 
-      <rect x="7" y="10" width="158" height="110" rx="16" fill={`url(#hero-community-sky-${sceneKey})`} stroke="rgba(255,255,255,0.06)" />
-      <g opacity="0.24" stroke="rgba(255,255,255,0.12)" strokeWidth="1">
+      <rect x="7" y="10" width="158" height="110" rx="16" fill={`url(#hero-community-sky-${sceneKey})`} stroke="var(--listing-hero-line, rgba(255,255,255,0.06))" />
+      <g opacity="0.24" stroke="var(--listing-hero-line, rgba(255,255,255,0.12))" strokeWidth="1">
         <path d="M19 95 C36 78, 52 74, 70 72 S107 69, 155 42" fill="none" />
         <path d="M21 44 C42 54, 55 57, 79 58 S122 54, 151 69" fill="none" />
         <path d="M20 77 H154" fill="none" />
       </g>
 
       <g transform="translate(14 18)" filter={`url(#hero-community-shadow-${sceneKey})`}>
-        <rect x="8" y="22" width="128" height="58" rx="12" fill="rgba(13,22,30,0.68)" stroke="rgba(255,255,255,0.10)" />
-        <rect x="22" y="31" width="20" height="37" rx="7" fill={`url(#hero-community-build-${sceneKey})`} stroke="rgba(255,255,255,0.18)" />
-        <rect x="46" y="26" width="24" height="42" rx="7" fill="rgba(19,35,50,0.90)" stroke="rgba(255,255,255,0.14)" />
-        <rect x="74" y="29" width="18" height="39" rx="7" fill="rgba(24,48,41,0.86)" stroke="rgba(255,255,255,0.16)" />
-        <rect x="96" y="33" width="28" height="33" rx="7" fill="rgba(16,43,43,0.92)" stroke="rgba(255,255,255,0.14)" />
-        <path d="M12 79 H132" stroke="rgba(255,255,255,0.12)" strokeWidth="1.4" strokeLinecap="round" />
+        <rect x="8" y="22" width="128" height="58" rx="12" fill="var(--listing-hero-glass-panel, rgba(13,22,30,0.68))" stroke="var(--listing-hero-line, rgba(255,255,255,0.10))" />
+        <rect x="22" y="31" width="20" height="37" rx="7" fill={`url(#hero-community-build-${sceneKey})`} stroke="var(--listing-hero-line, rgba(255,255,255,0.18))" />
+        <rect x="46" y="26" width="24" height="42" rx="7" fill="var(--listing-hero-room-strong, rgba(19,35,50,0.90))" stroke="var(--listing-hero-line, rgba(255,255,255,0.14))" />
+        <rect x="74" y="29" width="18" height="39" rx="7" fill="var(--listing-hero-room-strong, rgba(24,48,41,0.86))" stroke="var(--listing-hero-line, rgba(255,255,255,0.16))" />
+        <rect x="96" y="33" width="28" height="33" rx="7" fill="var(--listing-hero-room-deep, rgba(16,43,43,0.92))" stroke="var(--listing-hero-line, rgba(255,255,255,0.14))" />
+        <path d="M12 79 H132" stroke="var(--listing-hero-line, rgba(255,255,255,0.12))" strokeWidth="1.4" strokeLinecap="round" />
         <path d="M18 22 H68" stroke="rgba(102,209,224,0.58)" strokeWidth="2" strokeLinecap="round" />
         <circle cx="35" cy="20" r="7" fill="rgba(73,221,133,0.20)" />
         <circle cx="48" cy="18" r="5" fill="rgba(73,221,133,0.24)" />
@@ -1128,22 +1125,22 @@ function renderListingHeroCommunityScene({
           <circle cx="28" cy="72" r="4.5" />
         </g>
 
-        <path d="M57 30 C67 25, 81 23, 92 29" fill="none" stroke="rgba(255,255,255,0.16)" strokeWidth="1.4" />
-        <path d="M78 30 C89 25, 101 26, 110 33" fill="none" stroke="rgba(255,255,255,0.16)" strokeWidth="1.4" />
+        <path d="M57 30 C67 25, 81 23, 92 29" fill="none" stroke="var(--listing-hero-line, rgba(255,255,255,0.16))" strokeWidth="1.4" />
+        <path d="M78 30 C89 25, 101 26, 110 33" fill="none" stroke="var(--listing-hero-line, rgba(255,255,255,0.16))" strokeWidth="1.4" />
 
         <circle cx="79" cy="48" r="12" fill="rgba(73,221,133,0.18)" />
         <circle cx="79" cy="48" r="5" fill="rgba(73,221,133,0.88)" stroke="rgba(255,255,255,0.8)" strokeWidth="1.5" />
         <path d="M79 39 L83 45 L79 58 L75 45 Z" fill="rgba(255,255,255,0.88)" />
 
-        <rect x="18" y="82" width="20" height="7" rx="3.5" fill="rgba(255,255,255,0.08)" />
+        <rect x="18" y="82" width="20" height="7" rx="3.5" fill="var(--listing-hero-glass-panel, rgba(255,255,255,0.08))" />
         <rect x="44" y="82" width="26" height="7" rx="3.5" fill="rgba(102,209,224,0.12)" />
         <rect x="76" y="82" width="18" height="7" rx="3.5" fill="rgba(73,221,133,0.12)" />
       </g>
 
       <g transform="translate(115 17)">
-        <rect x="0" y="0" width="38" height="22" rx="11" fill="rgba(8,13,20,0.58)" stroke="rgba(255,255,255,0.10)" />
+        <rect x="0" y="0" width="38" height="22" rx="11" fill="var(--listing-hero-glass-panel, rgba(8,13,20,0.58))" stroke="var(--listing-hero-line, rgba(255,255,255,0.10))" />
         <path d="M19 6 L23 12 L19 19 L15 12 Z" fill="rgba(255,255,255,0.84)" />
-        <circle cx="19" cy="12" r="2.3" fill="rgba(8,13,20,0.9)" />
+        <circle cx="19" cy="12" r="2.3" fill="var(--listing-hero-room-strong, rgba(8,13,20,0.9))" />
       </g>
     </svg>
   );

@@ -1,6 +1,7 @@
 import { expect, test, type ConsoleMessage, type Page } from '@playwright/test';
 
 const TEST_EMAIL = 'codex@ke.com';
+const EMAIL_INPUT_PLACEHOLDER = '请输入企业邮箱';
 
 async function waitForSellerSurface(page: Page, timeout = 12_000) {
   await page.waitForFunction(() => {
@@ -21,7 +22,7 @@ async function loginIfNeeded(page: Page) {
     return;
   }
 
-  const emailInput = page.getByPlaceholder('请输入 @ke.com 邮箱');
+  const emailInput = page.getByPlaceholder(EMAIL_INPUT_PLACEHOLDER);
   if (await emailInput.isVisible({ timeout: 3_000 }).catch(() => false)) {
     if (!(await emailInput.inputValue()).trim()) {
       await emailInput.fill(TEST_EMAIL);
@@ -39,7 +40,7 @@ async function loginIfNeeded(page: Page) {
 
 async function loginToHub(page: Page) {
   await page.goto('/');
-  const emailInput = page.getByPlaceholder('请输入 @ke.com 邮箱');
+  const emailInput = page.getByPlaceholder(EMAIL_INPUT_PLACEHOLDER);
   if (await emailInput.isVisible({ timeout: 5_000 }).catch(() => false)) {
     await emailInput.fill(TEST_EMAIL);
     await page.getByRole('button', { name: '获取验证码' }).click();

@@ -338,7 +338,7 @@ export function AuthOverlay({
               </h1>
             </div>
             <p className="mt-4 max-w-md text-left text-[14px] font-medium leading-relaxed text-zinc-500">
-              第一次登录：使用 <span className="text-zinc-200">@ke.com</span> 邮箱，验证码 + 首登激活 Key 开通。再次进入会先恢复有效会话；主动登出后会保留账号，方便回登。
+              第一次登录：使用 <span className="text-zinc-200">@ke.com / @lianjia.com</span> 邮箱，验证码 + 首登激活 Key 开通。再次进入会先恢复有效会话；主动登出后会保留账号，方便回登。
             </p>
 
             <div className="mt-8 grid gap-5">
@@ -354,7 +354,7 @@ export function AuthOverlay({
                   <input
                     value={loginEmail}
                     onChange={(event) => onEmailChange(event.target.value)}
-                    placeholder="请输入 @ke.com 邮箱"
+                    placeholder="请输入企业邮箱"
                     disabled={isBusy || authMode !== 'email'}
                     className="w-full bg-transparent text-[15px] font-medium tracking-[0.01em] text-white outline-none placeholder:text-zinc-600 disabled:cursor-not-allowed"
                   />
