@@ -60,12 +60,16 @@ assert.ok(
 const authNeon = read('lib/authNeon.ts');
 const runtimeMigration = bodyOfFunction(authNeon, 'neonMigrateLegacyUsers');
 assert.ok(
-  runtimeMigration.includes('last_seen_at') && runtimeMigration.includes('legacyLastLoginAt'),
-  'Expected runtime migration to seed lastLoginAt from legacy timestamps',
+  runtimeMigration.includes('last_seen_at') && runtimeMigration.includes('SET last_login_at = NULL'),
+  'Expected runtime migration to clear legacy lastLoginAt instead of treating maintainer last_seen_at as login',
 );
 assert.ok(
   !/last_login_at\s*=\s*(NOW\(\)|EXCLUDED\.last_login_at)/.test(runtimeMigration),
   'Expected runtime migration not to refresh last_login_at on conflict',
+);
+assert.ok(
+  runtimeMigration.includes('${null}'),
+  'Expected runtime migration to create migrated users with null last_login_at',
 );
 assert.ok(
   !/VALUES\s*\([^)]*NOW\(\)\s*,\s*NOW\(\)/s.test(runtimeMigration),
@@ -74,12 +78,16 @@ assert.ok(
 
 const manualMigration = read('scripts/migrate-auth-users.ts');
 assert.ok(
-  manualMigration.includes('last_seen_at') && manualMigration.includes('legacyLastLoginAt'),
-  'Expected manual migration to seed lastLoginAt from legacy timestamps',
+  manualMigration.includes('last_seen_at') && manualMigration.includes('SET last_login_at = NULL'),
+  'Expected manual migration to clear legacy lastLoginAt instead of treating maintainer last_seen_at as login',
 );
 assert.ok(
   !/last_login_at\s*=\s*NOW\(\)/.test(manualMigration),
   'Expected manual migration not to refresh last_login_at on conflict',
+);
+assert.ok(
+  manualMigration.includes('${null}'),
+  'Expected manual migration to create migrated users with null last_login_at',
 );
 
 console.log('auth users store contract verification passed');

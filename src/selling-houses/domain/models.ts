@@ -849,6 +849,13 @@ export interface RunContext {
   rngSeed: number;
   createdAt: string;
   scenarioSnapshot: ScenarioSnapshot;
+  /**
+   * Read-only opening snapshot of the full market world.
+   * The world existed before the player entered; the player is a local POV.
+   * Optional for backward compatibility with older saves.
+   * Created by domain/world-model/seededMarketWorld.ts.
+   */
+  marketOpeningSnapshot?: import('./world-model/marketWorldTypes.js').MarketOpeningSnapshot;
 }
 
 export interface Case {

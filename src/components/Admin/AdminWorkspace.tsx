@@ -130,17 +130,28 @@ export default function AdminWorkspace() {
     setConfirmDelete(null);
   };
 
-  const formatDate = (dateStr: string) => {
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) {
+      return '从未登录';
+    }
+
     try {
-      return new Date(dateStr).toLocaleString('zh-CN', {
+      const date = new Date(dateStr);
+      if (Number.isNaN(date.getTime())) {
+        return '时间异常';
+      }
+
+      return date.toLocaleString('zh-CN', {
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
         hour: '2-digit',
         minute: '2-digit',
+        hour12: false,
+        timeZone: 'Asia/Shanghai',
       });
     } catch {
-      return dateStr;
+      return '时间异常';
     }
   };
 

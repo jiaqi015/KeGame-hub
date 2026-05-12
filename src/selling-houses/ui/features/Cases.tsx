@@ -12,7 +12,6 @@ import { clamp, costText, caseSortValue } from '../../domain/utils';
 import { getActiveOpportunities, getActionAvailability } from '../../domain/engine';
 import { Star } from 'lucide-react';
 import { buildOpportunityViewModels, type OpportunityViewModel } from './caseOpportunityViewModel';
-import { LiquidGlassSurface } from '../widgets/LiquidGlassSurface';
 import {
   ActionDecisionOverlay,
   buildActionDecisionConfig,
@@ -367,9 +366,9 @@ export function Cases({ state, selectedCaseIdOverride, theme = 'dark', onSelectC
             <div className="flex min-h-0 flex-col gap-3">
               <section className="seller-workbench overflow-visible">
                 <div className="grid gap-3 border-b border-[var(--seller-border)] px-3.5 py-3 xl:grid-cols-[minmax(0,1fr)_228px]">
-                  <div className="grid min-w-0 gap-3 sm:grid-cols-[178px_minmax(0,1fr)]">
-                    <ListingHeroImage caseItem={selectedCase} theme={theme} />
-                    <div className="min-w-0">
+                  <div className="grid min-w-0 gap-3 sm:grid-cols-[184px_minmax(0,1fr)] sm:gap-4 lg:items-start">
+                    <ListingHeroImage caseItem={selectedCase} />
+                    <div className="min-w-0 sm:border-l sm:border-[var(--seller-border)] sm:pl-4">
                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
                         <h2 className="seller-title text-[17px] leading-5">{selectedCase.title}</h2>
                         {selectedCase.isFocused && (
@@ -773,7 +772,7 @@ const LISTING_HERO_VIEWS: Array<{ id: ListingHeroViewId; label: string }> = [
   { id: 'community', label: '环境' },
 ];
 
-function ListingHeroImage({ caseItem, theme }: { caseItem: Case; theme: 'dark' | 'light' }) {
+function ListingHeroImage({ caseItem }: { caseItem: Case }) {
   const [activeView, setActiveView] = useState<ListingHeroViewId>('plan');
   const hoverPausedRef = useRef(false);
   const tone = caseItem.d2 >= 70 ? 'good' : caseItem.d1 < 45 || caseItem.d3 < 48 ? 'risk' : 'normal';
@@ -850,20 +849,7 @@ function ListingHeroImage({ caseItem, theme }: { caseItem: Case; theme: 'dark' |
     </div>
   );
 
-  if (theme !== 'light') {
-    return content;
-  }
-
-  return (
-    <LiquidGlassSurface
-      preset="hero"
-      className="block w-full"
-      glassClassName="rounded-[18px]"
-      config={{ radius: 0.2, thickness: 0.74 }}
-    >
-      {content}
-    </LiquidGlassSurface>
-  );
+  return content;
 }
 
 function getListingHeroScene(view: ListingHeroViewId) {

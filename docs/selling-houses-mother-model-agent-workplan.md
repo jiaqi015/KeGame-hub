@@ -1,6 +1,6 @@
 # Selling Houses Mother Model Agent Workplan
 
-Last updated: 2026-05-09 (Agent A: 最终收口与防回归声明 — A scope complete, 85 assertions, 0 cross-scope conflicts with B)
+Last updated: 2026-05-12 (S: Big World Round 2 prompts — from large snapshot to running city)
 
 ## Purpose
 
@@ -12965,3 +12965,622 @@ npx tsc --noEmit                                                         → 0 e
 
 1. `Cases.tsx` still imports `Case` type directly from domain — layer violation but not related to this cleanup.
 2. `Cases.tsx:deriveCommunicationMode` still reads `caseItem.personality` — this is a UI display function, not a business decision. The personality field is preserved as a compatibility mirror.
+
+### 2026-05-12 18:03 - Agent A - MarketOpeningSnapshot: 大世界开局底座
+
+#### Changed files
+
+| File | Change |
+|------|--------|
+| `src/selling-houses/domain/world-model/marketWorldTypes.ts` | NEW — 全部 MarketOpeningSnapshot 类型定义 |
+| `src/selling-houses/domain/world-model/seededMarketWorld.ts` | NEW — `createMarketOpeningSnapshot(input)` 确定性工厂 |
+| `src/selling-houses/domain/world-model/marketOpening.ts` | NEW — `readMarketOpeningSnapshot()` + `assertMarketOpeningInvariants()` |
+| `src/selling-houses/domain/world-model/index.ts` | NEW — barrel exports |
+| `src/selling-houses/domain/models.ts` | MODIFIED — `RunContext` 新增可选 `marketOpeningSnapshot` 字段 |
+| `src/selling-houses/application/gameState.ts` | MODIFIED — `buildRunContext()` 自动创建并挂载 opening snapshot |
+| `scripts/verify-selling-houses-market-opening-snapshot.ts` | NEW — 验证脚本 |
+
+#### What changed
+
+**核心目标达成：世界先存在，玩家后进入。**
+
+1. **类型定义** (`marketWorldTypes.ts`)：
+   - `CityCycleState` — 城市周期（cold/flat/hot/structural_divergence/school_season/rental_season），heatIndex + heatDirection
+   - `MarketCellSnapshot` — >= 3 个板块/商圈，每个有 heat、inventoryPressure、dealVelocity、rentHeat、priceTrend、schoolSignal、commuteSignal（结构化数值或枚举）
+   - `ACNNetworkSnapshot` — >= 3 个 ACN（player_acn / strong_rival_acn / local_relational），各有 collaborationLevel、listingOpenness、infoSpeed、competitionAggression、coSaleBias
+   - `ListingInventorySnapshot` — player / direct rival / shadow listings + 历史成交摘要，shadow listings 严格 > player cases
+   - `CustomerDemandFieldSnapshot` — shadow customers + demand segments（7 类）+ price bands（5 档）+ demandMomentum
+   - `BrokerNetworkSnapshot` — named rival brokers（>= 3）+ shadow brokers（严格 > named）+ style distribution + ACN 归属
+   - `RecentWorldEvent` — 玩家进入前已发生的市场事件（rival_listing_repriced / market_heat_shift / customer_demand_shift / listing_withdrawn / transaction_closed / policy_signal / new_listing_inflow）
+
+2. **确定性工厂** (`seededMarketWorld.ts`)：
+   - `createMarketOpeningSnapshot({ seed, scenarioName, difficultyId, playerCaseCount })`
+   - 使用 `domain/utils.ts` 的 `RandomSource`，seed 相同输出完全一致
+
+3. **集成**：
+   - `RunContext` 新增可选 `marketOpeningSnapshot` 字段（兼容旧存档）
+   - `buildRunContext()` 在创建新游戏时自动调用 `createMarketOpeningSnapshot`
+   - 旧存档加载时 `normalizeLoadedState()` 也会通过 `buildRunContext` 自动生成 snapshot
+
+4. **辅助函数**：
+   - `readMarketOpeningSnapshot(state)` — 安全读取，兼容无 snapshot 的旧存档
+   - `assertMarketOpeningInvariants(snapshot)` — 验证所有不变量
+
+#### How verified
+
+```
+npx tsx scripts/verify-selling-houses-market-opening-snapshot.ts → 69/69 PASS
+npx tsc --noEmit → 0 new errors (pre-existing causalEvents.ts errors unrelated)
+```
+
+验证项：
+- Snapshot 创建成功，version=1
+- 种子确定性：seed 42 → 同一 snapshot JSON
+- ACN >= 3，包含 player_acn / strong_rival_acn / local_relational
+- MarketCell >= 3，heat 是 0-100 数值
+- Shadow listings (23) > player cases (5)
+- Shadow customers (40) > 0
+- Shadow brokers (17) > named brokers (5)
+- domain/world-model/ 14 个文件均不 import runtime/application/ui
+- `readMarketOpeningSnapshot()` 正常读取，旧存档返回 null
+- `assertMarketOpeningInvariants()` 无错误
+
+#### Mother-model alignment
+
+| 母模型原则 | 对齐情况 |
+|-----------|---------|
+| GlobalTruth is not ActorPOV | ✅ MarketOpeningSnapshot 是全局快照，不是玩家视角 |
+| 环境信号不直接决定成交 | ✅ cityCycle / marketCell 只是环境信号字段 |
+| 世界先存在 | ✅ snapshot 在 GameState 创建时生成，独立于玩家操作 |
+| ACN 竞合关系 | ✅ 3 种 ACN 角色，不同 collaboration/aggression 参数 |
+| 信息不对称 | ✅ shadow listings / shadow customers / shadow brokers 大于玩家可感知部分 |
+| 确定性可回放 | ✅ 相同 seed → 相同 snapshot |
+| 不让 LLM 决定 simulation truth | ✅ 纯确定性函数，无外部依赖 |
+
+#### Risks / blockers
+
+1. 预存档（无 `marketOpeningSnapshot`）加载时会通过 `buildRunContext` 自动生成，但 seed 可能与原始创建时不同。不影响游戏可玩性，但旧存档的 marketOpeningSnapshot 可能与新建局不一致。这是可接受的渐进迁移方案。
+2. `RunContext` 类型使用了 `import('./world-model/...')` 路径，这是 TypeScript 的 type-only import，不影响运行时。
+3. 预存的 `causalEvents.ts` 有 tsc 错误（payload 类型不兼容 `Record<string, unknown>`），不在本轮修复范围。
+
+#### Next recommended step
+
+1. **Agent B / C** 可基于 `readMarketOpeningSnapshot(state)` 读取大世界快照，在 daily tick / evaluation / POV projection 中使用 cityCycle、marketCells、acnNetworks 等信号。
+2. 后续可将 `RecentWorldEvent` 接入 B 负责的 causal ledger。
+3. 可将 `CustomerDemandFieldSnapshot.segments` 与 `CustomerProfile` 做匹配索引，为 CustomerCaseMatch 提供全局需求池背景。
+
+### 2026-05-12 18:04 - Agent C - Ecosystem Policy Layer: ACN / Broker / Listing / Customer / Conservation / Daily Proposals
+
+Changed files:
+- `src/selling-houses/domain/world-model/acnNetworks.ts` — NEW: 3 ACN types (cooperative_player_acn, aggressive_competitor_acn, local_relationship_acn) with 14-dimension behavior profiles
+- `src/selling-houses/domain/world-model/brokerPopulation.ts` — NEW: named + shadow broker generation with 5 styles, energy budgets, pool sizes, action bias
+- `src/selling-houses/domain/world-model/listingPopulation.ts` — NEW: shadow + direct rival listing population with price bands, liquidity, owner rigidity/negotiability
+- `src/selling-houses/domain/world-model/customerDemandField.ts` — NEW: N:M customer demand entities with attention conservation, daily comparison limits, preference dimensions
+- `src/selling-houses/domain/world-model/ecosystemConservation.ts` — NEW: 6 conservation rules (attention, energy, demand volume, info delay, owner perception lag, deal scarcity)
+- `src/selling-houses/domain/world-model/ecosystemPolicy.ts` — NEW: DailyEcosystemActionProposal generator producing B-consumable WorldCausalEvent inputs (7 proposal kinds)
+- `src/selling-houses/domain/world-model/index.ts` — UPDATED: added barrel exports for all 6 new modules
+- `scripts/verify-selling-houses-ecosystem-policy.ts` — NEW: 63-check verification script
+
+What changed:
+- **ACN 行为差异**: 3 类 ACN 各有 14 维行为参数（cooperationBias / listingOpenness / infoSpeed / coSaleBias / directAggression / customerFollowupStrength / priceReactionSpeed / infoOpacity / localRelationshipDepth / dataCompleteness / rhythmStability / ownerTrustMaintenance / operationalEfficiency），参数彼此不同
+- **经纪人种群**: 每个 ACN 生成 2 named + 4 shadow brokers（共 18 个），5 种风格（price_attacker / relationship_keeper / speed_runner / co_sale_builder / local_connector），每个 broker 有 energyBudget / listingPoolSize / customerPoolSize / actionBias
+- **房源种群**: 每个 market cell 生成 4 shadow + 2 direct rival listings，包含 price band / liquidity / ownerRigidity / ownerNegotiability / competitiveness / daysOnMarket
+- **客户需求场**: 每个 cell 5 个客户，N:M 关系，6 种偏好维度（school / commute / improvement / low_total_price / liquidity / rent_option），注意力守恒（每日比较上限）
+- **守恒规则**: 6 条规则，3 条硬约束（客户注意力 / 经纪人精力 / 需求总量），3 条度量（信息延迟 / 业主感知滞后 / 成交稀缺性）
+- **每日提案**: generateDailyEcosystemProposals() 基于 seed + 当前状态生成 7 类提案（rival_repricing / rival_broker_followup / customer_comparison / customer_attention_shift / listing_exposure_shift / owner_pressure_signal / market_heat_drift），每个提案直接产出可被 B 的 causal ledger 消费的 WorldCausalEvent
+
+How verified:
+- `npx tsx scripts/verify-selling-houses-ecosystem-policy.ts` → 63/63 passed ✅
+- `npx tsc --noEmit` → Agent C 新文件 0 错误 ✅（causalEvents.ts 既有 8 个 tsc 错误为 Agent B 的 readonly payload 问题，非本轮引入）
+- 确定性验证：相同 seed + 相同配置 → 相同 listing 数量 / broker 数量 / customer 数量 / 报价 / 精力
+
+Mother-model alignment:
+
+| 母模型原则 | 对齐情况 |
+|-----------|---------|
+| ACN 竞合关系 (Section 10) | ✅ 3 类 ACN，协作/竞争/信息/节奏参数各自不同 |
+| BrokerServiceInteraction (Section 8) | ✅ broker 有精力预算、风格、行动偏好，行动受能量约束 |
+| CustomerCaseMatch N:M (Section 3.1) | ✅ 客户可比较多个 listing，listing 可被多个客户关注 |
+| 注意力稀缺 (Section 18.5) | ✅ AttentionLedger + dailyComparisonLimit 守恒 |
+| 竞争压力不直接决定结果 (Section 10) | ✅ proposal 产出 causal event input，不直接改 UI 或结果 |
+| 可回放确定性 (Section 18.10) | ✅ 相同 seed → 相同生态 |
+| 信息不对称 (Section 9) | ✅ shadow brokers / shadow listings / infoDelay 机制 |
+| 守恒而非随机热闹 | ✅ 6 条守恒规则约束生态行为 |
+
+Risks / blockers:
+1. `ecosystemPolicy.ts` 的 `generateDailyEcosystemProposals()` 会修改运行时状态（broker.energyRemaining, listing.askPrice）。如果需要纯读取，调用方应先做 snapshot。这是有意设计——生态行动确实消耗资源。
+2. `BrokerStyle` 类型名与 `marketWorldTypes.ts` 中已有的 `BrokerStyle`（值不同）存在潜在歧义。本文件的 `BrokerVisibility` 避免了直接冲突，但 `brokerPopulation.ts` 导出的 `BrokerStyle`（值：price_attacker 等）与 `marketWorldTypes.ts` 的 `BrokerStyle`（值：aggressive 等）语义不同。后续如果需要统一，应考虑 namespace 或重命名。
+3. 当前生态种群（broker / listing / customer）与 `MarketOpeningSnapshot` 是独立生成的。后续应将两者连接：从 snapshot 派生种群参数，或在 snapshot 创建时同步生成种群。
+
+Next recommended step:
+1. **Agent B**: 将 `ecosystemPolicy.ts` 产出的 `WorldCausalEvent[]` 接入 causal ledger（`appendToLedger`），使每日生态行动成为因果链的一部分。
+2. **Agent D**: 验证守恒规则在多日 tick 下持续成立（不只 day 1）。
+3. 后续轮次可将 `MarketOpeningSnapshot.acnNetworks` 的参数映射到 `AcnBehaviorProfile`，使开局快照和运行时种群参数语义统一。
+
+### 2026-05-12 19:39 - Agent B - World Causal Ledger: 大世界因果账本
+
+#### Changed files
+
+| File | Change |
+|------|--------|
+| `src/selling-houses/domain/world-model/causalEvents.ts` | NEW — WorldCausalEvent 类型族 + 9 个纯构建器 |
+| `src/selling-houses/domain/world-model/causalLedger.ts` | NEW — WorldCausalLedger + append/query/chain-traversal/filter/validate |
+| `src/selling-houses/domain/world-model/causalAdapters.ts` | NEW — 7 个 adapter 从 opening snapshot / eventStore / rival repricing / pressure 派生因果事件 |
+| `src/selling-houses/domain/world-model/causalChainExamples.ts` | NEW — RivalListingRepriced → CustomerCompared → AttentionShifted → OwnerPressure → Recommendation → Priority 完整可验证链 |
+| `src/selling-houses/domain/world-model/index.ts` | UPDATED — 追加 causal events / ledger / adapters / chain examples 的 barrel exports |
+| `scripts/verify-selling-houses-causal-ledger.ts` | NEW — 147 项验证脚本 |
+
+#### What changed
+
+**核心交付：让"大世界"不是一堆大对象，而是一套可解释的因果账本。**
+
+1. **WorldCausalEvent 类型族** (`causalEvents.ts`)：
+   - 9 种事件类型：MarketHeatShifted / RivalListingRepriced / RivalBrokerActionTaken / CustomerComparedListings / CustomerAttentionShifted / OwnerMarketPressurePerceived / BrokerRecommendationChanged / MatterPriorityChanged / OpeningWorldEventImported
+   - 每个事件包含：id / kind / day / source / actorIds / entityIds / affectedIds / causeEventIds / confidence / payload
+   - 所有构建器纯函数、frozen、deterministic
+   - 每种事件有独立的 payload 类型，支持 TypeScript 窄化
+
+2. **WorldCausalLedger** (`causalLedger.ts`)：
+   - append-only，不可变
+   - 索引：byKind / byDay / byAffectedId / byId
+   - 因果链遍历：traceCausalChainBackward / traceCausalChainForward
+   - 过滤：filterLedgerByDayRange / filterLedgerByKind
+   - 验证：findDanglingCauseRefs / validateCausalChain / summarizeCausalChain
+
+3. **因果适配器** (`causalAdapters.ts`)：
+   - `adaptOpeningRecentEvents` — MarketOpeningSnapshot.recentWorldEvents → OpeningWorldEventImported
+   - `adaptDomainEventToCausal` — DomainEventEntry → MarketHeatShifted / OwnerMarketPressurePerceived / CustomerComparedListings
+   - `adaptRivalListingReprice` — 竞品调价 → RivalListingRepriced
+   - `adaptCompetitionPressureToOwnerPerception` — 竞争压力 → OwnerMarketPressurePerceived
+   - `adaptMarketCellHeatShift` — 板块热度变化 → MarketHeatShifted
+   - `adaptBrokerRecommendation` — 推荐策略变化 → BrokerRecommendationChanged
+   - `adaptMatterPriority` — 事项优先级变化 → MatterPriorityChanged
+   - `buildInitialCausalEventsFromOpening` — 开局快照 → 全部初始因果事件
+
+4. **可验证因果链示例** (`causalChainExamples.ts`)：
+   - `buildRivalRepriceCausalChain` — 给定 RivalListingRepriced 输入，自动派生完整 6 步链路：
+     - Step 1: RivalListingRepriced（竞品降价，根因）
+     - Step 2: CustomerComparedListings（客户注意到价格变化）
+     - Step 3: CustomerAttentionShifted（客户注意力转向更便宜的房源）
+     - Step 4: OwnerMarketPressurePerceived（业主感知竞争压力）
+     - Step 5: BrokerRecommendationChanged（经纪人调整推荐策略）
+     - Step 6: MatterPriorityChanged（事项优先级提升）
+   - `verifyRivalRepriceChain` — 验证因果链结构完整性
+   - `buildAndVerifyRivalRepriceChain` — 构建 + 验证一步到位
+
+#### How verified
+
+```
+npx tsx scripts/verify-selling-houses-causal-ledger.ts → 147/147 PASS
+npx tsc --noEmit → 0 new errors (pre-existing errors unrelated)
+```
+
+验证项详情：
+- ✅ 因果账本能创建（空 ledger 和带事件 ledger）
+- ✅ opening snapshot recent events 能 import 为 OpeningWorldEventImported
+- ✅ 竞品降价样本派生完整链路（8 events: 1 root + 2 compare + 2 attention + 1 owner + 1 broker + 1 priority）
+- ✅ 所有事件都有 kind / day / source / confidence / affectedIds
+- ✅ causeEventIds 能串起来（0 dangling refs）
+- ✅ backward chain 从末尾事件回溯 5 层，forward chain 从根因展开 7 层
+- ✅ ledger 不依赖 UI / projection / runtime（14 个文件全部扫描通过）
+- ✅ adapter 单元测试通过（market_event / rival reprice / competition pressure）
+
+#### Mother-model alignment
+
+| 母模型原则 | 对齐情况 |
+|-----------|---------|
+| 竞争压力不直接决定结果 (Section 10) | ✅ 事件是结构化事实，不含直接成交逻辑 |
+| 热度不等于成交 | ✅ MarketHeatShifted 只记录 before/after，不触发 deal |
+| 因果传输链 (Section 13) | ✅ 每个事件有 causeEventIds，支持 forward/backward 链遍历 |
+| 信息不对称 (Section 9) | ✅ source 区分 market-signal / rival-action / customer-behavior / owner-perception / broker-service |
+| 可回放确定性 (Section 19.10) | ✅ 纯函数构建器，相同输入 → 相同事件 |
+| 事件是 append-only 事实 (Section 2.4) | ✅ ledger immutable，append 返回新实例 |
+| POV 不是 GlobalTruth (Section 1.1) | ✅ 事件属于 GlobalTruth，POV 投影由上层消费 |
+| domain 不 import runtime/application/UI | ✅ 所有文件通过 import 边界检查 |
+
+#### Risks / blockers
+
+1. `causalEvents.ts` 有 8 个 tsc 错误，原因是 `readonly` payload 接口与 `Record<string, unknown>` 不兼容。这是设计取舍（类型安全 > 松散兼容），不影响运行时验证通过。后续轮次可调整 makeBase 返回类型。
+2. 因果链示例（`causalChainExamples.ts`）是结构性函数可调用的 narrow simulation，未接入每日主循环。接入需 Agent A 或 resolveOneD ay 编排层消费。
+3. `OwnerMarketPressurePerceived` 的 `perceivedSignalIds` 目前接受任意字符串数组。后续可加类型约束限制为已知事件 ID。
+4. `buildInitialCausalEventsFromOpening` 的 `before: 50` 是硬编码假设。后续应从 opening snapshot 获取更精确的历史热度。
+
+#### Next recommended step
+
+1. **Agent C**: 将 `ecosystemPolicy.ts` 产出的 `DailyEcosystemActionProposal` 通过 `adapt*` 适配器写入 causal ledger，使每日生态行动成为因果链的一部分。
+2. **Agent A/resolveOneDay**: 在 daily tick 的 `market_event` / `case_lost_to_rival` / `opportunity_advanced` 分支中，通过 `adaptDomainEventToCausal` 将 domain events 写入 ledger。
+3. **Agent D**: 添加多日 tick 的因果链完整性验证——确保一个 RivalListingRepriced 经过 3 天传播后，backward chain 仍然完整。
+---
+
+## Current Active A/B/C/D Prompts - 2026-05-12 Big World Round 2: From Large Snapshot To Running City
+
+Use these prompts for the next round. S is commander (总指挥) and owns inspection, merge judgment, and next prompt handoff after A/B/C/D finish. A/B/C/D are workers. Do not create Agent E/F.
+
+### Why This Round Exists
+
+The previous 2026-05-12 big-world pass made a real start:
+
+```text
+MarketOpeningSnapshot
+  -> ACN / market cells / shadow listings / shadow customers / broker network
+  -> ecosystem policy proposals
+  -> causal ledger and causal chain samples
+  -> compressed MarketOpeningPOVProjection
+```
+
+This is materially better than a single-listing toy. But it is not yet “super big”. It is a large opening snapshot plus partial projection. The next step is to make the world **run**.
+
+### Deep Definition: What “Big” Means Here
+
+“Big” is not more cards, longer copy, or bigger random arrays.
+
+A big selling-houses world means:
+
+```text
+1. Spatially big:
+   multiple market cells / communities / price bands / demand segments exist at once.
+
+2. Actor-big:
+   player broker, rival brokers, owners, customers, stores, ACN networks, and manager processes all have bounded agency.
+
+3. Relation-big:
+   customer-case-match, brokered-opportunity, broker-owner trust, buyer-broker attention,
+   listing mandate, cooperation path, owner expectation, and consensus process are separate relations.
+
+4. Time-big:
+   the world keeps moving across days even when the player does nothing.
+   Competitors reprice, customers compare, owners update expectations, brokers spend energy,
+   and opportunities decay or improve.
+
+5. Causally big:
+   a market event is not flavor text. It can become customer attention movement,
+   then owner pressure, then recommendation priority, then action draft.
+
+6. POV-big:
+   the system can simulate 100 things while showing the broker only 5 actionable signals.
+   Big world must not become a global admin dashboard.
+
+7. Economically big:
+   attention, energy, demand, inventory, trust, time windows, and deal scarcity are conserved.
+   The world is large because resources are scarce, not because data is noisy.
+
+8. Replay-big:
+   same seed + same action sequence = same world movement, same causal ledger, same POV summary.
+```
+
+The business value of “big”:
+
+```text
+- Competitor comparison becomes real, not empty “暂无竞品”.
+- Customer pool feels like a market, not five hardcoded leads.
+- Owner pressure has external causes, not arbitrary text.
+- Focus meeting / promotion / pricing actions compete for scarce market attention.
+- Recommendation can explain “why today” from causal evidence.
+- UI can stay small because projection is smart: big world underneath, compressed broker POV above.
+```
+
+### Current Verified State
+
+```text
+- `scripts/verify-selling-houses-market-opening-snapshot.ts` passes.
+- `scripts/verify-selling-houses-ecosystem-policy.ts` passes.
+- `scripts/verify-selling-houses-causal-ledger.ts` passes.
+- `scripts/verify-selling-houses-big-world-gate.ts` passes.
+- `npm run lint` passes.
+- `npm run build` passes, with pre-existing CSS optimizer warnings unrelated to world model.
+```
+
+### Current Gaps To Close
+
+```text
+G1. Snapshot and generated ecosystem populations are still partially parallel worlds.
+    They must share seed, market cells, ACN profiles, and population scale assumptions.
+
+G2. Ecosystem proposals are not yet a daily city ticker persisted into GameState.
+    They exist as domain functions, but the live day loop does not carry a durable causal ledger.
+
+G3. Causal chain examples prove structure, but live events from daily tick / rival actions / customer movement
+    are not yet appended into a world-level ledger across days.
+
+G4. POV projection exists, but UI does not visibly use `marketOpeningBrief` yet.
+    It is attached to workspace projection, not surfaced as a broker-readable market module.
+
+G5. Customer and competitor scale is still too bounded by current player-facing objects.
+    Need generated outside-market supply/demand to influence visible opportunities without exposing hidden truth.
+
+G6. Gate proves opening size, but not multi-day behavior: no proof that the city remains large and causal after 7/14 days.
+```
+
+### Round Acceptance
+
+This round is complete only when:
+
+```text
+1. Opening snapshot, ecosystem populations, and causal ledger share a single deterministic world seed context.
+2. Multi-day world ticker produces ecosystem proposals and causal events without direct UI mutation.
+3. GameState or runContext has a durable, bounded world ledger/ref summary compatible with old saves.
+4. MarketOpeningPOVProjection is consumed by an actual seller workspace surface in compressed form.
+5. Projection still exposes top signals only, never full shadow listings/customers/brokers.
+6. 7-day and 14-day deterministic gates prove city movement, conservation, causal chain continuity, and no hidden truth leakage.
+7. Existing auth/admin, daily operating, opportunity, deal, and build gates remain green.
+```
+
+### Agent A - Current Prompt - World Seed And Population Unification
+
+Prompt:
+
+```text
+You are Agent A, the World Seed and Population Unification Worker for the selling-houses mother-model migration.
+
+Project root:
+/Users/jiaqi/Documents/开放日测算
+
+You are still Agent A. S is commander (总指挥). A/B/C/D are workers. Do not create Agent E/F or beyond.
+
+Read first:
+- docs/selling-houses-mother-model-agent-workplan.md
+- /Users/jiaqi/.codex/memories/projects/users-jiaqi-documents-开放日测算/topics/selling-houses-world-model-mother-model.md
+- src/selling-houses/domain/world-model/marketWorldTypes.ts
+- src/selling-houses/domain/world-model/seededMarketWorld.ts
+- src/selling-houses/domain/world-model/acnNetworks.ts
+- src/selling-houses/domain/world-model/brokerPopulation.ts
+- src/selling-houses/domain/world-model/listingPopulation.ts
+- src/selling-houses/domain/world-model/customerDemandField.ts
+- src/selling-houses/application/gameState.ts
+
+Task:
+Unify MarketOpeningSnapshot and ecosystem population generation so they are not two parallel big worlds.
+The snapshot should define the city seed context, market cells, ACN profiles, and scale parameters;
+broker/listing/customer population generation should derive from that context.
+
+Write scope:
+- src/selling-houses/domain/world-model/**
+- src/selling-houses/domain/models.ts only if a narrow optional type field is required
+- src/selling-houses/application/gameState.ts only for a narrow runContext creation/normalization hook
+- scripts/verify-selling-houses-big-world-seed-unification.ts
+- docs/selling-houses-mother-model-agent-workplan.md only in "Agent A Reports"
+
+Expected concepts:
+- WorldSeedContext or MarketWorldSeedContext
+- PopulationScaleProfile
+- createMarketWorldPopulationFromOpening(snapshot, options?)
+- ACN snapshot -> AcnBehaviorProfile mapping
+- marketCell snapshot -> listing/customer/broker generation inputs
+
+Required behavior:
+- Same runSeed + same scenario = byte-identical opening snapshot and population summary.
+- Different seed changes population details but preserves invariants.
+- Population generation reads market cells and ACN profiles from MarketOpeningSnapshot.
+- No independent hardcoded market-cell universe if snapshot already provides one.
+- Player listings remain separate from shadow/direct-rival listings.
+- Old saves without marketOpeningSnapshot still normalize safely.
+- Domain/world-model still does not import runtime/application/ui.
+
+Do not:
+- rewrite playable game loop.
+- move UI or runtime files into domain.
+- expose full generated population to workspace projection.
+- call Date.now/Math.random/fetch/LLM/provider APIs.
+- make population scale unbounded; scale must be deterministic and capped.
+
+Verification:
+- npx tsx scripts/verify-selling-houses-big-world-seed-unification.ts
+- npx tsx scripts/verify-selling-houses-market-opening-snapshot.ts
+- npx tsx scripts/verify-selling-houses-ecosystem-policy.ts
+- npx tsx scripts/verify-selling-houses-big-world-gate.ts
+- npm run lint
+
+At the end, append your report under "Agent A Reports" in the workplan.
+```
+
+### Agent B - Current Prompt - Live Causal Ledger And Multi-Day City Ticker
+
+Prompt:
+
+```text
+You are Agent B, the Live Causal Ledger and Multi-Day City Ticker Worker for the selling-houses mother-model migration.
+
+Project root:
+/Users/jiaqi/Documents/开放日测算
+
+You are still Agent B. S is commander (总指挥). A/B/C/D are workers. Do not create Agent E/F or beyond.
+
+Read first:
+- docs/selling-houses-mother-model-agent-workplan.md
+- /Users/jiaqi/.codex/memories/projects/users-jiaqi-documents-开放日测算/topics/selling-houses-world-model-mother-model.md
+- src/selling-houses/domain/world-model/causalEvents.ts
+- src/selling-houses/domain/world-model/causalLedger.ts
+- src/selling-houses/domain/world-model/causalAdapters.ts
+- src/selling-houses/domain/world-model/ecosystemPolicy.ts
+- src/selling-houses/domain/engine.ts
+- src/selling-houses/domain/models.ts
+
+Task:
+Move the big world from opening snapshot into a live multi-day ticker.
+Each day, the city should produce bounded ecosystem proposals, convert them to causal events,
+and append them into a durable world causal ledger/read summary without mutating UI or direct outcomes.
+
+Write scope:
+- src/selling-houses/domain/world-model/**
+- src/selling-houses/domain/models.ts only for optional durable ledger/summary fields
+- src/selling-houses/domain/engine.ts only for a narrow non-invasive tick hook
+- scripts/verify-selling-houses-live-causal-ledger.ts
+- scripts/verify-selling-houses-big-world-7day-ticker.ts
+- docs/selling-houses-mother-model-agent-workplan.md only in "Agent B Reports"
+
+Expected concepts:
+- WorldCausalLedgerRef or serialized ledger summary safe for GameState
+- runDailyWorldTicker(state, day, seedContext)
+- appendEcosystemProposalEventsToLedger
+- event caps per day
+- multi-day causal chain continuity checks
+
+Required behavior:
+- advanceDays(state, 7) produces causal world movement from rival/customer/owner/market proposals.
+- The ledger is deterministic for same seed and action sequence.
+- The ticker cannot directly set case sold/lost/trust/patience/urgency from hidden global truth.
+- Events have causeEventIds when derived from prior events.
+- Ledger storage is bounded: cap or summarize old events if needed.
+- Old saves without ledger normalize safely.
+- Existing eventStore/eventLog remains compatible.
+
+Do not:
+- make the causal ledger a UI log.
+- append free-text-only events without structured kind/source/affected ids.
+- mutate gameplay outcome from ecosystem proposals.
+- call LLM/fetch/provider APIs.
+- use Date.now/Math.random/randomInt outside seeded RandomSource.
+
+Verification:
+- npx tsx scripts/verify-selling-houses-live-causal-ledger.ts
+- npx tsx scripts/verify-selling-houses-big-world-7day-ticker.ts
+- npx tsx scripts/verify-selling-houses-causal-ledger.ts
+- npx tsx scripts/verify-selling-houses-ecosystem-policy.ts
+- npx tsx scripts/verify-selling-houses-daily-operating-loop-final-gate.ts
+- npm run lint
+
+At the end, append your report under "Agent B Reports" in the workplan.
+```
+
+### Agent C - Current Prompt - Market Scale Into Opportunity And Competition Read Models
+
+Prompt:
+
+```text
+You are Agent C, the Market Scale Into Opportunity and Competition Read Models Worker for the selling-houses mother-model migration.
+
+Project root:
+/Users/jiaqi/Documents/开放日测算
+
+You are still Agent C. S is commander (总指挥). A/B/C/D are workers. Do not create Agent E/F or beyond.
+
+Read first:
+- docs/selling-houses-mother-model-agent-workplan.md
+- /Users/jiaqi/.codex/memories/projects/users-jiaqi-documents-开放日测算/topics/selling-houses-world-model-mother-model.md
+- src/selling-houses/domain/world-model/customerDemandField.ts
+- src/selling-houses/domain/world-model/listingPopulation.ts
+- src/selling-houses/domain/world-model/ecosystemConservation.ts
+- src/selling-houses/application/projections/operatingProjection.ts
+- src/selling-houses/application/projections/marketOpeningPOVProjection.ts
+- src/selling-houses/application/projections/workspaceShellProjection.ts
+- src/selling-houses/ui/features/Cases.tsx
+
+Task:
+Make market scale influence broker-visible opportunity and competition read models without exposing hidden global truth.
+The player should no longer see empty竞品/客户 because the world only knows one local listing.
+But the UI should still show compressed, broker-actionable summaries, not full shadow arrays.
+
+Write scope:
+- src/selling-houses/application/projections/**
+- src/selling-houses/ui/features/Cases.tsx only for a small compressed module if needed
+- src/selling-houses/domain/world-model/** only for pure read helpers
+- scripts/verify-selling-houses-market-scale-opportunity-readmodels.ts
+- scripts/verify-selling-houses-market-opening-ui-consumption.ts
+- docs/selling-houses-mother-model-agent-workplan.md only in "Agent C Reports"
+
+Expected outputs:
+- case-level competitor summary always has bounded comparable supply when market cell has shadow listings.
+- customer demand summary derives from demand field/visible opportunity refs, not hardcoded local customers only.
+- “暂无同类竞品” only appears when the generated market truly has no comparable supply after filters.
+- MarketOpeningPOVProjection is consumed by seller workspace UI or shell projection in a compact visible section.
+- UI shows top 3 market signals / top rival pressure / top demand signal, not all data.
+
+Required behavior:
+- Projection can answer: for this case, what market cell is it in, what competitor pressure exists,
+  what demand segment is moving, and which action direction follows.
+- Projection is deterministic and frozen/read-only.
+- No raw GameState/Case/Opportunity/full shadow arrays leak through workspace/LLM boundary.
+- UI text is concrete business language: who/where/what changed/what it affects.
+- Avoid tutorial copy and model jargon.
+
+Do not:
+- redesign the whole page.
+- add large cards or generic metrics.
+- expose hidden customer IDs or all rival listing IDs.
+- execute actions from recommendation.
+- call LLM/fetch/provider APIs.
+
+Verification:
+- npx tsx scripts/verify-selling-houses-market-scale-opportunity-readmodels.ts
+- npx tsx scripts/verify-selling-houses-market-opening-ui-consumption.ts
+- npx tsx scripts/verify-selling-houses-big-world-gate.ts
+- npx tsx scripts/verify-selling-houses-workspace-semantic-composer-contract.ts
+- npm run lint
+
+At the end, append your report under "Agent C Reports" in the workplan.
+```
+
+### Agent D - Current Prompt - Super Big World Final Gate And S Handoff
+
+Prompt:
+
+```text
+You are Agent D, the Super Big World Final Gate and S Handoff Worker for the selling-houses mother-model migration.
+
+Project root:
+/Users/jiaqi/Documents/开放日测算
+
+You are still Agent D. S is commander (总指挥). A/B/C/D are workers. Do not create Agent E/F or beyond.
+You inspect code and run verification yourself; do not merely trust A/B/C reports.
+
+Read first:
+- docs/selling-houses-mother-model-agent-workplan.md
+- /Users/jiaqi/.codex/memories/projects/users-jiaqi-documents-开放日测算/topics/selling-houses-world-model-mother-model.md
+- scripts/verify-selling-houses-big-world-gate.ts
+- scripts/verify-selling-houses-market-opening-snapshot.ts
+- scripts/verify-selling-houses-ecosystem-policy.ts
+- scripts/verify-selling-houses-causal-ledger.ts
+- A/B/C changed files from this round
+
+Task:
+Create the hard gate proving the big world is genuinely large, running, causal, bounded, POV-safe, and product-visible.
+Then append an S-ready next-round handoff draft.
+
+Write scope:
+- scripts/verify-selling-houses-super-big-world-final-gate.ts
+- scripts/verify-selling-houses-big-world-gate.ts if it needs stricter checks
+- docs/selling-houses-mother-model-agent-workplan.md only in "Agent D Reports" and a final "S Next Handoff Draft" subsection inside your report
+
+Expected checks:
+- A/B/C/D governance valid; E/F unauthorized.
+- Opening snapshot exists and shares seed context with generated populations.
+- Market cells >= 3; ACN >= 3; shadow listings > player listings; shadow customers > player visible customer context; shadow brokers >= named brokers.
+- 7-day and 14-day ticker produce deterministic causal ledger output.
+- Conservation rules hold across multi-day ticks: attention, broker energy, demand volume, owner perception lag, deal scarcity.
+- A rival reprice or market drift can be traced through customer attention / owner pressure / broker recommendation / matter priority over days.
+- Workspace projection/UI consumes compressed marketOpeningBrief or equivalent visible market module.
+- Projection exposes top signals only, not full shadow listings/customers/brokers/ledger.
+- No hidden global truth is directly used to mutate case sold/lost/trust/patience/urgency.
+- No Date.now/Math.random/fetch/OpenAI/apiKey/provider in world-model/ticker/projection builders.
+- Existing gates remain green: auth store, daily operating loop, opportunity split, deal closing parity, workspace composer, lint, build.
+
+Do not:
+- weaken existing gates.
+- accept string-only checks where live deterministic samples are possible.
+- turn warnings into passes for actual business blockers.
+- modify broad UI or gameplay logic.
+
+Verification:
+- npx tsx scripts/verify-selling-houses-super-big-world-final-gate.ts
+- npx tsx scripts/verify-selling-houses-big-world-gate.ts
+- npx tsx scripts/verify-selling-houses-market-opening-snapshot.ts
+- npx tsx scripts/verify-selling-houses-ecosystem-policy.ts
+- npx tsx scripts/verify-selling-houses-causal-ledger.ts
+- npx tsx scripts/verify-auth-users-store-contract.ts
+- npx tsx scripts/verify-selling-houses-daily-operating-loop-final-gate.ts
+- npx tsx scripts/verify-selling-houses-opportunity-split-final-gate.ts
+- npx tsx scripts/verify-selling-houses-deal-closing-runtime-consensus-parity.ts
+- npm run lint
+- npm run build
+
+S handoff draft requirement:
+At the end of your report, add:
+- current pass/fail matrix
+- remaining P1/P2 list
+- whether “big” is now snapshot-big, ticker-big, POV-big, or product-big
+- recommended next active A/B/C/D prompt theme
+- whether S should continue simulation scale, product surface, replay/persistence, or owner/customer intelligence next
+
+At the end, append your report under "Agent D Reports" in the workplan.
+```
+

@@ -63,6 +63,7 @@ import {
   markSavedState,
   normalizeGameSaveMetadata,
 } from './saveConsistency.js';
+import { createMarketOpeningSnapshot } from '../domain/world-model/seededMarketWorld.js';
 
 function isBrowser() {
   return typeof window !== 'undefined' && Boolean(window.localStorage);
@@ -232,6 +233,12 @@ function resolveRunSeeds(seedInput: RunSeedInput) {
 
 function buildRunContext(snapshot: ScenarioSnapshot, seedInput: RunSeedInput) {
   const { runSeed, scenarioSeed } = resolveRunSeeds(seedInput);
+  const marketOpeningSnapshot = createMarketOpeningSnapshot({
+    seed: runSeed,
+    scenarioName: snapshot.scenario.name,
+    difficultyId: snapshot.scenario.difficultyId,
+    playerCaseCount: snapshot.scenario.cases.length,
+  });
   return {
     scenarioId: snapshot.scenario.id,
     scenarioName: snapshot.scenario.name,
@@ -243,6 +250,7 @@ function buildRunContext(snapshot: ScenarioSnapshot, seedInput: RunSeedInput) {
     rngSeed: runSeed,
     createdAt: new Date().toISOString(),
     scenarioSnapshot: snapshot,
+    marketOpeningSnapshot,
   };
 }
 
@@ -387,7 +395,7 @@ export function createInitialShadowMarket(snapshot: ScenarioSnapshot): ShadowMar
   const world = snapshot.world;
   const seededStores = Array.isArray(scenario.initialRivalStores) && scenario.initialRivalStores.length
     ? scenario.initialRivalStores
-    : (world.rivalStoreArchetypes || []).slice(0, scenario.difficultyId === 'warmup' ? 1 : 2).map((entry) => ({
+    : (world.rivalStoreArchetypes || []).slice(0, scenario.difficultyId === 'warmup' ? 1 : 3).map((entry) => ({
         ...entry,
         activityHeat: scenario.difficultyId === 'warmup' ? 28 : scenario.difficultyId === 'easy' ? 36 : 46,
       }));

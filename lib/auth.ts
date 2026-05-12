@@ -42,7 +42,7 @@ export interface AuthUserRecord {
   activationBound: boolean;
   activationKey?: string;
   createdAt: string;
-  lastLoginAt: string;
+  lastLoginAt: string | null;
 }
 
 interface VerificationChallenge {
@@ -272,7 +272,7 @@ function buildConfiguredUser(
     activationBound: item.activationBound !== false,
     activationKey: typeof item.activationKey === 'string' ? item.activationKey : undefined,
     createdAt: typeof item.createdAt === 'string' ? item.createdAt : now,
-    lastLoginAt: typeof item.lastLoginAt === 'string' ? item.lastLoginAt : now,
+    lastLoginAt: typeof item.lastLoginAt === 'string' ? item.lastLoginAt : null,
   };
 }
 
@@ -494,7 +494,7 @@ function neonUserToAuthRecord(user: AuthNeonUser): AuthUserRecord {
     activationBound: user.activationBound !== false,
     activationKey: user.activationKey,
     createdAt: user.createdAt,
-    lastLoginAt: user.lastLoginAt,
+    lastLoginAt: user.lastLoginAt || null,
   };
 }
 
@@ -508,7 +508,7 @@ function authRecordToNeonUser(user: AuthUserRecord): AuthNeonUser {
     activationBound: user.activationBound !== false,
     activationKey: user.activationKey,
     createdAt: user.createdAt,
-    lastLoginAt: user.lastLoginAt,
+    lastLoginAt: user.lastLoginAt || null,
   };
 }
 
@@ -526,7 +526,7 @@ async function issueNeonSession(user: AuthNeonUser | AuthUserRecord): Promise<Lo
     lastLoginAt: now,
   };
   const persistedUser = authRecordToNeonUser(authRecord);
-  await neonUpsertUser(persistedUser);
+  await neonUpsertUser(persistedUser, { updateLastLoginAt: true });
   const refreshedRecord = neonUserToAuthRecord(persistedUser);
   const sessionToken = createSessionToken(refreshedRecord);
 
@@ -579,7 +579,7 @@ export async function startEmailLogin(emailInput: string): Promise<LoginStartRes
         allowedWorkspaces: [...ACTIVATION_WORKSPACES],
         activationBound: true,
         createdAt: new Date().toISOString(),
-        lastLoginAt: new Date().toISOString(),
+        lastLoginAt: null,
       };
       saveAuthStore(store);
     }
@@ -641,7 +641,7 @@ export async function startEmailLoginPersisted(emailInput: string): Promise<Logi
         allowedWorkspaces: [...ACTIVATION_WORKSPACES],
         activationBound: true,
         createdAt: now,
-        lastLoginAt: now,
+        lastLoginAt: null,
       });
       await neonUpsertUser(existingUser);
     }
@@ -776,7 +776,7 @@ export async function completeEmailLoginPersisted(input: {
         allowedWorkspaces: [...ACTIVATION_WORKSPACES],
         activationBound: true,
         createdAt: now,
-        lastLoginAt: now,
+        lastLoginAt: null,
       });
     } else {
       const activationKey = typeof input.activationKey === 'string' ? input.activationKey.trim() : '';

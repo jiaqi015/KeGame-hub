@@ -14,8 +14,10 @@ async function main() {
     activation_bound BOOLEAN NOT NULL DEFAULT TRUE,
     activation_key TEXT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    last_login_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    last_login_at TIMESTAMPTZ NULL
   )`;
+  await sql`ALTER TABLE auth_users ALTER COLUMN last_login_at DROP DEFAULT`;
+  await sql`ALTER TABLE auth_users ALTER COLUMN last_login_at DROP NOT NULL`;
   console.log('auth_users table ready');
 
   const allExceptAdmin = ['sabrina','open-day','selling-houses','market-management','rational-owner'];
@@ -33,11 +35,10 @@ async function main() {
     const email = `${row.display_name}@ke.com`;
     const workspaces = row.display_name === 'yangjiaqi015' ? allPerms : allExceptAdmin;
     const createdAt = row.created_at || row.last_seen_at || new Date(0).toISOString();
-    const legacyLastLoginAt = row.last_seen_at || row.created_at || createdAt;
 
     await sql`
       INSERT INTO auth_users (email, account_id, nickname, display_name, allowed_workspaces, created_at, last_login_at)
-      VALUES (${email}, ${row.user_id}, ${row.display_name}, ${row.display_name}, ${JSON.stringify(workspaces)}, ${createdAt}, ${legacyLastLoginAt})
+      VALUES (${email}, ${row.user_id}, ${row.display_name}, ${row.display_name}, ${JSON.stringify(workspaces)}, ${createdAt}, ${null})
       ON CONFLICT (email) DO UPDATE SET
         allowed_workspaces = CASE
           WHEN auth_users.allowed_workspaces @> ${JSON.stringify(['admin'])}::jsonb
@@ -49,9 +50,24 @@ async function main() {
     console.log('  migrated:', email, '→', workspaces);
   }
 
+  await sql`
+    UPDATE auth_users
+    SET last_login_at = NULL
+    FROM maintainer_users
+    WHERE auth_users.account_id = maintainer_users.user_id
+      AND auth_users.email = maintainer_users.display_name || '@ke.com'
+      AND (
+        auth_users.last_login_at = maintainer_users.last_seen_at
+        OR (
+          maintainer_users.last_seen_at IS NULL
+          AND auth_users.last_login_at = maintainer_users.created_at
+        )
+      )
+  `;
+
   console.log('done. migrated', migrated, 'users');
 
-  const all = await sql`SELECT email, display_name, allowed_workspaces FROM auth_users ORDER BY last_login_at DESC`;
+  const all = await sql`SELECT email, display_name, allowed_workspaces FROM auth_users ORDER BY last_login_at DESC NULLS LAST, created_at DESC`;
   console.log('\n=== auth_users ===');
   for (const u of all) {
     console.log(`  ${u.email} (${u.display_name}): ${JSON.stringify(u.allowed_workspaces)}`);

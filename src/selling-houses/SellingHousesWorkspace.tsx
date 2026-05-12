@@ -1497,7 +1497,7 @@ function LiquidGlassIfLight({
   className?: string;
   preset: 'panel' | 'hero' | 'toolbar' | 'button';
 }) {
-  if (!enabled) {
+  if (!enabled || preset === 'toolbar') {
     return <div className={fallbackClassName}>{children}</div>;
   }
 

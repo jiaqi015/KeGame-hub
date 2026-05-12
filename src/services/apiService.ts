@@ -356,7 +356,7 @@ export interface UserListItem {
   displayName: string;
   allowedWorkspaces: ActivationWorkspaceId[];
   createdAt: string;
-  lastLoginAt: string;
+  lastLoginAt: string | null;
 }
 
 export interface UserListResponse {

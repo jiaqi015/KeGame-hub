@@ -6,6 +6,10 @@ import {
   buildCaseDetailProjection,
   type CaseDetailProjection,
 } from './operatingProjection.js';
+import {
+  buildMarketOpeningPOVProjection,
+  type MarketOpeningPOVProjection,
+} from './marketOpeningPOVProjection.js';
 
 export type WorkspaceShellResourcePanelId = 'budget' | 'auxiliary' | 'energy';
 export type WorkspaceShellMiniStatTone = 'emerald' | 'sky' | 'rose' | 'amber';
@@ -131,6 +135,8 @@ export interface WorkspaceShellProjection {
   energyPanel: WorkspaceShellEnergyPanelProjection;
   sidebar: WorkspaceShellSidebarProjection;
   selectedCaseDetail: WorkspaceShellSelectedCaseDetailProjection | null;
+  /** 大世界 POV 投影 — 市场入场简报（只读，不暴露完整 shadow world） */
+  marketOpeningBrief: MarketOpeningPOVProjection;
 }
 
 function getClosedDealCount(state: GameState) {
@@ -276,6 +282,7 @@ export function buildWorkspaceShellProjection(state: GameState): WorkspaceShellP
         projection: selectedCaseProjection,
       }
       : null,
+    marketOpeningBrief: buildMarketOpeningPOVProjection(state),
   };
 }
 

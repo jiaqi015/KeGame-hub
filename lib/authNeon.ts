@@ -9,7 +9,7 @@ export interface AuthNeonUser {
   activationBound: boolean;
   activationKey?: string;
   createdAt: string;
-  lastLoginAt: string;
+  lastLoginAt: string | null;
 }
 
 type AuthSqlClient = ReturnType<typeof neon>;
@@ -42,9 +42,12 @@ function ensureSchema(sql?: AuthSqlClient) {
           activation_bound BOOLEAN NOT NULL DEFAULT TRUE,
           activation_key TEXT NULL,
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-          last_login_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          last_login_at TIMESTAMPTZ NULL
         )
       `);
+
+      await client.query('ALTER TABLE auth_users ALTER COLUMN last_login_at DROP DEFAULT');
+      await client.query('ALTER TABLE auth_users ALTER COLUMN last_login_at DROP NOT NULL');
 
       await client.query(`
         CREATE TABLE IF NOT EXISTS auth_challenges (
@@ -77,7 +80,9 @@ function rowToUser(row: any): AuthNeonUser {
     activationBound: row.activation_bound !== false,
     activationKey: row.activation_key || undefined,
     createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at || ''),
-    lastLoginAt: row.last_login_at instanceof Date ? row.last_login_at.toISOString() : String(row.last_login_at || ''),
+    lastLoginAt: row.last_login_at
+      ? (row.last_login_at instanceof Date ? row.last_login_at.toISOString() : String(row.last_login_at))
+      : null,
   };
 }
 
@@ -88,12 +93,16 @@ export async function neonGetUser(email: string): Promise<AuthNeonUser | null> {
   return rows.length > 0 ? rowToUser(rows[0]) : null;
 }
 
-export async function neonUpsertUser(user: AuthNeonUser): Promise<void> {
+export async function neonUpsertUser(
+  user: AuthNeonUser,
+  options: { updateLastLoginAt?: boolean } = {},
+): Promise<void> {
   if (!isAuthNeonAvailable()) return;
   await ensureSchema();
+  const updateLastLoginAt = options.updateLastLoginAt === true;
   await getSql()`
     INSERT INTO auth_users (email, account_id, nickname, display_name, allowed_workspaces, activation_bound, activation_key, created_at, last_login_at)
-    VALUES (${user.email}, ${user.accountId}, ${user.nickname}, ${user.displayName}, ${JSON.stringify(user.allowedWorkspaces)}, ${user.activationBound}, ${user.activationKey || null}, ${user.createdAt}, ${user.lastLoginAt})
+    VALUES (${user.email}, ${user.accountId}, ${user.nickname}, ${user.displayName}, ${JSON.stringify(user.allowedWorkspaces)}, ${user.activationBound}, ${user.activationKey || null}, ${user.createdAt}, ${user.lastLoginAt || null})
     ON CONFLICT (email) DO UPDATE SET
       account_id = EXCLUDED.account_id,
       nickname = EXCLUDED.nickname,
@@ -101,14 +110,17 @@ export async function neonUpsertUser(user: AuthNeonUser): Promise<void> {
       allowed_workspaces = EXCLUDED.allowed_workspaces,
       activation_bound = EXCLUDED.activation_bound,
       activation_key = COALESCE(EXCLUDED.activation_key, auth_users.activation_key),
-      last_login_at = EXCLUDED.last_login_at
+      last_login_at = CASE
+        WHEN ${updateLastLoginAt} THEN COALESCE(EXCLUDED.last_login_at, auth_users.last_login_at)
+        ELSE auth_users.last_login_at
+      END
   `;
 }
 
 export async function neonListUsers(): Promise<AuthNeonUser[]> {
   if (!isAuthNeonAvailable()) return [];
   await ensureSchema();
-  const rows = await getSql()`SELECT * FROM auth_users ORDER BY last_login_at DESC` as any[];
+  const rows = await getSql()`SELECT * FROM auth_users ORDER BY last_login_at DESC NULLS LAST, created_at DESC` as any[];
   return rows.map(rowToUser);
 }
 
@@ -181,11 +193,10 @@ export async function neonMigrateLegacyUsers(): Promise<number> {
       ? allWorkspaces
       : allWorkspacesExceptAdmin;
     const createdAt = row.created_at || row.last_seen_at || new Date(0).toISOString();
-    const legacyLastLoginAt = row.last_seen_at || row.created_at || createdAt;
 
     await getSql()`
       INSERT INTO auth_users (email, account_id, nickname, display_name, allowed_workspaces, created_at, last_login_at)
-      VALUES (${email}, ${row.user_id}, ${row.display_name}, ${row.display_name}, ${JSON.stringify(allowedWorkspaces)}, ${createdAt}, ${legacyLastLoginAt})
+      VALUES (${email}, ${row.user_id}, ${row.display_name}, ${row.display_name}, ${JSON.stringify(allowedWorkspaces)}, ${createdAt}, ${null})
       ON CONFLICT (email) DO UPDATE SET
         allowed_workspaces = CASE
           WHEN auth_users.allowed_workspaces @> ${JSON.stringify(['admin'])}::jsonb
@@ -195,6 +206,21 @@ export async function neonMigrateLegacyUsers(): Promise<number> {
     `;
     migrated++;
   }
+
+  await getSql()`
+    UPDATE auth_users
+    SET last_login_at = NULL
+    FROM maintainer_users
+    WHERE auth_users.account_id = maintainer_users.user_id
+      AND auth_users.email = maintainer_users.display_name || '@ke.com'
+      AND (
+        auth_users.last_login_at = maintainer_users.last_seen_at
+        OR (
+          maintainer_users.last_seen_at IS NULL
+          AND auth_users.last_login_at = maintainer_users.created_at
+        )
+      )
+  `;
 
   return migrated;
 }

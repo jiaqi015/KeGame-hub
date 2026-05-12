@@ -373,7 +373,7 @@ const WechatMessageRow: React.FC<WechatMessageRowProps> = ({
                 event.stopPropagation();
                 onPrimaryAction();
               }}
-              className="rounded-full border border-[color:var(--seller-accent)]/24 bg-[color:var(--seller-accent)]/8 px-1 py-0 text-[8px] font-semibold leading-4 text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/14"
+              className="rounded-full border border-[color:var(--seller-accent)]/24 bg-[color:var(--seller-accent)]/8 px-[5px] py-[1px] text-[10px] font-semibold leading-[19px] text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/14"
               title="点击直接安排事项"
             >
               {latestMessage.primaryCtaLabel}
