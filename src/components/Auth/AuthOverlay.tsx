@@ -429,7 +429,7 @@ export function AuthOverlay({
             </div>
 
             <div className="mt-4 flex items-center justify-center gap-3 text-[10px] font-mono tracking-wider text-zinc-700">
-              <span>v{import.meta.env.VITE_APP_VERSION ?? '—'}</span>
+              <span>v{import.meta.env.VITE_APP_VERSION ?? '—'} {import.meta.env.VITE_BUILD_CODE ?? ''}</span>
               <span className="text-zinc-800">·</span>
               <span className={import.meta.env.VITE_VERSION_TYPE === 'magic' ? 'text-amber-500/70' : ''}>{import.meta.env.VITE_VERSION_TYPE === 'magic' ? '✨ Magic' : '◻ Square'}</span>
               <span className="text-zinc-800">·</span>

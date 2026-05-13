@@ -40,11 +40,21 @@ function getLineCount() {
   }
 }
 
+function getBuildCode() {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8'));
+    return pkg.buildCode || '000000';
+  } catch {
+    return '000000';
+  }
+}
+
 export default defineConfig(({mode}) => {
   const commitHash = getGitCommitHash();
   const appVersion = getAppVersion();
   const versionType = getVersionType();
   const lineCount = getLineCount();
+  const buildCode = getBuildCode();
   return {
     plugins: [react(), tailwindcss()],
     define: {
@@ -52,6 +62,7 @@ export default defineConfig(({mode}) => {
       'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
       'import.meta.env.VITE_VERSION_TYPE': JSON.stringify(versionType),
       'import.meta.env.VITE_LINE_COUNT': JSON.stringify(lineCount),
+      'import.meta.env.VITE_BUILD_CODE': JSON.stringify(buildCode),
     },
     resolve: {
       alias: {
