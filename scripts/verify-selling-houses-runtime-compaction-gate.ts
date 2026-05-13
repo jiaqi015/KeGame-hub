@@ -54,6 +54,12 @@ import type {
   SourceKind,
 } from '../src/selling-houses/domain/world-model/informationSourceTypes.js';
 
+const SOURCE_KINDS: SourceKind[] = [
+  'market_signal', 'rival_action', 'customer_interaction',
+  'owner_interview', 'manager_message', 'player_action_receipt',
+  'process_receipt', 'comparable_transaction', 'platform_traffic', 'acn_network_signal',
+];
+
 // ---------------------------------------------------------------------------
 // Test helpers
 // ---------------------------------------------------------------------------
@@ -171,11 +177,30 @@ function buildTestSourceRecord(index: number, kind: SourceKind): InformationSour
     origin: 'ecosystem_tick' as const,
   };
 
-  return {
-    ...base,
-    sourceKind: kind,
-    payload: { subtype: 'heat_shift', marketCellId: `cell-${index}`, before: 50, after: 60, unit: 'heat', isPublic: true, summary: `test ${index}` } as any,
-  };
+  switch (kind) {
+    case 'market_signal':
+      return { ...base, sourceKind: 'market_signal', payload: { subtype: 'heat_shift', marketCellId: `cell-${index}`, before: 50, after: 60, unit: 'heat', isPublic: true, summary: `test ${index}` } as any };
+    case 'rival_action':
+      return { ...base, sourceKind: 'rival_action', payload: { subtype: 'reprice', rivalBrokerId: `broker-${index}`, rivalAcnId: 'acn-1', listingId: `listing-${index}`, priceBefore: 300, priceAfter: 280, marketCellId: `cell-${index}`, evidenceStrength: 'direct', summary: `test ${index}` } as any };
+    case 'customer_interaction':
+      return { ...base, sourceKind: 'customer_interaction', payload: { subtype: 'comparison_made', customerId: `customer-${index}`, listingId: `listing-${index}`, observationMode: 'observed', summary: `test ${index}` } as any };
+    case 'owner_interview':
+      return { ...base, sourceKind: 'owner_interview', payload: { subtype: 'price_discussed', ownerId: `owner-${index}`, caseId: `case-${index}`, brokerId: `broker-${index}`, tone: 'neutral', ownerStatement: `statement ${index}`, interactionMode: 'scheduled_call', summary: `test ${index}` } as any };
+    case 'manager_message':
+      return { ...base, sourceKind: 'manager_message', payload: { subtype: 'focus_case_selected', managerId: 'mgr-1', targetBrokerId: `broker-${index}`, caseIds: [`case-${index}`], priority: 70, instruction: `focus ${index}`, summary: `test ${index}` } as any };
+    case 'player_action_receipt':
+      return { ...base, sourceKind: 'player_action_receipt', payload: { subtype: 'action_executed', actionId: `action-${index}`, executorId: 'player-broker', caseId: `case-${index}`, costEnergy: 2, costPromotionBudget: 0, fieldDeltas: [], outcome: 'success', summary: `test ${index}` } as any };
+    case 'process_receipt':
+      return { ...base, sourceKind: 'process_receipt', payload: { subtype: 'open_day_completed', processType: 'open_day', processId: `proc-${index}`, caseIds: [`case-${index}`], customerIds: [], brokerIds: [], outcome: 'completed', metrics: {}, summary: `test ${index}` } as any };
+    case 'comparable_transaction':
+      return { ...base, sourceKind: 'comparable_transaction', payload: { subtype: 'deal_closed', marketCellId: `cell-${index}`, district: 'test', layout: '2室1厅', areaSqm: 70, price: 280, askPrice: 300, discountPct: 6.7, daysOnMarket: 20, dataSource: 'platform公开', summary: `test ${index}` } as any };
+    case 'platform_traffic':
+      return { ...base, sourceKind: 'platform_traffic', payload: { subtype: 'traffic_spike', listingId: `listing-${index}`, marketCellId: `cell-${index}`, viewCount: 150, favoriteCount: 10, inquiryCount: 3, timeWindow: 'last_24h', isDelta: false, summary: `test ${index}` } as any };
+    case 'acn_network_signal':
+      return { ...base, sourceKind: 'acn_network_signal', payload: { subtype: 'cooperation_opportunity', sourceAcnId: 'acn-1', brokerIds: [`broker-${index}`], cooperationScore: 75, summary: `test ${index}` } as any };
+    default:
+      return { ...base, sourceKind: 'market_signal', payload: { subtype: 'heat_shift', marketCellId: `cell-${index}`, before: 50, after: 60, unit: 'heat', isPublic: true, summary: `test ${index}` } as any };
+  }
 }
 
 // ===========================================================================
@@ -211,8 +236,8 @@ const bulkSummaries = makeBulkSummaries(80);
 const compactedSummaries = compactDailySummaries(bulkSummaries, 60);
 check(compactedSummaries.length <= 60, `compacted summaries <= 60 (got ${compactedSummaries.length})`);
 
-// Newest kept
-check(compactedSummaries[0].day === 79, `newest summary day: ${compactedSummaries[0].day}`);
+// Newest kept (summaries are in ascending order, so slice keeps the end)
+check(compactedSummaries[compactedSummaries.length - 1].day === 79, `newest summary day: ${compactedSummaries[compactedSummaries.length - 1].day}`);
 
 // ===========================================================================
 // Gate 3: compactCausalRefs bounds
@@ -412,7 +437,10 @@ console.log('\n=== Gate 11: Causal events bounded after bulk ingestion ===');
 const bulkSourceRecords = Array.from({ length: 150 }, (_, i) => buildTestSourceRecord(i, SOURCE_KINDS[i % SOURCE_KINDS.length]));
 const bulkReceipt = ingestSourceRecordsBatch(bulkSourceRecords, 5, 42);
 
-check(bulkReceipt.causalEvents.length <= 150 * 1, `causal events bounded: ${bulkReceipt.causalEvents.length} <= 150`);
+// Some source kinds (e.g. comparable_transaction with deal_closed) produce 2 events per record.
+// With 150 records across 10 kinds (15 per kind), maxEventsPerKind=50 doesn't cap individual records.
+// Max theoretical: 150 records * 2 events = 300. Actual depends on subtype distribution.
+check(bulkReceipt.causalEvents.length <= 300, `causal events bounded: ${bulkReceipt.causalEvents.length} <= 300`);
 
 // After compaction
 const compactedCausalFromBulk = compactWorldCausalEvents(bulkReceipt.causalEvents, 100);

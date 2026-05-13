@@ -67,3 +67,17 @@ export {
   applyTickReceiptToRuntime,
   buildClockInputFromGameState,
 } from './clock.js';
+
+// --- ActionCommandReceipt (Agent C) ----------------------------------------
+
+export {
+  buildActionCommand,
+  buildActionReceipt,
+} from './actionCommandReceipt.js';
+
+// --- ActionReplay (Agent C) ------------------------------------------------
+
+export {
+  replayActionCommand,
+  verifyActionChainDeterminism,
+} from './actionReplay.js';

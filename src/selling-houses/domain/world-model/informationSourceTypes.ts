@@ -30,10 +30,17 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 /**
- * The 10 information source categories in the selling-houses world.
+ * The 15 information source categories in the selling-houses world.
  *
  * Each kind maps to a specific canonical payload and a set of
  * possible causal event outputs.
+ *
+ * Round 8 additions (11-15):
+ *   11. supporting_facility_signal — 学校/地铁/商业/小区环境/政策/噪音/楼栋等配套信息变化
+ *   12. broker_capacity_signal — 经纪人精力、排期、协作、组织压力
+ *   13. owner_life_event_signal — 业主家庭变化、资金需求、搬迁节奏
+ *   14. buyer_financing_signal — 客户贷款、首付、资格、家庭决策
+ *   15. micro_market_signal — 微板块供需变化
  */
 export type SourceKind =
   | 'market_signal'
@@ -45,7 +52,12 @@ export type SourceKind =
   | 'process_receipt'
   | 'comparable_transaction'
   | 'platform_traffic'
-  | 'acn_network_signal';
+  | 'acn_network_signal'
+  | 'supporting_facility_signal'
+  | 'broker_capacity_signal'
+  | 'owner_life_event_signal'
+  | 'buyer_financing_signal'
+  | 'micro_market_signal';
 
 // ════════════════════════════════════════════════════════════════════════════
 // VisibilityPolicy — who can see this record
@@ -431,6 +443,147 @@ export interface AcnNetworkSignalPayload extends SourcePayloadBase {
   readonly ruleChange?: string;
 }
 
+// --- supporting_facility_signal (Round 8: #11) ---
+
+export type SupportingFacilitySubtype =
+  | 'school_district_changed'
+  | 'transit_access_changed'
+  | 'commercial_development'
+  | 'community_environment_shift'
+  | 'policy_change'
+  | 'noise_complaint'
+  | 'building_condition_update';
+
+export interface SupportingFacilitySignalPayload extends SourcePayloadBase {
+  readonly subtype: SupportingFacilitySubtype;
+  /** Related market cell. */
+  readonly marketCellId: string;
+  /** Related case/listing id (if applicable). */
+  readonly caseId?: string;
+  /** Facility type: 'school' | 'transit' | 'commercial' | 'community' | 'policy' | 'noise' | 'building'. */
+  readonly facilityType: 'school' | 'transit' | 'commercial' | 'community' | 'policy' | 'noise' | 'building';
+  /** Before rating/score (0-100). */
+  readonly before: number;
+  /** After rating/score (0-100). */
+  readonly after: number;
+  /** Source of the signal. */
+  readonly dataSource: 'government_notice' | 'community_report' | 'platform_data' | 'broker_observation' | 'media';
+}
+
+// --- broker_capacity_signal (Round 8: #12) ---
+
+export type BrokerCapacitySubtype =
+  | 'energy_depleted'
+  | 'schedule_overloaded'
+  | 'collaboration_requested'
+  | 'organizational_pressure'
+  | 'skill_gap_detected'
+  | 'workload_balanced';
+
+export interface BrokerCapacitySignalPayload extends SourcePayloadBase {
+  readonly subtype: BrokerCapacitySubtype;
+  /** Broker id. */
+  readonly brokerId: string;
+  /** Broker's ACN id. */
+  readonly acnId: string;
+  /** Current energy level (0-100). */
+  readonly energyLevel: number;
+  /** Current schedule utilization (0-100). */
+  readonly scheduleUtilization: number;
+  /** Active case count. */
+  readonly activeCaseCount: number;
+  /** Related case ids affected by capacity change. */
+  readonly affectedCaseIds: readonly string[];
+  /** Pressure magnitude (0-100). */
+  readonly pressureMagnitude: number;
+}
+
+// --- owner_life_event_signal (Round 8: #13) ---
+
+export type OwnerLifeEventSubtype =
+  | 'family_change'
+  | 'financial_need'
+  | 'relocation_planned'
+  | 'health_issue'
+  | 'job_change'
+  | 'inheritance_received'
+  | 'divorce_proceedings';
+
+export interface OwnerLifeEventSignalPayload extends SourcePayloadBase {
+  readonly subtype: OwnerLifeEventSubtype;
+  /** Owner id. */
+  readonly ownerId: string;
+  /** Related case id. */
+  readonly caseId: string;
+  /** Impact on selling urgency (negative = less urgent, positive = more urgent). */
+  readonly urgencyImpact: number;
+  /** Impact on price flexibility (negative = less flexible, positive = more flexible). */
+  readonly priceFlexibilityImpact: number;
+  /** Impact on trust in broker (-100 to 100). */
+  readonly trustImpact: number;
+  /** Timeline hint: how soon the event affects decisions (days). */
+  readonly timelineDays: number;
+  /** Confidence that this life event is real (0-1). */
+  readonly eventConfidence: number;
+}
+
+// --- buyer_financing_signal (Round 8: #14) ---
+
+export type BuyerFinancingSubtype =
+  | 'loan_pre_approved'
+  | 'loan_rejected'
+  | 'down_payment_ready'
+  | 'budget_adjusted'
+  | 'family_veto'
+  | 'co_buyer_added'
+  | 'qualification_expired';
+
+export interface BuyerFinancingSignalPayload extends SourcePayloadBase {
+  readonly subtype: BuyerFinancingSubtype;
+  /** Customer id. */
+  readonly customerId: string;
+  /** Related case id (if applicable). */
+  readonly caseId?: string;
+  /** Related opportunity id. */
+  readonly opportunityId?: string;
+  /** Budget before adjustment. */
+  readonly budgetBefore?: number;
+  /** Budget after adjustment. */
+  readonly budgetAfter?: number;
+  /** Loan approval amount (万元). */
+  readonly loanAmount?: number;
+  /** Down payment available (万元). */
+  readonly downPayment?: number;
+  /** Impact on customer readiness (-100 to 100). */
+  readonly readinessImpact: number;
+}
+
+// --- micro_market_signal (Round 8: #15) ---
+
+export type MicroMarketSubtype =
+  | 'supply_increased'
+  | 'supply_decreased'
+  | 'demand_shift'
+  | 'price_band_squeeze'
+  | 'inventory_absorption'
+  | 'new_development_announced';
+
+export interface MicroMarketSignalPayload extends SourcePayloadBase {
+  readonly subtype: MicroMarketSubtype;
+  /** Micro-market cell id (can be same as market_cell or more specific). */
+  readonly microMarketCellId: string;
+  /** Parent market cell id. */
+  readonly marketCellId: string;
+  /** Supply count change. */
+  readonly supplyDelta: number;
+  /** Demand index change. */
+  readonly demandDelta: number;
+  /** Price band affected (e.g. "200-300万"). */
+  readonly priceBand: string;
+  /** Inventory absorption rate (0-100). */
+  readonly absorptionRate: number;
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // InformationSourceRecord — the core type
 // ════════════════════════════════════════════════════════════════════════════
@@ -448,7 +601,12 @@ export type SourceCanonicalPayload =
   | ProcessReceiptPayload
   | ComparableTransactionPayload
   | PlatformTrafficPayload
-  | AcnNetworkSignalPayload;
+  | AcnNetworkSignalPayload
+  | SupportingFacilitySignalPayload
+  | BrokerCapacitySignalPayload
+  | OwnerLifeEventSignalPayload
+  | BuyerFinancingSignalPayload
+  | MicroMarketSignalPayload;
 
 /**
  * Mapping from SourceKind to its payload type.
@@ -465,6 +623,11 @@ export interface SourceKindPayloadMap {
   comparable_transaction: ComparableTransactionPayload;
   platform_traffic: PlatformTrafficPayload;
   acn_network_signal: AcnNetworkSignalPayload;
+  supporting_facility_signal: SupportingFacilitySignalPayload;
+  broker_capacity_signal: BrokerCapacitySignalPayload;
+  owner_life_event_signal: OwnerLifeEventSignalPayload;
+  buyer_financing_signal: BuyerFinancingSignalPayload;
+  micro_market_signal: MicroMarketSignalPayload;
 }
 
 /**
@@ -662,6 +825,42 @@ export const SOURCE_TO_CAUSAL_MAP: readonly SourceToCausalMapping[] = [
     possibleCausalKinds: ['RivalBrokerActionTaken', 'BrokerRecommendationChanged'],
     isRootCause: false,
     confidenceRange: { min: 0.4, max: 0.8 },
+    typicalDelayDays: { min: 0, max: 3 },
+  },
+  // --- Round 8: New source kinds (11-15) ---
+  {
+    sourceKind: 'supporting_facility_signal',
+    possibleCausalKinds: ['MarketHeatShifted', 'OwnerMarketPressurePerceived'],
+    isRootCause: true,
+    confidenceRange: { min: 0.5, max: 0.9 },
+    typicalDelayDays: { min: 0, max: 5 },
+  },
+  {
+    sourceKind: 'broker_capacity_signal',
+    possibleCausalKinds: ['BrokerRecommendationChanged', 'MatterPriorityChanged'],
+    isRootCause: false,
+    confidenceRange: { min: 0.7, max: 1.0 },
+    typicalDelayDays: { min: 0, max: 1 },
+  },
+  {
+    sourceKind: 'owner_life_event_signal',
+    possibleCausalKinds: ['OwnerMarketPressurePerceived', 'BrokerRecommendationChanged'],
+    isRootCause: true,
+    confidenceRange: { min: 0.5, max: 0.85 },
+    typicalDelayDays: { min: 0, max: 3 },
+  },
+  {
+    sourceKind: 'buyer_financing_signal',
+    possibleCausalKinds: ['BrokerRecommendationChanged', 'MatterPriorityChanged'],
+    isRootCause: false,
+    confidenceRange: { min: 0.6, max: 0.95 },
+    typicalDelayDays: { min: 0, max: 2 },
+  },
+  {
+    sourceKind: 'micro_market_signal',
+    possibleCausalKinds: ['MarketHeatShifted', 'CustomerAttentionShifted'],
+    isRootCause: true,
+    confidenceRange: { min: 0.5, max: 0.85 },
     typicalDelayDays: { min: 0, max: 3 },
   },
 ];

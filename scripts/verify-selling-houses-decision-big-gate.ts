@@ -204,6 +204,22 @@ console.log('--- 1. DecisionEvidenceEnvelope from ActorKnowledgeSnapshot ---');
     visibility: { scope: 'all_actors', baseDelayDays: 0 },
     payload: { summary: '竞品降价', subtype: 'reprice', rivalBrokerId: 'r-1', rivalAcnId: 'acn-1', priceBefore: 400, priceAfter: 380, evidenceStrength: 'direct' },
   });
+  const rivalRecord2 = makeSourceRecord({
+    sourceId: 'isr-dec-rival-2',
+    sourceKind: 'rival_action',
+    day: 3,
+    confidence: 0.88,
+    visibility: { scope: 'all_actors', baseDelayDays: 0 },
+    payload: { summary: '同板块竞品继续下调', subtype: 'reprice', rivalBrokerId: 'r-2', rivalAcnId: 'acn-1', priceBefore: 420, priceAfter: 390, evidenceStrength: 'direct' },
+  });
+  const rivalRecord3 = makeSourceRecord({
+    sourceId: 'isr-dec-rival-3',
+    sourceKind: 'rival_action',
+    day: 4,
+    confidence: 0.9,
+    visibility: { scope: 'all_actors', baseDelayDays: 0 },
+    payload: { summary: '竞品释放成交让价', subtype: 'reprice', rivalBrokerId: 'r-3', rivalAcnId: 'acn-2', priceBefore: 415, priceAfter: 385, evidenceStrength: 'direct' },
+  });
   const ownerRecord = makeSourceRecord({
     sourceId: 'isr-dec-owner-1',
     sourceKind: 'owner_interview',
@@ -213,7 +229,7 @@ console.log('--- 1. DecisionEvidenceEnvelope from ActorKnowledgeSnapshot ---');
     payload: { summary: '业主表达降价意愿', subtype: 'expectation_adjusted', ownerId: 'owner-1', caseId: 'case-1', brokerId: 'b-1', tone: 'neutral', ownerStatement: '可以考虑降价', interactionMode: 'scheduled_call' },
   });
 
-  const registry = buildRegistry([marketRecord, rivalRecord, ownerRecord]);
+  const registry = buildRegistry([marketRecord, rivalRecord, rivalRecord2, rivalRecord3, ownerRecord]);
   const knowledge = buildActorKnowledgeSnapshot('broker-1', 'player_broker', 5, registry);
   const envelope = buildDecisionEvidenceEnvelope(knowledge);
 
@@ -230,6 +246,7 @@ console.log('--- 1. DecisionEvidenceEnvelope from ActorKnowledgeSnapshot ---');
   assert(Array.isArray(envelope.availableCommands), 'envelope has availableCommands');
 
   // Recommendation
+  assert(envelope.recommendedCommand !== null, 'envelope produces recommendation for decision pipeline sample');
   if (envelope.recommendedCommand) {
     assert(typeof envelope.recommendedCommand.confidence === 'number', 'recommendation has confidence');
     assert(envelope.recommendedCommand.confidence >= 0 && envelope.recommendedCommand.confidence <= 1, 'confidence in [0,1]');
@@ -288,26 +305,26 @@ console.log('\n--- 2. No GlobalTruth leakage in decision pipeline ---');
 // --- Test 3: All recommendations have source/belief/pressure evidence chains ---
 console.log('\n--- 3. Recommendations have evidence chains ---');
 {
-  // Create a rich knowledge snapshot with multiple beliefs
+  // Create a rich knowledge snapshot with enough same-domain pressure to force a recommendation.
   const records: InformationSourceRecord[] = [];
   for (let i = 0; i < 5; i++) {
     records.push(makeSourceRecord({
       sourceId: `isr-chain-${i}`,
-      sourceKind: i < 2 ? 'market_signal' : i < 3 ? 'rival_action' : 'owner_interview',
+      sourceKind: i < 3 ? 'rival_action' : 'market_signal',
       day: i + 1,
       confidence: 0.7 + i * 0.05,
-      visibility: { scope: i === 4 ? 'owner_only' : 'all_actors', baseDelayDays: 0 },
-      payload: i < 2
-        ? { summary: `市场信号 ${i}`, subtype: 'heat_shift', marketCellId: 'cell-1', before: 50, after: 60 + i * 5, unit: 'heat', isPublic: true }
-        : i < 3
-          ? { summary: `竞品动作 ${i}`, subtype: 'reprice', rivalBrokerId: 'r-1', rivalAcnId: 'acn-1', priceBefore: 400, priceAfter: 380, evidenceStrength: 'direct' }
-          : { summary: '业主沟通', subtype: 'expectation_adjusted', ownerId: 'owner-1', caseId: 'case-1', brokerId: 'b-1', tone: 'neutral', ownerStatement: '可以考虑降价', interactionMode: 'scheduled_call' },
+      visibility: { scope: 'all_actors', baseDelayDays: 0 },
+      payload: i < 3
+        ? { summary: `竞品动作 ${i}`, subtype: 'reprice', rivalBrokerId: `r-${i}`, rivalAcnId: 'acn-1', priceBefore: 400 + i * 10, priceAfter: 380 - i * 3, evidenceStrength: 'direct' }
+        : { summary: `市场信号 ${i}`, subtype: 'heat_shift', marketCellId: 'cell-1', before: 50, after: 60 + i * 5, unit: 'heat', isPublic: true },
     }));
   }
 
   const registry = buildRegistry(records);
   const knowledge = buildActorKnowledgeSnapshot('broker-1', 'player_broker', 10, registry);
   const envelope = buildDecisionEvidenceEnvelope(knowledge);
+
+  assert(envelope.recommendedCommand !== null, 'high-pressure evidence chain produces a recommendation');
 
   if (envelope.recommendedCommand) {
     const cmd = envelope.recommendedCommand;
@@ -338,8 +355,6 @@ console.log('\n--- 3. Recommendations have evidence chains ---');
     }
 
     console.log('  [PASS] recommendation has complete evidence chain');
-  } else {
-    console.log('  [SKIP] no recommendation (low pressure environment)');
   }
 }
 
@@ -510,11 +525,15 @@ console.log('\n--- 9. Core gate: no recommendation without evidence ---');
   const records = [
     makeSourceRecord({ sourceId: 'isr-gate-1', sourceKind: 'market_signal', day: 2, confidence: 0.9, visibility: { scope: 'all_actors', baseDelayDays: 0 } }),
     makeSourceRecord({ sourceId: 'isr-gate-2', sourceKind: 'rival_action', day: 3, confidence: 0.85, visibility: { scope: 'all_actors', baseDelayDays: 0 }, payload: { summary: '竞品降价', subtype: 'reprice', rivalBrokerId: 'r-1', rivalAcnId: 'acn-1', priceBefore: 400, priceAfter: 380, evidenceStrength: 'direct' } }),
+    makeSourceRecord({ sourceId: 'isr-gate-3', sourceKind: 'rival_action', day: 3, confidence: 0.88, visibility: { scope: 'all_actors', baseDelayDays: 0 }, payload: { summary: '竞品二次降价', subtype: 'reprice', rivalBrokerId: 'r-2', rivalAcnId: 'acn-1', priceBefore: 420, priceAfter: 390, evidenceStrength: 'direct' } }),
+    makeSourceRecord({ sourceId: 'isr-gate-4', sourceKind: 'rival_action', day: 4, confidence: 0.9, visibility: { scope: 'all_actors', baseDelayDays: 0 }, payload: { summary: '竞品释放成交让价', subtype: 'reprice', rivalBrokerId: 'r-3', rivalAcnId: 'acn-2', priceBefore: 415, priceAfter: 385, evidenceStrength: 'direct' } }),
   ];
 
   const registry = buildRegistry(records);
   const knowledge = buildActorKnowledgeSnapshot('broker-1', 'player_broker', 5, registry);
   const envelope = buildDecisionEvidenceEnvelope(knowledge);
+
+  assert(envelope.recommendedCommand !== null, 'CORE GATE: high-pressure sample must produce a recommendation');
 
   if (envelope.recommendedCommand) {
     const cmd = envelope.recommendedCommand;
@@ -534,9 +553,6 @@ console.log('\n--- 9. Core gate: no recommendation without evidence ---');
       'CORE GATE: explanation has non-zero confidence');
 
     console.log('  [PASS] CORE GATE: recommendation has complete evidence chain');
-  } else {
-    // No recommendation is acceptable — it means pressure was too low
-    console.log('  [PASS] CORE GATE: no recommendation (pressure below threshold — acceptable)');
   }
 }
 

@@ -59,6 +59,10 @@ function assert(cond: boolean, msg: string): void {
   }
 }
 
+function assertEqual<T>(actual: T, expected: T, msg: string): void {
+  assert(actual === expected, `${msg}: expected ${String(expected)}, got ${String(actual)}`);
+}
+
 // ── Test data builders ────────────────────────────────────────────────────
 
 let recordCounter = 2000;
@@ -109,6 +113,22 @@ function buildRichKnowledge(actorId: string, role: ActorRole, day: number): { kn
       payload: { summary: '竞品降价促销', subtype: 'reprice', rivalBrokerId: 'r-1', rivalAcnId: 'acn-1', priceBefore: 420, priceAfter: 395, evidenceStrength: 'direct' },
     }),
     makeSourceRecord({
+      sourceId: 'isr-explain-rival-2',
+      sourceKind: 'rival_action',
+      day: day - 2,
+      confidence: 0.9,
+      visibility: { scope: 'all_actors', baseDelayDays: 0 },
+      payload: { summary: '第二套竞品继续下调挂牌价', subtype: 'reprice', rivalBrokerId: 'r-2', rivalAcnId: 'acn-1', priceBefore: 430, priceAfter: 398, evidenceStrength: 'direct' },
+    }),
+    makeSourceRecord({
+      sourceId: 'isr-explain-rival-3',
+      sourceKind: 'rival_action',
+      day: day - 1,
+      confidence: 0.88,
+      visibility: { scope: 'all_actors', baseDelayDays: 0 },
+      payload: { summary: '同板块竞品追加让价空间', subtype: 'reprice', rivalBrokerId: 'r-3', rivalAcnId: 'acn-2', priceBefore: 410, priceAfter: 386, evidenceStrength: 'direct' },
+    }),
+    makeSourceRecord({
       sourceId: 'isr-explain-owner-1',
       sourceKind: 'owner_interview',
       day: day - 1,
@@ -122,7 +142,7 @@ function buildRichKnowledge(actorId: string, role: ActorRole, day: number): { kn
       day: day - 1,
       confidence: 0.75,
       visibility: { scope: 'all_actors', baseDelayDays: 0 },
-      payload: { summary: '客户对同板块房源比较频繁', subtype: 'comparison_made', customerId: 'cust-1', caseId: 'case-1', listingId: 'list-1' },
+      payload: { summary: '客户对同板块房源比较频繁', subtype: 'comparison_made', customerId: 'cust-1', caseId: 'case-1', listingId: 'list-1', observationMode: 'observed' },
     }),
     makeSourceRecord({
       sourceId: 'isr-explain-process-1',
@@ -151,25 +171,18 @@ console.log('--- 1. Every recommendation has explanation envelope ---');
   const { knowledge } = buildRichKnowledge('broker-1', 'player_broker', 5);
   const envelope = buildDecisionEvidenceEnvelope(knowledge);
 
+  assert(envelope.recommendedCommand !== null, 'high-pressure sample produces a recommendation');
+
   if (envelope.recommendedCommand) {
     const explanation = envelope.explanation;
 
-    // Non-empty summary
     assert(explanation.summary.length > 0, 'explanation.summary is non-empty');
-
-    // Chain has at least 2 links (source + command minimum)
     assert(explanation.chain.length >= 2, `explanation.chain has >= 2 links (got ${explanation.chain.length})`);
-
-    // Confidence matches recommendation confidence
     assertEqual(explanation.confidence, envelope.recommendedCommand.confidence,
       'explanation.confidence matches recommendation confidence');
-
-    // Safe refs are bounded
     assert(explanation.safeRefs.length <= 5, `safeRefs bounded (got ${explanation.safeRefs.length})`);
 
     console.log('  [PASS] recommendation has complete explanation envelope');
-  } else {
-    console.log('  [PASS] no recommendation (low pressure — acceptable)');
   }
 }
 
@@ -178,6 +191,8 @@ console.log('\n--- 2. Chain links reference real IDs ---');
 {
   const { knowledge } = buildRichKnowledge('broker-1', 'player_broker', 5);
   const envelope = buildDecisionEvidenceEnvelope(knowledge);
+
+  assert(envelope.recommendedCommand !== null, 'high-pressure sample produces a recommendation for ID validation');
 
   if (envelope.recommendedCommand) {
     const explanation = envelope.explanation;
@@ -207,8 +222,6 @@ console.log('\n--- 2. Chain links reference real IDs ---');
     }
 
     console.log('  [PASS] all chain links reference real IDs');
-  } else {
-    console.log('  [PASS] no recommendation to validate');
   }
 }
 
@@ -217,6 +230,8 @@ console.log('\n--- 3. No fabricated IDs in explanation ---');
 {
   const { knowledge } = buildRichKnowledge('broker-1', 'player_broker', 5);
   const envelope = buildDecisionEvidenceEnvelope(knowledge);
+
+  assert(envelope.recommendedCommand !== null, 'high-pressure sample produces a recommendation for fabricated-ID validation');
 
   if (envelope.recommendedCommand) {
     // Build a set of all valid IDs
@@ -239,8 +254,6 @@ console.log('\n--- 3. No fabricated IDs in explanation ---');
     }
 
     console.log('  [PASS] no fabricated IDs in explanation');
-  } else {
-    console.log('  [PASS] no recommendation to validate');
   }
 }
 
@@ -296,6 +309,8 @@ console.log('\n--- 5. Explanation chain completeness ---');
   const { knowledge } = buildRichKnowledge('broker-1', 'player_broker', 10);
   const envelope = buildDecisionEvidenceEnvelope(knowledge);
 
+  assert(envelope.recommendedCommand !== null, 'high-pressure sample produces a recommendation for completeness validation');
+
   if (envelope.recommendedCommand) {
     const chain = envelope.explanation.chain;
 
@@ -319,8 +334,6 @@ console.log('\n--- 5. Explanation chain completeness ---');
     }
 
     console.log('  [PASS] explanation chain is complete');
-  } else {
-    console.log('  [PASS] no recommendation to validate');
   }
 }
 
@@ -373,8 +386,9 @@ console.log('\n--- 8. buildExplanationEnvelope is independently callable ---');
   const { knowledge } = buildRichKnowledge('broker-1', 'player_broker', 5);
   const envelope = buildDecisionEvidenceEnvelope(knowledge);
 
+  assert(envelope.recommendedCommand !== null, 'high-pressure sample produces a recommendation for independent explanation validation');
+
   if (envelope.recommendedCommand) {
-    // Build explanation independently
     const explanation = buildExplanationEnvelope(
       envelope.recommendedCommand,
       envelope.pressureSignals,
@@ -387,8 +401,6 @@ console.log('\n--- 8. buildExplanationEnvelope is independently callable ---');
     assert(Array.isArray(explanation.safeRefs), 'independent explanation has safeRefs');
 
     console.log('  [PASS] buildExplanationEnvelope is independently callable');
-  } else {
-    console.log('  [PASS] no recommendation to validate');
   }
 }
 
@@ -398,11 +410,10 @@ console.log('\n--- 9. Pressure → command mapping consistency ---');
   const { knowledge } = buildRichKnowledge('broker-1', 'player_broker', 5);
   const envelope = buildDecisionEvidenceEnvelope(knowledge);
 
+  assert(envelope.recommendedCommand !== null, 'high-pressure sample produces a recommendation for pressure-command mapping');
+
   if (envelope.recommendedCommand) {
     const cmd = envelope.recommendedCommand.command;
-
-    // The recommended command's target domains must overlap with
-    // at least one pressure signal's domain
     const pressureDomains = new Set(envelope.pressureSignals.map((ps) => ps.domain));
     const overlap = cmd.targetDomains.some((d) => pressureDomains.has(d));
 

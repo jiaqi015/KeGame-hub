@@ -72,7 +72,8 @@ export function compactDailySummaries(
   maxDays: number,
 ): readonly BigWorldRuntimeSummary[] {
   if (summaries.length <= maxDays) return summaries;
-  return Object.freeze(summaries.slice(0, maxDays));
+  // Keep the newest summaries (end of array, since newest are prepended)
+  return Object.freeze(summaries.slice(summaries.length - maxDays));
 }
 
 // ── Compaction: trim causal refs per event ─────────────────────────────
@@ -327,7 +328,8 @@ export function compactColdLedgerSummaries(
   maxDays: number,
 ): readonly ColdLedgerSummary[] {
   if (summaries.length <= maxDays) return summaries;
-  return Object.freeze(summaries.slice(0, maxDays));
+  // Keep the newest summaries (end of array, since newest are prepended)
+  return Object.freeze(summaries.slice(summaries.length - maxDays));
 }
 
 // ── Normalize old saves ────────────────────────────────────────────────

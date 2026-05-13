@@ -24,7 +24,7 @@ function buildDefaultScalePolicy(
   difficultyId: DifficultyId,
   playerCaseCount: number,
 ): BigWorldScalePolicy {
-  const scaleByDifficulty: Record<DifficultyId, Partial<BigWorldScalePolicy>> = {
+  const scaleByDifficulty: Record<string, Partial<BigWorldScalePolicy>> = {
     warmup: {
       minMarketCells: 3,
       maxMarketCells: 3,
@@ -114,6 +114,22 @@ function buildDefaultScalePolicy(
       ownerProfilePriorCount: 100,
       customerCaseRatio: 10,
     },
+    // ── mega-scale: 几百量级业务世界 ──
+    // 300+ listings, 300+ owners, 1000+ customers, 8+ cells, 5+ ACN, 60+ brokers
+    // Each cell has micro cells and supporting info for source readiness.
+    megaScale: {
+      minMarketCells: 10,
+      maxMarketCells: 12,
+      acnCount: 5,
+      namedBrokersPerAcn: 5,
+      shadowBrokersPerAcn: 10,
+      shadowListingsPerCell: 25,
+      directRivalListingsPerCell: 7,
+      materializedCustomersPerCell: 15,
+      shadowAggregateClustersPerCell: 12,
+      ownerProfilePriorCount: 300,
+      customerCaseRatio: 10,
+    },
   };
 
   const overrides = scaleByDifficulty[difficultyId] ?? scaleByDifficulty.standard;
@@ -199,9 +215,9 @@ function buildDefaultInvariants(): BigWorldInvariants {
 
 function buildDefaultCaps(): BigWorldCaps {
   return {
-    maxNamedBrokers: 20,
-    maxMaterializedCustomers: 120,
-    maxMaterializedListings: 100,
+    maxNamedBrokers: 50,
+    maxMaterializedCustomers: 500,
+    maxMaterializedListings: 500,
     maxRecentWorldEvents: 12,
   };
 }

@@ -40,10 +40,6 @@ import type {
   InformationSourceRegistry,
 } from '../../domain/world-model/informationSourceRegistry.js';
 
-import {
-  applyKnowledgeFilterToPOV,
-} from './actorKnowledgeProjection.js';
-
 // ── POV signal source ────────────────────────────────────────
 
 export type POVSignalSource = 'systemic' | 'observed' | 'inferred' | 'relayed';

@@ -35,6 +35,11 @@ import type {
   ComparableTransactionPayload,
   PlatformTrafficPayload,
   AcnNetworkSignalPayload,
+  SupportingFacilitySignalPayload,
+  BrokerCapacitySignalPayload,
+  OwnerLifeEventSignalPayload,
+  BuyerFinancingSignalPayload,
+  MicroMarketSignalPayload,
 } from '../informationSourceTypes.js';
 
 import {
@@ -768,6 +773,339 @@ function buildFromAcnNetworkSignal(
   return events;
 }
 
+/**
+ * Build causal events from a supporting_facility_signal source record.
+ *
+ * Mapping:
+ *   school_district_changed / transit_access_changed / commercial_development /
+ *   community_environment_shift / policy_change / noise_complaint / building_condition_update
+ *   → MarketHeatShifted (facility change affects market perception)
+ *   → OwnerMarketPressurePerceived (facility change affects owner pressure)
+ */
+function buildFromSupportingFacilitySignal(
+  record: InformationSourceRecord<'supporting_facility_signal'>,
+  index: number,
+): readonly WorldCausalEvent[] {
+  const p = record.payload;
+  const baseId = `ingest-sf-${record.day}-${record.sourceId}-${index}`;
+  const events: WorldCausalEvent[] = [];
+
+  // Facility changes affect market heat
+  const heatDelta = Math.round((p.after - p.before) * 0.3);
+  if (heatDelta !== 0) {
+    events.push(
+      buildMarketHeatShifted(
+        `${baseId}-heat`,
+        record.day,
+        {
+          marketCellId: p.marketCellId,
+          before: p.before,
+          after: p.after,
+          sourceSignalId: record.sourceId,
+          sourceSignalType: `facility-${p.subtype}`,
+          confidence: record.confidence,
+        },
+        {
+          actorIds: [],
+          causeEventIds: [],
+          sourceRecordId: record.sourceId,
+          sourceReplayKey: record.replayKey,
+          sourceKind: record.sourceKind,
+        },
+      ),
+    );
+  }
+
+  // Facility changes affect owner perception
+  if (p.caseId) {
+    const pressureDelta = heatDelta > 0 ? -5 : heatDelta < 0 ? 10 : 0;
+    if (pressureDelta !== 0) {
+      events.push(
+        buildOwnerMarketPressurePerceived(
+          `${baseId}-owner-pressure`,
+          record.day,
+          {
+            caseId: p.caseId,
+            perceivedSignalIds: [record.sourceId],
+            pressureDelta,
+            delayDays: p.facilityType === 'policy' ? 0 : 2,
+            confidence: record.confidence,
+          },
+          {
+            actorIds: [],
+            causeEventIds: [record.sourceId],
+            sourceRecordId: record.sourceId,
+            sourceReplayKey: record.replayKey,
+            sourceKind: record.sourceKind,
+          },
+        ),
+      );
+    }
+  }
+
+  return events;
+}
+
+/**
+ * Build causal events from a broker_capacity_signal source record.
+ *
+ * Mapping:
+ *   energy_depleted / schedule_overloaded / organizational_pressure → BrokerRecommendationChanged
+ *   collaboration_requested / skill_gap_detected → MatterPriorityChanged
+ *   workload_balanced → BrokerRecommendationChanged (positive)
+ */
+function buildFromBrokerCapacitySignal(
+  record: InformationSourceRecord<'broker_capacity_signal'>,
+  index: number,
+): readonly WorldCausalEvent[] {
+  const p = record.payload;
+  const baseId = `ingest-bc-${record.day}-${record.sourceId}-${index}`;
+  const events: WorldCausalEvent[] = [];
+
+  const primaryCaseId = p.affectedCaseIds[0] ?? 'unknown-case';
+
+  if (p.subtype === 'collaboration_requested' || p.subtype === 'skill_gap_detected') {
+    events.push(
+      buildMatterPriorityChanged(
+        `${baseId}-matter`,
+        record.day,
+        {
+          caseId: primaryCaseId,
+          priorityBefore: 50,
+          priorityAfter: p.subtype === 'collaboration_requested' ? 60 : 40,
+          causedByEventIds: [record.sourceId],
+        },
+        {
+          actorIds: [p.brokerId],
+          sourceRecordId: record.sourceId,
+          sourceReplayKey: record.replayKey,
+          sourceKind: record.sourceKind,
+        },
+      ),
+    );
+  } else {
+    const recKind = p.subtype === 'workload_balanced' ? 'push_showing' : 'escalate_to_manager';
+    events.push(
+      buildBrokerRecommendationChanged(
+        `${baseId}-rec`,
+        record.day,
+        {
+          caseId: primaryCaseId,
+          recommendationKind: recKind,
+          causedByEventIds: [record.sourceId],
+          explanationFacts: [`经纪人能力信号: ${p.subtype}, 精力${p.energyLevel}%, 排期${p.scheduleUtilization}%`],
+        },
+        {
+          actorIds: [p.brokerId],
+          sourceRecordId: record.sourceId,
+          sourceReplayKey: record.replayKey,
+          sourceKind: record.sourceKind,
+        },
+      ),
+    );
+  }
+
+  return events;
+}
+
+/**
+ * Build causal events from an owner_life_event_signal source record.
+ *
+ * Mapping:
+ *   family_change / financial_need / relocation_planned / health_issue /
+ *   job_change / inheritance_received / divorce_proceedings
+ *   → OwnerMarketPressurePerceived (life event changes owner urgency/flexibility)
+ *   → BrokerRecommendationChanged (if trust impact is significant)
+ */
+function buildFromOwnerLifeEventSignal(
+  record: InformationSourceRecord<'owner_life_event_signal'>,
+  index: number,
+): readonly WorldCausalEvent[] {
+  const p = record.payload;
+  const baseId = `ingest-ole-${record.day}-${record.sourceId}-${index}`;
+  const events: WorldCausalEvent[] = [];
+
+  // Owner life events create market pressure perception
+  events.push(
+    buildOwnerMarketPressurePerceived(
+      `${baseId}-pressure`,
+      record.day,
+      {
+        ownerId: p.ownerId,
+        caseId: p.caseId,
+        perceivedSignalIds: [record.sourceId],
+        pressureDelta: p.urgencyImpact,
+        delayDays: p.timelineDays,
+        confidence: record.confidence * p.eventConfidence,
+      },
+      {
+        actorIds: [p.ownerId],
+        causeEventIds: [record.sourceId],
+        sourceRecordId: record.sourceId,
+        sourceReplayKey: record.replayKey,
+        sourceKind: record.sourceKind,
+      },
+    ),
+  );
+
+  // Significant trust changes trigger recommendation
+  if (Math.abs(p.trustImpact) >= 10) {
+    const recKind = p.trustImpact > 0 ? 'push_showing' : 'wait_and_see';
+    events.push(
+      buildBrokerRecommendationChanged(
+        `${baseId}-rec`,
+        record.day,
+        {
+          caseId: p.caseId,
+          recommendationKind: recKind,
+          causedByEventIds: [record.sourceId],
+          explanationFacts: [`业主生活事件: ${p.subtype}, 信任影响${p.trustImpact > 0 ? '+' : ''}${p.trustImpact}`],
+        },
+        {
+          actorIds: [p.ownerId],
+          sourceRecordId: record.sourceId,
+          sourceReplayKey: record.replayKey,
+          sourceKind: record.sourceKind,
+        },
+      ),
+    );
+  }
+
+  return events;
+}
+
+/**
+ * Build causal events from a buyer_financing_signal source record.
+ *
+ * Mapping:
+ *   loan_pre_approved / down_payment_ready → BrokerRecommendationChanged (positive)
+ *   loan_rejected / budget_adjusted / family_veto / qualification_expired → BrokerRecommendationChanged (negative)
+ *   co_buyer_added → MatterPriorityChanged
+ */
+function buildFromBuyerFinancingSignal(
+  record: InformationSourceRecord<'buyer_financing_signal'>,
+  index: number,
+): readonly WorldCausalEvent[] {
+  const p = record.payload;
+  const baseId = `ingest-bf-${record.day}-${record.sourceId}-${index}`;
+  const events: WorldCausalEvent[] = [];
+
+  const primaryCaseId = p.caseId ?? 'unknown-case';
+
+  if (p.subtype === 'co_buyer_added') {
+    events.push(
+      buildMatterPriorityChanged(
+        `${baseId}-matter`,
+        record.day,
+        {
+          caseId: primaryCaseId,
+          priorityBefore: 50,
+          priorityAfter: 65,
+          causedByEventIds: [record.sourceId],
+        },
+        {
+          actorIds: [p.customerId],
+          sourceRecordId: record.sourceId,
+          sourceReplayKey: record.replayKey,
+          sourceKind: record.sourceKind,
+        },
+      ),
+    );
+  } else {
+    const isPositive = p.subtype === 'loan_pre_approved' || p.subtype === 'down_payment_ready';
+    const recKind = isPositive ? 'push_showing' : 'wait_and_see';
+    const budgetInfo = p.budgetAfter !== undefined ? `预算调整为${p.budgetAfter}万` : '';
+    events.push(
+      buildBrokerRecommendationChanged(
+        `${baseId}-rec`,
+        record.day,
+        {
+          caseId: primaryCaseId,
+          recommendationKind: recKind,
+          causedByEventIds: [record.sourceId],
+          explanationFacts: [`客户融资信号: ${p.subtype}${budgetInfo ? `, ${budgetInfo}` : ''}`],
+        },
+        {
+          actorIds: [p.customerId],
+          sourceRecordId: record.sourceId,
+          sourceReplayKey: record.replayKey,
+          sourceKind: record.sourceKind,
+        },
+      ),
+    );
+  }
+
+  return events;
+}
+
+/**
+ * Build causal events from a micro_market_signal source record.
+ *
+ * Mapping:
+ *   supply_increased / supply_decreased / demand_shift /
+ *   price_band_squeeze / inventory_absorption / new_development_announced
+ *   → MarketHeatShifted (micro-market supply/demand affects heat)
+ *   → CustomerAttentionShifted (micro-market shifts customer attention)
+ */
+function buildFromMicroMarketSignal(
+  record: InformationSourceRecord<'micro_market_signal'>,
+  index: number,
+): readonly WorldCausalEvent[] {
+  const p = record.payload;
+  const baseId = `ingest-mm-${record.day}-${record.sourceId}-${index}`;
+  const events: WorldCausalEvent[] = [];
+
+  // Micro-market supply/demand changes affect market heat
+  const heatDelta = Math.round((p.demandDelta - p.supplyDelta) * 0.5);
+  if (heatDelta !== 0) {
+    events.push(
+      buildMarketHeatShifted(
+        `${baseId}-heat`,
+        record.day,
+        {
+          marketCellId: p.marketCellId,
+          before: 50,
+          after: Math.max(0, Math.min(100, 50 + heatDelta)),
+          sourceSignalId: record.sourceId,
+          sourceSignalType: `micro-${p.subtype}`,
+          confidence: record.confidence,
+        },
+        {
+          actorIds: [],
+          causeEventIds: [],
+          sourceRecordId: record.sourceId,
+          sourceReplayKey: record.replayKey,
+          sourceKind: record.sourceKind,
+        },
+      ),
+    );
+  }
+
+  // Micro-market demand shifts affect customer attention
+  if (p.subtype === 'demand_shift' || p.subtype === 'price_band_squeeze') {
+    events.push(
+      buildCustomerAttentionShifted(
+        `${baseId}-shift`,
+        record.day,
+        {
+          fromListingIds: [],
+          toListingIds: [],
+          segment: p.priceBand,
+          causeEventId: record.sourceId,
+        },
+        {
+          actorIds: [],
+          sourceRecordId: record.sourceId,
+          sourceReplayKey: record.replayKey,
+          sourceKind: record.sourceKind,
+        },
+      ),
+    );
+  }
+
+  return events;
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // Main ingestion adapter
 // ════════════════════════════════════════════════════════════════════════════
@@ -938,6 +1276,16 @@ function buildCausalEventsFromSource(
       return buildFromPlatformTraffic(record as InformationSourceRecord<'platform_traffic'>, index);
     case 'acn_network_signal':
       return buildFromAcnNetworkSignal(record as InformationSourceRecord<'acn_network_signal'>, index);
+    case 'supporting_facility_signal':
+      return buildFromSupportingFacilitySignal(record as InformationSourceRecord<'supporting_facility_signal'>, index);
+    case 'broker_capacity_signal':
+      return buildFromBrokerCapacitySignal(record as InformationSourceRecord<'broker_capacity_signal'>, index);
+    case 'owner_life_event_signal':
+      return buildFromOwnerLifeEventSignal(record as InformationSourceRecord<'owner_life_event_signal'>, index);
+    case 'buyer_financing_signal':
+      return buildFromBuyerFinancingSignal(record as InformationSourceRecord<'buyer_financing_signal'>, index);
+    case 'micro_market_signal':
+      return buildFromMicroMarketSignal(record as InformationSourceRecord<'micro_market_signal'>, index);
     default:
       return [];
   }
@@ -1012,7 +1360,7 @@ export function ingestSourceRecordsBatch(
   // Step 3: Run standard ingestion on deduplicated, sorted records
   const baseReceipt = ingestSourceRecords(deduplicated, day, runSeed);
 
-  // Step 4: Enforce per-kind event cap
+  // Step 4: Enforce per-kind event cap (maxEventsPerKind events total per sourceKind)
   const kindEventCounts = new Map<string, number>();
   const cappedCausalEvents: WorldCausalEvent[] = [];
   const cappedDailyEvents: BigWorldDailyEvent[] = [];
@@ -1022,11 +1370,13 @@ export function ingestSourceRecordsBatch(
 
   for (let i = 0; i < deduplicated.length; i += 1) {
     const record = deduplicated[i];
-    const currentCount = kindEventCounts.get(record.sourceKind) ?? 0;
 
     // Find events produced by this source
     const eventIds = baseReceipt.sourceToEvents.get(record.sourceId) ?? [];
-    const remaining = maxEventsPerKind - currentCount;
+
+    // Cap: total events per sourceKind
+    const currentKindCount = kindEventCounts.get(record.sourceKind) ?? 0;
+    const remaining = maxEventsPerKind - currentKindCount;
 
     if (remaining <= 0) {
       sourcesCapped += 1;
@@ -1034,7 +1384,7 @@ export function ingestSourceRecordsBatch(
     }
 
     const eventsToKeep = Math.min(eventIds.length, remaining);
-    kindEventCounts.set(record.sourceKind, currentCount + eventsToKeep);
+    kindEventCounts.set(record.sourceKind, currentKindCount + eventsToKeep);
 
     // Keep only the first N events for this source
     const keptEventIds = eventIds.slice(0, eventsToKeep);

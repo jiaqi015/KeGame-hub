@@ -34,6 +34,7 @@ import type { AcnNetwork } from './acnNetworks.js';
 import type { BrokerEntity } from './brokerPopulation.js';
 import type { ListingPopulationEntity, HistoricalTransactionSummary } from './listingPopulation.js';
 import type { CustomerDemandEntity, DemandListingAttention } from './customerDemandField.js';
+import type { SourceKind } from './informationSourceTypes.js';
 
 // ════════════════════════════════════════════════════════════════════════════
 // Source Refs — branded ID types for cross-entity provenance
@@ -142,7 +143,9 @@ export type OwnerProfilePriorType =
   | 'game_player' | 'strategy_swing' | 'emotional_hold' | 'high_risk失控'
   | 'strong_control' | 'rational_outsource' | 'confident_blind' | 'buddha_fantasy'
   | 'efficient_execute' | 'professional_coop' | 'fast_trial' | 'deal_dependent'
-  | 'steady_pace' | 'rational_trust' | 'cautious_watch' | 'passive_fate';
+  | 'steady_pace' | 'rational_trust' | 'cautious_watch' | 'passive_fate'
+  | 'market_savvy' | 'first_time_nervous' | 'investor_distant'
+  | 'emotional_urgent' | 'rational_analyst';
 
 export interface OwnerProfilePrior {
   readonly priorId: string;
@@ -199,6 +202,66 @@ export interface ShadowAggregateCluster {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// SupportingInfoRecord — per-cell variable facility/environment data
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * SupportingInfoRecord captures variable supplementary information per market cell.
+ * Each cell has multiple supporting info records covering school, transit,
+ * commercial, community, policy, noise, and building conditions.
+ *
+ * These records are:
+ *   - Variable per cell (not static labels)
+ *   - Capable of generating InformationSourceRecords
+ *   - Used for source readiness coverage checks
+ */
+export interface SupportingInfoRecord {
+  /** Unique deterministic ID. */
+  readonly recordId: string;
+  /** Market cell this info belongs to. */
+  readonly marketCellId: string;
+  /** Micro cell id within the parent cell (for sub-cell granularity). */
+  readonly microCellId: string;
+  /** Info category: school | transit | commercial | community | policy | noise | building | market_trend | rival_observation | customer_signal | owner_signal | broker_signal | transaction_signal. */
+  readonly category: 'school' | 'transit' | 'commercial' | 'community' | 'policy' | 'noise' | 'building' | 'market_trend' | 'rival_observation' | 'customer_signal' | 'owner_signal' | 'broker_signal' | 'transaction_signal';
+  /** Specific signal type within category. */
+  readonly signalType: string;
+  /** Current strength 0-100. */
+  readonly strength: number;
+  /** Change delta (positive = improving, negative = declining). */
+  readonly delta: number;
+  /** Direction of change: 'improving' | 'stable' | 'declining'. */
+  readonly direction: 'improving' | 'stable' | 'declining';
+  /** Days since last update (0 = just updated). */
+  readonly daysSinceUpdate: number;
+  /** Source type: where this info came from. */
+  readonly sourceType: 'government_notice' | 'platform_data' | 'broker_observation' | 'community_report' | 'media' | 'acn_internal';
+  /** Whether this info is publicly visible or only internal. */
+  readonly isPublic: boolean;
+}
+
+/**
+ * MicroCell — a sub-division of a market cell for finer granularity.
+ * Each micro cell represents a specific neighborhood or block within a market cell.
+ */
+export interface MicroCell {
+  /** Unique ID: format "mc-{parentCellId}-{index}". */
+  readonly microCellId: string;
+  /** Parent market cell id. */
+  readonly parentMarketCellId: string;
+  /** Human-readable name. */
+  readonly name: string;
+  /** Micro-cell heat level 0-100. */
+  readonly heat: number;
+  /** Inventory pressure 0-100. */
+  readonly inventoryPressure: number;
+  /** Deal velocity 0-100. */
+  readonly dealVelocity: number;
+  /** Number of listings in this micro cell. */
+  readonly listingCount: number;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // BigWorldBootstrap — layered deterministic world
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -211,10 +274,14 @@ export interface BigWorldHiddenTruth {
   readonly cityCycle: CityCycleState;
   /** Market cells (>= 3). Each is a 板块/商圈. */
   readonly marketCells: readonly MarketCellSnapshot[];
+  /** Micro cells — sub-divisions of market cells for finer granularity. */
+  readonly microCells: readonly MicroCell[];
   /** ACN network snapshots (structural, not behavioral). */
   readonly acnNetworks: readonly ACNNetworkSnapshot[];
   /** Full ACN behavioral profiles — the real params behind each ACN. */
   readonly acnProfiles: readonly AcnNetwork[];
+  /** Supporting info per cell — variable facility/environment data. */
+  readonly supportingInfo: readonly SupportingInfoRecord[];
   /** Owner profile priors — what we know before any broker interaction. */
   readonly ownerProfilePriors: readonly OwnerProfilePrior[];
   /** Owner expectation anchors — initial price/value beliefs. */
@@ -447,15 +514,34 @@ export interface DiversityManifest {
  * ScaleManifest provides a compact, human-readable quantitative summary
  * of the generated world. Includes diversity manifest for structural checks.
  */
+/**
+ * SourceReadinessCoverage tracks which SourceKind categories are
+ * representable by the generated supporting info and bootstrap data.
+ */
+export interface SourceReadinessCoverage {
+  /** Total supporting info records generated. */
+  readonly totalSupportingInfoRecords: number;
+  /** Number of distinct categories covered. */
+  readonly categoryCoverage: number;
+  /** Which SourceKind categories have at least one supporting info record. */
+  readonly coveredSourceKinds: readonly SourceKind[];
+  /** Coverage percentage (covered / total possible source kinds). */
+  readonly coveragePct: number;
+  /** Per-category counts. */
+  readonly categoryCounts: Readonly<Record<string, number>>;
+}
+
 export interface ScaleManifest {
   readonly totalListings: number;
   readonly totalOwners: number;
   readonly totalCustomers: number;
   readonly totalBrokers: number;
   readonly marketCells: number;
+  readonly microCells: number;
   readonly acnNetworks: number;
 
   readonly diversityCoverage: DiversityManifest;
+  readonly sourceReadinessCoverage: SourceReadinessCoverage;
 
   /** Whether the hundred-scale thresholds are met. */
   readonly meetsHundredScaleThresholds: {
@@ -465,6 +551,16 @@ export interface ScaleManifest {
     readonly marketCellsGte5: boolean;
     readonly acnNetworksGte3: boolean;
     readonly brokersGte20: boolean;
+  };
+
+  /** Whether the mega-scale thresholds are met. */
+  readonly meetsMegaScaleThresholds: {
+    readonly listingsGte300: boolean;
+    readonly ownersGte300: boolean;
+    readonly customersGte1000: boolean;
+    readonly brokersGte60: boolean;
+    readonly marketCellsGte8: boolean;
+    readonly acnNetworksGte5: boolean;
   };
 }
 

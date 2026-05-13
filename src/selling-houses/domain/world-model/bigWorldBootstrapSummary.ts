@@ -23,8 +23,11 @@ import type {
   BigWorldBootstrap,
   BigWorldBootstrapSummary,
   BigWorldNormalizedSave,
+  ScaleManifest,
+  SourceReadinessCoverage,
 } from './bigWorldTypes.js';
 import { readMarketOpeningSnapshot } from './marketOpening.js';
+import { buildScaleManifest } from './bigWorldBootstrap.js';
 
 // ---------------------------------------------------------------------------
 // Build summary from bootstrap
@@ -87,6 +90,8 @@ export function buildBigWorldBootstrapSummary(
     attentionRelationCount: bootstrap.materializedEntities.attentions.length,
 
     invariantCheck,
+
+    scaleManifest: buildScaleManifest(bootstrap),
 
     marketCellIds: bootstrap.hiddenTruth.marketCells.map((c) => c.id),
     acnNetworkIds: bootstrap.hiddenTruth.acnNetworks.map((a) => a.id),
@@ -191,6 +196,61 @@ export function normalizeOldSave(state: {
     acnNetworksGte3: snapshot.acnNetworks.length >= 3,
   };
 
+  // For old saves, construct a minimal scaleManifest from snapshot counts
+  const oldScaleManifest: ScaleManifest = {
+    totalListings: shadowListings + directRivalListings,
+    totalOwners: 0,
+    totalCustomers: totalDemandUnits,
+    totalBrokers: namedBrokers.length + shadowBrokerCount,
+    marketCells: snapshot.marketCells.length,
+    microCells: 0,
+    acnNetworks: snapshot.acnNetworks.length,
+    diversityCoverage: {
+      ownerArchetypeDiversity: 0,
+      listingTypeDiversity: 0,
+      priceBandDiversity: 0,
+      demandSegmentDiversity: 0,
+      brokerStyleDiversity: 0,
+      marketCellCount: snapshot.marketCells.length,
+      ownerTypeDistribution: {},
+      listingLayoutDistribution: {},
+      priceBandDistribution: {},
+      customerSegmentDistribution: {},
+      brokerStyleDistribution: {},
+      marketCellDistribution: {},
+      hotColdSplit: {
+        materializedCustomers: 0,
+        shadowClusterUnits: totalDemandUnits,
+        totalDemandUnits,
+        materializedListingCount: directRivalListings,
+        shadowListingCount: shadowListings,
+      },
+    },
+    sourceReadinessCoverage: {
+      totalSupportingInfoRecords: 0,
+      categoryCoverage: 0,
+      coveredSourceKinds: [],
+      coveragePct: 0,
+      categoryCounts: {},
+    },
+    meetsHundredScaleThresholds: {
+      listingsGte100: (shadowListings + directRivalListings) >= 100,
+      ownersGte100: false,
+      customersGte300: totalDemandUnits >= 300,
+      marketCellsGte5: snapshot.marketCells.length >= 5,
+      acnNetworksGte3: snapshot.acnNetworks.length >= 3,
+      brokersGte20: (namedBrokers.length + shadowBrokerCount) >= 20,
+    },
+    meetsMegaScaleThresholds: {
+      listingsGte300: false,
+      ownersGte300: false,
+      customersGte1000: false,
+      brokersGte60: false,
+      marketCellsGte8: false,
+      acnNetworksGte5: false,
+    },
+  };
+
   const summary: BigWorldBootstrapSummary = Object.freeze({
     version: 1 as const,
     seed: snapshot.seed,
@@ -218,6 +278,8 @@ export function normalizeOldSave(state: {
     attentionRelationCount: 0,
 
     invariantCheck,
+
+    scaleManifest: oldScaleManifest,
 
     marketCellIds: snapshot.marketCells.map((c) => c.id),
     acnNetworkIds: snapshot.acnNetworks.map((a) => a.id),

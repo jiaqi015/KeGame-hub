@@ -67,10 +67,6 @@ import {
 // Re-export ActorKnowledgeSnapshot for downstream consumers (e.g. bigWorldPOVProjection)
 export type { ActorKnowledgeSnapshot } from '../../domain/world-model/actorKnowledgeTypes.js';
 
-import {
-  DEFAULT_ROLE_VISIBILITY,
-} from '../../domain/world-model/actorKnowledgeTypes.js';
-
 import type {
   BigWorldPOVSummary,
   POVCausalRef,
