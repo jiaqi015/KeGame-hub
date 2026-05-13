@@ -222,8 +222,8 @@ export interface SupportingInfoRecord {
   readonly marketCellId: string;
   /** Micro cell id within the parent cell (for sub-cell granularity). */
   readonly microCellId: string;
-  /** Info category: school | transit | commercial | community | policy | noise | building | market_trend | rival_observation | customer_signal | owner_signal | broker_signal | transaction_signal. */
-  readonly category: 'school' | 'transit' | 'commercial' | 'community' | 'policy' | 'noise' | 'building' | 'market_trend' | 'rival_observation' | 'customer_signal' | 'owner_signal' | 'broker_signal' | 'transaction_signal';
+  /** Info category: school | transit | commercial | community | policy | noise | building | market_trend | rival_observation | customer_signal | owner_signal | broker_signal | transaction_signal | property | community_info | community_mgmt. */
+  readonly category: 'school' | 'transit' | 'commercial' | 'community' | 'policy' | 'noise' | 'building' | 'market_trend' | 'rival_observation' | 'customer_signal' | 'owner_signal' | 'broker_signal' | 'transaction_signal' | 'property' | 'community_info' | 'community_mgmt';
   /** Specific signal type within category. */
   readonly signalType: string;
   /** Current strength 0-100. */

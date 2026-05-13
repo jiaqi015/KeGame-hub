@@ -241,13 +241,61 @@ function runRivalBrokerPhase(ctx: PhaseInput): BigWorldTickPhaseResult {
     mutations += 1;
   }
 
+  // ACN-level broker activity: process ACN profiles for broader broker coverage
+  const acnProfiles = input.acnProfiles ?? [];
+  for (const acn of acnProfiles) {
+    const salt = `acn-broker-${day}-${acn.id}`;
+
+    // ACN activity probability based on behavioral profile
+    const activityChance = 0.2 + (acn.behavior.directAggression / 100) * 0.3;
+    if (!seededChance(salt, activityChance)) continue;
+
+    // Determine which market cell this ACN targets
+    const targetCellIdx = seededInt(`${salt}-cell`, 0, input.marketCells.length - 1);
+    const targetCell = input.marketCells[targetCellIdx];
+
+    const actionKinds = ['reprice', 'follow_customer', 'push_listing', 'owner_pitch'] as const;
+    const actionKind = actionKinds[seededInt(`${salt}-action`, 0, actionKinds.length - 1)];
+    const intensity = Math.round(acn.behavior.directAggression * 0.5 + seededInt(`${salt}-intensity`, 10, 40));
+
+    const brokerEvent = buildRivalBrokerActionTaken(
+      `bwe-acn-broker-${day}-${acn.id}-${mutations}`,
+      day,
+      {
+        brokerId: `acn-broker-${acn.id}`,
+        acnId: acn.id,
+        actionKind,
+        energyCost: 10,
+        actionIntensity: intensity,
+        targetMarketCellId: targetCell.id,
+      },
+    );
+    causalEvents.push(brokerEvent);
+
+    const dailyEvent = makeDailyEvent(
+      day, phase, 'RivalBrokerActionTaken', `acn:${acn.name}`,
+      [makeCausalRef(brokerEvent)],
+      [brokerEvent.id],
+      'signal',
+      {
+        acnName: acn.name,
+        actionKind,
+        intensity,
+        targetCell: targetCell.name,
+      },
+    );
+    phaseEvents.push(dailyEvent);
+    dailyEvents.push(dailyEvent);
+    mutations += 1;
+  }
+
   mutationCounts.set(phase, mutations);
   return Object.freeze({
     phaseId: phase,
     events: Object.freeze(phaseEvents),
-    entitiesProcessed: input.rivalStores.length,
+    entitiesProcessed: input.rivalStores.length + acnProfiles.length,
     mutationCount: mutations,
-    durationUs: input.rivalStores.length * 25,
+    durationUs: (input.rivalStores.length + acnProfiles.length) * 25,
   });
 }
 
@@ -502,13 +550,69 @@ function runOwnerPerceptionPhase(ctx: PhaseInput): BigWorldTickPhaseResult {
     mutations += 1;
   }
 
+  // Shadow owner perception: process shadow cases for broader coverage
+  const shadowCases = input.shadowCases ?? [];
+  for (const shadowCase of shadowCases) {
+    const salt = `shadow-owner-${day}-${shadowCase.id}`;
+
+    // Shadow owners have different perception dynamics based on their priors
+    const heatPressure = shadowCase.heat > 60 ? 0.15 : shadowCase.heat < 25 ? 0.03 : 0.08;
+    const trustFactor = shadowCase.trust < 45 ? 0.1 : 0;
+    const patienceFactor = shadowCase.patience < 35 ? 0.08 : 0;
+    const perceptionChance = heatPressure + trustFactor + patienceFactor;
+
+    if (!seededChance(`${salt}-perceive`, perceptionChance)) continue;
+
+    const lagDays = seededInt(`${salt}-lag`, 1, 4);
+    const pressureDelta = seededInt(`${salt}-pressure`, 3, 20);
+    const confidence = Math.max(0.2, Math.min(0.8, 0.6 - (shadowCase.trust - 40) * 0.003));
+
+    const relevantCustomerCauses = upstreamCustomerCauseIds.slice(0, 2);
+    const signalIds = relevantCustomerCauses.length > 0
+      ? relevantCustomerCauses
+      : [`market-signal-${shadowCase.marketCellId}`];
+
+    const perceptionEvent = buildOwnerMarketPressurePerceived(
+      `bwe-shadow-owner-${day}-${shadowCase.id}`,
+      day,
+      {
+        caseId: shadowCase.id,
+        perceivedSignalIds: signalIds,
+        pressureDelta,
+        delayDays: lagDays,
+        confidence,
+      },
+      { causeEventIds: relevantCustomerCauses },
+    );
+    causalEvents.push(perceptionEvent);
+
+    const dailyEvent = makeDailyEvent(
+      day, phase, 'OwnerMarketPressurePerceived', `shadow-owner:${shadowCase.ownerName}`,
+      [makeCausalRef(perceptionEvent)],
+      [perceptionEvent.id, ...relevantCustomerCauses],
+      'hidden',
+      {
+        caseTitle: shadowCase.id,
+        ownerName: shadowCase.ownerName,
+        pressureDelta,
+        lagDays,
+        trust: shadowCase.trust,
+        patience: shadowCase.patience,
+        isShadow: true,
+      },
+    );
+    phaseEvents.push(dailyEvent);
+    dailyEvents.push(dailyEvent);
+    mutations += 1;
+  }
+
   mutationCounts.set(phase, mutations);
   return Object.freeze({
     phaseId: phase,
     events: Object.freeze(phaseEvents),
-    entitiesProcessed: input.activeCases.length,
+    entitiesProcessed: input.activeCases.length + shadowCases.length,
     mutationCount: mutations,
-    durationUs: input.activeCases.length * 18,
+    durationUs: (input.activeCases.length + shadowCases.length) * 18,
   });
 }
 
@@ -623,13 +727,78 @@ function runRecommendationPressurePhase(ctx: PhaseInput): BigWorldTickPhaseResul
     mutations += 1;
   }
 
+  // Shadow case recommendations: process shadow cases for broader coverage
+  const shadowCases = input.shadowCases ?? [];
+  for (const shadowCase of shadowCases) {
+    const salt = `shadow-rec-${day}-${shadowCase.id}`;
+
+    const heatPressure = shadowCase.heat < 35;
+    const trustPressure = shadowCase.trust < 45;
+    const windowPressure = shadowCase.windowDays < 5;
+
+    const shouldRecommend = heatPressure || trustPressure || windowPressure;
+    if (!seededChance(`${salt}-rec`, shouldRecommend ? 0.25 : 0.03)) continue;
+
+    let recKind: 'price_adjustment' | 'push_showing' | 'activate_open_day' | 'escalate_to_manager' | 'wait_and_see';
+    if (heatPressure) {
+      recKind = 'activate_open_day';
+    } else if (trustPressure) {
+      recKind = 'push_showing';
+    } else if (windowPressure) {
+      recKind = 'escalate_to_manager';
+    } else {
+      recKind = 'wait_and_see';
+    }
+
+    const ownerPerceptionCauses = causalEvents
+      .filter((e) => e.kind === 'OwnerMarketPressurePerceived' && e.day === day && e.affectedIds.includes(shadowCase.id))
+      .map((e) => e.id);
+    const allUpstreamCauses = ownerPerceptionCauses.slice(0, 2);
+
+    const recEvent = buildBrokerRecommendationChanged(
+      `bwe-shadow-rec-${day}-${shadowCase.id}`,
+      day,
+      {
+        caseId: shadowCase.id,
+        recommendationKind: recKind,
+        causedByEventIds: allUpstreamCauses.length > 0
+          ? allUpstreamCauses
+          : [`market-signal-${shadowCase.marketCellId}`],
+        explanationFacts: [
+          heatPressure ? `热度 ${shadowCase.heat} 偏低` : '',
+          trustPressure ? `信任 ${shadowCase.trust} 偏低` : '',
+          windowPressure ? `窗口 ${shadowCase.windowDays} 天` : '',
+        ].filter(Boolean),
+      },
+    );
+    causalEvents.push(recEvent);
+
+    const dailyEvent = makeDailyEvent(
+      day, phase, 'BrokerRecommendationChanged', `shadow-case:${shadowCase.ownerName}`,
+      [makeCausalRef(recEvent)],
+      [recEvent.id, ...allUpstreamCauses],
+      'hidden',
+      {
+        caseTitle: shadowCase.id,
+        recommendationKind: recKind,
+        heat: shadowCase.heat,
+        trust: shadowCase.trust,
+        windowDays: shadowCase.windowDays,
+        isShadow: true,
+      },
+    );
+    phaseEvents.push(dailyEvent);
+    dailyEvents.push(dailyEvent);
+    mutations += 1;
+  }
+
   mutationCounts.set(phase, mutations);
   return Object.freeze({
     phaseId: phase,
     events: Object.freeze(phaseEvents),
-    entitiesProcessed: input.activeCases.length,
+    entitiesProcessed: input.activeCases.length + shadowCases.length,
     mutationCount: mutations,
-    durationUs: input.activeCases.length * 14,
+    durationUs: (input.activeCases.length + shadowCases.length) * 14,
   });
 }
 

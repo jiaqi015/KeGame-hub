@@ -1,5 +1,13 @@
 import { Case, GameState, Opportunity } from '../../domain/models';
 import { getActiveOpportunities } from '../../domain/engine/opportunityEngine';
+import {
+  buildPerfectFollowUpPriority,
+  buildSharedCausalRefs,
+  type PerfectFollowUpPriorityItem,
+  type SharedCausalRefs,
+} from '../../application/projections/perfectProjectionAdapters.js';
+import type { ActorKnowledgeSnapshot } from '../../domain/world-model/actorKnowledgeTypes.js';
+import { buildDecisionEvidenceEnvelope } from '../../application/projections/actorKnowledgeProjection.js';
 
 export type FollowUpPriorityType = 'owner-risk' | 'competition-risk' | 'closing-opportunity';
 export type FollowUpPriorityGroupId = 'ownerRisk' | 'competitionRisk' | 'closingOpportunity';
@@ -24,6 +32,11 @@ export interface FollowUpPriorityItemProjection {
   shortReason: string;
   metric: string;
   tone: FollowUpPriorityTone;
+  // ── Evidence-backed additions (Round 9) ──
+  /** Evidence-backed reason (from DecisionEvidenceEnvelope). */
+  readonly evidenceReason?: import('../../application/projections/perfectProjectionAdapters.js').EvidenceBackedReason;
+  /** Shared causal refs (cross-surface injection). */
+  readonly sharedCausalRefs?: import('../../application/projections/perfectProjectionAdapters.js').SharedCausalRefs;
 }
 
 export interface FollowUpPriorityGroupProjection {
@@ -59,10 +72,25 @@ export function deriveCaseFollowUpPriority(state: GameState, caseItem: Case): Fo
   return ranking.sort((left, right) => right.score - left.score)[0];
 }
 
-export function buildFollowUpPriorityProjection(state: GameState): FollowUpPriorityProjection {
+export function buildFollowUpPriorityProjection(
+  state: GameState,
+  actorKnowledgeMap?: Map<string, import('../../domain/world-model/actorKnowledgeTypes.js').ActorKnowledgeSnapshot>,
+): FollowUpPriorityProjection {
   const activeCases = state.cases.filter((entry) => entry.status === 'active');
   const items = activeCases.map((caseItem) => {
     const priority = deriveCaseFollowUpPriority(state, caseItem);
+
+    // Build evidence-backed version if actor knowledge is available
+    const knowledge = actorKnowledgeMap?.get(caseItem.id);
+    let evidenceReason: FollowUpPriorityItemProjection['evidenceReason'];
+    let sharedCausalRefs: FollowUpPriorityItemProjection['sharedCausalRefs'];
+
+    if (knowledge) {
+      const envelope = buildDecisionEvidenceEnvelope(knowledge);
+      const perfect = buildPerfectFollowUpPriority(knowledge, envelope, caseItem, state);
+      evidenceReason = perfect.reason;
+      sharedCausalRefs = perfect.sharedCausalRefs;
+    }
 
     return {
       caseId: caseItem.id,
@@ -74,6 +102,8 @@ export function buildFollowUpPriorityProjection(state: GameState): FollowUpPrior
       shortReason: priority.shortReason,
       metric: priority.metric,
       tone: derivePriorityTone(priority.type),
+      evidenceReason,
+      sharedCausalRefs,
     } satisfies FollowUpPriorityItemProjection;
   });
 

@@ -340,6 +340,13 @@ export interface BigWorldClockInput {
   readonly rivalStores: readonly { readonly id: string; readonly name: string; readonly type: string; readonly style: string; readonly districtFocus: readonly string[]; readonly leadCapturePower: number; readonly sellerInfluencePower: number; readonly pricingPressurePower: number; readonly activityHeat: number }[];
   /** Customer states (from GameState.customerStates). */
   readonly customerStates: readonly { readonly customerId: string; readonly status: string; readonly fatigue: number; readonly churnRisk: number; readonly activeCaseIds: readonly string[] }[];
+  // --- Shadow entity inputs (from bootstrap, for hundreds-scale runtime) ---
+  /** Shadow owner priors — allows runtime to process 50+ owners per day. */
+  readonly shadowOwnerPriors?: readonly { readonly priorId: string; readonly type: string; readonly priceAnchorRigidity: number; readonly expectedTrustBaseline: number; readonly expectedPatienceBaseline: number; readonly expectedUrgencyBaseline: number; readonly perceptionLagDays: number }[];
+  /** Shadow cases — synthetic cases derived from owner priors + listings for broader coverage. */
+  readonly shadowCases?: readonly { readonly id: string; readonly marketCellId: string; readonly district: string; readonly heat: number; readonly trust: number; readonly patience: number; readonly urgency: number; readonly windowDays: number; readonly ownerName: string }[];
+  /** ACN profiles — behavioral profiles for rival broker phase expansion. */
+  readonly acnProfiles?: readonly { readonly id: string; readonly name: string; readonly behavior: { readonly directAggression: number; readonly customerFollowupStrength: number; readonly priceReactionSpeed: number; readonly infoSpeed: number; readonly cooperationBias: number } }[];
   /** Existing runtime state (may be undefined for old saves). */
   readonly existingRuntime?: BigWorldRuntimeState;
   /** Existing world causal events (may be empty for old saves). */

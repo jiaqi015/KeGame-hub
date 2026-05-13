@@ -215,7 +215,8 @@ export type CustomerInteractionSubtype =
   | 'comparison_made'
   | 'preference_shifted'
   | 'budget_adjusted'
-  | 'dropout_detected';
+  | 'dropout_detected'
+  | 'family_decision_involved';
 
 export interface CustomerInteractionPayload extends SourcePayloadBase {
   readonly subtype: CustomerInteractionSubtype;
@@ -421,7 +422,8 @@ export type AcnNetworkSignalSubtype =
   | 'info_share_received'
   | 'credit_allocation'
   | 'conflict_detected'
-  | 'rule_change';
+  | 'rule_change'
+  | 'cross_district_competition';
 
 export interface AcnNetworkSignalPayload extends SourcePayloadBase {
   readonly subtype: AcnNetworkSignalSubtype;
@@ -452,7 +454,10 @@ export type SupportingFacilitySubtype =
   | 'community_environment_shift'
   | 'policy_change'
   | 'noise_complaint'
-  | 'building_condition_update';
+  | 'building_condition_update'
+  | 'property_feature_update'
+  | 'community_info_changed'
+  | 'community_management_changed';
 
 export interface SupportingFacilitySignalPayload extends SourcePayloadBase {
   readonly subtype: SupportingFacilitySubtype;
@@ -460,8 +465,8 @@ export interface SupportingFacilitySignalPayload extends SourcePayloadBase {
   readonly marketCellId: string;
   /** Related case/listing id (if applicable). */
   readonly caseId?: string;
-  /** Facility type: 'school' | 'transit' | 'commercial' | 'community' | 'policy' | 'noise' | 'building'. */
-  readonly facilityType: 'school' | 'transit' | 'commercial' | 'community' | 'policy' | 'noise' | 'building';
+  /** Facility type: 'school' | 'transit' | 'commercial' | 'community' | 'policy' | 'noise' | 'building' | 'property' | 'community_mgmt'. */
+  readonly facilityType: 'school' | 'transit' | 'commercial' | 'community' | 'policy' | 'noise' | 'building' | 'property' | 'community_mgmt';
   /** Before rating/score (0-100). */
   readonly before: number;
   /** After rating/score (0-100). */
@@ -478,7 +483,9 @@ export type BrokerCapacitySubtype =
   | 'collaboration_requested'
   | 'organizational_pressure'
   | 'skill_gap_detected'
-  | 'workload_balanced';
+  | 'workload_balanced'
+  | 'local_expertise_detected'
+  | 'acn_collaboration_strength';
 
 export interface BrokerCapacitySignalPayload extends SourcePayloadBase {
   readonly subtype: BrokerCapacitySubtype;
@@ -724,6 +731,201 @@ export interface SourceRecordIndex {
   /** Total record count. */
   readonly count: number;
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// InformationDomain — the 8 information domains
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * The 8 information domains that cover all real-world information in the
+ * selling-houses ecosystem.
+ *
+ * Each domain maps to a set of SourceKinds, causal event types,
+ * belief domains, and product surfaces.
+ */
+export type InformationDomain =
+  | 'property_physical'      // 房源物理信息
+  | 'neighborhood'           // 小区环境
+  | 'owner_state'            // 业主信息
+  | 'customer_state'         // 客户信息
+  | 'broker_capability'      // 经纪人信息
+  | 'competition'            // 竞品信息
+  | 'organization'           // 组织信息
+  | 'temporal';              // 时间信息
+
+/**
+ * Belief domains that actors can form beliefs about.
+ * Maps 1:1 to InformationDomain for the decision pipeline.
+ */
+export type BeliefDomain =
+  | 'price_anchor'           // 业主价格预期
+  | 'neighborhood_quality'   // 小区环境质量
+  | 'owner_readiness'        // 业主出售意愿
+  | 'customer_seriousness'   // 客户购买意向
+  | 'broker_capability'      // 经纪人能力
+  | 'rival_threat'           // 竞品威胁
+  | 'organization_pressure'  // 组织压力
+  | 'market_timing';         // 市场时机
+
+// ════════════════════════════════════════════════════════════════════════════
+// InformationDomainCoverage — domain → source → causal → belief → product
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Complete coverage mapping for one information domain.
+ *
+ * This is the "contract" that guarantees every domain has a full pipeline:
+ *   source record → causal event → actor belief → decision → product surface
+ *
+ * A domain without any entry in this table cannot enter product judgment.
+ */
+export interface InformationDomainCoverage {
+  /** The domain. */
+  readonly domain: InformationDomain;
+  /** Human-readable label. */
+  readonly label: string;
+  /** Source kinds that feed this domain. */
+  readonly sourceKinds: readonly SourceKind[];
+  /** Subtypes within each source kind that are relevant. */
+  readonly relevantSubtypes: Readonly<Record<string, readonly string[]>>;
+  /** Causal event kinds that this domain can produce. */
+  readonly causalEventKinds: readonly string[];
+  /** Belief domain this maps to. */
+  readonly beliefDomain: BeliefDomain;
+  /** Default visibility for records in this domain. */
+  readonly defaultVisibility: VisibilityScope;
+  /** Default delay in days. */
+  readonly defaultDelayDays: number;
+  /** Product surfaces that consume this domain's beliefs. */
+  readonly productSurfaces: readonly string[];
+}
+
+/**
+ * The complete domain coverage table.
+ * Every domain MUST have at least 3 distinct source records, 1 causal event,
+ * 1 belief domain, and 1 product surface.
+ */
+export const INFORMATION_DOMAIN_COVERAGE: readonly InformationDomainCoverage[] = [
+  {
+    domain: 'property_physical',
+    label: '房源物理信息',
+    sourceKinds: ['supporting_facility_signal'],
+    relevantSubtypes: {
+      supporting_facility_signal: ['property_feature_update', 'building_condition_update', 'noise_complaint'],
+    },
+    causalEventKinds: ['MarketHeatShifted', 'OwnerMarketPressurePerceived'],
+    beliefDomain: 'price_anchor',
+    defaultVisibility: 'all_actors',
+    defaultDelayDays: 0,
+    productSurfaces: ['bigWorldPOV', 'ownerExpectation', 'comparableSupply'],
+  },
+  {
+    domain: 'neighborhood',
+    label: '小区环境',
+    sourceKinds: ['supporting_facility_signal', 'market_signal', 'comparable_transaction'],
+    relevantSubtypes: {
+      supporting_facility_signal: ['school_district_changed', 'transit_access_changed', 'commercial_development', 'community_environment_shift', 'community_info_changed', 'community_management_changed'],
+      market_signal: ['heat_shift', 'inventory_change'],
+      comparable_transaction: ['deal_closed'],
+    },
+    causalEventKinds: ['MarketHeatShifted', 'OwnerMarketPressurePerceived', 'CustomerAttentionShifted'],
+    beliefDomain: 'neighborhood_quality',
+    defaultVisibility: 'all_actors',
+    defaultDelayDays: 1,
+    productSurfaces: ['marketCell', 'comparableSupply', 'demandMovement'],
+  },
+  {
+    domain: 'owner_state',
+    label: '业主信息',
+    sourceKinds: ['owner_interview', 'owner_life_event_signal', 'comparable_transaction'],
+    relevantSubtypes: {
+      owner_interview: ['price_discussed', 'urgency_revealed', 'objection_raised', 'trust_expressed', 'trust_withdrawn', 'expectation_adjusted', 'withdrawal_threatened'],
+      owner_life_event_signal: ['family_change', 'financial_need', 'relocation_planned', 'divorce_proceedings', 'family_member_involved'],
+      comparable_transaction: ['deal_closed', 'price_adjusted'],
+    },
+    causalEventKinds: ['OwnerMarketPressurePerceived', 'BrokerRecommendationChanged'],
+    beliefDomain: 'owner_readiness',
+    defaultVisibility: 'specific_actors',
+    defaultDelayDays: 0,
+    productSurfaces: ['ownerExpectation', 'followUpPriority', 'wechatAlerts'],
+  },
+  {
+    domain: 'customer_state',
+    label: '客户信息',
+    sourceKinds: ['customer_interaction', 'buyer_financing_signal', 'platform_traffic'],
+    relevantSubtypes: {
+      customer_interaction: ['viewing_completed', 'revisit_scheduled', 'offer_submitted', 'offer_rejected', 'comparison_made', 'preference_shifted', 'budget_adjusted', 'dropout_detected', 'family_decision_involved'],
+      buyer_financing_signal: ['loan_pre_approved', 'loan_rejected', 'down_payment_ready', 'budget_adjusted', 'family_veto', 'co_buyer_added', 'qualification_expired'],
+      platform_traffic: ['listing_viewed', 'listing_favorited', 'inquiry_received'],
+    },
+    causalEventKinds: ['CustomerComparedListings', 'CustomerAttentionShifted', 'BrokerRecommendationChanged'],
+    beliefDomain: 'customer_seriousness',
+    defaultVisibility: 'specific_actors',
+    defaultDelayDays: 0,
+    productSurfaces: ['demandMovement', 'followUpPriority', 'wechatAlerts'],
+  },
+  {
+    domain: 'broker_capability',
+    label: '经纪人信息',
+    sourceKinds: ['broker_capacity_signal', 'acn_network_signal', 'player_action_receipt'],
+    relevantSubtypes: {
+      broker_capacity_signal: ['energy_depleted', 'schedule_overloaded', 'collaboration_requested', 'organizational_pressure', 'skill_gap_detected', 'workload_balanced', 'local_expertise_detected', 'acn_collaboration_strength'],
+      acn_network_signal: ['cooperation_opportunity', 'info_share_received', 'credit_allocation'],
+      player_action_receipt: ['action_executed', 'action_blocked', 'action_failed'],
+    },
+    causalEventKinds: ['BrokerRecommendationChanged', 'MatterPriorityChanged', 'RivalBrokerActionTaken'],
+    beliefDomain: 'broker_capability',
+    defaultVisibility: 'broker_chain',
+    defaultDelayDays: 0,
+    productSurfaces: ['brokerActionPressure', 'followUpPriority', 'bigWorldPOV'],
+  },
+  {
+    domain: 'competition',
+    label: '竞品信息',
+    sourceKinds: ['rival_action', 'acn_network_signal', 'comparable_transaction', 'micro_market_signal'],
+    relevantSubtypes: {
+      rival_action: ['reprice', 'new_listing', 'withdraw_listing', 'open_day_held', 'customer_followed', 'owner_pitched', 'deal_closed'],
+      acn_network_signal: ['competition_escalation', 'conflict_detected', 'cross_district_competition'],
+      comparable_transaction: ['deal_closed', 'price_adjusted', 'listing_withdrawn'],
+      micro_market_signal: ['supply_increased', 'supply_decreased', 'demand_shift', 'price_band_squeeze'],
+    },
+    causalEventKinds: ['RivalListingRepriced', 'RivalBrokerActionTaken', 'MarketHeatShifted', 'CustomerAttentionShifted'],
+    beliefDomain: 'rival_threat',
+    defaultVisibility: 'all_actors',
+    defaultDelayDays: 1,
+    productSurfaces: ['comparableSupply', 'brokerActionPressure', 'becauseBigProof'],
+  },
+  {
+    domain: 'organization',
+    label: '组织信息',
+    sourceKinds: ['manager_message', 'acn_network_signal', 'broker_capacity_signal'],
+    relevantSubtypes: {
+      manager_message: ['focus_case_selected', 'resource_allocated', 'escalation_requested', 'coaching_delivered', 'performance_review', 'strategic_direction'],
+      acn_network_signal: ['credit_allocation', 'rule_change'],
+      broker_capacity_signal: ['organizational_pressure', 'workload_balanced'],
+    },
+    causalEventKinds: ['MatterPriorityChanged', 'BrokerRecommendationChanged'],
+    beliefDomain: 'organization_pressure',
+    defaultVisibility: 'broker_chain',
+    defaultDelayDays: 0,
+    productSurfaces: ['followUpPriority', 'wechatAlerts', 'managerView'],
+  },
+  {
+    domain: 'temporal',
+    label: '时间信息',
+    sourceKinds: ['market_signal', 'comparable_transaction', 'process_receipt'],
+    relevantSubtypes: {
+      market_signal: ['seasonal_pattern', 'demand_shift'],
+      comparable_transaction: ['deal_closed', 'listing_expired'],
+      process_receipt: ['deal_signed', 'case_withdrawn', 'consensus_reached', 'consensus_collapsed'],
+    },
+    causalEventKinds: ['MarketHeatShifted', 'OwnerMarketPressurePerceived', 'BrokerRecommendationChanged'],
+    beliefDomain: 'market_timing',
+    defaultVisibility: 'all_actors',
+    defaultDelayDays: 0,
+    productSurfaces: ['marketCell', 'becauseBigProof', 'ownerExpectation'],
+  },
+];
 
 // ════════════════════════════════════════════════════════════════════════════
 // Source-to-Causal mapping suggestions

@@ -9,15 +9,25 @@ import type { DashboardProjection } from './operatingProjection.js';
 import type { MarketIntelProjection } from '../../ui/features/marketIntel.js';
 import { buildOpportunityViewModels } from '../../ui/features/caseOpportunityViewModel.js';
 import type { WechatFact, WechatFactSource, WechatFactType } from './myWechatTypes.js';
+import {
+  buildPerfectWechatFacts,
+  buildSharedCausalRefs,
+  type PerfectWechatFact,
+  type SharedCausalRefs,
+} from './perfectProjectionAdapters.js';
+import type { ActorKnowledgeSnapshot } from '../../domain/world-model/actorKnowledgeTypes.js';
+import { buildDecisionEvidenceEnvelope } from './actorKnowledgeProjection.js';
 
 export interface ExtractMyWechatFactsInput {
   state: GameState;
   dashboard: DashboardProjection;
   marketIntel?: MarketIntelProjection;
+  /** Optional actor knowledge map (caseId → ActorKnowledgeSnapshot) for evidence-backed facts. */
+  actorKnowledgeMap?: Map<string, ActorKnowledgeSnapshot>;
 }
 
 export function extractMyWechatFacts(input: ExtractMyWechatFactsInput): WechatFact[] {
-  return [
+  const legacyFacts = [
     ...extractOwnerFacts(input),
     ...extractCustomerFacts(input),
     ...extractManagerFacts(input),
@@ -25,6 +35,70 @@ export function extractMyWechatFacts(input: ExtractMyWechatFactsInput): WechatFa
     ...extractMatterFacts(input),
     ...extractFactsFromEventStore(input.state.eventStore, input.state),
   ].filter((fact) => Boolean(fact));
+
+  // If actor knowledge is available, build evidence-backed facts
+  if (input.actorKnowledgeMap && input.actorKnowledgeMap.size > 0) {
+    const evidenceFacts = extractEvidenceBackedFacts(input);
+    // Merge: evidence-backed facts take priority over legacy facts for same caseId
+    const evidenceCaseIds = new Set(evidenceFacts.map((f) => f.caseId));
+    const legacyOnlyFacts = legacyFacts.filter((f) => !evidenceCaseIds.has(f.caseId));
+    return [...evidenceFacts, ...legacyOnlyFacts];
+  }
+
+  return legacyFacts;
+}
+
+/**
+ * Extract evidence-backed WeChat facts from actor knowledge.
+ * These facts trace their reasoning through the ExplanationEnvelope.
+ */
+function extractEvidenceBackedFacts(input: ExtractMyWechatFactsInput): WechatFact[] {
+  const { state, actorKnowledgeMap } = input;
+  if (!actorKnowledgeMap) return [];
+
+  const facts: WechatFact[] = [];
+  const activeCases = state.cases.filter((c) => c.status === 'active');
+
+  for (const caseItem of activeCases) {
+    const knowledge = actorKnowledgeMap.get(caseItem.id);
+    if (!knowledge) continue;
+
+    const envelope = buildDecisionEvidenceEnvelope(knowledge);
+    const perfectFacts = buildPerfectWechatFacts(knowledge, envelope, caseItem, state);
+
+    for (const perfectFact of perfectFacts) {
+      facts.push({
+        id: `evidence-${caseItem.id}-${perfectFact.factType}`,
+        type: perfectFact.factType as WechatFactType,
+        source: 'system' as WechatFactSource,
+        day: state.day,
+        priority: perfectFact.weight,
+        reason: perfectFact.alertText.evidenceAvailable
+          ? perfectFact.alertText.displayText
+          : '证据不足',
+        caseId: perfectFact.caseId,
+        caseTitle: perfectFact.caseTitle,
+        senderRole: 'system',
+        senderName: '系统',
+        ...buildEvidenceBackedBaseContext(perfectFact),
+        debugSignals: perfectFact.alertText.safeRefs.map((r) => `${r.refType}:${r.refId}`),
+      });
+    }
+  }
+
+  return facts;
+}
+
+function buildEvidenceBackedBaseContext(perfectFact: PerfectWechatFact) {
+  return {
+    ownerName: '',
+    price: 0,
+    rivalTitle: undefined,
+    evidenceAvailable: perfectFact.alertText.evidenceAvailable,
+    safeRefs: perfectFact.alertText.safeRefs,
+    replayKey: perfectFact.alertText.replayKey,
+    sourceRecordIds: perfectFact.alertText.sourceRecordIds,
+  } as Partial<import('./myWechatTypes.js').WechatFact>;
 }
 
 function extractOwnerFacts(input: ExtractMyWechatFactsInput): WechatFact[] {

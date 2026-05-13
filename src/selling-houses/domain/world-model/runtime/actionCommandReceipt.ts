@@ -131,6 +131,27 @@ function mapCatalogToActionType(
   commandId: string,
 ): ActionCommand['commandType'] {
   switch (commandId) {
+    // Legacy action IDs → owner_interview
+    case 'first-visit':
+    case 'weekly-feedback':
+    case 'deep-diagnosis':
+      return 'owner_interview';
+    // Legacy action IDs → customer_followup
+    case 'showing':
+      return 'showing';
+    case 'xiaohongshu-boost':
+    case 'broker-broadcast':
+    case 'private-referral':
+      return 'customer_followup';
+    case 'focus-meeting-submit':
+      return 'focus_meeting_submit';
+    case 'open-day':
+      return 'open_day';
+    case 'pricing-advice':
+    case 'ask-psychological-price':
+    case 'adjust-listing-price':
+      return 'owner_interview';
+    // New catalog IDs
     case 'cmd-owner-visit':
       return 'owner_interview';
     case 'cmd-defend-listing':
@@ -138,6 +159,12 @@ function mapCatalogToActionType(
       return 'defend_listing';
     case 'cmd-customer-acquisition':
       return 'customer_followup';
+    case 'cmd-showing':
+      return 'showing';
+    case 'cmd-focus-meeting-submit':
+      return 'focus_meeting_submit';
+    case 'cmd-open-day':
+      return 'open_day';
     default:
       return 'customer_followup';
   }
@@ -154,6 +181,12 @@ function buildExpectedEffect(
       return `维护房源竞争力，应对竞品调价压力。预期影响价格定位和竞品威胁感知。`;
     case 'customer_followup':
       return `跟进潜在客户，提升成交接近度。预期影响客户需求判断和信任关系。`;
+    case 'showing':
+      return `安排带看，把客户推进到实地看房阶段。预期影响客户意向度和成交信心。`;
+    case 'focus_meeting_submit':
+      return `提报周四聚焦会，争取重点资源支持。预期影响房源热度和团队关注。`;
+    case 'open_day':
+      return `组织开放日，集中拉高关注度和看房量。预期影响市场热度和客户质量。`;
     default:
       return recommended.reasoning;
   }
@@ -278,6 +311,115 @@ function executeCustomerFollowup(
 }
 
 /**
+ * Generate source records for a showing action.
+ *
+ * Source record: customer_interaction with viewing_completed subtype.
+ * Records the customer's viewing experience and interest level.
+ */
+function executeShowing(
+  command: ActionCommand,
+  seed: number,
+): readonly InformationSourceRecord[] {
+  const recordId = deterministicId('isr', ['customer_interaction', command.actorId, command.day, seed]);
+  const record: InformationSourceRecord = {
+    sourceId: recordId,
+    sourceKind: 'customer_interaction',
+    day: command.day,
+    phase: 'afternoon',
+    entityRefs: command.targetRefs.slice(0, 3),
+    actorRefs: [{ id: command.actorId, role: command.actorRole }],
+    visibility: { scope: 'all_actors', baseDelayDays: 0 },
+    confidence: 0.85,
+    delayDays: 0,
+    replayKey: deterministicId('isr-rk', ['customer_interaction_showing', command.actorId, command.day, seed]),
+    origin: 'player_action',
+    payload: {
+      summary: `安排带看，客户实地看房后表达了进一步了解的意向。`,
+      subtype: 'viewing_completed',
+      customerId: command.targetRefs[0]?.id ?? 'unknown',
+      caseId: command.targetRefs[1]?.id ?? 'unknown',
+      listingId: command.targetRefs[2]?.id ?? 'unknown',
+      observationMode: 'direct',
+    },
+  };
+  return [record];
+}
+
+/**
+ * Generate source records for a focus meeting submit action.
+ *
+ * Source record: manager_message with focus_case_selected subtype.
+ * Records the submission of a case for manager review.
+ */
+function executeFocusMeetingSubmit(
+  command: ActionCommand,
+  seed: number,
+): readonly InformationSourceRecord[] {
+  const recordId = deterministicId('isr', ['manager_message', command.actorId, command.day, seed]);
+  const record: InformationSourceRecord = {
+    sourceId: recordId,
+    sourceKind: 'manager_message',
+    day: command.day,
+    phase: 'morning',
+    entityRefs: command.targetRefs.slice(0, 3),
+    actorRefs: [{ id: command.actorId, role: command.actorRole }],
+    visibility: { scope: 'player_only', baseDelayDays: 0 },
+    confidence: 0.9,
+    delayDays: 0,
+    replayKey: deterministicId('isr-rk', ['manager_message_focus', command.actorId, command.day, seed]),
+    origin: 'player_action',
+    payload: {
+      summary: `提报周四聚焦会，争取重点资源支持。`,
+      subtype: 'focus_case_selected',
+      managerId: 'system',
+      targetBrokerId: command.actorId,
+      caseIds: command.targetRefs.map((ref) => ref.id).slice(0, 3),
+      priority: 75,
+      instruction: '周四聚焦会提报',
+    },
+  };
+  return [record];
+}
+
+/**
+ * Generate source records for an open day action.
+ *
+ * Source record: process_receipt with open_day_completed subtype.
+ * Records the open day event and its market impact.
+ */
+function executeOpenDay(
+  command: ActionCommand,
+  seed: number,
+): readonly InformationSourceRecord[] {
+  const recordId = deterministicId('isr', ['process_receipt', command.actorId, command.day, seed]);
+  const record: InformationSourceRecord = {
+    sourceId: recordId,
+    sourceKind: 'process_receipt',
+    day: command.day,
+    phase: 'morning',
+    entityRefs: command.targetRefs.slice(0, 3),
+    actorRefs: [{ id: command.actorId, role: command.actorRole }],
+    visibility: { scope: 'all_actors', baseDelayDays: 0 },
+    confidence: 0.85,
+    delayDays: 0,
+    replayKey: deterministicId('isr-rk', ['process_receipt_open_day', command.actorId, command.day, seed]),
+    origin: 'player_action',
+    payload: {
+      summary: `组织开放日活动，集中拉高市场关注度。`,
+      subtype: 'open_day_completed',
+      processType: 'open_day',
+      processId: deterministicId('proc', ['open-day', command.day, seed]),
+      caseIds: command.targetRefs.map((ref) => ref.id).slice(0, 3),
+      customerIds: [],
+      brokerIds: [command.actorId],
+      outcome: 'completed',
+      metrics: {},
+    },
+  };
+  return [record];
+}
+
+/**
  * Dispatch to the correct action executor based on command type.
  */
 function executeAction(
@@ -291,6 +433,12 @@ function executeAction(
       return executeDefendListing(command, seed);
     case 'customer_followup':
       return executeCustomerFollowup(command, seed);
+    case 'showing':
+      return executeShowing(command, seed);
+    case 'focus_meeting_submit':
+      return executeFocusMeetingSubmit(command, seed);
+    case 'open_day':
+      return executeOpenDay(command, seed);
     default:
       return [];
   }
@@ -391,6 +539,21 @@ function computeOutcome(
       message = `客户跟进完成，产生了 ${ingestionReceipt.sourcesWithEffect} 条客户交互信息。`;
       impactMagnitude = Math.min(100, ingestionReceipt.sourcesWithEffect * 20);
       break;
+    case 'showing':
+      code = 'followup_sent';
+      message = `带看完成，客户实地看房后产生了反馈信息。`;
+      impactMagnitude = Math.min(100, ingestionReceipt.sourcesWithEffect * 22);
+      break;
+    case 'focus_meeting_submit':
+      code = 'listing_defended';
+      message = `聚焦会提报完成，提交了重点房源信息。`;
+      impactMagnitude = Math.min(100, ingestionReceipt.sourcesWithEffect * 18);
+      break;
+    case 'open_day':
+      code = 'interview_completed';
+      message = `开放日完成，产生了市场关注度提升信息。`;
+      impactMagnitude = Math.min(100, ingestionReceipt.causalEvents.length * 20);
+      break;
     default:
       code = 'failed';
       message = '未知动作类型。';
@@ -422,6 +585,12 @@ function getAffectedDomains(
       return ['rival_threat', 'price_anchor', 'market_heat'];
     case 'customer_followup':
       return ['customer_seriousness', 'deal_closeability', 'service_path'];
+    case 'showing':
+      return ['customer_seriousness', 'deal_closeability', 'service_path'];
+    case 'focus_meeting_submit':
+      return ['market_heat', 'broker_trust'];
+    case 'open_day':
+      return ['market_heat', 'customer_seriousness', 'deal_closeability'];
     default:
       return [];
   }

@@ -39,6 +39,17 @@ import {
   type IntelLayerTab,
 } from '../../ui/features/marketIntel.js';
 import type { OwnerProfilingMemorySummary } from '../../domain/ownerProfilingMemoryTypes.js';
+import {
+  buildPerfectCaseDetailAdditions,
+  buildPerfectFollowUpPriority,
+  buildPerfectWechatFacts,
+  buildSharedCausalRefs,
+  type EvidenceBackedReason,
+  type EvidenceBackedRiskReminder,
+  type SharedCausalRefs,
+} from './perfectProjectionAdapters.js';
+import type { ActorKnowledgeSnapshot } from './actorKnowledgeProjection.js';
+import { buildDecisionEvidenceEnvelope } from './actorKnowledgeProjection.js';
 
 function formatVisibleDaysLeft(daysLeft: number) {
   const value = Number.isFinite(daysLeft) ? Math.max(0, daysLeft) : 0;
@@ -314,6 +325,16 @@ export interface CaseDetailProjection {
     rivalCount: number;
     pressure: number;
   };
+
+  // ── Evidence-backed additions (Round 9: Perfect Explanation Envelope) ──
+  /** Evidence-backed action reasons (from DecisionEvidenceEnvelope). */
+  readonly evidenceBackedReasons?: readonly EvidenceBackedReason[];
+  /** Evidence-backed risk reminders (from DecisionEvidenceEnvelope pressure signals). */
+  readonly evidenceBackedRiskReminders?: readonly EvidenceBackedRiskReminder[];
+  /** Evidence-backed next step (from recommendedCommand). */
+  readonly evidenceBackedNextStep?: EvidenceBackedReason;
+  /** Shared causal refs injected from the envelope (cross-surface). */
+  readonly sharedCausalRefs?: SharedCausalRefs;
 }
 
 export interface ListingLifecyclePhaseProjection {
@@ -1398,7 +1419,11 @@ function applyWeekdayActionBias(day: number, actionIds: string[]) {
   });
 }
 
-export function buildCaseDetailProjection(state: GameState, caseItem: Case): CaseDetailProjection {
+export function buildCaseDetailProjection(
+  state: GameState,
+  caseItem: Case,
+  actorKnowledge?: ActorKnowledgeSnapshot,
+): CaseDetailProjection {
   const opportunities = getActiveOpportunities(state, caseItem.id);
   const met = opportunities.filter((opportunity) => opportunity.visibility !== 'shadow');
   const potential = opportunities.filter((opportunity) => opportunity.visibility === 'shadow');
@@ -1553,6 +1578,20 @@ export function buildCaseDetailProjection(state: GameState, caseItem: Case): Cas
       rivalCount: rivalListings.length,
       pressure: competitionPressure,
     },
+
+    // ── Evidence-backed additions (Round 9) ──
+    ...(actorKnowledge
+      ? (() => {
+          const envelope = buildDecisionEvidenceEnvelope(actorKnowledge);
+          const additions = buildPerfectCaseDetailAdditions(actorKnowledge, envelope, caseItem, state);
+          return {
+            evidenceBackedReasons: additions.actionReasons,
+            evidenceBackedRiskReminders: additions.riskReminders,
+            evidenceBackedNextStep: additions.nextStepReason,
+            sharedCausalRefs: additions.sharedCausalRefs,
+          };
+        })()
+      : {}),
   };
 }
 

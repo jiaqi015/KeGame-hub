@@ -501,7 +501,7 @@ export interface ActionCommand {
   /** Day the command is executed. */
   readonly day: number;
   /** Command type from the catalog. */
-  readonly commandType: 'owner_interview' | 'defend_listing' | 'customer_followup';
+  readonly commandType: 'owner_interview' | 'defend_listing' | 'customer_followup' | 'showing' | 'focus_meeting_submit' | 'open_day';
   /** Entity IDs this command targets (max 5). */
   readonly targetRefs: readonly EntityRef[];
   /** Belief update IDs that informed this command (max 5). */

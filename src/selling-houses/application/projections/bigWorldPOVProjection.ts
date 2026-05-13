@@ -40,6 +40,11 @@ import type {
   InformationSourceRegistry,
 } from '../../domain/world-model/informationSourceRegistry.js';
 
+import {
+  buildSharedCausalRefs,
+  type SharedCausalRefs,
+} from './perfectProjectionAdapters.js';
+
 // ── POV signal source ────────────────────────────────────────
 
 export type POVSignalSource = 'systemic' | 'observed' | 'inferred' | 'relayed';
@@ -212,7 +217,15 @@ export interface BigWorldPOVSummary {
     headline: string;
     detail: string;
     refs: POVCausalRef[];
+    /** Evidence-backed: safeRefs for UI display. */
+    safeRefs?: readonly { readonly refType: string; readonly refId: string; readonly refLabel: string }[];
+    /** Evidence-backed: source record IDs backing this reason. */
+    sourceRecordIds?: readonly string[];
+    /** Evidence-backed: deterministic replay key. */
+    replayKey?: string;
   }>;
+  /** Shared causal refs across all product surfaces (injected from DecisionEvidenceEnvelope). */
+  readonly sharedCausalRefs?: SharedCausalRefs;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1082,8 +1095,13 @@ export function buildWorkspaceBigWorldModule(
 
   // Decision-big: use actorKnowledge pipeline when available
   let recommendedActionReasons: BigWorldPOVSummary['recommendedActionReasons'];
+  let sharedCausalRefs: SharedCausalRefs | undefined;
 
   if (actorKnowledge) {
+    // Build DecisionEvidenceEnvelope for the evidence chain
+    const envelope = buildDecisionEvidenceEnvelope(actorKnowledge);
+    sharedCausalRefs = buildSharedCausalRefs(envelope);
+
     // Decision pipeline: belief → pressure → command → explanation
     recommendedActionReasons = buildDecisionBigRecommendations(
       actorKnowledge,
@@ -1092,6 +1110,7 @@ export function buildWorkspaceBigWorldModule(
       demandMovement,
       ownerExpectation,
       brokerActionPressure,
+      sharedCausalRefs,
     );
   } else {
     // Fallback: legacy derivation from sub-projections
@@ -1111,6 +1130,7 @@ export function buildWorkspaceBigWorldModule(
     brokerActionPressure,
     becauseBigProof,
     recommendedActionReasons,
+    sharedCausalRefs,
   };
 
   // If actor knowledge is provided, filter all refs through visibility rules
@@ -1138,9 +1158,10 @@ function buildDecisionBigRecommendations(
   demandMovement: DemandMovementPOV,
   ownerExpectation: OwnerExpectationSignalPOV,
   brokerActionPressure: BrokerActionPressurePOV,
-): Array<{ rank: number; headline: string; detail: string; refs: POVCausalRef[] }> {
+  sharedCausalRefs: SharedCausalRefs,
+): Array<{ rank: number; headline: string; detail: string; refs: POVCausalRef[]; safeRefs?: readonly { readonly refType: string; readonly refId: string; readonly refLabel: string }[]; sourceRecordIds?: readonly string[]; replayKey?: string }> {
   const envelope = buildDecisionEvidenceEnvelope(knowledge);
-  const reasons: Array<{ rank: number; headline: string; detail: string; refs: POVCausalRef[] }> = [];
+  const reasons: Array<{ rank: number; headline: string; detail: string; refs: POVCausalRef[]; safeRefs?: readonly { readonly refType: string; readonly refId: string; readonly refLabel: string }[]; sourceRecordIds?: readonly string[]; replayKey?: string }> = [];
 
   // If there's a recommended command from the decision pipeline
   if (envelope.recommendedCommand) {
@@ -1174,17 +1195,22 @@ function buildDecisionBigRecommendations(
       headline: cmd.command.name,
       detail: envelope.explanation.summary,
       refs: boundedRefs,
+      safeRefs: envelope.explanation.safeRefs.length > 0 ? envelope.explanation.safeRefs : sharedCausalRefs.allRefs.slice(0, 3),
+      sourceRecordIds: cmd.sourceRecordIds.slice(0, 5),
+      replayKey: sharedCausalRefs.replayKey,
     });
   }
 
-  // Add up to 2 more reasons from the legacy sub-projection signals (as supplementary context)
-  // These are bounded and provide additional decision context
+  // Add up to 2 more reasons from the sub-projection signals, backed by shared refs
   if (ownerExpectation.pressureLabel === 'high' || ownerExpectation.pressureLabel === 'moderate') {
     reasons.push({
       rank: reasons.length + 1,
       headline: '业主预期压力需关注',
       detail: `业主预期压力${ownerExpectation.pressureLabel === 'high' ? '偏高' : '中等'}，${ownerExpectation.delayedMarketSignal}。`,
       refs: ownerExpectation.refs.slice(0, 2),
+      safeRefs: sharedCausalRefs.allRefs.slice(0, 2),
+      sourceRecordIds: sharedCausalRefs.sourceRecordIds.slice(0, 3),
+      replayKey: sharedCausalRefs.replayKey,
     });
   }
 
@@ -1194,6 +1220,9 @@ function buildDecisionBigRecommendations(
       headline: brokerActionPressure.topSignals[0].headline,
       detail: brokerActionPressure.topSignals[0].detail,
       refs: brokerActionPressure.topSignals[0].refs.slice(0, 2),
+      safeRefs: sharedCausalRefs.allRefs.slice(0, 2),
+      sourceRecordIds: sharedCausalRefs.sourceRecordIds.slice(0, 3),
+      replayKey: sharedCausalRefs.replayKey,
     });
   }
 

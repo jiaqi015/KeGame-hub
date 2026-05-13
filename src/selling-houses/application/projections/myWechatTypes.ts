@@ -63,6 +63,15 @@ export interface WechatFact {
   rivalTitle?: string;
   relatedCaseIds?: string[];
   debugSignals?: string[];
+  // ── Evidence-backed additions (Round 9: Perfect Explanation Envelope) ──
+  /** Whether this fact has real evidence backing (vs legacy field reads). */
+  readonly evidenceAvailable?: boolean;
+  /** Safe causal refs for UI display. */
+  readonly safeRefs?: readonly { readonly refType: string; readonly refId: string; readonly refLabel: string }[];
+  /** Deterministic replay key. */
+  readonly replayKey?: string;
+  /** Source record IDs backing this fact. */
+  readonly sourceRecordIds?: readonly string[];
 }
 
 export interface WechatSourceTrace {

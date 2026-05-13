@@ -81,3 +81,11 @@ export {
   replayActionCommand,
   verifyActionChainDeterminism,
 } from './actionReplay.js';
+
+// --- ActionReceiptWiring (Agent B — live action receipt wiring) -----------
+
+export {
+  buildReceiptFromSnapshot,
+  applyReceiptToGameState,
+  buildMinimalKnowledgeSnapshot,
+} from './actionReceiptWiring.js';

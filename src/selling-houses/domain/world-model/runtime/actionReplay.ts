@@ -52,6 +52,7 @@ import { buildActionCommand, buildActionReceipt } from './actionCommandReceipt.j
  * @param originalReceipt - the original action receipt
  * @param day - simulation day
  * @param seed - same seed as original execution
+ * @param originalActionId - the original action catalog ID (e.g. 'first-visit')
  * @returns ActionReplayReceipt with comparison results
  */
 export function replayActionCommand(
@@ -60,16 +61,28 @@ export function replayActionCommand(
   originalReceipt: ActionReceipt,
   day: number,
   seed: number,
+  originalActionId?: string,
 ): ActionReplayReceipt {
   // Step 1: Rebuild the command (should produce identical command)
+  // Use originalActionId if provided, otherwise derive from commandType
+  const replayCommandId = originalActionId
+    ?? (command.commandType === 'owner_interview' ? 'cmd-owner-visit'
+      : command.commandType === 'defend_listing' ? 'cmd-defend-listing'
+      : command.commandType === 'showing' ? 'cmd-showing'
+      : command.commandType === 'focus_meeting_submit' ? 'cmd-focus-meeting-submit'
+      : command.commandType === 'open_day' ? 'cmd-open-day'
+        : 'cmd-customer-acquisition');
   const replayedCommand = buildActionCommand(
     {
       command: {
-        commandId: command.commandType === 'owner_interview' ? 'cmd-owner-visit'
-          : command.commandType === 'defend_listing' ? 'cmd-defend-listing'
-            : 'cmd-customer-acquisition',
+        commandId: replayCommandId,
         name: command.commandType,
-        category: 'relationship',
+        category: command.commandType === 'owner_interview' ? 'relationship'
+          : command.commandType === 'defend_listing' ? 'promotion'
+          : command.commandType === 'showing' ? 'process'
+          : command.commandType === 'focus_meeting_submit' ? 'process'
+          : command.commandType === 'open_day' ? 'process'
+            : 'relationship',
         targetDomains: [],
         pressureThreshold: 0,
         allowedRoles: [command.actorRole],
@@ -143,13 +156,12 @@ export function replayActionCommand(
  * and verifies that the entire chain (command → receipt → source → causal)
  * produces identical results.
  *
- * This is the "replay" verification that the gate checks.
- *
  * @param command - original command
  * @param knowledge - knowledge snapshot
  * @param originalReceipt - original receipt
  * @param day - day
  * @param seed - seed
+ * @param originalActionId - the original action catalog ID (e.g. 'first-visit')
  * @returns true if chain is deterministic
  */
 export function verifyActionChainDeterminism(
@@ -158,8 +170,9 @@ export function verifyActionChainDeterminism(
   originalReceipt: ActionReceipt,
   day: number,
   seed: number,
+  originalActionId?: string,
 ): boolean {
-  const replayResult = replayActionCommand(command, knowledge, originalReceipt, day, seed);
+  const replayResult = replayActionCommand(command, knowledge, originalReceipt, day, seed, originalActionId);
   return replayResult.matched;
 }
 

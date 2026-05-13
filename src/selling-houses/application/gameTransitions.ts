@@ -1,11 +1,16 @@
 import type { DailyTickResult, GameState, Opportunity } from '../domain/models.js';
 import type { Settlement } from '../domain/actions/templates.js';
 import type { TodayPlanDraft } from './todayPlan.js';
+import type { WorldCausalEvent } from '../domain/world-model/causalEvents.js';
+import type { ActionReceipt } from '../domain/world-model/actorKnowledgeTypes.js';
 import { advanceDays, executeAction, spendResources, resolveActionDefinition } from '../domain/engine.js';
 import { getActionAvailability, recordDomainEvent, refreshOpportunityLabel } from '../domain/engine.js';
 import { enrichStateWithDailyTickSemantics } from '../runtime/simulation/dailyTickSemanticEnrichmentPipeline.js';
 import { popPendingActionReceiptSnapshots } from '../domain/engine/actionResolvers.js';
 import { buildActionReceiptFromSnapshot, appendActionReceiptFromSnapshot } from '../runtime/simulation/actionReceiptFromSnapshotAdapter.js';
+import { buildReceiptFromSnapshot, applyReceiptToGameState } from '../domain/world-model/runtime/actionReceiptWiring.js';
+import { buildMinimalKnowledgeSnapshot } from '../domain/world-model/runtime/actionReceiptWiring.js';
+import { buildActionCommand, buildActionReceipt } from '../domain/world-model/runtime/actionCommandReceipt.js';
 import { updateDerivedState } from '../domain/runtimeState.js';
 import { applyActionStageRelation, getActionStageRelation } from '../domain/actionStageRelations.js';
 import { queueDealClosingEvaluation } from '../domain/dealClosing.js';
@@ -160,8 +165,24 @@ export function executeGameAction(
       // 2. Build action receipts from domain snapshots
       try {
         for (const snapshot of popPendingActionReceiptSnapshots()) {
+          // Legacy receipt (stored in actionReceiptHistory)
           const receipt = buildActionReceiptFromSnapshot(snapshot, next);
           appendActionReceiptFromSnapshot(next, receipt);
+
+          // New-style ActionReceipt with source records → causal events
+          // Builds the full evidence chain and writes to worldCausalEvents
+          const buildResult = buildReceiptFromSnapshot(snapshot, next.runContext.runSeed);
+          applyReceiptToGameState(
+            next as unknown as { worldCausalEvents?: readonly WorldCausalEvent[]; actionReceiptHistory?: readonly ActionReceipt[] },
+            buildResult.receipt,
+          );
+
+          // Append causal events from source ingestion to worldCausalEvents
+          const sourceReceipt = buildResult.sourceIngestionReceipt;
+          if (sourceReceipt.causalEvents.length > 0) {
+            const prev = Array.isArray(next.worldCausalEvents) ? next.worldCausalEvents : [];
+            next.worldCausalEvents = [...prev, ...sourceReceipt.causalEvents];
+          }
         }
       } catch (err: unknown) {
         // Receipt building is non-invasive — must not crash gameplay.

@@ -333,6 +333,27 @@ function buildFromCustomerInteraction(
         },
       ),
     );
+  } else if (p.subtype === 'family_decision_involved' && p.listingId) {
+    // Family involvement in decision: creates comparison pressure
+    events.push(
+      buildCustomerComparedListings(
+        `${baseId}-family-compare`,
+        record.day,
+        {
+          customerId: p.customerId,
+          comparedListingIds: [p.listingId],
+          attentionDelta: 5,
+          reasonSignals: ['family_decision_involved'],
+        },
+        {
+          actorIds: p.customerId ? [p.customerId] : [],
+          causeEventIds: [],
+          sourceRecordId: record.sourceId,
+          sourceReplayKey: record.replayKey,
+          sourceKind: record.sourceKind,
+        },
+      ),
+    );
   } else {
     // Generic comparison
     const comparedIds = p.listingId ? [p.listingId] : [];
@@ -748,6 +769,30 @@ function buildFromAcnNetworkSignal(
         },
       ),
     );
+  } else if (p.subtype === 'cross_district_competition') {
+    // Cross-district competition: rival broker competing in another district
+    events.push(
+      buildRivalBrokerActionTaken(
+        `${baseId}-cross-rival`,
+        record.day,
+        {
+          brokerId: p.brokerIds[0] ?? 'unknown-broker',
+          acnId: p.sourceAcnId,
+          actionKind: 'push_listing',
+          energyCost: 15,
+          actionIntensity: Math.abs(p.cooperationScore),
+          targetListingId: p.listingId,
+          targetMarketCellId: p.caseId, // caseId used as marketCellId proxy
+        },
+        {
+          actorIds: p.brokerIds,
+          causeEventIds: [],
+          sourceRecordId: record.sourceId,
+          sourceReplayKey: record.replayKey,
+          sourceKind: record.sourceKind,
+        },
+      ),
+    );
   } else {
     const primaryCaseId = p.caseId ?? 'unknown-case';
     events.push(
@@ -818,7 +863,15 @@ function buildFromSupportingFacilitySignal(
 
   // Facility changes affect owner perception
   if (p.caseId) {
-    const pressureDelta = heatDelta > 0 ? -5 : heatDelta < 0 ? 10 : 0;
+    // Property and community management subtypes create owner pressure through
+    // a different causal path: they affect the owner's perception of their own listing
+    // rather than the market as a whole.
+    const isPropertyOrCommunityMgmt = p.subtype === 'property_feature_update'
+      || p.subtype === 'community_info_changed'
+      || p.subtype === 'community_management_changed';
+    const pressureDelta = isPropertyOrCommunityMgmt
+      ? Math.round((p.after - p.before) * 0.15)
+      : heatDelta > 0 ? -5 : heatDelta < 0 ? 10 : 0;
     if (pressureDelta !== 0) {
       events.push(
         buildOwnerMarketPressurePerceived(
@@ -873,6 +926,46 @@ function buildFromBrokerCapacitySignal(
           caseId: primaryCaseId,
           priorityBefore: 50,
           priorityAfter: p.subtype === 'collaboration_requested' ? 60 : 40,
+          causedByEventIds: [record.sourceId],
+        },
+        {
+          actorIds: [p.brokerId],
+          sourceRecordId: record.sourceId,
+          sourceReplayKey: record.replayKey,
+          sourceKind: record.sourceKind,
+        },
+      ),
+    );
+  } else if (p.subtype === 'local_expertise_detected') {
+    // Local expertise detected: broker knows the neighborhood well
+    events.push(
+      buildBrokerRecommendationChanged(
+        `${baseId}-expertise`,
+        record.day,
+        {
+          caseId: primaryCaseId,
+          recommendationKind: 'push_showing',
+          causedByEventIds: [record.sourceId],
+          explanationFacts: [`经纪人本地经验: 商圈熟悉度高，精力${p.energyLevel}%`],
+        },
+        {
+          actorIds: [p.brokerId],
+          sourceRecordId: record.sourceId,
+          sourceReplayKey: record.replayKey,
+          sourceKind: record.sourceKind,
+        },
+      ),
+    );
+  } else if (p.subtype === 'acn_collaboration_strength') {
+    // ACN collaboration strength: affects service path viability
+    events.push(
+      buildMatterPriorityChanged(
+        `${baseId}-collab`,
+        record.day,
+        {
+          caseId: primaryCaseId,
+          priorityBefore: 50,
+          priorityAfter: 55,
           causedByEventIds: [record.sourceId],
         },
         {

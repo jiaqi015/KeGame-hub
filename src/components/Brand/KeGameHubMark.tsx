@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 interface KeGameHubMarkProps {
   className?: string;
@@ -11,21 +11,21 @@ interface KeGameHubMarkProps {
  * 贝壳 + 手柄 组合标识（透明底，资源：/public/kegame-logo.fg.png）
  */
 export function KeGameHubMark({ className, size = 28, unframed = false }: KeGameHubMarkProps) {
+  const [logoFailed, setLogoFailed] = useState(false);
   const img = (
-    <span className="relative block h-full w-full">
+    logoFailed ? (
       <FallbackKeGameMark />
+    ) : (
       <img
         src="/kegame-logo.fg.png?v=4"
         alt=""
-        className="absolute inset-0 h-full w-full object-contain select-none"
+        className="h-full w-full object-contain select-none"
         draggable={false}
         width={size}
         height={size}
-        onError={(event) => {
-          event.currentTarget.style.display = 'none';
-        }}
+        onError={() => setLogoFailed(true)}
       />
-    </span>
+    )
   );
 
   if (unframed) {

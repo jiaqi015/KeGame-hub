@@ -458,7 +458,7 @@ export function createBigWorldBootstrap(
   }
 
   // --- Supporting info per cell ---
-  const supportingInfoCategories = ['school', 'transit', 'commercial', 'community', 'policy', 'noise', 'building'] as const;
+  const supportingInfoCategories = ['school', 'transit', 'commercial', 'community', 'policy', 'noise', 'building', 'property', 'community_info', 'community_mgmt'] as const;
   const EXTENDED_INFO_CATEGORIES = ['market_trend', 'rival_observation', 'customer_signal', 'owner_signal', 'broker_signal', 'transaction_signal'] as const;
   const supportingInfo: SupportingInfoRecord[] = [];
   let infoCounter = 0;
@@ -896,6 +896,9 @@ const SUPPORTING_INFO_TO_SOURCE_KINDS: Record<string, readonly SourceKind[]> = {
   policy: ['supporting_facility_signal', 'market_signal'],
   noise: ['supporting_facility_signal'],
   building: ['supporting_facility_signal'],
+  property: ['supporting_facility_signal'],
+  community_info: ['supporting_facility_signal'],
+  community_mgmt: ['supporting_facility_signal'],
   market_trend: ['market_signal', 'micro_market_signal'],
   rival_observation: ['rival_action', 'platform_traffic'],
   customer_signal: ['customer_interaction', 'buyer_financing_signal'],

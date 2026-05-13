@@ -193,11 +193,12 @@ export function applyTickReceiptToRuntime(
 /**
  * Build a BigWorldClockInput from GameState.
  * Pure adapter — reads GameState fields and maps to clock input shape.
+ * Also extracts shadow entity data from bootstrap for hundreds-scale runtime.
  */
 export function buildClockInputFromGameState(
   state: {
     readonly day: number;
-    readonly runContext: { readonly runSeed: number };
+    readonly runContext: { readonly runSeed: number; readonly bigWorldBootstrap?: { readonly hiddenTruth?: { readonly ownerProfilePriors?: readonly { readonly priorId: string; readonly type: string; readonly priceAnchorRigidity: number; readonly expectedTrustBaseline: number; readonly expectedPatienceBaseline: number; readonly expectedUrgencyBaseline: number; readonly perceptionLagDays: number }[]; readonly acnProfiles?: readonly { readonly id: string; readonly name: string; readonly behavior: { readonly directAggression: number; readonly customerFollowupStrength: number; readonly priceReactionSpeed: number; readonly infoSpeed: number; readonly cooperationBias: number } }[] }; readonly materializedEntities?: { readonly listings?: readonly { readonly id: string; readonly layer: string }[] } } };
     readonly markets: readonly { readonly id: string; readonly name: string; readonly demandHeat: number; readonly supplyPressure: number; readonly competitivePressure: number; readonly sentiment: number }[];
     readonly cases: readonly { readonly id: string; readonly title: string; readonly status: string; readonly district: string; readonly marketCellId: string; readonly trust: number; readonly patience: number; readonly urgency: number; readonly heat: number; readonly competitiveness: number; readonly d1: number; readonly d3: number; readonly ownerName: string; readonly windowDays: number; readonly personality: string }[];
     readonly opportunities: readonly { readonly id: string; readonly caseId: string; readonly customerId: string; readonly customerName: string; readonly fit: number; readonly intent: number; readonly confidence: number; readonly stageIndex: number; readonly status: string; readonly stagnationTicks: number }[];
@@ -205,6 +206,18 @@ export function buildClockInputFromGameState(
     readonly customerStates: readonly { readonly customerId: string; readonly status: string; readonly fatigue: number; readonly churnRisk: number; readonly activeCaseIds: readonly string[] }[];
   },
 ): BigWorldClockInput {
+  const bootstrap = state.runContext.bigWorldBootstrap;
+
+  // Extract shadow owner priors from bootstrap
+  const shadowOwnerPriors = bootstrap?.hiddenTruth?.ownerProfilePriors;
+
+  // Extract ACN profiles from bootstrap
+  const acnProfiles = bootstrap?.hiddenTruth?.acnProfiles;
+
+  // Build shadow cases from owner priors + market cells
+  // These allow the runtime to process 50+ owners per day
+  const shadowCases = buildShadowCases(state, shadowOwnerPriors);
+
   return {
     settledDay: state.day,
     runSeed: state.runContext.runSeed,
@@ -214,5 +227,61 @@ export function buildClockInputFromGameState(
     rivalListings: state.marketShadow.rivalListings,
     rivalStores: state.marketShadow.rivalStores,
     customerStates: state.customerStates,
+    shadowOwnerPriors,
+    shadowCases,
+    acnProfiles,
   };
+}
+
+/**
+ * Build shadow cases from owner priors + market cells.
+ * Each shadow case represents an owner's market position that the runtime
+ * can process for pressure perception, recommendation, etc.
+ * These are synthetic but deterministic — same input → same output.
+ */
+function buildShadowCases(
+  state: {
+    readonly day: number;
+    readonly runContext: { readonly runSeed: number };
+    readonly markets: readonly { readonly id: string; readonly name: string }[];
+  },
+  shadowOwnerPriors?: readonly { readonly priorId: string; readonly type: string; readonly priceAnchorRigidity: number; readonly expectedTrustBaseline: number; readonly expectedPatienceBaseline: number; readonly expectedUrgencyBaseline: number; readonly perceptionLagDays: number }[],
+): readonly { readonly id: string; readonly marketCellId: string; readonly district: string; readonly heat: number; readonly trust: number; readonly patience: number; readonly urgency: number; readonly windowDays: number; readonly ownerName: string }[] {
+  if (!shadowOwnerPriors || shadowOwnerPriors.length === 0) return [];
+
+  // Deterministic hash for shadow case generation
+  const stableHash = (input: string): number => {
+    let hash = 2166136261;
+    for (let i = 0; i < input.length; i += 1) {
+      hash ^= input.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return hash >>> 0;
+  };
+
+  const seededInt = (seed: string, min: number, max: number): number =>
+    min + (stableHash(seed) % (max - min + 1));
+
+  const cells = state.markets;
+  const cases: { id: string; marketCellId: string; district: string; heat: number; trust: number; patience: number; urgency: number; windowDays: number; ownerName: string }[] = [];
+
+  for (let i = 0; i < shadowOwnerPriors.length; i += 1) {
+    const prior = shadowOwnerPriors[i];
+    const salt = `shadow-case-${state.runContext.runSeed}-${state.day}-${i}`;
+    const cell = cells[i % cells.length];
+
+    cases.push({
+      id: `shadow-case-${prior.priorId}`,
+      marketCellId: cell.id,
+      district: cell.name,
+      heat: seededInt(`${salt}-heat`, 20, 80),
+      trust: prior.expectedTrustBaseline,
+      patience: prior.expectedPatienceBaseline,
+      urgency: prior.expectedUrgencyBaseline,
+      windowDays: seededInt(`${salt}-window`, 7, 30),
+      ownerName: `shadow-owner-${prior.priorId}`,
+    });
+  }
+
+  return cases;
 }

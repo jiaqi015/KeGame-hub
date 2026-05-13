@@ -269,7 +269,15 @@ export function buildColdLedgerSummary(
   phaseResults: readonly { readonly phaseId: string; readonly mutationCount: number; readonly entitiesProcessed: number }[],
   sourceReceipt?: {
     readonly sourcesProcessed: number;
-    readonly causalEvents: readonly { readonly sourceKind?: string; readonly sourceRecordId?: string; readonly sourceReplayKey?: string }[];
+    readonly causalEvents: readonly {
+      readonly id?: string;
+      readonly kind?: string;
+      readonly source?: string;
+      readonly sourceKind?: string;
+      readonly sourceRecordId?: string;
+      readonly sourceReplayKey?: string;
+      readonly payload?: unknown;
+    }[];
     readonly byKind: ReadonlyMap<string, { readonly count: number; readonly causalEventsProduced: number }>;
   },
 ): ColdLedgerSummary {
@@ -293,12 +301,14 @@ export function buildColdLedgerSummary(
 
     // Track latest sourceId and replayKey per kind
     for (const event of sourceReceipt.causalEvents) {
-      const kind = event.sourceKind;
-      if (kind && event.sourceRecordId) {
-        latestSourceIdByKind.set(kind, event.sourceRecordId);
+      const kind = event.sourceKind ?? inferSourceKindFromCausalEvent(event);
+      const sourceRecordId = event.sourceRecordId ?? inferSourceRecordIdFromCausalEvent(event);
+      const sourceReplayKey = event.sourceReplayKey ?? inferSourceReplayKeyFromCausalEvent(event);
+      if (kind && sourceRecordId) {
+        latestSourceIdByKind.set(kind, sourceRecordId);
       }
-      if (kind && event.sourceReplayKey) {
-        latestReplayKeyByKind.set(kind, event.sourceReplayKey);
+      if (kind && sourceReplayKey) {
+        latestReplayKeyByKind.set(kind, sourceReplayKey);
       }
     }
   }
@@ -317,6 +327,68 @@ export function buildColdLedgerSummary(
     totalPhaseEvents,
     totalMutations,
   });
+}
+
+function inferSourceKindFromCausalEvent(
+  event: {
+    readonly kind?: string;
+    readonly source?: string;
+    readonly payload?: unknown;
+  },
+): string | undefined {
+  const payload = event.payload && typeof event.payload === 'object'
+    ? event.payload as Readonly<Record<string, unknown>>
+    : {};
+  const payloadSourceKind = typeof payload['sourceKind'] === 'string' ? payload['sourceKind'] : undefined;
+  if (payloadSourceKind) return payloadSourceKind;
+
+  switch (event.source) {
+    case 'market-signal':
+      return 'market_signal';
+    case 'rival-action':
+      return 'rival_action';
+    case 'customer-behavior':
+      return 'customer_interaction';
+    case 'owner-perception':
+      return 'owner_interview';
+    case 'broker-service':
+      return event.kind === 'MatterPriorityChanged' ? 'manager_message' : 'player_action_receipt';
+    case 'opening-snapshot':
+      return 'market_signal';
+    default:
+      break;
+  }
+
+  switch (event.kind) {
+    case 'MarketHeatShifted':
+      return 'market_signal';
+    case 'RivalListingRepriced':
+    case 'RivalBrokerActionTaken':
+      return 'rival_action';
+    case 'CustomerComparedListings':
+    case 'CustomerAttentionShifted':
+      return 'customer_interaction';
+    case 'OwnerMarketPressurePerceived':
+      return 'owner_interview';
+    case 'BrokerRecommendationChanged':
+      return 'player_action_receipt';
+    case 'MatterPriorityChanged':
+      return 'manager_message';
+    default:
+      return undefined;
+  }
+}
+
+function inferSourceRecordIdFromCausalEvent(
+  event: { readonly id?: string; readonly sourceRecordId?: string },
+): string | undefined {
+  return event.sourceRecordId ?? (event.id ? `causal:${event.id}` : undefined);
+}
+
+function inferSourceReplayKeyFromCausalEvent(
+  event: { readonly id?: string; readonly sourceReplayKey?: string },
+): string | undefined {
+  return event.sourceReplayKey ?? (event.id ? `causal-rk:${event.id}` : undefined);
 }
 
 /**

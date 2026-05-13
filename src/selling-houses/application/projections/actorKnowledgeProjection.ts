@@ -114,6 +114,13 @@ export function computeInformationDelay(
 /**
  * Compute how credible a source is to a specific actor.
  * Same source → different credibility per actor.
+ *
+ * Credibility factors by actor role:
+ *   - owner: trusts owner_interview highly, distrusts rival_action rumors
+ *   - player_broker: trusts player_action_receipt, values comparable_transaction
+ *   - customer: distrusts broker signals, trusts comparable_transaction
+ *   - manager: trusts manager_message highly, values process_receipt
+ *   - rival_broker: trusts rival_action, values acn_network_signal
  */
 export function computeSourceCredibility(
   record: InformationSourceRecord,
@@ -122,7 +129,7 @@ export function computeSourceCredibility(
   const factors: CredibilityFactor[] = [];
   let score = 0.5; // base
 
-  // Factor 1: source type
+  // Factor 1: source type — universal baseline
   if (record.sourceKind === 'owner_interview' || record.sourceKind === 'manager_message') {
     factors.push({ dimension: 'source_type', contribution: 0.2, reason: 'direct stakeholder source' });
     score += 0.2;
@@ -146,18 +153,99 @@ export function computeSourceCredibility(
     }
   }
 
-  // Factor 3: role-specific weighting
-  if (actorRole === 'owner' && record.sourceKind === 'customer_interaction') {
-    factors.push({ dimension: 'domain_expertise', contribution: -0.1, reason: 'owner may undervalue customer signals' });
-    score -= 0.1;
-  }
-  if (actorRole === 'player_broker' && record.sourceKind === 'player_action_receipt') {
-    factors.push({ dimension: 'actor_trust', contribution: 0.15, reason: 'player trusts own actions' });
-    score += 0.15;
+  // Factor 3: role-specific trust weighting (expanded)
+
+  // Owner: trusts owner_interview highly, distrusts market signals (can't verify)
+  if (actorRole === 'owner') {
+    if (record.sourceKind === 'owner_interview') {
+      factors.push({ dimension: 'actor_trust', contribution: 0.15, reason: 'owner trusts own interview data' });
+      score += 0.15;
+    }
+    if (record.sourceKind === 'market_signal') {
+      factors.push({ dimension: 'domain_expertise', contribution: -0.1, reason: 'owner cannot verify market signals independently' });
+      score -= 0.1;
+    }
+    if (record.sourceKind === 'rival_action') {
+      factors.push({ dimension: 'domain_expertise', contribution: -0.1, reason: 'owner has limited view of rival strategy' });
+      score -= 0.1;
+    }
+    if (record.sourceKind === 'customer_interaction') {
+      factors.push({ dimension: 'domain_expertise', contribution: -0.1, reason: 'owner may undervalue customer signals' });
+      score -= 0.1;
+    }
+    if (record.sourceKind === 'comparable_transaction') {
+      factors.push({ dimension: 'domain_expertise', contribution: 0.1, reason: 'owner values transaction evidence' });
+      score += 0.1;
+    }
   }
 
-  // Factor 4: recency
-  // (Recency is handled by delay; trust the source more if it's fresh)
+  // Player broker: trusts own actions, values comparable data
+  if (actorRole === 'player_broker') {
+    if (record.sourceKind === 'player_action_receipt') {
+      factors.push({ dimension: 'actor_trust', contribution: 0.15, reason: 'player trusts own actions' });
+      score += 0.15;
+    }
+    if (record.sourceKind === 'comparable_transaction') {
+      factors.push({ dimension: 'domain_expertise', contribution: 0.1, reason: 'broker uses transaction data professionally' });
+      score += 0.1;
+    }
+    if (record.sourceKind === 'market_signal') {
+      factors.push({ dimension: 'domain_expertise', contribution: 0.05, reason: 'broker has market signal tools' });
+      score += 0.05;
+    }
+  }
+
+  // Customer: distrusts broker signals, trusts comparable data
+  if (actorRole === 'customer') {
+    if (record.sourceKind === 'player_action_receipt' || record.sourceKind === 'process_receipt') {
+      factors.push({ dimension: 'actor_trust', contribution: -0.15, reason: 'customer distrusts broker-initiated signals' });
+      score -= 0.15;
+    }
+    if (record.sourceKind === 'comparable_transaction') {
+      factors.push({ dimension: 'domain_expertise', contribution: 0.15, reason: 'customer trusts transaction evidence from platform' });
+      score += 0.15;
+    }
+    if (record.sourceKind === 'market_signal') {
+      factors.push({ dimension: 'domain_expertise', contribution: 0.05, reason: 'customer sees market signals as neutral data' });
+      score += 0.05;
+    }
+  }
+
+  // Manager: trusts manager messages, values process receipts
+  if (actorRole === 'manager') {
+    if (record.sourceKind === 'manager_message') {
+      factors.push({ dimension: 'actor_trust', contribution: 0.2, reason: 'manager trusts own organizational messages' });
+      score += 0.2;
+    }
+    if (record.sourceKind === 'process_receipt') {
+      factors.push({ dimension: 'domain_expertise', contribution: 0.15, reason: 'manager values process outcomes' });
+      score += 0.15;
+    }
+    if (record.sourceKind === 'player_action_receipt') {
+      factors.push({ dimension: 'domain_expertise', contribution: 0.05, reason: 'manager can verify broker actions' });
+      score += 0.05;
+    }
+    if (record.sourceKind === 'rival_action') {
+      factors.push({ dimension: 'domain_expertise', contribution: 0.05, reason: 'manager sees competitive landscape broadly' });
+      score += 0.05;
+    }
+  }
+
+  // Rival broker: trusts own rival actions, values ACN signals
+  if (actorRole === 'rival_broker') {
+    if (record.sourceKind === 'rival_action') {
+      factors.push({ dimension: 'actor_trust', contribution: 0.2, reason: 'rival broker trusts own actions' });
+      score += 0.2;
+    }
+    if (record.sourceKind === 'acn_network_signal') {
+      factors.push({ dimension: 'actor_trust', contribution: 0.1, reason: 'rival broker trusts ACN signals' });
+      score += 0.1;
+    }
+    if (record.sourceKind === 'player_action_receipt') {
+      factors.push({ dimension: 'actor_trust', contribution: -0.15, reason: 'rival broker distrusts player actions' });
+      score -= 0.15;
+    }
+  }
 
   // Clamp to [0, 1]
   score = Math.max(0, Math.min(1, score));
@@ -166,11 +254,11 @@ export function computeSourceCredibility(
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// deriveBeliefFromSource — map source to belief domain
+// deriveBeliefFromSource — base map source to belief domain
 // ════════════════════════════════════════════════════════════════════════════
 
 /**
- * Derive a belief domain and claim from a source record.
+ * Derive a belief domain and claim from a source record (base mapping).
  * Returns null if the source does not directly map to a belief.
  */
 function deriveBeliefFromSource(
@@ -253,6 +341,226 @@ function deriveBeliefFromSource(
     }
     default:
       return null;
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// deriveBeliefForRole — role-specific belief interpretation
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Given the same source record, derive the belief domain that THIS actor
+ * would most naturally form.
+ *
+ * Different actors interpret the same information through different lenses:
+ *   - market_signal: owner → owner_readiness, broker → market_heat, customer → price_anchor, manager → deal_closeability
+ *   - rival_action: owner → rival_threat, broker → rival_threat + service_path, customer → price_anchor, manager → deal_closeability
+ *   - owner_interview: owner → owner_readiness, broker → broker_trust, customer → (not visible), manager → owner_readiness
+ *   - customer_interaction: owner → customer_seriousness, broker → customer_seriousness, customer → customer_seriousness, manager → deal_closeability
+ *   - comparable_transaction: owner → price_anchor, broker → price_anchor, customer → price_anchor, manager → deal_closeability
+ *
+ * Returns null if the source does not map to a belief for this role.
+ */
+function deriveBeliefForRole(
+  record: InformationSourceRecord,
+  actorRole: ActorRole,
+): { domain: BeliefDomain; claim: BeliefClaim; value: BeliefValue } | null {
+  // First, get the base belief from the source
+  const baseBelief = deriveBeliefFromSource(record);
+  if (!baseBelief) return null;
+
+  // Then, apply role-specific domain mapping
+  switch (record.sourceKind) {
+    case 'market_signal': {
+      const payload = record.payload as { before: number; after: number; subtype: string };
+      const direction = payload.after > payload.before ? 'rising' : payload.after < payload.before ? 'falling' : 'stable';
+      const magnitude = Math.abs(payload.after - payload.before);
+
+      switch (actorRole) {
+        case 'owner':
+          // Owner sees market signals as pressure on their readiness to sell
+          return {
+            domain: 'owner_readiness',
+            claim: { type: 'direction', direction, magnitude },
+            value: { type: 'numeric', value: payload.after },
+          };
+        case 'player_broker':
+          // Broker sees market signals as market heat assessment
+          return baseBelief; // market_heat
+        case 'customer':
+          // Customer sees market signals as price anchor signals
+          return {
+            domain: 'price_anchor',
+            claim: { type: 'direction', direction, magnitude },
+            value: { type: 'numeric', value: payload.after },
+          };
+        case 'manager':
+          // Manager sees market signals as deal closeability indicators
+          return {
+            domain: 'deal_closeability',
+            claim: { type: 'direction', direction, magnitude },
+            value: { type: 'numeric', value: payload.after },
+          };
+        case 'rival_broker':
+          // Rival broker sees market signals as competitive pressure
+          return {
+            domain: 'rival_threat',
+            claim: { type: 'direction', direction, magnitude },
+            value: { type: 'numeric', value: payload.after },
+          };
+        default:
+          return baseBelief;
+      }
+    }
+
+    case 'rival_action': {
+      const payload = record.payload as { subtype: string; priceAfter?: number; priceBefore?: number };
+
+      switch (actorRole) {
+        case 'owner':
+          // Owner sees rival action as direct threat
+          return {
+            domain: 'rival_threat',
+            claim: { type: 'categorical', category: payload.subtype, confidence: 0.7 },
+            value: { type: 'categorical', value: payload.subtype },
+          };
+        case 'player_broker':
+          // Broker sees rival action as both threat and service path opportunity
+          return baseBelief; // price_anchor or rival_threat
+        case 'customer':
+          // Customer sees rival action as price anchor shift
+          if (payload.subtype === 'reprice' && payload.priceAfter !== undefined && payload.priceBefore !== undefined) {
+            const direction = payload.priceAfter < payload.priceBefore ? 'falling' : 'rising';
+            return {
+              domain: 'price_anchor',
+              claim: { type: 'direction', direction, magnitude: Math.abs(payload.priceAfter - payload.priceBefore) },
+              value: { type: 'numeric', value: payload.priceAfter },
+            };
+          }
+          return {
+            domain: 'price_anchor',
+            claim: { type: 'categorical', category: payload.subtype, confidence: 0.5 },
+            value: { type: 'categorical', value: payload.subtype },
+          };
+        case 'manager':
+          // Manager sees rival action as deal closeability risk
+          return {
+            domain: 'deal_closeability',
+            claim: { type: 'categorical', category: `rival_${payload.subtype}`, confidence: 0.6 },
+            value: { type: 'categorical', value: `rival_${payload.subtype}` },
+          };
+        case 'rival_broker':
+          // Rival broker sees their own action as service_path effectiveness
+          return {
+            domain: 'service_path',
+            claim: { type: 'categorical', category: payload.subtype, confidence: 0.8 },
+            value: { type: 'categorical', value: payload.subtype },
+          };
+        default:
+          return baseBelief;
+      }
+    }
+
+    case 'owner_interview': {
+      const payload = record.payload as { trustLevel?: number; priceMentioned?: number; tone: string };
+
+      switch (actorRole) {
+        case 'owner':
+          // Owner sees interview as readiness signal
+          return {
+            domain: 'owner_readiness',
+            claim: { type: 'categorical', category: payload.tone, confidence: 0.6 },
+            value: { type: 'categorical', value: payload.tone },
+          };
+        case 'player_broker':
+          // Broker sees interview as trust measurement
+          return baseBelief; // broker_trust or price_anchor
+        case 'customer':
+          // Customer treats visible owner communication as price/negotiability evidence.
+          return {
+            domain: payload.priceMentioned !== undefined ? 'price_anchor' : 'deal_closeability',
+            claim: payload.priceMentioned !== undefined
+              ? { type: 'threshold', value: payload.priceMentioned, threshold: 0, above: true }
+              : { type: 'categorical', category: `owner_${payload.tone}`, confidence: 0.45 },
+            value: payload.priceMentioned !== undefined
+              ? { type: 'numeric', value: payload.priceMentioned }
+              : { type: 'categorical', value: `owner_${payload.tone}` },
+          };
+        case 'manager':
+          // Manager sees interview as owner readiness assessment
+          return {
+            domain: 'owner_readiness',
+            claim: { type: 'categorical', category: payload.tone, confidence: 0.6 },
+            value: { type: 'categorical', value: payload.tone },
+          };
+        default:
+          return baseBelief;
+      }
+    }
+
+    case 'customer_interaction': {
+      const payload = record.payload as { subtype: string; fitScore?: number; interestLevel?: number };
+
+      switch (actorRole) {
+        case 'owner':
+          // Owner sees customer interaction as seriousness indicator
+          return baseBelief; // customer_seriousness
+        case 'player_broker':
+          // Broker sees customer interaction as seriousness indicator
+          return baseBelief; // customer_seriousness
+        case 'customer':
+          // Customer sees their own interaction as self-assessment
+          return baseBelief; // customer_seriousness
+        case 'manager':
+          // Manager sees customer interaction as deal closeability signal
+          if (payload.subtype === 'dropout_detected') {
+            return {
+              domain: 'deal_closeability',
+              claim: { type: 'direction', direction: 'falling', magnitude: 1 },
+              value: { type: 'categorical', value: 'dropout' },
+            };
+          }
+          return {
+            domain: 'deal_closeability',
+            claim: { type: 'categorical', category: payload.subtype, confidence: 0.6 },
+            value: { type: 'categorical', value: payload.subtype },
+          };
+        default:
+          return baseBelief;
+      }
+    }
+
+    case 'comparable_transaction': {
+      const payload = record.payload as { discountPct: number; price: number };
+
+      switch (actorRole) {
+        case 'owner':
+          // Owner sees transaction as price anchor reality check
+          return baseBelief; // price_anchor
+        case 'player_broker':
+          // Broker sees transaction as price anchor evidence
+          return baseBelief; // price_anchor
+        case 'customer':
+          // Customer sees transaction as affordability reference
+          return {
+            domain: 'price_anchor',
+            claim: { type: 'comparison', subject: 'transaction_price', relativeTo: 'budget', relation: payload.price < 400 ? 'better' : 'worse' },
+            value: { type: 'numeric', value: payload.price },
+          };
+        case 'manager':
+          // Manager sees transaction as deal closeability signal
+          return {
+            domain: 'deal_closeability',
+            claim: { type: 'comparison', subject: 'market_price', relativeTo: 'listing_price', relation: payload.discountPct > 5 ? 'worse' : 'same' },
+            value: { type: 'numeric', value: payload.price },
+          };
+        default:
+          return baseBelief;
+      }
+    }
+
+    default:
+      return baseBelief;
   }
 }
 
@@ -383,7 +691,8 @@ function generateBeliefUpdates(
   let index = 0;
 
   for (const record of records) {
-    const belief = deriveBeliefFromSource(record);
+    // Use role-specific belief derivation (multi-actor POV drift)
+    const belief = deriveBeliefForRole(record, role);
     if (!belief) continue;
 
     const domainCount = domainCounts.get(belief.domain) ?? 0;
@@ -392,7 +701,7 @@ function generateBeliefUpdates(
     const sourceRef = sourceRefs.find((sr) => sr.sourceId === record.sourceId);
     if (!sourceRef) continue;
 
-    // Confidence derivation
+    // Confidence derivation — now also role-specific via credibility
     const derivation: BeliefConfidence['derivation'] =
       record.sourceKind === 'owner_interview' || record.sourceKind === 'manager_message'
         ? 'trusted_relay'
@@ -920,6 +1229,54 @@ export const BROKER_COMMAND_CATALOG: readonly AvailableCommand[] = [
     targetDomains: ['rival_threat', 'market_heat', 'service_path'],
     pressureThreshold: 35,
     allowedRoles: ['player_broker'],
+  },
+  {
+    commandId: 'cmd-owner-consider-price',
+    name: '重新判断价格预期',
+    category: 'pricing',
+    targetDomains: ['price_anchor', 'owner_readiness', 'rival_threat'],
+    pressureThreshold: 20,
+    allowedRoles: ['owner'],
+  },
+  {
+    commandId: 'cmd-owner-request-evidence',
+    name: '要求经纪人补充市场证据',
+    category: 'relationship',
+    targetDomains: ['broker_trust', 'market_heat', 'price_anchor'],
+    pressureThreshold: 25,
+    allowedRoles: ['owner'],
+  },
+  {
+    commandId: 'cmd-customer-compare-budget',
+    name: '重新比较预算与备选房',
+    category: 'pricing',
+    targetDomains: ['price_anchor', 'deal_closeability', 'customer_seriousness'],
+    pressureThreshold: 20,
+    allowedRoles: ['customer'],
+  },
+  {
+    commandId: 'cmd-customer-request-showing',
+    name: '要求进一步看房确认',
+    category: 'process',
+    targetDomains: ['customer_seriousness', 'service_path', 'deal_closeability'],
+    pressureThreshold: 20,
+    allowedRoles: ['customer'],
+  },
+  {
+    commandId: 'cmd-manager-allocate-resource',
+    name: '分配组织资源',
+    category: 'escalation',
+    targetDomains: ['deal_closeability', 'rival_threat', 'market_heat'],
+    pressureThreshold: 25,
+    allowedRoles: ['manager'],
+  },
+  {
+    commandId: 'cmd-rival-respond-market',
+    name: '调整竞品应对策略',
+    category: 'promotion',
+    targetDomains: ['rival_threat', 'market_heat', 'price_anchor'],
+    pressureThreshold: 25,
+    allowedRoles: ['rival_broker'],
   },
 ] as const;
 
