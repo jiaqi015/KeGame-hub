@@ -153,7 +153,7 @@ function resolveVisibilityHint(
 function sourceLinkOpts(record: InformationSourceRecord): {
   readonly sourceRecordId: string;
   readonly sourceReplayKey: string;
-  readonly sourceKind: string;
+  readonly sourceKind: SourceKind;
 } {
   return {
     sourceRecordId: record.sourceId,
@@ -176,6 +176,119 @@ function extractActorIds(record: InformationSourceRecord): readonly string[] {
   return record.actorRefs.map((ref) => ref.id);
 }
 
+type SourcePayloadView = Readonly<Record<string, unknown>>;
+type EntityRefKind = InformationSourceRecord['entityRefs'][number]['kind'];
+
+function payloadView(record: InformationSourceRecord): SourcePayloadView {
+  return record.payload as unknown as SourcePayloadView;
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function stringValue(value: unknown, fallback: string): string {
+  return optionalString(value) ?? fallback;
+}
+
+function numberValue(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function stringArrayValue(value: unknown): readonly string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === 'string' && item.length > 0);
+}
+
+function firstEntityId(
+  record: InformationSourceRecord,
+  kind?: EntityRefKind,
+): string | undefined {
+  const match = kind
+    ? record.entityRefs.find((ref) => ref.kind === kind)
+    : record.entityRefs[0];
+  return match?.id;
+}
+
+function firstActorId(record: InformationSourceRecord, role?: string): string | undefined {
+  const match = role
+    ? record.actorRefs.find((ref) => ref.role === role)
+    : record.actorRefs[0];
+  return match?.id;
+}
+
+function uniqueStrings(values: readonly (string | undefined)[]): readonly string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
+    result.push(value);
+  }
+  return result;
+}
+
+function actorIdsWithSource(
+  record: InformationSourceRecord,
+  explicit: readonly (string | undefined)[] = [],
+): readonly string[] {
+  return uniqueStrings([...explicit, ...extractActorIds(record)]);
+}
+
+function safeCaseId(record: InformationSourceRecord, explicit?: unknown): string {
+  return optionalString(explicit)
+    ?? firstEntityId(record, 'case')
+    ?? firstEntityId(record, 'listing')
+    ?? firstEntityId(record)
+    ?? 'unknown-case';
+}
+
+function safeListingId(record: InformationSourceRecord, explicit?: unknown): string | undefined {
+  return optionalString(explicit)
+    ?? firstEntityId(record, 'listing')
+    ?? firstEntityId(record, 'case');
+}
+
+function safeMarketCellId(record: InformationSourceRecord, explicit?: unknown): string {
+  return optionalString(explicit)
+    ?? firstEntityId(record, 'market_cell')
+    ?? firstEntityId(record)
+    ?? 'unknown-market-cell';
+}
+
+function safeSubtype(record: InformationSourceRecord, fallback = record.sourceKind): string {
+  return stringValue(payloadView(record).subtype, fallback);
+}
+
+function buildFallbackSourceEvent(
+  record: InformationSourceRecord,
+  index: number,
+  reason: 'empty_builder' | 'builder_exception',
+): readonly WorldCausalEvent[] {
+  const baseId = `ingest-fallback-${record.day}-${record.sourceId}-${index}`;
+  return [
+    buildBrokerRecommendationChanged(
+      `${baseId}-rec`,
+      record.day,
+      {
+        caseId: safeCaseId(record),
+        recommendationKind: 'wait_and_see',
+        causedByEventIds: [record.sourceId],
+        explanationFacts: [
+          `信息源进入因果链: ${record.sourceKind}/${safeSubtype(record)}`,
+          `稀疏信息容错: ${reason}`,
+        ],
+      },
+      {
+        actorIds: actorIdsWithSource(record),
+        sourceRecordId: record.sourceId,
+        sourceReplayKey: record.replayKey,
+        sourceKind: record.sourceKind,
+      },
+    ),
+  ];
+}
+
 /**
  * Build causal events from a market_signal source record.
  *
@@ -188,26 +301,24 @@ function buildFromMarketSignal(
   record: InformationSourceRecord<'market_signal'>,
   index: number,
 ): readonly WorldCausalEvent[] {
-  const p = record.payload;
+  const view = payloadView(record);
   const baseId = `ingest-ms-${record.day}-${record.sourceId}-${index}`;
 
   const event = buildMarketHeatShifted(
     baseId,
     record.day,
     {
-      marketCellId: p.marketCellId,
-      before: p.before,
-      after: p.after,
+      marketCellId: safeMarketCellId(record, view.marketCellId),
+      before: numberValue(view.before, 50),
+      after: numberValue(view.after, 50),
       sourceSignalId: record.sourceId,
-      sourceSignalType: p.subtype,
+      sourceSignalType: safeSubtype(record),
       confidence: record.confidence,
     },
     {
-      actorIds: extractActorIds(record),
+      actorIds: actorIdsWithSource(record),
       causeEventIds: [],
-      sourceRecordId: record.sourceId,
-      sourceReplayKey: record.replayKey,
-      sourceKind: record.sourceKind,
+      ...sourceLinkOpts(record),
     },
   );
 
@@ -225,56 +336,61 @@ function buildFromRivalAction(
   record: InformationSourceRecord<'rival_action'>,
   index: number,
 ): readonly WorldCausalEvent[] {
-  const p = record.payload;
+  const view = payloadView(record);
   const baseId = `ingest-ra-${record.day}-${record.sourceId}-${index}`;
   const events: WorldCausalEvent[] = [];
 
-  if (p.subtype === 'reprice' && p.priceBefore !== undefined && p.priceAfter !== undefined) {
-    const listingId = p.listingId ?? `unknown-listing-${record.sourceId}`;
+  const subtype = safeSubtype(record);
+  const rivalBrokerId = optionalString(view.rivalBrokerId)
+    ?? firstActorId(record, 'rival_broker')
+    ?? firstActorId(record)
+    ?? 'unknown-rival-broker';
+  const rivalAcnId = stringValue(view.rivalAcnId, firstEntityId(record, 'acn') ?? 'unknown-acn');
+  const priceBefore = numberValue(view.priceBefore, 0);
+  const priceAfter = numberValue(view.priceAfter, priceBefore);
+  const listingId = safeListingId(record, view.listingId) ?? `unknown-listing-${record.sourceId}`;
+
+  if (subtype === 'reprice') {
     events.push(
       buildRivalListingRepriced(
         `${baseId}-reprice`,
         record.day,
         {
           listingId,
-          acnId: p.rivalAcnId,
-          brokerId: p.rivalBrokerId,
-          oldPrice: p.priceBefore,
-          newPrice: p.priceAfter,
-          priceDelta: p.priceAfter - p.priceBefore,
-          affectedMarketCellIds: p.marketCellId ? [p.marketCellId] : [],
+          acnId: rivalAcnId,
+          brokerId: rivalBrokerId,
+          oldPrice: priceBefore,
+          newPrice: priceAfter,
+          priceDelta: priceAfter - priceBefore,
+          affectedMarketCellIds: optionalString(view.marketCellId) ? [String(view.marketCellId)] : [],
         },
         {
-          actorIds: [p.rivalBrokerId],
+          actorIds: actorIdsWithSource(record, [rivalBrokerId]),
           causeEventIds: [],
-          sourceRecordId: record.sourceId,
-          sourceReplayKey: record.replayKey,
-          sourceKind: record.sourceKind,
+          ...sourceLinkOpts(record),
         },
       ),
     );
   } else {
     // Map rival_action subtype to RivalBrokerActionKind
-    const actionKind = mapRivalActionSubtype(p.subtype);
+    const actionKind = mapRivalActionSubtype(subtype);
     events.push(
       buildRivalBrokerActionTaken(
         `${baseId}-broker`,
         record.day,
         {
-          brokerId: p.rivalBrokerId,
-          acnId: p.rivalAcnId,
+          brokerId: rivalBrokerId,
+          acnId: rivalAcnId,
           actionKind,
           energyCost: 10,
           actionIntensity: 50,
-          targetListingId: p.listingId,
-          targetMarketCellId: p.marketCellId,
+          targetListingId: safeListingId(record, view.listingId),
+          targetMarketCellId: optionalString(view.marketCellId),
         },
         {
-          actorIds: [p.rivalBrokerId],
+          actorIds: actorIdsWithSource(record, [rivalBrokerId]),
           causeEventIds: [],
-          sourceRecordId: record.sourceId,
-          sourceReplayKey: record.replayKey,
-          sourceKind: record.sourceKind,
+          ...sourceLinkOpts(record),
         },
       ),
     );
@@ -310,10 +426,17 @@ function buildFromCustomerInteraction(
   index: number,
 ): readonly WorldCausalEvent[] {
   const p = record.payload;
+  const view = payloadView(record);
   const baseId = `ingest-ci-${record.day}-${record.sourceId}-${index}`;
   const events: WorldCausalEvent[] = [];
 
-  if (p.subtype === 'preference_shifted' && p.listingId) {
+  const subtype = safeSubtype(record);
+  const customerId = optionalString(view.customerId)
+    ?? firstActorId(record, 'customer')
+    ?? firstEntityId(record, 'customer');
+  const listingId = safeListingId(record, view.listingId);
+
+  if (subtype === 'preference_shifted' && listingId) {
     // Attention shift: customer moved from one listing to another
     events.push(
       buildCustomerAttentionShifted(
@@ -321,58 +444,52 @@ function buildFromCustomerInteraction(
         record.day,
         {
           fromListingIds: [],
-          toListingIds: [p.listingId],
+          toListingIds: [listingId],
           segment: 'ingested',
           causeEventId: record.sourceId,
         },
         {
-          actorIds: p.customerId ? [p.customerId] : [],
-          sourceRecordId: record.sourceId,
-          sourceReplayKey: record.replayKey,
-          sourceKind: record.sourceKind,
+          actorIds: actorIdsWithSource(record, [customerId]),
+          ...sourceLinkOpts(record),
         },
       ),
     );
-  } else if (p.subtype === 'family_decision_involved' && p.listingId) {
+  } else if (subtype === 'family_decision_involved' && listingId) {
     // Family involvement in decision: creates comparison pressure
     events.push(
       buildCustomerComparedListings(
         `${baseId}-family-compare`,
         record.day,
         {
-          customerId: p.customerId,
-          comparedListingIds: [p.listingId],
+          customerId,
+          comparedListingIds: [listingId],
           attentionDelta: 5,
           reasonSignals: ['family_decision_involved'],
         },
         {
-          actorIds: p.customerId ? [p.customerId] : [],
+          actorIds: actorIdsWithSource(record, [customerId]),
           causeEventIds: [],
-          sourceRecordId: record.sourceId,
-          sourceReplayKey: record.replayKey,
-          sourceKind: record.sourceKind,
+          ...sourceLinkOpts(record),
         },
       ),
     );
   } else {
     // Generic comparison
-    const comparedIds = p.listingId ? [p.listingId] : [];
+    const comparedIds = listingId ? [listingId] : [];
     events.push(
       buildCustomerComparedListings(
         `${baseId}-compare`,
         record.day,
         {
-          customerId: p.customerId,
+          customerId,
           comparedListingIds: comparedIds,
           attentionDelta: 0,
-          reasonSignals: [p.subtype],
+          reasonSignals: [subtype],
         },
         {
-          actorIds: p.customerId ? [p.customerId] : [],
+          actorIds: actorIdsWithSource(record, [customerId]),
           causeEventIds: [],
-          sourceRecordId: record.sourceId,
-          sourceReplayKey: record.replayKey,
-          sourceKind: record.sourceKind,
+          ...sourceLinkOpts(record),
         },
       ),
     );
@@ -394,26 +511,36 @@ function buildFromOwnerInterview(
   index: number,
 ): readonly WorldCausalEvent[] {
   const p = record.payload;
+  const view = payloadView(record);
   const baseId = `ingest-oi-${record.day}-${record.sourceId}-${index}`;
   const events: WorldCausalEvent[] = [];
 
-  if (p.subtype === 'trust_expressed' || p.subtype === 'trust_withdrawn') {
-    const trustDelta = p.subtype === 'trust_expressed' ? 5 : -5;
+  const subtype = safeSubtype(record);
+  const caseId = safeCaseId(record, view.caseId);
+  const ownerId = optionalString(view.ownerId)
+    ?? firstActorId(record, 'owner')
+    ?? firstEntityId(record, 'owner');
+  const brokerId = optionalString(view.brokerId)
+    ?? firstActorId(record, 'player_broker')
+    ?? firstActorId(record, 'rival_broker')
+    ?? firstEntityId(record, 'broker');
+  const tone = stringValue(view.tone, 'neutral');
+
+  if (subtype === 'trust_expressed' || subtype === 'trust_withdrawn') {
+    const trustDelta = subtype === 'trust_expressed' ? 5 : -5;
     events.push(
       buildBrokerRecommendationChanged(
         `${baseId}-rec`,
         record.day,
         {
-          caseId: p.caseId,
-          recommendationKind: p.subtype === 'trust_expressed' ? 'push_showing' : 'wait_and_see',
+          caseId,
+          recommendationKind: subtype === 'trust_expressed' ? 'push_showing' : 'wait_and_see',
           causedByEventIds: [record.sourceId],
-          explanationFacts: [`业主${p.subtype === 'trust_expressed' ? '表达信任' : '撤回信任'}，信任变化 ${trustDelta > 0 ? '+' : ''}${trustDelta}`],
+          explanationFacts: [`业主${subtype === 'trust_expressed' ? '表达信任' : '撤回信任'}，信任变化 ${trustDelta > 0 ? '+' : ''}${trustDelta}`],
         },
         {
-          actorIds: [p.brokerId],
-          sourceRecordId: record.sourceId,
-          sourceReplayKey: record.replayKey,
-          sourceKind: record.sourceKind,
+          actorIds: actorIdsWithSource(record, [brokerId, ownerId]),
+          ...sourceLinkOpts(record),
         },
       ),
     );
@@ -424,19 +551,17 @@ function buildFromOwnerInterview(
         `${baseId}-pressure`,
         record.day,
         {
-          ownerId: p.ownerId,
-          caseId: p.caseId,
+          ownerId,
+          caseId,
           perceivedSignalIds: [record.sourceId],
-          pressureDelta: p.tone === 'hostile' ? 20 : p.tone === 'negative' ? 10 : 5,
+          pressureDelta: tone === 'hostile' ? 20 : tone === 'negative' ? 10 : 5,
           delayDays: 0,
           confidence: record.confidence,
         },
         {
-          actorIds: [p.ownerId, p.brokerId],
+          actorIds: actorIdsWithSource(record, [ownerId, brokerId]),
           causeEventIds: [record.sourceId],
-          sourceRecordId: record.sourceId,
-          sourceReplayKey: record.replayKey,
-          sourceKind: record.sourceKind,
+          ...sourceLinkOpts(record),
         },
       ),
     );
@@ -457,12 +582,20 @@ function buildFromManagerMessage(
   index: number,
 ): readonly WorldCausalEvent[] {
   const p = record.payload;
+  const view = payloadView(record);
   const baseId = `ingest-mm-${record.day}-${record.sourceId}-${index}`;
   const events: WorldCausalEvent[] = [];
 
-  const primaryCaseId = p.caseIds[0] ?? 'unknown-case';
+  const subtype = safeSubtype(record);
+  const caseIds = stringArrayValue(view.caseIds);
+  const primaryCaseId = safeCaseId(record, caseIds[0]);
+  const targetBrokerId = optionalString(view.targetBrokerId)
+    ?? firstActorId(record, 'player_broker')
+    ?? firstEntityId(record, 'broker');
+  const priority = numberValue(view.priority, 50);
+  const instruction = stringValue(view.instruction, stringValue(view.summary, subtype));
 
-  if (p.subtype === 'focus_case_selected' || p.subtype === 'escalation_requested') {
+  if (subtype === 'focus_case_selected' || subtype === 'escalation_requested') {
     events.push(
       buildMatterPriorityChanged(
         `${baseId}-matter`,
@@ -470,14 +603,12 @@ function buildFromManagerMessage(
         {
           caseId: primaryCaseId,
           priorityBefore: 50,
-          priorityAfter: p.priority,
+          priorityAfter: priority,
           causedByEventIds: [record.sourceId],
         },
         {
-          actorIds: [p.targetBrokerId],
-          sourceRecordId: record.sourceId,
-          sourceReplayKey: record.replayKey,
-          sourceKind: record.sourceKind,
+          actorIds: actorIdsWithSource(record, [targetBrokerId]),
+          ...sourceLinkOpts(record),
         },
       ),
     );
@@ -490,13 +621,11 @@ function buildFromManagerMessage(
           caseId: primaryCaseId,
           recommendationKind: 'escalate_to_manager',
           causedByEventIds: [record.sourceId],
-          explanationFacts: [`管理层指令: ${p.instruction}`],
+          explanationFacts: [`管理层指令: ${instruction}`],
         },
         {
-          actorIds: [p.targetBrokerId],
-          sourceRecordId: record.sourceId,
-          sourceReplayKey: record.replayKey,
-          sourceKind: record.sourceKind,
+          actorIds: actorIdsWithSource(record, [targetBrokerId]),
+          ...sourceLinkOpts(record),
         },
       ),
     );
@@ -517,25 +646,33 @@ function buildFromPlayerActionReceipt(
   index: number,
 ): readonly WorldCausalEvent[] {
   const p = record.payload;
+  const view = payloadView(record);
   const baseId = `ingest-par-${record.day}-${record.sourceId}-${index}`;
   const events: WorldCausalEvent[] = [];
 
-  if (p.outcome === 'success') {
+  const caseId = safeCaseId(record, view.caseId);
+  const executorId = optionalString(view.executorId)
+    ?? firstActorId(record, 'player_broker')
+    ?? firstActorId(record)
+    ?? firstEntityId(record, 'broker');
+  const actionId = stringValue(view.actionId, safeSubtype(record));
+  const costEnergy = numberValue(view.costEnergy, 0);
+  const outcome = stringValue(view.outcome, 'success');
+
+  if (outcome === 'success') {
     events.push(
       buildBrokerRecommendationChanged(
         `${baseId}-rec`,
         record.day,
         {
-          caseId: p.caseId,
+          caseId,
           recommendationKind: 'push_showing',
           causedByEventIds: [record.sourceId],
-          explanationFacts: [`玩家执行动作 ${p.actionId}，能量消耗 ${p.costEnergy}`],
+          explanationFacts: [`玩家执行动作 ${actionId}，能量消耗 ${costEnergy}`],
         },
         {
-          actorIds: [p.executorId],
-          sourceRecordId: record.sourceId,
-          sourceReplayKey: record.replayKey,
-          sourceKind: record.sourceKind,
+          actorIds: actorIdsWithSource(record, [executorId]),
+          ...sourceLinkOpts(record),
         },
       ),
     );
@@ -545,16 +682,14 @@ function buildFromPlayerActionReceipt(
         `${baseId}-matter`,
         record.day,
         {
-          caseId: p.caseId,
+          caseId,
           priorityBefore: 50,
           priorityAfter: 30,
           causedByEventIds: [record.sourceId],
         },
         {
-          actorIds: [p.executorId],
-          sourceRecordId: record.sourceId,
-          sourceReplayKey: record.replayKey,
-          sourceKind: record.sourceKind,
+          actorIds: actorIdsWithSource(record, [executorId]),
+          ...sourceLinkOpts(record),
         },
       ),
     );
@@ -575,12 +710,18 @@ function buildFromProcessReceipt(
   index: number,
 ): readonly WorldCausalEvent[] {
   const p = record.payload;
+  const view = payloadView(record);
   const baseId = `ingest-pr-${record.day}-${record.sourceId}-${index}`;
   const events: WorldCausalEvent[] = [];
 
-  const primaryCaseId = p.caseIds[0] ?? 'unknown-case';
+  const subtype = safeSubtype(record);
+  const caseIds = stringArrayValue(view.caseIds);
+  const brokerIds = stringArrayValue(view.brokerIds);
+  const primaryCaseId = safeCaseId(record, caseIds[0]);
+  const processType = stringValue(view.processType, 'unknown_process');
+  const outcome = stringValue(view.outcome, stringValue(view.summary, subtype));
 
-  if (p.subtype === 'deal_signed' || p.subtype === 'consensus_reached') {
+  if (subtype === 'deal_signed' || subtype === 'consensus_reached') {
     events.push(
       buildMatterPriorityChanged(
         `${baseId}-matter`,
@@ -592,10 +733,8 @@ function buildFromProcessReceipt(
           causedByEventIds: [record.sourceId],
         },
         {
-          actorIds: p.brokerIds,
-          sourceRecordId: record.sourceId,
-          sourceReplayKey: record.replayKey,
-          sourceKind: record.sourceKind,
+          actorIds: actorIdsWithSource(record, brokerIds),
+          ...sourceLinkOpts(record),
         },
       ),
     );
@@ -608,13 +747,11 @@ function buildFromProcessReceipt(
           caseId: primaryCaseId,
           recommendationKind: 'wait_and_see',
           causedByEventIds: [record.sourceId],
-          explanationFacts: [`流程 ${p.processType} 完成: ${p.outcome}`],
+          explanationFacts: [`流程 ${processType} 完成: ${outcome}`],
         },
         {
-          actorIds: p.brokerIds,
-          sourceRecordId: record.sourceId,
-          sourceReplayKey: record.replayKey,
-          sourceKind: record.sourceKind,
+          actorIds: actorIdsWithSource(record, brokerIds),
+          ...sourceLinkOpts(record),
         },
       ),
     );
@@ -635,52 +772,57 @@ function buildFromComparableTransaction(
   index: number,
 ): readonly WorldCausalEvent[] {
   const p = record.payload;
+  const view = payloadView(record);
   const baseId = `ingest-ct-${record.day}-${record.sourceId}-${index}`;
   const events: WorldCausalEvent[] = [];
 
-  if (p.subtype === 'deal_closed') {
+  const subtype = safeSubtype(record);
+  const listingId = safeListingId(record, view.listingId);
+  const marketCellId = safeMarketCellId(record, view.marketCellId);
+  const askPrice = numberValue(view.askPrice, numberValue(view.price, 50));
+  const price = numberValue(view.price, askPrice);
+  const discountPct = numberValue(view.discountPct, askPrice > 0 ? Math.max(0, ((askPrice - price) / askPrice) * 100) : 0);
+  const dataSource = stringValue(view.dataSource, 'platform公开');
+
+  if (subtype === 'deal_closed') {
     // Comparable transaction affects owner perception through market signal
     events.push(
       buildOwnerMarketPressurePerceived(
         `${baseId}-owner-pressure`,
         record.day,
         {
-          caseId: p.listingId ?? 'unknown-case',
+          caseId: safeCaseId(record, listingId),
           perceivedSignalIds: [record.sourceId],
-          pressureDelta: Math.round(p.discountPct * 2),
-          delayDays: p.dataSource === 'platform公开' ? 1 : 2,
+          pressureDelta: Math.round(discountPct * 2),
+          delayDays: dataSource === 'platform公开' ? 1 : 2,
           confidence: record.confidence,
         },
         {
           actorIds: [],
           causeEventIds: [record.sourceId],
-          sourceRecordId: record.sourceId,
-          sourceReplayKey: record.replayKey,
-          sourceKind: record.sourceKind,
+          ...sourceLinkOpts(record),
         },
       ),
     );
   }
 
-  if (p.subtype === 'price_adjusted' || p.subtype === 'deal_closed') {
+  if (subtype === 'price_adjusted' || subtype === 'deal_closed') {
     events.push(
       buildMarketHeatShifted(
         `${baseId}-heat`,
         record.day,
         {
-          marketCellId: p.marketCellId,
-          before: p.askPrice,
-          after: p.price,
+          marketCellId,
+          before: askPrice,
+          after: price,
           sourceSignalId: record.sourceId,
-          sourceSignalType: `comparable-${p.subtype}`,
+          sourceSignalType: `comparable-${subtype}`,
           confidence: record.confidence,
         },
         {
           actorIds: [],
           causeEventIds: [record.sourceId],
-          sourceRecordId: record.sourceId,
-          sourceReplayKey: record.replayKey,
-          sourceKind: record.sourceKind,
+          ...sourceLinkOpts(record),
         },
       ),
     );
@@ -701,28 +843,30 @@ function buildFromPlatformTraffic(
   index: number,
 ): readonly WorldCausalEvent[] {
   const p = record.payload;
+  const view = payloadView(record);
   const baseId = `ingest-pt-${record.day}-${record.sourceId}-${index}`;
   const events: WorldCausalEvent[] = [];
 
-  if (p.subtype === 'traffic_spike' || p.subtype === 'listing_viewed') {
+  const subtype = safeSubtype(record);
+  const viewCount = numberValue(view.viewCount, 0);
+
+  if (subtype === 'traffic_spike' || subtype === 'listing_viewed') {
     events.push(
       buildMarketHeatShifted(
         `${baseId}-heat`,
         record.day,
         {
-          marketCellId: p.marketCellId,
+          marketCellId: safeMarketCellId(record, view.marketCellId),
           before: 50,
-          after: Math.min(100, 50 + Math.round(p.viewCount / 10)),
+          after: Math.min(100, 50 + Math.round(viewCount / 10)),
           sourceSignalId: record.sourceId,
-          sourceSignalType: `traffic-${p.subtype}`,
+          sourceSignalType: `traffic-${subtype}`,
           confidence: record.confidence,
         },
         {
           actorIds: [],
           causeEventIds: [record.sourceId],
-          sourceRecordId: record.sourceId,
-          sourceReplayKey: record.replayKey,
-          sourceKind: record.sourceKind,
+          ...sourceLinkOpts(record),
         },
       ),
     );
@@ -744,72 +888,78 @@ function buildFromAcnNetworkSignal(
   index: number,
 ): readonly WorldCausalEvent[] {
   const p = record.payload;
+  const view = payloadView(record);
   const baseId = `ingest-an-${record.day}-${record.sourceId}-${index}`;
   const events: WorldCausalEvent[] = [];
 
-  if (p.subtype === 'competition_escalation') {
+  const subtype = safeSubtype(record);
+  const brokerIds = stringArrayValue(view.brokerIds);
+  const primaryBrokerId = brokerIds[0]
+    ?? firstActorId(record, 'rival_broker')
+    ?? firstActorId(record)
+    ?? 'unknown-broker';
+  const sourceAcnId = stringValue(view.sourceAcnId, firstEntityId(record, 'acn') ?? 'unknown-acn');
+  const cooperationScore = numberValue(view.cooperationScore, 0);
+  const listingId = safeListingId(record, view.listingId);
+  const caseId = safeCaseId(record, view.caseId);
+
+  if (subtype === 'competition_escalation') {
     events.push(
       buildRivalBrokerActionTaken(
         `${baseId}-rival`,
         record.day,
         {
-          brokerId: p.brokerIds[0] ?? 'unknown-broker',
-          acnId: p.sourceAcnId,
+          brokerId: primaryBrokerId,
+          acnId: sourceAcnId,
           actionKind: 'follow_customer',
           energyCost: 10,
-          actionIntensity: Math.abs(p.cooperationScore),
-          targetListingId: p.listingId,
+          actionIntensity: Math.abs(cooperationScore),
+          targetListingId: listingId,
         },
         {
-          actorIds: p.brokerIds,
+          actorIds: actorIdsWithSource(record, brokerIds),
           causeEventIds: [],
-          sourceRecordId: record.sourceId,
-          sourceReplayKey: record.replayKey,
-          sourceKind: record.sourceKind,
+          ...sourceLinkOpts(record),
         },
       ),
     );
-  } else if (p.subtype === 'cross_district_competition') {
+  } else if (subtype === 'cross_district_competition') {
     // Cross-district competition: rival broker competing in another district
     events.push(
       buildRivalBrokerActionTaken(
         `${baseId}-cross-rival`,
         record.day,
         {
-          brokerId: p.brokerIds[0] ?? 'unknown-broker',
-          acnId: p.sourceAcnId,
+          brokerId: primaryBrokerId,
+          acnId: sourceAcnId,
           actionKind: 'push_listing',
           energyCost: 15,
-          actionIntensity: Math.abs(p.cooperationScore),
-          targetListingId: p.listingId,
-          targetMarketCellId: p.caseId, // caseId used as marketCellId proxy
+          actionIntensity: Math.abs(cooperationScore),
+          targetListingId: listingId,
+          targetMarketCellId: caseId, // caseId used as marketCellId proxy
         },
         {
-          actorIds: p.brokerIds,
+          actorIds: actorIdsWithSource(record, brokerIds),
           causeEventIds: [],
-          sourceRecordId: record.sourceId,
-          sourceReplayKey: record.replayKey,
-          sourceKind: record.sourceKind,
+          ...sourceLinkOpts(record),
         },
       ),
     );
   } else {
-    const primaryCaseId = p.caseId ?? 'unknown-case';
+    const primaryCaseId = caseId;
     events.push(
       buildBrokerRecommendationChanged(
         `${baseId}-rec`,
         record.day,
         {
           caseId: primaryCaseId,
-          recommendationKind: p.subtype === 'cooperation_opportunity' ? 'push_showing' : 'wait_and_see',
+          recommendationKind: subtype === 'cooperation_opportunity' ? 'push_showing' : 'wait_and_see',
           causedByEventIds: [record.sourceId],
-          explanationFacts: [`ACN网络信号: ${p.subtype}`],
+          explanationFacts: [`ACN网络信号: ${subtype}`],
         },
         {
-          actorIds: p.brokerIds,
-          sourceRecordId: record.sourceId,
-          sourceReplayKey: record.replayKey,
-          sourceKind: record.sourceKind,
+          actorIds: actorIdsWithSource(record, brokerIds),
+          ...sourceLinkOpts(record),
         },
       ),
     );
@@ -832,45 +982,51 @@ function buildFromSupportingFacilitySignal(
   index: number,
 ): readonly WorldCausalEvent[] {
   const p = record.payload;
+  const view = payloadView(record);
   const baseId = `ingest-sf-${record.day}-${record.sourceId}-${index}`;
   const events: WorldCausalEvent[] = [];
 
+  const subtype = safeSubtype(record);
+  const before = numberValue(view.before, 50);
+  const after = numberValue(view.after, before);
+  const marketCellId = safeMarketCellId(record, view.marketCellId);
+  const caseId = optionalString(view.caseId) ?? firstEntityId(record, 'case') ?? firstEntityId(record, 'listing');
+  const facilityType = stringValue(view.facilityType, '');
+
   // Facility changes affect market heat
-  const heatDelta = Math.round((p.after - p.before) * 0.3);
+  const heatDelta = Math.round((after - before) * 0.3);
   if (heatDelta !== 0) {
     events.push(
       buildMarketHeatShifted(
         `${baseId}-heat`,
         record.day,
         {
-          marketCellId: p.marketCellId,
-          before: p.before,
-          after: p.after,
+          marketCellId,
+          before,
+          after,
           sourceSignalId: record.sourceId,
-          sourceSignalType: `facility-${p.subtype}`,
+          sourceSignalType: `facility-${subtype}`,
           confidence: record.confidence,
         },
         {
           actorIds: [],
           causeEventIds: [],
-          sourceRecordId: record.sourceId,
-          sourceReplayKey: record.replayKey,
-          sourceKind: record.sourceKind,
+          ...sourceLinkOpts(record),
         },
       ),
     );
   }
 
   // Facility changes affect owner perception
-  if (p.caseId) {
+  if (caseId) {
     // Property and community management subtypes create owner pressure through
     // a different causal path: they affect the owner's perception of their own listing
     // rather than the market as a whole.
-    const isPropertyOrCommunityMgmt = p.subtype === 'property_feature_update'
-      || p.subtype === 'community_info_changed'
-      || p.subtype === 'community_management_changed';
+    const isPropertyOrCommunityMgmt = subtype === 'property_feature_update'
+      || subtype === 'community_info_changed'
+      || subtype === 'community_management_changed';
     const pressureDelta = isPropertyOrCommunityMgmt
-      ? Math.round((p.after - p.before) * 0.15)
+      ? Math.round((after - before) * 0.15)
       : heatDelta > 0 ? -5 : heatDelta < 0 ? 10 : 0;
     if (pressureDelta !== 0) {
       events.push(
@@ -878,18 +1034,16 @@ function buildFromSupportingFacilitySignal(
           `${baseId}-owner-pressure`,
           record.day,
           {
-            caseId: p.caseId,
+            caseId,
             perceivedSignalIds: [record.sourceId],
             pressureDelta,
-            delayDays: p.facilityType === 'policy' ? 0 : 2,
+            delayDays: facilityType === 'policy' ? 0 : 2,
             confidence: record.confidence,
           },
           {
             actorIds: [],
             causeEventIds: [record.sourceId],
-            sourceRecordId: record.sourceId,
-            sourceReplayKey: record.replayKey,
-            sourceKind: record.sourceKind,
+            ...sourceLinkOpts(record),
           },
         ),
       );
@@ -912,12 +1066,22 @@ function buildFromBrokerCapacitySignal(
   index: number,
 ): readonly WorldCausalEvent[] {
   const p = record.payload;
+  const view = payloadView(record);
   const baseId = `ingest-bc-${record.day}-${record.sourceId}-${index}`;
   const events: WorldCausalEvent[] = [];
 
-  const primaryCaseId = p.affectedCaseIds[0] ?? 'unknown-case';
+  const subtype = safeSubtype(record);
+  const affectedCaseIds = stringArrayValue(view.affectedCaseIds);
+  const primaryCaseId = safeCaseId(record, affectedCaseIds[0]);
+  const brokerId = optionalString(view.brokerId)
+    ?? firstActorId(record, 'player_broker')
+    ?? firstActorId(record, 'rival_broker')
+    ?? firstActorId(record)
+    ?? firstEntityId(record, 'broker');
+  const energyLevel = numberValue(view.energyLevel, 0);
+  const scheduleUtilization = numberValue(view.scheduleUtilization, 0);
 
-  if (p.subtype === 'collaboration_requested' || p.subtype === 'skill_gap_detected') {
+  if (subtype === 'collaboration_requested' || subtype === 'skill_gap_detected') {
     events.push(
       buildMatterPriorityChanged(
         `${baseId}-matter`,
@@ -925,18 +1089,16 @@ function buildFromBrokerCapacitySignal(
         {
           caseId: primaryCaseId,
           priorityBefore: 50,
-          priorityAfter: p.subtype === 'collaboration_requested' ? 60 : 40,
+          priorityAfter: subtype === 'collaboration_requested' ? 60 : 40,
           causedByEventIds: [record.sourceId],
         },
         {
-          actorIds: [p.brokerId],
-          sourceRecordId: record.sourceId,
-          sourceReplayKey: record.replayKey,
-          sourceKind: record.sourceKind,
+          actorIds: actorIdsWithSource(record, [brokerId]),
+          ...sourceLinkOpts(record),
         },
       ),
     );
-  } else if (p.subtype === 'local_expertise_detected') {
+  } else if (subtype === 'local_expertise_detected') {
     // Local expertise detected: broker knows the neighborhood well
     events.push(
       buildBrokerRecommendationChanged(
@@ -946,17 +1108,15 @@ function buildFromBrokerCapacitySignal(
           caseId: primaryCaseId,
           recommendationKind: 'push_showing',
           causedByEventIds: [record.sourceId],
-          explanationFacts: [`经纪人本地经验: 商圈熟悉度高，精力${p.energyLevel}%`],
+          explanationFacts: [`经纪人本地经验: 商圈熟悉度高，精力${energyLevel}%`],
         },
         {
-          actorIds: [p.brokerId],
-          sourceRecordId: record.sourceId,
-          sourceReplayKey: record.replayKey,
-          sourceKind: record.sourceKind,
+          actorIds: actorIdsWithSource(record, [brokerId]),
+          ...sourceLinkOpts(record),
         },
       ),
     );
-  } else if (p.subtype === 'acn_collaboration_strength') {
+  } else if (subtype === 'acn_collaboration_strength') {
     // ACN collaboration strength: affects service path viability
     events.push(
       buildMatterPriorityChanged(
@@ -969,15 +1129,13 @@ function buildFromBrokerCapacitySignal(
           causedByEventIds: [record.sourceId],
         },
         {
-          actorIds: [p.brokerId],
-          sourceRecordId: record.sourceId,
-          sourceReplayKey: record.replayKey,
-          sourceKind: record.sourceKind,
+          actorIds: actorIdsWithSource(record, [brokerId]),
+          ...sourceLinkOpts(record),
         },
       ),
     );
   } else {
-    const recKind = p.subtype === 'workload_balanced' ? 'push_showing' : 'escalate_to_manager';
+    const recKind = subtype === 'workload_balanced' ? 'push_showing' : 'escalate_to_manager';
     events.push(
       buildBrokerRecommendationChanged(
         `${baseId}-rec`,
@@ -986,13 +1144,11 @@ function buildFromBrokerCapacitySignal(
           caseId: primaryCaseId,
           recommendationKind: recKind,
           causedByEventIds: [record.sourceId],
-          explanationFacts: [`经纪人能力信号: ${p.subtype}, 精力${p.energyLevel}%, 排期${p.scheduleUtilization}%`],
+          explanationFacts: [`经纪人能力信号: ${subtype}, 精力${energyLevel}%, 排期${scheduleUtilization}%`],
         },
         {
-          actorIds: [p.brokerId],
-          sourceRecordId: record.sourceId,
-          sourceReplayKey: record.replayKey,
-          sourceKind: record.sourceKind,
+          actorIds: actorIdsWithSource(record, [brokerId]),
+          ...sourceLinkOpts(record),
         },
       ),
     );
@@ -1015,8 +1171,19 @@ function buildFromOwnerLifeEventSignal(
   index: number,
 ): readonly WorldCausalEvent[] {
   const p = record.payload;
+  const view = payloadView(record);
   const baseId = `ingest-ole-${record.day}-${record.sourceId}-${index}`;
   const events: WorldCausalEvent[] = [];
+
+  const subtype = safeSubtype(record);
+  const ownerId = optionalString(view.ownerId)
+    ?? firstActorId(record, 'owner')
+    ?? firstEntityId(record, 'owner');
+  const caseId = safeCaseId(record, view.caseId);
+  const urgencyImpact = numberValue(view.urgencyImpact, 0);
+  const timelineDays = numberValue(view.timelineDays, 0);
+  const eventConfidence = numberValue(view.eventConfidence, 1);
+  const trustImpact = numberValue(view.trustImpact, 0);
 
   // Owner life events create market pressure perception
   events.push(
@@ -1024,41 +1191,37 @@ function buildFromOwnerLifeEventSignal(
       `${baseId}-pressure`,
       record.day,
       {
-        ownerId: p.ownerId,
-        caseId: p.caseId,
+        ownerId,
+        caseId,
         perceivedSignalIds: [record.sourceId],
-        pressureDelta: p.urgencyImpact,
-        delayDays: p.timelineDays,
-        confidence: record.confidence * p.eventConfidence,
+        pressureDelta: urgencyImpact,
+        delayDays: timelineDays,
+        confidence: record.confidence * eventConfidence,
       },
       {
-        actorIds: [p.ownerId],
+        actorIds: actorIdsWithSource(record, [ownerId]),
         causeEventIds: [record.sourceId],
-        sourceRecordId: record.sourceId,
-        sourceReplayKey: record.replayKey,
-        sourceKind: record.sourceKind,
+        ...sourceLinkOpts(record),
       },
     ),
   );
 
   // Significant trust changes trigger recommendation
-  if (Math.abs(p.trustImpact) >= 10) {
-    const recKind = p.trustImpact > 0 ? 'push_showing' : 'wait_and_see';
+  if (Math.abs(trustImpact) >= 10) {
+    const recKind = trustImpact > 0 ? 'push_showing' : 'wait_and_see';
     events.push(
       buildBrokerRecommendationChanged(
         `${baseId}-rec`,
         record.day,
         {
-          caseId: p.caseId,
+          caseId,
           recommendationKind: recKind,
           causedByEventIds: [record.sourceId],
-          explanationFacts: [`业主生活事件: ${p.subtype}, 信任影响${p.trustImpact > 0 ? '+' : ''}${p.trustImpact}`],
+          explanationFacts: [`业主生活事件: ${subtype}, 信任影响${trustImpact > 0 ? '+' : ''}${trustImpact}`],
         },
         {
-          actorIds: [p.ownerId],
-          sourceRecordId: record.sourceId,
-          sourceReplayKey: record.replayKey,
-          sourceKind: record.sourceKind,
+          actorIds: actorIdsWithSource(record, [ownerId]),
+          ...sourceLinkOpts(record),
         },
       ),
     );
@@ -1080,12 +1243,17 @@ function buildFromBuyerFinancingSignal(
   index: number,
 ): readonly WorldCausalEvent[] {
   const p = record.payload;
+  const view = payloadView(record);
   const baseId = `ingest-bf-${record.day}-${record.sourceId}-${index}`;
   const events: WorldCausalEvent[] = [];
 
-  const primaryCaseId = p.caseId ?? 'unknown-case';
+  const subtype = safeSubtype(record);
+  const primaryCaseId = safeCaseId(record, view.caseId);
+  const customerId = optionalString(view.customerId)
+    ?? firstActorId(record, 'customer')
+    ?? firstEntityId(record, 'customer');
 
-  if (p.subtype === 'co_buyer_added') {
+  if (subtype === 'co_buyer_added') {
     events.push(
       buildMatterPriorityChanged(
         `${baseId}-matter`,
@@ -1097,17 +1265,16 @@ function buildFromBuyerFinancingSignal(
           causedByEventIds: [record.sourceId],
         },
         {
-          actorIds: [p.customerId],
-          sourceRecordId: record.sourceId,
-          sourceReplayKey: record.replayKey,
-          sourceKind: record.sourceKind,
+          actorIds: actorIdsWithSource(record, [customerId]),
+          ...sourceLinkOpts(record),
         },
       ),
     );
   } else {
-    const isPositive = p.subtype === 'loan_pre_approved' || p.subtype === 'down_payment_ready';
+    const isPositive = subtype === 'loan_pre_approved' || subtype === 'down_payment_ready';
     const recKind = isPositive ? 'push_showing' : 'wait_and_see';
-    const budgetInfo = p.budgetAfter !== undefined ? `预算调整为${p.budgetAfter}万` : '';
+    const budgetAfter = typeof view.budgetAfter === 'number' && Number.isFinite(view.budgetAfter) ? view.budgetAfter : undefined;
+    const budgetInfo = budgetAfter !== undefined ? `预算调整为${budgetAfter}万` : '';
     events.push(
       buildBrokerRecommendationChanged(
         `${baseId}-rec`,
@@ -1116,13 +1283,11 @@ function buildFromBuyerFinancingSignal(
           caseId: primaryCaseId,
           recommendationKind: recKind,
           causedByEventIds: [record.sourceId],
-          explanationFacts: [`客户融资信号: ${p.subtype}${budgetInfo ? `, ${budgetInfo}` : ''}`],
+          explanationFacts: [`客户融资信号: ${subtype}${budgetInfo ? `, ${budgetInfo}` : ''}`],
         },
         {
-          actorIds: [p.customerId],
-          sourceRecordId: record.sourceId,
-          sourceReplayKey: record.replayKey,
-          sourceKind: record.sourceKind,
+          actorIds: actorIdsWithSource(record, [customerId]),
+          ...sourceLinkOpts(record),
         },
       ),
     );
@@ -1145,37 +1310,41 @@ function buildFromMicroMarketSignal(
   index: number,
 ): readonly WorldCausalEvent[] {
   const p = record.payload;
+  const view = payloadView(record);
   const baseId = `ingest-mm-${record.day}-${record.sourceId}-${index}`;
   const events: WorldCausalEvent[] = [];
 
+  const subtype = safeSubtype(record);
+  const supplyDelta = numberValue(view.supplyDelta, 0);
+  const demandDelta = numberValue(view.demandDelta, 0);
+  const priceBand = stringValue(view.priceBand, 'unknown-price-band');
+
   // Micro-market supply/demand changes affect market heat
-  const heatDelta = Math.round((p.demandDelta - p.supplyDelta) * 0.5);
+  const heatDelta = Math.round((demandDelta - supplyDelta) * 0.5);
   if (heatDelta !== 0) {
     events.push(
       buildMarketHeatShifted(
         `${baseId}-heat`,
         record.day,
         {
-          marketCellId: p.marketCellId,
+          marketCellId: safeMarketCellId(record, view.marketCellId),
           before: 50,
           after: Math.max(0, Math.min(100, 50 + heatDelta)),
           sourceSignalId: record.sourceId,
-          sourceSignalType: `micro-${p.subtype}`,
+          sourceSignalType: `micro-${subtype}`,
           confidence: record.confidence,
         },
         {
           actorIds: [],
           causeEventIds: [],
-          sourceRecordId: record.sourceId,
-          sourceReplayKey: record.replayKey,
-          sourceKind: record.sourceKind,
+          ...sourceLinkOpts(record),
         },
       ),
     );
   }
 
   // Micro-market demand shifts affect customer attention
-  if (p.subtype === 'demand_shift' || p.subtype === 'price_band_squeeze') {
+  if (subtype === 'demand_shift' || subtype === 'price_band_squeeze') {
     events.push(
       buildCustomerAttentionShifted(
         `${baseId}-shift`,
@@ -1183,14 +1352,12 @@ function buildFromMicroMarketSignal(
         {
           fromListingIds: [],
           toListingIds: [],
-          segment: p.priceBand,
+          segment: priceBand,
           causeEventId: record.sourceId,
         },
         {
           actorIds: [],
-          sourceRecordId: record.sourceId,
-          sourceReplayKey: record.replayKey,
-          sourceKind: record.sourceKind,
+          ...sourceLinkOpts(record),
         },
       ),
     );
@@ -1348,39 +1515,60 @@ function buildCausalEventsFromSource(
   record: InformationSourceRecord,
   index: number,
 ): readonly WorldCausalEvent[] {
-  switch (record.sourceKind) {
-    case 'market_signal':
-      return buildFromMarketSignal(record as InformationSourceRecord<'market_signal'>, index);
-    case 'rival_action':
-      return buildFromRivalAction(record as InformationSourceRecord<'rival_action'>, index);
-    case 'customer_interaction':
-      return buildFromCustomerInteraction(record as InformationSourceRecord<'customer_interaction'>, index);
-    case 'owner_interview':
-      return buildFromOwnerInterview(record as InformationSourceRecord<'owner_interview'>, index);
-    case 'manager_message':
-      return buildFromManagerMessage(record as InformationSourceRecord<'manager_message'>, index);
-    case 'player_action_receipt':
-      return buildFromPlayerActionReceipt(record as InformationSourceRecord<'player_action_receipt'>, index);
-    case 'process_receipt':
-      return buildFromProcessReceipt(record as InformationSourceRecord<'process_receipt'>, index);
-    case 'comparable_transaction':
-      return buildFromComparableTransaction(record as InformationSourceRecord<'comparable_transaction'>, index);
-    case 'platform_traffic':
-      return buildFromPlatformTraffic(record as InformationSourceRecord<'platform_traffic'>, index);
-    case 'acn_network_signal':
-      return buildFromAcnNetworkSignal(record as InformationSourceRecord<'acn_network_signal'>, index);
-    case 'supporting_facility_signal':
-      return buildFromSupportingFacilitySignal(record as InformationSourceRecord<'supporting_facility_signal'>, index);
-    case 'broker_capacity_signal':
-      return buildFromBrokerCapacitySignal(record as InformationSourceRecord<'broker_capacity_signal'>, index);
-    case 'owner_life_event_signal':
-      return buildFromOwnerLifeEventSignal(record as InformationSourceRecord<'owner_life_event_signal'>, index);
-    case 'buyer_financing_signal':
-      return buildFromBuyerFinancingSignal(record as InformationSourceRecord<'buyer_financing_signal'>, index);
-    case 'micro_market_signal':
-      return buildFromMicroMarketSignal(record as InformationSourceRecord<'micro_market_signal'>, index);
-    default:
-      return [];
+  try {
+    let events: readonly WorldCausalEvent[];
+    switch (record.sourceKind) {
+      case 'market_signal':
+        events = buildFromMarketSignal(record as InformationSourceRecord<'market_signal'>, index);
+        break;
+      case 'rival_action':
+        events = buildFromRivalAction(record as InformationSourceRecord<'rival_action'>, index);
+        break;
+      case 'customer_interaction':
+        events = buildFromCustomerInteraction(record as InformationSourceRecord<'customer_interaction'>, index);
+        break;
+      case 'owner_interview':
+        events = buildFromOwnerInterview(record as InformationSourceRecord<'owner_interview'>, index);
+        break;
+      case 'manager_message':
+        events = buildFromManagerMessage(record as InformationSourceRecord<'manager_message'>, index);
+        break;
+      case 'player_action_receipt':
+        events = buildFromPlayerActionReceipt(record as InformationSourceRecord<'player_action_receipt'>, index);
+        break;
+      case 'process_receipt':
+        events = buildFromProcessReceipt(record as InformationSourceRecord<'process_receipt'>, index);
+        break;
+      case 'comparable_transaction':
+        events = buildFromComparableTransaction(record as InformationSourceRecord<'comparable_transaction'>, index);
+        break;
+      case 'platform_traffic':
+        events = buildFromPlatformTraffic(record as InformationSourceRecord<'platform_traffic'>, index);
+        break;
+      case 'acn_network_signal':
+        events = buildFromAcnNetworkSignal(record as InformationSourceRecord<'acn_network_signal'>, index);
+        break;
+      case 'supporting_facility_signal':
+        events = buildFromSupportingFacilitySignal(record as InformationSourceRecord<'supporting_facility_signal'>, index);
+        break;
+      case 'broker_capacity_signal':
+        events = buildFromBrokerCapacitySignal(record as InformationSourceRecord<'broker_capacity_signal'>, index);
+        break;
+      case 'owner_life_event_signal':
+        events = buildFromOwnerLifeEventSignal(record as InformationSourceRecord<'owner_life_event_signal'>, index);
+        break;
+      case 'buyer_financing_signal':
+        events = buildFromBuyerFinancingSignal(record as InformationSourceRecord<'buyer_financing_signal'>, index);
+        break;
+      case 'micro_market_signal':
+        events = buildFromMicroMarketSignal(record as InformationSourceRecord<'micro_market_signal'>, index);
+        break;
+      default:
+        events = [];
+    }
+    return events.length > 0 ? events : buildFallbackSourceEvent(record, index, 'empty_builder');
+  } catch {
+    return buildFallbackSourceEvent(record, index, 'builder_exception');
   }
 }
 

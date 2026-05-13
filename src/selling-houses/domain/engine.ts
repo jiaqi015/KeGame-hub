@@ -303,7 +303,7 @@ function tickBigWorldRuntime(state: GameState): void {
   if (!state.bigWorldRuntime) {
     state.bigWorldRuntime = createDefaultRuntimeState(DEFAULT_COMPACTION_POLICY);
   }
-  applyTickReceiptToRuntime(state.bigWorldRuntime, receipt);
+  state.bigWorldRuntime = applyTickReceiptToRuntime(state.bigWorldRuntime, receipt);
 
   // Append causal events to the world causal ledger
   if (receipt.causalEventsToAppend.length > 0) {

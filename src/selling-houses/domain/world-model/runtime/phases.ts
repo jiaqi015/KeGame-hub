@@ -158,7 +158,6 @@ function runEnvironmentPhase(ctx: PhaseInput): BigWorldTickPhaseResult {
           sourceSignalType: 'environment-phase',
           confidence: 0.8,
         },
-        { sourceRecordId: '' }, // environment-phase events have no source record
       );
       causalEvents.push(heatEvent);
 
@@ -245,10 +244,6 @@ function runRivalBrokerPhase(ctx: PhaseInput): BigWorldTickPhaseResult {
   const acnProfiles = input.acnProfiles ?? [];
   for (const acn of acnProfiles) {
     const salt = `acn-broker-${day}-${acn.id}`;
-
-    // ACN activity probability based on behavioral profile
-    const activityChance = 0.2 + (acn.behavior.directAggression / 100) * 0.3;
-    if (!seededChance(salt, activityChance)) continue;
 
     // Determine which market cell this ACN targets
     const targetCellIdx = seededInt(`${salt}-cell`, 0, input.marketCells.length - 1);
@@ -434,9 +429,7 @@ function runCustomerDemandPhase(ctx: PhaseInput): BigWorldTickPhaseResult {
       // Reference upstream rival events as causes for the shift
       const validShiftCauseIds = upstreamRivalCauseIds.filter((id) => id.startsWith('bwe-'));
       const shiftEventId = `bwe-shift-${day}-${customer.customerId}`;
-      const shiftCauseId = validShiftCauseIds.length > 0
-        ? validShiftCauseIds[0]
-        : shiftEventId; // self-reference if no upstream
+      const shiftCauseId = validShiftCauseIds[0] ?? '';
 
       const shiftEvent = buildCustomerAttentionShifted(
         shiftEventId,
@@ -513,9 +506,7 @@ function runOwnerPerceptionPhase(ctx: PhaseInput): BigWorldTickPhaseResult {
 
     // Reference upstream customer events as causes for owner perception
     const relevantCustomerCauses = upstreamCustomerCauseIds.slice(0, 2);
-    const signalIds = relevantCustomerCauses.length > 0
-      ? relevantCustomerCauses
-      : [`market-signal-${caseItem.marketCellId}`];
+    const signalIds = relevantCustomerCauses;
 
     const perceptionEvent = buildOwnerMarketPressurePerceived(
       `bwe-owner-perceive-${day}-${caseItem.id}`,
@@ -568,11 +559,9 @@ function runOwnerPerceptionPhase(ctx: PhaseInput): BigWorldTickPhaseResult {
     const confidence = Math.max(0.2, Math.min(0.8, 0.6 - (shadowCase.trust - 40) * 0.003));
 
     const relevantCustomerCauses = upstreamCustomerCauseIds.slice(0, 2);
-    const signalIds = relevantCustomerCauses.length > 0
-      ? relevantCustomerCauses
-      : [`market-signal-${shadowCase.marketCellId}`];
+    const signalIds = relevantCustomerCauses;
 
-    const perceptionEvent = buildOwnerMarketPressurePerceived(
+    const rawPerceptionEvent = buildOwnerMarketPressurePerceived(
       `bwe-shadow-owner-${day}-${shadowCase.id}`,
       day,
       {
@@ -582,8 +571,18 @@ function runOwnerPerceptionPhase(ctx: PhaseInput): BigWorldTickPhaseResult {
         delayDays: lagDays,
         confidence,
       },
-      { causeEventIds: relevantCustomerCauses },
+      {
+        actorIds: [shadowCase.ownerName],
+        causeEventIds: relevantCustomerCauses,
+      },
     );
+    const perceptionEvent = Object.freeze({
+      ...rawPerceptionEvent,
+      payload: Object.freeze({
+        ...rawPerceptionEvent.payload,
+        isShadow: true,
+      }),
+    });
     causalEvents.push(perceptionEvent);
 
     const dailyEvent = makeDailyEvent(
@@ -763,7 +762,7 @@ function runRecommendationPressurePhase(ctx: PhaseInput): BigWorldTickPhaseResul
         recommendationKind: recKind,
         causedByEventIds: allUpstreamCauses.length > 0
           ? allUpstreamCauses
-          : [`market-signal-${shadowCase.marketCellId}`],
+          : [],
         explanationFacts: [
           heatPressure ? `热度 ${shadowCase.heat} 偏低` : '',
           trustPressure ? `信任 ${shadowCase.trust} 偏低` : '',

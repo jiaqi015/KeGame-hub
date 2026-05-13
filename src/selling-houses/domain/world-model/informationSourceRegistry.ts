@@ -12,7 +12,7 @@
 //   - Duplicate replayKey rejected (returns { ok: false })
 //   - no_one scope invisible to actor queries; only accessible via queryHiddenSourceRecords
 //   - No Case / Opportunity mutation methods
-//   - No Date.now / Math.random / fetch
+//   - No wall-clock reads, non-seeded RNG, or network calls
 //   - Not a mutable global singleton
 // ---------------------------------------------------------------------------
 

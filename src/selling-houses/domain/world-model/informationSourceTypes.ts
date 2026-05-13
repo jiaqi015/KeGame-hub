@@ -12,7 +12,7 @@
 //   - SourceRecord does NOT directly modify Case / Opportunity
 //   - Hidden truth and ActorPOV are structurally separated
 //   - Types are shared by runtime and projection
-//   - No fetch / LLM provider / Date.now / Math.random
+//   - No network calls, wall-clock reads, non-seeded RNG, or LLM provider calls
 //   - Append-only: records are never mutated after creation
 //   - Same seed + same events → identical records
 //

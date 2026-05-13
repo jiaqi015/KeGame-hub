@@ -1,7 +1,7 @@
 {
   "name": "sabrina-workspace",
   "private": true,
-  "version": "0.0.15",
+  "version": "0.1.5",
   "versionType": "square",
   "lineCount": 202322,
   "type": "module",

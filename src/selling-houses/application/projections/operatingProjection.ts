@@ -449,12 +449,15 @@ export interface OperatingProjection {
   productOpportunities: ProductOpportunityProjection[];
 }
 
-export function buildOperatingProjection(state: GameState): OperatingProjection {
+export function buildOperatingProjection(
+  state: GameState,
+  actorKnowledgeMap?: Map<string, ActorKnowledgeSnapshot>,
+): OperatingProjection {
   const caseDetails = state.cases.map((caseItem) => buildCaseDetailProjection(state, caseItem));
   const productOpportunities = buildProductOpportunityProjection(state, caseDetails);
 
   return {
-    dashboard: buildDashboardProjection(state, caseDetails, productOpportunities),
+    dashboard: buildDashboardProjection(state, caseDetails, productOpportunities, actorKnowledgeMap),
     cases: caseDetails,
     opportunities: buildOpportunityListProjection(state),
     market: buildMarketProjection(state),
@@ -466,6 +469,7 @@ export function buildDashboardProjection(
   state: GameState,
   caseDetails: CaseDetailProjection[] = state.cases.map((caseItem) => buildCaseDetailProjection(state, caseItem)),
   productOpportunities: ProductOpportunityProjection[] = buildProductOpportunityProjection(state, caseDetails),
+  actorKnowledgeMap?: Map<string, ActorKnowledgeSnapshot>,
 ): DashboardProjection {
   const activeCaseCount = state.cases.filter((caseItem) => caseItem.status === 'active').length;
   const priorityProjection = buildFollowUpPriorityProjection(state);
@@ -524,7 +528,7 @@ export function buildDashboardProjection(
     })),
     marketBrief,
     triageCards: buildDashboardTriageCards(state, todayPriority, marketBrief, priorityProjection),
-    arrangement: buildArrangementProjection(state, caseDetails, todayPriority),
+    arrangement: buildArrangementProjection(state, caseDetails, todayPriority, actorKnowledgeMap),
     productOpportunities,
   };
 }
@@ -644,6 +648,7 @@ function buildArrangementProjection(
   state: GameState,
   caseDetails: CaseDetailProjection[],
   todayPriority: ProjectionBrief[],
+  actorKnowledgeMap?: Map<string, ActorKnowledgeSnapshot>,
 ): ArrangementProjection {
   const fixedItems = buildFixedArrangementItems(state);
   const todayPlan = state.todayPlan?.day === state.day
@@ -654,7 +659,7 @@ function buildArrangementProjection(
   const plannedEnergy = getTodayPlanCommittedEnergy(state, 'planned');
   const fixedEnergyReserve = estimateFixedTodayPlanEnergyReserve(state);
   const remainingEnergy = getTodayPlanRemainingEnergy(state);
-  const candidateItems = buildCandidateArrangementItems(state, caseDetails, todayPriority, todayPlan.playerItems);
+  const candidateItems = buildCandidateArrangementItems(state, caseDetails, todayPriority, todayPlan.playerItems, actorKnowledgeMap);
   const weekFocus = buildWeekCalendar(state)
     .slice(0, 7)
     .sort((left, right) => right.energy - left.energy)[0];
@@ -842,6 +847,7 @@ function buildCandidateArrangementItems(
   caseDetails: CaseDetailProjection[],
   todayPriority: ProjectionBrief[],
   playerItems: GameState['todayPlan']['playerItems'],
+  actorKnowledgeMap?: Map<string, ActorKnowledgeSnapshot>,
 ): ArrangementItemProjection[] {
   const seenCaseIds = new Set<string>();
   const reservedKeys = new Set(
@@ -852,6 +858,9 @@ function buildCandidateArrangementItems(
   const candidates: ArrangementItemProjection[] = [];
   const remainingEnergy = getTodayPlanRemainingEnergy(state);
   let rank = 0;
+
+  // When knowledge is available, use decision pipeline for recommendations
+  const useDecisionPipeline = actorKnowledgeMap && actorKnowledgeMap.size > 0;
 
   for (const recommendation of deriveCaseRecommendations(state)) {
     if (seenCaseIds.has(recommendation.caseId)) {
@@ -864,7 +873,23 @@ function buildCandidateArrangementItems(
       continue;
     }
 
-    const actionId = recommendation.primaryAction.actionId;
+    // When knowledge is available, build evidence-backed detail from decision pipeline
+    let evidenceBackedDetail: string | undefined;
+    let evidenceBackedLabel: string | undefined;
+    if (useDecisionPipeline) {
+      const knowledge = actorKnowledgeMap.get(caseItem.id);
+      if (knowledge) {
+        const envelope = buildDecisionEvidenceEnvelope(knowledge);
+        if (envelope.recommendedCommand) {
+          evidenceBackedDetail = envelope.explanation.summary;
+          evidenceBackedLabel = envelope.recommendedCommand.command.name;
+        }
+      }
+    }
+
+    const actionId = evidenceBackedLabel
+      ? ACTIONS.find((a) => a.name === evidenceBackedLabel)?.id ?? recommendation.primaryAction.actionId
+      : recommendation.primaryAction.actionId;
     const action = actionId ? ACTIONS.find((entry) => entry.id === actionId) || null : null;
     const linkedMatter = resolveRecommendationLinkedMatter(state, recommendation, action?.id);
     const candidateKey = buildTodayPlanKey(action?.id, recommendation.caseId);
@@ -903,7 +928,7 @@ function buildCandidateArrangementItems(
       rank,
       label: '待选',
       title: action ? `${caseItem.title} · ${action.name}` : `${caseItem.title} · 今日动作`,
-      detail: buildCandidateArrangementDetail(caseItem, action?.name || '今日动作'),
+      detail: evidenceBackedDetail || buildCandidateArrangementDetail(caseItem, action?.name || '今日动作'),
       tone: recommendationTierTone(recommendation.tier),
       caseId: recommendation.caseId,
       matterId: linkedMatter?.id,

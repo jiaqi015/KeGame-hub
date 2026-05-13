@@ -1,6 +1,6 @@
 import React, { lazy } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { HouseHeart, MapPinHouse, Settings, Sparkles, Store, UserRound } from 'lucide-react';
+import { HouseHeart, MapPinHouse, Settings, Store, Swords, UserRound } from 'lucide-react';
 import type { ActivationWorkspaceId } from '../types';
 import type { SellingHousesStorageProfile } from '../selling-houses/application/storageProfile';
 import { getWorkspaceLabel, getWorkspaceSlug, resolveWorkspaceBySlug } from '../../lib/workspaces.js';
@@ -239,7 +239,7 @@ export const WORKSPACE_REGISTRY: WorkspaceRegistryItem[] = [
     shortLabel: getWorkspaceLabel('sabrina'),
     status: 'available',
     accentClassName: 'text-blue-700 hover:text-blue-800',
-    icon: Sparkles,
+    icon: Swords,
     iconContainerClassName: 'bg-[#111111] text-white shadow-[0_18px_40px_rgba(17,17,17,0.18)]',
     pillClassName: 'bg-blue-50 text-blue-700',
     cardDescription: '把同一个问题交给多个模型，同时查看回答和差异总结，少靠感觉猜选型。',

@@ -40,6 +40,10 @@ import type {
   InformationSourceRegistry,
 } from '../../domain/world-model/informationSourceRegistry.js';
 
+import type {
+  WorldCausalEvent,
+} from '../../domain/world-model/causalEvents.js';
+
 import {
   buildSharedCausalRefs,
   type SharedCausalRefs,
@@ -78,6 +82,106 @@ export interface LiveCausalContext {
   readonly recommendationRefs: readonly POVCausalRef[];
   /** All deduplicated refs for cross-domain injection. */
   readonly allRefs: readonly POVCausalRef[];
+}
+
+function uniquePOVRefs(refs: readonly POVCausalRef[]): POVCausalRef[] {
+  const seen = new Set<string>();
+  const result: POVCausalRef[] = [];
+  for (const ref of refs) {
+    if (seen.has(ref.refId)) continue;
+    seen.add(ref.refId);
+    result.push(ref);
+  }
+  return result;
+}
+
+function eventMatchesCaseOrCell(event: WorldCausalEvent, caseId: string, cellId: string): boolean {
+  const payload = event.payload as unknown as Record<string, unknown>;
+  const affectedMarketCellIds = payload['affectedMarketCellIds'];
+  return event.affectedIds.includes(caseId)
+    || event.entityIds.includes(caseId)
+    || (cellId.length > 0 && (event.affectedIds.includes(cellId) || event.entityIds.includes(cellId)))
+    || payload['caseId'] === caseId
+    || payload['targetCaseId'] === caseId
+    || (cellId.length > 0 && (
+      payload['marketCellId'] === cellId
+      || payload['targetMarketCellId'] === cellId
+      || (Array.isArray(affectedMarketCellIds) && affectedMarketCellIds.includes(cellId))
+    ));
+}
+
+function eventToPOVRef(event: WorldCausalEvent): POVCausalRef {
+  if (event.kind === 'RivalListingRepriced' || event.kind === 'RivalBrokerActionTaken') {
+    return { refType: 'rival-listing', refId: event.id, refLabel: `竞品动作 day ${event.day}` };
+  }
+  if (event.kind === 'CustomerComparedListings' || event.kind === 'CustomerAttentionShifted') {
+    return { refType: 'market-signal', refId: event.id, refLabel: `客户需求变化 day ${event.day}` };
+  }
+  if (event.kind === 'OwnerMarketPressurePerceived') {
+    return { refType: 'case', refId: event.id, refLabel: `业主压力感知 day ${event.day}` };
+  }
+  if (event.kind === 'BrokerRecommendationChanged' || event.kind === 'MatterPriorityChanged') {
+    return { refType: 'market-signal', refId: event.id, refLabel: `系统建议变化 day ${event.day}` };
+  }
+  return { refType: 'market-signal', refId: event.id, refLabel: `市场变化 day ${event.day}` };
+}
+
+function buildFallbackLiveEventRefs(
+  state: GameState,
+  caseId: string,
+  limit = 3,
+): POVCausalRef[] {
+  const caseItem = state.cases.find((c) => c.id === caseId);
+  const cellId = caseItem?.marketCellId ?? '';
+  const events = (Array.isArray(state.worldCausalEvents) ? state.worldCausalEvents : [])
+    .filter((event) => eventMatchesCaseOrCell(event, caseId, cellId))
+    .sort((left, right) => right.day - left.day)
+    .slice(0, limit);
+  return uniquePOVRefs(events.map(eventToPOVRef));
+}
+
+function buildTraceableSafeCausalRefs(
+  state: GameState,
+  caseId: string,
+  refs: readonly POVCausalRef[],
+  limit = 5,
+): POVCausalRef[] {
+  const liveEventIds = new Set((Array.isArray(state.worldCausalEvents) ? state.worldCausalEvents : []).map((event) => event.id));
+  const uniqueRefs = uniquePOVRefs(refs);
+  const liveRefs = uniqueRefs.filter((ref) => liveEventIds.has(ref.refId));
+  const fallbackLiveRefs = buildFallbackLiveEventRefs(state, caseId, limit)
+    .filter((ref) => !uniqueRefs.some((existing) => existing.refId === ref.refId));
+  const entityRefs = uniqueRefs.filter((ref) => !liveEventIds.has(ref.refId));
+  return uniquePOVRefs([
+    ...liveRefs,
+    ...fallbackLiveRefs,
+    ...entityRefs,
+  ]).slice(0, limit);
+}
+
+function deriveRuntimeReplayKey(
+  state: GameState,
+  refs: readonly POVCausalRef[],
+): string | undefined {
+  const events = Array.isArray(state.worldCausalEvents) ? state.worldCausalEvents : [];
+  const refIds = new Set(refs.map((ref) => ref.refId));
+  const sourceReplayKey = events.find((event) => refIds.has(event.id) && event.sourceReplayKey)?.sourceReplayKey;
+  if (sourceReplayKey) return sourceReplayKey;
+  const eventIds = refs.map((ref) => ref.refId).filter(Boolean).slice(0, 4).join('|');
+  if (eventIds) return `runtime-ledger:${state.runContext.runSeed}:${state.day}:${eventIds}`;
+  return undefined;
+}
+
+function deriveRuntimeSourceRecordIds(
+  state: GameState,
+  refs: readonly POVCausalRef[],
+): readonly string[] {
+  const events = Array.isArray(state.worldCausalEvents) ? state.worldCausalEvents : [];
+  const refIds = new Set(refs.map((ref) => ref.refId));
+  return events
+    .filter((event) => refIds.has(event.id) && event.sourceRecordId)
+    .map((event) => event.sourceRecordId as string)
+    .slice(0, 5);
 }
 
 // ── 1. CaseWorldContextPOV ───────────────────────────────────
@@ -251,11 +355,13 @@ export function buildLiveCausalContext(
   const causalEvents = Array.isArray(state.worldCausalEvents) ? state.worldCausalEvents : [];
   const recentWindow = state.day - 3;
 
-  // Filter to events relevant to this case's market cell or case directly, within window
-  const relevantEvents = causalEvents.filter((e) =>
-    e.day >= recentWindow
-    && (e.affectedIds.includes(cellId) || e.affectedIds.includes(caseId) || e.entityIds.includes(caseId)),
-  );
+  const allRelevantEvents = causalEvents
+    .filter((e) => eventMatchesCaseOrCell(e, caseId, cellId))
+    .sort((left, right) => right.day - left.day);
+  // Active cases should privilege recent motion; terminal / inactive cases still need
+  // an explanation trail from the last live events that actually moved that case.
+  const recentRelevantEvents = allRelevantEvents.filter((e) => e.day >= recentWindow);
+  const relevantEvents = recentRelevantEvents.length > 0 ? recentRelevantEvents : allRelevantEvents;
 
   // --- Rival actions ---
   const rivalEvents = relevantEvents
@@ -331,7 +437,7 @@ export function buildCaseWorldContextPOV(
   caseId: string,
   _actorId?: string,
 ): CaseWorldContextPOV | null {
-  const caseItem = state.cases.find((c) => c.id === caseId && c.status === 'active');
+  const caseItem = state.cases.find((c) => c.id === caseId);
   if (!caseItem) return null;
 
   const cell = state.markets.find((m) => m.id === caseItem.marketCellId);
@@ -487,6 +593,7 @@ export function buildDemandMovementPOV(
   caseId: string,
   _actorId?: string,
   liveCtx?: LiveCausalContext,
+  actorKnowledge?: import('./actorKnowledgeProjection.js').ActorKnowledgeSnapshot,
 ): DemandMovementPOV {
   const caseItem = state.cases.find((c) => c.id === caseId);
   if (!caseItem) {
@@ -503,6 +610,12 @@ export function buildDemandMovementPOV(
   }
 
   const cellId = caseItem.marketCellId;
+
+  // ── Derive demand from knowledge beliefs when available ──
+  const knowledgeSummary = actorKnowledge?.beliefSummary ?? [];
+  const customerSeriousness = knowledgeSummary.find((s) => s.domain === 'customer_seriousness');
+  const dealCloseability = knowledgeSummary.find((s) => s.domain === 'deal_closeability');
+  const knowledgeSources = actorKnowledge?.visibleSources ?? [];
 
   // Layer 1: customers with a direct active relationship to this case
   const directCustomers = state.customerStates.filter(
@@ -534,7 +647,7 @@ export function buildDemandMovementPOV(
   const totalActive = activeCustomers.length;
   const totalComparing = comparingCustomers.length;
 
-  if (totalActive === 0) {
+  if (totalActive === 0 && !customerSeriousness) {
     return {
       demandMomentum: 0,
       direction: 'outflow',
@@ -547,7 +660,10 @@ export function buildDemandMovementPOV(
     };
   }
 
-  let momentum = 50;
+  // Knowledge-derived momentum when beliefs available
+  let momentum = customerSeriousness
+    ? Math.round(customerSeriousness.avgConfidence * 100)
+    : 50;
 
   // Build opportunity refs from the case's direct opportunities
   const directOpps = state.opportunities.filter(
@@ -559,14 +675,23 @@ export function buildDemandMovementPOV(
     refLabel: `${o.customerName} → ${caseItem.title}`,
   }));
 
+  // Knowledge-derived refs
+  const knowledgeRefs: POVCausalRef[] = knowledgeSources.slice(0, 3).map((s) => ({
+    refType: 'market-signal' as const,
+    refId: s.sourceId,
+    refLabel: s.summary.slice(0, 40),
+  }));
+
   // Merge live customer causal refs into signal refs
   const liveCustomerRefs = liveCtx?.customerRefs ?? [];
 
   if (totalComparing > totalActive * 0.5) {
-    momentum = 70;
-    const signalRefs = liveCustomerRefs.length > 0
-      ? [...liveCustomerRefs.slice(0, 1), ...oppRefs.slice(0, 1)]
-      : oppRefs.length > 0 ? oppRefs : [{ refType: 'market-cell' as const, refId: cellId, refLabel: cellId }];
+    momentum = Math.max(momentum, 70);
+    const signalRefs = knowledgeRefs.length > 0
+      ? knowledgeRefs.slice(0, 2)
+      : liveCustomerRefs.length > 0
+        ? [...liveCustomerRefs.slice(0, 1), ...oppRefs.slice(0, 1)]
+        : oppRefs.length > 0 ? oppRefs : [{ refType: 'market-cell' as const, refId: cellId, refLabel: cellId }];
     signals.push({
       rank: 1,
       headline: `${totalComparing} 位客户正在积极比较`,
@@ -576,10 +701,12 @@ export function buildDemandMovementPOV(
     });
     refs.push(...signals[0].refs);
   } else if (totalComparing < totalActive * 0.2) {
-    momentum = 35;
-    const signalRefs = liveCustomerRefs.length > 0
-      ? [...liveCustomerRefs.slice(0, 1), ...oppRefs.slice(0, 1)]
-      : oppRefs.length > 0 ? oppRefs : [{ refType: 'market-cell' as const, refId: cellId, refLabel: cellId }];
+    momentum = Math.min(momentum, 35);
+    const signalRefs = knowledgeRefs.length > 0
+      ? knowledgeRefs.slice(0, 2)
+      : liveCustomerRefs.length > 0
+        ? [...liveCustomerRefs.slice(0, 1), ...oppRefs.slice(0, 1)]
+        : oppRefs.length > 0 ? oppRefs : [{ refType: 'market-cell' as const, refId: cellId, refLabel: cellId }];
     signals.push({
       rank: 1,
       headline: '多数客户尚未进入比较',
@@ -600,15 +727,17 @@ export function buildDemandMovementPOV(
       headline: `${atRiskCustomers.length} 位客户流失风险升高`,
       detail: `这些客户近期活跃度下降，可能被竞品截流。`,
       source: 'inferred',
-      refs: riskOpps.length > 0
-        ? riskOpps.slice(0, 2).map((o) => ({
-          refType: 'opportunity' as const,
-          refId: o.id,
-          refLabel: `${o.customerName} → ${caseItem.title}`,
-        }))
-        : liveCustomerRefs.length > 0
-          ? liveCustomerRefs.slice(0, 1)
-          : [{ refType: 'market-cell' as const, refId: cellId, refLabel: cellId }],
+      refs: knowledgeRefs.length > 0
+        ? knowledgeRefs.slice(0, 2)
+        : riskOpps.length > 0
+          ? riskOpps.slice(0, 2).map((o) => ({
+            refType: 'opportunity' as const,
+            refId: o.id,
+            refLabel: `${o.customerName} → ${caseItem.title}`,
+          }))
+          : liveCustomerRefs.length > 0
+            ? liveCustomerRefs.slice(0, 1)
+            : [{ refType: 'market-cell' as const, refId: cellId, refLabel: cellId }],
     });
     refs.push(...signals[signals.length - 1].refs);
     momentum = Math.max(20, momentum - 10);
@@ -636,6 +765,7 @@ export function buildOwnerExpectationSignalPOV(
   caseId: string,
   _actorId?: string,
   liveCtx?: LiveCausalContext,
+  actorKnowledge?: import('./actorKnowledgeProjection.js').ActorKnowledgeSnapshot,
 ): OwnerExpectationSignalPOV {
   const caseItem = state.cases.find((c) => c.id === caseId);
   if (!caseItem) {
@@ -651,10 +781,39 @@ export function buildOwnerExpectationSignalPOV(
     };
   }
 
-  const priceGapPct = caseItem.priceGapPct;
-  const trust = caseItem.trust;
-  const patience = caseItem.patience;
-  const urgency = caseItem.urgency;
+  // ── Derive owner expectation from ActorKnowledge beliefs when available ──
+  // When actorKnowledge is provided, belief-derived values replace direct field reads.
+  // This ensures the broker sees owner state through the belief/pressure pipeline,
+  // not by peeking at hidden GlobalTruth fields.
+  const knowledgeBeliefs = actorKnowledge?.beliefs ?? [];
+  const knowledgeSummary = actorKnowledge?.beliefSummary ?? [];
+  const knowledgeSources = actorKnowledge?.visibleSources ?? [];
+
+  // Derive price_gap from price_anchor belief domain
+  const priceBelief = knowledgeSummary.find((s) => s.domain === 'price_anchor');
+  const knowledgePriceGap = priceBelief
+    ? Math.round(priceBelief.avgConfidence * 20) // scale confidence to gap estimate
+    : undefined;
+
+  // Derive trust from broker_trust belief domain
+  const trustBelief = knowledgeSummary.find((s) => s.domain === 'broker_trust');
+  const knowledgeTrust = trustBelief
+    ? Math.round(trustBelief.avgConfidence * 100)
+    : undefined;
+
+  // Derive urgency from owner_readiness belief domain
+  const readinessBelief = knowledgeSummary.find((s) => s.domain === 'owner_readiness');
+  const knowledgeUrgency = readinessBelief
+    ? Math.round(readinessBelief.avgConfidence * 100)
+    : undefined;
+
+  // Use knowledge-derived values when available, fall back to legacy
+  const priceGapPct = knowledgePriceGap ?? caseItem.priceGapPct;
+  const trust = knowledgeTrust ?? caseItem.trust;
+  const patience = knowledgeUrgency !== undefined
+    ? Math.max(0, 100 - knowledgeUrgency)
+    : caseItem.patience;
+  const urgency = knowledgeUrgency ?? caseItem.urgency;
 
   const signals: OwnerExpectationSignal[] = [];
   const refs: POVCausalRef[] = [];
@@ -663,10 +822,19 @@ export function buildOwnerExpectationSignalPOV(
   // Live owner perception refs from causal ledger
   const liveOwnerRefs = liveCtx?.ownerRefs ?? [];
 
+  // Use knowledge sources as ref backing when available
+  const knowledgeRefs: POVCausalRef[] = knowledgeSources.slice(0, 3).map((s) => ({
+    refType: 'market-signal' as const,
+    refId: s.sourceId,
+    refLabel: s.summary.slice(0, 40),
+  }));
+
   if (priceGapPct > 10) {
-    const signalRefs: POVCausalRef[] = liveOwnerRefs.length > 0
-      ? [...liveOwnerRefs.slice(0, 1), { refType: 'case' as const, refId: caseItem.id, refLabel: caseItem.title }]
-      : [{ refType: 'case' as const, refId: caseItem.id, refLabel: caseItem.title }];
+    const signalRefs: POVCausalRef[] = knowledgeRefs.length > 0
+      ? knowledgeRefs.slice(0, 2)
+      : liveOwnerRefs.length > 0
+        ? [...liveOwnerRefs.slice(0, 1), { refType: 'case' as const, refId: caseItem.id, refLabel: caseItem.title }]
+        : [{ refType: 'case' as const, refId: caseItem.id, refLabel: caseItem.title }];
     signals.push({
       rank: 1,
       headline: `挂牌价高于市场价 ${Math.round(priceGapPct)}%`,
@@ -684,9 +852,11 @@ export function buildOwnerExpectationSignalPOV(
       headline: '业主耐心持续消耗',
       detail: `耐心值 ${Math.round(patience)}，低于 40 表示业主开始焦虑，需要正向反馈。`,
       source: 'inferred',
-      refs: liveOwnerRefs.length > 1
-        ? liveOwnerRefs.slice(1, 2)
-        : [{ refType: 'case' as const, refId: caseItem.id, refLabel: caseItem.title }],
+      refs: knowledgeRefs.length > 0
+        ? knowledgeRefs.slice(0, 1)
+        : liveOwnerRefs.length > 1
+          ? liveOwnerRefs.slice(1, 2)
+          : [{ refType: 'case' as const, refId: caseItem.id, refLabel: caseItem.title }],
     });
     refs.push(signals[signals.length - 1].refs[0]);
   }
@@ -697,7 +867,11 @@ export function buildOwnerExpectationSignalPOV(
       headline: '业主信任度偏低',
       detail: `信任度 ${Math.round(trust)}，业主可能对经纪人建议持保留态度。`,
       source: 'inferred',
-      refs: [{ refType: 'case' as const, refId: caseItem.id, refLabel: caseItem.title }],
+      refs: knowledgeRefs.length > 0
+        ? knowledgeRefs.slice(0, 1)
+        : liveOwnerRefs.length > 0
+          ? liveOwnerRefs.slice(0, 1)
+          : [{ refType: 'case' as const, refId: caseItem.id, refLabel: caseItem.title }],
     });
     refs.push(signals[signals.length - 1].refs[0]);
   }
@@ -708,7 +882,11 @@ export function buildOwnerExpectationSignalPOV(
       headline: '业主急售但耐心不足',
       detail: `紧迫度 ${Math.round(urgency)} 但耐心仅 ${Math.round(patience)}，面访时优先给确定性信息。`,
       source: 'inferred',
-      refs: [{ refType: 'case' as const, refId: caseItem.id, refLabel: caseItem.title }],
+      refs: knowledgeRefs.length > 0
+        ? knowledgeRefs.slice(0, 1)
+        : liveOwnerRefs.length > 0
+          ? liveOwnerRefs.slice(0, 1)
+          : [{ refType: 'case' as const, refId: caseItem.id, refLabel: caseItem.title }],
     });
     refs.push(signals[signals.length - 1].refs[0]);
   }
@@ -945,7 +1123,7 @@ export function buildBecauseBigProof(
           const listing = activeRivals.find((r) => r.id === listingId);
           rivalEventRefs.push({
             refType: 'rival-listing' as const,
-            refId: listingId,
+            refId: evt.id,
             refLabel: listing?.title ?? listingId,
           });
         }
@@ -1021,7 +1199,7 @@ export function buildBecauseBigProof(
       for (const evt of ownerPressureEvents.slice(0, 2)) {
         ownerEventRefs.push({
           refType: 'case' as const,
-          refId: caseId,
+          refId: evt.id,
           refLabel: `业主压力感知 day ${evt.day}`,
         });
       }
@@ -1063,7 +1241,7 @@ export function buildBecauseBigProof(
     hasRivalMovement,
     hasOwnerPressureDelta,
     movementEvidence: evidence,
-    safeCausalRefs: safeRefs,
+    safeCausalRefs: buildTraceableSafeCausalRefs(state, caseId, safeRefs),
   };
 }
 
@@ -1088,8 +1266,8 @@ export function buildWorkspaceBigWorldModule(
   if (!marketCell) return null;
 
   const comparableSupply = buildComparableSupplyPOV(state, caseId, actorId);
-  const demandMovement = buildDemandMovementPOV(state, caseId, actorId, liveCtx);
-  const ownerExpectation = buildOwnerExpectationSignalPOV(state, caseId, actorId, liveCtx);
+  const demandMovement = buildDemandMovementPOV(state, caseId, actorId, liveCtx, actorKnowledge);
+  const ownerExpectation = buildOwnerExpectationSignalPOV(state, caseId, actorId, liveCtx, actorKnowledge);
   const brokerActionPressure = buildBrokerActionPressurePOV(state, caseId, actorId, liveCtx);
   const becauseBigProof = buildBecauseBigProof(state, caseId, actorId, liveCtx);
 
@@ -1114,9 +1292,25 @@ export function buildWorkspaceBigWorldModule(
     );
   } else {
     // Fallback: legacy derivation from sub-projections
-    recommendedActionReasons = deriveRecommendedActionReasons(
+    const fallbackReasons = deriveRecommendedActionReasons(
       marketCell, comparableSupply, demandMovement, ownerExpectation, brokerActionPressure, liveCtx,
     );
+    const runtimeRefs = uniquePOVRefs([
+      ...becauseBigProof.safeCausalRefs,
+      ...buildFallbackLiveEventRefs(state, caseId, 3),
+    ]).slice(0, 3);
+    const replayKey = deriveRuntimeReplayKey(state, runtimeRefs);
+    const sourceRecordIds = deriveRuntimeSourceRecordIds(state, runtimeRefs);
+    recommendedActionReasons = fallbackReasons.map((reason) => {
+      const safeRefs = uniquePOVRefs([...reason.refs, ...runtimeRefs]).slice(0, 3);
+      return {
+        ...reason,
+        refs: safeRefs,
+        safeRefs,
+        sourceRecordIds,
+        replayKey,
+      };
+    });
   }
 
   let result: BigWorldPOVSummary = {
