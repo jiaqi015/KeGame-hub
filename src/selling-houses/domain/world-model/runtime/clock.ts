@@ -54,14 +54,227 @@ import type { SourceIngestionReceipt } from './sourceIngestionAdapter.js';
 import { buildSourceRecordsFromPhaseOutput } from './sourceRecordBuilder.js';
 
 import type { WorldCausalEvent } from '../causalEvents.js';
+import type {
+  InformationSourceRecord,
+  SourceKind,
+  VisibilityPolicy,
+  EntityRef,
+  ActorRef,
+} from '../informationSourceTypes.js';
+
+// ── Source record builders for new source kinds ────────────────────────
+
+/**
+ * Map SourceKind → causal event kinds it can produce.
+ * Used to build source records with correct payload shape.
+ */
+const SOURCE_CAUSAL_MAP: ReadonlyMap<SourceKind, readonly string[]> = new Map([
+  ['market_signal', ['MarketHeatShifted', 'OwnerMarketPressurePerceived']],
+  ['rival_action', ['RivalListingRepriced', 'RivalBrokerActionTaken', 'OwnerMarketPressurePerceived']],
+  ['customer_interaction', ['CustomerComparedListings', 'CustomerAttentionShifted']],
+  ['owner_interview', ['OwnerMarketPressurePerceived', 'BrokerRecommendationChanged']],
+  ['manager_message', ['MatterPriorityChanged', 'BrokerRecommendationChanged']],
+  ['player_action_receipt', ['BrokerRecommendationChanged', 'MatterPriorityChanged']],
+  ['process_receipt', ['BrokerRecommendationChanged', 'MatterPriorityChanged', 'OwnerMarketPressurePerceived']],
+  ['comparable_transaction', ['OwnerMarketPressurePerceived', 'MarketHeatShifted']],
+  ['platform_traffic', ['MarketHeatShifted', 'CustomerAttentionShifted']],
+  ['acn_network_signal', ['RivalBrokerActionTaken', 'BrokerRecommendationChanged']],
+  ['supporting_facility_signal', ['MarketHeatShifted', 'OwnerMarketPressurePerceived']],
+  ['broker_capacity_signal', ['BrokerRecommendationChanged', 'MatterPriorityChanged']],
+  ['owner_life_event_signal', ['OwnerMarketPressurePerceived', 'BrokerRecommendationChanged']],
+  ['buyer_financing_signal', ['BrokerRecommendationChanged', 'MatterPriorityChanged']],
+  ['micro_market_signal', ['MarketHeatShifted', 'CustomerAttentionShifted']],
+]);
+
+/**
+ * Generate additional source records for 5 new source kinds from phase data.
+ *
+ * These source kinds don't have dedicated phase generators but represent
+ * real-world information that should flow through the ingestion pipeline.
+ * We derive them from existing phase data (market cells, cases, customers, etc.)
+ * so they're deterministic and don't require external source injection.
+ *
+ * This is the "source-big" guarantee: all 15 source kinds participate in
+ * the runtime ingestion pipeline, not just the 9 that have dedicated phases.
+ */
+function generateAdditionalSourceRecords(
+  input: BigWorldClockInput,
+  day: number,
+  runSeed: number,
+): readonly InformationSourceRecord[] {
+  const records: InformationSourceRecord[] = [];
+
+  // 1. supporting_facility_signal: derived from market cell heat changes
+  //    When a market cell's heat shifts, it could be due to facility changes
+  //    (new school, transit, commercial development, etc.)
+  for (const cell of input.marketCells) {
+    const salt = `sfs-${day}-${cell.id}`;
+    const heatShift = Math.abs(cell.demandHeat - 50);
+    if (heatShift < 5) continue; // Skip cells with no significant change
+
+    const subtype = cell.demandHeat > 50 ? 'transit_access_changed' : 'noise_complaint';
+    records.push({
+      sourceId: `isr-sfs-${day}-${cell.id}`,
+      sourceKind: 'supporting_facility_signal',
+      payload: {
+        subtype,
+        summary: `${cell.name}配套变化: 热度${cell.demandHeat}`,
+        marketCellId: cell.id,
+        facilityType: 'community',
+        before: 50,
+        after: cell.demandHeat,
+        dataSource: 'broker_observation',
+      },
+      day,
+      phase: 'morning',
+      entityRefs: [{ id: cell.id, kind: 'market_cell' }],
+      actorRefs: [{ id: 'system', role: 'system' }],
+      visibility: { scope: 'all_actors', baseDelayDays: 1 },
+      confidence: 0.6,
+      delayDays: 1,
+      replayKey: `rk-sfs-${runSeed}-${day}-${cell.id}`,
+      origin: 'ecosystem_tick',
+    } as InformationSourceRecord<'supporting_facility_signal'>);
+  }
+
+  // 2. broker_capacity_signal: derived from broker activity heat
+  for (const store of input.rivalStores) {
+    const salt = `bcs-${day}-${store.id}`;
+    if (store.activityHeat < 30) continue; // Low activity = not worth reporting
+
+    records.push({
+      sourceId: `isr-bcs-${day}-${store.id}`,
+      sourceKind: 'broker_capacity_signal',
+      payload: {
+        subtype: 'workload_balanced',
+        summary: `${store.name}经纪人能力: 活跃度${store.activityHeat}`,
+        brokerId: `shadow-broker-${store.id}`,
+        acnId: `acn-${store.type}`,
+        energyLevel: store.activityHeat,
+        scheduleUtilization: Math.min(100, store.activityHeat + 20),
+        activeCaseCount: 0,
+        affectedCaseIds: [],
+        pressureMagnitude: store.activityHeat,
+      },
+      day,
+      phase: 'morning',
+      entityRefs: [{ id: store.id, kind: 'store' }],
+      actorRefs: [{ id: `shadow-broker-${store.id}`, role: 'rival_broker' }],
+      visibility: { scope: 'all_actors', baseDelayDays: 0 },
+      confidence: 0.7,
+      delayDays: 0,
+      replayKey: `rk-bcs-${runSeed}-${day}-${store.id}`,
+      origin: 'ecosystem_tick',
+    } as InformationSourceRecord<'broker_capacity_signal'>);
+  }
+
+  // 3. owner_life_event_signal: derived from case perception signals
+  //    Low trust + low patience = owner life event pressure
+  for (const caseItem of input.activeCases) {
+    const salt = `ols-${day}-${caseItem.id}`;
+    const pressureScore = (100 - caseItem.trust) + (100 - caseItem.patience);
+    if (pressureScore < 100) continue; // Only cases with significant pressure
+
+    records.push({
+      sourceId: `isr-ols-${day}-${caseItem.id}`,
+      sourceKind: 'owner_life_event_signal',
+      payload: {
+        subtype: 'financial_need',
+        summary: `${caseItem.ownerName}生活事件: 信任${caseItem.trust} 耐心${caseItem.patience}`,
+        ownerId: caseItem.ownerName,
+        caseId: caseItem.id,
+        urgencyImpact: Math.round((100 - caseItem.patience) * 0.3),
+        priceFlexibilityImpact: Math.round((100 - caseItem.trust) * 0.2),
+        trustImpact: 0,
+        timelineDays: Math.max(1, Math.round((100 - caseItem.urgency) * 0.1)),
+        eventConfidence: 0.7,
+      },
+      day,
+      phase: 'afternoon',
+      entityRefs: [{ id: caseItem.id, kind: 'case' }, { id: caseItem.ownerName, kind: 'owner' }],
+      actorRefs: [{ id: caseItem.ownerName, role: 'owner' }],
+      visibility: { scope: 'owner_only', baseDelayDays: 0 },
+      confidence: 0.7,
+      delayDays: 0,
+      replayKey: `rk-ols-${runSeed}-${day}-${caseItem.id}`,
+      origin: 'ecosystem_tick',
+    } as InformationSourceRecord<'owner_life_event_signal'>);
+  }
+
+  // 4. buyer_financing_signal: derived from customer states
+  //    High churn risk + high fatigue = financing pressure
+  for (const customer of input.customerStates) {
+    if (customer.status === 'lost' || customer.status === 'converted') continue;
+    const salt = `bfs-${day}-${customer.customerId}`;
+    if (customer.churnRisk < 40 && customer.fatigue < 60) continue;
+
+    records.push({
+      sourceId: `isr-bfs-${day}-${customer.customerId}`,
+      sourceKind: 'buyer_financing_signal',
+      payload: {
+        subtype: 'budget_adjusted',
+        summary: `客户${customer.customerId}融资信号: 疲劳${customer.fatigue} 流失风险${customer.churnRisk}`,
+        customerId: customer.customerId,
+        readinessImpact: Math.round(customer.churnRisk * 0.5),
+      },
+      day,
+      phase: 'afternoon',
+      entityRefs: [{ id: customer.customerId, kind: 'customer' }],
+      actorRefs: [{ id: customer.customerId, role: 'customer' }],
+      visibility: { scope: 'player_only', baseDelayDays: 0 },
+      confidence: 0.65,
+      delayDays: 0,
+      replayKey: `rk-bfs-${runSeed}-${day}-${customer.customerId}`,
+      origin: 'ecosystem_tick',
+    } as InformationSourceRecord<'buyer_financing_signal'>);
+  }
+
+  // 5. micro_market_signal: derived from market cell supply/demand imbalance
+  for (const cell of input.marketCells) {
+    const salt = `mms-${day}-${cell.id}`;
+    const imbalance = cell.supplyPressure - cell.demandHeat;
+    if (Math.abs(imbalance) < 15) continue;
+
+    const subtype = imbalance > 0 ? 'supply_increased' : 'demand_shift';
+    records.push({
+      sourceId: `isr-mms-${day}-${cell.id}`,
+      sourceKind: 'micro_market_signal',
+      payload: {
+        subtype,
+        summary: `${cell.name}微板块: 供需失衡${imbalance}`,
+        microMarketCellId: cell.id,
+        marketCellId: cell.id,
+        supplyDelta: cell.supplyPressure,
+        demandDelta: cell.demandHeat,
+        priceBand: '200-400万',
+        absorptionRate: Math.round(50 + imbalance * 0.3),
+      },
+      day,
+      phase: 'morning',
+      entityRefs: [{ id: cell.id, kind: 'market_cell' }],
+      actorRefs: [{ id: 'system', role: 'system' }],
+      visibility: { scope: 'all_actors', baseDelayDays: 0 },
+      confidence: 0.6,
+      delayDays: 0,
+      replayKey: `rk-mms-${runSeed}-${day}-${cell.id}`,
+      origin: 'ecosystem_tick',
+    } as InformationSourceRecord<'micro_market_signal'>);
+  }
+
+  return records;
+}
 
 // ── Causal event trace merge ─────────────────────────────────────────────
 
 /**
  * Merge source traceability from source-ingested events into phase events.
- * If a source-ingested event matches a phase event (same kind + same entityIds),
- * the phase event gets the source traceability fields.
- * Unmatched source-ingested events are NOT added (they would dangle in the ledger).
+ *
+ * Key design: each phase event can collect MULTIPLE source records, not just one.
+ * This handles the case where multiple source kinds (e.g., market_signal +
+ * supporting_facility_signal) produce the same causal event kind (MarketHeatShifted).
+ *
+ * The merge stores an array of sourceRecordId values so that ALL contributing
+ * sources are traceable, even after compaction.
  */
 function mergeCausalEventTraces(
   phaseEvents: readonly WorldCausalEvent[],
@@ -72,9 +285,9 @@ function mergeCausalEventTraces(
 
   for (let pi = 0; pi < result.length; pi += 1) {
     const phaseEvt = result[pi];
-    // Already has source traceability
-    if ((phaseEvt as any).sourceRecordId) continue;
+    const matchedSources: { sourceRecordId: string; sourceReplayKey: string; sourceKind: string }[] = [];
 
+    // Collect all source events that match this phase event
     for (let si = 0; si < sourceEvents.length; si += 1) {
       if (usedSourceEvents.has(si)) continue;
       const srcEvt = sourceEvents[si];
@@ -84,21 +297,33 @@ function mergeCausalEventTraces(
       if (phaseEvt.entityIds.length > 0 && srcEvt.entityIds.length > 0 &&
           phaseEvt.entityIds[0] !== srcEvt.entityIds[0]) continue;
 
-      // Merge source traceability into phase event
+      const srcRecordId = (srcEvt as any).sourceRecordId;
+      const srcReplayKey = (srcEvt as any).sourceReplayKey;
+      const srcKind = (srcEvt as any).sourceKind;
+
+      if (srcRecordId) {
+        matchedSources.push({
+          sourceRecordId: srcRecordId,
+          sourceReplayKey: srcReplayKey ?? '',
+          sourceKind: srcKind ?? '',
+        });
+      }
+      usedSourceEvents.add(si);
+    }
+
+    // Apply source traceability to phase event
+    if (matchedSources.length > 0) {
+      // Primary source (first match) goes into sourceRecordId for backward compat
+      // All sources go into sourceRecordIds array for full traceability
       result[pi] = Object.freeze({
         ...phaseEvt,
-        sourceRecordId: (srcEvt as any).sourceRecordId,
-        sourceReplayKey: (srcEvt as any).sourceReplayKey,
-        sourceKind: (srcEvt as any).sourceKind,
+        sourceRecordId: matchedSources[0].sourceRecordId,
+        sourceReplayKey: matchedSources[0].sourceReplayKey,
+        sourceKind: matchedSources[0].sourceKind as SourceKind,
+        sourceRecordIds: Object.freeze(matchedSources.map((s) => s.sourceRecordId)),
       });
-      usedSourceEvents.add(si);
-      break;
     }
   }
-
-  // NOTE: Unmatched source-ingested events are intentionally NOT added.
-  // They would be isolated entries in the ledger with no downstream references.
-  // Source traceability is only needed on phase events that other events reference.
 
   return result;
 }
@@ -197,10 +422,16 @@ export function runBigWorldDayTick(
   // This ensures every causal event carries sourceRecordId/sourceReplayKey/sourceKind.
   const phaseSourceRecords = buildSourceRecordsFromPhaseOutput(allCausalEvents, input.runSeed, day);
 
-  // Merge phase-derived source records with any external source records
+  // Generate additional source records for 5 new source kinds derived from phase data.
+  // These don't have dedicated phases but represent real-world information that
+  // should flow through the ingestion pipeline for full 15-kind coverage.
+  const additionalSourceRecords = generateAdditionalSourceRecords(input, day, input.runSeed);
+
+  // Merge phase-derived source records with additional and external source records
   const externalSourceRecords = input.sourceRecords ?? [];
   const allSourceRecords: readonly import('../informationSourceTypes.js').InformationSourceRecord[] = [
     ...phaseSourceRecords,
+    ...additionalSourceRecords,
     ...externalSourceRecords,
   ];
 

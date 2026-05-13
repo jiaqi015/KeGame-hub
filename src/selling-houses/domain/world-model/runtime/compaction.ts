@@ -125,7 +125,23 @@ export function compactWorldCausalEvents<T extends { readonly id: string; readon
   const toRemove = sorted.length - maxTotal;
   const removeIds = new Set(sorted.slice(0, toRemove).map((e) => e.id));
 
-  return Object.freeze(events.filter((e) => !removeIds.has(e.id)));
+  // Filter events AND clean up dangling causeEventIds in surviving events.
+  // When we remove old events, surviving events that referenced them would
+  // have dangling cause refs. We clean those up to maintain causal chain integrity.
+  const surviving: T[] = [];
+  for (const event of events) {
+    if (removeIds.has(event.id)) continue;
+    const cleanedCauseIds = event.causeEventIds.filter((cid) => !removeIds.has(cid));
+    if (cleanedCauseIds.length !== event.causeEventIds.length) {
+      surviving.push({
+        ...event,
+        causeEventIds: Object.freeze(cleanedCauseIds),
+      } as T);
+    } else {
+      surviving.push(event);
+    }
+  }
+  return Object.freeze(surviving);
 }
 
 // ── Full compaction pass ───────────────────────────────────────────────

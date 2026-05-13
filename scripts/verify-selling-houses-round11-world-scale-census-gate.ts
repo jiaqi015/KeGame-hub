@@ -11,11 +11,17 @@
  * 4. Product Scale — how many projection surfaces consume live causal refs
  * 5. Terminal Scale — when active case = 0, can we explain terminal case outcomes?
  * 6. False-Positive — entity count big but source-linked causal = 0 → FAIL
+ * 7. Bootstrap→Runtime Chain — bootstrap entities must appear in runtime causal events
+ * 8. Mega-Scale Thresholds — if mega-scale profile is used, verify all thresholds
+ * 9. Diversity Manifest — verify structural diversity, not just quantity
  *
  * Anti-false-positive rules:
  * - live runtime causal events without sourceRecordId/sourceKind → gate RED
  * - bootstrap big but runtime not continuously growing → gate RED
  * - only active case explainable, terminal case not explainable → gate RED
+ * - bootstrap entities never referenced in runtime causal events → gate RED
+ * - mega-scale thresholds not met → gate RED
+ * - diversity manifest shows homogenous generation → gate RED
  *
  * Usage: npx tsx scripts/verify-selling-houses-round11-world-scale-census-gate.ts
  */
@@ -476,6 +482,165 @@ if (projectionCase) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// SECTION 7: BOOTSTRAP → RUNTIME CHAIN
+// ═══════════════════════════════════════════════════════════════
+section('Section 7: Bootstrap → Runtime Chain');
+
+if (bootstrap) {
+  // Check that bootstrap entity IDs appear in runtime causal events
+  const entityIdsFromBootstrap = new Set<string>();
+  for (const cell of bootstrap.hiddenTruth.marketCells) {
+    entityIdsFromBootstrap.add(cell.id);
+  }
+  for (const acn of bootstrap.hiddenTruth.acnNetworks) {
+    entityIdsFromBootstrap.add(acn.id);
+  }
+  for (const broker of bootstrap.materializedEntities.brokers) {
+    entityIdsFromBootstrap.add(broker.brokerId);
+  }
+  for (const listing of bootstrap.materializedEntities.listings) {
+    entityIdsFromBootstrap.add(listing.listingId);
+  }
+  for (const prior of bootstrap.hiddenTruth.ownerProfilePriors) {
+    entityIdsFromBootstrap.add(prior.priorId);
+  }
+
+  // Also collect broker IDs for actorIds check
+  const brokerIdSet = new Set<string>();
+  for (const broker of bootstrap.materializedEntities.brokers) {
+    brokerIdSet.add(broker.brokerId);
+  }
+  // Collect owner IDs for actorIds check (shadow-owner-* pattern)
+  const ownerIdSet = new Set<string>();
+  for (const prior of bootstrap.hiddenTruth.ownerProfilePriors) {
+    ownerIdSet.add(prior.priorId);
+  }
+
+  // Check which bootstrap entities are referenced in causal events
+  const bootstrapEntitiesInCausal = new Set<string>();
+  for (const e of events) {
+    for (const id of (e as any).entityIds ?? []) {
+      if (entityIdsFromBootstrap.has(id)) bootstrapEntitiesInCausal.add(id);
+    }
+    for (const id of (e as any).affectedIds ?? []) {
+      if (entityIdsFromBootstrap.has(id)) bootstrapEntitiesInCausal.add(id);
+    }
+    // Check actorIds for broker/owner references (with prefix matching)
+    for (const actorId of (e as any).actorIds ?? []) {
+      // Causal events use prefixed IDs like "shadow-broker-nb-acn-cooperative-0"
+      // Bootstrap has unprefixed IDs like "nb-acn-cooperative-0"
+      for (const brokerId of brokerIdSet) {
+        if (actorId.includes(brokerId)) {
+          bootstrapEntitiesInCausal.add(brokerId);
+        }
+      }
+      for (const ownerId of ownerIdSet) {
+        if (actorId.includes(ownerId)) {
+          bootstrapEntitiesInCausal.add(ownerId);
+        }
+      }
+    }
+  }
+
+  check(bootstrapEntitiesInCausal.size > 0, `bootstrap entities appear in causal events (${bootstrapEntitiesInCausal.size} distinct)`);
+  console.log(`    bootstrap entities in causal chain: ${bootstrapEntitiesInCausal.size}/${entityIdsFromBootstrap.size}`);
+
+  // At least some market cells should be referenced
+  const cellIdsInCausal = bootstrap.hiddenTruth.marketCells
+    .filter((c) => bootstrapEntitiesInCausal.has(c.id))
+    .map((c) => c.id);
+  check(cellIdsInCausal.length > 0, `market cells appear in causal events (${cellIdsInCausal.length}/${bootstrap.hiddenTruth.marketCells.length})`);
+
+  // At least some broker IDs should be referenced (via actorIds)
+  const brokerIdsInCausal = bootstrap.materializedEntities.brokers
+    .filter((b) => bootstrapEntitiesInCausal.has(b.brokerId))
+    .map((b) => b.brokerId);
+  check(brokerIdsInCausal.length > 0, `broker IDs appear in causal events via actorIds (${brokerIdsInCausal.length}/${bootstrap.materializedEntities.brokers.length})`);
+
+  // At least some listing IDs should be referenced
+  const listingIdsInCausal = bootstrap.materializedEntities.listings
+    .filter((l) => bootstrapEntitiesInCausal.has(l.listingId))
+    .map((l) => l.listingId);
+  check(listingIdsInCausal.length > 0, `listing IDs appear in causal events (${listingIdsInCausal.length}/${bootstrap.materializedEntities.listings.length})`);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SECTION 8: MEGA-SCALE THRESHOLDS
+// ═══════════════════════════════════════════════════════════════
+section('Section 8: Mega-Scale Thresholds');
+
+if (bootstrap) {
+  const scaleManifest = buildScaleManifest(bootstrap);
+  const mega = scaleManifest.meetsMegaScaleThresholds;
+
+  // Log mega-scale status
+  console.log(`    listingsGte300: ${mega.listingsGte300} (${scaleManifest.totalListings})`);
+  console.log(`    ownersGte300: ${mega.ownersGte300} (${scaleManifest.totalOwners})`);
+  console.log(`    customersGte1000: ${mega.customersGte1000} (${scaleManifest.totalCustomers})`);
+  console.log(`    brokersGte60: ${mega.brokersGte60} (${scaleManifest.totalBrokers})`);
+  console.log(`    marketCellsGte8: ${mega.marketCellsGte8} (${scaleManifest.marketCells})`);
+  console.log(`    acnNetworksGte5: ${mega.acnNetworksGte5} (${scaleManifest.acnNetworks})`);
+
+  // If ANY mega-scale threshold is met, ALL must be met
+  const anyMegaThresholdMet = mega.listingsGte300 || mega.ownersGte300 || mega.customersGte1000 || mega.brokersGte60;
+  if (anyMegaThresholdMet) {
+    check(mega.listingsGte300, 'mega-scale: listings >= 300');
+    check(mega.ownersGte300, 'mega-scale: owners >= 300');
+    check(mega.customersGte1000, 'mega-scale: customers >= 1000');
+    check(mega.brokersGte60, 'mega-scale: brokers >= 60');
+    check(mega.marketCellsGte8, 'mega-scale: market cells >= 8');
+    check(mega.acnNetworksGte5, 'mega-scale: ACN networks >= 5');
+  } else {
+    console.log('    (no mega-scale thresholds met — standard/hundred scale detected)');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SECTION 9: DIVERSITY MANIFEST
+// ═══════════════════════════════════════════════════════════════
+section('Section 9: Diversity Manifest');
+
+if (bootstrap) {
+  const diversity = buildDiversityManifest(bootstrap);
+
+  // Owner archetype diversity
+  check(diversity.ownerArchetypeDiversity >= 3, `owner archetype diversity >= 3 (got ${diversity.ownerArchetypeDiversity})`);
+  console.log(`    owner archetypes: ${diversity.ownerArchetypeDiversity} (${Object.entries(diversity.ownerTypeDistribution).map(([k, v]) => `${k}:${v}`).join(', ')})`);
+
+  // Listing type diversity
+  check(diversity.listingTypeDiversity >= 3, `listing type diversity >= 3 (got ${diversity.listingTypeDiversity})`);
+  console.log(`    listing layouts: ${diversity.listingTypeDiversity} (${Object.entries(diversity.listingLayoutDistribution).slice(0, 6).map(([k, v]) => `${k}:${v}`).join(', ')})`);
+
+  // Price band diversity
+  check(diversity.priceBandDiversity >= 3, `price band diversity >= 3 (got ${diversity.priceBandDiversity})`);
+  console.log(`    price bands: ${diversity.priceBandDiversity} (${Object.entries(diversity.priceBandDistribution).map(([k, v]) => `${k}:${v}`).join(', ')})`);
+
+  // Demand segment diversity
+  check(diversity.demandSegmentDiversity >= 3, `demand segment diversity >= 3 (got ${diversity.demandSegmentDiversity})`);
+  console.log(`    demand segments: ${diversity.demandSegmentDiversity} (${Object.entries(diversity.customerSegmentDistribution).slice(0, 6).map(([k, v]) => `${k}:${v}`).join(', ')})`);
+
+  // Broker style diversity
+  check(diversity.brokerStyleDiversity >= 3, `broker style diversity >= 3 (got ${diversity.brokerStyleDiversity})`);
+  console.log(`    broker styles: ${diversity.brokerStyleDiversity} (${Object.entries(diversity.brokerStyleDistribution).map(([k, v]) => `${k}:${v}`).join(', ')})`);
+
+  // Market cell distribution — no cell should have > 50% of listings
+  const cellEntries = Object.entries(diversity.marketCellDistribution);
+  if (cellEntries.length > 0) {
+    const maxCellCount = Math.max(...cellEntries.map(([, v]) => v));
+    const totalListings = cellEntries.reduce((s, [, v]) => s + v, 0);
+    const maxCellPct = totalListings > 0 ? Math.round((maxCellCount / totalListings) * 100) : 0;
+    check(maxCellPct <= 60, `no cell has > 60% of listings (max: ${maxCellPct}%)`);
+    console.log(`    cell distribution: ${cellEntries.map(([k, v]) => `${k}:${v}`).join(', ')}`);
+  }
+
+  // Hot/cold split sanity
+  const hcs = diversity.hotColdSplit;
+  check(hcs.materializedCustomers > 0, `materializedCustomers > 0 (${hcs.materializedCustomers})`);
+  check(hcs.materializedListingCount > 0, `materializedListingCount > 0 (${hcs.materializedListingCount})`);
+  check(hcs.totalDemandUnits > 0, `totalDemandUnits > 0 (${hcs.totalDemandUnits})`);
+}
+
+// ═══════════════════════════════════════════════════════════════
 // CENSUS MATRIX OUTPUT
 // ═══════════════════════════════════════════════════════════════
 section('Census Matrix');
@@ -527,9 +692,9 @@ console.log(JSON.stringify(census, null, 2));
 section('Shared File Protection Table');
 console.log('  File | Protected By | Break If');
 console.log('  -----|-------------|---------');
-console.log('  bigWorldBootstrap.ts | R11 §1 | Owner priors < 3, supportingInfo < 5');
-console.log('  bigWorldSpecFactory.ts | R11 §1 | hundredScale/megaScale policy missing');
-console.log('  bigWorldTypes.ts | R11 §1 | MicroCell/SupportingInfoRecord types missing');
+console.log('  bigWorldBootstrap.ts | R11 §1,§7 | Owner priors < 3, supportingInfo < 5, bootstrap entities not in causal chain');
+console.log('  bigWorldSpecFactory.ts | R11 §1,§8 | hundredScale/megaScale policy missing');
+console.log('  bigWorldTypes.ts | R11 §1,§9 | MicroCell/SupportingInfoRecord/DiversityManifest types missing');
 console.log('  causalEvents.ts | R11 §3 | sourceRecordId/sourceKind fields missing');
 console.log('  runtime/clock.ts | R11 §2 | tickCount doesn\'t advance');
 console.log('  runtime/types.ts | R11 §2 | BigWorldRuntimeState.tickCount missing');
@@ -537,6 +702,7 @@ console.log('  bigWorldPOVProjection.ts | R11 §4 | safeCausalRefs empty');
 console.log('  actorKnowledgeProjection.ts | R11 §5,§6 | Same beliefs for all roles');
 console.log('  informationSourceTypes.ts | R11 §3 | Missing SourceKind');
 console.log('  informationSourceRegistry.ts | R11 §3 | Duplicate replayKey accepted');
+console.log('  bigWorldBootstrapSummary.ts | R11 §8 | ScaleManifest missing mega thresholds');
 
 // ═══════════════════════════════════════════════════════════════
 // SUMMARY
