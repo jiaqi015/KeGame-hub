@@ -160,7 +160,6 @@ export function Cases({ state, selectedCaseIdOverride, theme = 'dark', onSelectC
   const effectiveSelectedCaseId = selectedCaseIdOverride || selectedCaseId;
   const selectedCase = sortedCases.find((entry) => entry.id === effectiveSelectedCaseId) || visibleCases[0] || sortedCases[0];
   const selectedOwnerProfile = selectedCase ? buildOwnerPersonaProfile(selectedCase) : null;
-  const selectionHiddenByFilter = Boolean(selectedCase && !visibleCases.some((entry) => entry.id === selectedCase.id));
   const activeOpportunities = selectedCase ? getActiveOpportunities(state, selectedCase.id) : [];
 
   const [decisionConfig, setDecisionConfig] = useState<ActionDecisionConfig | null>(null);
@@ -352,11 +351,6 @@ export function Cases({ state, selectedCaseIdOverride, theme = 'dark', onSelectC
               该筛选下暂无房源。
             </div>
           )}
-          {selectionHiddenByFilter && selectedCase && (
-            <div className="rounded-[16px] border border-[color:var(--seller-chance)]/22 bg-[var(--seller-chance-soft)] px-4 py-4 text-[12px] text-[var(--seller-chance)]">
-              正在查看 <strong>{selectedCase.title}</strong>，不在当前筛选内。
-            </div>
-          )}
         </div>
       </aside>
 
@@ -451,9 +445,6 @@ export function Cases({ state, selectedCaseIdOverride, theme = 'dark', onSelectC
 	                    <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="seller-label">执行清单 · 当前动作</div>
-                        <div className="mt-1 max-w-[42ch] text-[11px] leading-5 text-[var(--seller-muted)]">
-                          {suggestedActionCopy.detail}
-                        </div>
                       </div>
                       <button
                         type="button"
@@ -1230,8 +1221,8 @@ function HouseDimensionPosition({ caseItem }: { caseItem: Case }) {
           <line x1={origin.x} y1={origin.y} x2={origin.x + houseAxis.x} y2={origin.y + houseAxis.y} stroke="rgba(102,209,224,0.78)" strokeWidth="2" />
           <line x1={origin.x} y1={origin.y} x2={origin.x + ownerAxis.x} y2={origin.y + ownerAxis.y} stroke="rgba(255,107,129,0.72)" strokeWidth="2" />
           <line x1={point.x} y1={point.y} x2={point.x} y2={origin.y + leadAxis.y * lead + ownerAxis.y * owner} stroke="rgba(255,255,255,0.18)" strokeDasharray="4 4" />
-          <circle cx={point.x} cy={point.y} r="7" fill="#49dd85" stroke="rgba(255,255,255,0.9)" strokeWidth="2" />
-          <circle cx={point.x} cy={point.y} r="14" fill="rgba(73,221,133,0.12)" />
+          <circle cx={point.x} cy={point.y} r="5" fill="#49dd85" stroke="rgba(255,255,255,0.88)" strokeWidth="1.5" />
+          <circle cx={point.x} cy={point.y} r="10" fill="rgba(73,221,133,0.1)" />
           <text x={origin.x + leadAxis.x + 5} y={origin.y + leadAxis.y + 2} fill="rgba(73,221,133,0.9)" fontSize="10" fontWeight="700">准客</text>
           <text x={origin.x - 8} y={origin.y + houseAxis.y - 6} fill="rgba(102,209,224,0.9)" fontSize="10" fontWeight="700">房子</text>
           <text x={origin.x + ownerAxis.x + 5} y={origin.y + ownerAxis.y + 4} fill="rgba(255,107,129,0.9)" fontSize="10" fontWeight="700">业主</text>
@@ -2216,9 +2207,20 @@ function buildSuggestedActionCopy(
   const phaseCode = caseProjection?.listingLifecyclePhase?.phaseCode;
 
   if (phaseCode === 'pre_visit') {
+    const priceGap = caseItem.askPrice - caseItem.marketPrice;
+    const priceHint = priceGap > 0
+      ? `挂牌比市场高 ${priceGap} 万`
+      : `挂牌已经贴近市场位`;
+    const ownerState = caseItem.trust < 55
+      ? '业主信任还没建立'
+      : caseItem.patience < 45
+        ? '业主耐心正在变紧'
+        : caseItem.urgency > 80
+          ? '业主更看重速度'
+          : '业主态度还算稳定';
     return {
       title,
-      detail: '先把业主顾虑、时间窗口和合作基础摸清。',
+      detail: `${caseItem.ownerName} 还没完成首次面访，先别急着铺推广。面访里要问清卖房原因、最晚可等到哪天、能不能接受市场反馈；同时把「${priceHint}」这件事讲透，做完再决定先补包装、调价格还是拉第一批客户。当前${ownerState}，这一步会直接影响后面的带看和议价空间。`,
     };
   }
 

@@ -45,6 +45,12 @@ type OfficialArticleRowProps = {
   read: boolean;
   onClick: () => void;
 };
+type WechatAvatarProps = {
+  senderName: string;
+  senderRole: WechatMessage['senderRole'];
+  label: string;
+  className: string;
+};
 
 export function MyWechatPanel({
   projection,
@@ -351,9 +357,12 @@ const WechatMessageRow: React.FC<WechatMessageRowProps> = ({
         aria-hidden="true"
         className={`mt-2.5 h-2.5 w-2.5 shrink-0 rounded-full ${read ? 'bg-transparent' : 'bg-rose-500 shadow-[0_0_0_2px_var(--seller-panel)]'}`}
       />
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.06)] text-[13px] font-semibold text-[var(--seller-ink)]">
-        {conversation.avatarLabel}
-      </div>
+      <WechatAvatar
+        senderName={conversation.senderName}
+        senderRole={conversation.senderRole}
+        label={conversation.avatarLabel}
+        className="h-9 w-9 rounded-[12px]"
+      />
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center justify-between gap-2">
           <div className="min-w-0 truncate text-[13px] font-semibold text-[var(--seller-ink)]">{conversation.senderName}</div>
@@ -373,7 +382,7 @@ const WechatMessageRow: React.FC<WechatMessageRowProps> = ({
                 event.stopPropagation();
                 onPrimaryAction();
               }}
-              className="rounded-full border border-[color:var(--seller-accent)]/24 bg-[color:var(--seller-accent)]/8 px-[5px] py-[1px] text-[10px] font-semibold leading-[19px] text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/14"
+              className="rounded-full border border-[color:var(--seller-accent)]/24 bg-[color:var(--seller-accent)]/8 px-1.5 py-0 text-[9px] font-semibold leading-[17px] text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/14"
               title="点击直接安排事项"
             >
               {latestMessage.primaryCtaLabel}
@@ -412,9 +421,12 @@ const WechatConversationDetail: React.FC<{
         >
           ←
         </button>
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.06)] text-[12px] font-semibold text-[var(--seller-ink)]">
-          {conversation.avatarLabel}
-        </div>
+        <WechatAvatar
+          senderName={conversation.senderName}
+          senderRole={conversation.senderRole}
+          label={conversation.avatarLabel}
+          className="h-8 w-8 rounded-[10px]"
+        />
         <div className="min-w-0 flex-1">
           <div className="truncate text-[13px] font-semibold text-[var(--seller-ink)]">{conversation.senderName}</div>
           <div className="mt-0.5 text-[10px] text-[var(--seller-subtle)]">{senderRoleLabel(conversation.senderRole)}</div>
@@ -424,9 +436,12 @@ const WechatConversationDetail: React.FC<{
       <div className="flex-1 space-y-3 overflow-y-auto px-3 py-4">
         {conversation.messages.map((message) => (
           <div key={message.id} className="flex items-start gap-2.5">
-            <div className="mt-4 flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] bg-[rgba(255,255,255,0.07)] text-[11px] font-semibold text-[var(--seller-ink)]">
-              {message.avatarLabel}
-            </div>
+            <WechatAvatar
+              senderName={message.senderName}
+              senderRole={message.senderRole}
+              label={message.avatarLabel}
+              className="mt-4 h-7 w-7 rounded-[9px]"
+            />
             <div className="min-w-0 max-w-[78%]">
               <div className="mb-1 flex items-center gap-2 text-[10px] text-[var(--seller-subtle)]">
                 <span>{message.timeLabel}</span>
@@ -532,6 +547,48 @@ function WechatEmptyState({ title, description }: { title: string; description: 
       <p className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">{description}</p>
     </div>
   );
+}
+
+const PORTRAIT_AVATAR_INDICES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+const NON_FACE_AVATAR_INDICES = [13, 14, 15, 16];
+
+function WechatAvatar({ senderName, senderRole, label, className }: WechatAvatarProps) {
+  return (
+    <div
+      className={`relative shrink-0 overflow-hidden border border-[var(--seller-border)] bg-[rgba(255,255,255,0.06)] ${className}`}
+      aria-hidden="true"
+    >
+      <span className="absolute inset-0 flex items-center justify-center text-[11px] font-semibold text-[var(--seller-ink)]">
+        {label}
+      </span>
+      <img
+        src={getWechatAvatarSrc(senderName, senderRole)}
+        alt=""
+        loading="lazy"
+        className="relative h-full w-full object-cover"
+        onError={(event) => {
+          event.currentTarget.style.display = 'none';
+        }}
+      />
+    </div>
+  );
+}
+
+function getWechatAvatarSrc(senderName: string, senderRole: WechatMessage['senderRole']) {
+  const pool =
+    senderRole === 'official_account' || senderRole === 'system'
+      ? NON_FACE_AVATAR_INDICES
+      : PORTRAIT_AVATAR_INDICES;
+  const index = pool[stableHash(`${senderRole}:${senderName}`) % pool.length];
+  return `/selling-houses/avatars/avatar-${String(index).padStart(2, '0')}.png`;
+}
+
+function stableHash(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return hash;
 }
 
 function urgencyLabel(urgency: WechatMessageUrgency) {
