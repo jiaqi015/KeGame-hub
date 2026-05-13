@@ -856,6 +856,20 @@ export interface RunContext {
    * Created by domain/world-model/seededMarketWorld.ts.
    */
   marketOpeningSnapshot?: import('./world-model/marketWorldTypes.js').MarketOpeningSnapshot;
+  /**
+   * BigWorldBootstrap — the canonical entrypoint for world initialization.
+   * Contains full materialized entities, hidden truth, and owner priors.
+   * Optional for backward compatibility with older saves.
+   * Created by domain/world-model/bigWorldBootstrap.ts.
+   */
+  bigWorldBootstrap?: import('./world-model/bigWorldTypes.js').BigWorldBootstrap;
+  /**
+   * BigWorldBootstrapSummary — compact persistable summary of the bootstrap.
+   * Contains counts, references, and invariant checks.
+   * Optional for backward compatibility with older saves.
+   * Created by domain/world-model/bigWorldBootstrapSummary.ts.
+   */
+  bigWorldBootstrapSummary?: import('./world-model/bigWorldTypes.js').BigWorldBootstrapSummary;
 }
 
 export interface Case {
@@ -1908,4 +1922,16 @@ export interface GameState {
   expectationStore?: Expectation[];
   foreshadowingStore?: ForeshadowingHook[];
   topicHistory?: TopicHistoryPointer[];
+  /**
+   * Optional big world runtime state — autonomous world movement substrate.
+   * Tracks daily causal events, summaries, and compaction.
+   * Old saves without this field work normally (undefined fallback).
+   */
+  bigWorldRuntime?: import('./world-model/runtime/types.js').BigWorldRuntimeState;
+  /**
+   * Optional world causal events — append-only causal ledger for world movement.
+   * Stored as a flat array on GameState for persistence and replay.
+   * Old saves without this field work normally (undefined fallback).
+   */
+  worldCausalEvents?: readonly import('./world-model/causalEvents.js').WorldCausalEvent[];
 }

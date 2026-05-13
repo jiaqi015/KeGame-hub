@@ -75,6 +75,15 @@ export interface WorldCausalEventBase {
   readonly payload: Record<string, unknown>;
   /** Optional creation timestamp. */
   readonly createdAt?: string;
+
+  // --- Source traceability (set by sourceIngestionAdapter; absent for system-tick events) ---
+
+  /** ID of the InformationSourceRecord that produced this causal event. Absent for self-generated (system-tick) events. */
+  readonly sourceRecordId?: string;
+  /** ReplayKey of the source record for deterministic traceability. */
+  readonly sourceReplayKey?: string;
+  /** SourceKind of the originating record. */
+  readonly sourceKind?: import('./informationSourceTypes.js').SourceKind;
 }
 
 // ---------------------------------------------------------------------------
@@ -256,6 +265,9 @@ function makeBase(
     causeEventIds?: readonly string[];
     confidence?: number;
     createdAt?: string;
+    sourceRecordId?: string;
+    sourceReplayKey?: string;
+    sourceKind?: import('./informationSourceTypes.js').SourceKind;
   },
 ): WorldCausalEventBase {
   return Object.freeze({
@@ -270,6 +282,9 @@ function makeBase(
     confidence: opts.confidence ?? 1,
     payload: {},
     createdAt: opts.createdAt,
+    sourceRecordId: opts.sourceRecordId,
+    sourceReplayKey: opts.sourceReplayKey,
+    sourceKind: opts.sourceKind,
   });
 }
 
@@ -277,7 +292,7 @@ export function buildMarketHeatShifted(
   id: string,
   day: number,
   payload: MarketHeatShiftedPayload,
-  opts?: { actorIds?: readonly string[]; causeEventIds?: readonly string[]; createdAt?: string },
+  opts?: { actorIds?: readonly string[]; causeEventIds?: readonly string[]; createdAt?: string; sourceRecordId?: string; sourceReplayKey?: string; sourceKind?: import('./informationSourceTypes.js').SourceKind },
 ): MarketHeatShifted {
   const base = makeBase(id, 'MarketHeatShifted', day, 'market-signal', {
     actorIds: opts?.actorIds,
@@ -286,6 +301,9 @@ export function buildMarketHeatShifted(
     causeEventIds: opts?.causeEventIds,
     confidence: payload.confidence,
     createdAt: opts?.createdAt,
+    sourceRecordId: opts?.sourceRecordId,
+    sourceReplayKey: opts?.sourceReplayKey,
+    sourceKind: opts?.sourceKind,
   });
   return Object.freeze({ ...base, kind: 'MarketHeatShifted' as const, payload: Object.freeze(payload) });
 }
@@ -294,7 +312,7 @@ export function buildRivalListingRepriced(
   id: string,
   day: number,
   payload: RivalListingRepricedPayload,
-  opts?: { actorIds?: readonly string[]; causeEventIds?: readonly string[]; createdAt?: string },
+  opts?: { actorIds?: readonly string[]; causeEventIds?: readonly string[]; createdAt?: string; sourceRecordId?: string; sourceReplayKey?: string; sourceKind?: import('./informationSourceTypes.js').SourceKind },
 ): RivalListingRepriced {
   const base = makeBase(id, 'RivalListingRepriced', day, 'rival-action', {
     actorIds: opts?.actorIds ?? (payload.brokerId ? [payload.brokerId] : []),
@@ -303,6 +321,9 @@ export function buildRivalListingRepriced(
     causeEventIds: opts?.causeEventIds,
     confidence: 1,
     createdAt: opts?.createdAt,
+    sourceRecordId: opts?.sourceRecordId,
+    sourceReplayKey: opts?.sourceReplayKey,
+    sourceKind: opts?.sourceKind,
   });
   return Object.freeze({ ...base, kind: 'RivalListingRepriced' as const, payload: Object.freeze(payload) });
 }
@@ -311,7 +332,7 @@ export function buildRivalBrokerActionTaken(
   id: string,
   day: number,
   payload: RivalBrokerActionTakenPayload,
-  opts?: { actorIds?: readonly string[]; causeEventIds?: readonly string[]; createdAt?: string },
+  opts?: { actorIds?: readonly string[]; causeEventIds?: readonly string[]; createdAt?: string; sourceRecordId?: string; sourceReplayKey?: string; sourceKind?: import('./informationSourceTypes.js').SourceKind },
 ): RivalBrokerActionTaken {
   const entityIds = [payload.brokerId, payload.acnId];
   if (payload.targetListingId) entityIds.push(payload.targetListingId);
@@ -324,6 +345,9 @@ export function buildRivalBrokerActionTaken(
     causeEventIds: opts?.causeEventIds,
     confidence: 1,
     createdAt: opts?.createdAt,
+    sourceRecordId: opts?.sourceRecordId,
+    sourceReplayKey: opts?.sourceReplayKey,
+    sourceKind: opts?.sourceKind,
   });
   return Object.freeze({ ...base, kind: 'RivalBrokerActionTaken' as const, payload: Object.freeze(payload) });
 }
@@ -332,7 +356,7 @@ export function buildCustomerComparedListings(
   id: string,
   day: number,
   payload: CustomerComparedListingsPayload,
-  opts?: { actorIds?: readonly string[]; causeEventIds?: readonly string[]; createdAt?: string },
+  opts?: { actorIds?: readonly string[]; causeEventIds?: readonly string[]; createdAt?: string; sourceRecordId?: string; sourceReplayKey?: string; sourceKind?: import('./informationSourceTypes.js').SourceKind },
 ): CustomerComparedListings {
   const entityIds = payload.customerId ? [payload.customerId] : (payload.segmentId ? [payload.segmentId] : []);
   const base = makeBase(id, 'CustomerComparedListings', day, 'customer-behavior', {
@@ -342,6 +366,9 @@ export function buildCustomerComparedListings(
     causeEventIds: opts?.causeEventIds,
     confidence: 1,
     createdAt: opts?.createdAt,
+    sourceRecordId: opts?.sourceRecordId,
+    sourceReplayKey: opts?.sourceReplayKey,
+    sourceKind: opts?.sourceKind,
   });
   return Object.freeze({ ...base, kind: 'CustomerComparedListings' as const, payload: Object.freeze(payload) });
 }
@@ -350,7 +377,7 @@ export function buildCustomerAttentionShifted(
   id: string,
   day: number,
   payload: CustomerAttentionShiftedPayload,
-  opts?: { actorIds?: readonly string[]; createdAt?: string },
+  opts?: { actorIds?: readonly string[]; createdAt?: string; sourceRecordId?: string; sourceReplayKey?: string; sourceKind?: import('./informationSourceTypes.js').SourceKind },
 ): CustomerAttentionShifted {
   const affectedIds = [...payload.fromListingIds, ...payload.toListingIds];
   const base = makeBase(id, 'CustomerAttentionShifted', day, 'customer-behavior', {
@@ -360,6 +387,9 @@ export function buildCustomerAttentionShifted(
     causeEventIds: [payload.causeEventId],
     confidence: 1,
     createdAt: opts?.createdAt,
+    sourceRecordId: opts?.sourceRecordId,
+    sourceReplayKey: opts?.sourceReplayKey,
+    sourceKind: opts?.sourceKind,
   });
   return Object.freeze({ ...base, kind: 'CustomerAttentionShifted' as const, payload: Object.freeze(payload) });
 }
@@ -368,7 +398,7 @@ export function buildOwnerMarketPressurePerceived(
   id: string,
   day: number,
   payload: OwnerMarketPressurePerceivedPayload,
-  opts?: { actorIds?: readonly string[]; causeEventIds?: readonly string[]; createdAt?: string },
+  opts?: { actorIds?: readonly string[]; causeEventIds?: readonly string[]; createdAt?: string; sourceRecordId?: string; sourceReplayKey?: string; sourceKind?: import('./informationSourceTypes.js').SourceKind },
 ): OwnerMarketPressurePerceived {
   const entityIds = [payload.caseId];
   if (payload.ownerId) entityIds.push(payload.ownerId);
@@ -379,6 +409,9 @@ export function buildOwnerMarketPressurePerceived(
     causeEventIds: opts?.causeEventIds ?? payload.perceivedSignalIds,
     confidence: payload.confidence,
     createdAt: opts?.createdAt,
+    sourceRecordId: opts?.sourceRecordId,
+    sourceReplayKey: opts?.sourceReplayKey,
+    sourceKind: opts?.sourceKind,
   });
   return Object.freeze({ ...base, kind: 'OwnerMarketPressurePerceived' as const, payload: Object.freeze(payload) });
 }
@@ -387,7 +420,7 @@ export function buildBrokerRecommendationChanged(
   id: string,
   day: number,
   payload: BrokerRecommendationChangedPayload,
-  opts?: { actorIds?: readonly string[]; createdAt?: string },
+  opts?: { actorIds?: readonly string[]; createdAt?: string; sourceRecordId?: string; sourceReplayKey?: string; sourceKind?: import('./informationSourceTypes.js').SourceKind },
 ): BrokerRecommendationChanged {
   const base = makeBase(id, 'BrokerRecommendationChanged', day, 'broker-service', {
     actorIds: opts?.actorIds,
@@ -396,6 +429,9 @@ export function buildBrokerRecommendationChanged(
     causeEventIds: payload.causedByEventIds,
     confidence: 1,
     createdAt: opts?.createdAt,
+    sourceRecordId: opts?.sourceRecordId,
+    sourceReplayKey: opts?.sourceReplayKey,
+    sourceKind: opts?.sourceKind,
   });
   return Object.freeze({ ...base, kind: 'BrokerRecommendationChanged' as const, payload: Object.freeze(payload) });
 }
@@ -404,7 +440,7 @@ export function buildMatterPriorityChanged(
   id: string,
   day: number,
   payload: MatterPriorityChangedPayload,
-  opts?: { actorIds?: readonly string[]; createdAt?: string },
+  opts?: { actorIds?: readonly string[]; createdAt?: string; sourceRecordId?: string; sourceReplayKey?: string; sourceKind?: import('./informationSourceTypes.js').SourceKind },
 ): MatterPriorityChanged {
   const entityIds = [payload.caseId];
   if (payload.matterId) entityIds.push(payload.matterId);
@@ -415,6 +451,9 @@ export function buildMatterPriorityChanged(
     causeEventIds: payload.causedByEventIds,
     confidence: 1,
     createdAt: opts?.createdAt,
+    sourceRecordId: opts?.sourceRecordId,
+    sourceReplayKey: opts?.sourceReplayKey,
+    sourceKind: opts?.sourceKind,
   });
   return Object.freeze({ ...base, kind: 'MatterPriorityChanged' as const, payload: Object.freeze(payload) });
 }
@@ -423,7 +462,7 @@ export function buildOpeningWorldEventImported(
   id: string,
   day: number,
   payload: OpeningWorldEventImportedPayload,
-  opts?: { actorIds?: readonly string[]; createdAt?: string },
+  opts?: { actorIds?: readonly string[]; createdAt?: string; sourceRecordId?: string; sourceReplayKey?: string; sourceKind?: import('./informationSourceTypes.js').SourceKind },
 ): OpeningWorldEventImported {
   const affectedIds: string[] = [];
   if (payload.targetCaseId) affectedIds.push(payload.targetCaseId);
@@ -435,6 +474,9 @@ export function buildOpeningWorldEventImported(
     causeEventIds: [],
     confidence: 0.8,
     createdAt: opts?.createdAt,
+    sourceRecordId: opts?.sourceRecordId,
+    sourceReplayKey: opts?.sourceReplayKey,
+    sourceKind: opts?.sourceKind,
   });
   return Object.freeze({ ...base, kind: 'OpeningWorldEventImported' as const, payload: Object.freeze(payload) });
 }

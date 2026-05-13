@@ -1,6 +1,114 @@
 // ---------------------------------------------------------------------------
 // world-model/index — barrel exports for MarketOpeningSnapshot + Causal Ledger
+// + BigWorld Initialization Platform (Agent A)
 // ---------------------------------------------------------------------------
+
+// --- BigWorld Initialization Platform (Agent A) ----------------------------
+
+export type {
+  BigWorldScalePolicy,
+  BigWorldDomainConfig,
+  BigWorldHiddenBoundary,
+  BigWorldVisibleBoundary,
+  BigWorldInvariants,
+  BigWorldCaps,
+  BigWorldSpec,
+  BigWorldHiddenTruth,
+  BigWorldMaterializedEntities,
+  BigWorldColdAggregate,
+  BigWorldOpeningPOV,
+  BigWorldCausalBaseline,
+  OwnerProfilePriorType,
+  OwnerProfilePrior,
+  OwnerExpectationAnchor,
+  OwnerPerceptionLag,
+  ShadowAggregateCluster,
+  EntityProvenance,
+  BootstrapSourceRef,
+  SourceOrigin,
+  BigWorldBootstrap,
+  BigWorldBootstrapSummary,
+  BigWorldRuntimeInitialState,
+  BigWorldNormalizedSave,
+} from './bigWorldTypes.js';
+
+export type {
+  SourceKind,
+  ActorRole,
+  VisibilityScope,
+  VisibilityPolicy,
+  EntityRef,
+  ActorRef,
+  SourcePayloadBase,
+  MarketSignalSubtype,
+  MarketSignalPayload,
+  RivalActionSubtype,
+  RivalActionPayload,
+  CustomerInteractionSubtype,
+  CustomerInteractionPayload,
+  OwnerInterviewSubtype,
+  OwnerInterviewPayload,
+  ManagerMessageSubtype,
+  ManagerMessagePayload,
+  PlayerActionReceiptSubtype,
+  PlayerActionReceiptPayload,
+  ProcessReceiptSubtype,
+  ProcessReceiptPayload,
+  ComparableTransactionSubtype,
+  ComparableTransactionPayload,
+  PlatformTrafficSubtype,
+  PlatformTrafficPayload,
+  AcnNetworkSignalSubtype,
+  AcnNetworkSignalPayload,
+  SourceCanonicalPayload,
+  SourceKindPayloadMap,
+  InformationSourceRecord,
+  SourceRecordIndex,
+  SourceToCausalMapping,
+} from './informationSourceTypes.js';
+
+export {
+  SOURCE_TO_CAUSAL_MAP,
+  EXAMPLE_MARKET_SIGNAL,
+  EXAMPLE_RIVAL_ACTION,
+  EXAMPLE_OWNER_INTERVIEW,
+  EXAMPLE_COMPARABLE_TXN,
+} from './informationSourceTypes.js';
+
+export type {
+  InformationSourceRegistry,
+  AppendResult,
+  AppendSuccess,
+  AppendDuplicate,
+  BatchAppendResult,
+  RegistryStats,
+} from './informationSourceRegistry.js';
+
+export {
+  createEmptyRegistry,
+  appendSourceRecord,
+  appendSourceRecords,
+  queryVisibleSourceRecords,
+  queryHiddenSourceRecords,
+  queryByKind,
+  queryByDay,
+  queryByEntityId,
+  queryByActorId,
+  queryByReplayKey,
+  getRegistryStats,
+} from './informationSourceRegistry.js';
+
+export { buildBigWorldSpec } from './bigWorldSpecFactory.js';
+
+export { createBigWorldBootstrap, buildRuntimeInitialState } from './bigWorldBootstrap.js';
+
+export type { BigWorldBootstrapInput } from './bigWorldBootstrap.js';
+
+export {
+  buildBigWorldBootstrapSummary,
+  assertBigWorldSummaryInvariants,
+  normalizeOldSave,
+} from './bigWorldBootstrapSummary.js';
 
 // --- MarketOpeningSnapshot layer (Agent A) ----------------------------------
 
@@ -241,3 +349,45 @@ export {
   getProposalsByKind,
   getProposalsByAcn,
 } from './ecosystemPolicy.js';
+
+// --- Big World Runtime Substrate (Agent B) --------------------------------
+
+export type {
+  BigWorldCausalRef,
+  BigWorldDailyEvent,
+  BigWorldEventVisibility,
+  BigWorldTickPhaseId,
+  BigWorldTickPhaseResult,
+  MarketEnvironmentSummary,
+  RivalActivitySummary,
+  CustomerDemandSummary,
+  OwnerPerceptionSummary,
+  OpportunityPressureSummary,
+  RecommendationPressureSummary,
+  BigWorldRuntimeSummary,
+  BigWorldTickReceipt,
+  WorldRuntimeCompactionPolicy,
+  BigWorldRuntimeState,
+  BigWorldClockInput,
+} from './runtime/types.js';
+
+export { DEFAULT_COMPACTION_POLICY } from './runtime/types.js';
+
+export { TICK_PHASE_ORDER, runAllPhases } from './runtime/phases.js';
+
+export {
+  compactDailyEvents,
+  compactDailySummaries,
+  compactCausalRefs,
+  compactWorldCausalEvents,
+  runCompactionPass,
+  buildRuntimeSummary,
+  normalizeRuntimeState,
+  createDefaultRuntimeState,
+} from './runtime/compaction.js';
+
+export {
+  runBigWorldDayTick,
+  applyTickReceiptToRuntime,
+  buildClockInputFromGameState,
+} from './runtime/clock.js';

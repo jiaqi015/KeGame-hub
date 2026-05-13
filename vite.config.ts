@@ -31,16 +31,31 @@ function getVersionType() {
   }
 }
 
+function getLineCount() {
+  try {
+    const result = execSync(
+      'find src lib api modules e2e scripts server.ts -name "*.ts" -o -name "*.tsx" -o -name "*.css" 2>/dev/null | xargs wc -l | tail -1',
+      {cwd: __dirname, encoding: 'utf-8'}
+    );
+    const match = result.match(/(\d+)/);
+    return match ? match[1] : '0';
+  } catch {
+    return '0';
+  }
+}
+
 export default defineConfig(({mode}) => {
   const commitHash = getGitCommitHash();
   const appVersion = getAppVersion();
   const versionType = getVersionType();
+  const lineCount = getLineCount();
   return {
     plugins: [react(), tailwindcss()],
     define: {
       'import.meta.env.VITE_GIT_COMMIT': JSON.stringify(commitHash),
       'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
       'import.meta.env.VITE_VERSION_TYPE': JSON.stringify(versionType),
+      'import.meta.env.VITE_LINE_COUNT': JSON.stringify(lineCount),
     },
     resolve: {
       alias: {

@@ -42,6 +42,14 @@ import { buildExpectations } from './engine/expectationEngine.js';
 import { checkForeshadowing, buryNewForeshadowings } from './engine/foreshadowingEngine.js';
 import { generateDailyNarrative, updateTopicHistory } from './engine/narrativeEngine.js';
 import { createPressureCollectionBuffer, buildPressureReceiptsFromBuffer } from '../core/world-state/competition/pressureBuffer.js';
+import {
+  buildClockInputFromGameState,
+  runBigWorldDayTick,
+  applyTickReceiptToRuntime,
+  normalizeRuntimeState,
+  createDefaultRuntimeState,
+  DEFAULT_COMPACTION_POLICY,
+} from './world-model/runtime/index.js';
 
 export {
   adjustCaseOpportunities,
@@ -273,6 +281,37 @@ function groupProcessResultsByTickPhase(processResults: DailyProcessResultSummar
   };
 }
 
+// ---------------------------------------------------------------------------
+// BigWorldRuntime — tick the autonomous world movement substrate
+// ---------------------------------------------------------------------------
+
+/**
+ * Tick the big world runtime: run 8 phases, produce causal events, update summaries.
+ * Reads from GameState, produces a receipt, applies receipt back to GameState.
+ * The receipt only writes to bigWorldRuntime / worldCausalEvents — never to
+ * case trust/patience/opportunity status directly.
+ */
+function tickBigWorldRuntime(state: GameState): void {
+  const clockInput = buildClockInputFromGameState(state);
+  const existingRuntime = state.bigWorldRuntime
+    ?? normalizeRuntimeState(state.bigWorldRuntime, DEFAULT_COMPACTION_POLICY);
+  const existingCausalEvents = Array.isArray(state.worldCausalEvents) ? state.worldCausalEvents : [];
+
+  const receipt = runBigWorldDayTick(clockInput, existingRuntime, existingCausalEvents);
+
+  // Apply receipt to runtime state (mutates in place)
+  if (!state.bigWorldRuntime) {
+    state.bigWorldRuntime = createDefaultRuntimeState(DEFAULT_COMPACTION_POLICY);
+  }
+  applyTickReceiptToRuntime(state.bigWorldRuntime, receipt);
+
+  // Append causal events to the world causal ledger
+  if (receipt.causalEventsToAppend.length > 0) {
+    const prev = Array.isArray(state.worldCausalEvents) ? state.worldCausalEvents : [];
+    state.worldCausalEvents = [...prev, ...receipt.causalEventsToAppend];
+  }
+}
+
 function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): DailyTickResult {
   const settledDay = state.day;
   const eventStoreStart = state.eventStore.length;
@@ -327,6 +366,10 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
       logEvent(state, '系统资金', `周度推广金已到账 +${state.rules.weeklyBudgetAllowance} 点。`, 'accent');
     }
   }
+
+  // BigWorld runtime: tick autonomous world movement substrate
+  // Produces causal events + summaries. Writes only to bigWorldRuntime / worldCausalEvents.
+  tickBigWorldRuntime(state);
 
   updateDerivedState(state);
   const afterScore = average(state.cases.map((entry) => entry.competitiveness));

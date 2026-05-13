@@ -64,6 +64,9 @@ import {
   normalizeGameSaveMetadata,
 } from './saveConsistency.js';
 import { createMarketOpeningSnapshot } from '../domain/world-model/seededMarketWorld.js';
+import { createBigWorldBootstrap } from '../domain/world-model/bigWorldBootstrap.js';
+import { buildBigWorldBootstrapSummary } from '../domain/world-model/bigWorldBootstrapSummary.js';
+import { createDefaultRuntimeState, DEFAULT_COMPACTION_POLICY } from '../domain/world-model/runtime/index.js';
 
 function isBrowser() {
   return typeof window !== 'undefined' && Boolean(window.localStorage);
@@ -233,12 +236,19 @@ function resolveRunSeeds(seedInput: RunSeedInput) {
 
 function buildRunContext(snapshot: ScenarioSnapshot, seedInput: RunSeedInput) {
   const { runSeed, scenarioSeed } = resolveRunSeeds(seedInput);
-  const marketOpeningSnapshot = createMarketOpeningSnapshot({
+
+  // BigWorldBootstrap is the canonical entrypoint for world initialization.
+  // MarketOpeningSnapshot is derived as a child/adaptor from bootstrap.
+  const bigWorldBootstrap = createBigWorldBootstrap({
     seed: runSeed,
     scenarioName: snapshot.scenario.name,
     difficultyId: snapshot.scenario.difficultyId,
     playerCaseCount: snapshot.scenario.cases.length,
+    playerCaseIds: snapshot.scenario.cases.map((c) => c.id),
   });
+
+  const marketOpeningSnapshot = bigWorldBootstrap.marketOpeningSnapshot;
+
   return {
     scenarioId: snapshot.scenario.id,
     scenarioName: snapshot.scenario.name,
@@ -251,6 +261,8 @@ function buildRunContext(snapshot: ScenarioSnapshot, seedInput: RunSeedInput) {
     createdAt: new Date().toISOString(),
     scenarioSnapshot: snapshot,
     marketOpeningSnapshot,
+    bigWorldBootstrap,
+    bigWorldBootstrapSummary: buildBigWorldBootstrapSummary(bigWorldBootstrap),
   };
 }
 
@@ -559,6 +571,8 @@ export function createInitialState(snapshot: ScenarioSnapshot, seedInput: RunSee
     managerInterventionReceiptHistory: [],
     negotiationReplayHistory: [],
     businessOutcomeReviewHistory: [],
+    bigWorldRuntime: createDefaultRuntimeState(DEFAULT_COMPACTION_POLICY),
+    worldCausalEvents: [],
   };
 
   // Initialize runtimeBrokerOwnerRelations from generated cases
@@ -1470,6 +1484,16 @@ export function normalizeLoadedState(parsed: any): GameState | null {
   // Ensure business outcome review history exists for old saves (optional field, empty fallback)
   if (!Array.isArray(state.businessOutcomeReviewHistory)) {
     state.businessOutcomeReviewHistory = [];
+  }
+
+  // Ensure big world runtime exists for old saves (optional field, default fallback)
+  if (!state.bigWorldRuntime || typeof state.bigWorldRuntime !== 'object') {
+    state.bigWorldRuntime = createDefaultRuntimeState(DEFAULT_COMPACTION_POLICY);
+  }
+
+  // Ensure world causal events exists for old saves (optional field, empty fallback)
+  if (!Array.isArray(state.worldCausalEvents)) {
+    state.worldCausalEvents = [];
   }
 
   if (!state.customerStates.length) {

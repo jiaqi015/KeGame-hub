@@ -333,9 +333,14 @@ export function AuthOverlay({
                 <KeGameHubMark size={64} className="relative z-10" unframed />
                 <div className="absolute inset-0 bg-white/5 blur-2xl rounded-full" />
               </div>
-              <h1 className="text-[48px] font-[900] italic leading-none tracking-[-0.05em] text-white select-none translate-y-[2px]">
-                KeGame Hub
-              </h1>
+              <div className="translate-y-[2px]">
+                <h1 className="select-none text-[48px] font-[900] italic leading-none tracking-[-0.05em] text-white">
+                  KeGame Hub
+                </h1>
+                <div className="mt-2 text-[11px] font-semibold tracking-[0.18em] text-zinc-500">
+                  当前项目代码行数
+                </div>
+              </div>
             </div>
             <p className="mt-4 max-w-md text-left text-[14px] font-medium leading-relaxed text-zinc-500">
               第一次登录：使用 <span className="text-zinc-200">@ke.com / @lianjia.com</span> 邮箱，验证码 + 首登激活 Key 开通。再次进入会先恢复有效会话；主动登出后会保留账号，方便回登。
@@ -423,12 +428,19 @@ export function AuthOverlay({
               <div className="h-1 w-1 rounded-full bg-zinc-600" />
             </div>
 
-            <div className="mt-4 flex items-center justify-center gap-3 text-[10px] font-mono tracking-wider text-zinc-700">
-              <span>v{import.meta.env.VITE_APP_VERSION ?? '—'}</span>
-              <span className="text-zinc-800">·</span>
-              <span className={import.meta.env.VITE_VERSION_TYPE === 'magic' ? 'text-amber-500/70' : ''}>{import.meta.env.VITE_VERSION_TYPE === 'magic' ? '✨ Magic' : '◻ Square'}</span>
-              <span className="text-zinc-800">·</span>
-              <span>{(import.meta.env.VITE_GIT_COMMIT ?? '—').slice(0, 7)}</span>
+            <div className="mt-4 flex flex-col items-center justify-center gap-2 text-[10px] font-mono tracking-wider text-zinc-700">
+              <div className="flex items-center gap-3">
+                <span>v{import.meta.env.VITE_APP_VERSION ?? '—'}</span>
+                <span className="text-zinc-800">·</span>
+                <span className={import.meta.env.VITE_VERSION_TYPE === 'magic' ? 'text-amber-500/70' : ''}>{import.meta.env.VITE_VERSION_TYPE === 'magic' ? '✨ Magic' : '◻ Square'}</span>
+                <span className="text-zinc-800">·</span>
+                <span>{(import.meta.env.VITE_GIT_COMMIT ?? '—').slice(0, 7)}</span>
+              </div>
+              <div className="flex items-center gap-2 text-zinc-600">
+                <span>📊 代码行数</span>
+                <span className="text-zinc-400">→</span>
+                <span className="font-bold text-zinc-500">{import.meta.env.VITE_LINE_COUNT ?? '—'}</span>
+              </div>
             </div>
           </div>
         </div>
