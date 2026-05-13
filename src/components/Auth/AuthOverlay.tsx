@@ -338,7 +338,7 @@ export function AuthOverlay({
                   KeGame Hub
                 </h1>
                 <div className="mt-2 text-[11px] font-semibold tracking-[0.18em] text-zinc-500">
-                  当前项目代码行数
+                  当前项目代码行数 {import.meta.env.VITE_LINE_COUNT ?? '—'}
                 </div>
               </div>
             </div>
@@ -428,19 +428,12 @@ export function AuthOverlay({
               <div className="h-1 w-1 rounded-full bg-zinc-600" />
             </div>
 
-            <div className="mt-4 flex flex-col items-center justify-center gap-2 text-[10px] font-mono tracking-wider text-zinc-700">
-              <div className="flex items-center gap-3">
-                <span>v{import.meta.env.VITE_APP_VERSION ?? '—'}</span>
-                <span className="text-zinc-800">·</span>
-                <span className={import.meta.env.VITE_VERSION_TYPE === 'magic' ? 'text-amber-500/70' : ''}>{import.meta.env.VITE_VERSION_TYPE === 'magic' ? '✨ Magic' : '◻ Square'}</span>
-                <span className="text-zinc-800">·</span>
-                <span>{(import.meta.env.VITE_GIT_COMMIT ?? '—').slice(0, 7)}</span>
-              </div>
-              <div className="flex items-center gap-2 text-zinc-600">
-                <span>📊 代码行数</span>
-                <span className="text-zinc-400">→</span>
-                <span className="font-bold text-zinc-500">{import.meta.env.VITE_LINE_COUNT ?? '—'}</span>
-              </div>
+            <div className="mt-4 flex items-center justify-center gap-3 text-[10px] font-mono tracking-wider text-zinc-700">
+              <span>v{import.meta.env.VITE_APP_VERSION ?? '—'}</span>
+              <span className="text-zinc-800">·</span>
+              <span className={import.meta.env.VITE_VERSION_TYPE === 'magic' ? 'text-amber-500/70' : ''}>{import.meta.env.VITE_VERSION_TYPE === 'magic' ? '✨ Magic' : '◻ Square'}</span>
+              <span className="text-zinc-800">·</span>
+              <span>{(import.meta.env.VITE_GIT_COMMIT ?? '—').slice(0, 7)}</span>
             </div>
           </div>
         </div>

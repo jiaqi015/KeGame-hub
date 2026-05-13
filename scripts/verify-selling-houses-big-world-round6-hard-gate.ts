@@ -431,8 +431,31 @@ hardFail(
   'projection reads state.worldCausalEvents for causal refs',
 );
 
-// e) The SOURCE_TO_CAUSAL_MAP covers all 10 kinds
-hardFail(SOURCE_TO_CAUSAL_MAP.length === 10, `SOURCE_TO_CAUSAL_MAP covers all 10 kinds (got ${SOURCE_TO_CAUSAL_MAP.length})`);
+// e) The SOURCE_TO_CAUSAL_MAP covers the original 10 kinds and any later extensions.
+// Round 8 expands the matrix to 15 kinds; this gate must not fail just because
+// the source universe got larger, but it must still protect the original baseline.
+const baselineSourceKinds: readonly SourceKind[] = [
+  'market_signal',
+  'rival_action',
+  'customer_interaction',
+  'owner_interview',
+  'manager_message',
+  'player_action_receipt',
+  'process_receipt',
+  'comparable_transaction',
+  'platform_traffic',
+  'acn_network_signal',
+];
+hardFail(
+  SOURCE_TO_CAUSAL_MAP.length >= baselineSourceKinds.length,
+  `SOURCE_TO_CAUSAL_MAP covers at least baseline ${baselineSourceKinds.length} kinds (got ${SOURCE_TO_CAUSAL_MAP.length})`,
+);
+for (const kind of baselineSourceKinds) {
+  hardFail(
+    SOURCE_TO_CAUSAL_MAP.some((mapping) => mapping.sourceKind === kind),
+    `SOURCE_TO_CAUSAL_MAP includes baseline kind ${kind}`,
+  );
+}
 for (const mapping of SOURCE_TO_CAUSAL_MAP) {
   hardFail(
     mapping.possibleCausalKinds.length > 0,

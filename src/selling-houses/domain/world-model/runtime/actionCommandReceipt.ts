@@ -57,8 +57,11 @@ import {
 
 import type {
   BigWorldDailyEvent,
-  SourceIngestionReceipt,
 } from './types.js';
+
+import type {
+  SourceIngestionReceipt,
+} from './sourceIngestionAdapter.js';
 
 // ════════════════════════════════════════════════════════════════════════════
 // Deterministic ID generation (no Date.now / Math.random)
