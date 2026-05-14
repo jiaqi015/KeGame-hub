@@ -262,10 +262,23 @@ const bulkCausal = makeBulkCausalEvents(2500);
 const compactedCausal = compactWorldCausalEvents(bulkCausal, 2000);
 check(compactedCausal.length <= 2000, `compacted causal events <= 2000 (got ${compactedCausal.length})`);
 
-// Root causes (no causes) should be trimmed first
-const rootCount = compactedCausal.filter((e) => e.causeEventIds.length === 0).length;
-check(rootCount < bulkCausal.filter((e) => e.causeEventIds.length === 0).length,
-  `Root causes trimmed: ${rootCount} < ${bulkCausal.filter((e) => e.causeEventIds.length === 0).length}`);
+// Compaction must preserve causal integrity: removed events cannot remain as dangling refs.
+const compactedCausalIds = new Set(compactedCausal.map((e) => e.id));
+let compactedDanglingCauseRefs = 0;
+let cleanedCausalRefCount = 0;
+for (const event of compactedCausal) {
+  const original = bulkCausal.find((entry) => entry.id === event.id);
+  if (original && event.causeEventIds.length < original.causeEventIds.length) {
+    cleanedCausalRefCount += original.causeEventIds.length - event.causeEventIds.length;
+  }
+  for (const causeId of event.causeEventIds) {
+    if (!compactedCausalIds.has(causeId)) compactedDanglingCauseRefs += 1;
+  }
+}
+check(compactedDanglingCauseRefs === 0,
+  `No dangling cause refs after compaction (got ${compactedDanglingCauseRefs})`);
+check(cleanedCausalRefCount > 0,
+  `Dangling-prone cause refs cleaned: ${cleanedCausalRefCount} > 0`);
 
 // ===========================================================================
 // Gate 5: ColdLedgerSummary preservation

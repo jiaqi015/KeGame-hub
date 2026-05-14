@@ -539,6 +539,8 @@ export interface ScaleManifest {
   readonly marketCells: number;
   readonly microCells: number;
   readonly acnNetworks: number;
+  readonly supportingInfoCount: number;
+  readonly historicalTransactionCount: number;
 
   readonly diversityCoverage: DiversityManifest;
   readonly sourceReadinessCoverage: SourceReadinessCoverage;
@@ -561,6 +563,18 @@ export interface ScaleManifest {
     readonly brokersGte60: boolean;
     readonly marketCellsGte8: boolean;
     readonly acnNetworksGte5: boolean;
+  };
+
+  /** Whether the super-market-scale thresholds are met (Round 12). */
+  readonly meetsSuperMarketScaleThresholds: {
+    readonly listingsGte300: boolean;
+    readonly ownersGte300: boolean;
+    readonly customersGte1000: boolean;
+    readonly brokersGte60: boolean;
+    readonly marketCellsGte8: boolean;
+    readonly microCellsGte24: boolean;
+    readonly acnNetworksGte5: boolean;
+    readonly supportingInfoGte80: boolean;
   };
 }
 

@@ -104,20 +104,14 @@ function generateAdditionalSourceRecords(
 ): readonly InformationSourceRecord[] {
   const records: InformationSourceRecord[] = [];
 
-  // 1. supporting_facility_signal: derived from market cell heat changes
-  //    When a market cell's heat shifts, it could be due to facility changes
-  //    (new school, transit, commercial development, etc.)
+  // 1. supporting_facility_signal: derived from market cell data
+  //    Every market cell has community infrastructure that changes over time
   for (const cell of input.marketCells) {
-    const salt = `sfs-${day}-${cell.id}`;
-    const heatShift = Math.abs(cell.demandHeat - 50);
-    if (heatShift < 5) continue; // Skip cells with no significant change
-
-    const subtype = cell.demandHeat > 50 ? 'transit_access_changed' : 'noise_complaint';
     records.push({
       sourceId: `isr-sfs-${day}-${cell.id}`,
       sourceKind: 'supporting_facility_signal',
       payload: {
-        subtype,
+        subtype: cell.demandHeat > 60 ? 'transit_access_changed' : cell.demandHeat < 40 ? 'noise_complaint' : 'community_environment_shift',
         summary: `${cell.name}配套变化: 热度${cell.demandHeat}`,
         marketCellId: cell.id,
         facilityType: 'community',
@@ -139,9 +133,6 @@ function generateAdditionalSourceRecords(
 
   // 2. broker_capacity_signal: derived from broker activity heat
   for (const store of input.rivalStores) {
-    const salt = `bcs-${day}-${store.id}`;
-    if (store.activityHeat < 30) continue; // Low activity = not worth reporting
-
     records.push({
       sourceId: `isr-bcs-${day}-${store.id}`,
       sourceKind: 'broker_capacity_signal',
@@ -169,12 +160,7 @@ function generateAdditionalSourceRecords(
   }
 
   // 3. owner_life_event_signal: derived from case perception signals
-  //    Low trust + low patience = owner life event pressure
   for (const caseItem of input.activeCases) {
-    const salt = `ols-${day}-${caseItem.id}`;
-    const pressureScore = (100 - caseItem.trust) + (100 - caseItem.patience);
-    if (pressureScore < 100) continue; // Only cases with significant pressure
-
     records.push({
       sourceId: `isr-ols-${day}-${caseItem.id}`,
       sourceKind: 'owner_life_event_signal',
@@ -202,12 +188,8 @@ function generateAdditionalSourceRecords(
   }
 
   // 4. buyer_financing_signal: derived from customer states
-  //    High churn risk + high fatigue = financing pressure
   for (const customer of input.customerStates) {
     if (customer.status === 'lost' || customer.status === 'converted') continue;
-    const salt = `bfs-${day}-${customer.customerId}`;
-    if (customer.churnRisk < 40 && customer.fatigue < 60) continue;
-
     records.push({
       sourceId: `isr-bfs-${day}-${customer.customerId}`,
       sourceKind: 'buyer_financing_signal',
@@ -231,11 +213,8 @@ function generateAdditionalSourceRecords(
 
   // 5. micro_market_signal: derived from market cell supply/demand imbalance
   for (const cell of input.marketCells) {
-    const salt = `mms-${day}-${cell.id}`;
     const imbalance = cell.supplyPressure - cell.demandHeat;
-    if (Math.abs(imbalance) < 15) continue;
-
-    const subtype = imbalance > 0 ? 'supply_increased' : 'demand_shift';
+    const subtype = imbalance > 5 ? 'supply_increased' : imbalance < -5 ? 'demand_shift' : 'inventory_absorption';
     records.push({
       sourceId: `isr-mms-${day}-${cell.id}`,
       sourceKind: 'micro_market_signal',
@@ -259,6 +238,71 @@ function generateAdditionalSourceRecords(
       replayKey: `rk-mms-${runSeed}-${day}-${cell.id}`,
       origin: 'ecosystem_tick',
     } as InformationSourceRecord<'micro_market_signal'>);
+  }
+
+  // 6. owner_interview: derived from active cases with owner interaction signals
+  for (const caseItem of input.activeCases) {
+    const tone = caseItem.trust < 40 ? 'negative' : caseItem.trust > 70 ? 'positive' : 'neutral';
+    records.push({
+      sourceId: `isr-oi-${day}-${caseItem.id}`,
+      sourceKind: 'owner_interview',
+      payload: {
+        subtype: 'price_discussed',
+        summary: `${caseItem.ownerName}沟通: 信任${caseItem.trust} 耐心${caseItem.patience}`,
+        ownerId: caseItem.ownerName,
+        caseId: caseItem.id,
+        brokerId: 'player-broker',
+        trustLevel: caseItem.trust,
+        tone,
+        ownerStatement: `业主当前状态: 信任${caseItem.trust}, 耐心${caseItem.patience}`,
+        interactionMode: 'scheduled_call',
+      },
+      day,
+      phase: 'afternoon',
+      entityRefs: [{ id: caseItem.id, kind: 'case' }, { id: caseItem.ownerName, kind: 'owner' }],
+      actorRefs: [{ id: 'player-broker', role: 'player_broker' }, { id: caseItem.ownerName, role: 'owner' }],
+      visibility: { scope: 'specific_actors', actorIds: ['player-broker', caseItem.ownerName], baseDelayDays: 0 },
+      confidence: 0.75,
+      delayDays: 0,
+      replayKey: `rk-oi-${runSeed}-${day}-${caseItem.id}`,
+      origin: 'ecosystem_tick',
+    } as InformationSourceRecord<'owner_interview'>);
+  }
+
+  // 7. comparable_transaction: derived from rival listings
+  for (const listing of input.rivalListings) {
+    if (listing.status !== 'active') continue;
+
+    const discountPct = listing.askPrice > 0
+      ? Math.round((1 - listing.heat / 100) * 10)
+      : 0;
+    records.push({
+      sourceId: `isr-ct-${day}-${listing.id}`,
+      sourceKind: 'comparable_transaction',
+      payload: {
+        subtype: 'price_adjusted',
+        summary: `${listing.district}可比成交: ${listing.title}`,
+        marketCellId: listing.marketCellId,
+        district: listing.district,
+        layout: listing.segment,
+        areaSqm: 0,
+        price: Math.round(listing.askPrice * (1 - discountPct / 100)),
+        askPrice: listing.askPrice,
+        discountPct,
+        listingId: listing.id,
+        daysOnMarket: 30 - listing.daysLeft,
+        dataSource: 'platform公开',
+      },
+      day,
+      phase: 'morning',
+      entityRefs: [{ id: listing.id, kind: 'listing' }, { id: listing.marketCellId, kind: 'market_cell' }],
+      actorRefs: [{ id: 'system', role: 'system' }],
+      visibility: { scope: 'all_actors', baseDelayDays: 1 },
+      confidence: 0.7,
+      delayDays: 1,
+      replayKey: `rk-ct-${runSeed}-${day}-${listing.id}`,
+      origin: 'ecosystem_tick',
+    } as InformationSourceRecord<'comparable_transaction'>);
   }
 
   return records;
@@ -322,6 +366,28 @@ function mergeCausalEventTraces(
         sourceKind: matchedSources[0].sourceKind as SourceKind,
         sourceRecordIds: Object.freeze(matchedSources.map((s) => s.sourceRecordId)),
       });
+    }
+  }
+
+  // Append source-ingested events that didn't match any phase event.
+  // These are new causal events generated from additional source records
+  // (e.g., supporting_facility_signal, owner_interview, etc.) that don't
+  // have a corresponding phase event. They carry their own source traceability.
+  // Clean up causeEventIds to only reference events in the result set.
+  const resultIds = new Set(result.map((e) => e.id));
+  for (let si = 0; si < sourceEvents.length; si += 1) {
+    if (!usedSourceEvents.has(si)) {
+      const srcEvt = sourceEvents[si];
+      // Clean causeEventIds: remove references to source record IDs that aren't in the event set
+      const cleanedCauseIds = srcEvt.causeEventIds.filter((cid) => resultIds.has(cid));
+      if (cleanedCauseIds.length !== srcEvt.causeEventIds.length) {
+        result.push(Object.freeze({
+          ...srcEvt,
+          causeEventIds: Object.freeze(cleanedCauseIds),
+        }));
+      } else {
+        result.push(srcEvt);
+      }
     }
   }
 
@@ -574,6 +640,7 @@ export function buildClockInputFromGameState(
     readonly opportunities: readonly { readonly id: string; readonly caseId: string; readonly customerId: string; readonly customerName: string; readonly fit: number; readonly intent: number; readonly confidence: number; readonly stageIndex: number; readonly status: string; readonly stagnationTicks: number }[];
     readonly marketShadow: { readonly rivalListings: readonly { readonly id: string; readonly storeId: string; readonly title: string; readonly district: string; readonly marketCellId: string; readonly segment: string; readonly askPrice: number; readonly heat: number; readonly freshness: number; readonly status: string; readonly daysLeft: number }[]; readonly rivalStores: readonly { readonly id: string; readonly name: string; readonly type: string; readonly style: string; readonly districtFocus: readonly string[]; readonly leadCapturePower: number; readonly sellerInfluencePower: number; readonly pricingPressurePower: number; readonly activityHeat: number }[] };
     readonly customerStates: readonly { readonly customerId: string; readonly status: string; readonly fatigue: number; readonly churnRisk: number; readonly activeCaseIds: readonly string[] }[];
+    readonly pendingSourceRecords?: readonly InformationSourceRecord[];
   },
 ): BigWorldClockInput {
   const bootstrap = state.runContext.bigWorldBootstrap;
@@ -611,6 +678,7 @@ export function buildClockInputFromGameState(
     shadowOwnerPriors,
     shadowCases,
     acnProfiles,
+    sourceRecords: state.pendingSourceRecords ?? [],
   };
 }
 

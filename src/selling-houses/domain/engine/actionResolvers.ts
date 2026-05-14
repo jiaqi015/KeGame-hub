@@ -26,6 +26,7 @@ import { PRICING_ACTION_EXECUTORS } from './pricingActionExecutors.js';
 import { SINCERITY_SALE_ACTION_EXECUTORS } from './sinceritySaleActionExecutors.js';
 import { SHOWING_ACTION_EXECUTORS } from './showingActionExecutors.js';
 import { captureActionReceiptSnapshot, type ActionReceiptSnapshot } from './actionReceiptSnapshot.js';
+import type { InformationSourceRecord } from '../world-model/informationSourceTypes.js';
 
 // Module-level pending receipt snapshots for post-action enrichment.
 // The caller reads and clears this after executeAction returns.
@@ -96,6 +97,11 @@ export function executeAction(
         state.opportunities.filter((o) => o.caseId === caseItem.id && o.status === 'active').length,
       ),
     );
+    // Emit player_action_receipt source record for blocked action
+    if (!state.pendingSourceRecords) state.pendingSourceRecords = [];
+    state.pendingSourceRecords.push(buildPlayerActionReceiptSourceRecord(
+      state, caseItem, actionId, optionId, 'blocked', 0, 0,
+    ));
     onMessage?.(availability.reason);
     return false;
   }
@@ -162,6 +168,11 @@ export function executeAction(
       `${action.name} 执行成功`, beforeEventStoreLength, beforeOpportunityCount,
     ),
   );
+  // Emit player_action_receipt source record for successful action
+  if (!state.pendingSourceRecords) state.pendingSourceRecords = [];
+  state.pendingSourceRecords.push(buildPlayerActionReceiptSourceRecord(
+    state, caseItem, action.id, optionId, 'success', action.costEnergy, action.costPromotionBudget,
+  ));
 
   return true;
 }
@@ -274,4 +285,55 @@ export function getActionAvailability(
   }
 
   return { enabled: true, reason: '' };
+}
+
+// ── Source record builder for player_action_receipt ──────────────────────
+
+function buildPlayerActionReceiptSourceRecord(
+  state: GameState,
+  caseItem: Case,
+  actionId: string,
+  optionId: string | null,
+  outcome: 'success' | 'blocked' | 'failed',
+  costEnergy: number,
+  costPromotionBudget: number,
+): InformationSourceRecord<'player_action_receipt'> {
+  const day = state.day;
+  const runSeed = state.runContext.runSeed;
+  const subtype = outcome === 'success' ? 'action_executed' : outcome === 'blocked' ? 'action_blocked' : 'action_failed';
+  const summary = outcome === 'success'
+    ? `玩家执行 ${actionId} 成功`
+    : outcome === 'blocked'
+      ? `玩家执行 ${actionId} 被阻止`
+      : `玩家执行 ${actionId} 失败`;
+
+  return {
+    sourceId: `isr-par-${day}-${actionId}-${caseItem.id}`,
+    sourceKind: 'player_action_receipt',
+    payload: {
+      subtype,
+      summary,
+      actionId,
+      executorId: 'player-broker',
+      caseId: caseItem.id,
+      opportunityId: undefined,
+      costEnergy,
+      costPromotionBudget,
+      fieldDeltas: [],
+      outcome,
+    },
+    day,
+    phase: 'afternoon',
+    entityRefs: [
+      { id: caseItem.id, kind: 'case' },
+    ],
+    actorRefs: [
+      { id: 'player-broker', role: 'player_broker' },
+    ],
+    visibility: { scope: 'player_only', baseDelayDays: 0 },
+    confidence: outcome === 'success' ? 1.0 : 0.9,
+    delayDays: 0,
+    replayKey: `rk-par-${runSeed}-${day}-${actionId}-${caseItem.id}`,
+    origin: 'player_action',
+  } as InformationSourceRecord<'player_action_receipt'>;
 }

@@ -24,6 +24,15 @@ import type {
   RivalStore,
 } from '../../domain/models.js';
 
+import type { ActorKnowledgeSnapshot } from '../../domain/world-model/actorKnowledgeTypes.js';
+import { buildDecisionEvidenceEnvelope } from './actorKnowledgeProjection.js';
+import {
+  buildSharedCausalRefs,
+  type SharedCausalRefs,
+  type EvidenceBackedReason,
+  buildLegacyFallbackReason,
+} from './perfectProjectionAdapters.js';
+
 // ---------------------------------------------------------------------------
 // Types: MarketOpeningPOVProjection output contract
 // ---------------------------------------------------------------------------
@@ -103,13 +112,22 @@ export interface MarketOpeningPOVProjection {
   recommendedCuts: POVRecommendedCut[];
   /** 引用证据链 */
   evidenceRefs: POVCausalRef[];
+  /** Evidence-backed owner expectation issues (from DecisionEvidenceEnvelope). */
+  readonly evidenceBackedOwnerIssues?: readonly EvidenceBackedReason[];
+  /** Evidence-backed recommended cuts (from DecisionEvidenceEnvelope). */
+  readonly evidenceBackedRecommendedCuts?: readonly EvidenceBackedReason[];
+  /** Shared causal refs across all sub-projections. */
+  readonly sharedCausalRefs?: SharedCausalRefs;
 }
 
 // ---------------------------------------------------------------------------
 // buildMarketOpeningPOVProjection
 // ---------------------------------------------------------------------------
 
-export function buildMarketOpeningPOVProjection(state: GameState): MarketOpeningPOVProjection {
+export function buildMarketOpeningPOVProjection(
+  state: GameState,
+  actorKnowledgeMap?: Map<string, ActorKnowledgeSnapshot>,
+): MarketOpeningPOVProjection {
   const scenario = state.runContext.scenarioSnapshot.scenario;
   const marketCells = state.markets;
   const rivalStores = state.marketShadow.rivalStores;
@@ -123,9 +141,78 @@ export function buildMarketOpeningPOVProjection(state: GameState): MarketOpening
   const topMarketSignals = buildTopMarketSignals(state, marketCells, rivalListings, competitionGroups, marketSignals, domainEvents);
   const keyRivals = buildKeyRivals(rivalStores, rivalListings, competitionGroups);
   const customerLeakageRisks = buildCustomerLeakageRisks(state);
-  const ownerExpectationIssues = buildOwnerExpectationIssues(state);
-  const recommendedCuts = buildRecommendedCuts(state, topMarketSignals, keyRivals, customerLeakageRisks, ownerExpectationIssues);
+  const ownerExpectationIssues = buildOwnerExpectationIssues(state, actorKnowledgeMap);
+  const recommendedCuts = buildRecommendedCuts(state, topMarketSignals, keyRivals, customerLeakageRisks, ownerExpectationIssues, actorKnowledgeMap);
   const evidenceRefs = collectAllEvidenceRefs(topMarketSignals, keyRivals, customerLeakageRisks, ownerExpectationIssues, recommendedCuts);
+
+  // Build evidence-backed fields when actorKnowledgeMap is available
+  let evidenceBackedOwnerIssues: EvidenceBackedReason[] | undefined;
+  let evidenceBackedRecommendedCuts: EvidenceBackedReason[] | undefined;
+  let sharedCausalRefs: SharedCausalRefs | undefined;
+
+  if (actorKnowledgeMap && actorKnowledgeMap.size > 0) {
+    // Use the first available knowledge to build the envelope
+    const firstKnowledge = actorKnowledgeMap.values().next().value;
+    if (firstKnowledge) {
+      const envelope = buildDecisionEvidenceEnvelope(firstKnowledge);
+      sharedCausalRefs = buildSharedCausalRefs(envelope);
+
+      // Evidence-backed owner issues from pressure signals
+      evidenceBackedOwnerIssues = [];
+      for (const issue of ownerExpectationIssues) {
+        const matchingSignal = envelope.pressureSignals.find((s) => {
+          if (issue.pressureDimension === 'price-anchor') return s.domain === 'price_anchor';
+          if (issue.pressureDimension === 'trust-gap') return s.domain === 'broker_trust';
+          if (issue.pressureDimension === 'patience-drain') return s.domain === 'owner_readiness';
+          if (issue.pressureDimension === 'urgency-mismatch') return s.domain === 'owner_readiness';
+          return false;
+        });
+        if (matchingSignal) {
+          evidenceBackedOwnerIssues.push({
+            displayText: issue.issueLabel,
+            evidenceAvailable: true,
+            safeRefs: sharedCausalRefs.allRefs.slice(0, 2),
+            replayKey: sharedCausalRefs.replayKey,
+            sourceRecordIds: matchingSignal.sourceRecordIds.slice(0, 3),
+            confidence: matchingSignal.magnitude / 100,
+            evidenceStatus: 'backed',
+            beliefSourceIds: matchingSignal.beliefSourceIds,
+            pressureSignalIds: [matchingSignal.signalId],
+          });
+        } else {
+          evidenceBackedOwnerIssues.push(buildLegacyFallbackReason(issue.issueLabel, sharedCausalRefs.replayKey));
+        }
+      }
+
+      // Evidence-backed recommended cuts from pressure signals
+      evidenceBackedRecommendedCuts = [];
+      for (const cut of recommendedCuts) {
+        const matchingSignal = envelope.pressureSignals.find((s) => {
+          if (cut.direction === 'pricing') return s.domain === 'price_anchor' || s.domain === 'rival_threat';
+          if (cut.direction === 'relationship') return s.domain === 'broker_trust' || s.domain === 'owner_readiness';
+          if (cut.direction === 'showing') return s.domain === 'customer_seriousness';
+          if (cut.direction === 'promotion') return s.domain === 'market_heat' || s.domain === 'rival_threat';
+          if (cut.direction === 'negotiation') return s.domain === 'deal_closeability';
+          return false;
+        });
+        if (matchingSignal) {
+          evidenceBackedRecommendedCuts.push({
+            displayText: `${cut.label}：${cut.reasoning}`,
+            evidenceAvailable: true,
+            safeRefs: sharedCausalRefs.allRefs.slice(0, 2),
+            replayKey: sharedCausalRefs.replayKey,
+            sourceRecordIds: matchingSignal.sourceRecordIds.slice(0, 3),
+            confidence: matchingSignal.magnitude / 100,
+            evidenceStatus: 'backed',
+            beliefSourceIds: matchingSignal.beliefSourceIds,
+            pressureSignalIds: [matchingSignal.signalId],
+          });
+        } else {
+          evidenceBackedRecommendedCuts.push(buildLegacyFallbackReason(`${cut.label}：${cut.reasoning}`, sharedCausalRefs.replayKey));
+        }
+      }
+    }
+  }
 
   return {
     openingBrief,
@@ -136,6 +223,9 @@ export function buildMarketOpeningPOVProjection(state: GameState): MarketOpening
     ownerExpectationIssues,
     recommendedCuts,
     evidenceRefs,
+    evidenceBackedOwnerIssues,
+    evidenceBackedRecommendedCuts,
+    sharedCausalRefs,
   };
 }
 
@@ -498,12 +588,56 @@ function buildCustomerLeakageRisks(state: GameState): POVCustomerLeakageRisk[] {
 // Owner Expectation Issues (Top 1)
 // ---------------------------------------------------------------------------
 
-function buildOwnerExpectationIssues(state: GameState): POVOwnerExpectationIssue[] {
+function buildOwnerExpectationIssues(
+  state: GameState,
+  actorKnowledgeMap?: Map<string, ActorKnowledgeSnapshot>,
+): POVOwnerExpectationIssue[] {
   const issues: POVOwnerExpectationIssue[] = [];
 
   for (const caseItem of state.cases) {
     if (caseItem.status !== 'active') continue;
 
+    // When actorKnowledgeMap is available, derive from belief domains
+    const knowledge = actorKnowledgeMap?.get(caseItem.id);
+    if (knowledge) {
+      const envelope = buildDecisionEvidenceEnvelope(knowledge);
+
+      // Derive from pressure signals (belief-backed)
+      for (const signal of envelope.pressureSignals) {
+        if (signal.domain === 'price_anchor' && signal.magnitude >= 40) {
+          issues.push({
+            caseId: caseItem.id,
+            caseTitle: caseItem.title,
+            issueLabel: `价格定位压力 ${signal.magnitude}%，业主价格锚定偏高`,
+            pressureDimension: 'price-anchor',
+            refs: [{ refType: 'case', refId: caseItem.id, refLabel: caseItem.title }],
+          });
+        }
+        if (signal.domain === 'broker_trust' && signal.magnitude >= 40) {
+          issues.push({
+            caseId: caseItem.id,
+            caseTitle: caseItem.title,
+            issueLabel: `信任关系压力 ${signal.magnitude}%，业主对你或市场信心不足`,
+            pressureDimension: 'trust-gap',
+            refs: [{ refType: 'case', refId: caseItem.id, refLabel: caseItem.title }],
+          });
+        }
+        if (signal.domain === 'owner_readiness' && signal.magnitude >= 50) {
+          issues.push({
+            caseId: caseItem.id,
+            caseTitle: caseItem.title,
+            issueLabel: `业主准备度压力 ${signal.magnitude}%，耐心或紧迫感需要关注`,
+            pressureDimension: 'patience-drain',
+            refs: [{ refType: 'case', refId: caseItem.id, refLabel: caseItem.title }],
+          });
+        }
+      }
+
+      // If no pressure signals produced an issue, skip (don't fall back to legacy)
+      if (issues.length > 0) continue;
+    }
+
+    // Legacy fallback: direct reads from caseItem (only when no knowledge)
     // 价格锚定过高
     if (caseItem.priceGapPct > 12) {
       issues.push({
@@ -571,6 +705,7 @@ function buildRecommendedCuts(
   rivals: POVRivalSummary[],
   leakageRisks: POVCustomerLeakageRisk[],
   ownerIssues: POVOwnerExpectationIssue[],
+  actorKnowledgeMap?: Map<string, ActorKnowledgeSnapshot>,
 ): POVRecommendedCut[] {
   const cuts: POVRecommendedCut[] = [];
   const addedDirections = new Set<string>();
@@ -628,13 +763,36 @@ function buildRecommendedCuts(
   if (cuts.length === 0) {
     const activeCases = state.cases.filter((c) => c.status === 'active');
     if (activeCases.length > 0) {
-      const lowestTrust = [...activeCases].sort((a, b) => a.trust - b.trust)[0];
-      cuts.push({
-        direction: 'relationship',
-        label: '优先维护重点房源业主',
-        reasoning: `${lowestTrust.title} 信任 ${Math.round(lowestTrust.trust)}，需要尽快沟通。`,
-        refs: [{ refType: 'case', refId: lowestTrust.id, refLabel: lowestTrust.title }],
-      });
+      // When knowledge available, use belief-backed recommendation
+      if (actorKnowledgeMap && actorKnowledgeMap.size > 0) {
+        const firstKnowledge = actorKnowledgeMap.values().next().value;
+        if (firstKnowledge) {
+          const envelope = buildDecisionEvidenceEnvelope(firstKnowledge);
+          if (envelope.recommendedCommand) {
+            cuts.push({
+              direction: 'relationship',
+              label: envelope.recommendedCommand.command.name,
+              reasoning: envelope.explanation.summary,
+              refs: envelope.causalRefs.slice(0, 2).map((r) => ({
+                refType: 'market-signal' as const,
+                refId: r.refId,
+                refLabel: r.refLabel,
+              })),
+            });
+          }
+        }
+      }
+
+      // Legacy fallback if no knowledge-derived cut
+      if (cuts.length === 0) {
+        const lowestTrust = [...activeCases].sort((a, b) => a.trust - b.trust)[0];
+        cuts.push({
+          direction: 'relationship',
+          label: '优先维护重点房源业主',
+          reasoning: `${lowestTrust.title} 信任 ${Math.round(lowestTrust.trust)}，需要尽快沟通。`,
+          refs: [{ refType: 'case', refId: lowestTrust.id, refLabel: lowestTrust.title }],
+        });
+      }
     }
   }
 

@@ -440,9 +440,11 @@ export function createBigWorldBootstrap(
 
   // --- Micro cells (sub-divisions of each market cell) ---
   const microCells: MicroCell[] = [];
+  // For large scales, guarantee at least 3 micro cells per cell
+  const microMinPerCell = scale.minMarketCells >= 8 ? 3 : 1;
   for (let ci = 0; ci < marketCells.length; ci += 1) {
     const cell = marketCells[ci];
-    const microCount = seededInt(`micro-count-${seed}-${cell.id}`, 1, 3);
+    const microCount = seededInt(`micro-count-${seed}-${cell.id}`, microMinPerCell, Math.max(microMinPerCell, 3));
     for (let mi = 0; mi < microCount; mi += 1) {
       const salt = `micro-${seed}-${cell.id}-${mi}`;
       microCells.push({
@@ -462,9 +464,13 @@ export function createBigWorldBootstrap(
   const EXTENDED_INFO_CATEGORIES = ['market_trend', 'rival_observation', 'customer_signal', 'owner_signal', 'broker_signal', 'transaction_signal'] as const;
   const supportingInfo: SupportingInfoRecord[] = [];
   let infoCounter = 0;
+  // Scale info density: standard=2-4, mega/super-market=6-8
+  const isLargeScale = scale.minMarketCells >= 8 || scale.ownerProfilePriorCount >= 200;
+  const baseInfoMin = isLargeScale ? 6 : 2;
+  const baseInfoMax = isLargeScale ? 8 : 4;
   for (const cell of marketCells) {
-    // Each cell gets 2-4 supporting info records
-    const infoCount = seededInt(`info-count-${seed}-${cell.id}`, 2, 4);
+    // Each cell gets baseInfoMin-baseInfoMax supporting info records (scaled by world size)
+    const infoCount = seededInt(`info-count-${seed}-${cell.id}`, baseInfoMin, baseInfoMax);
     for (let ii = 0; ii < infoCount; ii += 1) {
       infoCounter += 1;
       const salt = `info-${seed}-${cell.id}-${ii}`;
@@ -851,6 +857,8 @@ export function buildScaleManifest(
     marketCells: bootstrap.hiddenTruth.marketCells.length,
     microCells: bootstrap.hiddenTruth.microCells.length,
     acnNetworks: bootstrap.hiddenTruth.acnNetworks.length,
+    supportingInfoCount: bootstrap.hiddenTruth.supportingInfo.length,
+    historicalTransactionCount: bootstrap.coldAggregate.historicalTransactions.length,
 
     diversityCoverage: diversity,
     sourceReadinessCoverage: sourceReadiness,
@@ -871,6 +879,17 @@ export function buildScaleManifest(
       brokersGte60: brokers.length >= 60,
       marketCellsGte8: bootstrap.hiddenTruth.marketCells.length >= 8,
       acnNetworksGte5: bootstrap.hiddenTruth.acnNetworks.length >= 5,
+    },
+
+    meetsSuperMarketScaleThresholds: {
+      listingsGte300: listings.length >= 300,
+      ownersGte300: priors.length >= 300,
+      customersGte1000: totalDemandUnits >= 1000,
+      brokersGte60: brokers.length >= 60,
+      marketCellsGte8: bootstrap.hiddenTruth.marketCells.length >= 8,
+      microCellsGte24: bootstrap.hiddenTruth.microCells.length >= 24,
+      acnNetworksGte5: bootstrap.hiddenTruth.acnNetworks.length >= 5,
+      supportingInfoGte80: bootstrap.hiddenTruth.supportingInfo.length >= 80,
     },
   };
 }

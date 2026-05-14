@@ -10,6 +10,7 @@ import {
   buildMarketOpeningPOVProjection,
   type MarketOpeningPOVProjection,
 } from './marketOpeningPOVProjection.js';
+import type { ActorKnowledgeSnapshot } from '../../domain/world-model/actorKnowledgeTypes.js';
 
 export type WorkspaceShellResourcePanelId = 'budget' | 'auxiliary' | 'energy';
 export type WorkspaceShellMiniStatTone = 'emerald' | 'sky' | 'rose' | 'amber';
@@ -143,7 +144,10 @@ function getClosedDealCount(state: GameState) {
   return resolveFormalSoldCount(state);
 }
 
-export function buildWorkspaceShellProjection(state: GameState): WorkspaceShellProjection {
+export function buildWorkspaceShellProjection(
+  state: GameState,
+  actorKnowledgeMap?: Map<string, ActorKnowledgeSnapshot>,
+): WorkspaceShellProjection {
   const routine = getRoutine(state.day, WEEKLY_ROUTINE);
   const nextRoutine = getRoutine(state.day + 1, WEEKLY_ROUTINE);
   const promotionBudget = getPromotionBudget(state);
@@ -165,7 +169,9 @@ export function buildWorkspaceShellProjection(state: GameState): WorkspaceShellP
   const selectedCase = state.selectedCaseId
     ? state.cases.find((entry) => entry.id === state.selectedCaseId) || null
     : null;
-  const selectedCaseProjection = selectedCase ? buildCaseDetailProjection(state, selectedCase) : null;
+  const selectedCaseProjection = selectedCase
+    ? buildCaseDetailProjection(state, selectedCase, actorKnowledgeMap?.get(selectedCase.id))
+    : null;
 
   return {
     header: {
@@ -282,7 +288,7 @@ export function buildWorkspaceShellProjection(state: GameState): WorkspaceShellP
         projection: selectedCaseProjection,
       }
       : null,
-    marketOpeningBrief: buildMarketOpeningPOVProjection(state),
+    marketOpeningBrief: buildMarketOpeningPOVProjection(state, actorKnowledgeMap),
   };
 }
 

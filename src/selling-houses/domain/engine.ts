@@ -2,6 +2,7 @@ import { WEEKLY_ROUTINE } from './constants.js';
 import { releaseMarketDealSlotsForDay } from './models.js';
 import { recordBudgetChange } from './budget.js';
 import type { DailyProcessResultSummary, DailyTickResult, DirtyScopeSet, GameState, TickInvariantAlert, Tone } from './models.js';
+import type { InformationSourceRecord } from './world-model/informationSourceTypes.js';
 import { addDays, average, clamp, getDayOfWeek, getRoutine } from './utils.js';
 import { applyBrokerOwnerTrustDelta } from './trustWriteHelper.js';
 import { applyOwnerCasePatienceDelta } from './ownerCaseReadinessHelper.js';
@@ -282,6 +283,52 @@ function groupProcessResultsByTickPhase(processResults: DailyProcessResultSummar
 }
 
 // ---------------------------------------------------------------------------
+// Process receipt source record builder
+// ---------------------------------------------------------------------------
+
+function buildProcessReceiptSourceRecords(
+  state: GameState,
+  result: DailyProcessResultSummary,
+): InformationSourceRecord<'process_receipt'>[] {
+  if (result.processedCount === 0) return [];
+
+  const day = result.day;
+  const runSeed = state.runContext.runSeed;
+  const processType = result.managerId === 'negotiation-process-manager' ? 'negotiation' : 'open_day';
+  const hasDeal = result.closedDealIds.length > 0;
+  const subtype = hasDeal ? 'deal_signed' : result.processedCount > 0 ? 'negotiation_progressed' : 'open_day_completed';
+
+  return [{
+    sourceId: `isr-pr-${day}-${result.managerId}`,
+    sourceKind: 'process_receipt',
+    payload: {
+      subtype,
+      summary: `${processType} 流程处理: ${result.processedCount}项, ${result.resolvedCount}项解决`,
+      processType,
+      processId: `process-${result.managerId}-${day}`,
+      caseIds: result.opportunityIds.slice(0, 5),
+      customerIds: [],
+      brokerIds: ['player-broker'],
+      outcome: hasDeal ? 'deal_signed' : 'completed',
+      metrics: {
+        processedCount: result.processedCount,
+        resolvedCount: result.resolvedCount,
+        closedDealCount: result.closedDealIds.length,
+      },
+    },
+    day,
+    phase: 'evening',
+    entityRefs: result.opportunityIds.slice(0, 5).map((id) => ({ id, kind: 'opportunity' as const })),
+    actorRefs: [{ id: 'player-broker', role: 'player_broker' as const }],
+    visibility: { scope: 'player_only', baseDelayDays: 0 },
+    confidence: hasDeal ? 1.0 : 0.85,
+    delayDays: 0,
+    replayKey: `rk-pr-${runSeed}-${day}-${result.managerId}`,
+    origin: 'process_run',
+  } as InformationSourceRecord<'process_receipt'>];
+}
+
+// ---------------------------------------------------------------------------
 // BigWorldRuntime — tick the autonomous world movement substrate
 // ---------------------------------------------------------------------------
 
@@ -310,6 +357,9 @@ function tickBigWorldRuntime(state: GameState): void {
     const prev = Array.isArray(state.worldCausalEvents) ? state.worldCausalEvents : [];
     state.worldCausalEvents = [...prev, ...receipt.causalEventsToAppend];
   }
+
+  // Clear consumed source records (they've been ingested by the tick)
+  state.pendingSourceRecords = [];
 }
 
 function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): DailyTickResult {
@@ -346,6 +396,12 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
   fireScheduledEvents(state, pressureBuffer);
   const negotiationResult = callSettleNegotiationProcesses(state);
   processResults.push(negotiationResult);
+  // Emit process_receipt source records from negotiation settlement
+  const negotiationReceipts = buildProcessReceiptSourceRecords(state, negotiationResult);
+  if (negotiationReceipts.length > 0) {
+    if (!state.pendingSourceRecords) state.pendingSourceRecords = [];
+    state.pendingSourceRecords.push(...negotiationReceipts);
+  }
   if (state.day >= state.maxDay - 7) {
     tryClaimOpenMarketDealForRivals(state);
   }

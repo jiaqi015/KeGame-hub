@@ -131,6 +131,23 @@ function buildDefaultScalePolicy(
       ownerProfilePriorCount: 300,
       customerCaseRatio: 10,
     },
+    // ── super-market-scale: 市场级超大世界 ──
+    // 真实市场规模：300+ listings, 300+ owners, 1000+ demand, 8+ cells, 5+ ACN, 60+ brokers
+    // 24+ micro cells, 80+ supporting info, diverse owner/listing/broker/customer types
+    // 反假大：每个实体必须有 source/causal/actor visibility 接入口
+    superMarketScale: {
+      minMarketCells: 10,
+      maxMarketCells: 12,
+      acnCount: 5,
+      namedBrokersPerAcn: 5,
+      shadowBrokersPerAcn: 10,
+      shadowListingsPerCell: 30,
+      directRivalListingsPerCell: 7,
+      materializedCustomersPerCell: 20,
+      shadowAggregateClustersPerCell: 15,
+      ownerProfilePriorCount: 300,
+      customerCaseRatio: 10,
+    },
   };
 
   const overrides = scaleByDifficulty[difficultyId] ?? scaleByDifficulty.standard;

@@ -1934,4 +1934,10 @@ export interface GameState {
    * Old saves without this field work normally (undefined fallback).
    */
   worldCausalEvents?: readonly import('./world-model/causalEvents.js').WorldCausalEvent[];
+  /**
+   * Mutable accumulator for source records generated during the current day.
+   * Populated by executeAction (player_action_receipt) and process settlement (process_receipt).
+   * Consumed by tickBigWorldRuntime, then cleared. Not persisted across save/load.
+   */
+  pendingSourceRecords?: import('./world-model/informationSourceTypes.js').InformationSourceRecord[];
 }

@@ -141,7 +141,7 @@ const ALL_DECISION_STYLES: readonly DemandDecisionStyle[] = [
   'decisive', 'comparison_heavy', 'cautious', 'broker_guided',
 ];
 
-const DISTRICTS = ['东城', '西城', '朝阳', '海淀', '丰台', '大兴'];
+const DISTRICTS = ['东城', '西城', '朝阳', '海淀', '丰台', '大兴', '通州', '昌平', '房山', '门头沟', '石景山', '顺义'];
 
 function stableHash(input: string): number {
   let hash = 2166136261;

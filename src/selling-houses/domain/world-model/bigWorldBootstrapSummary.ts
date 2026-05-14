@@ -205,6 +205,8 @@ export function normalizeOldSave(state: {
     marketCells: snapshot.marketCells.length,
     microCells: 0,
     acnNetworks: snapshot.acnNetworks.length,
+    supportingInfoCount: 0,
+    historicalTransactionCount: snapshot.listingInventory.recentTransactionCount,
     diversityCoverage: {
       ownerArchetypeDiversity: 0,
       listingTypeDiversity: 0,
@@ -248,6 +250,16 @@ export function normalizeOldSave(state: {
       brokersGte60: false,
       marketCellsGte8: false,
       acnNetworksGte5: false,
+    },
+    meetsSuperMarketScaleThresholds: {
+      listingsGte300: false,
+      ownersGte300: false,
+      customersGte1000: false,
+      brokersGte60: false,
+      marketCellsGte8: false,
+      microCellsGte24: false,
+      acnNetworksGte5: false,
+      supportingInfoGte80: false,
     },
   };
 
