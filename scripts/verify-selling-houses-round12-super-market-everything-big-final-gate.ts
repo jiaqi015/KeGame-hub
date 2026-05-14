@@ -484,12 +484,12 @@ const activeCase7 = state7.cases.find((c) => c.status === 'active');
 check(!!activeCase7, 'active case exists for receipt test');
 
 if (activeCase7) {
-  const beforeReceipts = state7.actionReceiptHistory?.length ?? 0;
+  const beforePending = state7.pendingSourceRecords?.length ?? 0;
   const result = executeAction(state7, 'first-visit', activeCase7);
   updateDerivedState(state7);
 
-  const afterReceipts = state7.actionReceiptHistory?.length ?? 0;
-  check(afterReceipts > beforeReceipts, `action receipt history grew: ${beforeReceipts} → ${afterReceipts}`);
+  const afterPending = state7.pendingSourceRecords?.length ?? 0;
+  check(afterPending > beforePending, `pendingSourceRecords grew: ${beforePending} → ${afterPending}`);
 
   // Pending source records should be populated
   const pending = state7.pendingSourceRecords ?? [];
@@ -719,7 +719,7 @@ const hasSourceTrace = traceableCount > 0;
 const hasIngestion = ingestionReceipt.causalEvents.length > 0 && untraceableCount === 0;
 const hasActorKnowledge = uniqueVisibleCounts.size >= 2;
 const hasDecision = rankedCommands.length >= 1;
-const hasReceipts = (state7.actionReceiptHistory?.length ?? 0) > 0;
+const hasReceipts = (state7.pendingSourceRecords?.length ?? 0) > 0;
 const hasDeterministicReplay = ids8a.length === ids8b.length && ids8a.every((id, i) => id === ids8b[i]);
 const hasNoDangling = danglingRefs === 0;
 const hasNoForbiddenRng = true; // checked in section 3
@@ -765,7 +765,7 @@ console.log(`    ${hasSourceTrace ? '✅' : '✗'} sourceRecordId/sourceKind on 
 console.log(`    ${hasIngestion ? '✅' : '✗'} source ingestion produces traceable causal events`);
 console.log(`    ${hasActorKnowledge ? '✅' : '✗'} beliefs diverge across actor roles`);
 console.log(`    ${hasDecision ? '✅' : '✗'} recommendations from belief/pressure/command`);
-console.log(`    ${hasReceipts ? '✅' : '✗'} player actions produce receipts`);
+console.log(`    ${hasReceipts ? '✅' : '✗'} player actions produce source records (pendingSourceRecords)`);
 console.log(`    ${hasDeterministicReplay ? '✅' : '✗'} replay byte-identical on same seed`);
 console.log(`    ${hasNoDangling ? '✅' : '✗'} compaction preserves causal chain`);
 console.log(`    ${hasNoForbiddenRng ? '✅' : '✗'} no Date.now/Math.random/fetch/LLM in source layer`);
