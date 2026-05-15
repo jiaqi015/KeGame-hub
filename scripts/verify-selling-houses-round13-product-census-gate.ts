@@ -141,7 +141,7 @@ console.log(`  With actor knowledge: ${summary.surfacesWithActorKnowledge}`);
 console.log(`  With legacy field reads: ${summary.surfacesWithLegacyFieldReads}`);
 console.log(`  Maturity: ${summary.maturity}`);
 
-check(summary.totalSurfaces === 14, `Census catalogs exactly 14 surfaces (got ${summary.totalSurfaces})`);
+check(summary.totalSurfaces === 16, `Census catalogs exactly 16 surfaces (got ${summary.totalSurfaces})`);
 check(summary.connectedSurfaces >= 10, `At least 10 surfaces are fully connected (got ${summary.connectedSurfaces})`);
 check(summary.partialSurfaces >= 1, `At least 1 surface is partial (got ${summary.partialSurfaces})`);
 check(summary.surfacesWithLiveCausalRefs >= 4, `At least 4 surfaces have live causal refs (got ${summary.surfacesWithLiveCausalRefs})`);

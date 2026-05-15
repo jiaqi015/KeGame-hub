@@ -628,7 +628,7 @@ console.log(`  Connected: ${censusSummary.connectedSurfaces}`);
 console.log(`  Partial: ${censusSummary.partialSurfaces}`);
 console.log(`  Disconnected: ${censusSummary.disconnectedSurfaces}`);
 
-check(censusSummary.totalSurfaces === 15, `census catalogs exactly 15 surfaces (got ${censusSummary.totalSurfaces})`);
+check(censusSummary.totalSurfaces === 16, `census catalogs exactly 16 surfaces (got ${censusSummary.totalSurfaces})`);
 check(censusSummary.connectedSurfaces >= 6, `at least 6 surfaces fully connected (got ${censusSummary.connectedSurfaces})`);
 
 // Maturity check

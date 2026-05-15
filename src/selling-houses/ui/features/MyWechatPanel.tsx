@@ -45,6 +45,12 @@ type OfficialArticleRowProps = {
   read: boolean;
   onClick: () => void;
 };
+type OfficialArticleDetailProps = {
+  article: OfficialAccountArticle;
+  onBack: () => void;
+  onSelectCase: (caseId: string) => void;
+  onOpenMarket?: (layer?: IntelLayerTab) => void;
+};
 type WechatAvatarProps = {
   senderName: string;
   senderRole: WechatMessage['senderRole'];
@@ -71,6 +77,7 @@ export function MyWechatPanel({
 }: MyWechatPanelProps) {
   const [activeTab, setActiveTab] = useState<WechatTab>('messages');
   const [selectedConversationKey, setSelectedConversationKey] = useState<string | null>(null);
+  const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
   const [localReadIds, setLocalReadIds] = useState<Set<string>>(() => new Set());
   const effectiveReadIds = readIds || localReadIds;
   const visibleIds = useMemo(
@@ -103,6 +110,10 @@ export function MyWechatPanel({
     () => conversations.find((conversation) => conversation.key === selectedConversationKey) || null,
     [conversations, selectedConversationKey],
   );
+  const selectedArticle = useMemo(
+    () => sortedOfficialAccounts.find((article) => article.id === selectedArticleId) || null,
+    [selectedArticleId, sortedOfficialAccounts],
+  );
 
   useEffect(() => {
     if (activeTab !== 'messages' || !selectedConversationKey) {
@@ -112,6 +123,24 @@ export function MyWechatPanel({
       setSelectedConversationKey(null);
     }
   }, [activeTab, conversations, selectedConversationKey]);
+
+  useEffect(() => {
+    if (activeTab !== 'official' || !selectedArticleId) {
+      return;
+    }
+    if (!sortedOfficialAccounts.some((article) => article.id === selectedArticleId)) {
+      setSelectedArticleId(null);
+    }
+  }, [activeTab, selectedArticleId, sortedOfficialAccounts]);
+
+  const switchTab = (tab: WechatTab) => {
+    setActiveTab(tab);
+    if (tab === 'messages') {
+      setSelectedArticleId(null);
+      return;
+    }
+    setSelectedConversationKey(null);
+  };
 
   const markRead = (id: string) => {
     if (onMarkRead) {
@@ -141,12 +170,7 @@ export function MyWechatPanel({
 
   const openArticle = (article: OfficialAccountArticle) => {
     markRead(article.id);
-    const firstCaseId = article.relatedCaseIds[0];
-    if (firstCaseId) {
-      onSelectCase(firstCaseId);
-      return;
-    }
-    onOpenMarket?.(mapArticleTagToLayer(article.tag));
+    setSelectedArticleId(article.id);
   };
 
   return (
@@ -172,14 +196,14 @@ export function MyWechatPanel({
             icon={<MessageCircle size={12} />}
             label="消息"
             count={projection.messages.length}
-            onClick={() => setActiveTab('messages')}
+            onClick={() => switchTab('messages')}
           />
           <WechatTabButton
             active={activeTab === 'official'}
             icon={<Newspaper size={12} />}
             label="公众号"
             count={projection.officialAccounts.length}
-            onClick={() => setActiveTab('official')}
+            onClick={() => switchTab('official')}
           />
         </div>
       </div>
@@ -207,6 +231,13 @@ export function MyWechatPanel({
           ) : (
             <WechatEmptyState title={projection.emptyState?.title || '今天没有新的微信消息'} description={projection.emptyState?.description || '先按今日安排推进。'} />
           )
+        ) : selectedArticle ? (
+          <OfficialArticleDetail
+            article={selectedArticle}
+            onBack={() => setSelectedArticleId(null)}
+            onSelectCase={onSelectCase}
+            onOpenMarket={onOpenMarket}
+          />
         ) : sortedOfficialAccounts.length > 0 ? (
           sortedOfficialAccounts.map((article) => (
             <OfficialArticleRow key={article.id} article={article} read={effectiveReadIds.has(article.id)} onClick={() => openArticle(article)} />
@@ -547,6 +578,110 @@ const OfficialArticleRow: React.FC<OfficialArticleRowProps> = ({
   );
 };
 
+const OfficialArticleDetail: React.FC<OfficialArticleDetailProps> = ({
+  article,
+  onBack,
+  onSelectCase,
+  onOpenMarket,
+}) => {
+  const detailLines = buildOfficialArticleDetailLines(article);
+  const firstCaseId = article.relatedCaseIds[0] || null;
+
+  return (
+    <div
+      className="flex h-[min(560px,calc(100vh-220px))] min-h-[420px] flex-col overflow-hidden rounded-[14px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)]"
+      data-my-wechat-official-detail="true"
+    >
+      <div className="flex shrink-0 items-center gap-2 border-b border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] px-3 py-2.5">
+        <button
+          type="button"
+          onClick={onBack}
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[15px] text-[var(--seller-muted)] transition hover:bg-[rgba(255,255,255,0.06)] hover:text-[var(--seller-ink)]"
+          aria-label="返回公众号列表"
+        >
+          ←
+        </button>
+        <OfficialAccountAvatar accountName={article.accountName} />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[13px] font-semibold text-[var(--seller-ink)]">{article.accountName}</div>
+          <div className="mt-0.5 text-[10px] text-[var(--seller-subtle)]">{article.timeLabel}</div>
+        </div>
+        <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${articleToneClassName(article.tone)}`}>
+          {articleTagLabel(article.tag)}
+        </span>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-3 py-4">
+        <div className="rounded-[16px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.035)] px-3.5 py-3.5">
+          <h3 className="text-[16px] font-semibold leading-6 tracking-[-0.02em] text-[var(--seller-ink)]">
+            {article.title}
+          </h3>
+          <p className="mt-3 whitespace-pre-wrap text-[12px] leading-6 text-[var(--seller-muted)]">
+            {article.summary}
+          </p>
+        </div>
+
+        <div className="mt-3 grid gap-2">
+          {detailLines.map((line) => (
+            <div
+              key={line.label}
+              className="rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] px-3 py-2.5"
+            >
+              <div className="seller-label text-[9px]">{line.label}</div>
+              <p className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">{line.value}</p>
+            </div>
+          ))}
+        </div>
+
+        {article.relatedCaseIds.length > 0 && (
+          <div className="mt-3 rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] px-3 py-2.5">
+            <div className="seller-label text-[9px]">影响范围</div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {article.relatedCaseIds.map((caseId, index) => (
+                <button
+                  key={caseId}
+                  type="button"
+                  onClick={() => onSelectCase(caseId)}
+                  className="rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] px-2 py-1 text-[10px] font-semibold text-[var(--seller-ink)] transition hover:border-[color:var(--seller-accent)]/38 hover:text-[var(--seller-accent)]"
+                >
+                  受影响房源 {index + 1}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="shrink-0 border-t border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] px-3 py-2.5">
+        <div className="flex flex-wrap justify-end gap-2">
+          {onOpenMarket && (
+            <button
+              type="button"
+              onClick={() => onOpenMarket(mapArticleTagToLayer(article.tag))}
+              className="seller-button-secondary h-8 rounded-full px-3 text-[11px]"
+            >
+              看市场雷达
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              if (firstCaseId) {
+                onSelectCase(firstCaseId);
+                return;
+              }
+              onOpenMarket?.(mapArticleTagToLayer(article.tag));
+            }}
+            className="seller-button-primary h-8 rounded-full px-3 text-[11px]"
+          >
+            {article.primaryCtaLabel || '继续处理'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 function OfficialAccountAvatar({ accountName }: { accountName: string }) {
   return (
     <span
@@ -612,6 +747,66 @@ function getWechatAvatarSrc(senderName: string, senderRole: WechatMessage['sende
 function getOfficialAccountAvatarSrc(accountName: string) {
   const fallbackIndex = stableHash(accountName) % OFFICIAL_ACCOUNT_AVATAR_FALLBACKS.length;
   return OFFICIAL_ACCOUNT_AVATAR_BY_NAME[accountName] || OFFICIAL_ACCOUNT_AVATAR_FALLBACKS[fallbackIndex];
+}
+
+function buildOfficialArticleDetailLines(article: OfficialAccountArticle) {
+  const impactLine = article.relatedCaseIds.length > 0
+    ? `这条情报会影响 ${article.relatedCaseIds.length} 套手里房源，适合在沟通前先统一客户比价、业主反馈和下一步动作。`
+    : '这条情报偏市场面，适合先放进今天的判断里，再决定是否调整当前沟通口径。';
+
+  if (article.tag === 'competitor') {
+    return [
+      {
+        label: '看点',
+        value: '同价位新增供给变多后，客户会更容易拿竞品做锚点，压价理由也会更具体。',
+      },
+      {
+        label: '建议动作',
+        value: '先准备竞品对比口径：价格差、楼层装修差、业主可谈边界都要能讲清，再去承接客户反馈。',
+      },
+      { label: '影响范围', value: impactLine },
+    ];
+  }
+
+  if (article.tag === 'community' || article.tag === 'district') {
+    return [
+      {
+        label: '看点',
+        value: '同小区或同板块供给变化，会直接改变客户看房路线和业主对市场热度的体感。',
+      },
+      {
+        label: '建议动作',
+        value: '先把本房和新增房源的差异讲清楚，再决定是补卖点、补带看，还是提前做价格预期沟通。',
+      },
+      { label: '影响范围', value: impactLine },
+    ];
+  }
+
+  if (article.tag === 'market') {
+    return [
+      {
+        label: '看点',
+        value: '客户预算和带看热度在变化，价格略高的房源更需要提前解释市场位置。',
+      },
+      {
+        label: '建议动作',
+        value: '今天沟通时先给市场判断，再给行动安排，避免只说行情不好或继续等等。',
+      },
+      { label: '影响范围', value: impactLine },
+    ];
+  }
+
+  return [
+    {
+      label: '看点',
+      value: '这类提醒更像经营方法，不是单条消息通知，重点是帮你把下一次沟通说得更具体。',
+    },
+    {
+      label: '建议动作',
+      value: '先给判断，再给安排：让业主看到你知道问题在哪，也知道下一步要做什么。',
+    },
+    { label: '影响范围', value: impactLine },
+  ];
 }
 
 function stableHash(value: string) {

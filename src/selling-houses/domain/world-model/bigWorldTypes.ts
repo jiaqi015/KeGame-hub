@@ -599,6 +599,19 @@ export interface ScaleManifest {
     readonly supportingInfoGte160: boolean;
     readonly historicalTransactionsGte50: boolean;
   };
+
+  /** Whether the five-x-scale thresholds are met (Round 19). */
+  readonly meetsFiveXScaleThresholds: {
+    readonly listingsGte4000: boolean;
+    readonly ownersGte2500: boolean;
+    readonly customersGte22000: boolean;
+    readonly brokersGte750: boolean;
+    readonly marketCellsGte100: boolean;
+    readonly microCellsGte300: boolean;
+    readonly acnNetworksGte32: boolean;
+    readonly supportingInfoGte800: boolean;
+    readonly historicalTransactionsGte300: boolean;
+  };
 }
 
 // ════════════════════════════════════════════════════════════════════════════

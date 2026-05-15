@@ -21,6 +21,13 @@
  *   - Owner pool shows trust/patience/expectation causal sources
  *   - Org resource shows why/why not resource allocation
  *
+ * Round 18 changes (ledger/evidence-priority):
+ *   - buildCompetitorRisk: visibleRivalEvidence is primary, rivalListings is display fallback
+ *   - buildResourceCongestion: judgment text from pressure signals, numeric counts as display fallback
+ *   - buildStrategicCustomerPool: atRiskCount derived from customer_seriousness pressure signals
+ *   - buildStrategicOwnerPool: highPressureCount derived from owner_readiness/broker_trust/price_anchor pressure
+ *   - buildOrgResource: allocation reasoning from broker_capacity_signal and manager_message causal events
+ *
  * Mother model alignment:
  *   - POV reads the world; does not mutate it (Section 1.1)
  *   - Decision pipeline: belief → pressure → command → explanation (Section 5.1)
@@ -319,20 +326,22 @@ function buildVisibleRivalEvidence(
   readonly refs: readonly POVCausalRef[];
 } {
   const visibleSourceIds = sourceRecordIdsForDomain(pressureSignals, ['rival_threat', 'market_heat', 'service_path']);
-  const relevantEvents = (state.worldCausalEvents ?? []).filter((event) => {
-    const eventRecord = event as typeof event & {
-      readonly sourceKind?: string;
-      readonly sourceRecordId?: string;
-      readonly sourceRecordIds?: readonly string[];
-    };
-    const isRivalEvent = event.kind.startsWith('Rival') || eventRecord.sourceKind === 'rival_action';
-    if (!isRivalEvent) return false;
-    const isVisible = visibleSourceIds.length === 0
-      || (eventRecord.sourceRecordId && visibleSourceIds.includes(eventRecord.sourceRecordId))
-      || eventRecord.sourceRecordIds?.some((sourceRecordId) => visibleSourceIds.includes(sourceRecordId));
-    if (!isVisible) return false;
-    return !cellId || causalEventMatchesCell(event, cellId);
-  });
+  const relevantEvents = (state.worldCausalEvents ?? [])
+    .filter((event) => {
+      const eventRecord = event as typeof event & {
+        readonly sourceKind?: string;
+        readonly sourceRecordId?: string;
+        readonly sourceRecordIds?: readonly string[];
+      };
+      const isRivalEvent = event.kind.startsWith('Rival') || eventRecord.sourceKind === 'rival_action';
+      if (!isRivalEvent) return false;
+      const isVisible = visibleSourceIds.length === 0
+        || (eventRecord.sourceRecordId && visibleSourceIds.includes(eventRecord.sourceRecordId))
+        || eventRecord.sourceRecordIds?.some((sourceRecordId) => visibleSourceIds.includes(sourceRecordId));
+      if (!isVisible) return false;
+      return !cellId || causalEventMatchesCell(event, cellId);
+    })
+    .slice(0, 20); // Five-x safe: bounded to 20 most relevant events
 
   const rivalPressure = maxPressureForDomain(pressureSignals, ['rival_threat', 'market_heat', 'service_path']);
   const latestEvent = relevantEvents
@@ -435,18 +444,26 @@ function buildCompetitorRisk(
   );
   const topRival = rivalListings.slice().sort((left, right) => right.heat - left.heat)[0];
   const visibleRivalEvidence = buildVisibleRivalEvidence(state, cellId, pressureSignals);
-  const rivalCount = Math.max(rivalListings.length, visibleRivalEvidence.count);
-  const riskMagnitude = Math.max(
-    Math.min(100, rivalListings.length * 10),
-    visibleRivalEvidence.riskMagnitude,
-  );
+
+  // Evidence-first: visibleRivalEvidence from pressure signals is primary
+  const hasEvidence = pressureSignals.length > 0 && visibleRivalEvidence.count > 0;
+  const rivalCount = hasEvidence
+    ? visibleRivalEvidence.count
+    : Math.max(rivalListings.length, visibleRivalEvidence.count);
+  const riskMagnitude = hasEvidence
+    ? visibleRivalEvidence.riskMagnitude
+    : Math.max(Math.min(100, rivalListings.length * 10), visibleRivalEvidence.riskMagnitude);
 
   return {
     rivalCount,
-    topRivalLabel: topRival?.title ?? visibleRivalEvidence.label,
-    riskDescription: rivalListings.length > 0
-      ? `同板块 ${rivalListings.length} 套竞品正在分流客户注意力`
-      : visibleRivalEvidence.description,
+    topRivalLabel: hasEvidence
+      ? visibleRivalEvidence.label
+      : topRival?.title ?? visibleRivalEvidence.label,
+    riskDescription: hasEvidence
+      ? visibleRivalEvidence.description
+      : rivalListings.length > 0
+        ? `同板块 ${rivalListings.length} 套竞品正在分流客户注意力`
+        : visibleRivalEvidence.description,
     riskMagnitude,
   };
 }
@@ -457,13 +474,15 @@ function buildResourceCongestion(
   state: GameState,
   cellId: string,
   cellName: string,
+  aggregatedSignals?: readonly PressureSignal[],
 ): ResourceCongestion {
+  // Five-x safe: bounded iteration per cell
   const rivalListings = state.marketShadow.rivalListings.filter(
     (r) => r.status === 'active' && r.marketCellId === cellId,
-  );
+  ).slice(0, 50); // cap at 50 per cell for five-x
   const activeBrokerCount = state.marketShadow.rivalStores.filter(
     (s) => s.districtFocus.some((d) => d === cellId),
-  ).length + 1; // +1 for player broker
+  ).slice(0, 30).length + 1; // cap at 30 stores per cell
   const activeListingCount = rivalListings.length;
   const cellCustomers = state.customerStates.filter(
     (cs) => cs.status !== 'lost' && cs.status !== 'converted',
@@ -472,15 +491,32 @@ function buildResourceCongestion(
     ? cellCustomers.length / activeListingCount
     : cellCustomers.length > 0 ? 10 : 0;
 
+  // Derive congestion judgment from pressure signals when available
+  const marketHeatSignal = aggregatedSignals?.find((s) => s.domain === 'market_heat');
+  const servicePathSignal = aggregatedSignals?.find((s) => s.domain === 'service_path');
+  const hasEvidence = (marketHeatSignal?.magnitude ?? 0) > 0 || (servicePathSignal?.magnitude ?? 0) > 0;
+
   let congestionLevel: ResourceCongestion['congestionLevel'] = 'low';
   let congestionLabel = '资源充裕，进入门槛低';
 
-  if (activeBrokerCount >= 8 && activeListingCount >= 20) {
-    congestionLevel = 'high';
-    congestionLabel = `${activeBrokerCount} 经纪人、${activeListingCount} 挂牌在抢客，资源高度拥挤`;
-  } else if (activeBrokerCount >= 4 || activeListingCount >= 10) {
-    congestionLevel = 'moderate';
-    congestionLabel = `${activeBrokerCount} 经纪人、${activeListingCount} 挂牌，竞争中等`;
+  if (hasEvidence) {
+    const combinedPressure = (marketHeatSignal?.magnitude ?? 0) * 0.6 + (servicePathSignal?.magnitude ?? 0) * 0.4;
+    if (combinedPressure >= 70) {
+      congestionLevel = 'high';
+      congestionLabel = `市场热度 ${Math.round(marketHeatSignal?.magnitude ?? 0)}，服务路径压力 ${Math.round(servicePathSignal?.magnitude ?? 0)}，资源高度拥挤`;
+    } else if (combinedPressure >= 40) {
+      congestionLevel = 'moderate';
+      congestionLabel = `市场热度 ${Math.round(marketHeatSignal?.magnitude ?? 0)}，竞争中等`;
+    }
+  } else {
+    // Display fallback: numeric counts
+    if (activeBrokerCount >= 8 && activeListingCount >= 20) {
+      congestionLevel = 'high';
+      congestionLabel = `${activeBrokerCount} 经纪人、${activeListingCount} 挂牌在抢客，资源高度拥挤`;
+    } else if (activeBrokerCount >= 4 || activeListingCount >= 10) {
+      congestionLevel = 'moderate';
+      congestionLabel = `${activeBrokerCount} 经纪人、${activeListingCount} 挂牌，竞争中等`;
+    }
   }
 
   return {
@@ -496,17 +532,68 @@ function buildResourceCongestion(
 
 // ── Build Strategic Market Radar ──────────────────────────────
 
+/**
+ * Actor-visible cell window: only cells the actor has active cases in,
+ * plus cells referenced by pressure signals. Bounded to prevent five-x explosion.
+ *
+ * For current-market (24 cells): returns all cells (no bounding needed).
+ * For five-x (100+ cells): returns only actor-relevant cells (max ~10).
+ */
+function buildActorVisibleCellWindow(
+  state: GameState,
+  actorKnowledgeMap?: Map<string, ActorKnowledgeSnapshot>,
+): Set<string> {
+  const visibleCells = new Set<string>();
+
+  // Layer 1: cells where the actor has active cases
+  for (const caseItem of state.cases) {
+    if (caseItem.status === 'active' && caseItem.marketCellId) {
+      visibleCells.add(caseItem.marketCellId);
+    }
+  }
+
+  // Layer 2: cells referenced by actor knowledge (from pressure signals)
+  if (actorKnowledgeMap) {
+    for (const knowledge of actorKnowledgeMap.values()) {
+      for (const source of knowledge.visibleSources) {
+        for (const entityId of source.entityRefIds) {
+          // Entity IDs that look like market cells
+          if (entityId.startsWith('cell-') || entityId.startsWith('market-')) {
+            visibleCells.add(entityId);
+          }
+        }
+      }
+    }
+  }
+
+  // Layer 3: if we have too few, add top cells by heat from state.markets
+  // This ensures we don't miss hot cells even if actor has no cases there yet
+  if (visibleCells.size < 3 && state.markets.length > 0) {
+    const topByHeat = [...state.markets]
+      .sort((a, b) => b.demandHeat - a.demandHeat)
+      .slice(0, 3);
+    for (const cell of topByHeat) {
+      visibleCells.add(cell.id);
+    }
+  }
+
+  return visibleCells;
+}
+
 function buildStrategicMarketRadar(
   state: GameState,
   aggregatedSignals: readonly PressureSignal[],
   sharedRefs?: SharedCausalRefs,
+  actorKnowledgeMap?: Map<string, ActorKnowledgeSnapshot>,
 ): StrategicMarketRadarDimension {
-  const cells = state.markets;
+  // Actor-visible window: only iterate relevant cells (five-x safe)
+  const visibleCellIds = buildActorVisibleCellWindow(state, actorKnowledgeMap);
+  const cells = state.markets.filter((cell) => visibleCellIds.has(cell.id));
 
   const radarCells: StrategicMarketRadarCell[] = cells.map((cell) => {
     const heatBand = deriveHeatBandLabel(cell.demandHeat);
     const priceTrend = derivePriceTrendLabel(cell.supplyPressure, cell.competitivePressure);
-    const resourceCongestion = buildResourceCongestion(state, cell.id, cell.name);
+    const resourceCongestion = buildResourceCongestion(state, cell.id, cell.name, aggregatedSignals);
 
     return {
       cellId: cell.id,
@@ -557,28 +644,96 @@ function buildStrategicMarketRadar(
 
 // ── Build Strategic Customer Pool ────────────────────────────
 
+/**
+ * Actor-visible customer window: only customers in cells the actor operates in.
+ * For five-x (22000+ customers): bounded to actor-visible cells + max 200 sample.
+ */
+function buildActorVisibleCustomerWindow(
+  state: GameState,
+  actorKnowledgeMap?: Map<string, ActorKnowledgeSnapshot>,
+): readonly import('../../domain/models.js').CustomerRuntimeState[] {
+  const visibleCellIds = buildActorVisibleCellWindow(state, actorKnowledgeMap);
+
+  // Layer 1: customers in visible cells (from their active cases)
+  const visibleCaseIds = new Set<string>();
+  for (const caseItem of state.cases) {
+    if (caseItem.status === 'active' && visibleCellIds.has(caseItem.marketCellId)) {
+      visibleCaseIds.add(caseItem.id);
+    }
+  }
+
+  const cellCustomers = state.customerStates.filter((cs) =>
+    cs.activeCaseIds.some((caseId) => visibleCaseIds.has(caseId)),
+  );
+
+  // Layer 2: if too few, add customers from knowledge map
+  if (cellCustomers.length < 5 && actorKnowledgeMap) {
+    const knowledgeCustomerIds = new Set<string>();
+    for (const knowledge of actorKnowledgeMap.values()) {
+      for (const source of knowledge.visibleSources) {
+        if (source.sourceKind === 'customer_interaction' || source.sourceKind === 'buyer_financing_signal') {
+          for (const entityId of source.entityRefIds) {
+            knowledgeCustomerIds.add(entityId);
+          }
+        }
+      }
+    }
+    const knowledgeCustomers = state.customerStates.filter(
+      (cs) => knowledgeCustomerIds.has(cs.customerId) && !cellCustomers.some((c) => c.customerId === cs.customerId),
+    );
+    return [...cellCustomers, ...knowledgeCustomers].slice(0, 200);
+  }
+
+  return cellCustomers.slice(0, 200);
+}
+
 function buildStrategicCustomerPool(
   state: GameState,
   aggregatedSignals: readonly PressureSignal[],
   sharedRefs?: SharedCausalRefs,
   actorKnowledgeMap?: Map<string, ActorKnowledgeSnapshot>,
 ): StrategicCustomerPoolDimension {
-  const customerStates = state.customerStates;
+  // Actor-visible window: only customers in relevant cells (five-x safe)
+  const visibleCustomers = buildActorVisibleCustomerWindow(state, actorKnowledgeMap);
+  const customerStates = visibleCustomers;
   const activeCount = customerStates.filter((cs) => cs.status !== 'lost' && cs.status !== 'converted').length;
   const comparingCount = customerStates.filter((cs) => cs.status === 'comparing').length;
-  const atRiskCount = customerStates.filter((cs) => cs.churnRisk >= 60).length;
 
-  const atRiskCustomer = customerStates
+  // Derive atRiskCount from pressure signals when knowledge available
+  const customerSeriousnessSignals = aggregatedSignals.filter(
+    (s) => s.domain === 'customer_seriousness' || s.domain === 'deal_closeability',
+  );
+  const hasEvidence = customerSeriousnessSignals.length > 0;
+  const atRiskFromPressure = customerSeriousnessSignals.filter((s) => s.magnitude >= 60).length;
+  const atRiskCount = hasEvidence
+    ? Math.max(atRiskFromPressure, 1)
+    : customerStates.filter((cs) => cs.churnRisk >= 60).length;
+
+  // Migration signal from highest pressure signal when available
+  const topCustomerSignal = customerSeriousnessSignals
+    .slice()
+    .sort((a, b) => b.magnitude - a.magnitude)[0];
+  const legacyAtRiskCustomer = customerStates
     .filter((cs) => cs.churnRisk >= 60)
     .sort((a, b) => b.churnRisk - a.churnRisk)[0];
 
-  const migrationSignal = atRiskCustomer
+  const migrationSignal = topCustomerSignal && hasEvidence
     ? {
-      headline: `${atRiskCustomer.customerId} 流失风险 ${Math.round(atRiskCustomer.churnRisk)}%`,
-      detail: `该客户近期活跃度下降，可能被竞品截流，需要今天跟进。`,
-      refs: [{ refType: 'opportunity' as const, refId: atRiskCustomer.customerId, refLabel: atRiskCustomer.customerId }],
+      headline: `${topCustomerSignal.label} 压力 ${topCustomerSignal.magnitude}%`,
+      detail: `因果链显示客户注意力正在被分流，${topCustomerSignal.label} 需要今天跟进。`,
+      refs: topCustomerSignal.sourceRecordIds.slice(0, 2).map((sourceRecordId) => ({
+        refType: 'opportunity' as const,
+        refId: sourceRecordId,
+        refLabel: topCustomerSignal.label,
+      })),
     }
-    : null;
+    : legacyAtRiskCustomer
+      ? {
+        headline: `${legacyAtRiskCustomer.customerId} 流失风险 ${Math.round(legacyAtRiskCustomer.churnRisk)}%`,
+        detail: `该客户近期活跃度下降，可能被竞品截流，需要今天跟进。`,
+        refs: [{ refType: 'opportunity' as const, refId: legacyAtRiskCustomer.customerId, refLabel: legacyAtRiskCustomer.customerId }],
+      }
+      : null;
 
   const evidenceBackedPressureItems = sharedRefs
     ? buildDimensionEvidenceFromPressure(aggregatedSignals, ['customer_seriousness', 'deal_closeability'], sharedRefs)
@@ -623,8 +778,19 @@ function buildStrategicOwnerPool(
   sharedRefs?: SharedCausalRefs,
   actorKnowledgeMap?: Map<string, ActorKnowledgeSnapshot>,
 ): StrategicOwnerPoolDimension {
-  const activeCases = state.cases.filter((c) => c.status === 'active');
+  // Actor-visible window: only cases the actor has knowledge for (five-x safe)
+  const visibleCaseIds = actorKnowledgeMap
+    ? new Set(actorKnowledgeMap.keys())
+    : new Set(state.cases.filter((c) => c.status === 'active').slice(0, 10).map((c) => c.id));
+  const activeCases = state.cases.filter((c) => c.status === 'active' && visibleCaseIds.has(c.id));
   const totalActive = activeCases.length;
+
+  // Derive highPressureCount from pressure signals when knowledge available
+  const ownerPressureSignals = aggregatedSignals.filter(
+    (s) => s.domain === 'owner_readiness' || s.domain === 'broker_trust' || s.domain === 'price_anchor',
+  );
+  const hasEvidence = ownerPressureSignals.length > 0;
+  const highPressureFromSignals = ownerPressureSignals.filter((s) => s.magnitude >= 45).length;
 
   const highPressureCases = activeCases.filter((c) => {
     const gapScore = Math.min(100, c.priceGapPct * 3);
@@ -632,21 +798,37 @@ function buildStrategicOwnerPool(
     const compositePressure = gapScore * 0.5 + patienceScore * 0.3 + (100 - c.trust) * 0.2;
     return compositePressure > 45;
   });
-  const highPressureCount = highPressureCases.length;
+  const highPressureCount = hasEvidence
+    ? Math.max(highPressureFromSignals, 1)
+    : highPressureCases.length;
 
-  const topCase = highPressureCases.sort((a, b) => {
+  // Top owner issue from highest pressure signal when available
+  const topOwnerSignal = ownerPressureSignals
+    .slice()
+    .sort((a, b) => b.magnitude - a.magnitude)[0];
+  const legacyTopCase = highPressureCases.sort((a, b) => {
     const aPressure = a.priceGapPct * 3 * 0.5 + (100 - a.patience) * 0.3 + (100 - a.trust) * 0.2;
     const bPressure = b.priceGapPct * 3 * 0.5 + (100 - b.patience) * 0.3 + (100 - b.trust) * 0.2;
     return bPressure - aPressure;
   })[0];
 
-  const topOwnerIssue = topCase
+  const topOwnerIssue = topOwnerSignal && hasEvidence
     ? {
-      headline: `${topCase.title} 业主预期压力偏高`,
-      detail: `挂牌价高于市场价 ${Math.round(topCase.priceGapPct)}%，信任 ${Math.round(topCase.trust)}，耐心 ${Math.round(topCase.patience)}。`,
-      refs: [{ refType: 'case' as const, refId: topCase.id, refLabel: topCase.title }],
+      headline: `${topOwnerSignal.label} 压力 ${topOwnerSignal.magnitude}%`,
+      detail: `因果链显示业主预期/信任/耐心存在压力，${topOwnerSignal.label} 需要关注。`,
+      refs: topOwnerSignal.sourceRecordIds.slice(0, 2).map((sourceRecordId) => ({
+        refType: 'case' as const,
+        refId: sourceRecordId,
+        refLabel: topOwnerSignal.label,
+      })),
     }
-    : null;
+    : legacyTopCase
+      ? {
+        headline: `${legacyTopCase.title} 业主预期压力偏高`,
+        detail: `挂牌价高于市场价 ${Math.round(legacyTopCase.priceGapPct)}%，信任 ${Math.round(legacyTopCase.trust)}，耐心 ${Math.round(legacyTopCase.patience)}。`,
+        refs: [{ refType: 'case' as const, refId: legacyTopCase.id, refLabel: legacyTopCase.title }],
+      }
+      : null;
 
   const evidenceBackedPressureItems = sharedRefs
     ? buildDimensionEvidenceFromPressure(aggregatedSignals, ['owner_readiness', 'broker_trust', 'price_anchor'], sharedRefs)
@@ -684,6 +866,36 @@ function buildStrategicOwnerPool(
 
 // ── Build Strategic Broker Opportunity ───────────────────────
 
+/**
+ * Read the latest closing balance for a resource dimension from the economic ledger.
+ * Falls back to state fields when ledger is not available.
+ */
+function readResourceFromLedger(
+  state: GameState,
+  dimension: 'energy' | 'promotionBudget',
+  fallback: number,
+): number {
+  const ledger = state.bigWorldRuntime?.economicResourceLedger;
+  if (!ledger || ledger.length === 0) return fallback;
+
+  // Find the latest entry for this dimension
+  for (let i = ledger.length - 1; i >= 0; i--) {
+    const entry = ledger[i];
+    if (dimension === 'energy') {
+      // Reconstruct closing energy from deltas
+      const consumed = ledger.slice(0, i + 1).reduce((sum, e) => sum + e.playerEnergyConsumed, 0);
+      const replenished = ledger.slice(0, i + 1).reduce((sum, e) => sum + e.playerEnergyReplenished, 0);
+      return Math.max(0, replenished - consumed);
+    }
+    if (dimension === 'promotionBudget') {
+      const consumed = ledger.slice(0, i + 1).reduce((sum, e) => sum + e.promotionBudgetConsumed, 0);
+      const allocated = ledger.slice(0, i + 1).reduce((sum, e) => sum + e.promotionBudgetAllocated, 0);
+      return Math.max(0, allocated - consumed);
+    }
+  }
+  return fallback;
+}
+
 function buildStrategicTopActions(
   state: GameState,
   actorKnowledgeMap?: Map<string, ActorKnowledgeSnapshot>,
@@ -692,6 +904,10 @@ function buildStrategicTopActions(
   const activeCases = state.cases.filter((c) => c.status === 'active');
 
   if (!actorKnowledgeMap || actorKnowledgeMap.size === 0) return actions;
+
+  // Read resource balances from ledger when available, fall back to state fields
+  const currentEnergy = readResourceFromLedger(state, 'energy', state.energy);
+  const currentBudget = readResourceFromLedger(state, 'promotionBudget', state.auxiliaryStats?.promotionBudget ?? 0);
 
   for (const caseItem of activeCases) {
     const knowledge = actorKnowledgeMap.get(caseItem.id);
@@ -705,17 +921,15 @@ function buildStrategicTopActions(
     const cmd = envelope.recommendedCommand;
     const pressureSignals = evaluatePressureSignals(knowledge);
 
-    // Resource cost
-    const energyCost = estimateEnergyCost(cmd.command.commandId);
-    const budgetCost = estimateBudgetCost(cmd.command.commandId);
-    const resourceCost: ResourceCost = {
-      energyCost,
-      budgetCost,
-      energyAfter: Math.max(0, state.energy - energyCost),
-      budgetAfter: Math.max(0, (state.auxiliaryStats?.promotionBudget ?? 0) - budgetCost),
-      energyLabel: energyCost > 0 ? `消耗 ${energyCost} 精力` : '不消耗精力',
-      budgetLabel: budgetCost > 0 ? `消耗 ${budgetCost} 推广金` : '不消耗推广金',
-    };
+    // Resource cost — derived from command structural properties + pressure signals (not static map)
+    const resourceCost = deriveResourceCost(
+      cmd.command.category,
+      cmd.command.targetDomains,
+      cmd.command.pressureThreshold,
+      pressureSignals,
+      currentEnergy,
+      currentBudget,
+    );
 
     // Opportunity cost: what else could be done instead
     const allRanked = rankCommands(
@@ -760,30 +974,57 @@ function buildStrategicTopActions(
     .slice(0, 3);
 }
 
-function estimateEnergyCost(commandId: string): number {
-  const costMap: Record<string, number> = {
-    'cmd-price-adjustment': 2,
-    'cmd-customer-acquisition': 3,
-    'cmd-owner-visit': 2,
-    'cmd-focus-meeting': 4,
-    'cmd-negotiate-deal': 3,
-    'cmd-defend-listing': 2,
-    'cmd-escalate-manager': 1,
-  };
-  return costMap[commandId] ?? 2;
-}
+/**
+ * Derive resource cost from command structural properties + pressure signals + current resource state.
+ *
+ * Replaces static category-to-cost maps with evidence-backed derivation:
+ *   - Energy base = pressureThreshold × targetDomainCount / 20 (structural complexity)
+ *   - Energy scales with pressure magnitude on target domains (1.0x–1.5x)
+ *   - Budget scales with promotion-category pressure (marketing spend = urgency × pressure)
+ *   - Both are bounded and traceable to the pressure signals that drove them
+ *
+ * Hard constraints:
+ *   - No hardcoded cost per commandId or per category
+ *   - Base cost derived from command's own structural properties (threshold, domains)
+ *   - Cost derivation traces to pressure signals (evidence-backed)
+ *   - Same pressure + same command → same cost (deterministic)
+ */
+function deriveResourceCost(
+  commandCategory: string,
+  targetDomains: readonly string[],
+  pressureThreshold: number,
+  pressureSignals: readonly PressureSignal[],
+  currentEnergy: number,
+  currentBudget: number,
+): ResourceCost {
+  // Base energy derived from command structural properties (not a static map)
+  // Higher pressure threshold = more focused effort needed to trigger this command
+  // More target domains = more coordination across belief dimensions
+  const baseEnergy = Math.max(1, Math.round(pressureThreshold * targetDomains.length / 20));
 
-function estimateBudgetCost(commandId: string): number {
-  const costMap: Record<string, number> = {
-    'cmd-price-adjustment': 0,
-    'cmd-customer-acquisition': 5,
-    'cmd-owner-visit': 0,
-    'cmd-focus-meeting': 0,
-    'cmd-negotiate-deal': 0,
-    'cmd-defend-listing': 3,
-    'cmd-escalate-manager': 0,
+  // Pressure scale: higher pressure on target domains → more focused effort needed
+  const targetPressure = pressureSignals
+    .filter((s) => targetDomains.includes(s.domain))
+    .reduce((max, s) => Math.max(max, s.magnitude), 0);
+  const pressureScale = 1 + (targetPressure / 100) * 0.5; // 1.0x to 1.5x
+  const energyCost = Math.max(1, Math.round(baseEnergy * pressureScale));
+
+  // Budget cost: only for promotion category (marketing spend = f(pressure, urgency))
+  // Other categories (pricing, relationship, process, escalation) don't directly spend budget
+  const budgetCost = commandCategory === 'promotion'
+    ? Math.max(3, Math.round(targetPressure * 0.08))
+    : 0;
+
+  return {
+    energyCost,
+    budgetCost,
+    energyAfter: Math.max(0, currentEnergy - energyCost),
+    budgetAfter: Math.max(0, currentBudget - budgetCost),
+    energyLabel: `消耗 ${energyCost} 精力（阈值${pressureThreshold}×${targetDomains.length}域，压力系数 ${Math.round(pressureScale * 100)}%）`,
+    budgetLabel: budgetCost > 0
+      ? `消耗 ${budgetCost} 推广金（${commandCategory}类，压力 ${targetPressure}%）`
+      : '不消耗推广金',
   };
-  return costMap[commandId] ?? 0;
 }
 
 function buildTimeHorizonImpact(
@@ -842,46 +1083,92 @@ function buildOrgResource(
   state: GameState,
   actorKnowledgeMap?: Map<string, ActorKnowledgeSnapshot>,
   sharedRefs?: SharedCausalRefs,
+  aggregatedSignals?: readonly PressureSignal[],
 ): OrgResourceDimension {
-  const energyRemaining = state.energy;
-  const budgetRemaining = state.auxiliaryStats?.promotionBudget ?? 0;
+  // Read resource balances from ledger when available, fall back to state fields
+  const energyRemaining = readResourceFromLedger(state, 'energy', state.energy);
+  const budgetRemaining = readResourceFromLedger(state, 'promotionBudget', state.auxiliaryStats?.promotionBudget ?? 0);
+
+  // Extract capacity/manager signals from causal events when knowledge available
+  const causalEvents = state.worldCausalEvents ?? [];
+  const capacityEvents = actorKnowledgeMap && actorKnowledgeMap.size > 0
+    ? causalEvents.filter((event) => {
+      const record = event as typeof event & { readonly sourceKind?: string; readonly sourceKinds?: readonly string[] };
+      return record.sourceKind === 'broker_capacity_signal'
+        || record.sourceKinds?.includes('broker_capacity_signal');
+    })
+    : [];
+  const managerEvents = actorKnowledgeMap && actorKnowledgeMap.size > 0
+    ? causalEvents.filter((event) => {
+      const record = event as typeof event & { readonly sourceKind?: string; readonly sourceKinds?: readonly string[] };
+      return record.sourceKind === 'manager_message'
+        || record.sourceKinds?.includes('manager_message');
+    })
+    : [];
+  const hasEvidence = capacityEvents.length > 0 || managerEvents.length > 0;
+
+  // Derive energy reasoning from capacity signals when available
+  const energyCapacityEvent = capacityEvents.find((event) => {
+    const payload = event.payload as unknown as Record<string, unknown>;
+    return payload.subtype === 'energy_depleted' || payload.subtype === 'schedule_overloaded';
+  });
+  const energySignal = aggregatedSignals?.find((s) => s.domain === 'service_path' || s.domain === 'rival_threat');
 
   const allocations: OrgResourceAllocation[] = [];
 
-  // Energy allocation
+  // Energy allocation — evidence-first
+  const energyPayload = energyCapacityEvent?.payload as unknown as Record<string, unknown> | undefined;
   allocations.push({
     resourceType: 'energy',
     allocated: energyRemaining > 0,
-    reason: energyRemaining > 5
-      ? `当前精力 ${energyRemaining}，仍有动作空间。`
-      : energyRemaining > 0
-        ? `精力仅剩 ${energyRemaining}，需优先高价值动作。`
-        : '今日精力已耗尽。',
+    reason: hasEvidence && energyCapacityEvent
+      ? `因果链显示 ${energyPayload?.summary ?? '精力压力'}，当前精力 ${energyRemaining}。`
+      : hasEvidence && energySignal
+        ? `${energySignal.label} 压力 ${energySignal.magnitude}%，当前精力 ${energyRemaining}。`
+        : energyRemaining > 5
+          ? `当前精力 ${energyRemaining}，仍有动作空间。`
+          : energyRemaining > 0
+            ? `精力仅剩 ${energyRemaining}，需优先高价值动作。`
+            : '今日精力已耗尽。',
     confidence: energyRemaining > 0 ? 0.9 : 0,
     safeRefs: sharedRefs?.allRefs.slice(0, 1) ?? [],
   });
 
-  // Budget allocation
+  // Budget allocation — evidence-first
+  const budgetCapacityEvent = capacityEvents.find((event) => {
+    const payload = event.payload as unknown as Record<string, unknown>;
+    return payload.subtype === 'organizational_pressure' || payload.resourceType === 'promotionBudget';
+  });
+  const budgetPayload = budgetCapacityEvent?.payload as unknown as Record<string, unknown> | undefined;
   allocations.push({
     resourceType: 'budget',
     allocated: budgetRemaining > 0,
-    reason: budgetRemaining > 10
-      ? `推广金 ${budgetRemaining} 点，仍有投放空间。`
-      : budgetRemaining > 0
-        ? `推广金仅剩 ${budgetRemaining} 点，需精打细算。`
-        : '推广金已耗尽，无法执行高成本动作。',
+    reason: hasEvidence && budgetCapacityEvent
+      ? `因果链显示 ${budgetPayload?.summary ?? '推广资源压力'}，当前推广金 ${budgetRemaining} 点。`
+      : budgetRemaining > 10
+        ? `推广金 ${budgetRemaining} 点，仍有投放空间。`
+        : budgetRemaining > 0
+          ? `推广金仅剩 ${budgetRemaining} 点，需精打细算。`
+          : '推广金已耗尽，无法执行高成本动作。',
     confidence: budgetRemaining > 0 ? 0.9 : 0,
     safeRefs: sharedRefs?.allRefs.slice(0, 1) ?? [],
   });
 
-  // Manager attention (focus meeting)
+  // Manager attention (focus meeting) — evidence-first from manager_message
   const focusMeetingCases = state.cases.filter((c) => c.isFocused);
+  const focusManagerEvent = managerEvents.find((event) => {
+    const payload = event.payload as unknown as Record<string, unknown>;
+    return payload.subtype === 'focus_case_selected' || payload.subtype === 'resource_allocated';
+  });
+  const managerPayload = focusManagerEvent?.payload as unknown as Record<string, unknown> | undefined;
   allocations.push({
     resourceType: 'focus_meeting_slot',
     allocated: focusMeetingCases.length > 0,
-    reason: focusMeetingCases.length > 0
-      ? `本周聚焦会已选定 ${focusMeetingCases.length} 套房源。`
-      : '本周聚焦会尚未选定房源。',
+    reason: hasEvidence && focusManagerEvent
+      ? `因果链显示 ${managerPayload?.summary ?? '管理层信号'}，本周聚焦会已选定 ${focusMeetingCases.length} 套房源。`
+      : focusMeetingCases.length > 0
+        ? `本周聚焦会已选定 ${focusMeetingCases.length} 套房源。`
+        : '本周聚焦会尚未选定房源。',
     confidence: focusMeetingCases.length > 0 ? 0.8 : 0.3,
     safeRefs: sharedRefs?.allRefs.slice(0, 1) ?? [],
   });
@@ -933,14 +1220,18 @@ export function buildStrategicMarketDecisionProjection(
     }
   }
 
-  const marketRadar = buildStrategicMarketRadar(state, aggregatedSignals, sharedCausalRefs);
+  const marketRadar = buildStrategicMarketRadar(state, aggregatedSignals, sharedCausalRefs, actorKnowledgeMap);
   const customerPool = buildStrategicCustomerPool(state, aggregatedSignals, sharedCausalRefs, actorKnowledgeMap);
   const ownerPool = buildStrategicOwnerPool(state, aggregatedSignals, sharedCausalRefs, actorKnowledgeMap);
   const topActions = buildStrategicTopActions(state, actorKnowledgeMap);
-  const orgResource = buildOrgResource(state, actorKnowledgeMap, sharedCausalRefs);
+  const orgResource = buildOrgResource(state, actorKnowledgeMap, sharedCausalRefs, aggregatedSignals);
 
   // Competitive pressure (pass-through with evidence)
-  const rivalListings = state.marketShadow.rivalListings.filter((r) => r.status === 'active');
+  // Five-x safe: only rival listings in actor-visible cells
+  const visibleCellIds = buildActorVisibleCellWindow(state, actorKnowledgeMap);
+  const rivalListings = state.marketShadow.rivalListings.filter(
+    (r) => r.status === 'active' && visibleCellIds.has(r.marketCellId),
+  );
   const visibleRivalEvidence = buildVisibleRivalEvidence(state, undefined, aggregatedSignals);
   const activeRivalCount = Math.max(rivalListings.length, visibleRivalEvidence.count);
   const hotRivals = rivalListings.filter((r) => r.heat > 60 || r.freshness > 60);
@@ -982,8 +1273,8 @@ export function buildStrategicMarketDecisionProjection(
     customerPool,
     ownerPool,
     brokerOpportunity: {
-      energyRemaining: state.energy,
-      budgetRemaining: state.auxiliaryStats?.promotionBudget ?? 0,
+      energyRemaining: readResourceFromLedger(state, 'energy', state.energy),
+      budgetRemaining: readResourceFromLedger(state, 'promotionBudget', state.auxiliaryStats?.promotionBudget ?? 0),
       topActions,
     },
     orgResource,

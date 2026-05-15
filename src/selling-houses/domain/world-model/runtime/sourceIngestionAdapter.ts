@@ -595,7 +595,7 @@ function buildFromManagerMessage(
   const priority = numberValue(view.priority, 50);
   const instruction = stringValue(view.instruction, stringValue(view.summary, subtype));
 
-  if (subtype === 'focus_case_selected' || subtype === 'escalation_requested') {
+  if (subtype === 'focus_case_selected' || subtype === 'escalation_requested' || subtype === 'resource_allocated') {
     events.push(
       buildMatterPriorityChanged(
         `${baseId}-matter`,

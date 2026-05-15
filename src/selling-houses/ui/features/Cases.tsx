@@ -1174,7 +1174,7 @@ function HouseDimensionPosition({ caseItem }: { caseItem: Case }) {
         </div>
         <span className="seller-chip">好房分 {Math.round(caseItem.competitiveness)}</span>
       </div>
-      <div className="rounded-[12px] bg-[rgba(255,255,255,0.018)] px-2 py-2">
+      <div className="seller-dimension-cube rounded-[12px] px-2 py-2">
         <svg
           viewBox="0 0 210 146"
           role="img"
@@ -1185,10 +1185,10 @@ function HouseDimensionPosition({ caseItem }: { caseItem: Case }) {
           onPointerUp={handlePointerEnd}
           onPointerCancel={handlePointerEnd}
         >
-          <polygon points={`${floorA} ${floorB} ${floorC} ${floorD}`} fill="rgba(73,221,133,0.06)" stroke="rgba(255,255,255,0.12)" />
-          <polygon points={`${topA} ${topB} ${topC} ${topD}`} fill="rgba(102,209,224,0.06)" stroke="rgba(255,255,255,0.10)" />
-          <polygon points={`${floorB} ${floorC} ${topC} ${topB}`} fill="rgba(255,255,255,0.025)" stroke="rgba(255,255,255,0.08)" />
-          <polygon points={`${floorD} ${floorC} ${topC} ${topD}`} fill="rgba(255,255,255,0.018)" stroke="rgba(255,255,255,0.08)" />
+          <polygon className="seller-dimension-face seller-dimension-face-floor" points={`${floorA} ${floorB} ${floorC} ${floorD}`} />
+          <polygon className="seller-dimension-face seller-dimension-face-top" points={`${topA} ${topB} ${topC} ${topD}`} />
+          <polygon className="seller-dimension-face seller-dimension-face-side" points={`${floorB} ${floorC} ${topC} ${topB}`} />
+          <polygon className="seller-dimension-face seller-dimension-face-back" points={`${floorD} ${floorC} ${topC} ${topD}`} />
           {[0.25, 0.5, 0.75].map((step) => {
             const baseX = origin.x + leadAxis.x * step;
             const baseY = origin.y + leadAxis.y * step;
@@ -1199,7 +1199,7 @@ function HouseDimensionPosition({ caseItem }: { caseItem: Case }) {
                 y1={baseY}
                 x2={baseX + ownerAxis.x}
                 y2={baseY + ownerAxis.y}
-                stroke="rgba(255,255,255,0.08)"
+                className="seller-dimension-grid-line"
               />
             );
           })}
@@ -1213,19 +1213,19 @@ function HouseDimensionPosition({ caseItem }: { caseItem: Case }) {
                 y1={baseY}
                 x2={baseX + leadAxis.x}
                 y2={baseY + leadAxis.y}
-                stroke="rgba(255,255,255,0.08)"
+                className="seller-dimension-grid-line"
               />
             );
           })}
-          <line x1={origin.x} y1={origin.y} x2={origin.x + leadAxis.x} y2={origin.y + leadAxis.y} stroke="rgba(73,221,133,0.76)" strokeWidth="2" />
-          <line x1={origin.x} y1={origin.y} x2={origin.x + houseAxis.x} y2={origin.y + houseAxis.y} stroke="rgba(102,209,224,0.78)" strokeWidth="2" />
-          <line x1={origin.x} y1={origin.y} x2={origin.x + ownerAxis.x} y2={origin.y + ownerAxis.y} stroke="rgba(255,107,129,0.72)" strokeWidth="2" />
-          <line x1={point.x} y1={point.y} x2={point.x} y2={origin.y + leadAxis.y * lead + ownerAxis.y * owner} stroke="rgba(255,255,255,0.18)" strokeDasharray="4 4" />
-          <circle cx={point.x} cy={point.y} r="5" fill="#49dd85" stroke="rgba(255,255,255,0.88)" strokeWidth="1.5" />
-          <circle cx={point.x} cy={point.y} r="10" fill="rgba(73,221,133,0.1)" />
-          <text x={origin.x + leadAxis.x + 5} y={origin.y + leadAxis.y + 2} fill="rgba(73,221,133,0.9)" fontSize="10" fontWeight="700">准客</text>
-          <text x={origin.x - 8} y={origin.y + houseAxis.y - 6} fill="rgba(102,209,224,0.9)" fontSize="10" fontWeight="700">房子</text>
-          <text x={origin.x + ownerAxis.x + 5} y={origin.y + ownerAxis.y + 4} fill="rgba(255,107,129,0.9)" fontSize="10" fontWeight="700">业主</text>
+          <line className="seller-dimension-axis seller-dimension-axis-lead" x1={origin.x} y1={origin.y} x2={origin.x + leadAxis.x} y2={origin.y + leadAxis.y} />
+          <line className="seller-dimension-axis seller-dimension-axis-house" x1={origin.x} y1={origin.y} x2={origin.x + houseAxis.x} y2={origin.y + houseAxis.y} />
+          <line className="seller-dimension-axis seller-dimension-axis-owner" x1={origin.x} y1={origin.y} x2={origin.x + ownerAxis.x} y2={origin.y + ownerAxis.y} />
+          <line className="seller-dimension-guide-line" x1={point.x} y1={point.y} x2={point.x} y2={origin.y + leadAxis.y * lead + ownerAxis.y * owner} />
+          <circle className="seller-dimension-point-halo" cx={point.x} cy={point.y} r="11" />
+          <circle className="seller-dimension-point" cx={point.x} cy={point.y} r="5.2" />
+          <text className="seller-dimension-label seller-dimension-label-lead" x={origin.x + leadAxis.x + 5} y={origin.y + leadAxis.y + 2} fontSize="10" fontWeight="700">准客</text>
+          <text className="seller-dimension-label seller-dimension-label-house" x={origin.x - 8} y={origin.y + houseAxis.y - 6} fontSize="10" fontWeight="700">房子</text>
+          <text className="seller-dimension-label seller-dimension-label-owner" x={origin.x + ownerAxis.x + 5} y={origin.y + ownerAxis.y + 4} fontSize="10" fontWeight="700">业主</text>
         </svg>
       </div>
     </div>

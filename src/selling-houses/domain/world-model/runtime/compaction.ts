@@ -438,6 +438,9 @@ export function normalizeRuntimeState(
   const economicResourceLedger = Array.isArray(raw['economicResourceLedger'])
     ? raw['economicResourceLedger'] as import('./types.js').EconomicResourceLedgerEntry[]
     : [];
+  const actionResourceReceipts = Array.isArray(raw['actionResourceReceipts'])
+    ? raw['actionResourceReceipts'] as import('./types.js').ActionResourceReceipt[]
+    : [];
   return Object.freeze({
     compactionPolicy,
     lastTickDay: Math.max(0, Number(raw['lastTickDay']) || 0),
@@ -445,6 +448,7 @@ export function normalizeRuntimeState(
     dailySummaries: Array.isArray(raw['dailySummaries']) ? raw['dailySummaries'] as BigWorldRuntimeSummary[] : [],
     coldLedgerSummaries: Array.isArray(raw['coldLedgerSummaries']) ? raw['coldLedgerSummaries'] as ColdLedgerSummary[] : [],
     economicResourceLedger,
+    actionResourceReceipts,
     totalEventsEmitted: Math.max(0, Number(raw['totalEventsEmitted']) || 0),
     totalMutationsEmitted: Math.max(0, Number(raw['totalMutationsEmitted']) || 0),
     tickCount: Math.max(0, Number(raw['tickCount']) || 0),
@@ -465,6 +469,7 @@ export function createDefaultRuntimeState(
     dailySummaries: [],
     coldLedgerSummaries: [],
     economicResourceLedger: [],
+    actionResourceReceipts: [],
     totalEventsEmitted: 0,
     totalMutationsEmitted: 0,
     tickCount: 0,

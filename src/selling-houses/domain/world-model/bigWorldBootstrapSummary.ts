@@ -276,6 +276,17 @@ export function normalizeOldSave(state: {
       supportingInfoGte160: false,
       historicalTransactionsGte50: false,
     },
+    meetsFiveXScaleThresholds: {
+      listingsGte4000: false,
+      ownersGte2500: false,
+      customersGte22000: false,
+      brokersGte750: false,
+      marketCellsGte100: false,
+      microCellsGte300: false,
+      acnNetworksGte32: false,
+      supportingInfoGte800: false,
+      historicalTransactionsGte300: false,
+    },
   };
 
   const summary: BigWorldBootstrapSummary = Object.freeze({
@@ -373,6 +384,17 @@ export function normalizeOldSave(state: {
           budgetFlowBalanced: false,
         },
         ledgerReady: false,
+        meetsCityLevelEconomyThresholds: {
+          brokerPoolsGte750: false,
+          listingPoolsGte4000: false,
+          customerPoolsGte2000: false,
+          orgPoolsGte30: false,
+          opportunityCostsGte500: false,
+          bottleneckedBrokersGte20: false,
+          atRiskCustomersGte500: false,
+          cityWideEnergyBalance: false,
+          cityWideBudgetBalance: false,
+        },
       },
     },
   });

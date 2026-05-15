@@ -47,6 +47,10 @@ export interface SurfaceCensusEntry {
   readonly legacyFieldsRead: readonly string[];
   readonly causalChainConnected: boolean;
   readonly verdict: 'connected' | 'partial' | 'disconnected';
+  /** Whether this surface is safe at five-x scale (100+ cells, 4000+ listings). */
+  readonly fiveXCompatible: boolean;
+  /** Reason if not five-x compatible. */
+  readonly fiveXLimitation?: string;
 }
 
 // ── Census: projection surface catalog ────────────────────────
@@ -79,6 +83,7 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       legacyFieldsRead: ['trust', 'patience', 'urgency', 'priceGapPct', 'askPrice', 'marketPrice', 'lastRivalThreatDay', 'customerStates.status', 'customerStates.churnRisk'],
       causalChainConnected: true,
       verdict: 'connected',
+      fiveXCompatible: true,
     },
 
     // ── 2. actorKnowledgeProjection ───────────────────────────
@@ -98,6 +103,7 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       legacyFieldsRead: [],
       causalChainConnected: true,
       verdict: 'connected',
+      fiveXCompatible: true,
     },
 
     // ── 3. operatingProjection ────────────────────────────────
@@ -120,6 +126,7 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       legacyFieldsRead: ['trust', 'patience', 'urgency', 'heat', 'offerCount', 'lastShowDay', 'competitiveness', 'windowDays', 'daysLeft', 'askPrice', 'marketPrice', 'priceGapPct', 'stage', 'status', 'intent', 'churnRisk', 'fatigue', 'demandHeat', 'supplyPressure', 'competitivePressure'],
       causalChainConnected: true,
       verdict: 'connected',
+      fiveXCompatible: true,
     },
 
     // ── 4. marketOpeningPOVProjection ─────────────────────────
@@ -142,6 +149,7 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       legacyFieldsRead: ['demandHeat', 'competitivePressure', 'churnRisk', 'fatigue', 'daysLeft', 'intent', 'trust', 'patience', 'urgency', 'askPrice', 'marketPrice', 'priceGapPct'],
       causalChainConnected: true,
       verdict: 'connected',
+      fiveXCompatible: true,
     },
 
     // ── 5. workspaceShellProjection ───────────────────────────
@@ -162,6 +170,7 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       legacyFieldsRead: ['status', 'soldPrice', 'ownerName', 'energy', 'maxEnergy', 'budgetLedger', 'auxiliaryStats'],
       causalChainConnected: true,
       verdict: 'connected',
+      fiveXCompatible: true,
     },
 
     // ── 6. resultProjection ───────────────────────────────────
@@ -182,6 +191,7 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       legacyFieldsRead: ['finalResult', 'caseResults', 'scoreBreakdown', 'endingStats', 'marketOutcome', 'status', 'auxiliaryStats.withdrawnCount'],
       causalChainConnected: true,
       verdict: 'connected',
+      fiveXCompatible: true,
     },
 
     // ── 7. leaderboardProjection ──────────────────────────────
@@ -203,6 +213,8 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       legacyFieldsRead: [],
       causalChainConnected: false,
       verdict: 'disconnected',
+      fiveXCompatible: true, // N/A — external data, not game-world
+      fiveXLimitation: 'External cloud data, not game-world. Five-x N/A.',
     },
 
     // ── 8. ownerPersonaProfile ────────────────────────────────
@@ -221,6 +233,7 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       legacyFieldsRead: ['profiling', 'personality', 'hasCompletedFirstVisit', 'ownerTypeName', 'ownerTypeTone'],
       causalChainConnected: true,
       verdict: 'connected',
+      fiveXCompatible: true,
     },
 
     // ── 9. ownerProfilingMemory ───────────────────────────────
@@ -239,6 +252,7 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       legacyFieldsRead: ['profiling', 'dimensions', 'ownerTypeName', 'askPrice', 'marketPrice', 'urgency', 'windowDays', 'ownerMood', 'story'],
       causalChainConnected: true,
       verdict: 'connected',
+      fiveXCompatible: true,
     },
 
     // ── 10. myWechatProjection ────────────────────────────────
@@ -258,6 +272,7 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       legacyFieldsRead: ['status', 'todayPriority', 'leadCaseId', 'isFocused'],
       causalChainConnected: true,
       verdict: 'connected',
+      fiveXCompatible: true,
     },
 
     // ── 11. myWechatFacts ─────────────────────────────────────
@@ -278,6 +293,7 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       legacyFieldsRead: ['trust', 'patience', 'urgency', 'priceGapPct', 'stage', 'status', 'intent', 'daysLeft', 'churnRisk', 'fatigue'],
       causalChainConnected: true,
       verdict: 'connected',
+      fiveXCompatible: true,
     },
 
     // ── 12. architectureMigrationReadinessProjection ──────────
@@ -300,6 +316,8 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       legacyFieldsRead: [],
       causalChainConnected: false,
       verdict: 'disconnected',
+      fiveXCompatible: true, // N/A — developer diagnostic, not game-world
+      fiveXLimitation: 'Developer diagnostic, not game-world. Five-x N/A.',
     },
 
     // ── 13. architectureParityProjection ──────────────────────
@@ -320,6 +338,8 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       legacyFieldsRead: [],
       causalChainConnected: false,
       verdict: 'disconnected',
+      fiveXCompatible: true, // N/A — developer diagnostic, not game-world
+      fiveXLimitation: 'Developer diagnostic, not game-world. Five-x N/A.',
     },
 
     // ── 14. perfectProjectionAdapters ─────────────────────────
@@ -339,6 +359,7 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       legacyFieldsRead: ['askPrice', 'trust', 'patience', 'urgency', 'priceGapPct', 'daysLeft', 'intent'],
       causalChainConnected: true,
       verdict: 'connected',
+      fiveXCompatible: true,
     },
 
     // ── 15. playableMarketProjection ─────────────────────────
@@ -367,13 +388,12 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       legacyFieldsRead: ['demandHeat', 'competitivePressure', 'supplyPressure', 'heat', 'freshness', 'churnRisk', 'status', 'priceGapPct', 'trust', 'patience', 'energy', 'promotionBudget'],
       causalChainConnected: true,
       verdict: 'connected',
+      fiveXCompatible: true, // Round 19: bounded by actor-visible cell window
     },
 
     // ── 16. strategicMarketDecisionProjection ─────────────
     // Round 17: Upgrades playable market into strategic decision surface.
-    // Each topAction carries opportunity cost, resource cost, competitor risk, time horizon impact.
-    // Market radar shows resource congestion. Customer pool shows attention migration reasons.
-    // Owner pool shows trust/patience causal sources. Org resource shows allocation reasoning.
+    // Round 18: Ledger/evidence-priority — judgment text from pressure signals, legacy numeric reads are display-only.
     {
       surfaceId: 'strategic-decision',
       surfaceName: 'StrategicPlayableMarketProjection',
@@ -381,20 +401,24 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       readPatterns: [
         { kind: 'actor-knowledge', detail: 'buildStrategicTopActions uses buildDecisionEvidenceEnvelope for full belief→pressure→command→explanation pipeline', isCausalChainConnected: true },
         { kind: 'explanation-envelope', detail: 'each StrategicTopAction carries safeRefs, replayKey, sourceRecordIds, confidence from DecisionEvidenceEnvelope', isCausalChainConnected: true },
-        { kind: 'actor-knowledge', detail: 'buildStrategicCustomerPool derives attentionMigrationReasons from pressure signals in actorKnowledgeMap', isCausalChainConnected: true },
-        { kind: 'actor-knowledge', detail: 'buildStrategicOwnerPool derives trustPatienceCausalSources from pressure signals in actorKnowledgeMap', isCausalChainConnected: true },
+        { kind: 'actor-knowledge', detail: 'buildStrategicCustomerPool derives atRiskCount and migrationSignal from customer_seriousness pressure signals', isCausalChainConnected: true },
+        { kind: 'actor-knowledge', detail: 'buildStrategicOwnerPool derives highPressureCount and topOwnerIssue from owner_readiness/broker_trust/price_anchor pressure', isCausalChainConnected: true },
+        { kind: 'actor-knowledge', detail: 'buildCompetitorRisk uses visibleRivalEvidence from pressure signals as primary', isCausalChainConnected: true },
+        { kind: 'actor-knowledge', detail: 'buildResourceCongestion derives congestion judgment from market_heat/service_path pressure signals', isCausalChainConnected: true },
+        { kind: 'actor-knowledge', detail: 'buildOrgResource derives allocation reasoning from broker_capacity_signal and manager_message causal events', isCausalChainConnected: true },
         { kind: 'causal-refs', detail: 'injects liveCausalRefs via sharedCausalRefs from DecisionEvidenceEnvelope for cross-surface reuse', isCausalChainConnected: true },
-        { kind: 'legacy-field', detail: 'reads MarketCell.demandHeat/competitivePressure/supplyPressure for radar numeric display', isCausalChainConnected: false },
-        { kind: 'legacy-field', detail: 'reads Case.marketCellId for competitor risk calculation', isCausalChainConnected: false },
-        { kind: 'legacy-field', detail: 'reads state.energy/auxiliaryStats.promotionBudget for resource cost calculation', isCausalChainConnected: false },
+        { kind: 'legacy-field', detail: 'reads MarketCell.demandHeat/competitivePressure/supplyPressure as radar numeric display fallback', isCausalChainConnected: false },
+        { kind: 'legacy-field', detail: 'reads rivalListings/rivalStores for competitive pressure numeric display (bounded per cell)', isCausalChainConnected: false },
+        { kind: 'systemic', detail: 'reads energy/budget from economicResourceLedger (ledger-first, state fallback for display)', isCausalChainConnected: true },
       ],
       hasLiveCausalRefs: true,
       hasExplanationEnvelope: true,
       hasActorKnowledge: true,
       hasLegacyFieldReads: true,
-      legacyFieldsRead: ['demandHeat', 'competitivePressure', 'supplyPressure', 'marketCellId', 'energy', 'promotionBudget'],
+      legacyFieldsRead: ['demandHeat', 'competitivePressure', 'supplyPressure', 'energy', 'promotionBudget'],
       causalChainConnected: true,
       verdict: 'connected',
+      fiveXCompatible: true, // Round 19: resource cost from pressure signals, bounded cell window
     },
   ];
 }
@@ -413,6 +437,10 @@ export interface ProductCensusSummary {
   readonly legacyFieldsSummary: readonly string[];
   readonly disconnectedSurfaceIds: readonly string[];
   readonly maturity: 'EVERYTHING-CONNECTED' | 'MOSTLY-CONNECTED' | 'SIGNIFICANT-GAPS';
+  /** Number of surfaces compatible with five-x scale (100+ cells). */
+  readonly fiveXCompatibleSurfaces: number;
+  /** Surfaces that are NOT five-x compatible. */
+  readonly fiveXIncompatibleSurfaceIds: readonly string[];
 }
 
 export function buildProductCensusSummary(census: readonly SurfaceCensusEntry[]): ProductCensusSummary {
@@ -432,6 +460,9 @@ export function buildProductCensusSummary(census: readonly SurfaceCensusEntry[])
     : disconnected.length === 0 && partial.length <= 2 ? 'MOSTLY-CONNECTED'
     : 'SIGNIFICANT-GAPS';
 
+  const fiveXCompatible = census.filter((e) => e.fiveXCompatible);
+  const fiveXIncompatible = census.filter((e) => !e.fiveXCompatible);
+
   return {
     totalSurfaces: census.length,
     connectedSurfaces: connected.length,
@@ -444,6 +475,8 @@ export function buildProductCensusSummary(census: readonly SurfaceCensusEntry[])
     legacyFieldsSummary: [...allLegacyFields].sort(),
     disconnectedSurfaceIds: disconnected.map((e) => e.surfaceId),
     maturity,
+    fiveXCompatibleSurfaces: fiveXCompatible.length,
+    fiveXIncompatibleSurfaceIds: fiveXIncompatible.map((e) => e.surfaceId),
   };
 }
 

@@ -75,6 +75,13 @@ export interface DailyResourceSnapshot {
 
 /**
  * Compute a deterministic daily resource snapshot from tick input.
+ *
+ * Round 19: prefers real action receipts from input.sourceRecords over seeded random.
+ *   - energy: from player_action_receipt costEnergy
+ *   - budget: from player_action_receipt costPromotionBudget + manager_message action resource records
+ *   - trust/patience: from player_action_receipt fieldDeltas (when available)
+ *   - fallback to seeded deterministic values when no real receipts exist
+ *
  * Same seed + same input → same snapshot.
  */
 export function computeDailyResourceSnapshot(
@@ -83,32 +90,88 @@ export function computeDailyResourceSnapshot(
   runSeed: number,
 ): DailyResourceSnapshot {
   const salt = `res-${runSeed}-${day}`;
+  const sourceRecords = input.sourceRecords ?? [];
 
-  // Player energy: replenished daily (maxEnergy), consumed by actions
-  // In the autonomous tick, energy is "used" by maintaining market presence
+  // ── Extract real action receipts ──────────────────────────────
+  const actionReceipts = sourceRecords.filter(
+    (r) => r.day === day && r.sourceKind === 'player_action_receipt',
+  );
+  const actionResourceRecords = sourceRecords.filter(
+    (r) => r.day === day && r.sourceKind === 'manager_message'
+      && (r.payload as { subtype?: string }).subtype === 'resource_allocated'
+      && r.sourceId.startsWith('isr-ar-'),
+  );
+  const processReceipts = sourceRecords.filter(
+    (r) => r.day === day && r.sourceKind === 'process_receipt',
+  );
+
+  // ── Energy: from real action receipts ─────────────────────────
   const activeCaseCount = input.activeCases.length;
   const energyReplenished = 100; // daily replenishment
-  const energyConsumed = seededInt(`${salt}-energy`, Math.min(30, activeCaseCount * 3), Math.min(80, activeCaseCount * 8));
+  let realEnergyConsumed = 0;
+  for (const receipt of actionReceipts) {
+    const payload = receipt.payload as { costEnergy?: number; outcome?: string };
+    if (payload.outcome === 'success' && payload.costEnergy) {
+      realEnergyConsumed += payload.costEnergy;
+    }
+  }
+  // Fallback: autonomous tick energy maintenance cost
+  const fallbackEnergy = seededInt(`${salt}-energy`, Math.min(30, activeCaseCount * 3), Math.min(80, activeCaseCount * 8));
+  const energyConsumed = realEnergyConsumed > 0 ? realEnergyConsumed : fallbackEnergy;
 
-  // Promotion budget: allocated weekly (budgetAllowance), consumed by marketing
-  const budgetAllocated = day % 7 === 1 ? seededInt(`${salt}-budget-alloc`, 50, 150) : 0;
-  const budgetConsumed = seededInt(`${salt}-budget-cons`, 5, Math.min(40, activeCaseCount * 5));
+  // ── Budget: from real action resource records ─────────────────
+  let realBudgetConsumed = 0;
+  let realBudgetAllocated = 0;
+  for (const record of actionResourceRecords) {
+    const payload = record.payload as { summary?: string; priority?: number };
+    const amount = payload.priority ?? 0;
+    if (record.sourceId.includes('-spend-')) {
+      realBudgetConsumed += amount;
+    } else if (record.sourceId.includes('-refund-')) {
+      realBudgetConsumed -= amount;
+    }
+  }
+  // Weekly allocation fallback
+  const weeklyAlloc = day % 7 === 1 ? seededInt(`${salt}-budget-alloc`, 50, 150) : 0;
+  const fallbackBudget = seededInt(`${salt}-budget-cons`, 5, Math.min(40, activeCaseCount * 5));
+  const budgetConsumed = realBudgetConsumed > 0 ? realBudgetConsumed : fallbackBudget;
+  const budgetAllocated = weeklyAlloc;
 
-  // Org credit: earned through focus meetings, spent on resource allocation
+  // ── Org credit: from focus meeting / manager messages ─────────
   const orgCreditEarned = day % 7 === 4 ? seededInt(`${salt}-org-earn`, 20, 60) : 0;
   const orgCreditSpent = seededInt(`${salt}-org-spend`, 5, Math.min(30, activeCaseCount * 3));
 
-  // Customer attention: gained by follow-up, lost by neglect, migrated by rivals
+  // ── Customer attention: from process receipts + seeded fallback ──
   const customerCount = input.customerStates.filter((c) => c.status !== 'lost' && c.status !== 'converted').length;
-  const attentionGained = seededInt(`${salt}-attn-gain`, 0, Math.min(10, customerCount));
-  const attentionLost = seededInt(`${salt}-attn-lost`, 0, Math.min(8, customerCount));
+  let realAttentionGained = 0;
+  let realAttentionLost = 0;
+  for (const receipt of processReceipts) {
+    const payload = receipt.payload as { metrics?: { processedCount?: number; resolvedCount?: number } };
+    const processed = payload.metrics?.processedCount ?? 0;
+    const resolved = payload.metrics?.resolvedCount ?? 0;
+    realAttentionGained += resolved;
+    realAttentionLost += Math.max(0, processed - resolved);
+  }
   const attentionMigrated = seededInt(`${salt}-attn-mig`, 0, Math.min(5, customerCount));
+  const attentionGained = realAttentionGained > 0 ? realAttentionGained : seededInt(`${salt}-attn-gain`, 0, Math.min(10, customerCount));
+  const attentionLost = realAttentionLost > 0 ? realAttentionLost : seededInt(`${salt}-attn-lost`, 0, Math.min(8, customerCount));
 
-  // Owner trust/patience: net change from actions and market signals
-  const trustNet = seededInt(`${salt}-trust-net`, -3, 3);
-  const patienceNet = seededInt(`${salt}-patience-net`, -2, 2);
+  // ── Owner trust/patience: from action fieldDeltas + seeded fallback ──
+  let realTrustNet = 0;
+  let realPatienceNet = 0;
+  for (const receipt of actionReceipts) {
+    const payload = receipt.payload as { fieldDeltas?: readonly { field: string; from: string | number | boolean; to: string | number | boolean }[] };
+    if (payload.fieldDeltas) {
+      for (const fd of payload.fieldDeltas) {
+        if (fd.field === 'trust') realTrustNet += Number(fd.to) - Number(fd.from);
+        if (fd.field === 'patience') realPatienceNet += Number(fd.to) - Number(fd.from);
+      }
+    }
+  }
+  const trustNet = realTrustNet !== 0 ? realTrustNet : seededInt(`${salt}-trust-net`, -3, 3);
+  const patienceNet = realPatienceNet !== 0 ? realPatienceNet : seededInt(`${salt}-patience-net`, -2, 2);
 
-  // Rival resource competition: how aggressively rivals competed today
+  // ── Rival resource competition: seeded deterministic ──────────
   const rivalCount = input.rivalStores.length;
   const rivalActions = seededInt(`${salt}-rival-actions`, 1, Math.min(5, rivalCount));
   const rivalCompeted = seededInt(`${salt}-rival-comp`, 5, Math.min(40, rivalCount * 5));

@@ -397,18 +397,45 @@ function extractResourceDeltasFromSources(
           caseIds?: readonly string[];
           priority?: number;
           subtype?: string;
+          summary?: string;
         };
         const brokerId = payload.targetBrokerId ?? 'player-broker';
-        // Budget allocation or org credit
+        // Budget records (isr-eco-budget-* / isr-ar-*) → promotionBudget
+        // Org credit records (isr-eco-org-*) → orgCredit
+        const isBudgetRecord = record.sourceId.startsWith('isr-eco-budget-')
+          || record.sourceId.startsWith('isr-ar-');
         if (payload.subtype === 'resource_allocated' || payload.subtype === 'focus_case_selected') {
+          if (isBudgetRecord) {
+            deltas.push({
+              entityId: brokerId,
+              entityType: 'broker',
+              dimension: 'promotionBudget',
+              delta: -(payload.priority ?? 0),
+              sourceRecordId: record.sourceId,
+              sourceKind: record.sourceKind,
+              reason: `推广金消耗: ${payload.priority ?? 0}`,
+            });
+          } else {
+            deltas.push({
+              entityId: brokerId,
+              entityType: 'broker',
+              dimension: 'orgCredit',
+              delta: Math.round((payload.priority ?? 0) * 0.3),
+              sourceRecordId: record.sourceId,
+              sourceKind: record.sourceKind,
+              reason: `组织资源分配: ${payload.subtype}`,
+            });
+          }
+        } else if (payload.subtype === 'strategic_direction' && isBudgetRecord) {
+          // Budget-only day (no allocation, only consumption) — zero delta, still traceable
           deltas.push({
             entityId: brokerId,
             entityType: 'broker',
-            dimension: 'orgCredit',
-            delta: Math.round((payload.priority ?? 0) * 0.3),
+            dimension: 'promotionBudget',
+            delta: 0,
             sourceRecordId: record.sourceId,
             sourceKind: record.sourceKind,
-            reason: `组织资源分配: ${payload.subtype}`,
+            reason: `推广金日结: ${payload.summary ?? 'strategic_direction'}`,
           });
         }
         break;

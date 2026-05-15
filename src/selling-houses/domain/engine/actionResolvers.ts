@@ -169,9 +169,11 @@ export function executeAction(
     ),
   );
   // Emit player_action_receipt source record for successful action
+  // Include fieldDeltas for trust/patience changes so economy pipeline can consume them
   if (!state.pendingSourceRecords) state.pendingSourceRecords = [];
   state.pendingSourceRecords.push(buildPlayerActionReceiptSourceRecord(
     state, caseItem, action.id, optionId, 'success', action.costEnergy, action.costPromotionBudget,
+    beforeTrust, beforePatience, beforeUrgency,
   ));
 
   return true;
@@ -297,6 +299,9 @@ function buildPlayerActionReceiptSourceRecord(
   outcome: 'success' | 'blocked' | 'failed',
   costEnergy: number,
   costPromotionBudget: number,
+  beforeTrust?: number,
+  beforePatience?: number,
+  beforeUrgency?: number,
 ): InformationSourceRecord<'player_action_receipt'> {
   const day = state.day;
   const runSeed = state.runContext.runSeed;
@@ -306,6 +311,23 @@ function buildPlayerActionReceiptSourceRecord(
     : outcome === 'blocked'
       ? `玩家执行 ${actionId} 被阻止`
       : `玩家执行 ${actionId} 失败`;
+
+  // Build fieldDeltas from before/after comparison
+  const fieldDeltas: { field: string; from: string | number | boolean; to: string | number | boolean }[] = [];
+  if (outcome === 'success') {
+    if (beforeTrust !== undefined) {
+      const trustDelta = Math.round((caseItem.trust - beforeTrust) * 10) / 10;
+      if (trustDelta !== 0) fieldDeltas.push({ field: 'trust', from: beforeTrust, to: caseItem.trust });
+    }
+    if (beforePatience !== undefined) {
+      const patienceDelta = Math.round((caseItem.patience - beforePatience) * 10) / 10;
+      if (patienceDelta !== 0) fieldDeltas.push({ field: 'patience', from: beforePatience, to: caseItem.patience });
+    }
+    if (beforeUrgency !== undefined) {
+      const urgencyDelta = Math.round((caseItem.urgency - beforeUrgency) * 10) / 10;
+      if (urgencyDelta !== 0) fieldDeltas.push({ field: 'urgency', from: beforeUrgency, to: caseItem.urgency });
+    }
+  }
 
   return {
     sourceId: `isr-par-${day}-${actionId}-${caseItem.id}`,
@@ -319,7 +341,7 @@ function buildPlayerActionReceiptSourceRecord(
       opportunityId: undefined,
       costEnergy,
       costPromotionBudget,
-      fieldDeltas: [],
+      fieldDeltas,
       outcome,
     },
     day,

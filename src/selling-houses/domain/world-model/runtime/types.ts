@@ -335,6 +335,32 @@ export interface EconomicResourceLedgerEntry {
   readonly replayKey: string;
 }
 
+/**
+ * Traceable action resource receipt — records a single action's resource impact.
+ * Links action spend/refund and relation effects to source records for full traceability.
+ * Persisted in BigWorldRuntimeState for deterministic replay.
+ */
+export interface ActionResourceReceipt {
+  /** Day this receipt represents. */
+  readonly day: number;
+  /** Action ID that caused this resource change. */
+  readonly actionId: string;
+  /** Case ID affected. */
+  readonly caseId: string;
+  /** Energy consumed by this action. */
+  readonly energyCost: number;
+  /** Promotion budget consumed by this action. */
+  readonly budgetCost: number;
+  /** Trust delta from this action. */
+  readonly trustDelta: number;
+  /** Patience delta from this action. */
+  readonly patienceDelta: number;
+  /** Source record ID for traceability. */
+  readonly sourceRecordId: string;
+  /** Replay key for deterministic verification. */
+  readonly replayKey: string;
+}
+
 /** Autonomous world runtime state. Lives on GameState.bigWorldRuntime. */
 export interface BigWorldRuntimeState {
   /** Current compaction policy. */
@@ -353,6 +379,12 @@ export interface BigWorldRuntimeState {
    * Used by Round 18 gates to verify resource dynamics over 7/14/30/60 day horizons.
    */
   economicResourceLedger: EconomicResourceLedgerEntry[];
+  /**
+   * Action resource receipts — traceable records of action spend/refund + relation effects.
+   * Each entry links to a sourceRecordId for full traceability through the causal chain.
+   * Grows with player actions; bounded by same policy as daily events.
+   */
+  actionResourceReceipts: ActionResourceReceipt[];
   /** Total events emitted since game start. Monotonic. */
   totalEventsEmitted: number;
   /** Total mutations since game start. Monotonic. */

@@ -503,7 +503,7 @@ console.log(`  With causal refs: ${censusSummary.surfacesWithLiveCausalRefs}`);
 console.log(`  With explanation envelope: ${censusSummary.surfacesWithExplanationEnvelope}`);
 console.log(`  With actor knowledge: ${censusSummary.surfacesWithActorKnowledge}`);
 
-check(censusSummary.totalSurfaces === 14, `census catalogs exactly 14 surfaces (got ${censusSummary.totalSurfaces})`);
+check(censusSummary.totalSurfaces === 16, `census catalogs exactly 16 surfaces (got ${censusSummary.totalSurfaces})`);
 check(censusSummary.connectedSurfaces >= 6, `at least 6 surfaces fully connected (got ${censusSummary.connectedSurfaces})`);
 check(censusSummary.surfacesWithLiveCausalRefs >= 4, `at least 4 surfaces have live causal refs (got ${censusSummary.surfacesWithLiveCausalRefs})`);
 check(censusSummary.surfacesWithExplanationEnvelope >= 4, `at least 4 surfaces have explanation envelope (got ${censusSummary.surfacesWithExplanationEnvelope})`);

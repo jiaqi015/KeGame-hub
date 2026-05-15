@@ -466,4 +466,65 @@ export interface MarketEconomySummary {
    * When true, the economy state can seed the EconomicResourceLedger.
    */
   readonly ledgerReady: boolean;
+
+  /**
+   * City-level resource thresholds met (Round 19).
+   * Verifies the economy scales to city-level, not just market-level.
+   */
+  readonly meetsCityLevelEconomyThresholds: {
+    readonly brokerPoolsGte750: boolean;
+    readonly listingPoolsGte4000: boolean;
+    readonly customerPoolsGte2000: boolean;
+    readonly orgPoolsGte30: boolean;
+    readonly opportunityCostsGte500: boolean;
+    readonly bottleneckedBrokersGte20: boolean;
+    readonly atRiskCustomersGte500: boolean;
+    readonly cityWideEnergyBalance: boolean;
+    readonly cityWideBudgetBalance: boolean;
+  };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// City-Level Resource Metrics — aggregated city-wide economic density
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * City-level resource metrics: aggregated economic density across all cells.
+ *
+ * Answers: "Is this city-level economy thick enough to sustain competition?"
+ * Not just more entities — structural economic pressure that drives decisions.
+ */
+export interface CityLevelResourceMetrics {
+  /** Total energy budget across all brokers. */
+  readonly totalBrokerEnergy: number;
+  /** Total promotion budget across all ACNs. */
+  readonly totalPromotionBudget: number;
+  /** Total org credit across all ACNs. */
+  readonly totalOrgCredit: number;
+  /** Total customer attention capacity across all brokers. */
+  readonly totalCustomerAttentionCapacity: number;
+  /** Total listing exposure capacity across all listings. */
+  readonly totalListingExposure: number;
+  /** Total owner trust across all listings. */
+  readonly totalOwnerTrust: number;
+
+  /** Average broker utilization across the city. */
+  readonly cityAvgBrokerUtilization: number;
+  /** Average listing velocity across the city. */
+  readonly cityAvgListingVelocity: number;
+  /** Average customer conversion probability across the city. */
+  readonly cityAvgConversionProbability: number;
+  /** Total opportunity cost entries across all brokers. */
+  readonly cityTotalOpportunityCosts: number;
+
+  /** Number of bottlenecked brokers (utilization > 80%). */
+  readonly bottleneckedBrokerCount: number;
+  /** Number of at-risk customers (interception risk > 50%). */
+  readonly atRiskCustomerCount: number;
+
+  /** Whether the city-level economy meets minimum thresholds. */
+  readonly meetsCityLevelThresholds: boolean;
+
+  /** Replay key. */
+  readonly replayKey: string;
 }

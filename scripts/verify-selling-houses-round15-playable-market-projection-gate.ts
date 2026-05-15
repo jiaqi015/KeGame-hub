@@ -452,7 +452,7 @@ section('11. PRODUCT CENSUS — 15 surfaces including playable-market');
 const census = buildProductSurfaceCensus();
 const censusSummary = buildProductCensusSummary(census);
 
-check(censusSummary.totalSurfaces === 15, `census catalogs exactly 15 surfaces (got ${censusSummary.totalSurfaces})`);
+check(censusSummary.totalSurfaces === 16, `census catalogs exactly 16 surfaces (got ${censusSummary.totalSurfaces})`);
 check(censusSummary.connectedSurfaces >= 7, `at least 7 surfaces fully connected (got ${censusSummary.connectedSurfaces})`);
 
 // Playable-market must be connected

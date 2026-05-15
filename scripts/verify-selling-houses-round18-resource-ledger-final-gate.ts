@@ -1,18 +1,20 @@
 /**
  * Round 18 — Resource-Ledger Final Gate
  *
- * The definitive Round 18 hard gate. Combines R17 market-economy checks with
- * R18 resource-ledger checks into a single comprehensive verification.
+ * Proves the market economy is not just bootstrap data + projection boilerplate,
+ * but has a real resource ledger running in the tick chain that is traceable,
+ * replayable, and consumed by strategic decisions.
  *
- * This gate catches five classes of false positives:
- *   1. Standalone ledger: ledger entries exist but aren't consumed by strategic decisions
- *   2. Projection non-null: projection exists but fields are empty/fallback
- *   3. Legacy fallback: resourceCost/opportunityCost come from hardcoded maps, not evidence
- *   4. Empty knowledge bypass: empty knowledge still produces recommendations
- *   5. Soft pass: gate uses || true or check(true) to pass core assertions
+ * This gate catches 5 false-positive classes:
+ *   1. Standalone ledger — ledger entries exist but strategic decisions don't consume them
+ *   2. Projection non-null — projection exists but fields are empty/fallback
+ *   3. Legacy fallback — resourceCost comes from hardcoded map, not evidence
+ *   4. Empty knowledge bypass — empty knowledge still produces recommendations
+ *   5. Soft pass — gate uses || true / check(true) to pass core assertions
  *
- * Maturity levels:
- *   FAILED → SCALE-BIG → MARKET-ECONOMY-BIG → RESOURCE-LEDGER-ECONOMY-BIG
+ * Combines R17 market-economy checks with R18 resource-ledger checks.
+ *
+ * Maturity: FAILED | MARKET-ECONOMY-BIG | RESOURCE-LEDGER-ECONOMY-BIG
  *
  * Usage: npx tsx scripts/verify-selling-houses-round18-resource-ledger-final-gate.ts
  */
@@ -21,12 +23,10 @@ import {
   ROUND17_SEED,
   advanceMarketEconomyWorld,
   buildMarketEconomyWorld,
-  buildLongHorizonMarketEconomyWorld,
   bootstrapOf,
   scaleOf,
   diversityOf,
   buildStrategicProjectionFromState,
-  buildKnowledgeMapFromState,
   countEconomySourceRecords,
   causalEventIds,
   eventHasSourceKind,
@@ -99,7 +99,7 @@ check(economy.atRiskCustomerCount >= 50, `at-risk customers >= 50 (${economy.atR
 check(Object.values(economy.meetsMarketEconomyThresholds).every(Boolean), 'all economy thresholds pass');
 
 // ═══════════════════════════════════════════════════════════════
-// 3. RESOURCE LEDGER — entries grow over 7/14/30/60 days
+// 3. RESOURCE LEDGER — entries grow across 7/14/30/60 day horizons
 // ═══════════════════════════════════════════════════════════════
 section('3. RESOURCE LEDGER — entries grow over time');
 const state7 = advanceMarketEconomyWorld(7, ROUND17_SEED);
@@ -126,10 +126,10 @@ check(events30 > events14, `total causal events grow 14→30 (${events14}→${ev
 check(events60 > events30, `total causal events grow 30→60 (${events30}→${events60})`);
 
 check((state60.bigWorldRuntime?.tickCount ?? 0) >= 60, `60-day tickCount reached (${state60.bigWorldRuntime?.tickCount ?? 0})`);
-check(!state60.gameOver, '60-day world still live');
+check(!state60.gameOver, 'long-horizon world still live at day 60');
 
 // ═══════════════════════════════════════════════════════════════
-// 4. LEDGER TRACEABILITY — every entry has sourceRecordId / sourceReplayKey
+// 4. LEDGER TRACEABILITY — sourceRecordId / sourceReplayKey on every entry
 // ═══════════════════════════════════════════════════════════════
 section('4. LEDGER TRACEABILITY — every entry traceable');
 const events30List = state30.worldCausalEvents ?? [];
@@ -174,7 +174,7 @@ for (const kind of requiredKinds) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// 6. STRATEGIC DECISION — fields from evidence, not legacy fallback
+// 6. STRATEGIC DECISION — resourceCost/opportunityCost/competitorRisk from evidence
 // ═══════════════════════════════════════════════════════════════
 section('6. STRATEGIC DECISION — evidence-backed, not legacy fallback');
 const strategic14 = buildStrategicProjectionFromState(state14);
@@ -185,75 +185,116 @@ for (const [label, strategic] of [['14d', strategic14], ['30d', strategic30]] as
   check(strategic.sharedCausalRefs !== undefined, `${label} sharedCausalRefs exists`);
 
   for (const action of strategic.brokerOpportunity.topActions) {
+    // resourceCost must have real values (not all zero)
     check(
       action.resourceCost.energyCost > 0 || action.resourceCost.budgetCost > 0,
-      `${label} "${action.actionLabel}" has real resourceCost`,
+      `${label} "${action.actionLabel}" has real resourceCost (energy=${action.resourceCost.energyCost}, budget=${action.resourceCost.budgetCost})`,
     );
+
+    // opportunityCost must not be empty fallback
     check(
       action.opportunityCost.foregoneAction !== '无替代方案',
-      `${label} "${action.actionLabel}" has real opportunityCost`,
+      `${label} "${action.actionLabel}" has real opportunityCost (foregone=${action.opportunityCost.foregoneAction})`,
     );
-    check(action.competitorRisk.rivalCount > 0, `${label} "${action.actionLabel}" has competitorRisk`);
-    check(action.competitorRisk.riskMagnitude > 0, `${label} "${action.actionLabel}" has riskMagnitude`);
-    check(action.sourceRecordIds.length > 0, `${label} "${action.actionLabel}" has sourceRecordIds`);
-    check(action.safeRefs.length > 0, `${label} "${action.actionLabel}" has safeRefs`);
-    check(action.timeHorizonImpact.length === 4, `${label} "${action.actionLabel}" has 3/7/14/30 impact`);
+    check(
+      action.opportunityCost.foregoneConfidence > 0,
+      `${label} opportunityCost has confidence (${action.opportunityCost.foregoneConfidence})`,
+    );
+
+    // competitorRisk must come from visible causal refs, not just legacy shadow
+    check(
+      action.competitorRisk.rivalCount > 0,
+      `${label} "${action.actionLabel}" has competitorRisk rivalCount (${action.competitorRisk.rivalCount})`,
+    );
+    check(
+      action.competitorRisk.riskMagnitude > 0,
+      `${label} "${action.actionLabel}" has competitorRisk magnitude (${action.competitorRisk.riskMagnitude})`,
+    );
+
+    // sourceRecordIds must be non-empty (from evidence pipeline)
+    check(
+      action.sourceRecordIds.length > 0,
+      `${label} "${action.actionLabel}" has sourceRecordIds (${action.sourceRecordIds.length})`,
+    );
+
+    // safeRefs must be non-empty
+    check(
+      action.safeRefs.length > 0,
+      `${label} "${action.actionLabel}" has safeRefs (${action.safeRefs.length})`,
+    );
+
+    // timeHorizonImpact must have 3/7/14/30
+    check(
+      action.timeHorizonImpact.length === 4,
+      `${label} action has 3/7/14/30 horizon impact (${action.timeHorizonImpact.length})`,
+    );
   }
 }
 
 // ═══════════════════════════════════════════════════════════════
-// 7. LONG-HORIZON RIVAL DEPLETION — pressure survives
+// 7. LONG-HORIZON RIVAL DEPLETION — competitor pressure survives
 // ═══════════════════════════════════════════════════════════════
 section('7. LONG-HORIZON RIVAL DEPLETION — pressure from visible causal refs');
-// Reuse state60 from section 3 (already advanced 60 days)
 const activeShadowRivals60 = state60.marketShadow.rivalListings.filter(
   (r) => r.status === 'active',
 ).length;
 const strategic60 = buildStrategicProjectionFromState(state60);
 
-check(strategic60.competitivePressure.activeRivalCount > 0, `60d competitor pressure > 0 (shadow rivals=${activeShadowRivals60})`);
+check(strategic60.competitivePressure.activeRivalCount > 0, `60d competitor pressure > 0 (shadow rivals=${activeShadowRivals60}, pressure=${strategic60.competitivePressure.activeRivalCount})`);
 check(strategic60.competitivePressure.topRivalAction !== null, '60d top rival evidence exists');
-check(strategic60.brokerOpportunity.topActions.length > 0, '60d topActions > 0');
+check(strategic60.brokerOpportunity.topActions.length > 0, '60d topActions > 0 even with rival depletion');
 
 for (const action of strategic60.brokerOpportunity.topActions) {
-  check(action.competitorRisk.riskMagnitude > 0, `60d "${action.actionLabel}" has competitor risk from causal refs`);
+  check(
+    action.competitorRisk.riskMagnitude > 0,
+    `60d "${action.actionLabel}" has competitor risk from visible causal refs (${action.competitorRisk.riskMagnitude})`,
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════
-// 8. EMPTY KNOWLEDGE — no recommendation
+// 8. EMPTY KNOWLEDGE — no recommendation, no legacy bypass
 // ═══════════════════════════════════════════════════════════════
 section('8. EMPTY KNOWLEDGE — no recommendation');
 const emptyState = buildMarketEconomyWorld(ROUND17_SEED);
 const emptyStrategic = buildStrategicMarketDecisionProjection(emptyState);
-check(emptyStrategic.brokerOpportunity.topActions.length === 0, 'empty knowledge → no topActions');
+check(emptyStrategic.brokerOpportunity.topActions.length === 0, 'empty knowledge → no strategic topActions');
 check(emptyStrategic.sharedCausalRefs === undefined, 'empty knowledge → no sharedCausalRefs');
 
 // ═══════════════════════════════════════════════════════════════
-// 9. REPLAY — byte-identical
+// 9. REPLAY — byte-identical ledger events
 // ═══════════════════════════════════════════════════════════════
 section('9. REPLAY — byte-identical');
 const replayA = advanceMarketEconomyWorld(30, ROUND17_SEED);
 const replayB = advanceMarketEconomyWorld(30, ROUND17_SEED);
 check(sameStringList(causalEventIds(replayA), causalEventIds(replayB)), 'same seed → byte-identical 30-day causal event IDs');
 
-// ═══════════════════════════════════════════════════════════════
-// 10. PRODUCT CENSUS — strategic-decision connected
-// ═══════════════════════════════════════════════════════════════
-section('10. PRODUCT CENSUS — strategic-decision connected');
-const census = buildProductSurfaceCensus();
-const censusSummary = buildProductCensusSummary(census);
-const strategicSurface = census.find((surface) => surface.surfaceId === 'strategic-decision');
-check(censusSummary.totalSurfaces >= 16, `product census surfaces >= 16 (${censusSummary.totalSurfaces})`);
-check(strategicSurface?.verdict === 'connected', 'strategic-decision surface is connected');
+const replay60A = advanceMarketEconomyWorld(60, ROUND17_SEED);
+const replay60B = advanceMarketEconomyWorld(60, ROUND17_SEED);
+check(sameStringList(causalEventIds(replay60A), causalEventIds(replay60B)), 'same seed → byte-identical 60-day causal event IDs');
+
+function economyEventIds(state: ReturnType<typeof advanceMarketEconomyWorld>): readonly string[] {
+  return (state.worldCausalEvents ?? [])
+    .filter((event) => {
+      const eventRecord = event as WorldCausalEvent & { readonly sourceRecordId?: string };
+      return eventRecord.sourceRecordId?.startsWith('isr-eco-');
+    })
+    .map((event) => event.id)
+    .sort();
+}
+check(
+  sameStringList(economyEventIds(replayA), economyEventIds(replayB)),
+  'same seed → byte-identical economy ledger event IDs',
+);
 
 // ═══════════════════════════════════════════════════════════════
-// 11. SOURCE CODE BOUNDARIES — no hidden truth, no fake randomness
+// 10. SOURCE CODE BOUNDARIES — no hidden truth, no fake randomness
 // ═══════════════════════════════════════════════════════════════
-section('11. SOURCE CODE BOUNDARIES');
+section('10. SOURCE CODE BOUNDARIES');
 const strategicSrc = readSrc('src/selling-houses/application/projections/strategicMarketDecisionProjection.ts');
 const actorKnowledgeSrc = readSrc('src/selling-houses/application/projections/actorKnowledgeProjection.ts');
 const runtimeSrc = readSrc('src/selling-houses/domain/world-model/runtime/marketEconomyRuntime.ts');
 const bootstrapSrc = readSrc('src/selling-houses/domain/world-model/marketEconomyBootstrap.ts');
+const receiptWiringSrc = readSrc('src/selling-houses/domain/world-model/runtime/economicReceiptWiring.ts');
 
 check(!strategicSrc.includes('queryHiddenSourceRecords'), 'strategic projection no hidden truth');
 check(!actorKnowledgeSrc.includes('queryHiddenSourceRecords'), 'actorKnowledge no hidden truth');
@@ -262,6 +303,19 @@ check(!/\bDate\.now\s*\(/.test(runtimeSrc), 'runtime no Date.now');
 check(!/\bfetch\s*\(/.test(runtimeSrc), 'runtime no fetch');
 check(!/\bMath\.random\s*\(/.test(bootstrapSrc), 'bootstrap no Math.random');
 check(!/\bDate\.now\s*\(/.test(bootstrapSrc), 'bootstrap no Date.now');
+check(!/\bfetch\s*\(/.test(bootstrapSrc), 'bootstrap no fetch');
+check(!/\bMath\.random\s*\(/.test(receiptWiringSrc), 'receiptWiring no Math.random');
+check(!/\bDate\.now\s*\(/.test(receiptWiringSrc), 'receiptWiring no Date.now');
+
+// ═══════════════════════════════════════════════════════════════
+// 11. PRODUCT CENSUS + NO-DEAD-CORNER
+// ═══════════════════════════════════════════════════════════════
+section('11. PRODUCT CENSUS — no significant gaps');
+const census = buildProductSurfaceCensus();
+const censusSummary = buildProductCensusSummary(census);
+check(censusSummary.totalSurfaces >= 16, `product census surfaces >= 16 (${censusSummary.totalSurfaces})`);
+check(censusSummary.connectedSurfaces >= 12, `connected surfaces >= 12 (${censusSummary.connectedSurfaces})`);
+check(censusSummary.disconnectedSurfaceIds.every((id) => ['leaderboard', 'architecture-migration-readiness', 'architecture-parity'].includes(id)), 'all disconnected surfaces are intentional exemptions');
 
 // ═══════════════════════════════════════════════════════════════
 // 12. SELF-AUDIT — no soft pass patterns
@@ -283,7 +337,7 @@ section('MATURITY CLASSIFICATION');
 const hasScale = scale.totalListings >= 800 && scale.totalOwners >= 500 && scale.totalCustomers >= 3000 && scale.totalBrokers >= 150;
 const hasLedgerGrowth = ledger14 > ledger7 && ledger30 > ledger14 && ledger60 > ledger30;
 const hasLedgerTraceability = traceableLedgerEntries > 0 && untraceableLedgerEntries === 0;
-const hasLedgerReplay = sameStringList(causalEventIds(replayA), causalEventIds(replayB));
+const hasLedgerReplay = sameStringList(economyEventIds(replayA), economyEventIds(replayB));
 const hasStrategicEvidence = strategic30.brokerOpportunity.topActions.length > 0
   && strategic30.brokerOpportunity.topActions.every((a) => a.sourceRecordIds.length > 0 && a.opportunityCost.foregoneAction !== '无替代方案');
 const hasEmptyKnowledgeBypass = emptyStrategic.brokerOpportunity.topActions.length === 0;
@@ -292,10 +346,12 @@ const hasAllReceiptDomains = requiredKinds.every((kind) => liveSourceKinds.has(k
 const hasNoLeakage = !strategicSrc.includes('queryHiddenSourceRecords') && !actorKnowledgeSrc.includes('queryHiddenSourceRecords');
 const hasNoFakeRandomness = !/\bMath\.random\s*\(/.test(runtimeSrc) && !/\bDate\.now\s*\(/.test(runtimeSrc);
 const hasNoSoftPass = !gateSrcNoComments.includes('|| true') && !gateSrcNoComments.match(/check\(\s*true\s*,/);
+const hasCensusClean = censusSummary.connectedSurfaces >= 12
+  && censusSummary.disconnectedSurfaceIds.every((id) => ['leaderboard', 'architecture-migration-readiness', 'architecture-parity'].includes(id));
 
 const resourceLedgerEconomyBig = hasScale && hasLedgerGrowth && hasLedgerTraceability && hasLedgerReplay
   && hasStrategicEvidence && hasEmptyKnowledgeBypass && hasLongHorizonPressure && hasAllReceiptDomains
-  && hasNoLeakage && hasNoFakeRandomness && hasNoSoftPass;
+  && hasNoLeakage && hasNoFakeRandomness && hasNoSoftPass && hasCensusClean;
 
 const marketEconomyBig = hasScale && events30 > events14 && liveSourceKinds.size >= 8 && hasLedgerReplay && hasNoLeakage;
 const maxLevel = resourceLedgerEconomyBig

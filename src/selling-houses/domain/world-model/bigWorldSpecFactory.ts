@@ -165,6 +165,23 @@ function buildDefaultScalePolicy(
       ownerProfilePriorCount: 500,
       customerCaseRatio: 12,
     },
+    // ── five-x-scale: 五倍城市级预设世界 ──
+    // Round 19: 4000+ listings, 2500+ owners, 22000+ demand, 750+ brokers, 100+ cells
+    // 四层实体分层：materialized core / active cohort / shadow aggregate / cold ledger
+    // 城市级 ACN 网络（32-40），每 cell 有 micro cells + supporting info
+    fiveXScale: {
+      minMarketCells: 100,
+      maxMarketCells: 120,
+      acnCount: 32,
+      namedBrokersPerAcn: 6,
+      shadowBrokersPerAcn: 18,
+      shadowListingsPerCell: 35,
+      directRivalListingsPerCell: 10,
+      materializedCustomersPerCell: 60,
+      shadowAggregateClustersPerCell: 25,
+      ownerProfilePriorCount: 2500,
+      customerCaseRatio: 12,
+    },
   };
 
   const overrides = scaleByDifficulty[difficultyId] ?? scaleByDifficulty.standard;
@@ -250,10 +267,10 @@ function buildDefaultInvariants(): BigWorldInvariants {
 
 function buildDefaultCaps(): BigWorldCaps {
   return {
-    maxNamedBrokers: 50,
-    maxMaterializedCustomers: 500,
-    maxMaterializedListings: 500,
-    maxRecentWorldEvents: 12,
+    maxNamedBrokers: 250,
+    maxMaterializedCustomers: 5000,
+    maxMaterializedListings: 5000,
+    maxRecentWorldEvents: 24,
   };
 }
 

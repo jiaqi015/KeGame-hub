@@ -43,6 +43,7 @@ import type {
   CustomerResourcePool,
   OrgResourcePool,
   OpportunityCostEntry,
+  CityLevelResourceMetrics,
 } from './marketEconomyTypes.js';
 
 // ---------------------------------------------------------------------------
@@ -683,6 +684,67 @@ export function buildMarketEconomy(
 }
 
 // ---------------------------------------------------------------------------
+// buildCityLevelResourceMetrics — city-wide economic density
+// ---------------------------------------------------------------------------
+
+/**
+ * Build city-level resource metrics from an existing MarketEconomyState.
+ * Aggregates all resource pools into city-wide totals and averages.
+ *
+ * Used by R19 gate to verify the economy scales to city-level.
+ */
+export function buildCityLevelResourceMetrics(
+  economy: MarketEconomyState,
+): CityLevelResourceMetrics {
+  const totalBrokerEnergy = economy.brokerPools.reduce(
+    (sum, bp) => sum + bp.energy.current, 0,
+  );
+  const totalPromotionBudget = economy.orgPools.reduce(
+    (sum, op) => sum + op.promotionPool.current, 0,
+  );
+  const totalOrgCredit = economy.orgPools.reduce(
+    (sum, op) => sum + op.focusMeetingSlots.current, 0,
+  );
+  const totalCustomerAttentionCapacity = economy.brokerPools.reduce(
+    (sum, bp) => sum + bp.customerAttention.current, 0,
+  );
+  const totalListingExposure = economy.listingPools.reduce(
+    (sum, lp) => sum + lp.exposure.current, 0,
+  );
+  const totalOwnerTrust = economy.listingPools.reduce(
+    (sum, lp) => sum + lp.ownerTrust.current, 0,
+  );
+
+  const meetsCityLevelThresholds =
+    economy.brokerPools.length >= 750 &&
+    economy.listingPools.length >= 4000 &&
+    economy.customerPools.length >= 2000 &&
+    economy.orgPools.length >= 30 &&
+    economy.opportunityCosts.length >= 500 &&
+    economy.bottleneckedBrokerCount >= 20 &&
+    economy.atRiskCustomerCount >= 500 &&
+    totalBrokerEnergy > 0 &&
+    totalPromotionBudget > 0;
+
+  return Object.freeze({
+    totalBrokerEnergy,
+    totalPromotionBudget,
+    totalOrgCredit,
+    totalCustomerAttentionCapacity,
+    totalListingExposure,
+    totalOwnerTrust,
+    cityAvgBrokerUtilization: economy.avgBrokerUtilization,
+    cityAvgListingVelocity: economy.avgListingVelocity,
+    cityAvgConversionProbability: economy.avgConversionProbability,
+    cityTotalOpportunityCosts: economy.opportunityCosts.length,
+    bottleneckedBrokerCount: economy.bottleneckedBrokerCount,
+    atRiskCustomerCount: economy.atRiskCustomerCount,
+    meetsCityLevelThresholds,
+    replayKey: `rk-clrm-${economy.brokerPools.length}-${economy.listingPools.length}`,
+  });
+}
+
+// ---------------------------------------------------------------------------
 // buildMarketEconomySummary — compact persistable summary
 // ---------------------------------------------------------------------------
 
@@ -723,5 +785,16 @@ export function buildMarketEconomySummary(
       budgetFlowBalanced: economy.totalWeeklyBudgetInflow > 0 && economy.totalWeeklyBudgetOutflow > 0,
     },
     ledgerReady: true,
+    meetsCityLevelEconomyThresholds: {
+      brokerPoolsGte750: economy.brokerPools.length >= 750,
+      listingPoolsGte4000: economy.listingPools.length >= 4000,
+      customerPoolsGte2000: economy.customerPools.length >= 2000,
+      orgPoolsGte30: economy.orgPools.length >= 30,
+      opportunityCostsGte500: economy.opportunityCosts.length >= 500,
+      bottleneckedBrokersGte20: economy.bottleneckedBrokerCount >= 20,
+      atRiskCustomersGte500: economy.atRiskCustomerCount >= 500,
+      cityWideEnergyBalance: economy.totalDailyEnergyInflow > 0 && economy.totalDailyEnergyOutflow > 0,
+      cityWideBudgetBalance: economy.totalWeeklyBudgetInflow > 0 && economy.totalWeeklyBudgetOutflow > 0,
+    },
   };
 }
