@@ -23,6 +23,7 @@
 // ---------------------------------------------------------------------------
 
 import type { EntityProvenance, BootstrapSourceRef } from './bigWorldTypes.js';
+import type { MarketEconomyState, MarketEconomySummary } from './marketEconomyTypes.js';
 
 // ════════════════════════════════════════════════════════════════════════════
 // Listing Pool States — lifecycle classification of listings
@@ -370,6 +371,12 @@ export interface MarketFormationState {
 
   /** Replay key for the entire market formation. */
   readonly replayKey: string;
+
+  /**
+   * Market economy: resource pools and scarcity derived from formation.
+   * Adds economic constraints and opportunity costs to the market structure.
+   */
+  readonly economy: MarketEconomyState;
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -412,4 +419,7 @@ export interface MarketFormationSummary {
     readonly customerStatesCoveredGte4: boolean;
     readonly brokerStatesCoveredGte3: boolean;
   };
+
+  /** Market economy summary. */
+  readonly economy: MarketEconomySummary;
 }

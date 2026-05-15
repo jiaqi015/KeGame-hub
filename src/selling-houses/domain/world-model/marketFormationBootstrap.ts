@@ -50,6 +50,7 @@ import type {
   OwnerUrgencyDistribution,
   CustomerSegmentDistribution,
 } from './marketFormationTypes.js';
+import { buildMarketEconomy, buildMarketEconomySummary } from './marketEconomyBootstrap.js';
 
 // ---------------------------------------------------------------------------
 // Deterministic hash helpers (same algorithm as bigWorldBootstrap)
@@ -546,6 +547,18 @@ export function buildMarketFormation(
     ? Math.round(cellThickness.reduce((sum, ct) => sum + ct.rivalPressure, 0) / cellThickness.length)
     : 0;
 
+  const listingStateDistribution = countByState(listingPool);
+  const ownerStateDistribution = countByState(ownerPool);
+  const customerStateDistribution = countByState(customerPool);
+  const brokerStateDistribution = countByState(brokerPool);
+
+  // Build market economy from formation data
+  const economy = buildMarketEconomy(bootstrap, {
+    brokerPool,
+    listingPool,
+    customerPool,
+  });
+
   return Object.freeze({
     listingPool,
     ownerPool,
@@ -557,11 +570,12 @@ export function buildMarketFormation(
     totalBrokers,
     avgLiquidity,
     avgRivalPressure,
-    listingStateDistribution: countByState(listingPool),
-    ownerStateDistribution: countByState(ownerPool),
-    customerStateDistribution: countByState(customerPool),
-    brokerStateDistribution: countByState(brokerPool),
+    listingStateDistribution,
+    ownerStateDistribution,
+    customerStateDistribution,
+    brokerStateDistribution,
     replayKey: `rk-mf-${seed}`,
+    economy,
   });
 }
 
@@ -614,5 +628,6 @@ export function buildMarketFormationSummary(
       customerStatesCoveredGte4: customerStatesCovered >= 4,
       brokerStatesCoveredGte3: brokerStatesCovered >= 3,
     },
+    economy: buildMarketEconomySummary(formation.economy),
   };
 }

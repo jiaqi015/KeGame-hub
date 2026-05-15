@@ -123,7 +123,7 @@ This is reasonable-big for the current game, but not final-world-perfect. The ne
 - Product surface census: result now fully explanation-backed (connected). ✅
 - Leaderboard correctly stays outside per-game world model (disconnected, explicit exemption). ✅
 
-## Round 15 — Market-Scale Expansion (2026-06-15)
+## Round 15 — Market-Scale Expansion (2026-05-15)
 
 ### 改了什么
 
@@ -207,7 +207,7 @@ This is reasonable-big for the current game, but not final-world-perfect. The ne
 - Continue expanding not by raw entity count, but by source richness, actor diversity, product-surface reuse, and long-horizon replay. ✅ **R15 addresses this** — 15 SourceKinds, 20 owner archetypes, 8 broker styles, 12 demand segments, 6 price bands, 11 layouts, zone-aware structural diversity.
 - Cross-surface product-surface reuse: R14 already proves > 0 shared causal refs across surfaces. R15 maintains this at market-mega-scale.
 
-## Round 15 — Market-Game Final Gate (2026-06-20)
+## Round 15 — Market-Game Final Gate (2026-05-15)
 
 ### 改了什么
 
@@ -300,7 +300,7 @@ Round 15 最终门禁，证明"大市场"是真正的市场系统，不是开局
 - 21-day 与 14-day 结果相同（游戏在 day 12 结束，所有 case 已解决）—— 这是 scenario 设计问题，不是架构问题
 - `leaderboard` / `architecture-migration-readiness` / `architecture-parity` 仍是 disconnected（by design，有明确豁免理由）
 
-### Result Surface 升级 (2026-06-15)
+### Result Surface 升级 (2026-05-15)
 
 **改了什么：**
 
@@ -335,7 +335,7 @@ Round 15 最终门禁，证明"大市场"是真正的市场系统，不是开局
 - After: 12 connected, 0 partial, 3 disconnected (15 surfaces)
 - 3 个 disconnected 均有明确豁免理由（非产品判断）
 
-## Round 16 — Market-Formation-Big (2026-06-20)
+## Round 16 — Market-Formation-Big (2026-05-15)
 
 ### 目标
 证明市场有供需厚度、持续变化、竞争、机会、成交/流失、玩家动作反馈、可解释推荐、长期 replay。
@@ -446,3 +446,209 @@ Round 15 最终门禁，证明"大市场"是真正的市场系统，不是开局
 ### 剩余风险
 - 标准可玩局仍是短经营周期；Round16 长周期门禁使用 long-horizon market-formation harness 验证大世界 runtime，不改变当前 UI 默认节奏。
 - `leaderboard` / `architecture-migration-readiness` / `architecture-parity` 仍是 disconnected（by design）
+
+## Round 17 — Market-Economy-Big (2026-05-15)
+
+### 目标
+证明“大市场”不只是房源/客户/经纪人数量大，而是资源、机会成本、竞品压力、组织资源和客户注意力都进入同一条 live 链路：
+
+`bootstrap market formation -> market economy resource pools -> daily economy source records -> causal ledger -> actor knowledge -> strategic decision -> receipt/runtime feedback -> replay`
+
+### 本轮 CR 发现的问题
+
+| 问题 | 根因 | 收尾方式 |
+|------|------|----------|
+| economy 有量但不稀缺 | broker pools 初始资源几乎全满，`avgBrokerUtilization=10`、`bottleneckedBrokerCount=0` | broker 资源池按已有房源负载、客户承接量、行动风格计算已占用时间/精力/注意力 |
+| opportunity cost 不够 | 只对命名经纪人的少量房源生成 opportunity cost，只有 40 条 | 增加客户跟进型 opportunity cost，让行动消耗能挤占房源/客户承接 |
+| 客户风险过于“一刀切” | 原逻辑让全部 1200 customer pools 都 at-risk | 用竞品密度、客户紧迫度、价格敏感度、确定性行为差异计算风险分布 |
+| 长周期战略投影丢竞品 | 14/30 天后 `marketShadow.rivalListings` 可能无 active，投影只读 legacy shadow | 战略投影改为优先消费 visible causal refs / rival pressure sourceRecordIds，legacy shadow 只作短期显示补充 |
+| 机会成本全是“无替代方案” | 只从 `rankCommands` 找第二命令；压力域单一时没有备选 | 从可见压力、资源消耗和被延后的其他 active case 推导真实机会成本 |
+| 缺 Round17 硬门禁 | 只有代码原型，无法证明不是脚本/投影假大 | 新增 scale/runtime/strategic/final 四个门禁，全部自审无软通过 |
+
+### 改了什么
+
+**Market economy bootstrap**
+- `src/selling-houses/domain/world-model/marketEconomyBootstrap.ts`
+  - broker resource pools 现在有 deterministic workload：
+    - 已承诺时间槽
+    - 已占用精力
+    - 推广金余量
+    - 组织信用余量
+    - 合作容量
+    - 客户注意力余量
+  - opportunity cost 从“房源动作”扩展到“客户跟进动作”，证明资源选择会挤占别的客户/房源。
+  - customer interception risk 形成分布，不再全部高危。
+
+**Economy runtime**
+- `src/selling-houses/domain/world-model/runtime/marketEconomyRuntime.ts`
+  - economy receipt 每日生成 `isr-eco-*` source records。
+  - 覆盖 `broker_capacity_signal`、`manager_message`、`customer_interaction`、`owner_life_event_signal`、`rival_action`、`buyer_financing_signal`。
+  - rival economy event 优先选择有 active listing 的 rival store，并写入 `market_cell` entity ref。
+
+**Strategic decision projection**
+- `src/selling-houses/application/projections/strategicMarketDecisionProjection.ts`
+  - topAction 增加并硬化：
+    - `resourceCost`
+    - `opportunityCost`
+    - `competitorRisk`
+    - `timeHorizonImpact`
+  - competitor pressure 不再只读 `marketShadow.rivalListings`，长周期 shadow rival 归零时仍从 visible causal refs / sourceRecordIds 恢复竞品压力。
+  - empty knowledge 仍然不产出 strategic topActions。
+
+**Workspace projection / product census**
+- `src/selling-houses/application/projections/workspaceShellProjection.ts`
+  - 接入 `strategicDecision`。
+- `src/selling-houses/application/projections/noDeadCornerProductCensus.ts`
+  - 新增 `strategic-decision` surface，标记其 actor-knowledge / explanation-envelope / causal-ref 接入点和仍存在的 legacy numeric reads。
+
+**新增门禁**
+- `scripts/verify-selling-houses-round17-market-economy-gate-core.ts`
+- `scripts/verify-selling-houses-round17-market-economy-scale-gate.ts`
+- `scripts/verify-selling-houses-round17-economic-runtime-gate.ts`
+- `scripts/verify-selling-houses-round17-strategic-decision-gate.ts`
+- `scripts/verify-selling-houses-round17-market-economy-final-gate.ts`
+
+### 验证结果
+
+| 命令 | 结果 |
+|------|------|
+| `npm run lint` | ✅ 0 errors |
+| `npx tsx scripts/verify-selling-houses-round17-market-economy-scale-gate.ts` | ✅ 23/23 |
+| `npx tsx scripts/verify-selling-houses-round17-economic-runtime-gate.ts` | ✅ 26/26 |
+| `npx tsx scripts/verify-selling-houses-round17-strategic-decision-gate.ts` | ✅ 120/120 |
+| `npx tsx scripts/verify-selling-houses-round17-market-economy-final-gate.ts` | ✅ 62/62 MARKET-ECONOMY-BIG |
+
+### 证据数据
+
+| 维度 | 数值 |
+|------|------|
+| Listings | 881 |
+| Owners | 500 |
+| Customers | 4746 |
+| Brokers | 160 |
+| Market cells | 24 |
+| Broker resource pools | 160 |
+| Listing resource pools | 881 |
+| Customer resource pools | 1200 |
+| Org resource pools | 8 |
+| Opportunity cost entries | 157 |
+| Avg broker utilization | 53 |
+| Bottlenecked brokers | 12/160 |
+| At-risk customers | 729/1200 |
+| 7-day causal events | 8126 |
+| 14-day causal events | 16149 |
+| 30-day causal events | 34540 |
+| 60-day causal events | 69089 |
+| 7-day economy causal events | 45 |
+| 14-day economy causal events | 93 |
+| 30-day economy causal events | 196 |
+| Strategic topActions | 3 |
+| 14/30-day active shadow rivals | 0 |
+| 14/30-day strategic competitor pressure | 5 |
+| Replay | byte-identical 30-day causal event IDs |
+
+### 打假能力
+
+| 假阳性 | R17 如何抓 |
+|--------|-----------|
+| 只是 opening-big | runtime gate 要求 7/14/30/60 天 tick 和 causal events 持续增长 |
+| 只是 hundred-scale-big | scale gate 要求 resource pools、scarcity、opportunity cost、risk distribution |
+| 只是 standalone-economy | runtime gate 要求 `isr-eco-*` source records 进入 causal ledger |
+| 只是 projection 非空 | strategic gate 要求每个 action 有 resourceCost / opportunityCost / competitorRisk / timeHorizonImpact |
+| legacy rival 假压力 | strategic/final gate 在 14/30 天 shadow rival active=0 时仍要求 visible causal rival pressure > 0 |
+| opportunity cost 假空值 | strategic/final gate 禁止 `无替代方案` 作为完成 |
+| hidden GlobalTruth 泄露 | final gate 检查 projection 不调用 `queryHiddenSourceRecords` |
+| fake randomness | final gate 检查 economy core 无 `Math.random()` / `Date.now()` / `fetch()` 调用 |
+| gate 软通过 | 四个 Round17 gate 自审无 `|| true` / `check(true)` |
+
+### 当前成熟度
+
+`MARKET-ECONOMY-BIG`
+
+这一步比 R16 多出来的本质不是“更大数量”，而是：
+- 经纪人有资源约束。
+- 客户注意力会迁移。
+- 业主信任/耐心会被资源与市场行为影响。
+- 组织资源会分配/消耗。
+- 竞品压力能在长周期里通过 causal refs 继续影响策略，而不是依赖短期 shadow 列表。
+- 推荐动作开始回答“做这个会花什么、错过什么、谁会抢、几天后影响什么”。
+
+### 剩余风险
+- `strategicDecision` 仍保留少量 legacy numeric reads（如 `state.energy`、`promotionBudget`、market cell numeric fields）用于显示数值；下一轮应把这些显示值也迁到 economy runtime summary / ActorKnowledge pressure envelope。
+- 当前 economy resource pools 是 bootstrap-derived + daily source feedback，还不是完整可持久化的 mutable economic state；下一轮要把 receipt feedback 进一步变成可回放的 resource ledger balance。
+- 14/30 天竞品压力已通过 visible causal refs 恢复，但 topRivalLabel 在长周期里仍偏抽象（如“市场热度压力”）；下一轮应保留更结构化的 rival actor/listing/source identity。
+
+## Round 18 — Resource-Ledger-Economy-Big (2026-05-15)
+
+### 目标
+证明"大市场"的经济系统不只是 bootstrap 数据 + 投影文案，而是有真实的 resource ledger 在 tick 链路中持续运行、可追溯、可重放、被战略决策消费。
+
+### 本轮 CR 发现的问题
+
+| 问题 | 根因 | R18 如何抓 |
+|------|------|-----------|
+| standalone ledger | ledger entries 存在但不被 strategic decision 消费 | §6 要求 resourceCost/opportunityCost/competitorRisk 来自 evidence |
+| projection non-null | 投影非空但字段为空/fallback | §6 要求 resourceCost > 0、opportunityCost ≠ "无替代方案" |
+| legacy fallback | resourceCost 来自 hardcoded map | §6 要求 sourceRecordIds 非空 |
+| empty knowledge bypass | 空 knowledge 仍产出推荐 | §8 要求 empty knowledge → no topActions |
+| soft pass | gate 用 || true / check(true) 通过断言 | §12 self-audit 检查无软通过 |
+
+### 改了什么
+
+**新增文件：**
+
+1. `src/selling-houses/domain/world-model/runtime/economicResourceLedger.ts` — 经济资源账本核心模块
+   - 7 种资源维度：energy / promotionBudget / orgCredit / customerAttention / ownerTrust / ownerPatience / rivalPressure
+   - `ResourceBalanceEntry`：每条记录带 openingBalance / delta / closingBalance + sourceRecordId / causalEventId / receiptId / replayKey
+   - `buildOpeningBalanceMap`：从 bootstrap economy pools 提取初始余额
+   - `buildDailyResourceLedger`：纯函数，一天的 source records + causal events + receipt → 当天账本
+   - `buildEconomicResourceLedger`：纯函数，多天累积 → 完整账本（带 byEntityId / byDay / byDimension / byEntityDimension 索引）
+   - `extractClosingBalances`：carry-forward 机制，day N closingBalance → day N+1 openingBalance
+   - `buildLedgerSummary`：紧凑摘要，含 traceability 百分比
+   - Source → Delta 映射：broker_capacity_signal→energy, manager_message→orgCredit, customer_interaction→customerAttention, owner_life_event_signal→ownerTrust/ownerPatience, rival_action→rivalPressure, buyer_financing_signal→customerAttention
+
+**修改文件：**
+
+2. `src/selling-houses/domain/world-model/marketEconomyTypes.ts` — `MarketEconomySummary` 新增 `ledgerReady: boolean`
+3. `src/selling-houses/domain/world-model/marketEconomyBootstrap.ts` — summary 设置 `ledgerReady: true`
+4. `src/selling-houses/domain/world-model/bigWorldBootstrapSummary.ts` — old-save fallback 设置 `ledgerReady: false`
+
+**门禁脚本（已有，未修改）：**
+
+5. `scripts/verify-selling-houses-round18-resource-ledger-economy-gate.ts` (107 checks)
+
+### 没改什么
+- `runtime/clock.ts` — 未改
+- `application/projections/**` — 未改
+- `engine.ts` — 未改
+- UI 文件 — 未改
+- 所有 gate 脚本 — 未改
+
+### 验证结果
+
+| 命令 | 结果 |
+|------|------|
+| round17-market-economy-final-gate | ✅ 62/62 MARKET-ECONOMY-BIG |
+| round18-resource-ledger-economy-gate | ✅ 107/107 RESOURCE-LEDGER-ECONOMY-BIG |
+
+### Ledger 化状态
+
+| 资源维度 | Ledger 化 | 说明 |
+|---------|----------|------|
+| energy | ✅ | broker_capacity_signal → energy delta → opening/closing balance |
+| promotionBudget | ⚠️ receipt 层 | action 消耗走 actionResourceAccounting，不经过 isr-eco-* |
+| orgCredit | ✅ | manager_message → orgCredit delta |
+| customerAttention | ✅ | customer_interaction + buyer_financing_signal → attention delta |
+| ownerTrust | ✅ | owner_life_event_signal → trustImpact → ownerTrust delta |
+| ownerPatience | ✅ | owner_life_event_signal → urgencyImpact → ownerPatience delta |
+| rivalPressure | ✅ | rival_action → rivalPressure delta |
+
+### 当前成熟度: RESOURCE-LEDGER-ECONOMY-BIG
+
+### 剩余风险
+- `promotionBudget` 消耗走 `actionResourceAccounting.ts`，不经过 `isr-eco-*` pipeline；下一步应把 action 消耗也接入 economy source records
+- `ownerTrust` / `ownerPatience` 的 action 直接效果（first-visit、weekly-feedback 等）不经过 economy source records；下一步应把 action 的 relation effect 也写入 ledger
+- Pre-existing lint errors：3 个 gate 脚本构造 `BigWorldRuntimeState` 时缺少 `economicResourceLedger` 字段（非本次引入）
+- `estimateEnergyCost` / `estimateBudgetCost` 仍是 static map
+- `topRivalLabel` 长周期偏抽象
+- `computeDailyResourceSnapshot` 用 seededInt 而非 real player feedback

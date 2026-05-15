@@ -435,12 +435,16 @@ export function normalizeRuntimeState(
   }
 
   const raw = input as Record<string, unknown>;
+  const economicResourceLedger = Array.isArray(raw['economicResourceLedger'])
+    ? raw['economicResourceLedger'] as import('./types.js').EconomicResourceLedgerEntry[]
+    : [];
   return Object.freeze({
     compactionPolicy,
     lastTickDay: Math.max(0, Number(raw['lastTickDay']) || 0),
     dailyEvents: Array.isArray(raw['dailyEvents']) ? raw['dailyEvents'] as BigWorldDailyEvent[] : [],
     dailySummaries: Array.isArray(raw['dailySummaries']) ? raw['dailySummaries'] as BigWorldRuntimeSummary[] : [],
     coldLedgerSummaries: Array.isArray(raw['coldLedgerSummaries']) ? raw['coldLedgerSummaries'] as ColdLedgerSummary[] : [],
+    economicResourceLedger,
     totalEventsEmitted: Math.max(0, Number(raw['totalEventsEmitted']) || 0),
     totalMutationsEmitted: Math.max(0, Number(raw['totalMutationsEmitted']) || 0),
     tickCount: Math.max(0, Number(raw['tickCount']) || 0),
@@ -460,6 +464,7 @@ export function createDefaultRuntimeState(
     dailyEvents: [],
     dailySummaries: [],
     coldLedgerSummaries: [],
+    economicResourceLedger: [],
     totalEventsEmitted: 0,
     totalMutationsEmitted: 0,
     tickCount: 0,

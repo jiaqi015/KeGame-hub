@@ -52,6 +52,15 @@ type WechatAvatarProps = {
   className: string;
 };
 
+const OFFICIAL_ACCOUNT_AVATAR_BY_NAME: Record<string, string> = {
+  贝壳市场观察: '/selling-houses/official-avatars/official-market-observer.png',
+  小区雷达: '/selling-houses/official-avatars/official-community-radar.png',
+  竞品快讯: '/selling-houses/official-avatars/official-rival-brief.png',
+  平台经营建议: '/selling-houses/official-avatars/official-platform-advice.png',
+};
+
+const OFFICIAL_ACCOUNT_AVATAR_FALLBACKS = Object.values(OFFICIAL_ACCOUNT_AVATAR_BY_NAME);
+
 export function MyWechatPanel({
   projection,
   readIds,
@@ -519,9 +528,7 @@ const OfficialArticleRow: React.FC<OfficialArticleRowProps> = ({
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] border border-[var(--seller-border)] bg-[rgba(34,197,94,0.10)] text-[11px] font-semibold text-emerald-200">
-            订
-          </span>
+          <OfficialAccountAvatar accountName={article.accountName} />
           <div className="min-w-0">
             <div className="truncate text-[11px] font-semibold text-[var(--seller-muted)]">{article.accountName}</div>
             <div className="mt-0.5 truncate text-[13px] font-semibold text-[var(--seller-ink)]">{article.title}</div>
@@ -539,6 +546,25 @@ const OfficialArticleRow: React.FC<OfficialArticleRowProps> = ({
     </button>
   );
 };
+
+function OfficialAccountAvatar({ accountName }: { accountName: string }) {
+  return (
+    <span
+      className="relative flex h-7 w-7 shrink-0 overflow-hidden rounded-[9px] border border-[var(--seller-border)] bg-[linear-gradient(135deg,rgba(148,163,184,0.18),rgba(15,23,42,0.65))] shadow-[0_10px_18px_rgba(0,0,0,0.18)]"
+      aria-hidden="true"
+    >
+      <img
+        src={getOfficialAccountAvatarSrc(accountName)}
+        alt=""
+        loading="lazy"
+        className="relative h-full w-full object-cover"
+        onError={(event) => {
+          event.currentTarget.style.display = 'none';
+        }}
+      />
+    </span>
+  );
+}
 
 function WechatEmptyState({ title, description }: { title: string; description: string }) {
   return (
@@ -581,6 +607,11 @@ function getWechatAvatarSrc(senderName: string, senderRole: WechatMessage['sende
       : PORTRAIT_AVATAR_INDICES;
   const index = pool[stableHash(`${senderRole}:${senderName}`) % pool.length];
   return `/selling-houses/avatars/avatar-${String(index).padStart(2, '0')}.png`;
+}
+
+function getOfficialAccountAvatarSrc(accountName: string) {
+  const fallbackIndex = stableHash(accountName) % OFFICIAL_ACCOUNT_AVATAR_FALLBACKS.length;
+  return OFFICIAL_ACCOUNT_AVATAR_BY_NAME[accountName] || OFFICIAL_ACCOUNT_AVATAR_FALLBACKS[fallbackIndex];
 }
 
 function stableHash(value: string) {

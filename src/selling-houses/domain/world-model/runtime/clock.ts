@@ -53,6 +53,7 @@ import { ingestSourceRecords } from './sourceIngestionAdapter.js';
 import type { SourceIngestionReceipt } from './sourceIngestionAdapter.js';
 import { buildSourceRecordsFromPhaseOutput } from './sourceRecordBuilder.js';
 import { generateMarketFormationSourceRecords } from './marketFormationRuntime.js';
+import { generateEconomyReceipt } from './economicReceiptWiring.js';
 
 import type { WorldCausalEvent } from '../causalEvents.js';
 import type {
@@ -875,13 +876,20 @@ export function runBigWorldDayTick(
     input, day, input.runSeed, allCausalEvents,
   );
 
-  // Merge phase-derived source records with additional, market formation, settlement, and external source records
+  // Generate economy source records — resource scarcity and competition dynamics.
+  // These model how player energy, promotion budget, org credit, customer attention,
+  // owner trust, and rival competition drive market behavior. Not random noise.
+  const economyReceipt = generateEconomyReceipt(input, day, input.runSeed);
+  const economyRecords = economyReceipt.sourceRecords;
+
+  // Merge phase-derived source records with additional, market formation, settlement, economy, and external source records
   const externalSourceRecords = input.sourceRecords ?? [];
   const allSourceRecords: readonly import('../informationSourceTypes.js').InformationSourceRecord[] = [
     ...phaseSourceRecords,
     ...additionalSourceRecords,
     ...marketFormationRecords,
     ...settlementRecords,
+    ...economyRecords,
     ...externalSourceRecords,
   ];
 
@@ -946,6 +954,7 @@ export function runBigWorldDayTick(
     summary,
     causalEventsToAppend: Object.freeze(causalEventsToAppend),
     sourceIngestionReceipt,
+    economyReceipt,
     durationUs: tickDurationUs,
   });
 }
@@ -965,6 +974,7 @@ export function applyTickReceiptToRuntime(
         dailyEvents: [...runtime.dailyEvents],
         dailySummaries: [...runtime.dailySummaries],
         coldLedgerSummaries: [...runtime.coldLedgerSummaries],
+        economicResourceLedger: [...runtime.economicResourceLedger],
         recentErrors: [...runtime.recentErrors],
       }
     : runtime;
@@ -982,11 +992,37 @@ export function applyTickReceiptToRuntime(
   );
   const mergedColdSummaries = [coldSummary, ...target.coldLedgerSummaries];
 
+  // Accumulate economy receipt snapshot into economic resource ledger
+  const snapshot = receipt.economyReceipt?.snapshot;
+  const ledgerEntry = snapshot
+    ? {
+        day: snapshot.day,
+        playerEnergyConsumed: snapshot.playerEnergyConsumed,
+        playerEnergyReplenished: snapshot.playerEnergyReplenished,
+        promotionBudgetConsumed: snapshot.promotionBudgetConsumed,
+        promotionBudgetAllocated: snapshot.promotionBudgetAllocated,
+        orgCreditEarned: snapshot.orgCreditEarned,
+        orgCreditSpent: snapshot.orgCreditSpent,
+        customerAttentionGained: snapshot.customerAttentionGained,
+        customerAttentionLost: snapshot.customerAttentionLost,
+        customerAttentionMigrated: snapshot.customerAttentionMigrated,
+        ownerTrustNet: snapshot.ownerTrustNet,
+        ownerPatienceNet: snapshot.ownerPatienceNet,
+        rivalActionsToday: snapshot.rivalActionsToday,
+        rivalResourceCompeted: snapshot.rivalResourceCompeted,
+        replayKey: receipt.economyReceipt!.replayKey,
+      }
+    : undefined;
+  const mergedLedger = ledgerEntry
+    ? [ledgerEntry, ...target.economicResourceLedger].slice(0, 90)
+    : target.economicResourceLedger;
+
   // Update mutable fields
   target.lastTickDay = receipt.day;
   target.dailyEvents = mergedEvents;
   target.dailySummaries = mergedSummaries;
   target.coldLedgerSummaries = mergedColdSummaries;
+  target.economicResourceLedger = mergedLedger;
   target.totalEventsEmitted += receipt.allEvents.length;
   target.totalMutationsEmitted += receipt.summary.totalMutations;
   target.tickCount += 1;

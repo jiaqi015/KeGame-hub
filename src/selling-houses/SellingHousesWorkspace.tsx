@@ -35,10 +35,10 @@ import type { Settlement } from './domain/actions/templates';
 import type { Case, TodayArrangementSlot } from './domain/models';
 import { ActionDecisionOverlay, buildActionDecisionConfig } from './ui/features/ActionDecisionOverlay';
 import { DailyJournal } from './ui/widgets/DailyJournal';
+import { Dashboard } from './ui/features/Dashboard';
 import { LiquidGlassSurface } from './ui/widgets/LiquidGlassSurface';
 import { WorkspaceUtilityBar } from './ui/widgets/WorkspaceUtilityBar';
 
-const Dashboard = lazy(() => import('./ui/features/Dashboard').then((module) => ({ default: module.Dashboard })));
 const Cases = lazy(() => import('./ui/features/Cases').then((module) => ({ default: module.Cases })));
 const Opportunities = lazy(() => import('./ui/features/Opportunities').then((module) => ({ default: module.Opportunities })));
 const Market = lazy(() => import('./ui/features/Market').then((module) => ({ default: module.Market })));
@@ -54,7 +54,6 @@ const ADVANCE_LOCK_RELEASE_DELAY_MS = 650;
 export function preloadSellingHousesPrimaryViews() {
   return Promise.all([
     import('./ui/features/ScenarioSetup'),
-    import('./ui/features/Dashboard'),
   ]);
 }
 

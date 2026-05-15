@@ -550,6 +550,7 @@ const runtimeState: BigWorldRuntimeState = {
   dailyEvents: [],
   dailySummaries: [],
   coldLedgerSummaries: [],
+  economicResourceLedger: [],
   totalEventsEmitted: 0,
   totalMutationsEmitted: 0,
   tickCount: 0,

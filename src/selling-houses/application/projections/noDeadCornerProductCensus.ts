@@ -368,6 +368,34 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       causalChainConnected: true,
       verdict: 'connected',
     },
+
+    // ── 16. strategicMarketDecisionProjection ─────────────
+    // Round 17: Upgrades playable market into strategic decision surface.
+    // Each topAction carries opportunity cost, resource cost, competitor risk, time horizon impact.
+    // Market radar shows resource congestion. Customer pool shows attention migration reasons.
+    // Owner pool shows trust/patience causal sources. Org resource shows allocation reasoning.
+    {
+      surfaceId: 'strategic-decision',
+      surfaceName: 'StrategicPlayableMarketProjection',
+      projectionFile: 'strategicMarketDecisionProjection.ts',
+      readPatterns: [
+        { kind: 'actor-knowledge', detail: 'buildStrategicTopActions uses buildDecisionEvidenceEnvelope for full belief→pressure→command→explanation pipeline', isCausalChainConnected: true },
+        { kind: 'explanation-envelope', detail: 'each StrategicTopAction carries safeRefs, replayKey, sourceRecordIds, confidence from DecisionEvidenceEnvelope', isCausalChainConnected: true },
+        { kind: 'actor-knowledge', detail: 'buildStrategicCustomerPool derives attentionMigrationReasons from pressure signals in actorKnowledgeMap', isCausalChainConnected: true },
+        { kind: 'actor-knowledge', detail: 'buildStrategicOwnerPool derives trustPatienceCausalSources from pressure signals in actorKnowledgeMap', isCausalChainConnected: true },
+        { kind: 'causal-refs', detail: 'injects liveCausalRefs via sharedCausalRefs from DecisionEvidenceEnvelope for cross-surface reuse', isCausalChainConnected: true },
+        { kind: 'legacy-field', detail: 'reads MarketCell.demandHeat/competitivePressure/supplyPressure for radar numeric display', isCausalChainConnected: false },
+        { kind: 'legacy-field', detail: 'reads Case.marketCellId for competitor risk calculation', isCausalChainConnected: false },
+        { kind: 'legacy-field', detail: 'reads state.energy/auxiliaryStats.promotionBudget for resource cost calculation', isCausalChainConnected: false },
+      ],
+      hasLiveCausalRefs: true,
+      hasExplanationEnvelope: true,
+      hasActorKnowledge: true,
+      hasLegacyFieldReads: true,
+      legacyFieldsRead: ['demandHeat', 'competitivePressure', 'supplyPressure', 'marketCellId', 'energy', 'promotionBudget'],
+      causalChainConnected: true,
+      verdict: 'connected',
+    },
   ];
 }
 

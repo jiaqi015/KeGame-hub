@@ -228,6 +228,8 @@ export interface BigWorldTickReceipt {
   readonly causalEventsToAppend: readonly WorldCausalEvent[];
   /** Source ingestion receipt (if source records were provided). */
   readonly sourceIngestionReceipt?: import('./sourceIngestionAdapter.js').SourceIngestionReceipt;
+  /** Economy receipt — resource snapshot and source records for this day. */
+  readonly economyReceipt?: import('./economicReceiptWiring.js').EconomyReceipt;
   /** Total tick duration in microseconds (for performance tracking). */
   readonly durationUs: number;
 }
@@ -296,6 +298,43 @@ export const DEFAULT_COMPACTION_POLICY: WorldRuntimeCompactionPolicy = Object.fr
 // BigWorldRuntimeState — persistent runtime state on GameState
 // ---------------------------------------------------------------------------
 
+/**
+ * Single day's resource snapshot entry in the economic ledger.
+ * Persisted in GameState for deterministic replay.
+ */
+export interface EconomicResourceLedgerEntry {
+  /** Day this snapshot represents. */
+  readonly day: number;
+  /** Player energy consumed this day. */
+  readonly playerEnergyConsumed: number;
+  /** Player energy replenished this day. */
+  readonly playerEnergyReplenished: number;
+  /** Promotion budget consumed this day. */
+  readonly promotionBudgetConsumed: number;
+  /** Promotion budget allocated this day. */
+  readonly promotionBudgetAllocated: number;
+  /** Org credit earned this day. */
+  readonly orgCreditEarned: number;
+  /** Org credit spent this day. */
+  readonly orgCreditSpent: number;
+  /** Customer attention gained this day. */
+  readonly customerAttentionGained: number;
+  /** Customer attention lost this day. */
+  readonly customerAttentionLost: number;
+  /** Customer attention migrated this day. */
+  readonly customerAttentionMigrated: number;
+  /** Owner trust net change this day. */
+  readonly ownerTrustNet: number;
+  /** Owner patience net change this day. */
+  readonly ownerPatienceNet: number;
+  /** Rival actions this day. */
+  readonly rivalActionsToday: number;
+  /** Rival resource competed this day. */
+  readonly rivalResourceCompeted: number;
+  /** Replay key for deterministic verification. */
+  readonly replayKey: string;
+}
+
 /** Autonomous world runtime state. Lives on GameState.bigWorldRuntime. */
 export interface BigWorldRuntimeState {
   /** Current compaction policy. */
@@ -308,6 +347,12 @@ export interface BigWorldRuntimeState {
   dailySummaries: BigWorldRuntimeSummary[];
   /** Cold ledger summaries (newest first). Aggregated source-level evidence. */
   coldLedgerSummaries: ColdLedgerSummary[];
+  /**
+   * Economic resource ledger — accumulated daily resource snapshots.
+   * Grows each tick; bounded by maxLedgerDays from compaction policy.
+   * Used by Round 18 gates to verify resource dynamics over 7/14/30/60 day horizons.
+   */
+  economicResourceLedger: EconomicResourceLedgerEntry[];
   /** Total events emitted since game start. Monotonic. */
   totalEventsEmitted: number;
   /** Total mutations since game start. Monotonic. */
