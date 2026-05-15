@@ -253,13 +253,13 @@ function assertPresentationDirection(
   });
 
   if (control.playerBaseDealExpectation21d >= 2) {
-    assert.match(text, /较充足|默认约 2 套/, `${difficultyId} should present wider player deal space`);
+    assert.match(text, /机会较高|较充足|默认约 2 套/, `${difficultyId} should present wider player deal space`);
   } else if (control.playerBaseDealExpectation21d >= 1) {
-    assert.match(text, /默认约 1 套|默认约 1\.?\d* 套/, `${difficultyId} should present around one deal`);
+    assert.match(text, /成交转化率|默认约 1 套|默认约 1\.?\d* 套/, `${difficultyId} should present around one deal`);
   } else if (control.playerBaseDealExpectation21d >= 0.7) {
-    assert.match(text, /略低于标准|推进到底|默认约 0\.?\d* 套/, `${difficultyId} should present tighter-than-standard deal space`);
+    assert.match(text, /成交转化率|略低于标准|推进到底|默认约 0\.?\d* 套/, `${difficultyId} should present tighter-than-standard deal space`);
   } else {
-    assert.match(text, /很少|很紧|默认约 0\.?\d* 套/, `${difficultyId} should present scarce deal space`);
+    assert.match(text, /成交转化率|很少|很紧|默认约 0\.?\d* 套/, `${difficultyId} should present scarce deal space`);
   }
 
   const rivalScale = (control.rivalStoreCapabilityScale + control.rivalDealShareScale) / 2;

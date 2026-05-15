@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import '../src/selling-houses/application/gameTransitions.js';
 import { createInitialState, updateDerivedState } from '../src/selling-houses/application/gameState.js';
 import { advanceDays, executeAction, findBestOpportunity, getActionAvailability, seedInitialOpportunities } from '../src/selling-houses/domain/engine.js';
 import { generateScenarioSnapshot } from '../src/selling-houses/domain/scenarioCatalog.js';
@@ -35,6 +36,24 @@ interface PlannedMove {
   caseItem: Case;
   decision: CandidateDecision;
   combinedWeight: number;
+}
+
+type CountMap = Record<string, number>;
+
+interface OutcomeRunDiagnosis {
+  actionAttempts: CountMap;
+  actionSuccesses: CountMap;
+  actionFailures: CountMap;
+  negotiationActionSuccesses: number;
+  pendingClosingCreated: number;
+  maxPendingClosingCount: number;
+  negotiationProcessRows: number;
+  negotiationProcessedCount: number;
+  negotiationResolvedCount: number;
+  consensusStageCounts: CountMap;
+  blockerCounts: CountMap;
+  averageConsensusCloseReadiness: number;
+  averageConsensusCloseProbability: number;
 }
 
 interface OutcomeRunMetrics {
@@ -77,6 +96,7 @@ interface OutcomeRunMetrics {
   rivalClaimsDay8To14: number;
   rivalClaimsDay15To21: number;
   last7RivalClaimShare: number;
+  diagnosis: OutcomeRunDiagnosis;
 }
 
 interface OutcomeLabSummary {
@@ -126,6 +146,7 @@ interface OutcomeLabSummary {
   difficultyCliffFromPrevious: number;
   targetStatus: OutcomeTargetStatus;
   targetChecks: OutcomeTargetCheck[];
+  diagnosis: OutcomeRunDiagnosis;
 }
 
 interface CliOptions {
@@ -194,20 +215,21 @@ function parseOptions(argv: string[]): CliOptions {
 function playOutcomeRun(difficulty: DifficultyId, seed: number): OutcomeRunMetrics {
   const snapshot = generateScenarioSnapshot({ difficultyId: difficulty, seed });
   const state = createInitialState(snapshot, seed);
+  const diagnosis = createEmptyRunDiagnosis();
   resetRivalOutcomeDiagnostics(state);
   const initialRivalListingCount = state.marketShadow.rivalListings.length;
   seedInitialOpportunities(state);
   updateDerivedState(state);
 
   while (!state.gameOver && state.day <= state.maxDay) {
-    playOneDay(state);
+    playOneDay(state, diagnosis);
   }
 
   updateDerivedState(state);
-  return collectRunMetrics(difficulty, seed, state, initialRivalListingCount);
+  return collectRunMetrics(difficulty, seed, state, initialRivalListingCount, diagnosis);
 }
 
-function playOneDay(state: GameState) {
+function playOneDay(state: GameState, diagnosis: OutcomeRunDiagnosis) {
   let safetyCounter = 0;
   while (!state.gameOver && state.energy > 0 && safetyCounter < 20) {
     updateDerivedState(state);
@@ -216,15 +238,32 @@ function playOneDay(state: GameState) {
       break;
     }
 
+    incrementCount(diagnosis.actionAttempts, plannedMove.decision.actionId);
+    const pendingBefore = countPendingClosing(state);
     const ok = executeAction(state, plannedMove.decision.actionId, plannedMove.caseItem, plannedMove.decision.optionId);
     if (!ok) {
+      incrementCount(diagnosis.actionFailures, plannedMove.decision.actionId);
       break;
     }
+    incrementCount(diagnosis.actionSuccesses, plannedMove.decision.actionId);
+    if (plannedMove.decision.actionId === 'invite-customer-negotiation') {
+      diagnosis.negotiationActionSuccesses += 1;
+    }
+    const pendingAfter = countPendingClosing(state);
+    diagnosis.pendingClosingCreated += Math.max(0, pendingAfter - pendingBefore);
+    diagnosis.maxPendingClosingCount = Math.max(diagnosis.maxPendingClosingCount, pendingAfter);
     safetyCounter += 1;
   }
 
   if (!state.gameOver) {
+    const pendingBeforeAdvance = countPendingClosing(state);
     advanceDays(state, 1);
+    diagnosis.maxPendingClosingCount = Math.max(diagnosis.maxPendingClosingCount, pendingBeforeAdvance, countPendingClosing(state));
+    const negotiationRows = state.lastDailyTickResult?.processResults
+      .filter((entry) => entry.managerId === 'negotiation-process-manager') ?? [];
+    diagnosis.negotiationProcessRows += negotiationRows.length;
+    diagnosis.negotiationProcessedCount += negotiationRows.reduce((sum, entry) => sum + entry.processedCount, 0);
+    diagnosis.negotiationResolvedCount += negotiationRows.reduce((sum, entry) => sum + entry.resolvedCount, 0);
   }
 }
 
@@ -338,6 +377,7 @@ function collectRunMetrics(
   seed: number,
   state: GameState,
   initialRivalListingCount: number,
+  diagnosis: OutcomeRunDiagnosis,
 ): OutcomeRunMetrics {
   const snapshot = buildSelfPlayRunSnapshot(state.finalResult);
   const marketOutcome = readOptionalMarketOutcome(state);
@@ -404,6 +444,60 @@ function collectRunMetrics(
     rivalClaimsDay8To14,
     rivalClaimsDay15To21,
     last7RivalClaimShare: percentage(rivalClaimsDay15To21, rivalClaimsDay1To7 + rivalClaimsDay8To14 + rivalClaimsDay15To21),
+    diagnosis: finalizeRunDiagnosis(state, diagnosis),
+  };
+}
+
+function createEmptyRunDiagnosis(): OutcomeRunDiagnosis {
+  return {
+    actionAttempts: {},
+    actionSuccesses: {},
+    actionFailures: {},
+    negotiationActionSuccesses: 0,
+    pendingClosingCreated: 0,
+    maxPendingClosingCount: 0,
+    negotiationProcessRows: 0,
+    negotiationProcessedCount: 0,
+    negotiationResolvedCount: 0,
+    consensusStageCounts: {},
+    blockerCounts: {},
+    averageConsensusCloseReadiness: 0,
+    averageConsensusCloseProbability: 0,
+  };
+}
+
+function countPendingClosing(state: GameState) {
+  return state.opportunities.filter((entry) => entry.status === 'active' && entry.pendingClosingEvaluation).length;
+}
+
+function incrementCount(target: CountMap, key: string, amount = 1) {
+  target[key] = (target[key] || 0) + amount;
+}
+
+function finalizeRunDiagnosis(state: GameState, diagnosis: OutcomeRunDiagnosis): OutcomeRunDiagnosis {
+  const consensusFormations = state.runtimeConsensusFormations || [];
+  const consensusStageCounts: CountMap = {};
+  const blockerCounts: CountMap = {};
+  let readinessTotal = 0;
+  let probabilityTotal = 0;
+  let evaluatedCount = 0;
+
+  consensusFormations.forEach((formation) => {
+    incrementCount(consensusStageCounts, formation.stage);
+    if (formation.closeReadiness > 0 || formation.closeProbability > 0 || formation.blockers.length > 0) {
+      readinessTotal += formation.closeReadiness;
+      probabilityTotal += formation.closeProbability;
+      evaluatedCount += 1;
+    }
+    formation.blockers.forEach((blocker) => incrementCount(blockerCounts, blocker));
+  });
+
+  return {
+    ...diagnosis,
+    consensusStageCounts,
+    blockerCounts,
+    averageConsensusCloseReadiness: evaluatedCount > 0 ? round(readinessTotal / evaluatedCount) : 0,
+    averageConsensusCloseProbability: evaluatedCount > 0 ? round(probabilityTotal / evaluatedCount) : 0,
   };
 }
 
@@ -531,6 +625,25 @@ function summarizeDifficulty(difficulty: DifficultyId, runs: OutcomeRunMetrics[]
     ...summaryBase,
     targetStatus: summarizeOutcomeTargetStatus(targetChecks),
     targetChecks,
+    diagnosis: summarizeRunDiagnoses(runs.map((entry) => entry.diagnosis)),
+  };
+}
+
+function summarizeRunDiagnoses(diagnoses: OutcomeRunDiagnosis[]): OutcomeRunDiagnosis {
+  return {
+    actionAttempts: mergeCountMaps(diagnoses.map((entry) => entry.actionAttempts)),
+    actionSuccesses: mergeCountMaps(diagnoses.map((entry) => entry.actionSuccesses)),
+    actionFailures: mergeCountMaps(diagnoses.map((entry) => entry.actionFailures)),
+    negotiationActionSuccesses: sum(diagnoses.map((entry) => entry.negotiationActionSuccesses)),
+    pendingClosingCreated: sum(diagnoses.map((entry) => entry.pendingClosingCreated)),
+    maxPendingClosingCount: Math.max(0, ...diagnoses.map((entry) => entry.maxPendingClosingCount)),
+    negotiationProcessRows: sum(diagnoses.map((entry) => entry.negotiationProcessRows)),
+    negotiationProcessedCount: sum(diagnoses.map((entry) => entry.negotiationProcessedCount)),
+    negotiationResolvedCount: sum(diagnoses.map((entry) => entry.negotiationResolvedCount)),
+    consensusStageCounts: mergeCountMaps(diagnoses.map((entry) => entry.consensusStageCounts)),
+    blockerCounts: mergeCountMaps(diagnoses.map((entry) => entry.blockerCounts)),
+    averageConsensusCloseReadiness: average(diagnoses.map((entry) => entry.averageConsensusCloseReadiness).filter((entry) => entry > 0)),
+    averageConsensusCloseProbability: average(diagnoses.map((entry) => entry.averageConsensusCloseProbability).filter((entry) => entry > 0)),
   };
 }
 
@@ -549,6 +662,18 @@ function mergeStageDistributions(distributions: Array<Record<string, number>>) {
     });
   });
   return merged;
+}
+
+function mergeCountMaps(maps: CountMap[]) {
+  const merged: CountMap = {};
+  maps.forEach((map) => {
+    Object.entries(map).forEach(([key, value]) => incrementCount(merged, key, value));
+  });
+  return merged;
+}
+
+function sum(values: number[]) {
+  return values.reduce((total, value) => total + value, 0);
 }
 
 function average(values: number[]) {
@@ -628,6 +753,42 @@ function printRivalClaimTempoTable(summaries: OutcomeLabSummary[]) {
   });
 }
 
+function printPlayerClosingDiagnosisTable(summaries: OutcomeLabSummary[]) {
+  console.log('| difficulty | negotiationActions | pendingClosingCreated | negotiationProcessed | negotiationResolved | maxPendingClosing | avgConsensusReadiness | avgConsensusProbability | topActions | topBlockers | consensusStages | diagnosis |');
+  console.log('|---|---:|---:|---:|---:|---:|---:|---:|---|---|---|---|');
+  summaries.forEach((entry) => {
+    const diagnosis = entry.diagnosis;
+    console.log(`| ${entry.difficulty} | ${diagnosis.negotiationActionSuccesses} | ${diagnosis.pendingClosingCreated} | ${diagnosis.negotiationProcessedCount} | ${diagnosis.negotiationResolvedCount} | ${diagnosis.maxPendingClosingCount} | ${diagnosis.averageConsensusCloseReadiness} | ${diagnosis.averageConsensusCloseProbability} | ${formatTopCounts(diagnosis.actionSuccesses, 3)} | ${formatTopCounts(diagnosis.blockerCounts, 3)} | ${formatTopCounts(diagnosis.consensusStageCounts, 3)} | ${buildPlayerClosingDiagnosis(entry)} |`);
+  });
+}
+
+function formatTopCounts(counts: CountMap, limit: number) {
+  const entries = Object.entries(counts)
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, limit);
+  return entries.length > 0 ? entries.map(([key, value]) => `${key}:${value}`).join(', ') : '-';
+}
+
+function buildPlayerClosingDiagnosis(entry: OutcomeLabSummary) {
+  const diagnosis = entry.diagnosis;
+  if (diagnosis.negotiationActionSuccesses === 0) {
+    return '未执行成交收口动作，优先查 selfplay action selection / availability';
+  }
+  if (diagnosis.pendingClosingCreated === 0) {
+    return '收口动作执行但未创建 pending closing，优先查 action lifecycle';
+  }
+  if (diagnosis.negotiationProcessedCount === 0) {
+    return 'pending closing 未被日结算处理，优先查 process manager / advanceDays';
+  }
+  if (entry.averageDeals === 0 && Object.keys(diagnosis.blockerCounts).length > 0) {
+    return '已进入成交评估但被 blocker 挡住，优先查 topBlockers 单变量';
+  }
+  if (entry.averageDeals === 0 && entry.averagePlayerConsumedSlots === 0) {
+    return '玩家未消耗成交槽位，优先查成交评估到 capacity claim 的桥';
+  }
+  return '成交链路有产出，进入小步 calibration';
+}
+
 function buildRivalTempoDiagnosis(entry: OutcomeLabSummary) {
   if ((entry.difficulty === 'hard' || entry.difficulty === 'extreme') && entry.last7RivalClaimShare >= 70) {
     return '末段集中偏高，继续观察成交窗口节奏';
@@ -698,6 +859,8 @@ function main() {
   printDelayedDealSemanticsTable(summaries);
   console.log('');
   printRivalClaimTempoTable(summaries);
+  console.log('');
+  printPlayerClosingDiagnosisTable(summaries);
   console.log('');
   console.log(JSON.stringify(snapshot, null, 2));
 }

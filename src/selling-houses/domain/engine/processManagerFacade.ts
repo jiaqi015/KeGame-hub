@@ -64,9 +64,11 @@ function buildEmptyProcessResultSummary(
   phase: 'settled-day' | 'next-day-setup',
   day: number,
 ): DailyProcessResultSummary {
+  const isNegotiation = managerId === 'negotiation-process-manager';
   return {
     managerId,
-    owner: 'runtime-process-manager-facade',
+    owner: isNegotiation ? 'runtime-process-manager-facade' : 'runtime-process-manager',
+    ...(isNegotiation ? { outcomeOwner: 'legacy-deal-closing-engine' as const } : {}),
     day,
     phase,
     processedCount: 0,

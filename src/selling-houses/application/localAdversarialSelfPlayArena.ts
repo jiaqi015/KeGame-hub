@@ -1,4 +1,5 @@
 import { createInitialState } from './gameState.js';
+import './gameTransitions.js';
 import { updateDerivedState } from '../domain/runtimeState.js';
 import { advanceDays, executeAction, findBestOpportunity, getActionAvailability, seedInitialOpportunities } from '../domain/engine.js';
 import { getScenarioSnapshotById } from '../domain/scenarioCatalog.js';

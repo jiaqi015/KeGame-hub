@@ -45,7 +45,7 @@ async function loginToHub(page: Page) {
     await emailInput.fill(TEST_EMAIL);
     await page.getByRole('button', { name: '获取验证码' }).click();
   }
-  await expect(page.getByRole('button', { name: '退出到登录' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '退出账号' })).toBeVisible();
 }
 
 async function openSeller(page: Page, path: string) {
@@ -121,7 +121,8 @@ async function resetE2eProfileToDay1(page: Page) {
 }
 
 async function expectTodayRhythmCell(page: Page, day: number) {
-  await expect(page.getByRole('main')).toContainText('14天节奏');
+  await expect(page.getByRole('main')).toContainText('7天节奏');
+  await expect(page.getByRole('button', { name: '14天' })).toBeVisible();
   await expect(page.getByRole('button', { name: `D${day} 今天` })).toBeVisible();
   await expect(page.getByRole('main')).toContainText(`${day}/21`);
   await expect(page.getByRole('main')).not.toContainText('本周节奏');
@@ -159,20 +160,22 @@ test('selling-houses e2e profile advances safely without touching default save',
   expect(snapshotBeforeWechatClick?.day).toBe(1);
 
   await firstWechatMessage.click();
-  await expect(page.locator('[data-selling-houses-page="cases"]')).toBeVisible();
+  await expect(page.getByRole('button', { name: '返回消息列表' })).toBeVisible();
   expect(await e2eSaveSnapshot(page)).toEqual(snapshotBeforeWechatClick);
   expect(defaultSaveFingerprint(await sellerSaveKeys(page))).toBe(defaultKeysBeforeE2e);
 
+  await page.getByRole('button', { name: '返回消息列表' }).click();
   await returnToWorkbench(page);
   await expect(page.locator('[data-my-wechat-panel="true"]')).toBeVisible();
   await expectUnreadRowsPinned(page, '[data-my-wechat-message-row="true"]');
   await page.locator('[data-my-wechat-tab="公众号"]').click();
   await expect(page.locator('[data-my-wechat-official-row="true"]').first()).toBeVisible();
   await page.locator('[data-my-wechat-official-row="true"]').first().click();
-  await expect(page.locator('[data-selling-houses-page="cases"], [data-selling-houses-page="market"]')).toBeVisible();
+  await expect(page.locator('[data-my-wechat-official-detail="true"]')).toBeVisible();
   expect(await e2eSaveSnapshot(page)).toEqual(snapshotBeforeWechatClick);
   expect(defaultSaveFingerprint(await sellerSaveKeys(page))).toBe(defaultKeysBeforeE2e);
 
+  await page.getByRole('button', { name: '返回公众号列表' }).click();
   await returnToWorkbench(page);
   await page.locator('[data-my-wechat-tab="公众号"]').click();
   await expectUnreadRowsPinned(page, '[data-my-wechat-official-row="true"]');
@@ -256,7 +259,7 @@ test('authenticated hub session restores on home reload', async ({ page }) => {
 
   await page.reload();
 
-  await expect(page.getByRole('button', { name: '退出到登录' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '退出账号' })).toBeVisible();
   await expect(page.getByRole('button', { name: '继续登录' })).toHaveCount(0);
   await expect(page.getByText(/工作\s*skill/i)).toBeVisible();
 });
