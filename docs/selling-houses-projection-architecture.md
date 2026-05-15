@@ -1,445 +1,133 @@
-# 卖房（资产顾问）Projection 投影架构
+# 卖房 Big World Projection 合同
 
-最后更新：2026-04-21
+最后整理：2026-05-15
 
-这份文档回答的是：
+Projection 不是“把状态格式化给页面”，而是把 actor 可见的世界翻译成可解释、可执行、可重放的产品判断。
 
-> 底层世界算完以后，给玩家看的经营概览、房源详情、市场、复盘、结果、排行榜，到底怎么从世界事实投影出来。
+## 1. Projection 的输入
 
-这份文档不回答：
+Projection 只能读取：
 
-- 页面具体长什么样
-- 文案最终怎么写
-- 组件怎么拆
+- live causal refs
+- actor knowledge
+- belief
+- pressure
+- available commands
+- receipts
+- bounded runtime summaries
+- run result / career stats（仅结果和榜单面）
 
-它只回答：
+Projection 禁止读取：
 
-1. 哪些东西是世界真相
-2. 哪些东西是投影
-3. 各类投影读什么、输出什么、绝不能写回什么
+- hidden GlobalTruth
+- shadow demand 全量真相
+- rival broker 内部策略
+- 未进入 causal ledger 的 pending source
+- 页面组件临时状态作为业务真相
 
----
+## 2. ProjectionEnvelope
 
-## 0. 一句话结论
-
-Projection 是：
-
-> 把世界真相翻译成人能判断的说法。
-
-它不是数据库真相。
-它不是局内状态。
-它不是跨局成绩。
-
-一句话：
-
-> 页面负责讲人话，底层负责存真相。
-
----
-
-## 1. 为什么 Projection 必须独立
-
-如果 Projection 不独立，后面会出现 4 个问题：
-
-1. “建议先谈价”会被误存成世界事实。
-2. “客户池偏薄”会被误存成房源字段。
-3. 排行榜展示行会反过来污染局内结果。
-4. 复盘文案会和事件链脱节。
-
-所以要定死：
-
-> Projection 可以读世界，但不能反写世界。
-
----
-
-## 2. Projection 家族
-
-建议先固定 8 类：
-
-1. `DashboardProjection`
-2. `CaseDetailProjection`
-3. `CustomerDetailProjection`
-4. `MarketProjection`
-5. `ActionReadinessProjection`
-6. `ReviewProjection`
-7. `ResultProjection`
-8. `LeaderboardProjection`
-
----
-
-## 3. DashboardProjection
-
-回答：
-
-> 今天先看什么，先处理谁。
-
-### 主要读什么
-
-- `TimeContext`
-- `Matter[]`
-- `WorldEvent[]`
-- `OwnerCaseRelation[]`
-- `CustomerCaseRelation[]`
-- `BrokerRuntimeState`
-- `MarketProjection`
-
-### 主要输出什么
+每个重要 UI 判断都要带 envelope：
 
 ```ts
-type DashboardProjection = {
-  todayHeadline: string;
-  weekCalendarItems: CalendarItemProjection[];
-  urgentMatters: MatterBriefProjection[];
-  riskReminders: ReminderProjection[];
-  resourceSnapshot: ResourceSnapshotProjection;
-  topPriorities: PriorityProjection[];
+type ProjectionEnvelope = {
+  actorId: string;
+  day: number;
+  sourceRecordIds: string[];
+  causalEventIds: string[];
+  knowledgeRefs: string[];
+  beliefRefs: string[];
+  pressureRefs: string[];
+  commandRefs: string[];
+  receiptRefs: string[];
+  confidence: number;
+  fallback?: 'display-only' | 'legacy-compat';
 };
 ```
 
-### 典型展示
+没有 envelope 的内容，只能是辅助展示，不能作为产品决策。
 
-- 今日新闻
-- 今日事项
-- 今日提醒
-- 本周重点节点
-- 哪套房今天最该处理
+## 3. 产品面输出
 
----
+| Projection | 输出 | 必须证明 |
+| --- | --- | --- |
+| Workbench | 今日主线、紧急事项、推荐 command | 来自 belief / pressure / command |
+| Listing detail | 单房 owner / customer / competition / market 判断 | refs 只来自 actor-visible chain |
+| Customer view | 关系推进、流失风险、匹配房源 | 不偷看全量客户真相 |
+| Market radar | hot / cold cells、价格/竞争变化 | source → causal 可追溯 |
+| Person / chat | 按人聚合消息与下一步 | 可从人进入相关房源，不反过来乱跳 |
+| Matter flow | command precondition、执行结果 | receipt 回灌 runtime |
+| Review | 因果时间线 | source / command / receipt 串得起来 |
+| Result | 成交、丢盘、分数 | outcome receipt / ClosedDealRecord 支撑 |
+| Leaderboard | 跨局排名 | 只读 run result / career stats，不污染局内 world |
 
-## 4. CaseDetailProjection
+## 4. Bounded Window
 
-回答：
+Five-X 世界下 projection 必须有界：
 
-> 这套房现在到底怎么打。
+- 房源：只展示玩家当前管辖、被 source 影响、或 actor-visible candidate。
+- 客户：只展示活跃关系、高意向、将流失、或刚被 source 影响的客户。
+- 市场：只展示相关 market cells 和 pressure ranking。
+- 竞品：只展示与当前 listing / customer overlap 有关的竞争关系。
+- 复盘：按 causal chain 展开，不按全量日志倒序堆砌。
 
-### 主要读什么
+## 5. Decision Projection
 
-- `CaseProfile`
-- `CaseRuntime`
-- `OwnerCaseRelation`
-- `OwnerRuntimeState`
-- `CustomerCaseRelation[]`
-- `GoodHouseModelOutput`
-- `PriceModelOutput`
-- `CompetitionContext`
-- `Matter[]`
-- `EventStore`
+推荐动作必须满足：
 
-### 主要输出什么
-
-```ts
-type CaseDetailProjection = {
-  caseId: string;
-  headline: string;
-  mainProblem:
-    | 'owner'
-    | 'customer-pool'
-    | 'price'
-    | 'competition'
-    | 'execution'
-    | 'market';
-  currentRiskTags: string[];
-  actionSuggestions: ActionSuggestionProjection[];
-  ownerSummary: OwnerSummaryProjection;
-  customerPoolSummary: CustomerPoolSummaryProjection;
-  priceSummary: PriceSummaryProjection;
-  timeline: TimelineItemProjection[];
-};
+```text
+actor knowledge
+  → belief
+  → pressure
+  → available command
+  → ranked recommendation
+  → explanation envelope
 ```
 
-### 典型展示
+禁止：
 
-- 当前主矛盾
-- 值不值得继续押
-- 客户池厚不厚
-- 是否到了谈价窗口
-- 最近为什么变好或变差
+- `if case.trust < 50 then recommend`
+- `if heat > 80 then badge`
+- `if legacy score high then top action`
+- 无 command precondition 的推荐
 
----
+## 6. Fallback 规则
 
-## 5. CustomerDetailProjection
+允许 fallback，但必须诚实：
 
-回答：
+- `display-only`：只为界面不断裂，不作为成熟度证据。
+- `legacy-compat`：旧字段兼容读取，必须有迁移计划或 gate 覆盖。
 
-> 这个客户现在值得推哪套房、怎么推。
+fallback 不能算 connected surface。
 
-### 主要读什么
+## 7. Cross-surface Reuse
 
-- `CustomerProfile`
-- `CustomerRuntimeState`
-- `BrokerCustomerRelation`
-- `CustomerCaseRelation[]`
-- `CaseRuntime[]`
-- `PriceModelOutput[]`
-- `CompetitionContext[]`
+同一 causal ref 应被多个产品面复用，例如：
 
-### 主要输出什么
+- market pressure 同时影响 market radar、listing detail、workbench action。
+- owner feedback 同时影响 listing detail、chat detail、review。
+- action receipt 同时影响 matter flow、resource ledger、next-day recommendation。
 
-```ts
-type CustomerDetailProjection = {
-  customerId: string;
-  nickname: string;
-  currentStateSummary: string;
-  bestMatchedCases: CustomerCaseMatchProjection[];
-  followupRisk: string[];
-  nextBestAction?: ActionSuggestionProjection;
-};
-```
+如果每个页面各算各的，就不是 Big World projection。
 
-### 注意
+## 8. Gate 要防什么
 
-客户页是推进辅助，不要变成 CRM 大后台。
+- projection null 被误判为成功。
+- case inactive 导致跳过检查。
+- envelope 只有空数组。
+- causal refs 来自 synthetic fixture，不来自 live runtime。
+- fallback 被算作 connected。
+- product surface 只显示数据，没有 command / receipt / replay 链。
 
----
+## 9. Definition of Done
 
-## 6. MarketProjection
+一个 projection 面完成，必须满足：
 
-回答：
-
-> 外部环境哪里变了，对我手里的房有什么影响。
-
-### 主要读什么
-
-- `MarketState`
-- `WorldEvent[]`
-- `TimeContext`
-- `BizAreaTimeState`
-- `CompetitionContext[]`
-- `OrganizationProjection`
-- `CaseRuntime[]`
-
-### 主要输出什么
-
-```ts
-type MarketProjection = {
-  yesterdayNews: MarketNewsProjection[];
-  radarAxes: {
-    demandHeat: number;
-    supplyPressure: number;
-    rivalActivity: number;
-    customerActivity: number;
-    coSaleOpportunity: number;
-  };
-  drilldowns: MarketDrilldownProjection[];
-  affectedCases: AffectedCaseProjection[];
-};
-```
-
-### 注意
-
-市场页必须从全局到局部：
-
-- 城市
-- 区域
-- 商圈
-- 小区 / 小区群
-- segment
-
-不要退回只看商圈。
-
----
-
-## 7. ActionReadinessProjection
-
-回答：
-
-> 现在做哪个动作合适，为什么。
-
-### 主要读什么
-
-- `Matter[]`
-- `BrokerRuntimeState`
-- `OwnerCaseRelation`
-- `CustomerCaseRelation`
-- `BrokerOwnerRelation`
-- `BrokerCustomerRelation`
-- `PriceModelOutput`
-- `GoodHouseModelOutput`
-- `TimeContext`
-
-### 主要输出什么
-
-```ts
-type ActionReadinessProjection = {
-  actionId: string;
-  targetIds: string[];
-  readiness: number;
-  canDo: boolean;
-  reasonTags: string[];
-  expectedImpactSummary: string;
-  blockingReasons?: string[];
-};
-```
-
-### 注意
-
-这不是世界真相。
-
-它只是把当前世界状态翻译成“现在适不适合做”。
-
----
-
-## 8. ReviewProjection
-
-回答：
-
-> 这一局为什么赢、为什么输、哪一步最关键。
-
-### 主要读什么
-
-- `RunResult`
-- `EventStore`
-- `Matter[]`
-- `CaseEndingProjection[]`
-- `BudgetLedger`
-- `ActionHistory`
-
-### 主要输出什么
-
-```ts
-type ReviewProjection = {
-  turningPoints: TurningPointProjection[];
-  successReasons: string[];
-  failureReasons: string[];
-  actionEffectiveness: ActionEffectivenessProjection[];
-  resourceUsageSummary: string;
-  missedWindows: MissedWindowProjection[];
-};
-```
-
-### 注意
-
-复盘必须基于事件链。
-
-不能先写一句“输在太贪”，再倒推证据。
-
----
-
-## 9. ResultProjection
-
-回答：
-
-> 这一局最后值不值、强在哪、弱在哪。
-
-### 主要读什么
-
-- `RunResult`
-- `CaseEndingProjection[]`
-- `DifficultyTier`
-- `RunDifficultyConfig`
-- `ReviewProjection`
-
-### 主要输出什么
-
-```ts
-type ResultProjection = {
-  totalScore: number;
-  scoreBreakdown: {
-    ability: number;
-    hold: number;
-    satisfaction: number;
-  };
-  resultHeadline: string;
-  caseEndingCards: CaseEndingProjection[];
-  difficultyContext: string;
-  careerImpactSummary?: string;
-};
-```
-
----
-
-## 10. LeaderboardProjection
-
-回答：
-
-> 榜单上怎么给人看。
-
-### 主要读什么
-
-- `LeaderboardEntry`
-- `Account`
-- `PlayerProfile`
-- `PlayerCareerStats`
-
-### 主要输出什么
-
-```ts
-type LeaderboardProjection = {
-  leaderboardType:
-    | 'career-total-score'
-    | 'best-single-run'
-    | 'completed-run-count';
-  rows: {
-    rank: number;
-    nickname: string;
-    value: number;
-  }[];
-  currentUserRank?: number;
-};
-```
-
-### 注意
-
-排行榜投影可以排序和格式化。
-
-但榜单 entry 本身属于游戏层，不属于投影层。
-
----
-
-## 11. Projection 的硬边界
-
-Projection 不能：
-
-1. 改 `World`
-2. 改 `RunResult`
-3. 改 `PlayerCareerStats`
-4. 改 `LeaderboardEntry`
-5. 生成新的世界事件
-
-Projection 只能：
-
-1. 读
-2. 聚合
-3. 排序
-4. 解释
-5. 生成展示结构
-
----
-
-## 12. 脏范围和重算
-
-为了性能和清晰度，日结后应该给出 `dirtyScopes`。
-
-例如：
-
-```ts
-type DirtyScopeSet = {
-  cases: string[];
-  opportunities: string[];
-  customers: string[];
-  owners: string[];
-  districts: string[];
-  marketCells: string[];
-  matters: string[];
-  market: boolean;
-  dashboard: boolean;
-  result: boolean;
-};
-```
-
-这样 UI 不需要全量重算。
-
-说明：
-
-- 当前实现先用 `cases / opportunities / matters` 保持兼容。
-- `customers / owners / districts / marketCells` 是给后续客户页、业主页、商圈雷达和回放系统准备的稳定脏范围。
-- `owners` 现阶段是 owner ref，不是正式 ownerId；等 Owner 实体独立后再迁移。
-
----
-
-## 13. 最后一句
-
-Projection 的价值不是“包装文案”。
-
-它的价值是：
-
-> 在不污染世界真相的前提下，把复杂市场翻译成玩家能做判断的信息。
+1. actor POV 明确。
+2. bounded window 明确。
+3. source / causal refs 非空。
+4. belief / pressure 非空。
+5. 推荐动作有 command refs。
+6. command 后有 receipt refs。
+7. 至少一个 causal ref 能跨 surface 复用。
+8. gate 能证明不是 hidden truth、legacy shortcut、UI fallback。

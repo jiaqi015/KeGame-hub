@@ -1,6 +1,6 @@
 # 项目记忆
 
-最后整理：2026-05-06
+最后整理：2026-05-15
 
 这份记忆放在项目内，作为这个仓库的人类可读入口。它不是原始对话转储，而是把已经稳定下来的项目背景、约束、架构方向和接手路径整理成可持续维护的文档。
 
@@ -56,7 +56,7 @@
   - 前端是 `Vite + React + TypeScript`，本地服务入口是 `server.ts`。
   - `Neon Postgres`、`Vercel Runtime Cache`、`Vercel Blob` 是明确的演进方向，但允许本地文件/内存回退。
 - 当前主战场：
-  - 项目重点已经扩展到“资产顾问母模型迁移 + Daily Decision Bridge + 语义合同/receipt/只读投影收口”。
+  - 项目重点已经扩展到“资产顾问 Big World / mother-model + source → causal → actor knowledge → decision → receipt → replay 主链收口”。
   - 开放日模块是当前完成度最高、最稳的一条业务线。
 - 协作约定：
   - 关键背景优先沉淀在仓库内文档。
@@ -80,7 +80,6 @@
 - [卖房总纲](docs/selling-houses-master.md)
 - [卖房业务事实总表](docs/selling-houses-business-facts.md)
 - [母模型迁移工作板](docs/selling-houses-mother-model-agent-workplan.md)
-- [历史：并行开发总控计划](docs/dev-session-selling-houses-2026-04-19.md)
 
 ## 私有记忆映射
 

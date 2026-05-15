@@ -653,7 +653,7 @@ function buildStrategicMarketRadar(
 
 /**
  * Actor-visible customer window: only customers in cells the actor operates in.
- * For five-x (22000+ customers): bounded to actor-visible cells + max 200 sample.
+ * For five-x (21000+ demand units): bounded to actor-visible cells + max 200 sample.
  */
 function buildActorVisibleCustomerWindow(
   state: GameState,

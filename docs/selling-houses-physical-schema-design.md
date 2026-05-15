@@ -737,10 +737,10 @@ game_runs.run_id
 
 1. [平台账号、玩家、局、得分、总分数据架构](./platform-account-player-run-score-architecture.md)
    定义账号层、玩家层、局层、结果层、榜单层的逻辑边界。
-2. [卖房领域架构 v1](./selling-houses-domain-architecture-v1.md)
+2. [卖房领域架构合同](./selling-houses-domain-architecture-v1.md)
    定义世界里的对象边界、模型边界和持久化边界。
-3. [卖房后端与持久化下一步](./selling-houses-backend-next-steps.md)
-   定义哪部分适合下一轮单独开题。
+3. [全局持久化与 DBA 统一设计](./global-persistence-dba-unified-design.md)
+   定义跨模块持久化治理、扩表节奏和 DBA 边界。
 
 它不替代领域模型文档，也不替代实现计划。
 

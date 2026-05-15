@@ -332,21 +332,11 @@ flowchart LR
 说明：
 它不是 DDD 教科书，但非常适合学习“分析产品”的产品化思路：数据连接、查询、缓存、结果展示、嵌入式分析。
 
-## 下一步建议
+## 当前演进顺序
 
-### Phase 1
+旧 Phase 迁移说明已经清理，当前只保留稳定方向：
 
-- 把“小区开放日选址”前端从 raw JS 继续迁到 React feature module
-- 让前端改为读取后端返回的配置与 preset catalog
-
-### Phase 2
-
-- 增加 Postgres repositories
-- 增加 Redis cache adapter
-- 保存 analysis snapshots
-
-### Phase 3
-
-- 增加异步任务层
-- 增加历史回放和对比
-- 把 DuckDB 加入批量分析链路
+1. 前端继续通过 feature module 消费领域服务，不回到页面脚本。
+2. Postgres / Runtime Cache / Blob 作为持久化与缓存适配层，接口由 application service 收口。
+3. 历史回放、方案版本、dataset profile、批量重算统一按 `analysis_run` 和 dataset 身份链治理。
+4. DuckDB 只作为未来批量分析链路，不进入在线请求核心真相。

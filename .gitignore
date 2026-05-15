@@ -15,3 +15,7 @@ skills/
 .env*.local
 test-results/
 playwright-report/
+
+# Generated verification/browser artifacts. Keep outputs reproducible, not tracked.
+artifacts/*
+!artifacts/.gitkeep

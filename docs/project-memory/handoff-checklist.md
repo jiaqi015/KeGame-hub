@@ -1,6 +1,6 @@
 # 接手清单
 
-最后整理：2026-05-06
+最后整理：2026-05-15
 
 这份清单只讲“重新接手时先做什么”，不重复解释长期规则和项目背景。
 
@@ -34,17 +34,15 @@
 
 1. `docs/open-day-ddd-architecture.md`
 2. `docs/open-day-persistence-evolution-plan.md`
-3. `docs/open-day-phase1-analysis-run-migration.md`
-4. `docs/open-day-phase2-scenario-versioning.md`
-5. `docs/open-day-phase3-dataset-profile.md`
-6. `modules/open-day/`
-7. `src/open-day/`
+3. `docs/open-day-dba-sop.md`
+4. `modules/open-day/`
+5. `src/open-day/`
 
 ### 如果要继续做资产顾问
 
 先确认当前目标更偏哪一侧：
 
-- 母模型迁移 / Daily Decision Bridge
+- Big World / mother-model 主链
 - 玩法结构
 - 剧本生成
 - 云同步
@@ -69,12 +67,10 @@
 14. `docs/selling-houses-competition-and-cosale-architecture.md`
 15. `docs/selling-houses-matter-template-architecture.md`
 16. `docs/selling-houses-projection-architecture.md`
-17. `docs/selling-houses-interface-detail-design.md`
-18. `docs/selling-houses-organization-acn-model.md`
-19. `docs/selling-houses-daily-tick-design.md`
-20. `docs/selling-houses-architecture-diagrams.md`
-21. `src/selling-houses/domain/`
-22. `src/selling-houses/ui/features/`
+17. `docs/selling-houses-organization-acn-model.md`
+18. `docs/selling-houses-daily-tick-design.md`
+19. `src/selling-houses/domain/`
+20. `src/selling-houses/ui/features/`
 
 ### 如果要继续做统一入口
 

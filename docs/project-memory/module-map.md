@@ -1,6 +1,6 @@
 # 模块地图
 
-最后整理：2026-05-06
+最后整理：2026-05-15
 
 这份文件只回答一个问题：要改某块功能，第一站该去哪里看。
 
@@ -19,7 +19,7 @@
   - `docs/global-persistence-dba-unified-design.md`
     - 全局持久化与 DBA 统一设计总纲。
   - `docs/selling-houses-mother-model-agent-workplan.md`
-    - 资产顾问母模型迁移、Daily Decision Bridge、A/B/C/D 任务和验收口径的当前总控。
+    - 资产顾问 Big World / mother-model 主链、Five-X 规模合同和验收口径的当前总控。
 - `server.ts`
   - 本地开发服务入口，承接前端开发服务和本地 API。
 
@@ -112,12 +112,6 @@
   - 开放日领域设计总说明。
 - `docs/open-day-persistence-evolution-plan.md`
   - 持久化总体演进方向。
-- `docs/open-day-phase1-analysis-run-migration.md`
-  - Analysis Run 迁移。
-- `docs/open-day-phase2-scenario-versioning.md`
-  - 方案版本化迁移。
-- `docs/open-day-phase3-dataset-profile.md`
-  - dataset profile 阶段演进。
 - `docs/open-day-dba-sop.md`
   - DBA 视角的治理与工作 SOP。
 
@@ -210,15 +204,13 @@
 ### 核心文档
 
 - `docs/selling-houses-master.md`
-  - 卖房总纲与旧文档处置锚点。
+  - 卖房 Big World 当前架构总纲。
 - `docs/selling-houses-mother-model-agent-workplan.md`
-  - 当前母模型迁移工作板。A/B/C/D 提示词、Daily Decision Bridge 轮次、gate、报告和 P1/P2 清单以这里为准。
+  - 当前母模型迁移工作板。Five-X scale、runtime、causal、actor knowledge、decision、receipt、replay 和 gate 口径以这里为准。
 - `docs/selling-houses-total-design.md`
   - 卖房总设计稿，把业务、世界模型、引擎、页面、结算和落地闭环收成一份可读总说明。
 - `docs/selling-houses-domain-architecture-v1.md`
   - 当前领域架构正文。
-- `docs/selling-houses-architecture-diagrams.md`
-  - 总体架构图、ER 图和关键边界。
 - `docs/selling-houses-organization-acn-model.md`
   - 品牌、ACN、门店、商圈经理、联卖、客户私有等组织层设计。
 - `docs/selling-houses-business-facts.md`
@@ -248,9 +240,7 @@
 - `docs/selling-houses-daily-tick-design.md`
   - 日内 / 日结运行蓝图。
 - `docs/selling-houses-information-architecture.md`
-  - 页面信息架构与底层对象映射。
-- `docs/selling-houses-interface-detail-design.md`
-  - 界面信息架构详细设计，定义工作台布局、层级钻取、详情页、新闻、事件与流水日志。
+  - 产品面如何消费 Big World、bounded window 和 explanation envelope。
 - `docs/selling-houses-projection-architecture.md`
   - Projection 投影体系，定义经营概览、房源详情、市场、复盘、结果、排行榜如何从世界事实派生。
 - `docs/selling-houses-interaction-campaign-event-architecture.md`

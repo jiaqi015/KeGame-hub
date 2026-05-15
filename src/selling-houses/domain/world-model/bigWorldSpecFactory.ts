@@ -204,7 +204,7 @@ function buildDefaultScalePolicy(
       customerCaseRatio: 12,
     },
     // ── five-x-scale: 五倍城市级预设世界 ──
-    // Round 19: 4000+ listings, 2500+ owners, 22000+ demand, 750+ brokers, 100+ cells
+    // Round 19: 4000+ listings, 2500+ owners, 21000+ demand, 750+ brokers, 100+ cells
     // 四层实体分层：materialized core / active cohort / shadow aggregate / cold ledger
     // 城市级 ACN 网络（32-40），每 cell 有 micro cells + supporting info
     fiveXScale: {
