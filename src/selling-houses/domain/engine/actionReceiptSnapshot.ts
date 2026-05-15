@@ -32,6 +32,16 @@ export interface ActionReceiptSnapshot {
   readonly beforeOpportunityCount: number;
   readonly afterEventStoreLength: number;
   readonly afterOpportunityCount: number;
+  /** After-action trust (for fieldDelta computation in runtime wiring). */
+  readonly afterTrust: number;
+  /** After-action patience. */
+  readonly afterPatience: number;
+  /** After-action urgency. */
+  readonly afterUrgency: number;
+  /** After-action heat. */
+  readonly afterHeat: number;
+  /** After-action competitiveness. */
+  readonly afterCompetitiveness: number;
 }
 
 export function captureActionReceiptSnapshot(
@@ -46,6 +56,11 @@ export function captureActionReceiptSnapshot(
   outcomeSummary: string,
   beforeEventStoreLength: number,
   beforeOpportunityCount: number,
+  beforeTrust?: number,
+  beforePatience?: number,
+  beforeUrgency?: number,
+  beforeHeat?: number,
+  beforeCompetitiveness?: number,
 ): ActionReceiptSnapshot {
   return Object.freeze({
     day: state.day,
@@ -57,11 +72,11 @@ export function captureActionReceiptSnapshot(
     costEnergy,
     costPromotionBudget,
     outcomeSummary,
-    beforeTrust: caseItem.trust,
-    beforePatience: caseItem.patience,
-    beforeUrgency: caseItem.urgency,
-    beforeHeat: caseItem.heat,
-    beforeCompetitiveness: caseItem.competitiveness,
+    beforeTrust: beforeTrust ?? caseItem.trust,
+    beforePatience: beforePatience ?? caseItem.patience,
+    beforeUrgency: beforeUrgency ?? caseItem.urgency,
+    beforeHeat: beforeHeat ?? caseItem.heat,
+    beforeCompetitiveness: beforeCompetitiveness ?? caseItem.competitiveness,
     beforeD1: caseItem.d1,
     beforeWindowDays: caseItem.windowDays,
     beforeEventStoreLength,
@@ -70,5 +85,10 @@ export function captureActionReceiptSnapshot(
     afterOpportunityCount: state.opportunities.filter(
       (o) => o.caseId === caseItem.id && o.status === 'active',
     ).length,
+    afterTrust: caseItem.trust,
+    afterPatience: caseItem.patience,
+    afterUrgency: caseItem.urgency,
+    afterHeat: caseItem.heat,
+    afterCompetitiveness: caseItem.competitiveness,
   });
 }

@@ -955,13 +955,19 @@ export function runBigWorldDayTick(
     causalEventsToAppend: Object.freeze(causalEventsToAppend),
     sourceIngestionReceipt,
     economyReceipt,
+    externalSourceRecords: Object.freeze([...externalSourceRecords]),
     durationUs: tickDurationUs,
   });
 }
 
 /**
  * Extract ActionResourceReceipt entries from a BigWorldTickReceipt.
- * Reads player_action_receipt source records and builds traceable receipt entries.
+ *
+ * Reads from the ORIGINAL source records (not causal event payloads)
+ * because the ingestion adapter transforms player_action_receipt payloads
+ * into BrokerRecommendationChanged payloads, losing actionId/costEnergy/fieldDeltas.
+ *
+ * Source records carry the full action details; causal events carry sourceRecordId linkage.
  */
 function extractActionResourceReceipts(
   receipt: BigWorldTickReceipt,
@@ -969,19 +975,15 @@ function extractActionResourceReceipts(
   const results: import('./types.js').ActionResourceReceipt[] = [];
   const day = receipt.day;
 
-  // Check causal events for player_action_receipt with sourceRecordId
-  for (const event of receipt.causalEventsToAppend) {
-    const eventAny = event as unknown as Record<string, unknown>;
-    const sourceKind = eventAny['sourceKind'] as string | undefined;
-    const sourceRecordId = eventAny['sourceRecordId'] as string | undefined;
-    if (sourceKind !== 'player_action_receipt') continue;
-    if (!sourceRecordId?.startsWith('isr-par-')) continue;
+  // Read from original source records, not causal event payloads
+  const sourceRecords = receipt.externalSourceRecords ?? [];
+  for (const record of sourceRecords) {
+    if (record.sourceKind !== 'player_action_receipt') continue;
+    if (!record.sourceId.startsWith('isr-par-')) continue;
 
-    // Extract action details from the event payload
-    const payload = eventAny['payload'] as Record<string, unknown> | undefined;
-    if (!payload) continue;
+    const payload = record.payload as unknown as Record<string, unknown>;
     const actionId = String(payload['actionId'] ?? 'unknown');
-    const caseId = String(payload['caseId'] ?? (event as { entityIds?: readonly string[] }).entityIds?.[0] ?? 'unknown');
+    const caseId = String(payload['caseId'] ?? record.entityRefs[0]?.id ?? 'unknown');
     const costEnergy = Number(payload['costEnergy'] ?? 0);
     const costPromotionBudget = Number(payload['costPromotionBudget'] ?? 0);
     const rawFieldDeltas = Array.isArray(payload['fieldDeltas']) ? payload['fieldDeltas'] : [];
@@ -1006,7 +1008,7 @@ function extractActionResourceReceipts(
         budgetCost: costPromotionBudget,
         trustDelta,
         patienceDelta,
-        sourceRecordId,
+        sourceRecordId: record.sourceId,
         replayKey: `rk-arr-${day}-${actionId}-${caseId}`,
       });
     }
@@ -1220,9 +1222,11 @@ function sampleActiveCohort(
 
     // Check if any of their active cases map to hot cells
     // Since we don't have case→cell mapping here, use a deterministic heuristic
-    const hash = stableHash(`${runSeed}-${day}-cohort-${customer.customerId}`);
-    if (hash % 100 < 30) {
-      // 30% chance for non-player customers (deterministic)
+    // All non-player customers go through the hot/cold classification
+    // (no 30% sampling — every customer has a chance to be ticked)
+    const hash = stableHash(`${runSeed}-day-${day}-cohort-${customer.customerId}`);
+    if (hash % 100 < 50) {
+      // 50% deterministic split for balanced hot/cold distribution
       hotCellCustomers.push(customer);
     } else {
       coldCellCustomers.push(customer);

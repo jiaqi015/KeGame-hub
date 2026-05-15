@@ -1,7 +1,8 @@
 /**
  * Round 19 — Five-X Runtime Ledger Gate
  *
- * Proves the five-X world runs through real runtime tick chain, with:
+ * Proves the FIVE-X world (100+ cells, 4000+ listings, 21000+ demand)
+ * runs through real runtime tick chain, with:
  *   - Action spend/refund generating source records + causal events
  *   - Owner trust/patience action effects flowing through receipt feedback
  *   - Active cohort scheduler handling large customer populations
@@ -9,31 +10,33 @@
  *   - Replay byte-identical
  *   - No Date.now / Math.random / fetch / LLM provider
  *
- * Maturity: FAILED | MARKET-ECONOMY-BIG | FIVE-X-RUNTIME-LEDGER-BIG
+ * Maturity: FAILED | FIVE-X-RUNTIME-LEDGER-BIG
  *
  * Usage: npx tsx scripts/verify-selling-houses-round19-five-x-runtime-ledger-gate.ts
  */
 
-import {
-  ROUND17_SEED,
-  advanceMarketEconomyWorld,
-  buildMarketEconomyWorld,
-  buildLongHorizonMarketEconomyWorld,
-  bootstrapOf,
-  scaleOf,
-  diversityOf,
-  countEconomySourceRecords,
-  causalEventIds,
-  eventHasSourceKind,
-  sameStringList,
-  uniqueSourceKinds,
-  readSrc,
-} from './verify-selling-houses-round17-market-economy-gate-core.js';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { createInitialState, updateDerivedState } from '../src/selling-houses/application/gameState.js';
 import { advanceDays, executeAction } from '../src/selling-houses/domain/engine.js';
-import { updateDerivedState } from '../src/selling-houses/application/gameState.js';
+import { seedInitialOpportunities } from '../src/selling-houses/domain/engine/opportunityEngine.js';
+import { getScenarioSnapshotById } from '../src/selling-houses/domain/scenarioCatalog.js';
+import {
+  createBigWorldBootstrap,
+  buildScaleManifest,
+  buildDiversityManifest,
+} from '../src/selling-houses/domain/world-model/bigWorldBootstrap.js';
+import { FIVE_X_SCALE_POLICY } from '../src/selling-houses/domain/world-model/bigWorldSpecFactory.js';
 import { buildMarketFormationSummary } from '../src/selling-houses/domain/world-model/marketFormationBootstrap.js';
+import type { GameState } from '../src/selling-houses/domain/models.js';
+import type {
+  BigWorldBootstrap,
+  BigWorldScalePolicy,
+} from '../src/selling-houses/domain/world-model/bigWorldTypes.js';
 import type { SourceKind } from '../src/selling-houses/domain/world-model/informationSourceTypes.js';
 import type { WorldCausalEvent } from '../src/selling-houses/domain/world-model/causalEvents.js';
+
+// ── Gate infrastructure ────────────────────────────────────────
 
 let passed = 0;
 let failed = 0;
@@ -54,39 +57,155 @@ function section(title: string) {
   console.log(`\n━━━ ${title} ━━━`);
 }
 
+function readSrc(rel: string): string {
+  return readFileSync(resolve(import.meta.dirname ?? '.', '..', rel), 'utf-8');
+}
+
+// ── Five-X Scale Policy (imported from single source of truth) ────
+
+const FIVE_X_SEED = 20260701;
+
+// ── Five-X World Builder ───────────────────────────────────────
+
+function buildFiveXWorld(seed: number = FIVE_X_SEED): GameState {
+  const snapshot = getScenarioSnapshotById('standard-window-chain');
+  if (!snapshot) throw new Error('standard-window-chain scenario missing');
+  const state = createInitialState(snapshot, seed);
+  const bootstrap = createBigWorldBootstrap({
+    seed,
+    scenarioName: snapshot.scenario.name,
+    difficultyId: snapshot.scenario.difficultyId,
+    playerCaseCount: snapshot.scenario.cases.length,
+    scaleOverride: FIVE_X_SCALE_POLICY,
+  });
+  (state.runContext as { bigWorldBootstrap?: BigWorldBootstrap }).bigWorldBootstrap = bootstrap;
+  seedInitialOpportunities(state);
+  return state;
+}
+
+function buildLongHorizonFiveXWorld(seed: number = FIVE_X_SEED): GameState {
+  const state = buildFiveXWorld(seed);
+  state.maxDay = 120;
+  state.rules.maxDay = 120;
+  state.rules.outcomeControl.simulationDays = 120;
+  state.rules.outcomeControl.marketDealCapacity21d = 0;
+  state.rules.outcomeControl.rivalCaseLossScale = 0;
+  state.rules.rivalLossProbabilityScale = 0;
+  for (const caseItem of state.cases) {
+    caseItem.status = 'active';
+    caseItem.windowDays = 120;
+    caseItem.trust = Math.max(caseItem.trust, 88);
+    caseItem.patience = Math.max(caseItem.patience, 88);
+    caseItem.urgency = Math.min(caseItem.urgency, 35);
+    caseItem.heat = Math.max(caseItem.heat, 55);
+    caseItem.competitiveness = Math.max(caseItem.competitiveness, 65);
+  }
+  return state;
+}
+
+function advanceFiveXWorld(days: number, seed: number = FIVE_X_SEED): GameState {
+  const state = buildLongHorizonFiveXWorld(seed);
+  advanceDays(state, days);
+  updateDerivedState(state);
+  return state;
+}
+
+function bootstrapOf(state: GameState): BigWorldBootstrap {
+  const bootstrap = state.runContext.bigWorldBootstrap as BigWorldBootstrap | undefined;
+  if (!bootstrap) throw new Error('bigWorldBootstrap missing');
+  return bootstrap;
+}
+
+function scaleOf(state: GameState) {
+  return buildScaleManifest(bootstrapOf(state));
+}
+
+function diversityOf(state: GameState) {
+  return buildDiversityManifest(bootstrapOf(state));
+}
+
+function causalEventIds(state: GameState): readonly string[] {
+  return (state.worldCausalEvents ?? []).map((event) => event.id).sort();
+}
+
+function sameStringList(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((item, index) => item === right[index]);
+}
+
+function uniqueSourceKinds(events: readonly WorldCausalEvent[]): Set<SourceKind> {
+  const sourceKinds = new Set<SourceKind>();
+  for (const event of events) {
+    const eventRecord = event as WorldCausalEvent & {
+      readonly sourceKind?: SourceKind;
+      readonly sourceKinds?: readonly SourceKind[];
+    };
+    if (eventRecord.sourceKind) sourceKinds.add(eventRecord.sourceKind);
+    for (const sourceKind of eventRecord.sourceKinds ?? []) {
+      sourceKinds.add(sourceKind);
+    }
+  }
+  return sourceKinds;
+}
+
+function countEconomySourceRecords(events: readonly WorldCausalEvent[]): number {
+  return events.filter((event) => {
+    const eventRecord = event as WorldCausalEvent & {
+      readonly sourceRecordId?: string;
+      readonly sourceRecordIds?: readonly string[];
+    };
+    return eventRecord.sourceRecordId?.startsWith('isr-eco-')
+      || eventRecord.sourceRecordIds?.some((id) => id.startsWith('isr-eco-'));
+  }).length;
+}
+
+// ── Header ─────────────────────────────────────────────────────
+
 console.log('╔══════════════════════════════════════════════════════════════════╗');
 console.log('║  Round 19 — Five-X Runtime Ledger Gate                          ║');
-console.log('║  Proves: real runtime tick, action receipts, owner effects,      ║');
-console.log('║          cohort scheduler, resource ledger growth, replay        ║');
+console.log('║  Proves: real FIVE-X world runs through runtime tick chain      ║');
+console.log('║  Scale: 100+ cells, 4000+ listings, 21000+ demand, 750+ brokers ║');
 console.log('╚══════════════════════════════════════════════════════════════════╝');
 
 // ═══════════════════════════════════════════════════════════════
-// 1. SCALE — five-X world bootstrap
+// 1. FIVE-X SCALE — must be real five-x, not 24-cell
 // ═══════════════════════════════════════════════════════════════
-section('1. SCALE — five-X world bootstrap');
-const baseState = buildMarketEconomyWorld(ROUND17_SEED);
+section('1. FIVE-X SCALE — city-level thresholds');
+const baseState = buildFiveXWorld(FIVE_X_SEED);
 const bootstrap = bootstrapOf(baseState);
 const scale = scaleOf(baseState);
 const diversity = diversityOf(baseState);
 const formationSummary = buildMarketFormationSummary(bootstrap.hiddenTruth.marketFormation);
 const economy = formationSummary.economy;
 
-check(scale.totalListings >= 800, `listings >= 800 (${scale.totalListings})`);
-check(scale.totalOwners >= 500, `owners >= 500 (${scale.totalOwners})`);
-check(scale.totalCustomers >= 3000, `customers >= 3000 (${scale.totalCustomers})`);
-check(scale.totalBrokers >= 150, `brokers >= 150 (${scale.totalBrokers})`);
-check(scale.marketCells >= 24, `market cells >= 24 (${scale.marketCells})`);
-check(economy.brokerPoolCount >= 150, `broker pools >= 150 (${economy.brokerPoolCount})`);
-check(economy.customerPoolCount >= 1000, `customer pools >= 1000 (${economy.customerPoolCount})`);
+console.log(`  Scale: ${scale.totalListings} listings, ${scale.totalOwners} owners, ${scale.totalCustomers} demand, ${scale.totalBrokers} brokers, ${scale.marketCells} cells`);
+
+check(scale.marketCells >= 100, `market cells >= 100 (${scale.marketCells})`);
+check(scale.totalListings >= 4000, `listings >= 4000 (${scale.totalListings})`);
+check(scale.totalOwners >= 2500, `owners >= 2500 (${scale.totalOwners})`);
+check(scale.totalCustomers >= 21000, `customers >= 21000 (${scale.totalCustomers})`);
+check(scale.totalBrokers >= 750, `brokers >= 750 (${scale.totalBrokers})`);
+check(scale.acnNetworks >= 32, `ACN >= 32 (${scale.acnNetworks})`);
+
+// Scale contract metadata
+check(scale.scaleProfileId === 'five-x-city-level-v1', `scale profile is five-x (${scale.scaleProfileId})`);
+check(scale.scaleContractVersion >= 2, `scale contract version >= 2 (${scale.scaleContractVersion})`);
+check(scale.isFiveXScale, 'isFiveXScale = true (all five-x thresholds met)');
+
+// Output actual counts for audit trail
+const counts5x = scale.actualFiveXCounts;
+console.log(`\n  📊 Actual Five-X Counts:`);
+console.log(`     cells=${counts5x.marketCells}, acn=${counts5x.acnNetworks}, brokers=${counts5x.brokers}`);
+console.log(`     listings=${counts5x.listings}, owners=${counts5x.owners}, customers=${counts5x.customers}`);
+console.log(`     customerPools=${counts5x.customerPools}, brokerPools=${counts5x.brokerPools}, orgPools=${counts5x.orgPools}`);
 
 // ═══════════════════════════════════════════════════════════════
-// 2. REAL TICK CHAIN — advanceDays → runBigWorldDayTick
+// 2. REAL TICK CHAIN — advanceDays → runBigWorldDayTick on FIVE-X
 // ═══════════════════════════════════════════════════════════════
-section('2. REAL TICK CHAIN — advanceDays → runBigWorldDayTick');
-const state7 = advanceMarketEconomyWorld(7, ROUND17_SEED);
-const state14 = advanceMarketEconomyWorld(14, ROUND17_SEED);
-const state30 = advanceMarketEconomyWorld(30, ROUND17_SEED);
-const state60 = advanceMarketEconomyWorld(60, ROUND17_SEED);
+section('2. REAL TICK CHAIN — five-x world advanceDays');
+const state7 = advanceFiveXWorld(7, FIVE_X_SEED);
+const state14 = advanceFiveXWorld(14, FIVE_X_SEED);
+const state30 = advanceFiveXWorld(30, FIVE_X_SEED);
+const state60 = advanceFiveXWorld(60, FIVE_X_SEED);
 
 check((state7.bigWorldRuntime?.tickCount ?? 0) >= 7, `7-day tickCount >= 7 (${state7.bigWorldRuntime?.tickCount ?? 0})`);
 check((state14.bigWorldRuntime?.tickCount ?? 0) >= 14, `14-day tickCount >= 14 (${state14.bigWorldRuntime?.tickCount ?? 0})`);
@@ -101,7 +220,7 @@ const events60 = state60.worldCausalEvents?.length ?? 0;
 check(events14 > events7, `causal events grow 7→14 (${events7}→${events14})`);
 check(events30 > events14, `causal events grow 14→30 (${events14}→${events30})`);
 check(events60 > events30, `causal events grow 30→60 (${events30}→${events60})`);
-check(!state60.gameOver, '60-day world still live');
+check(!state60.gameOver, '60-day five-x world still live');
 
 // ═══════════════════════════════════════════════════════════════
 // 3. ECONOMY SOURCE RECORDS — isr-eco-* in causal ledger
@@ -118,22 +237,18 @@ check(ledger30 > ledger14, `economy entries grow 14→30 (${ledger14}→${ledger
 check(ledger60 > ledger30, `economy entries grow 30→60 (${ledger30}→${ledger60})`);
 
 // ═══════════════════════════════════════════════════════════════
-// 4. ACTION RESOURCE RECEIPTS — isr-ar-* and isr-par-* from real player actions
+// 4. ACTION RESOURCE RECEIPTS — real player actions on five-x world
 // ═══════════════════════════════════════════════════════════════
-section('4. ACTION RESOURCE RECEIPTS — spend/refund + trust/patience from real actions');
+section('4. ACTION RESOURCE RECEIPTS — spend/refund + trust/patience');
 
-// Create a state with real player actions executed
-const actionState = buildLongHorizonMarketEconomyWorld(ROUND17_SEED);
-// Advance a few days to build up opportunities and case phases
+const actionState = buildLongHorizonFiveXWorld(FIVE_X_SEED);
 advanceDays(actionState, 5);
 updateDerivedState(actionState);
 
-// Find an active case
 const activeCase = actionState.cases.find((c) => c.status === 'active');
 let actionsExecuted = 0;
 let actionsAttempted = 0;
 if (activeCase) {
-  // Try multiple actions — some may be blocked by phase/stage constraints
   const actionIds = ['first-visit', 'weekly-feedback', 'story', 'xiaohongshu-boost', 'broker-broadcast'];
   for (const actionId of actionIds) {
     actionsAttempted += 1;
@@ -142,14 +257,12 @@ if (activeCase) {
   }
 }
 
-// Advance one more day to ingest the action receipts into the tick
 advanceDays(actionState, 1);
 updateDerivedState(actionState);
 
-// Now check that action receipts flowed into causal events
 const actionCausalEvents = actionState.worldCausalEvents ?? [];
 
-// Count action resource source records (isr-ar-*) — only generated for actions with costPromotionBudget > 0
+// isr-ar-* records (budget spend/refund)
 const arRecords = actionCausalEvents.filter((event) => {
   const eventRecord = event as WorldCausalEvent & {
     readonly sourceRecordId?: string;
@@ -159,7 +272,7 @@ const arRecords = actionCausalEvents.filter((event) => {
     || eventRecord.sourceRecordIds?.some((id) => id.startsWith('isr-ar-'));
 }).length;
 
-// Count player action receipt records (isr-par-*)
+// isr-par-* records (player action receipts)
 const parRecords = actionCausalEvents.filter((event) => {
   const eventRecord = event as WorldCausalEvent & {
     readonly sourceRecordId?: string;
@@ -171,31 +284,24 @@ const parRecords = actionCausalEvents.filter((event) => {
 
 check(actionsExecuted > 0, `player actions executed (${actionsExecuted}/${actionsAttempted})`);
 check(parRecords > 0, `player action receipts (isr-par-*) in causal ledger (${parRecords})`);
+check(arRecords > 0, `action resource records (isr-ar-*) in causal ledger (${arRecords})`);
 
-// isr-ar-* records are only generated when costPromotionBudget > 0
-// If no budget-costing actions succeeded, this check is skipped (not a false positive)
+// isr-ar-* linkage
 if (arRecords > 0) {
-  console.log(`  ✅ action resource records (isr-ar-*) in causal ledger (${arRecords})`);
-  passed += 1;
-  // Check that isr-ar-* records have sourceRecordId linkage
   const arEventsLinked = actionCausalEvents.filter((event) => {
     const eventRecord = event as WorldCausalEvent & { readonly sourceRecordId?: string };
     return eventRecord.sourceRecordId?.startsWith('isr-ar-');
   });
-  console.log(`  ✅ isr-ar-* causal events have sourceRecordId linkage (${arEventsLinked.length})`);
-  passed += 1;
-} else {
-  console.log('  ⚠ isr-ar-* records: 0 (no budget-costing actions succeeded — expected if case phase/stage blocks them)');
+  check(arEventsLinked.length > 0, `isr-ar-* causal events have sourceRecordId linkage (${arEventsLinked.length})`);
 }
 
-// Check that player action receipts have sourceRecordId linkage
+// isr-par-* linkage
 const parEventsLinked = actionCausalEvents.filter((event) => {
   const eventRecord = event as WorldCausalEvent & { readonly sourceRecordId?: string };
   return eventRecord.sourceRecordId?.startsWith('isr-par-');
 });
 check(parEventsLinked.length > 0, `isr-par-* causal events have sourceRecordId linkage (${parEventsLinked.length})`);
 
-// Check that isr-par-* events are BrokerRecommendationChanged (success path)
 const parBrokerEvents = parEventsLinked.filter((e) => e.kind === 'BrokerRecommendationChanged');
 check(parBrokerEvents.length > 0, `isr-par-* → BrokerRecommendationChanged events (${parBrokerEvents.length})`);
 
@@ -217,38 +323,43 @@ for (const kind of requiredKinds) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// 6. OWNER TRUST/PATIENCE — action effects in causal events
+// 6. OWNER TRUST/PATIENCE — real action path, not seeded fallback
 // ═══════════════════════════════════════════════════════════════
-section('6. OWNER TRUST/PATIENCE — action effects in causal events');
-const events30List = state30.worldCausalEvents ?? [];
+section('6. OWNER TRUST/PATIENCE — real action path proof');
 
-// Check autonomous world owner_life_event_signal events
+// autonomous world: owner_life_event_signal events exist
+const events30List = state30.worldCausalEvents ?? [];
 const ownerLifeEvents = events30List.filter((e) => {
   const eventRecord = e as WorldCausalEvent & { readonly sourceKind?: string };
   return eventRecord.sourceKind === 'owner_life_event_signal';
 });
 check(ownerLifeEvents.length > 0, `owner life event signals in autonomous world (${ownerLifeEvents.length})`);
 
-// Check action state for trust/patience changes from player actions
+// action world: owner_life_event_signal events exist
 const actionOwnerEvents = (actionState.worldCausalEvents ?? []).filter((e) => {
   const eventRecord = e as WorldCausalEvent & { readonly sourceKind?: string };
   return eventRecord.sourceKind === 'owner_life_event_signal';
 });
 check(actionOwnerEvents.length > 0, `owner life event signals in action world (${actionOwnerEvents.length})`);
 
-// Verify source record linkage on action-driven owner events
-const actionOwnerLinked = actionOwnerEvents.filter((e) => {
-  const eventRecord = e as WorldCausalEvent & { readonly sourceRecordId?: string };
-  return eventRecord.sourceRecordId !== undefined && eventRecord.sourceRecordId.length > 0;
-});
-check(actionOwnerLinked.length > 0, `owner events with sourceRecordId linkage (${actionOwnerLinked.length})`);
+// Verify source code: computeDailyResourceSnapshot reads fieldDeltas from player_action_receipt
+const runtimeSrc = readSrc('src/selling-houses/domain/world-model/runtime/marketEconomyRuntime.ts');
+const fieldDeltasSrcCheck = runtimeSrc.includes('fieldDeltas') && runtimeSrc.includes('player_action_receipt');
+check(fieldDeltasSrcCheck, 'computeDailyResourceSnapshot reads fieldDeltas from player_action_receipt');
 
-// Verify the action receipt pipeline: isr-par-* → BrokerRecommendationChanged with source link
-const parLinked = (actionState.worldCausalEvents ?? []).filter((e) => {
-  const eventRecord = e as WorldCausalEvent & { readonly sourceRecordId?: string };
-  return eventRecord.sourceRecordId?.startsWith('isr-par-');
-});
-check(parLinked.length > 0, `player action receipt → causal event linkage verified (${parLinked.length})`);
+// Verify source code: actionResolvers captures beforeTrust/beforePatience for delta computation
+const actionResolversSrc = readSrc('src/selling-houses/domain/engine/actionResolvers.ts');
+check(actionResolversSrc.includes('beforeTrust'), 'actionResolvers captures beforeTrust for delta computation');
+check(actionResolversSrc.includes('fieldDeltas'), 'actionResolvers builds fieldDeltas for trust/patience/urgency');
+
+// Verify source code: seeded fallback is ONLY for autonomous background (no player receipts)
+// The code should check: realTrustNet !== 0 ? realTrustNet : seededInt(...)
+// This means seeded is only used when no real receipts exist
+const usesSeededFallbackCorrectly = runtimeSrc.includes('realTrustNet !== 0 ? realTrustNet : seededInt');
+check(usesSeededFallbackCorrectly, 'seeded trust fallback only used when no real player receipts exist');
+
+const usesSeededPatienceFallbackCorrectly = runtimeSrc.includes('realPatienceNet !== 0 ? realPatienceNet : seededInt');
+check(usesSeededPatienceFallbackCorrectly, 'seeded patience fallback only used when no real player receipts exist');
 
 // ═══════════════════════════════════════════════════════════════
 // 7. MANAGER INTERVENTION — focus meeting + resource allocation
@@ -261,17 +372,15 @@ const managerEvents = events30List.filter((e) => {
 check(managerEvents.length > 0, `manager message events exist (${managerEvents.length})`);
 
 // ═══════════════════════════════════════════════════════════════
-// 8. RESOURCE LEDGER PERSISTENCE — BigWorldRuntimeState.economicResourceLedger
+// 8. RESOURCE LEDGER PERSISTENCE — BigWorldRuntimeState
 // ═══════════════════════════════════════════════════════════════
-section('8. RESOURCE LEDGER PERSISTENCE — ledger in runtime state');
+section('8. RESOURCE LEDGER PERSISTENCE — runtime state');
 const ledger30Runtime = state30.bigWorldRuntime?.economicResourceLedger ?? [];
 check(ledger30Runtime.length > 0, `economicResourceLedger has entries (${ledger30Runtime.length})`);
 
-// Ledger entries should grow with tick count
 const ledger60Runtime = state60.bigWorldRuntime?.economicResourceLedger ?? [];
 check(ledger60Runtime.length >= ledger30Runtime.length, `ledger grows 30→60 (${ledger30Runtime.length}→${ledger60Runtime.length})`);
 
-// Check ledger entry structure
 if (ledger30Runtime.length > 0) {
   const entry = ledger30Runtime[0];
   check(typeof entry.day === 'number', 'ledger entry has day');
@@ -282,29 +391,32 @@ if (ledger30Runtime.length > 0) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// 9. ACTION RESOURCE RECEIPTS PERSISTENCE — in runtime state
+// 9. ACTION RESOURCE RECEIPTS — must be > 0 when actions executed
 // ═══════════════════════════════════════════════════════════════
-section('9. ACTION RESOURCE RECEIPTS — traceable balance entries in runtime');
+section('9. ACTION RESOURCE RECEIPTS — traceable entries in runtime');
 const actionReceipts30 = state30.bigWorldRuntime?.actionResourceReceipts ?? [];
-check(actionReceipts30.length >= 0, `actionResourceReceipts field exists (${actionReceipts30.length})`);
 
-// If there are action receipts, check their structure
-if (actionReceipts30.length > 0) {
-  const receipt = actionReceipts30[0];
+// autonomous tick may not produce action receipts (no player actions)
+// but the action state MUST have them
+const actionReceiptsAction = actionState.bigWorldRuntime?.actionResourceReceipts ?? [];
+check(actionReceiptsAction.length > 0, `actionResourceReceipts > 0 when player actions executed (${actionReceiptsAction.length})`);
+
+if (actionReceiptsAction.length > 0) {
+  const receipt = actionReceiptsAction[0];
   check(typeof receipt.day === 'number', 'action receipt has day');
   check(typeof receipt.actionId === 'string', 'action receipt has actionId');
   check(typeof receipt.caseId === 'string', 'action receipt has caseId');
   check(typeof receipt.sourceRecordId === 'string', 'action receipt has sourceRecordId');
+  check(receipt.sourceRecordId.length > 0, 'action receipt sourceRecordId is non-empty');
   check(typeof receipt.replayKey === 'string', 'action receipt has replayKey');
+  check(receipt.energyCost > 0 || receipt.budgetCost > 0 || receipt.trustDelta !== 0 || receipt.patienceDelta !== 0,
+    `action receipt has real resource impact (energy=${receipt.energyCost} budget=${receipt.budgetCost} trust=${receipt.trustDelta} patience=${receipt.patienceDelta})`);
 }
 
 // ═══════════════════════════════════════════════════════════════
-// 10. ACTIVE COHORT SCHEDULER — customer sampling works
+// 10. ACTIVE COHORT SCHEDULER — handles 21000+ customers
 // ═══════════════════════════════════════════════════════════════
 section('10. ACTIVE COHORT SCHEDULER — customer sampling at scale');
-// The five-X world has 4746+ customers. The cohort scheduler should handle this
-// without processing all of them. We verify by checking that the tick count
-// reached 60 (meaning it didn't hang) and causal events grew.
 check((state60.bigWorldRuntime?.tickCount ?? 0) >= 60, `cohort scheduler handled 60 ticks without hanging`);
 check(events60 > events30, `cohort scheduler produced growing events (${events30}→${events60})`);
 
@@ -312,12 +424,11 @@ check(events60 > events30, `cohort scheduler produced growing events (${events30
 // 11. REPLAY — byte-identical
 // ═══════════════════════════════════════════════════════════════
 section('11. REPLAY — byte-identical');
-const replayA = advanceMarketEconomyWorld(30, ROUND17_SEED);
-const replayB = advanceMarketEconomyWorld(30, ROUND17_SEED);
+const replayA = advanceFiveXWorld(30, FIVE_X_SEED);
+const replayB = advanceFiveXWorld(30, FIVE_X_SEED);
 check(sameStringList(causalEventIds(replayA), causalEventIds(replayB)), 'same seed → byte-identical 30-day causal event IDs');
 
-// Check economy ledger replay
-function economyEventIds(state: ReturnType<typeof advanceMarketEconomyWorld>): readonly string[] {
+function economyEventIds(state: GameState): readonly string[] {
   return (state.worldCausalEvents ?? [])
     .filter((event) => {
       const eventRecord = event as WorldCausalEvent & { readonly sourceRecordId?: string };
@@ -331,7 +442,6 @@ check(
   'same seed → byte-identical economy ledger event IDs',
 );
 
-// Check runtime ledger replay
 const ledgerA = replayA.bigWorldRuntime?.economicResourceLedger ?? [];
 const ledgerB = replayB.bigWorldRuntime?.economicResourceLedger ?? [];
 check(ledgerA.length === ledgerB.length, `same seed → same ledger length (${ledgerA.length})`);
@@ -343,11 +453,9 @@ if (ledgerA.length > 0 && ledgerB.length > 0) {
 // 12. SOURCE CODE BOUNDARIES — no hidden truth, no fake randomness
 // ═══════════════════════════════════════════════════════════════
 section('12. SOURCE CODE BOUNDARIES');
-const runtimeSrc = readSrc('src/selling-houses/domain/world-model/runtime/marketEconomyRuntime.ts');
 const receiptWiringSrc = readSrc('src/selling-houses/domain/world-model/runtime/economicReceiptWiring.ts');
 const actionAccountingSrc = readSrc('src/selling-houses/domain/engine/actionResourceAccounting.ts');
 const clockSrc = readSrc('src/selling-houses/domain/world-model/runtime/clock.ts');
-const actionResolversSrc = readSrc('src/selling-houses/domain/engine/actionResolvers.ts');
 
 check(!/\bMath\.random\s*\(/.test(runtimeSrc), 'marketEconomyRuntime no Math.random');
 check(!/\bDate\.now\s*\(/.test(runtimeSrc), 'marketEconomyRuntime no Date.now');
@@ -359,12 +467,11 @@ check(!/\bDate\.now\s*\(/.test(actionAccountingSrc), 'actionResourceAccounting n
 check(!/\bMath\.random\s*\(/.test(clockSrc), 'clock no Math.random');
 check(!/\bDate\.now\s*\(/.test(clockSrc), 'clock no Date.now');
 
-// Source code pipeline verification
 check(actionAccountingSrc.includes('isr-ar-'), 'actionResourceAccounting emits isr-ar-* source records');
-check(actionResolversSrc.includes('fieldDeltas'), 'actionResolvers builds fieldDeltas for trust/patience/urgency');
-check(actionResolversSrc.includes('beforeTrust'), 'actionResolvers captures beforeTrust for delta computation');
+check(actionResolversSrc.includes('fieldDeltas'), 'actionResolvers builds fieldDeltas');
+check(actionResolversSrc.includes('beforeTrust'), 'actionResolvers captures beforeTrust');
 check(runtimeSrc.includes('player_action_receipt'), 'marketEconomyRuntime consumes player_action_receipt');
-check(runtimeSrc.includes('fieldDeltas'), 'marketEconomyRuntime reads fieldDeltas from action receipts');
+check(runtimeSrc.includes('fieldDeltas'), 'marketEconomyRuntime reads fieldDeltas');
 
 // ═══════════════════════════════════════════════════════════════
 // 13. SELF-AUDIT — no soft pass patterns
@@ -378,12 +485,15 @@ const gateSrcNoComments = gateSrcCore
   .replace(/\/\*[\s\S]*?\*\//g, '');
 check(!gateSrcNoComments.includes('|| true'), 'gate source has no || true');
 check(!gateSrcNoComments.match(/check\(\s*true\s*,/), 'gate source has no check(true, ...)');
+check(!gateSrcNoComments.includes('>= 0'), 'gate source has no >= 0 soft checks');
 
 // ═══════════════════════════════════════════════════════════════
 // MATURITY CLASSIFICATION
 // ═══════════════════════════════════════════════════════════════
 section('MATURITY CLASSIFICATION');
-const hasScale = scale.totalListings >= 800 && scale.totalOwners >= 500 && scale.totalCustomers >= 3000 && scale.totalBrokers >= 150;
+const hasFiveXScale = scale.marketCells >= 100 && scale.totalListings >= 4000
+  && scale.totalOwners >= 2500 && scale.totalCustomers >= 21000
+  && scale.totalBrokers >= 750 && scale.acnNetworks >= 32;
 const hasTickGrowth = (state7.bigWorldRuntime?.tickCount ?? 0) >= 7
   && (state14.bigWorldRuntime?.tickCount ?? 0) >= 14
   && (state30.bigWorldRuntime?.tickCount ?? 0) >= 30
@@ -392,21 +502,19 @@ const hasCausalGrowth = events14 > events7 && events30 > events14 && events60 > 
 const hasEconomyGrowth = ledger14 > ledger7 && ledger30 > ledger14 && ledger60 > ledger30;
 const hasReceiptDomains = requiredKinds.every((kind) => liveSourceKinds.has(kind));
 const hasLedgerPersistence = ledger30Runtime.length > 0;
+const hasActionReceipts = actionReceiptsAction.length > 0;
 const hasReplay = sameStringList(causalEventIds(replayA), causalEventIds(replayB));
 const hasNoRandomness = !/\bMath\.random\s*\(/.test(runtimeSrc) && !/\bDate\.now\s*\(/.test(runtimeSrc);
-const hasNoSoftPass = !gateSrcNoComments.includes('|| true') && !gateSrcNoComments.match(/check\(\s*true\s*,/);
+const hasNoSoftPass = !gateSrcNoComments.includes('|| true')
+  && !gateSrcNoComments.match(/check\(\s*true\s*,/)
+  && !gateSrcNoComments.includes('>= 0');
 
-const fiveXRuntimeLedgerBig = hasScale && hasTickGrowth && hasCausalGrowth && hasEconomyGrowth
-  && hasReceiptDomains && hasLedgerPersistence && hasReplay && hasNoRandomness && hasNoSoftPass;
+const fiveXRuntimeLedgerBig = hasFiveXScale && hasTickGrowth && hasCausalGrowth && hasEconomyGrowth
+  && hasReceiptDomains && hasLedgerPersistence && hasActionReceipts && hasReplay && hasNoRandomness && hasNoSoftPass;
 
-const marketEconomyBig = hasScale && hasCausalGrowth && liveSourceKinds.size >= 8 && hasReplay;
 const maxLevel = fiveXRuntimeLedgerBig
   ? 'FIVE-X-RUNTIME-LEDGER-BIG'
-  : marketEconomyBig
-    ? 'MARKET-ECONOMY-BIG'
-    : hasScale
-      ? 'SCALE-BIG'
-      : 'FAILED';
+  : 'FAILED';
 
 console.log(`  FINAL MATURITY: ${maxLevel}`);
 check(maxLevel === 'FIVE-X-RUNTIME-LEDGER-BIG', `final maturity is FIVE-X-RUNTIME-LEDGER-BIG (${maxLevel})`);

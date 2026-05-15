@@ -47,9 +47,13 @@ export interface SurfaceCensusEntry {
   readonly legacyFieldsRead: readonly string[];
   readonly causalChainConnected: boolean;
   readonly verdict: 'connected' | 'partial' | 'disconnected';
-  /** Whether this surface is safe at five-x scale (100+ cells, 4000+ listings). */
+  /** Whether this surface is part of the game-world product (not external/dev-diagnostic). */
+  readonly fiveXApplicable?: boolean;
+  /** Whether this surface actually works at five-x scale (100+ cells, 4000+ listings). */
   readonly fiveXCompatible: boolean;
-  /** Reason if not five-x compatible. */
+  /** Reason for compatibility status. */
+  readonly fiveXCompatibilityReason?: string;
+  /** Limitation note for N/A surfaces (external/dev-diagnostic). */
   readonly fiveXLimitation?: string;
 }
 
@@ -83,7 +87,9 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       legacyFieldsRead: ['trust', 'patience', 'urgency', 'priceGapPct', 'askPrice', 'marketPrice', 'lastRivalThreatDay', 'customerStates.status', 'customerStates.churnRisk'],
       causalChainConnected: true,
       verdict: 'connected',
+      fiveXApplicable: true,
       fiveXCompatible: true,
+      fiveXCompatibilityReason: 'Actor-visible cell window + bounded causal refs. Legacy field reads are display-only fallbacks.',
     },
 
     // ── 2. actorKnowledgeProjection ───────────────────────────
@@ -103,7 +109,9 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       legacyFieldsRead: [],
       causalChainConnected: true,
       verdict: 'connected',
+      fiveXApplicable: true,
       fiveXCompatible: true,
+      fiveXCompatibilityReason: 'Registry-based visibility filter. No legacy field reads. Fully bounded.',
     },
 
     // ── 3. operatingProjection ────────────────────────────────
@@ -126,7 +134,9 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       legacyFieldsRead: ['trust', 'patience', 'urgency', 'heat', 'offerCount', 'lastShowDay', 'competitiveness', 'windowDays', 'daysLeft', 'askPrice', 'marketPrice', 'priceGapPct', 'stage', 'status', 'intent', 'churnRisk', 'fatigue', 'demandHeat', 'supplyPressure', 'competitivePressure'],
       causalChainConnected: true,
       verdict: 'connected',
+      fiveXApplicable: true,
       fiveXCompatible: true,
+      fiveXCompatibilityReason: 'Per-case projection. Legacy field reads are display-only; recommendations from evidence envelope.',
     },
 
     // ── 4. marketOpeningPOVProjection ─────────────────────────
@@ -149,7 +159,9 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       legacyFieldsRead: ['demandHeat', 'competitivePressure', 'churnRisk', 'fatigue', 'daysLeft', 'intent', 'trust', 'patience', 'urgency', 'askPrice', 'marketPrice', 'priceGapPct'],
       causalChainConnected: true,
       verdict: 'connected',
+      fiveXApplicable: true,
       fiveXCompatible: true,
+      fiveXCompatibilityReason: 'EventStore + ActorKnowledge. Legacy reads are display-only.',
     },
 
     // ── 5. workspaceShellProjection ───────────────────────────
@@ -170,7 +182,9 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       legacyFieldsRead: ['status', 'soldPrice', 'ownerName', 'energy', 'maxEnergy', 'budgetLedger', 'auxiliaryStats'],
       causalChainConnected: true,
       verdict: 'connected',
+      fiveXApplicable: true,
       fiveXCompatible: true,
+      fiveXCompatibilityReason: 'Delegates to sub-projections that are five-x safe.',
     },
 
     // ── 6. resultProjection ───────────────────────────────────
@@ -191,14 +205,14 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       legacyFieldsRead: ['finalResult', 'caseResults', 'scoreBreakdown', 'endingStats', 'marketOutcome', 'status', 'auxiliaryStats.withdrawnCount'],
       causalChainConnected: true,
       verdict: 'connected',
+      fiveXApplicable: true,
       fiveXCompatible: true,
+      fiveXCompatibilityReason: 'Post-game evaluation. Reads system-computed scores + causal traces. Bounded by case count.',
     },
 
     // ── 7. leaderboardProjection ──────────────────────────────
     // EXEMPTION: Leaderboard reads external cloud-synced MaintainerLeaderboardDetail.
     // This is a cross-run historical ranking surface, not a per-game product judgment.
-    // It does not make recommendations, evaluations, or decisions about the current game world.
-    // No causal chain connection is possible because the data source is outside the simulation.
     {
       surfaceId: 'leaderboard',
       surfaceName: 'LeaderboardProjection',
@@ -213,8 +227,9 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       legacyFieldsRead: [],
       causalChainConnected: false,
       verdict: 'disconnected',
-      fiveXCompatible: true, // N/A — external data, not game-world
-      fiveXLimitation: 'External cloud data, not game-world. Five-x N/A.',
+      fiveXApplicable: false,
+      fiveXCompatible: true,
+      fiveXCompatibilityReason: 'N/A — external cloud data, not game-world. Five-x scale irrelevant.',
     },
 
     // ── 8. ownerPersonaProfile ────────────────────────────────
@@ -233,7 +248,9 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       legacyFieldsRead: ['profiling', 'personality', 'hasCompletedFirstVisit', 'ownerTypeName', 'ownerTypeTone'],
       causalChainConnected: true,
       verdict: 'connected',
+      fiveXApplicable: true,
       fiveXCompatible: true,
+      fiveXCompatibilityReason: 'Per-owner projection. Profiling memory built from causal events. Bounded by owner count.',
     },
 
     // ── 9. ownerProfilingMemory ───────────────────────────────
@@ -252,7 +269,9 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       legacyFieldsRead: ['profiling', 'dimensions', 'ownerTypeName', 'askPrice', 'marketPrice', 'urgency', 'windowDays', 'ownerMood', 'story'],
       causalChainConnected: true,
       verdict: 'connected',
+      fiveXApplicable: true,
       fiveXCompatible: true,
+      fiveXCompatibilityReason: 'Per-case projection. Bounded by case count.',
     },
 
     // ── 10. myWechatProjection ────────────────────────────────
@@ -272,7 +291,9 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       legacyFieldsRead: ['status', 'todayPriority', 'leadCaseId', 'isFocused'],
       causalChainConnected: true,
       verdict: 'connected',
+      fiveXApplicable: true,
       fiveXCompatible: true,
+      fiveXCompatibilityReason: 'ActorKnowledge-driven. Legacy reads are status filtering only.',
     },
 
     // ── 11. myWechatFacts ─────────────────────────────────────
@@ -293,14 +314,13 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       legacyFieldsRead: ['trust', 'patience', 'urgency', 'priceGapPct', 'stage', 'status', 'intent', 'daysLeft', 'churnRisk', 'fatigue'],
       causalChainConnected: true,
       verdict: 'connected',
+      fiveXApplicable: true,
       fiveXCompatible: true,
+      fiveXCompatibilityReason: 'Evidence-backed facts from ActorKnowledge. Legacy reads are fallback only.',
     },
 
     // ── 12. architectureMigrationReadinessProjection ──────────
-    // EXEMPTION: Architecture migration readiness is a developer diagnostic surface.
-    // It reads static registries and system contracts to assess code migration status.
-    // It does not make game-world product judgments, recommendations, or player-facing decisions.
-    // No causal chain connection is possible because it operates on code structure, not game state.
+    // EXEMPTION: Developer diagnostic surface. Not a per-game product judgment.
     {
       surfaceId: 'architecture-migration-readiness',
       surfaceName: 'ArchitectureMigrationReadinessProjection',
@@ -316,14 +336,13 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       legacyFieldsRead: [],
       causalChainConnected: false,
       verdict: 'disconnected',
-      fiveXCompatible: true, // N/A — developer diagnostic, not game-world
-      fiveXLimitation: 'Developer diagnostic, not game-world. Five-x N/A.',
+      fiveXApplicable: false,
+      fiveXCompatible: true,
+      fiveXCompatibilityReason: 'N/A — developer diagnostic, not game-world. Five-x scale irrelevant.',
     },
 
     // ── 13. architectureParityProjection ──────────────────────
-    // EXEMPTION: Architecture parity is a developer diagnostic surface.
-    // It compares legacy state with runtime state to detect migration gaps.
-    // It does not make game-world product judgments.
+    // EXEMPTION: Developer diagnostic surface. Not a per-game product judgment.
     {
       surfaceId: 'architecture-parity',
       surfaceName: 'ArchitectureParityProjection',
@@ -338,8 +357,9 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       legacyFieldsRead: [],
       causalChainConnected: false,
       verdict: 'disconnected',
-      fiveXCompatible: true, // N/A — developer diagnostic, not game-world
-      fiveXLimitation: 'Developer diagnostic, not game-world. Five-x N/A.',
+      fiveXApplicable: false,
+      fiveXCompatible: true,
+      fiveXCompatibilityReason: 'N/A — developer diagnostic, not game-world. Five-x scale irrelevant.',
     },
 
     // ── 14. perfectProjectionAdapters ─────────────────────────
@@ -359,13 +379,12 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       legacyFieldsRead: ['askPrice', 'trust', 'patience', 'urgency', 'priceGapPct', 'daysLeft', 'intent'],
       causalChainConnected: true,
       verdict: 'connected',
+      fiveXApplicable: true,
       fiveXCompatible: true,
+      fiveXCompatibilityReason: 'Evidence envelope-driven. Legacy reads are display-only numeric values.',
     },
 
     // ── 15. playableMarketProjection ─────────────────────────
-    // Round 16: All 5 dimensions now carry evidenceBackedPressureItems from belief→pressure pipeline.
-    // brokerOpportunity.topActions > 0 when knowledge available (no empty-also-passes).
-    // evidenceBackedRadarItems aggregates from ALL knowledge entries, not just first.
     {
       surfaceId: 'playable-market',
       surfaceName: 'PlayableMarketProjection',
@@ -388,23 +407,23 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       legacyFieldsRead: ['demandHeat', 'competitivePressure', 'supplyPressure', 'heat', 'freshness', 'churnRisk', 'status', 'priceGapPct', 'trust', 'patience', 'energy', 'promotionBudget'],
       causalChainConnected: true,
       verdict: 'connected',
-      fiveXCompatible: true, // Round 19: bounded by actor-visible cell window
+      fiveXApplicable: true,
+      fiveXCompatible: true,
+      fiveXCompatibilityReason: 'Actor-visible cell window + bounded iteration. Legacy reads are display-only.',
     },
 
     // ── 16. strategicMarketDecisionProjection ─────────────
-    // Round 17: Upgrades playable market into strategic decision surface.
-    // Round 18: Ledger/evidence-priority — judgment text from pressure signals, legacy numeric reads are display-only.
     {
       surfaceId: 'strategic-decision',
       surfaceName: 'StrategicPlayableMarketProjection',
       projectionFile: 'strategicMarketDecisionProjection.ts',
       readPatterns: [
         { kind: 'actor-knowledge', detail: 'buildStrategicTopActions uses buildDecisionEvidenceEnvelope for full belief→pressure→command→explanation pipeline', isCausalChainConnected: true },
-        { kind: 'explanation-envelope', detail: 'each StrategicTopAction carries safeRefs, replayKey, sourceRecordIds, confidence from DecisionEvidenceEnvelope', isCausalChainConnected: true },
+        { kind: 'explanation-envelope', detail: 'each StrategicTopAction carries commandId, pressureSignalIds, beliefSourceIds, safeRefs, replayKey, sourceRecordIds, confidence', isCausalChainConnected: true },
         { kind: 'actor-knowledge', detail: 'buildStrategicCustomerPool derives atRiskCount and migrationSignal from customer_seriousness pressure signals', isCausalChainConnected: true },
         { kind: 'actor-knowledge', detail: 'buildStrategicOwnerPool derives highPressureCount and topOwnerIssue from owner_readiness/broker_trust/price_anchor pressure', isCausalChainConnected: true },
-        { kind: 'actor-knowledge', detail: 'buildCompetitorRisk uses visibleRivalEvidence from pressure signals as primary', isCausalChainConnected: true },
-        { kind: 'actor-knowledge', detail: 'buildResourceCongestion derives congestion judgment from market_heat/service_path pressure signals', isCausalChainConnected: true },
+        { kind: 'actor-knowledge', detail: 'buildCompetitorRisk uses visibleRivalEvidence from pressure signals as primary; long-horizon labels as "历史竞争压力"', isCausalChainConnected: true },
+        { kind: 'actor-knowledge', detail: 'buildResourceCongestion derives congestion judgment from market_heat/service_path pressure signals; numeric fallback labeled "显示回退"', isCausalChainConnected: true },
         { kind: 'actor-knowledge', detail: 'buildOrgResource derives allocation reasoning from broker_capacity_signal and manager_message causal events', isCausalChainConnected: true },
         { kind: 'causal-refs', detail: 'injects liveCausalRefs via sharedCausalRefs from DecisionEvidenceEnvelope for cross-surface reuse', isCausalChainConnected: true },
         { kind: 'legacy-field', detail: 'reads MarketCell.demandHeat/competitivePressure/supplyPressure as radar numeric display fallback', isCausalChainConnected: false },
@@ -418,7 +437,9 @@ export function buildProductSurfaceCensus(): readonly SurfaceCensusEntry[] {
       legacyFieldsRead: ['demandHeat', 'competitivePressure', 'supplyPressure', 'energy', 'promotionBudget'],
       causalChainConnected: true,
       verdict: 'connected',
-      fiveXCompatible: true, // Round 19: resource cost from pressure signals, bounded cell window
+      fiveXApplicable: true,
+      fiveXCompatible: true,
+      fiveXCompatibilityReason: 'Resource cost from pressure/command properties (not static map). Actor-visible window. Long-horizon rival semantics correct.',
     },
   ];
 }
@@ -437,10 +458,14 @@ export interface ProductCensusSummary {
   readonly legacyFieldsSummary: readonly string[];
   readonly disconnectedSurfaceIds: readonly string[];
   readonly maturity: 'EVERYTHING-CONNECTED' | 'MOSTLY-CONNECTED' | 'SIGNIFICANT-GAPS';
-  /** Number of surfaces compatible with five-x scale (100+ cells). */
+  /** Number of game-world surfaces (excluding N/A dev diagnostics and external data). */
+  readonly fiveXApplicableSurfaces: number;
+  /** Number of game-world surfaces that actually work at five-x scale. */
   readonly fiveXCompatibleSurfaces: number;
-  /** Surfaces that are NOT five-x compatible. */
+  /** Game-world surfaces that are NOT five-x compatible. */
   readonly fiveXIncompatibleSurfaceIds: readonly string[];
+  /** N/A surfaces (dev diagnostics, external data) that don't apply to five-x. */
+  readonly fiveXNotApplicableSurfaceIds: readonly string[];
 }
 
 export function buildProductCensusSummary(census: readonly SurfaceCensusEntry[]): ProductCensusSummary {
@@ -460,8 +485,10 @@ export function buildProductCensusSummary(census: readonly SurfaceCensusEntry[])
     : disconnected.length === 0 && partial.length <= 2 ? 'MOSTLY-CONNECTED'
     : 'SIGNIFICANT-GAPS';
 
-  const fiveXCompatible = census.filter((e) => e.fiveXCompatible);
-  const fiveXIncompatible = census.filter((e) => !e.fiveXCompatible);
+  const fiveXApplicable = census.filter((e) => e.fiveXApplicable);
+  const fiveXCompatible = fiveXApplicable.filter((e) => e.fiveXCompatible);
+  const fiveXIncompatible = fiveXApplicable.filter((e) => !e.fiveXCompatible);
+  const fiveXNotApplicable = census.filter((e) => !e.fiveXApplicable);
 
   return {
     totalSurfaces: census.length,
@@ -475,8 +502,10 @@ export function buildProductCensusSummary(census: readonly SurfaceCensusEntry[])
     legacyFieldsSummary: [...allLegacyFields].sort(),
     disconnectedSurfaceIds: disconnected.map((e) => e.surfaceId),
     maturity,
+    fiveXApplicableSurfaces: fiveXApplicable.length,
     fiveXCompatibleSurfaces: fiveXCompatible.length,
     fiveXIncompatibleSurfaceIds: fiveXIncompatible.map((e) => e.surfaceId),
+    fiveXNotApplicableSurfaceIds: fiveXNotApplicable.map((e) => e.surfaceId),
   };
 }
 

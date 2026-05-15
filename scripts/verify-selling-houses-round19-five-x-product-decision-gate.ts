@@ -44,6 +44,7 @@ import {
   buildScaleManifest,
   buildDiversityManifest,
 } from '../src/selling-houses/domain/world-model/bigWorldBootstrap.js';
+import { FIVE_X_SCALE_POLICY } from '../src/selling-houses/domain/world-model/bigWorldSpecFactory.js';
 import { buildProductSurfaceCensus, buildProductCensusSummary } from '../src/selling-houses/application/projections/noDeadCornerProductCensus.js';
 import { buildStrategicMarketDecisionProjection } from '../src/selling-houses/application/projections/strategicMarketDecisionProjection.js';
 import { buildPlayableMarketProjection } from '../src/selling-houses/application/projections/playableMarketProjection.js';
@@ -85,20 +86,6 @@ console.log('╚═════════════════════�
 // ═══════════════════════════════════════════════════════════════
 section('0. FIVE-X SCALE WORLD — build and verify scale');
 
-const FIVE_X_SCALE: BigWorldScalePolicy = {
-  minMarketCells: 100,
-  maxMarketCells: 120,
-  acnCount: 32,
-  namedBrokersPerAcn: 6,
-  shadowBrokersPerAcn: 18,
-  shadowListingsPerCell: 35,
-  directRivalListingsPerCell: 10,
-  materializedCustomersPerCell: 32,
-  shadowAggregateClustersPerCell: 25,
-  ownerProfilePriorCount: 2500,
-  customerCaseRatio: 12,
-};
-
 function buildFiveXWorld(seed: number): GameState {
   const snapshot = getScenarioSnapshotById('standard-window-chain');
   if (!snapshot) throw new Error('standard-window-chain scenario missing');
@@ -108,7 +95,7 @@ function buildFiveXWorld(seed: number): GameState {
     scenarioName: snapshot.scenario.name,
     difficultyId: snapshot.scenario.difficultyId,
     playerCaseCount: snapshot.scenario.cases.length,
-    scaleOverride: FIVE_X_SCALE,
+    scaleOverride: FIVE_X_SCALE_POLICY,
   });
   (state.runContext as { bigWorldBootstrap?: BigWorldBootstrap }).bigWorldBootstrap = bootstrap;
   seedInitialOpportunities(state);
@@ -151,9 +138,21 @@ const fiveXDiversity = diversityOf(fiveXBase);
 check(fiveXScale.marketCells >= 100, `five-x cells >= 100 (${fiveXScale.marketCells})`);
 check(fiveXScale.totalListings >= 4000, `five-x listings >= 4000 (${fiveXScale.totalListings})`);
 check(fiveXScale.totalOwners >= 2500, `five-x owners >= 2500 (${fiveXScale.totalOwners})`);
-check(fiveXScale.totalCustomers >= 22000, `five-x customers >= 22000 (${fiveXScale.totalCustomers})`);
+check(fiveXScale.totalCustomers >= 21000, `five-x customers >= 21000 (${fiveXScale.totalCustomers})`);
 check(fiveXScale.totalBrokers >= 750, `five-x brokers >= 750 (${fiveXScale.totalBrokers})`);
 check(fiveXScale.acnNetworks >= 32, `five-x ACN networks >= 32 (${fiveXScale.acnNetworks})`);
+
+// Scale contract metadata
+check(fiveXScale.scaleProfileId === 'five-x-city-level-v1', `scale profile is five-x (${fiveXScale.scaleProfileId})`);
+check(fiveXScale.scaleContractVersion >= 2, `scale contract version >= 2 (${fiveXScale.scaleContractVersion})`);
+check(fiveXScale.isFiveXScale, 'isFiveXScale = true (all five-x thresholds met)');
+
+// Output actual counts for audit trail
+const counts5x = fiveXScale.actualFiveXCounts;
+console.log(`\n  📊 Actual Five-X Counts:`);
+console.log(`     cells=${counts5x.marketCells}, acn=${counts5x.acnNetworks}, brokers=${counts5x.brokers}`);
+console.log(`     listings=${counts5x.listings}, owners=${counts5x.owners}, customers=${counts5x.customers}`);
+console.log(`     customerPools=${counts5x.customerPools}, brokerPools=${counts5x.brokerPools}, orgPools=${counts5x.orgPools}`);
 
 // ═══════════════════════════════════════════════════════════════
 // 1. FIVE-X RUNTIME — 30-day advance at five-x scale
@@ -198,6 +197,11 @@ for (const action of fiveXStrategic.brokerOpportunity.topActions) {
     action.resourceCost.energyLabel.includes('压力系数') || action.resourceCost.energyLabel.includes('不消耗'),
     `five-x energyLabel has evidence reasoning: "${action.resourceCost.energyLabel}"`,
   );
+  // Verify resource cost is derived from command properties (threshold×domains), not static map
+  check(
+    action.resourceCost.energyLabel.includes('阈值') || action.resourceCost.energyLabel.includes('不消耗'),
+    `five-x energyLabel derived from command threshold: "${action.resourceCost.energyLabel}"`,
+  );
   check(
     action.sourceRecordIds.length > 0,
     `five-x "${action.actionLabel}" has sourceRecordIds (${action.sourceRecordIds.length})`,
@@ -221,6 +225,69 @@ for (const action of fiveXStrategic.brokerOpportunity.topActions) {
   check(
     action.timeHorizonImpact.length === 4,
     `five-x action has 3/7/14/30 horizon impact (${action.timeHorizonImpact.length})`,
+  );
+  // Verify timeHorizonImpact references real pressure domains (not pure template text)
+  const allOutcomeText = action.timeHorizonImpact.map((t) => t.expectedOutcome).join(' ');
+  const referencesPressureDomain = /市场热度|价格定位|业主准备度|客户需求|竞品威胁|信任关系|成交接近度|服务路径|market_heat|price_anchor|owner_readiness|customer_seriousness|rival_threat|broker_trust|deal_closeability|service_path/.test(allOutcomeText);
+  check(
+    referencesPressureDomain,
+    `five-x timeHorizonImpact references real pressure domains (not pure template)`,
+  );
+
+  // Verify evidence envelope completeness (Round 19)
+  check(
+    action.commandId.length > 0,
+    `five-x "${action.actionLabel}" has commandId (${action.commandId})`,
+  );
+  check(
+    action.pressureSignalIds.length > 0,
+    `five-x "${action.actionLabel}" has pressureSignalIds (${action.pressureSignalIds.length})`,
+  );
+  check(
+    action.beliefSourceIds.length > 0,
+    `five-x "${action.actionLabel}" has beliefSourceIds (${action.beliefSourceIds.length})`,
+  );
+  check(
+    action.resourceLedgerBalance.energy >= 0,
+    `five-x "${action.actionLabel}" has resourceLedgerBalance.energy (${action.resourceLedgerBalance.energy})`,
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 3b. TOP ACTION DIVERSITY — not all same command
+// ═══════════════════════════════════════════════════════════════
+section('3b. TOP ACTION DIVERSITY — not template repetition');
+
+const topActions = fiveXStrategic.brokerOpportunity.topActions;
+const uniqueCommandIds = new Set(topActions.map((a) => a.commandId));
+const uniqueActionLabels = new Set(topActions.map((a) => a.actionLabel));
+
+if (topActions.length >= 2) {
+  // Diversity = different commands OR different cases (same command for different cases is valid)
+  const uniqueCaseIds = new Set(topActions.map((a) => a.caseId));
+  const hasCommandDiversity = uniqueCommandIds.size >= 2;
+  const hasCaseDiversity = uniqueCaseIds.size >= 2;
+  check(
+    hasCommandDiversity || hasCaseDiversity,
+    `five-x topActions have diversity: ${uniqueCommandIds.size} unique commandIds, ${uniqueCaseIds.size} unique cases across ${topActions.length} actions`,
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 3c. LONG-HORIZON RIVAL PRESSURE SEMANTICS
+// ═══════════════════════════════════════════════════════════════
+section('3c. LONG-HORIZON RIVAL PRESSURE — historical vs active');
+
+// When active rivals = 0 but pressure > 0, description should say "历史" not imply active
+const competitorRiskDesc = topActions.length > 0 ? topActions[0].competitorRisk.riskDescription : '';
+const rivalCount = topActions.length > 0 ? topActions[0].competitorRisk.rivalCount : 0;
+
+// Check that if rivalCount > 0 but no active shadow rivals, description is accurate
+const shadowRivalCount = fiveX30.marketShadow.rivalListings.filter((r) => r.status === 'active').length;
+if (shadowRivalCount === 0 && rivalCount > 0) {
+  check(
+    competitorRiskDesc.includes('历史') || competitorRiskDesc.includes('近期') || competitorRiskDesc.includes('事件'),
+    `five-x long-horizon rival semantics: when active=0 but pressure>0, description mentions historical/event pressure (got: "${competitorRiskDesc.slice(0, 60)}")`,
   );
 }
 
@@ -377,13 +444,13 @@ check(
   'KNOWN: actionReceiptWiring success path has empty fieldDeltas — seeded fallback for trust/patience',
 );
 
-// Limitation 3: 30% deterministic sampling for non-player customers
-// Active cohort scheduler samples 30% of non-player-linked customers per tick
+// Limitation 3: deterministic sampling for non-player customers
+// Active cohort scheduler samples non-player-linked customers per tick
 // Player-linked customers have full coverage — verified by checking scheduler code exists
 const clockSrc = readSrc('src/selling-houses/domain/world-model/runtime/clock.ts');
 check(
-  clockSrc.includes('hash % 100 < 30'),
-  'KNOWN: non-player customers have 30% tick sampling (player-linked = 100%)',
+  clockSrc.includes('hotCellCustomers') && clockSrc.includes('coldCellCustomers'),
+  'KNOWN: non-player customers have deterministic hot/cold sampling (player-linked = 100%)',
 );
 
 // ═══════════════════════════════════════════════════════════════

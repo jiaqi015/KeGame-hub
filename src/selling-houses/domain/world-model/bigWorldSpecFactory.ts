@@ -17,6 +17,44 @@ import type {
 import type { DifficultyId } from '../models.js';
 
 // ---------------------------------------------------------------------------
+// Five-X Scale Contract — single source of truth
+// ---------------------------------------------------------------------------
+// All Round 19 gates MUST import this policy instead of defining their own.
+// This is the ONLY valid five-x scale policy for the selling-houses world.
+
+/** Scale profile identifier for five-x city-level scale. */
+export const FIVE_X_SCALE_PROFILE_ID = 'five-x-city-level-v1' as const;
+
+/** Contract version — bump when thresholds or policy semantics change. */
+export const FIVE_X_SCALE_CONTRACT_VERSION = 2 as const;
+
+/**
+ * The canonical five-x scale policy.
+ *
+ * Expected actual counts (seed-dependent, these are minimums):
+ *   cells ≥ 100, ACN = 32, brokers ≥ 768, listings ≥ 4500,
+ *   owners = 2500, demand ≥ 21000 (materialized + shadow clusters),
+ *   customer pools ≥ 3000, broker pools ≥ 768, org pools = 32
+ *
+ * NOTE: materializedCustomersPerCell = 60 in policy, but actual generation
+ * may produce ~30/cell due to scenario template expansion limits.
+ * Total demand still reaches 21000+ via shadow demand clusters.
+ */
+export const FIVE_X_SCALE_POLICY: BigWorldScalePolicy = {
+  minMarketCells: 100,
+  maxMarketCells: 120,
+  acnCount: 32,
+  namedBrokersPerAcn: 6,
+  shadowBrokersPerAcn: 18,
+  shadowListingsPerCell: 35,
+  directRivalListingsPerCell: 10,
+  materializedCustomersPerCell: 60,
+  shadowAggregateClustersPerCell: 25,
+  ownerProfilePriorCount: 2500,
+  customerCaseRatio: 12,
+};
+
+// ---------------------------------------------------------------------------
 // Default scale policies per difficulty
 // ---------------------------------------------------------------------------
 

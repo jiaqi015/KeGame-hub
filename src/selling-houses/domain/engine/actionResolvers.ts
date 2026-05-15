@@ -166,6 +166,7 @@ export function executeAction(
       state, caseItem, action.id, action.executorId || action.id, optionId,
       'success', action.costEnergy, action.costPromotionBudget,
       `${action.name} 执行成功`, beforeEventStoreLength, beforeOpportunityCount,
+      beforeTrust, beforePatience, beforeUrgency, beforeHeat, beforeCompetitiveness,
     ),
   );
   // Emit player_action_receipt source record for successful action

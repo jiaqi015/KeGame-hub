@@ -165,6 +165,11 @@ if (caseId2) {
     beforeOpportunityCount: 0,
     afterEventStoreLength: 0,
     afterOpportunityCount: 0,
+    afterTrust: 65,
+    afterPatience: 58,
+    afterUrgency: 38,
+    afterHeat: 55,
+    afterCompetitiveness: 68,
   };
 
   // Build receipt (same as gameTransitions.ts does)

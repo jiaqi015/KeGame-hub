@@ -100,11 +100,16 @@ export interface StrategicTopAction {
   readonly caseId: string;
   readonly caseTitle: string;
   readonly actionLabel: string;
+  readonly commandId: string;
   readonly reasoning: string;
   readonly safeRefs: readonly { readonly refType: string; readonly refId: string; readonly refLabel: string }[];
   readonly replayKey: string;
   readonly confidence: number;
   readonly sourceRecordIds: readonly string[];
+  // ── Evidence envelope (Round 19) ──
+  readonly pressureSignalIds: readonly string[];
+  readonly beliefSourceIds: readonly string[];
+  readonly resourceLedgerBalance: { readonly energy: number; readonly budget: number };
   // ── Strategic fields (Round 17) ──
   readonly resourceCost: ResourceCost;
   readonly opportunityCost: OpportunityCost;
@@ -460,7 +465,9 @@ function buildCompetitorRisk(
       ? visibleRivalEvidence.label
       : topRival?.title ?? visibleRivalEvidence.label,
     riskDescription: hasEvidence
-      ? visibleRivalEvidence.description
+      ? rivalListings.length > 0
+        ? visibleRivalEvidence.description
+        : `当前无活跃竞品挂牌，但因果链显示 ${visibleRivalEvidence.count} 条近期竞争压力信号（历史事件压力）。`
       : rivalListings.length > 0
         ? `同板块 ${rivalListings.length} 套竞品正在分流客户注意力`
         : visibleRivalEvidence.description,
@@ -509,13 +516,13 @@ function buildResourceCongestion(
       congestionLabel = `市场热度 ${Math.round(marketHeatSignal?.magnitude ?? 0)}，竞争中等`;
     }
   } else {
-    // Display fallback: numeric counts
+    // Display fallback: numeric counts (no pressure signal evidence available)
     if (activeBrokerCount >= 8 && activeListingCount >= 20) {
       congestionLevel = 'high';
-      congestionLabel = `${activeBrokerCount} 经纪人、${activeListingCount} 挂牌在抢客，资源高度拥挤`;
+      congestionLabel = `${activeBrokerCount} 经纪人、${activeListingCount} 挂牌在抢客，资源高度拥挤（显示回退：无压力信号证据）`;
     } else if (activeBrokerCount >= 4 || activeListingCount >= 10) {
       congestionLevel = 'moderate';
-      congestionLabel = `${activeBrokerCount} 经纪人、${activeListingCount} 挂牌，竞争中等`;
+      congestionLabel = `${activeBrokerCount} 经纪人、${activeListingCount} 挂牌，竞争中等（显示回退：无压力信号证据）`;
     }
   }
 
@@ -955,6 +962,7 @@ function buildStrategicTopActions(
       caseId: caseItem.id,
       caseTitle: caseItem.title,
       actionLabel: cmd.command.name,
+      commandId: cmd.command.commandId,
       reasoning: envelope.explanation.summary,
       safeRefs: envelope.explanation.safeRefs.length > 0
         ? envelope.explanation.safeRefs
@@ -962,6 +970,9 @@ function buildStrategicTopActions(
       replayKey: sharedRefs.replayKey,
       confidence: cmd.confidence,
       sourceRecordIds: cmd.sourceRecordIds.slice(0, 5),
+      pressureSignalIds: cmd.pressureSignalIds.slice(0, 5),
+      beliefSourceIds: cmd.beliefSourceIds.slice(0, 5),
+      resourceLedgerBalance: { energy: currentEnergy, budget: currentBudget },
       resourceCost,
       opportunityCost,
       competitorRisk,
@@ -1033,44 +1044,80 @@ function buildTimeHorizonImpact(
   pressureSignals: readonly PressureSignal[],
   sharedRefs: SharedCausalRefs,
 ): TimeHorizonImpact[] {
-  const topPressure = pressureSignals[0];
-  const pressureLabel = topPressure?.label ?? '市场压力';
+  // Evidence-backed: reference specific pressure domains by time horizon
+  // Short-term (3d): market_heat, customer_seriousness — fast-moving signals
+  // Medium-term (7d): price_anchor, rival_threat, deal_closeability — action feedback
+  // Long-term (14d): owner_readiness, broker_trust — relationship/equity changes
+  // Extended (30d): service_path, cumulative pressure — structural shifts
+
+  const shortTermSignals = pressureSignals.filter(
+    (s) => s.domain === 'market_heat' || s.domain === 'customer_seriousness',
+  );
+  const mediumTermSignals = pressureSignals.filter(
+    (s) => s.domain === 'price_anchor' || s.domain === 'rival_threat' || s.domain === 'deal_closeability',
+  );
+  const longTermSignals = pressureSignals.filter(
+    (s) => s.domain === 'owner_readiness' || s.domain === 'broker_trust',
+  );
+  const allSignals = pressureSignals;
+
+  const topPressure = allSignals[0];
   const pressureMagnitude = topPressure?.magnitude ?? 50;
 
   const safeRefs = sharedRefs.allRefs.slice(0, 2);
+
+  // 3-day: short-term signals drive immediate urgency
+  const shortTermLabel = shortTermSignals.length > 0
+    ? shortTermSignals.map((s) => s.label).join('+')
+    : topPressure?.label ?? '市场压力';
+  const shortTermMag = shortTermSignals.length > 0
+    ? Math.max(...shortTermSignals.map((s) => s.magnitude))
+    : pressureMagnitude;
+
+  // 7-day: medium-term signals show action feedback window
+  const mediumTermLabel = mediumTermSignals.length > 0
+    ? mediumTermSignals.map((s) => s.label).join('+')
+    : '竞品/价格/成交';
+  const mediumTermMag = mediumTermSignals.length > 0
+    ? Math.max(...mediumTermSignals.map((s) => s.magnitude))
+    : pressureMagnitude;
+
+  // 14-day: long-term signals show relationship equity changes
+  const longTermLabel = longTermSignals.length > 0
+    ? longTermSignals.map((s) => s.label).join('+')
+    : '业主信任/耐心';
+  const longTermMag = longTermSignals.length > 0
+    ? Math.max(...longTermSignals.map((s) => s.magnitude))
+    : pressureMagnitude;
 
   return [
     {
       horizonDays: 3,
       label: '3天短期',
-      expectedOutcome: pressureMagnitude > 60
-        ? `当前${pressureLabel}偏高，3天内可能继续恶化，需要立即行动。`
-        : `3天内${pressureLabel}相对可控，可观察市场反应。`,
-      confidence: Math.min(0.9, pressureMagnitude / 100 + 0.2),
+      expectedOutcome: shortTermMag > 60
+        ? `${shortTermLabel}偏高(${Math.round(shortTermMag)}%)，3天内可能继续恶化，需要立即行动。`
+        : `${shortTermLabel}可控(${Math.round(shortTermMag)}%)，3天内可观察市场反应。`,
+      confidence: Math.min(0.9, shortTermMag / 100 + 0.2),
       safeRefs,
     },
     {
       horizonDays: 7,
       label: '7天中期',
-      expectedOutcome: commandId === 'cmd-price-adjustment'
-        ? `调价后7天内市场反馈将显现，客户比较行为会更新。`
-        : commandId === 'cmd-owner-visit'
-          ? `面访后7天内业主信任和耐心预期会有明确变化。`
-          : `7天内该动作的效果将体现在客户/业主反应上。`,
-      confidence: Math.min(0.8, pressureMagnitude / 100 + 0.1),
+      expectedOutcome: `${mediumTermLabel}(${Math.round(mediumTermMag)}%)将在7天内反馈${commandId === 'cmd-price-adjustment' ? '调价效果' : commandId === 'cmd-owner-visit' ? '面访效果' : '动作效果'}，客户/竞品/业主反应会显现。`,
+      confidence: Math.min(0.8, mediumTermMag / 100 + 0.1),
       safeRefs,
     },
     {
       horizonDays: 14,
       label: '14天中长期',
-      expectedOutcome: `14天内市场板块热度和竞品动态将重新评估，当前决策的影响会累积。`,
-      confidence: Math.min(0.7, pressureMagnitude / 100),
+      expectedOutcome: `${longTermLabel}(${Math.round(longTermMag)}%)将在14天内累积变化，${longTermMag > 50 ? '业主预期/信任关系可能恶化' : '业主预期/信任关系相对稳定'}，竞品动态将重新评估。`,
+      confidence: Math.min(0.7, longTermMag / 100),
       safeRefs,
     },
     {
       horizonDays: 30,
       label: '30天长期',
-      expectedOutcome: `30天内成交窗口和业主耐心窗口将收窄，当前决策链的累积效果将决定成交概率。`,
+      expectedOutcome: `30天内全部压力域(${allSignals.map((s) => s.domain).join('+')})累积效果将决定成交概率，当前${topPressure?.label ?? '压力'}(${Math.round(pressureMagnitude)}%)的持续影响将收窄成交窗口。`,
       confidence: Math.min(0.6, pressureMagnitude / 100 - 0.1),
       safeRefs,
     },
@@ -1246,8 +1293,10 @@ export function buildStrategicMarketDecisionProjection(
     }
     : visibleRivalEvidence.count > 0
       ? {
-        headline: visibleRivalEvidence.label,
-        detail: visibleRivalEvidence.description,
+        headline: `${visibleRivalEvidence.label}（近期事件压力）`,
+        detail: rivalListings.length > 0
+          ? visibleRivalEvidence.description
+          : `当前无活跃竞品挂牌，但因果链显示 ${visibleRivalEvidence.count} 条近期竞争/市场压力信号。这不是当前活体竞品，而是历史事件产生的竞争压力。`,
         refs: visibleRivalEvidence.refs,
       }
       : null;

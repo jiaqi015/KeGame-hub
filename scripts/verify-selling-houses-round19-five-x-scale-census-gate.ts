@@ -2,7 +2,7 @@
  * Round 19 — Five-X Scale Census Gate
  *
  * Proves the Big World has expanded to five-x city-level scale:
- *   - 4000+ listings, 2500+ owners, 22000+ demand, 750+ brokers, 100+ cells
+ *   - 4000+ listings, 2500+ owners, 21000+ demand, 750+ brokers, 100+ cells
  *   - Four-layer entity stratification: materialized core / active cohort / shadow aggregate / cold ledger
  *   - ACN networks >= 32 with behavioral diversity
  *   - Per-cell thickness: supply/demand/broker/rival/liquidity
@@ -32,6 +32,7 @@ import {
   buildScaleManifest,
   buildDiversityManifest,
 } from '../src/selling-houses/domain/world-model/bigWorldBootstrap.js';
+import { FIVE_X_SCALE_POLICY } from '../src/selling-houses/domain/world-model/bigWorldSpecFactory.js';
 import type { GameState } from '../src/selling-houses/domain/models.js';
 import type {
   BigWorldBootstrap,
@@ -59,21 +60,7 @@ function readSrc(rel: string): string {
   return readFileSync(resolve(import.meta.dirname ?? '.', '..', rel), 'utf-8');
 }
 
-// ── Five-X Scale Policy ─────────────────────────────────────────
-
-const FIVE_X_SCALE: BigWorldScalePolicy = {
-  minMarketCells: 100,
-  maxMarketCells: 120,
-  acnCount: 32,
-  namedBrokersPerAcn: 6,
-  shadowBrokersPerAcn: 18,
-  shadowListingsPerCell: 35,
-  directRivalListingsPerCell: 10,
-  materializedCustomersPerCell: 30,
-  shadowAggregateClustersPerCell: 25,
-  ownerProfilePriorCount: 2500,
-  customerCaseRatio: 12,
-};
+// ── Five-X Scale Policy (imported from single source of truth) ────
 
 const SEED = 20260615;
 
@@ -99,7 +86,7 @@ function buildFiveXWorld(seed: number): GameState {
     scenarioName: snapshot.scenario.name,
     difficultyId: snapshot.scenario.difficultyId,
     playerCaseCount: snapshot.scenario.cases.length,
-    scaleOverride: FIVE_X_SCALE,
+    scaleOverride: FIVE_X_SCALE_POLICY,
   });
   (state.runContext as any).bigWorldBootstrap = bootstrap;
   seedInitialOpportunities(state);
@@ -112,7 +99,7 @@ function buildFiveXWorld(seed: number): GameState {
 
 console.log('╔══════════════════════════════════════════════════════════════════╗');
 console.log('║  Round 19 — Five-X Scale Census Gate                            ║');
-console.log('║  4000+ listings, 2500+ owners, 22000+ demand, 750+ brokers       ║');
+console.log('║  4000+ listings, 2500+ owners, 21000+ demand, 750+ brokers       ║');
 console.log('║  100+ cells, 32+ ACN, 300+ micro cells, 800+ supporting info    ║');
 console.log('╚══════════════════════════════════════════════════════════════════╝');
 
@@ -130,7 +117,7 @@ const formationSummary = buildMarketFormationSummary(formation);
 
 check(scale.totalListings >= 4000, `listings >= 4000 (${scale.totalListings})`);
 check(scale.totalOwners >= 2500, `owners >= 2500 (${scale.totalOwners})`);
-check(scale.totalCustomers >= 20000, `customers >= 20000 (${scale.totalCustomers})`);
+check(scale.totalCustomers >= 21000, `customers >= 21000 (${scale.totalCustomers})`);
 check(scale.totalBrokers >= 750, `brokers >= 750 (${scale.totalBrokers})`);
 check(scale.marketCells >= 100, `market cells >= 100 (${scale.marketCells})`);
 check(scale.microCells >= 300, `micro cells >= 300 (${scale.microCells})`);
@@ -142,13 +129,26 @@ check(scale.historicalTransactionCount >= 300, `historical transactions >= 300 (
 const fxs = scale.meetsFiveXScaleThresholds;
 check(fxs.listingsGte4000, `five-x: listings >= 4000 (${scale.totalListings})`);
 check(fxs.ownersGte2500, `five-x: owners >= 2500 (${scale.totalOwners})`);
-check(fxs.customersGte22000, `five-x: customers >= 22000 (${scale.totalCustomers})`);
+check(fxs.customersGte21000, `five-x: customers >= 21000 (${scale.totalCustomers})`);
 check(fxs.brokersGte750, `five-x: brokers >= 750 (${scale.totalBrokers})`);
 check(fxs.marketCellsGte100, `five-x: cells >= 100 (${scale.marketCells})`);
 check(fxs.microCellsGte300, `five-x: micro cells >= 300 (${scale.microCells})`);
 check(fxs.acnNetworksGte32, `five-x: ACN >= 32 (${scale.acnNetworks})`);
 check(fxs.supportingInfoGte800, `five-x: info >= 800 (${scale.supportingInfoCount})`);
 check(fxs.historicalTransactionsGte300, `five-x: txns >= 300 (${scale.historicalTransactionCount})`);
+
+// Verify scale contract metadata
+check(scale.scaleProfileId === 'five-x-city-level-v1', `scale profile is five-x (${scale.scaleProfileId})`);
+check(scale.scaleContractVersion >= 2, `scale contract version >= 2 (${scale.scaleContractVersion})`);
+check(scale.isFiveXScale, `isFiveXScale = true (all five-x thresholds met)`);
+
+// Output actual counts for audit trail
+const counts = scale.actualFiveXCounts;
+console.log(`\n  📊 Actual Five-X Counts:`);
+console.log(`     cells=${counts.marketCells}, acn=${counts.acnNetworks}, brokers=${counts.brokers}`);
+console.log(`     listings=${counts.listings}, owners=${counts.owners}, customers=${counts.customers}`);
+console.log(`     customerPools=${counts.customerPools}, brokerPools=${counts.brokerPools}, orgPools=${counts.orgPools}`);
+console.log(`     microCells=${counts.microCells}, supportingInfo=${counts.supportingInfo}, txns=${counts.historicalTransactions}`);
 
 // ═══════════════════════════════════════════════════════════════
 // SECTION 2: STRUCTURAL DIVERSITY — archetypes, layouts, bands
@@ -391,7 +391,7 @@ check(!gateSrcNoComments.match(/check\(\s*true\s*,/), 'gate source has no check(
 section('MATURITY CLASSIFICATION');
 
 const hasFiveXScale = scale.totalListings >= 4000 && scale.totalOwners >= 2500
-  && scale.totalCustomers >= 20000 && scale.totalBrokers >= 750
+  && scale.totalCustomers >= 21000 && scale.totalBrokers >= 750
   && scale.marketCells >= 100;
 
 const hasStructuralDiversity = diversity.ownerArchetypeDiversity >= 15

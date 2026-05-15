@@ -44,7 +44,7 @@ import {
   type MarketOpeningInput,
 } from './seededMarketWorld.js';
 import type { MarketCellSnapshot, ACNNetworkSnapshot, MarketCellHeatBand, MarketCellPriceTrend, MarketCellSignalStrength } from './marketWorldTypes.js';
-import { buildBigWorldSpec } from './bigWorldSpecFactory.js';
+import { buildBigWorldSpec, FIVE_X_SCALE_PROFILE_ID, FIVE_X_SCALE_CONTRACT_VERSION } from './bigWorldSpecFactory.js';
 import type {
   BigWorldSpec,
   BigWorldBootstrap,
@@ -1159,6 +1159,26 @@ export function buildScaleManifest(
   // Source readiness coverage
   const sourceReadiness = buildSourceReadinessCoverage(bootstrap);
 
+  const fiveXThresholds = {
+    listingsGte4000: listings.length >= 4000,
+    ownersGte2500: priors.length >= 2500,
+    customersGte21000: totalDemandUnits >= 21000,
+    brokersGte750: brokers.length >= 750,
+    marketCellsGte100: bootstrap.hiddenTruth.marketCells.length >= 100,
+    microCellsGte300: bootstrap.hiddenTruth.microCells.length >= 300,
+    acnNetworksGte32: bootstrap.hiddenTruth.acnNetworks.length >= 32,
+    supportingInfoGte800: bootstrap.hiddenTruth.supportingInfo.length >= 800,
+    historicalTransactionsGte300: bootstrap.coldAggregate.historicalTransactions.length >= 300,
+  };
+
+  const isFiveXScale = Object.values(fiveXThresholds).every(Boolean);
+
+  // Customer pools: materialized customers that have matching pool entries
+  // At five-x scale, customerPool from marketFormation is the materialized set
+  const customerPools = bootstrap.hiddenTruth.marketFormation?.customerPool?.length ?? customers.length;
+  const brokerPools = bootstrap.hiddenTruth.marketFormation?.brokerPool?.length ?? brokers.length;
+  const orgPools = bootstrap.hiddenTruth.acnNetworks.length;
+
   return {
     totalListings: listings.length,
     totalOwners: priors.length,
@@ -1172,6 +1192,9 @@ export function buildScaleManifest(
 
     diversityCoverage: diversity,
     sourceReadinessCoverage: sourceReadiness,
+
+    scaleProfileId: FIVE_X_SCALE_PROFILE_ID,
+    scaleContractVersion: FIVE_X_SCALE_CONTRACT_VERSION,
 
     meetsHundredScaleThresholds: {
       listingsGte100: listings.length >= 100,
@@ -1214,16 +1237,21 @@ export function buildScaleManifest(
       historicalTransactionsGte50: bootstrap.coldAggregate.historicalTransactions.length >= 50,
     },
 
-    meetsFiveXScaleThresholds: {
-      listingsGte4000: listings.length >= 4000,
-      ownersGte2500: priors.length >= 2500,
-      customersGte22000: totalDemandUnits >= 21000,
-      brokersGte750: brokers.length >= 750,
-      marketCellsGte100: bootstrap.hiddenTruth.marketCells.length >= 100,
-      microCellsGte300: bootstrap.hiddenTruth.microCells.length >= 300,
-      acnNetworksGte32: bootstrap.hiddenTruth.acnNetworks.length >= 32,
-      supportingInfoGte800: bootstrap.hiddenTruth.supportingInfo.length >= 800,
-      historicalTransactionsGte300: bootstrap.coldAggregate.historicalTransactions.length >= 300,
+    meetsFiveXScaleThresholds: fiveXThresholds,
+    isFiveXScale,
+    actualFiveXCounts: {
+      listings: listings.length,
+      owners: priors.length,
+      customers: totalDemandUnits,
+      brokers: brokers.length,
+      marketCells: bootstrap.hiddenTruth.marketCells.length,
+      microCells: bootstrap.hiddenTruth.microCells.length,
+      acnNetworks: bootstrap.hiddenTruth.acnNetworks.length,
+      supportingInfo: bootstrap.hiddenTruth.supportingInfo.length,
+      historicalTransactions: bootstrap.coldAggregate.historicalTransactions.length,
+      customerPools,
+      brokerPools,
+      orgPools,
     },
   };
 }

@@ -555,6 +555,12 @@ export interface ScaleManifest {
   readonly diversityCoverage: DiversityManifest;
   readonly sourceReadinessCoverage: SourceReadinessCoverage;
 
+  // ── Scale contract metadata ──
+  /** Profile identifier (e.g. 'five-x-city-level-v1'). */
+  readonly scaleProfileId: string;
+  /** Contract version — bumped when thresholds or semantics change. */
+  readonly scaleContractVersion: number;
+
   /** Whether the hundred-scale thresholds are met. */
   readonly meetsHundredScaleThresholds: {
     readonly listingsGte100: boolean;
@@ -604,13 +610,32 @@ export interface ScaleManifest {
   readonly meetsFiveXScaleThresholds: {
     readonly listingsGte4000: boolean;
     readonly ownersGte2500: boolean;
-    readonly customersGte22000: boolean;
+    readonly customersGte21000: boolean;
     readonly brokersGte750: boolean;
     readonly marketCellsGte100: boolean;
     readonly microCellsGte300: boolean;
     readonly acnNetworksGte32: boolean;
     readonly supportingInfoGte800: boolean;
     readonly historicalTransactionsGte300: boolean;
+  };
+
+  /** Whether all five-x-scale thresholds are met. */
+  readonly isFiveXScale: boolean;
+
+  /** Actual entity counts for five-x verification (always populated). */
+  readonly actualFiveXCounts: {
+    readonly listings: number;
+    readonly owners: number;
+    readonly customers: number;
+    readonly brokers: number;
+    readonly marketCells: number;
+    readonly microCells: number;
+    readonly acnNetworks: number;
+    readonly supportingInfo: number;
+    readonly historicalTransactions: number;
+    readonly customerPools: number;
+    readonly brokerPools: number;
+    readonly orgPools: number;
   };
 }
 

@@ -239,6 +239,8 @@ export function normalizeOldSave(state: {
       coveragePct: 0,
       categoryCounts: {},
     },
+    scaleProfileId: 'old-save-unknown',
+    scaleContractVersion: 0,
     meetsHundredScaleThresholds: {
       listingsGte100: (shadowListings + directRivalListings) >= 100,
       ownersGte100: false,
@@ -279,13 +281,28 @@ export function normalizeOldSave(state: {
     meetsFiveXScaleThresholds: {
       listingsGte4000: false,
       ownersGte2500: false,
-      customersGte22000: false,
+      customersGte21000: false,
       brokersGte750: false,
       marketCellsGte100: false,
       microCellsGte300: false,
       acnNetworksGte32: false,
       supportingInfoGte800: false,
       historicalTransactionsGte300: false,
+    },
+    isFiveXScale: false,
+    actualFiveXCounts: {
+      listings: shadowListings + directRivalListings,
+      owners: 0,
+      customers: totalDemandUnits,
+      brokers: namedBrokers.length + shadowBrokerCount,
+      marketCells: snapshot.marketCells.length,
+      microCells: 0,
+      acnNetworks: snapshot.acnNetworks.length,
+      supportingInfo: 0,
+      historicalTransactions: snapshot.listingInventory.recentTransactionCount,
+      customerPools: 0,
+      brokerPools: namedBrokers.length + shadowBrokerCount,
+      orgPools: snapshot.acnNetworks.length,
     },
   };
 

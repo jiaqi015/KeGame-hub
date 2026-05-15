@@ -230,6 +230,8 @@ export interface BigWorldTickReceipt {
   readonly sourceIngestionReceipt?: import('./sourceIngestionAdapter.js').SourceIngestionReceipt;
   /** Economy receipt — resource snapshot and source records for this day. */
   readonly economyReceipt?: import('./economicReceiptWiring.js').EconomyReceipt;
+  /** External source records that were ingested this tick (player_action_receipt, manager_message, etc.). */
+  readonly externalSourceRecords?: readonly import('../informationSourceTypes.js').InformationSourceRecord[];
   /** Total tick duration in microseconds (for performance tracking). */
   readonly durationUs: number;
 }

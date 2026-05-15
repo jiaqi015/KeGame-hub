@@ -256,6 +256,20 @@ function buildSuccessfulPlayerActionSourceRecord(
   seed: number,
 ): readonly InformationSourceRecord[] {
   const recordId = deterministicId('isr', ['player_action_receipt', snapshot.actionId, snapshot.caseId, snapshot.day, seed]);
+
+  // Compute fieldDeltas from before/after values in snapshot
+  const fieldDeltas: { field: string; from: string | number | boolean; to: string | number | boolean }[] = [];
+  const trustDelta = Math.round((snapshot.afterTrust - snapshot.beforeTrust) * 10) / 10;
+  if (trustDelta !== 0) fieldDeltas.push({ field: 'trust', from: snapshot.beforeTrust, to: snapshot.afterTrust });
+  const patienceDelta = Math.round((snapshot.afterPatience - snapshot.beforePatience) * 10) / 10;
+  if (patienceDelta !== 0) fieldDeltas.push({ field: 'patience', from: snapshot.beforePatience, to: snapshot.afterPatience });
+  const urgencyDelta = Math.round((snapshot.afterUrgency - snapshot.beforeUrgency) * 10) / 10;
+  if (urgencyDelta !== 0) fieldDeltas.push({ field: 'urgency', from: snapshot.beforeUrgency, to: snapshot.afterUrgency });
+  const heatDelta = Math.round((snapshot.afterHeat - snapshot.beforeHeat) * 10) / 10;
+  if (heatDelta !== 0) fieldDeltas.push({ field: 'heat', from: snapshot.beforeHeat, to: snapshot.afterHeat });
+  const competitivenessDelta = Math.round((snapshot.afterCompetitiveness - snapshot.beforeCompetitiveness) * 10) / 10;
+  if (competitivenessDelta !== 0) fieldDeltas.push({ field: 'competitiveness', from: snapshot.beforeCompetitiveness, to: snapshot.afterCompetitiveness });
+
   return [{
     sourceId: recordId,
     sourceKind: 'player_action_receipt',
@@ -276,7 +290,7 @@ function buildSuccessfulPlayerActionSourceRecord(
       caseId: snapshot.caseId,
       costEnergy: snapshot.costEnergy,
       costPromotionBudget: snapshot.costPromotionBudget,
-      fieldDeltas: [],
+      fieldDeltas,
       outcome: 'success',
     },
   }];
