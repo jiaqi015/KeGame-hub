@@ -31,7 +31,7 @@ export interface DifficultyPresentation {
   metrics: {
     days: number;
     marketCapacity: string;
-    selfDealExpectation: string;
+    dealConversionRate: string;
     rivalStrength: string;
     customerProgression: string;
     bonusPotential: string;
@@ -70,7 +70,10 @@ export function buildDifficultyPresentationFromRules(
   const control = rules.outcomeControl;
   const days = control.simulationDays || rules.maxDay;
   const market = describeMarketCapacity(control.marketDealCapacity21d);
-  const selfDeal = describeSelfDealExpectation(control.playerBaseDealExpectation21d);
+  const conversion = describeDealConversionRate(
+    control.playerBaseDealExpectation21d,
+    control.marketDealCapacity21d,
+  );
   const rival = describeRivalStrength(control.rivalStoreCapabilityScale, control.rivalDealShareScale);
   const customer = describeCustomerProgression(
     control.playerFunnelProgressionScale,
@@ -82,18 +85,18 @@ export function buildDifficultyPresentationFromRules(
     id,
     label,
     shortLabel,
-    summary: buildSummary(days, market.summaryPhrase, selfDeal.summaryPhrase, rival.summaryPhrase, customer.summaryPhrase),
-    details: [selfDeal.detail, customer.detail, bonus.detail, rival.detail],
+    summary: buildSummary(days, market.summaryPhrase, conversion.summaryPhrase, rival.summaryPhrase, customer.summaryPhrase),
+    details: [conversion.detail, customer.detail, bonus.detail, rival.detail],
     chips: [
       { label: `${days} 天`, tone: 'normal' },
       { label: market.chip, tone: market.tone },
-      { label: selfDeal.chip, tone: selfDeal.tone },
+      { label: conversion.chip, tone: conversion.tone },
       { label: rival.chip, tone: rival.tone },
     ],
     metrics: {
       days,
-      marketCapacity: `${control.marketDealCapacity21d} 套 · ${market.metric}`,
-      selfDealExpectation: selfDeal.metric,
+      marketCapacity: market.metric,
+      dealConversionRate: conversion.metric,
       rivalStrength: rival.metric,
       customerProgression: customer.metric,
       bonusPotential: bonus.metric,
@@ -104,7 +107,7 @@ export function buildDifficultyPresentationFromRules(
 function buildSummary(
   days: number,
   marketPhrase: string,
-  selfDealPhrase: string,
+  conversionPhrase: string,
   rivalPhrase: string,
   customerPhrase: string,
 ) {
@@ -114,13 +117,13 @@ function buildSummary(
   if (marketPhrase.includes('偏紧')) {
     return `${days} 天，${marketPhrase}，${rivalPhrase}。需要集中资源推进关键客户。`;
   }
-  if (selfDealPhrase.includes('较充足')) {
-    return `${days} 天，${marketPhrase}，${rivalPhrase}。${selfDealPhrase}，适合熟悉经营节奏。`;
+  if (conversionPhrase.includes('较高')) {
+    return `${days} 天，${marketPhrase}，${rivalPhrase}。${conversionPhrase}，适合熟悉经营节奏。`;
   }
   if (rivalPhrase.includes('更积极') || customerPhrase.includes('更容易卡')) {
-    return `${days} 天，成交空间开始变紧，${rivalPhrase}。要更早识别关键客户和高风险业主。`;
+    return `${days} 天，${marketPhrase}，${rivalPhrase}。要更早识别关键客户和高风险业主。`;
   }
-  return `${days} 天，${marketPhrase}，${selfDealPhrase}。经营得好可再争取 1 套。`;
+  return `${days} 天，${marketPhrase}，${conversionPhrase}。经营得好可再争取 1 套。`;
 }
 
 function describeMarketCapacity(capacity: number): {
@@ -130,65 +133,79 @@ function describeMarketCapacity(capacity: number): {
   tone: DifficultyPresentationTone;
 } {
   if (capacity >= 5) {
-    return { summaryPhrase: '市场容量较宽', chip: '容量较宽', metric: '市场容量较宽', tone: 'easy' };
+    return {
+      summaryPhrase: `同类市场约 ${capacity} 套会成交，机会较多`,
+      chip: `同类成交 ${capacity} 套`,
+      metric: `21 天内同类市场预计成交约 ${capacity} 套`,
+      tone: 'easy',
+    };
   }
   if (capacity === 4) {
-    return { summaryPhrase: '市场容量正常', chip: '容量正常', metric: '市场容量正常', tone: 'normal' };
+    return {
+      summaryPhrase: `同类市场约 ${capacity} 套会成交`,
+      chip: `同类成交 ${capacity} 套`,
+      metric: `21 天内同类市场预计成交约 ${capacity} 套`,
+      tone: 'normal',
+    };
   }
   if (capacity === 3) {
-    return { summaryPhrase: '市场容量偏紧', chip: '容量偏紧', metric: '市场容量偏紧', tone: 'warning' };
+    return {
+      summaryPhrase: `同类市场约 ${capacity} 套会成交，机会偏紧`,
+      chip: `同类成交 ${capacity} 套`,
+      metric: `21 天内同类市场预计成交约 ${capacity} 套`,
+      tone: 'warning',
+    };
   }
-  return { summaryPhrase: '市场容量很紧', chip: '容量很紧', metric: '市场容量很紧', tone: 'hard' };
+  return {
+    summaryPhrase: `同类市场约 ${capacity} 套会成交，机会很紧`,
+    chip: `同类成交 ${capacity} 套`,
+    metric: `21 天内同类市场预计成交约 ${capacity} 套`,
+    tone: 'hard',
+  };
 }
 
-function describeSelfDealExpectation(expectation: number): {
+function describeDealConversionRate(expectation: number, marketCapacity: number): {
   summaryPhrase: string;
   chip: string;
   metric: string;
   detail: string;
   tone: DifficultyPresentationTone;
 } {
-  if (expectation >= 2) {
+  const rate = marketCapacity > 0 ? expectation / marketCapacity : 0;
+  const percent = formatPercent(rate);
+
+  if (rate >= 0.35) {
     return {
-      summaryPhrase: '默认成交空间较充足',
-      chip: '默认约 2 套',
-      metric: '默认成交空间较充足',
-      detail: '默认成交空间较充足',
+      summaryPhrase: `成交转化率约 ${percent}，机会较高`,
+      chip: `转化率 ${percent}`,
+      metric: `约 ${percent}`,
+      detail: `成交转化率约 ${percent}`,
       tone: 'easy',
     };
   }
-  if (expectation >= 1) {
+  if (rate >= 0.25) {
     return {
-      summaryPhrase: '默认约 1 套成交空间',
-      chip: '默认约 1 套',
-      metric: `默认约 ${formatDealNumber(expectation)} 套成交空间`,
-      detail: '默认约 1 套成交空间',
+      summaryPhrase: `成交转化率约 ${percent}`,
+      chip: `转化率 ${percent}`,
+      metric: `约 ${percent}`,
+      detail: `成交转化率约 ${percent}`,
       tone: 'normal',
     };
   }
-  if (expectation >= 0.8) {
+  if (rate >= 0.2) {
     return {
-      summaryPhrase: '需要把关键客户推进到底',
-      chip: `默认约 ${formatDealNumber(expectation)} 套`,
-      metric: `默认约 ${formatDealNumber(expectation)} 套成交空间`,
-      detail: '默认成交空间略低于标准',
-      tone: 'warning',
-    };
-  }
-  if (expectation >= 0.7) {
-    return {
-      summaryPhrase: '默认成交空间有限',
-      chip: `默认约 ${formatDealNumber(expectation)} 套`,
-      metric: `默认约 ${formatDealNumber(expectation)} 套成交空间`,
-      detail: '默认成交空间有限',
+      summaryPhrase: `成交转化率约 ${percent}，需要盯紧关键客户`,
+      chip: `转化率 ${percent}`,
+      metric: `约 ${percent}`,
+      detail: `成交转化率约 ${percent}`,
       tone: 'warning',
     };
   }
   return {
-    summaryPhrase: '成交名额很紧',
-    chip: `默认约 ${formatDealNumber(expectation)} 套`,
-    metric: `默认约 ${formatDealNumber(expectation)} 套成交空间`,
-    detail: '默认成交空间很少',
+    summaryPhrase: `成交转化率约 ${percent}，机会偏少`,
+    chip: `转化率 ${percent}`,
+    metric: `约 ${percent}`,
+    detail: `成交转化率约 ${percent}`,
     tone: 'hard',
   };
 }
@@ -289,7 +306,6 @@ function describeBonusPotential(capacity: number, unlockScore: number): {
   };
 }
 
-function formatDealNumber(value: number) {
-  if (Number.isInteger(value)) return `${value}`;
-  return value.toFixed(1).replace(/\.0$/, '');
+function formatPercent(value: number) {
+  return `${Math.round(value * 100)}%`;
 }

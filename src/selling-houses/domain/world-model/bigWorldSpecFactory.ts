@@ -148,6 +148,23 @@ function buildDefaultScalePolicy(
       ownerProfilePriorCount: 300,
       customerCaseRatio: 10,
     },
+    // ── market-mega-scale: 真实市场规模世界 ──
+    // Round 15: 500+ listings, 500+ owners, 3000+ demand, 100+ brokers, 20+ cells
+    // 结构化市场：热区/冷区/成熟区/新兴区，高总价/刚需/改善/投资
+    // 强竞品/弱竞品/垄断盘/分散盘，高意愿/犹豫/强硬/急售业主
+    marketMegaScale: {
+      minMarketCells: 20,
+      maxMarketCells: 24,
+      acnCount: 8,
+      namedBrokersPerAcn: 5,
+      shadowBrokersPerAcn: 15,
+      shadowListingsPerCell: 25,
+      directRivalListingsPerCell: 8,
+      materializedCustomersPerCell: 25,
+      shadowAggregateClustersPerCell: 20,
+      ownerProfilePriorCount: 500,
+      customerCaseRatio: 12,
+    },
   };
 
   const overrides = scaleByDifficulty[difficultyId] ?? scaleByDifficulty.standard;

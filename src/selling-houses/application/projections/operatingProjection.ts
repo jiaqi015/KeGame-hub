@@ -8,6 +8,8 @@ import type {
   TodayPlanConflictHint,
   TodayArrangementSlot,
 } from '../../domain/models.js';
+
+import type { WorldCausalEvent } from '../../domain/world-model/causalEvents.js';
 import { ACTIONS, WEEKLY_ROUTINE } from '../../domain/constants.js';
 import { isScenarioAction } from '../../domain/actions/templates.js';
 import { getActionStageRelation } from '../../domain/actionStageRelations.js';
@@ -335,6 +337,12 @@ export interface CaseDetailProjection {
   readonly evidenceBackedNextStep?: EvidenceBackedReason;
   /** Shared causal refs injected from the envelope (cross-surface). */
   readonly sharedCausalRefs?: SharedCausalRefs;
+  /**
+   * Live causal refs from worldCausalEvents for this case (Round 15).
+   * These are the same refs that bigWorldPOVProjection uses,
+   * enabling cross-surface live causal ref reuse verification.
+   */
+  readonly liveCausalRefs?: readonly { readonly refType: string; readonly refId: string; readonly refLabel: string }[];
 }
 
 export interface ListingLifecyclePhaseProjection {
@@ -1617,7 +1625,50 @@ export function buildCaseDetailProjection(
           };
         })()
       : {}),
+
+    // ── Live causal refs (Round 15) ──
+    liveCausalRefs: buildLiveCausalRefsForCase(state, caseItem.id),
   };
+}
+
+// ── Live causal refs for cross-surface reuse ─────────────────
+
+function buildLiveCausalRefsForCase(
+  state: GameState,
+  caseId: string,
+): readonly { readonly refType: string; readonly refId: string; readonly refLabel: string }[] {
+  const caseItem = state.cases.find((c) => c.id === caseId);
+  if (!caseItem) return [];
+
+  const cellId = caseItem.marketCellId ?? '';
+  const causalEvents: readonly WorldCausalEvent[] = Array.isArray(state.worldCausalEvents) ? state.worldCausalEvents : [];
+  const recentWindow = state.day - 3;
+
+  const relevantEvents = causalEvents
+    .filter((e) => {
+      const payload = e.payload as unknown as Record<string, unknown>;
+      return e.affectedIds.includes(caseId)
+        || e.entityIds.includes(caseId)
+        || (cellId.length > 0 && (e.affectedIds.includes(cellId) || e.entityIds.includes(cellId)))
+        || payload['caseId'] === caseId
+        || payload['targetCaseId'] === caseId;
+    })
+    .filter((e) => e.day >= recentWindow)
+    .sort((a, b) => b.day - a.day)
+    .slice(0, 3);
+
+  return relevantEvents.map((e) => {
+    if (e.kind === 'RivalListingRepriced' || e.kind === 'RivalBrokerActionTaken') {
+      return { refType: 'rival-listing', refId: e.id, refLabel: `竞品动作 day ${e.day}` };
+    }
+    if (e.kind === 'CustomerComparedListings' || e.kind === 'CustomerAttentionShifted') {
+      return { refType: 'market-signal', refId: e.id, refLabel: `客户需求变化 day ${e.day}` };
+    }
+    if (e.kind === 'OwnerMarketPressurePerceived') {
+      return { refType: 'case', refId: e.id, refLabel: `业主压力感知 day ${e.day}` };
+    }
+    return { refType: 'market-signal', refId: e.id, refLabel: `市场变化 day ${e.day}` };
+  });
 }
 
 export function buildOpportunityListProjection(state: GameState): OpportunityListProjection {

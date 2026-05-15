@@ -300,7 +300,7 @@ export function buildOwnerDecisionMomentsFromState(
   const moments: OwnerDecisionMoment[] = [];
 
   for (const caseId of caseIds) {
-    const caseReceipts = receipts.filter((r) => r.caseId === caseId);
+    const caseReceipts = receipts.filter((r) => r.caseId === caseId && Array.isArray(r.fieldDeltas));
     const caseSettlements = settlements.filter((s) => s.caseId === caseId);
     const caseRuns = runs.filter((r) => r.caseId === caseId);
 

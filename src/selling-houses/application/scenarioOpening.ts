@@ -45,6 +45,9 @@ export interface ScenarioOpeningBriefingCase {
   ownerName: string;
   ownerMood: string;
   stageLabel: string;
+  roleLabel: string;
+  storyLine: string;
+  decisionHint: string;
   priceLabel: string;
   ownerStateLabel: string;
   customerLabel: string;
@@ -56,6 +59,7 @@ export interface ScenarioOpeningBriefing {
   marketTitle: string;
   marketDetail: string;
   marketTags: string[];
+  worldScaleLabel: string;
   scaleLabel: string;
   ownerCountLabel: string;
   customerCountLabel: string;
@@ -289,29 +293,33 @@ export function buildScenarioOpeningBriefing(opening: ScenarioOpening): Scenario
   const state = createStateFromScenarioOpening(opening);
   const scenario = opening.snapshot.scenario;
   const marketCells = collectScenarioMarketCells(opening.snapshot);
-  const marketTitle = marketCells.length
-    ? marketCells.map((entry) => entry.name).join(' / ')
-    : opening.snapshot.world.name;
+  const marketNames = marketCells.map((entry) => entry.name);
   const averageDemandHeat = average(marketCells.map((entry) => entry.demandHeat));
   const averageCompetitivePressure = average(marketCells.map((entry) => entry.competitivePressure));
   const averageSentiment = average(marketCells.map((entry) => entry.sentiment));
   const visibleOpportunities = state.opportunities.filter((entry) => entry.visibility !== 'shadow');
   const urgentCases = state.cases.filter((entry) => entry.windowDays <= 7 || entry.urgency >= 76);
   const fragileOwners = state.cases.filter((entry) => entry.trust <= 58 || entry.patience <= 45);
+  const marketCellCount = marketCells.length || opening.snapshot.world.marketCells.length;
+  const worldScaleLabel = buildBigWorldScaleLabel(state)
+    ?? `${scenario.cases.length} 套房 · ${marketCellCount} 个板块 · ${state.customers.length} 位潜在客户 · ${visibleOpportunities.length} 条线索`;
 
   return {
     dateLabel: buildOpeningDateLabel(opening.snapshot),
-    marketTitle,
-    marketDetail: [
-      `客户热度${demandHeatLabel(averageDemandHeat)}`,
-      `同类房竞争${pressureLabel(averageCompetitivePressure)}`,
-      `市场情绪${sentimentLabel(averageSentiment)}`,
-    ].join(' · '),
+    marketTitle: buildMarketStoryTitle(marketNames, averageDemandHeat, averageCompetitivePressure),
+    marketDetail: buildMarketStoryDetail(
+      marketNames,
+      averageDemandHeat,
+      averageCompetitivePressure,
+      averageSentiment,
+      scenario.initialRivalListings?.length || 0,
+    ),
     marketTags: [
       `${scenario.competitionGroups.length} 组同类房竞争`,
       `${scenario.scriptedEvents.length} 个已知节点`,
       `${scenario.initialRivalListings?.length || 0} 套竞品在场`,
     ],
+    worldScaleLabel,
     scaleLabel: `${scenario.cases.length} 套房 · ${scenario.maxDay} 天`,
     ownerCountLabel: `${state.cases.length} 位业主，${urgentCases.length} 位时间较紧`,
     customerCountLabel: `${state.customers.length} 位潜在客户，${visibleOpportunities.length} 条线索已浮出`,
@@ -329,6 +337,9 @@ export function buildScenarioOpeningBriefing(opening: ScenarioOpening): Scenario
         ownerName: caseItem.ownerName,
         ownerMood: caseItem.ownerMood,
         stageLabel: caseItem.stageLabel,
+        roleLabel: caseRoleLabel(caseItem),
+        storyLine: caseStoryLine(caseItem, opportunities, bestOpportunity),
+        decisionHint: caseDecisionHint(caseItem, opportunities, bestOpportunity),
         priceLabel: pricePositionLabel(caseItem.askPrice, caseItem.marketPrice),
         ownerStateLabel: [
           `信任${scoreBand(caseItem.trust)}`,
@@ -353,6 +364,49 @@ function buildOpeningDateLabel(snapshot: ScenarioSnapshot) {
   const day = Math.max(1, Math.min(28, snapshot.scenario.startDay));
   const date = new Date(Date.UTC(2026, month - 1, day));
   return `${month}月${day}日 ${WEEKDAY_LABELS[date.getUTCDay()]}`;
+}
+
+function buildMarketStoryTitle(marketNames: string[], demandHeat: number, pressure: number) {
+  const names = marketNames.length
+    ? marketNames.map((entry) => entry.split('|')[0]?.trim() || entry).join('、')
+    : '这片市场';
+  if (demandHeat >= 68 && pressure >= 58) return `${names}有人看，但好房也在互相抢客`;
+  if (demandHeat >= 58) return `${names}需求还在，关键是把客户留到你手里`;
+  if (pressure >= 68) return `${names}竞争变挤，每次跟进都要更准`;
+  return `${names}节奏不算差，但需要你先把重点排出来`;
+}
+
+function buildMarketStoryDetail(
+  marketNames: string[],
+  demandHeat: number,
+  pressure: number,
+  sentiment: number,
+  rivalCount: number,
+) {
+  const marketScope = marketNames.length > 1 ? `这 ${marketNames.length} 个板块` : '这个板块';
+  const demandCopy = demandHeat >= 68
+    ? '买家还愿意出来看房'
+    : demandHeat >= 55
+      ? '客户量够用，但不会自动成交'
+      : '客户没有那么主动，需要你把需求拉出来';
+  const pressureCopy = pressure >= 68
+    ? '同类房源会频繁分流客户'
+    : pressure >= 55
+      ? '旁边也有房在争同一批人'
+      : '竞品压力暂时可控';
+  const sentimentCopy = sentiment >= 66
+    ? '市场情绪偏暖，适合尽快制造确定性'
+    : sentiment >= 48
+      ? '市场情绪平稳，谁先把理由讲清楚谁更占先'
+      : '市场情绪偏谨慎，业主和客户都需要更多证据';
+  const rivalCopy = rivalCount > 0 ? `场上还有 ${rivalCount} 套竞品，不适合慢慢等。` : '目前竞品不多，但也别让线索冷掉。';
+  return `${marketScope}的开局是：${demandCopy}，${pressureCopy}。${sentimentCopy}，${rivalCopy}`;
+}
+
+function buildBigWorldScaleLabel(state: GameState) {
+  const summary = state.runContext.bigWorldBootstrapSummary;
+  if (!summary) return null;
+  return `${summary.totalListingCount} 套在场房源 · ${summary.marketCellCount} 个板块 · ${summary.totalDemandUnitCount} 位潜在客户 · ${summary.totalBrokerCount} 位经纪人`;
 }
 
 function collectScenarioMarketCells(snapshot: ScenarioSnapshot): MarketCell[] {
@@ -409,6 +463,80 @@ function pricePositionLabel(askPrice: number, marketPrice: number) {
   if (gapPct >= 2) return `略高 ${Math.round(gapPct)}%`;
   if (gapPct <= -2) return `低于常见价 ${Math.abs(Math.round(gapPct))}%`;
   return '接近常见价';
+}
+
+function caseRoleLabel(caseItem: {
+  goalTier: GoalTier;
+  windowDays: number;
+  urgency: number;
+  trust: number;
+  heat: number;
+  competitionGroupIds: string[];
+}) {
+  if (caseItem.goalTier === 'core') return '主线房';
+  if (caseItem.windowDays <= 7 || caseItem.urgency >= 78) return '限时房';
+  if (caseItem.trust <= 55) return '关系房';
+  if (caseItem.heat >= 68) return '机会房';
+  if (caseItem.competitionGroupIds.length > 0) return '对冲房';
+  return '稳盘房';
+}
+
+function caseStoryLine(
+  caseItem: {
+    ownerName: string;
+    windowDays: number;
+    urgency: number;
+    trust: number;
+    patience: number;
+    heat: number;
+    askPrice: number;
+    marketPrice: number;
+    competitionGroupIds: string[];
+  },
+  opportunities: { stageLabel: string; intent: number; confidence: number }[],
+  bestOpportunity?: { stageLabel: string; intent: number; confidence: number },
+) {
+  if (caseItem.windowDays <= 7 || caseItem.urgency >= 78) {
+    return `${caseItem.ownerName}的时间感很强，先别铺太散，今天要让对方看到明确推进。`;
+  }
+  if (caseItem.trust <= 55 || caseItem.patience <= 45) {
+    return `${caseItem.ownerName}还在观望你靠不靠谱，先把预期和下一步讲清楚。`;
+  }
+  if (caseItem.askPrice >= caseItem.marketPrice * 1.05) {
+    return '这套价格站得偏高，客户不是没有，但需要先准备好市场依据。';
+  }
+  if (opportunities.length >= 4 || caseItem.heat >= 68) {
+    return bestOpportunity
+      ? `线索已经热起来了，最好的客户走到${bestOpportunity.stageLabel}，适合趁热推进。`
+      : '线索已经热起来了，适合尽快筛出最有诚意的客户。';
+  }
+  if (caseItem.competitionGroupIds.length > 0) {
+    return '它和同板块房源会互相抢客户，卖点和节奏不能跟别人长得一样。';
+  }
+  return `${caseItem.ownerName}目前还算稳，适合用稳定触达慢慢把确定性做出来。`;
+}
+
+function caseDecisionHint(
+  caseItem: {
+    windowDays: number;
+    urgency: number;
+    trust: number;
+    patience: number;
+    heat: number;
+    askPrice: number;
+    marketPrice: number;
+    competitionGroupIds: string[];
+  },
+  opportunities: { stageLabel: string; intent: number; confidence: number }[],
+  bestOpportunity?: { stageLabel: string; intent: number; confidence: number },
+) {
+  if (caseItem.windowDays <= 7 || caseItem.urgency >= 78) return '优先安排面访或带看，别让窗口继续变窄。';
+  if (caseItem.trust <= 55 || caseItem.patience <= 45) return '先补一次业主沟通，把合作边界稳住。';
+  if (caseItem.askPrice >= caseItem.marketPrice * 1.05) return '先准备调价依据，再决定要不要加推广。';
+  if (bestOpportunity && bestOpportunity.intent >= 70) return `把${bestOpportunity.stageLabel}客户往下一步推。`;
+  if (opportunities.length >= 3 || caseItem.heat >= 68) return '先筛客户质量，别平均用力。';
+  if (caseItem.competitionGroupIds.length > 0) return '先做差异化卖点，避免被同类房截走。';
+  return '保持跟进节奏，等更明确的线索冒头。';
 }
 
 function goalTierLabel(goalTier: GoalTier | undefined) {

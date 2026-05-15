@@ -11,15 +11,19 @@ import type {
   WechatFact,
   WechatMessage,
 } from './myWechatTypes.js';
+import type { ActorKnowledgeSnapshot } from '../../domain/world-model/actorKnowledgeTypes.js';
 
 export function buildMyWechatProjection({
   state,
   dashboard,
   marketIntel,
+  actorKnowledgeMap,
 }: {
   state: GameState;
   dashboard?: DashboardProjection | OperatingProjection;
   marketIntel?: MarketIntelProjection;
+  /** Optional actor knowledge map (caseId → ActorKnowledgeSnapshot) for evidence-backed facts. */
+  actorKnowledgeMap?: Map<string, ActorKnowledgeSnapshot>;
 }): MyWechatProjection {
   const resolvedDashboard = resolveDashboardProjection(state, dashboard);
   const resolvedMarketIntel = marketIntel || buildMarketIntelProjection(state);
@@ -41,6 +45,7 @@ export function buildMyWechatProjection({
     state,
     dashboard: resolvedDashboard,
     marketIntel: resolvedMarketIntel,
+    actorKnowledgeMap,
   }).filter((fact) => isValidFactTarget(fact, state));
 
   const officialFacts = facts

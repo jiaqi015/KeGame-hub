@@ -27,9 +27,9 @@ function buildDifficultyOption(meta: DifficultyOptionMeta): DifficultyOption {
     scenarioCount: meta.scenarioCount,
     featuredSeed: meta.featuredSeed,
     preview: [
-      { label: '模拟周期', value: `${presentation.metrics.days} 天` },
-      { label: '市场容量', value: presentation.metrics.marketCapacity },
-      { label: '成交预期', value: presentation.metrics.selfDealExpectation },
+      { label: '大世界规模', value: '生成后展示整体市场体量' },
+      { label: '同类市场预计成交', value: presentation.metrics.marketCapacity },
+      { label: '成交转化率', value: presentation.metrics.dealConversionRate },
       { label: '对手压力', value: presentation.metrics.rivalStrength },
       { label: '客户推进', value: presentation.metrics.customerProgression },
       { label: '额外空间', value: presentation.metrics.bonusPotential },

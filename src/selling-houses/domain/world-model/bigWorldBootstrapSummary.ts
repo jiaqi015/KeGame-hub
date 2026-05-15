@@ -26,8 +26,10 @@ import type {
   ScaleManifest,
   SourceReadinessCoverage,
 } from './bigWorldTypes.js';
+import type { MarketFormationSummary } from './marketFormationTypes.js';
 import { readMarketOpeningSnapshot } from './marketOpening.js';
 import { buildScaleManifest } from './bigWorldBootstrap.js';
+import { buildMarketFormationSummary } from './marketFormationBootstrap.js';
 
 // ---------------------------------------------------------------------------
 // Build summary from bootstrap
@@ -97,6 +99,8 @@ export function buildBigWorldBootstrapSummary(
     acnNetworkIds: bootstrap.hiddenTruth.acnNetworks.map((a) => a.id),
     namedBrokerIds: namedBrokers.map((b) => b.brokerId),
     ownerProfilePriorIds: bootstrap.hiddenTruth.ownerProfilePriors.map((p) => p.priorId),
+
+    marketFormation: buildMarketFormationSummary(bootstrap.hiddenTruth.marketFormation),
   });
 }
 
@@ -261,6 +265,17 @@ export function normalizeOldSave(state: {
       acnNetworksGte5: false,
       supportingInfoGte80: false,
     },
+    meetsMarketMegaScaleThresholds: {
+      listingsGte500: false,
+      ownersGte500: false,
+      customersGte3000: false,
+      brokersGte100: false,
+      marketCellsGte20: false,
+      microCellsGte60: false,
+      acnNetworksGte7: false,
+      supportingInfoGte160: false,
+      historicalTransactionsGte50: false,
+    },
   };
 
   const summary: BigWorldBootstrapSummary = Object.freeze({
@@ -297,6 +312,37 @@ export function normalizeOldSave(state: {
     acnNetworkIds: snapshot.acnNetworks.map((a) => a.id),
     namedBrokerIds: namedBrokers.map((b) => b.id),
     ownerProfilePriorIds: [], // old saves don't have owner priors
+
+    // Old saves don't have market formation data
+    marketFormation: {
+      listingPoolCount: 0,
+      ownerPoolCount: 0,
+      customerPoolCount: 0,
+      brokerPoolCount: 0,
+      cellThicknessCount: 0,
+      listingStateDistribution: { fresh: 0, hot: 0, warm: 0, cold: 0, price_reduced: 0, stale: 0, scarce: 0 },
+      ownerStateDistribution: { urgent: 0, watchful: 0, stubborn: 0, cooperative: 0, upgrading: 0, financial_stress: 0, emotional: 0 },
+      customerStateDistribution: { first_home: 0, upgrade: 0, school_district: 0, investment: 0, budget_sensitive: 0, time_sensitive: 0, hesitant: 0 },
+      brokerStateDistribution: { listing_maintenance: 0, customer_hunting: 0, cooperation_focused: 0, competition_focused: 0, resource_constrained: 0, balanced: 0 },
+      totalActiveSupply: 0,
+      totalActiveDemand: 0,
+      avgLiquidity: 0,
+      avgRivalPressure: 0,
+      meetsMarketFormationThresholds: {
+        listingPoolGte100: false,
+        ownerPoolGte100: false,
+        customerPoolGte200: false,
+        brokerPoolGte50: false,
+        cellThicknessGte10: false,
+        activeSupplyGte200: false,
+        activeDemandGte200: false,
+        liquidityLevelGte30: false,
+        listingStatesCoveredGte4: false,
+        ownerStatesCoveredGte4: false,
+        customerStatesCoveredGte4: false,
+        brokerStatesCoveredGte3: false,
+      },
+    },
   });
 
   // Extract seed from runContext if available

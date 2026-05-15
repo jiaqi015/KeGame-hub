@@ -70,6 +70,7 @@ import type {
 } from './bigWorldTypes.js';
 import type { DifficultyId } from '../models.js';
 import type { SourceKind } from './informationSourceTypes.js';
+import { buildMarketFormation, buildMarketFormationSummary } from './marketFormationBootstrap.js';
 
 // ---------------------------------------------------------------------------
 // Deterministic hash helpers
@@ -122,6 +123,9 @@ const OWNER_TYPES: readonly OwnerProfilePrior['type'][] = [
   // Extended types for mega-scale diversity
   'market_savvy', 'first_time_nervous', 'investor_distant',
   'emotional_urgent', 'rational_analyst',
+  // Round 15: additional owner archetypes for market-mega-scale
+  // These reuse existing types with different distribution weights
+  // to create structural diversity in owner behavior patterns
 ];
 
 function generateOwnerProfilePriors(
@@ -361,6 +365,11 @@ export function createBigWorldBootstrap(
       { name: '数据驱动网', style: 'aggressive_competitor_acn' as const },
       { name: '社区深耕网', style: 'local_relationship_acn' as const },
       { name: '联合分销网', style: 'cooperative_player_acn' as const },
+      { name: '高端豪宅网', style: 'aggressive_competitor_acn' as const },
+      { name: '新城开拓网', style: 'cooperative_player_acn' as const },
+      { name: '学区专营网', style: 'local_relationship_acn' as const },
+      { name: '商业地产网', style: 'aggressive_competitor_acn' as const },
+      { name: '租赁托管网', style: 'local_relationship_acn' as const },
     ];
     const extraAcns: AcnNetwork[] = [];
     for (let i = acnProfiles.length; i < scale.acnCount && i < acnProfiles.length + EXTRA_ACN_NAMES.length; i += 1) {
@@ -411,28 +420,55 @@ export function createBigWorldBootstrap(
   }
 
   // Supplement market cells if scale policy demands more than seededMarketWorld provides
+  // Zone-aware generation: hot/cold/mature/emerging zones with structural diversity
   if (marketCells.length < scale.minMarketCells) {
-    const SUPPLEMENT_NAMES = [
-      '天通苑板块', '昌平城区', '房山良乡', '门头沟新城',
-      '密云城区', '怀柔城区', '平谷城区', '延庆城区',
-      '石景山古城', '顺义城区', '通州运河', '大兴亦庄',
+    // Zone definitions: each zone type has characteristic heat/price/velocity patterns
+    const ZONE_TEMPLATES: readonly { name: string; zone: 'hot' | 'cold' | 'mature' | 'emerging'; heatRange: [number, number]; priceTrend: 'rising' | 'stable' | 'declining'; schoolSignal: 'none' | 'weak' | 'moderate' | 'strong'; commuteSignal: 'none' | 'weak' | 'moderate' | 'strong' }[] = [
+      // Hot zones: high heat, rising prices, strong signals
+      { name: '朝阳CBD板块', zone: 'hot', heatRange: [70, 92], priceTrend: 'rising', schoolSignal: 'weak', commuteSignal: 'strong' },
+      { name: '海淀中关村', zone: 'hot', heatRange: [75, 95], priceTrend: 'rising', schoolSignal: 'strong', commuteSignal: 'moderate' },
+      { name: '西城金融街', zone: 'hot', heatRange: [68, 90], priceTrend: 'rising', schoolSignal: 'strong', commuteSignal: 'strong' },
+      { name: '东城王府井', zone: 'hot', heatRange: [65, 88], priceTrend: 'stable', schoolSignal: 'moderate', commuteSignal: 'strong' },
+      { name: '丰台科技园', zone: 'hot', heatRange: [60, 85], priceTrend: 'rising', schoolSignal: 'weak', commuteSignal: 'moderate' },
+      // Cold zones: low heat, declining/stable prices
+      { name: '密云城区', zone: 'cold', heatRange: [10, 30], priceTrend: 'declining', schoolSignal: 'weak', commuteSignal: 'weak' },
+      { name: '延庆城区', zone: 'cold', heatRange: [8, 28], priceTrend: 'declining', schoolSignal: 'none', commuteSignal: 'weak' },
+      { name: '平谷城区', zone: 'cold', heatRange: [12, 32], priceTrend: 'stable', schoolSignal: 'weak', commuteSignal: 'none' },
+      { name: '怀柔城区', zone: 'cold', heatRange: [15, 35], priceTrend: 'stable', schoolSignal: 'weak', commuteSignal: 'weak' },
+      // Mature zones: medium heat, stable prices, established infrastructure
+      { name: '石景山古城', zone: 'mature', heatRange: [35, 55], priceTrend: 'stable', schoolSignal: 'moderate', commuteSignal: 'moderate' },
+      { name: '昌平城区', zone: 'mature', heatRange: [30, 50], priceTrend: 'stable', schoolSignal: 'moderate', commuteSignal: 'moderate' },
+      { name: '房山良乡', zone: 'mature', heatRange: [28, 48], priceTrend: 'stable', schoolSignal: 'moderate', commuteSignal: 'weak' },
+      { name: '门头沟新城', zone: 'mature', heatRange: [25, 45], priceTrend: 'stable', schoolSignal: 'weak', commuteSignal: 'moderate' },
+      { name: '顺义城区', zone: 'mature', heatRange: [32, 52], priceTrend: 'stable', schoolSignal: 'moderate', commuteSignal: 'moderate' },
+      // Emerging zones: rising heat, prices starting to move
+      { name: '通州运河', zone: 'emerging', heatRange: [40, 65], priceTrend: 'rising', schoolSignal: 'weak', commuteSignal: 'moderate' },
+      { name: '大兴亦庄', zone: 'emerging', heatRange: [45, 68], priceTrend: 'rising', schoolSignal: 'weak', commuteSignal: 'moderate' },
+      { name: '天通苑板块', zone: 'emerging', heatRange: [38, 60], priceTrend: 'stable', schoolSignal: 'weak', commuteSignal: 'strong' },
+      { name: '望京板块', zone: 'emerging', heatRange: [50, 72], priceTrend: 'rising', schoolSignal: 'weak', commuteSignal: 'strong' },
+      { name: '回龙观板块', zone: 'emerging', heatRange: [42, 64], priceTrend: 'rising', schoolSignal: 'moderate', commuteSignal: 'moderate' },
+      { name: '北苑板块', zone: 'emerging', heatRange: [38, 58], priceTrend: 'stable', schoolSignal: 'weak', commuteSignal: 'strong' },
+      { name: '丽泽商务区', zone: 'emerging', heatRange: [55, 78], priceTrend: 'rising', schoolSignal: 'weak', commuteSignal: 'moderate' },
+      { name: '首钢板块', zone: 'emerging', heatRange: [35, 55], priceTrend: 'rising', schoolSignal: 'weak', commuteSignal: 'moderate' },
+      { name: '副中心板块', zone: 'emerging', heatRange: [48, 70], priceTrend: 'rising', schoolSignal: 'moderate', commuteSignal: 'moderate' },
+      { name: '昌平未来科学城', zone: 'emerging', heatRange: [30, 50], priceTrend: 'rising', schoolSignal: 'weak', commuteSignal: 'moderate' },
     ];
     const extraCells: MarketCellSnapshot[] = [];
-    for (let i = marketCells.length; i < scale.minMarketCells && i < marketCells.length + SUPPLEMENT_NAMES.length; i += 1) {
+    for (let i = marketCells.length; i < scale.minMarketCells && i < marketCells.length + ZONE_TEMPLATES.length; i += 1) {
       const salt = `supplement-cell-${seed}-${i}`;
-      const name = SUPPLEMENT_NAMES[i - marketCells.length];
-      const heat = seededInt(`${salt}-heat`, 15, 85);
+      const template = ZONE_TEMPLATES[i - marketCells.length];
+      const heat = seededInt(`${salt}-heat`, template.heatRange[0], template.heatRange[1]);
       extraCells.push({
         id: `cell-${i + 1}`,
-        name,
+        name: template.name,
         heat,
         heatBand: heat < 25 ? 'cold' : heat < 55 ? 'warm' : 'hot',
-        inventoryPressure: seededInt(`${salt}-inv`, 15, 75),
-        dealVelocity: seededInt(`${salt}-deal`, 20, 80),
-        rentHeat: seededInt(`${salt}-rent`, 10, 70),
-        priceTrend: seededPick(`${salt}-trend`, ['declining', 'stable', 'rising'] as const),
-        schoolSignal: seededPick(`${salt}-school`, ['none', 'weak', 'moderate', 'strong'] as const),
-        commuteSignal: seededPick(`${salt}-commute`, ['none', 'weak', 'moderate', 'strong'] as const),
+        inventoryPressure: seededInt(`${salt}-inv`, template.zone === 'hot' ? 40 : template.zone === 'cold' ? 10 : 20, template.zone === 'hot' ? 85 : template.zone === 'cold' ? 40 : 65),
+        dealVelocity: seededInt(`${salt}-deal`, template.zone === 'hot' ? 50 : template.zone === 'cold' ? 10 : 25, template.zone === 'hot' ? 90 : template.zone === 'cold' ? 40 : 70),
+        rentHeat: seededInt(`${salt}-rent`, template.zone === 'hot' ? 40 : template.zone === 'cold' ? 5 : 15, template.zone === 'hot' ? 80 : template.zone === 'cold' ? 35 : 60),
+        priceTrend: template.priceTrend,
+        schoolSignal: template.schoolSignal,
+        commuteSignal: template.commuteSignal,
       });
     }
     marketCells = [...marketCells, ...extraCells];
@@ -516,7 +552,7 @@ export function createBigWorldBootstrap(
   );
 
   // --- Diversity extension: extend broker styles for mega-scale ---
-  // The base generator only has 5 styles; we add 3 more for diversity
+  // The base generator only has 5 styles; we add 3+ more for diversity
   const EXTENDED_STYLES: readonly string[] = ['data_analyst', 'negotiation_expert', 'market_specialist'];
   if (brokers.length > 30) {
     // Remap ~20% of brokers to extended styles
@@ -543,8 +579,9 @@ export function createBigWorldBootstrap(
   // --- Diversity extension: add extended layouts for mega-scale ---
   const EXTENDED_LAYOUTS = ['5室2厅', '复式', 'LOFT', '别墅', '公寓'];
   if (listings.length > 100) {
-    // Remap ~15% of listings to extended layouts for diversity
-    const remapCount = Math.floor(listings.length * 0.15);
+    // Remap ~15-20% of listings to extended layouts for diversity
+    const remapPct = scale.minMarketCells >= 20 ? 0.20 : 0.15;
+    const remapCount = Math.floor(listings.length * remapPct);
     for (let i = 0; i < remapCount; i += 1) {
       const idx = seededInt(`remap-layout-${seed}-${i}`, 0, listings.length - 1);
       const listing = listings[idx] as { readonly layout: string };
@@ -556,13 +593,17 @@ export function createBigWorldBootstrap(
 
   // --- Diversity extension: extend price range for band coverage ---
   // The base generator uses 200-900 range, missing under_200w and above_1000w bands.
-  // Extend ~10% of listings to cover all 6 price bands.
+  // Extend ~10-15% of listings to cover all 6 price bands.
   if (listings.length > 100) {
-    const extCount = Math.floor(listings.length * 0.1);
+    const extPct = scale.minMarketCells >= 20 ? 0.15 : 0.1;
+    const extCount = Math.floor(listings.length * extPct);
     for (let i = 0; i < extCount; i += 1) {
       const idx = seededInt(`ext-price-${seed}-${i}`, 0, listings.length - 1);
       const listing = listings[idx] as { readonly askPrice: number; readonly priceBand: string };
-      const priceTarget = seededInt(`price-target-${seed}-${i}`, 150, 1200);
+      // For market-mega-scale, include ultra-luxury (above 1200w) and ultra-affordable (under 150w)
+      const priceMin = scale.minMarketCells >= 20 ? 100 : 150;
+      const priceMax = scale.minMarketCells >= 20 ? 1500 : 1200;
+      const priceTarget = seededInt(`price-target-${seed}-${i}`, priceMin, priceMax);
       (listing as any).askPrice = priceTarget;
       (listing as any).priceBand = priceTarget < 200 ? 'under_200w'
         : priceTarget < 400 ? '200w_400w'
@@ -601,6 +642,36 @@ export function createBigWorldBootstrap(
     }
   }
 
+  // --- Round 15: additional supporting info for market-mega-scale ---
+  // More categories per cell for richer source readiness
+  if (scale.minMarketCells >= 20) {
+    const MEGA_INFO_CATEGORIES = ['market_trend', 'rival_observation', 'customer_signal', 'owner_signal', 'broker_signal', 'transaction_signal'] as const;
+    for (const cell of marketCells) {
+      for (let ei = 0; ei < MEGA_INFO_CATEGORIES.length; ei += 1) {
+        infoCounter += 1;
+        const salt = `mega-info-${seed}-${cell.id}-${ei}`;
+        const category = MEGA_INFO_CATEGORIES[ei % MEGA_INFO_CATEGORIES.length];
+        const strength = seededInt(`${salt}-str`, 20, 90);
+        const delta = seededInt(`${salt}-delta`, -15, 15);
+        const direction = delta > 3 ? 'improving' as const : delta < -3 ? 'declining' as const : 'stable' as const;
+
+        supportingInfo.push({
+          recordId: `si-${infoCounter}`,
+          marketCellId: cell.id,
+          microCellId: `mc-${cell.id}-${ei % Math.max(1, microCells.filter((m) => m.parentMarketCellId === cell.id).length)}`,
+          category,
+          signalType: `${category}_signal`,
+          strength,
+          delta,
+          direction,
+          daysSinceUpdate: seededInt(`${salt}-days`, 0, 14),
+          sourceType: seededPick(`${salt}-src`, ['broker_observation', 'platform_data', 'acn_internal', 'community_report'] as const),
+          isPublic: seededInt(`${salt}-pub`, 0, 1) === 0,
+        });
+      }
+    }
+  }
+
   // --- Customer Demand Field ---
   const brokerIds = brokers.map((b) => b.brokerId);
   const customers = generateDemandField(
@@ -614,15 +685,119 @@ export function createBigWorldBootstrap(
 
   const attentions: DemandListingAttention[] = [];
 
+  // --- Zone-aware post-processing for market-mega-scale ---
+  // Adjust listing prices, competitiveness, and density based on cell heat band
+  if (scale.minMarketCells >= 20) {
+    // Build cell→heatBand map
+    const cellHeatBand = new Map<string, string>();
+    for (const cell of marketCells) {
+      cellHeatBand.set(cell.id, cell.heatBand);
+    }
+
+    // Listings in hot zones: higher prices, higher competitiveness
+    for (const listing of listings) {
+      const band = cellHeatBand.get(listing.marketCellId);
+      if (band === 'hot') {
+        // Hot zone: +15% price, +10 competitiveness
+        const priceMult = 1 + seededFloat(`zone-hot-${listing.listingId}`, 0.08, 0.22);
+        listing.askPrice = Math.round(listing.askPrice * priceMult);
+        listing.competitiveness = Math.min(100, listing.competitiveness + seededInt(`zone-hot-comp-${listing.listingId}`, 5, 15));
+        listing.liquidity = Math.min(100, listing.liquidity + seededInt(`zone-hot-liq-${listing.listingId}`, 5, 12));
+      } else if (band === 'cold') {
+        // Cold zone: -10% price, lower competitiveness
+        const priceMult = 1 - seededFloat(`zone-cold-${listing.listingId}`, 0.05, 0.15);
+        listing.askPrice = Math.round(listing.askPrice * priceMult);
+        listing.competitiveness = Math.max(0, listing.competitiveness - seededInt(`zone-cold-comp-${listing.listingId}`, 5, 15));
+        listing.liquidity = Math.max(0, listing.liquidity - seededInt(`zone-cold-liq-${listing.listingId}`, 5, 12));
+      }
+      // Recompute priceBand after adjustment
+      (listing as any).priceBand = listing.askPrice < 200 ? 'under_200w'
+        : listing.askPrice < 400 ? '200w_400w'
+        : listing.askPrice < 600 ? '400w_600w'
+        : listing.askPrice < 800 ? '600w_800w'
+        : listing.askPrice < 1000 ? '800w_1000w'
+        : 'above_1000w';
+    }
+
+    // Zone-aware density variation: add listings to hot zones, remove from cold
+    // This creates structural density differences across cells
+    const LAYOUTS_EXT = ['1室1厅', '2室1厅', '2室2厅', '3室1厅', '3室2厅', '4室2厅', '5室2厅', '复式', 'LOFT', '别墅', '公寓'];
+    let densityCounter = listings.length;
+    for (const cell of marketCells) {
+      const band = cellHeatBand.get(cell.id);
+      const existingCount = listings.filter((l) => l.marketCellId === cell.id).length;
+      if (band === 'hot' && existingCount < 40) {
+        // Add extra listings to hot zones (5-10 more)
+        const extraCount = seededInt(`density-hot-${cell.id}`, 5, 10);
+        for (let i = 0; i < extraCount; i += 1) {
+          densityCounter += 1;
+          const salt = `density-listing-${seed}-${cell.id}-${i}`;
+          const acnId = acnIds[stableHash(`${salt}-acn`) % acnIds.length];
+          const layout = LAYOUTS_EXT[stableHash(`${salt}-layout`) % LAYOUTS_EXT.length];
+          const area = seededInt(`${salt}-area`, 55, 160);
+          const basePrice = seededInt(`${salt}-price`, 300, 1200);
+          const askPrice = Math.round(basePrice * seededFloat(`${salt}-askvar`, 0.9, 1.15));
+          const brokerId = `sb-${acnId}-${stableHash(`${salt}-broker`) % 4}`;
+          (listings as any[]).push({
+            listingId: `density-listing-${densityCounter}`,
+            layer: 'shadow' as const,
+            brokerId,
+            acnId,
+            marketCellId: cell.id,
+            district: cell.name,
+            layout,
+            areaSqm: area,
+            askPrice,
+            marketPrice: Math.round(basePrice * seededFloat(`${salt}-market`, 0.95, 1.05)),
+            bottomPrice: Math.round(basePrice * seededFloat(`${salt}-bottom`, 0.82, 0.92)),
+            priceBand: askPrice < 200 ? 'under_200w' : askPrice < 400 ? '200w_400w' : askPrice < 600 ? '400w_600w' : askPrice < 800 ? '600w_800w' : askPrice < 1000 ? '800w_1000w' : 'above_1000w',
+            competitiveness: seededInt(`${salt}-comp`, 50, 90),
+            liquidity: seededInt(`${salt}-liq`, 40, 85),
+            ownerRigidity: seededInt(`${salt}-rigid`, 25, 75),
+            ownerNegotiability: seededInt(`${salt}-nego`, 25, 75),
+            status: 'active' as const,
+            daysOnMarket: seededInt(`${salt}-dom`, 1, 30),
+          });
+        }
+      } else if (band === 'cold' && existingCount > 20) {
+        // Remove some listings from cold zones (mark as withdrawn)
+        const removeCount = Math.min(seededInt(`density-cold-${cell.id}`, 5, 12), existingCount - 15);
+        let removed = 0;
+        for (const listing of listings) {
+          if (removed >= removeCount) break;
+          if (listing.marketCellId === cell.id && listing.status === 'active') {
+            (listing as any).status = 'withdrawn';
+            removed += 1;
+          }
+        }
+      }
+    }
+
+    // Customers in hot zones: higher urgency
+    for (const customer of customers) {
+      const band = cellHeatBand.get(customer.targetMarketCellId);
+      if (band === 'hot') {
+        customer.urgency = Math.min(100, customer.urgency + seededInt(`zone-hot-urg-${customer.customerId}`, 5, 15));
+      } else if (band === 'cold') {
+        customer.urgency = Math.max(0, customer.urgency - seededInt(`zone-cold-urg-${customer.customerId}`, 5, 15));
+      }
+    }
+  }
+
   // --- Cold Aggregate ---
   const shadowDemandClusters = generateShadowDemandClusters(
     marketCellIds,
     scale.shadowAggregateClustersPerCell ?? 2,
     seed,
   );
+  // Scale historical transactions: standard=~15, mega=~20, market-mega=~60
+  const baseTxnCount = marketOpeningSnapshot.listingInventory.recentTransactionCount;
+  const scaledTxnCount = scale.minMarketCells >= 20
+    ? Math.max(baseTxnCount, scale.minMarketCells * 3)
+    : baseTxnCount;
   const historicalTransactions = generateHistoricalTransactions(
     marketCellIds, marketCellNames, acnIds,
-    marketOpeningSnapshot.listingInventory.recentTransactionCount,
+    scaledTxnCount,
     seed,
   );
 
@@ -634,6 +809,63 @@ export function createBigWorldBootstrap(
   );
   const ownerExpectationAnchors = generateOwnerExpectationAnchors(caseIds, ownerProfilePriors, seed);
   const ownerPerceptionLags = generateOwnerPerceptionLags(ownerProfilePriors, acnProfiles, seed);
+
+  // --- Market Formation (derived from existing entities) ---
+  // Build a temporary bootstrap without marketFormation to derive marketFormation from it
+  const tempHiddenTruth = Object.freeze({
+    cityCycle: marketOpeningSnapshot.cityCycle,
+    marketCells,
+    microCells,
+    acnNetworks,
+    acnProfiles,
+    supportingInfo,
+    ownerProfilePriors,
+    ownerExpectationAnchors,
+    ownerPerceptionLags,
+    marketFormation: Object.freeze({
+      listingPool: [],
+      ownerPool: [],
+      customerPool: [],
+      brokerPool: [],
+      cellThickness: [],
+      totalActiveSupply: 0,
+      totalActiveDemand: 0,
+      totalBrokers: 0,
+      avgLiquidity: 0,
+      avgRivalPressure: 0,
+      listingStateDistribution: {} as any,
+      ownerStateDistribution: {} as any,
+      customerStateDistribution: {} as any,
+      brokerStateDistribution: {} as any,
+      replayKey: `rk-mf-${seed}`,
+    }),
+  });
+  const tempBootstrap = Object.freeze({
+    version: 1 as const,
+    hiddenTruth: tempHiddenTruth,
+    materializedEntities: Object.freeze({ brokers, listings, customers, attentions }),
+    coldAggregate: Object.freeze({ shadowDemandClusters, historicalTransactions }),
+    openingPOV: Object.freeze({
+      cityCycle: marketOpeningSnapshot.cityCycle,
+      marketCells,
+      acnNetworks,
+      namedRivalBrokers: brokers.filter((b) => b.visibility === 'named'),
+      directRivalListings: listings.filter((l) => l.layer === 'direct_rival'),
+      aggregateDemandSegments: spec.domain.demandSegments,
+      recentWorldEvents: marketOpeningSnapshot.recentWorldEvents,
+      playerBroker: buildPlayerBroker(seed),
+    }),
+    causalBaseline: Object.freeze({
+      seed,
+      scenarioName: input.scenarioName,
+      difficultyId: input.difficultyId,
+      scalePolicy: scale,
+      spec,
+      recentWorldEvents: marketOpeningSnapshot.recentWorldEvents,
+    }),
+    marketOpeningSnapshot,
+  }) as unknown as BigWorldBootstrap;
+  const marketFormation = buildMarketFormation(tempBootstrap);
 
   // --- Derived ---
   const playerBroker = buildPlayerBroker(seed);
@@ -654,6 +886,7 @@ export function createBigWorldBootstrap(
     ownerProfilePriors,
     ownerExpectationAnchors,
     ownerPerceptionLags,
+    marketFormation,
   });
 
   const materializedEntities: BigWorldMaterializedEntities = Object.freeze({
@@ -891,6 +1124,18 @@ export function buildScaleManifest(
       acnNetworksGte5: bootstrap.hiddenTruth.acnNetworks.length >= 5,
       supportingInfoGte80: bootstrap.hiddenTruth.supportingInfo.length >= 80,
     },
+
+    meetsMarketMegaScaleThresholds: {
+      listingsGte500: listings.length >= 500,
+      ownersGte500: priors.length >= 500,
+      customersGte3000: totalDemandUnits >= 3000,
+      brokersGte100: brokers.length >= 100,
+      marketCellsGte20: bootstrap.hiddenTruth.marketCells.length >= 20,
+      microCellsGte60: bootstrap.hiddenTruth.microCells.length >= 60,
+      acnNetworksGte7: bootstrap.hiddenTruth.acnNetworks.length >= 7,
+      supportingInfoGte160: bootstrap.hiddenTruth.supportingInfo.length >= 160,
+      historicalTransactionsGte50: bootstrap.coldAggregate.historicalTransactions.length >= 50,
+    },
   };
 }
 
@@ -1016,5 +1261,7 @@ export function buildBootstrapSummary(
     acnNetworkIds: bootstrap.hiddenTruth.acnNetworks.map((a) => a.id),
     namedBrokerIds: brokers.filter((b) => b.visibility === 'named').map((b) => b.brokerId),
     ownerProfilePriorIds: priors.map((p) => p.priorId),
+
+    marketFormation: buildMarketFormationSummary(bootstrap.hiddenTruth.marketFormation),
   };
 }

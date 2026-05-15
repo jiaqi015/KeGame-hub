@@ -24,6 +24,7 @@ import {
 import { getDifficultyProfile } from './difficultyProfiles.js';
 import { buildScenarioPresentation } from './scenarioNamer.js';
 import { getScenarioBlueprintsForDifficulty } from './scenarioBlueprints.js';
+import { scoreThresholdsForTarget } from '../config/difficultyTargets.js';
 import type {
   CaseRole,
   DifficultyProfile,
@@ -373,18 +374,11 @@ function buildGoalContext(profile: DifficultyProfile, blueprint: ScenarioBluepri
       : 'ability';
 
   const targetScore = profile.playerTargetScore;
-  const pass = Math.max(42, targetScore - 12);
-  const strong = Math.min(94, targetScore + 12);
-  const ace = Math.min(98, strong + 8);
 
   return {
     goalContext,
     targetScore,
-    scoreThresholds: {
-      pass,
-      strong,
-      ace,
-    },
+    scoreThresholds: scoreThresholdsForTarget(targetScore),
     boardPressureProfile: {
       abilityPressure,
       defensePressure,

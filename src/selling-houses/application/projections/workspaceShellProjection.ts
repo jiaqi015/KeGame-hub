@@ -10,6 +10,10 @@ import {
   buildMarketOpeningPOVProjection,
   type MarketOpeningPOVProjection,
 } from './marketOpeningPOVProjection.js';
+import {
+  buildPlayableMarketProjection,
+  type PlayableMarketProjection,
+} from './playableMarketProjection.js';
 import type { ActorKnowledgeSnapshot } from '../../domain/world-model/actorKnowledgeTypes.js';
 
 export type WorkspaceShellResourcePanelId = 'budget' | 'auxiliary' | 'energy';
@@ -138,6 +142,8 @@ export interface WorkspaceShellProjection {
   selectedCaseDetail: WorkspaceShellSelectedCaseDetailProjection | null;
   /** 大世界 POV 投影 — 市场入场简报（只读，不暴露完整 shadow world） */
   marketOpeningBrief: MarketOpeningPOVProjection;
+  /** 可玩市场投影 — 市场雷达 + 竞品压力 + 客户池 + 业主池 + 经纪人机会 */
+  playableMarket?: PlayableMarketProjection;
 }
 
 function getClosedDealCount(state: GameState) {
@@ -289,6 +295,7 @@ export function buildWorkspaceShellProjection(
       }
       : null,
     marketOpeningBrief: buildMarketOpeningPOVProjection(state, actorKnowledgeMap),
+    playableMarket: buildPlayableMarketProjection(state, actorKnowledgeMap),
   };
 }
 

@@ -84,6 +84,12 @@ export interface WorldCausalEventBase {
   readonly sourceReplayKey?: string;
   /** SourceKind of the originating record. */
   readonly sourceKind?: import('./informationSourceTypes.js').SourceKind;
+  /** All source record IDs merged into this event when multiple records explain the same causal fact. */
+  readonly sourceRecordIds?: readonly string[];
+  /** All source replay keys merged into this event. */
+  readonly sourceReplayKeys?: readonly string[];
+  /** All source kinds merged into this event. */
+  readonly sourceKinds?: readonly import('./informationSourceTypes.js').SourceKind[];
 }
 
 // ---------------------------------------------------------------------------

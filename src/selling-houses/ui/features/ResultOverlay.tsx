@@ -75,7 +75,7 @@ export function ResultOverlay({ state, onRestart }: ResultOverlayProps) {
                       {projection.hero.score}
                     </span>
                     <span className="pb-2 text-lg font-bold text-[var(--seller-subtle)]">
-                      / {finalResult?.targetScore ?? '--'}
+                      / 100
                     </span>
                   </div>
                 </div>

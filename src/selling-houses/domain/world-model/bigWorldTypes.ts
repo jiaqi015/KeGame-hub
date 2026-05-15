@@ -35,6 +35,7 @@ import type { BrokerEntity } from './brokerPopulation.js';
 import type { ListingPopulationEntity, HistoricalTransactionSummary } from './listingPopulation.js';
 import type { CustomerDemandEntity, DemandListingAttention } from './customerDemandField.js';
 import type { SourceKind } from './informationSourceTypes.js';
+import type { MarketFormationState, MarketFormationSummary } from './marketFormationTypes.js';
 
 // ════════════════════════════════════════════════════════════════════════════
 // Source Refs — branded ID types for cross-entity provenance
@@ -288,6 +289,12 @@ export interface BigWorldHiddenTruth {
   readonly ownerExpectationAnchors: readonly OwnerExpectationAnchor[];
   /** Owner perception lags — how fast each owner processes market signals. */
   readonly ownerPerceptionLags: readonly OwnerPerceptionLag[];
+  /**
+   * Market formation: classified pools and per-cell thickness.
+   * Derived deterministically from existing entities.
+   * Every entry has stable ID, provenance, replayKey.
+   */
+  readonly marketFormation: MarketFormationState;
 }
 
 /**
@@ -456,6 +463,9 @@ export interface BigWorldBootstrapSummary {
   readonly acnNetworkIds: readonly string[];
   readonly namedBrokerIds: readonly string[];
   readonly ownerProfilePriorIds: readonly string[];
+
+  /** Market formation summary: pool distributions and cell thickness. */
+  readonly marketFormation: MarketFormationSummary;
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -575,6 +585,19 @@ export interface ScaleManifest {
     readonly microCellsGte24: boolean;
     readonly acnNetworksGte5: boolean;
     readonly supportingInfoGte80: boolean;
+  };
+
+  /** Whether the market-mega-scale thresholds are met (Round 15). */
+  readonly meetsMarketMegaScaleThresholds: {
+    readonly listingsGte500: boolean;
+    readonly ownersGte500: boolean;
+    readonly customersGte3000: boolean;
+    readonly brokersGte100: boolean;
+    readonly marketCellsGte20: boolean;
+    readonly microCellsGte60: boolean;
+    readonly acnNetworksGte7: boolean;
+    readonly supportingInfoGte160: boolean;
+    readonly historicalTransactionsGte50: boolean;
   };
 }
 

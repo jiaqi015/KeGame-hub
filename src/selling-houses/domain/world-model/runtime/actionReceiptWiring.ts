@@ -206,7 +206,16 @@ export function buildReceiptFromSnapshot(
   // The source records are built inside buildActionReceipt via executeAction.
   // We need to re-run ingestion to get the SourceIngestionReceipt with causal events.
   // This is deterministic: same command + same seed → same source records.
-  const sourceRecords = extractSourceRecordsFromCommand(command, seed);
+  const domainSourceRecords = snapshot.outcome === 'success'
+    ? extractSourceRecordsFromCommand(command, seed)
+    : [];
+  // Always create a player_action_receipt record for the action execution itself.
+  // This is separate from domain-specific records (owner_interview, customer_interaction, etc.)
+  // which capture the effect. player_action_receipt captures the fact that the action happened.
+  const actionReceiptRecord = snapshot.outcome === 'success'
+    ? buildSuccessfulPlayerActionSourceRecord(snapshot, command, seed)
+    : buildBlockedPlayerActionSourceRecord(snapshot, command, seed);
+  const sourceRecords = [...actionReceiptRecord, ...domainSourceRecords];
   const sourceIngestionReceipt = ingestSourceRecords(sourceRecords, snapshot.day, seed);
 
   return {
@@ -239,6 +248,70 @@ function extractSourceRecordsFromCommand(
     default:
       return [];
   }
+}
+
+function buildSuccessfulPlayerActionSourceRecord(
+  snapshot: ActionReceiptSnapshot,
+  command: ActionCommand,
+  seed: number,
+): readonly InformationSourceRecord[] {
+  const recordId = deterministicId('isr', ['player_action_receipt', snapshot.actionId, snapshot.caseId, snapshot.day, seed]);
+  return [{
+    sourceId: recordId,
+    sourceKind: 'player_action_receipt',
+    day: snapshot.day,
+    phase: 'afternoon',
+    entityRefs: [{ id: snapshot.caseId, kind: 'case' }],
+    actorRefs: [{ id: command.actorId, role: command.actorRole }],
+    visibility: { scope: 'player_only', baseDelayDays: 0 },
+    confidence: 0.95,
+    delayDays: 0,
+    replayKey: deterministicId('isr-rk', ['player_action_receipt', snapshot.actionId, snapshot.caseId, snapshot.day, seed]),
+    origin: 'player_action',
+    payload: {
+      summary: snapshot.outcomeSummary,
+      subtype: 'action_executed',
+      actionId: snapshot.actionId,
+      executorId: command.actorId,
+      caseId: snapshot.caseId,
+      costEnergy: snapshot.costEnergy,
+      costPromotionBudget: snapshot.costPromotionBudget,
+      fieldDeltas: [],
+      outcome: 'success',
+    },
+  }];
+}
+
+function buildBlockedPlayerActionSourceRecord(
+  snapshot: ActionReceiptSnapshot,
+  command: ActionCommand,
+  seed: number,
+): readonly InformationSourceRecord[] {
+  const recordId = deterministicId('isr', ['player_action_receipt', snapshot.actionId, snapshot.caseId, snapshot.day, seed]);
+  return [{
+    sourceId: recordId,
+    sourceKind: 'player_action_receipt',
+    day: snapshot.day,
+    phase: 'afternoon',
+    entityRefs: [{ id: snapshot.caseId, kind: 'case' }],
+    actorRefs: [{ id: command.actorId, role: command.actorRole }],
+    visibility: { scope: 'player_only', baseDelayDays: 0 },
+    confidence: 0.9,
+    delayDays: 0,
+    replayKey: deterministicId('isr-rk', ['player_action_receipt_blocked', snapshot.actionId, snapshot.caseId, snapshot.day, seed]),
+    origin: 'player_action',
+    payload: {
+      summary: snapshot.outcomeSummary,
+      subtype: 'action_blocked',
+      actionId: snapshot.actionId,
+      executorId: command.actorId,
+      caseId: snapshot.caseId,
+      costEnergy: snapshot.costEnergy,
+      costPromotionBudget: snapshot.costPromotionBudget,
+      fieldDeltas: [],
+      outcome: 'blocked',
+    },
+  }];
 }
 
 function getTargetDomains(

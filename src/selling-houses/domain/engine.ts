@@ -293,10 +293,27 @@ function buildProcessReceiptSourceRecords(
   if (result.processedCount === 0) return [];
 
   const day = result.day;
-  const runSeed = state.runContext.runSeed;
-  const processType = result.managerId === 'negotiation-process-manager' ? 'negotiation' : 'open_day';
+  const firstProductRun = result.productRunIds.length > 0
+    ? state.productRuns.find((run) => run.id === result.productRunIds[0])
+    : undefined;
+  const processType = result.managerId === 'negotiation-process-manager'
+    ? 'negotiation'
+    : firstProductRun?.productType === 'sincere-sale'
+      ? 'sincerity_sale'
+      : 'open_day';
   const hasDeal = result.closedDealIds.length > 0;
-  const subtype = hasDeal ? 'deal_signed' : result.processedCount > 0 ? 'negotiation_progressed' : 'open_day_completed';
+  const subtype = hasDeal
+    ? 'deal_signed'
+    : result.managerId === 'negotiation-process-manager'
+      ? 'negotiation_progressed'
+      : processType === 'sincerity_sale'
+        ? 'sincerity_sale_completed'
+        : 'open_day_completed';
+  const caseIds = result.opportunityIds.slice(0, 5);
+  const productCaseIds = result.productRunIds.flatMap((runId) => (
+    state.productRuns.find((run) => run.id === runId)?.targetIds ?? []
+  ));
+  const relatedCaseIds = caseIds.length > 0 ? caseIds : productCaseIds.slice(0, 5);
 
   return [{
     sourceId: `isr-pr-${day}-${result.managerId}`,
@@ -306,10 +323,10 @@ function buildProcessReceiptSourceRecords(
       summary: `${processType} 流程处理: ${result.processedCount}项, ${result.resolvedCount}项解决`,
       processType,
       processId: `process-${result.managerId}-${day}`,
-      caseIds: result.opportunityIds.slice(0, 5),
+      caseIds: relatedCaseIds,
       customerIds: [],
       brokerIds: ['player-broker'],
-      outcome: hasDeal ? 'deal_signed' : 'completed',
+      outcome: hasDeal ? 'deal_signed' : result.resolvedCount > 0 ? 'completed' : 'progressed',
       metrics: {
         processedCount: result.processedCount,
         resolvedCount: result.resolvedCount,
@@ -317,13 +334,15 @@ function buildProcessReceiptSourceRecords(
       },
     },
     day,
-    phase: 'evening',
-    entityRefs: result.opportunityIds.slice(0, 5).map((id) => ({ id, kind: 'opportunity' as const })),
+    phase: result.phase === 'next-day-setup' ? 'morning' : 'evening',
+    entityRefs: relatedCaseIds.length > 0
+      ? relatedCaseIds.map((id) => ({ id, kind: 'case' as const }))
+      : result.productRunIds.slice(0, 5).map((id) => ({ id, kind: 'process' as const })),
     actorRefs: [{ id: 'player-broker', role: 'player_broker' as const }],
     visibility: { scope: 'player_only', baseDelayDays: 0 },
     confidence: hasDeal ? 1.0 : 0.85,
     delayDays: 0,
-    replayKey: `rk-pr-${runSeed}-${day}-${result.managerId}`,
+    replayKey: `rk-pr-${state.runContext.runSeed}-${day}-${result.managerId}`,
     origin: 'process_run',
   } as InformationSourceRecord<'process_receipt'>];
 }
@@ -503,7 +522,13 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
 
   state.day += 1;
   state.currentDate = addDays(state.currentDate, 1);
-  processResults.push(callAdvanceProductRunProcesses(state));
+  const productRunProcessResult = callAdvanceProductRunProcesses(state);
+  processResults.push(productRunProcessResult);
+  const productRunReceipts = buildProcessReceiptSourceRecords(state, productRunProcessResult);
+  if (productRunReceipts.length > 0) {
+    if (!state.pendingSourceRecords) state.pendingSourceRecords = [];
+    state.pendingSourceRecords.push(...productRunReceipts);
+  }
   state.todayPlan = {
     day: state.day,
     playerItems: [],
@@ -539,6 +564,35 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
     });
     if (selected.length > 0) {
       logEvent(state, '周四聚焦会', `${selected.map((entry) => entry.title).join('、')} 通过周四聚焦会入选，业主信心和流量同步抬升。`, 'accent');
+
+      // Organization intervention receipt: manager_message → worldCausalEvents
+      // Focus meeting selection is an org-level outcome that must have a receipt.
+      // Pushed to pendingSourceRecords; ingested by next tick's tickBigWorldRuntime.
+      const runSeed = state.runContext.runSeed;
+      const focusManagerRecord: InformationSourceRecord<'manager_message'> = {
+        sourceId: `isr-mm-focus-${settledDay}-${runSeed}`,
+        sourceKind: 'manager_message',
+        day: settledDay,
+        phase: 'evening',
+        entityRefs: selected.map((entry) => ({ id: entry.id, kind: 'case' as const })),
+        actorRefs: [{ id: 'manager', role: 'manager' as const }],
+        visibility: { scope: 'broker_chain', baseDelayDays: 0 },
+        confidence: 0.95,
+        delayDays: 0,
+        replayKey: `rk-mm-focus-${settledDay}-${runSeed}`,
+        origin: 'daily_settlement',
+        payload: {
+          subtype: 'focus_case_selected',
+          summary: `周四聚焦会选出 ${selected.length} 套房源重点推进`,
+          managerId: 'manager',
+          targetBrokerId: 'player-broker',
+          caseIds: selected.map((entry) => entry.id),
+          priority: 80,
+          instruction: `聚焦会选定 ${selected.map((entry) => entry.title).join('、')}，集中资源推进`,
+        },
+      };
+      if (!state.pendingSourceRecords) state.pendingSourceRecords = [];
+      state.pendingSourceRecords.push(focusManagerRecord);
     } else {
       logEvent(state, '周四聚焦会', '本周四暂无有效提报，聚焦资源未能落地。', 'danger');
     }

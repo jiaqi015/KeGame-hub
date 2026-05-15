@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Compass, Dice5, Flame, Gauge, ShieldCheck, Sprout, TriangleAlert } from 'lucide-react';
-import type { DifficultyId, DifficultyOption, ScenarioSummary } from '../../domain/models';
+import { Compass, Dice5, Flame, Gauge, ShieldCheck, Sprout, TriangleAlert, WandSparkles } from 'lucide-react';
+import type { DifficultyId, DifficultyOption } from '../../domain/models';
 import type { FeaturedScenarioPreview } from '../../application/scenarioOpening';
 
 const ICONS = {
@@ -45,6 +45,8 @@ const TONES = {
   },
 } as const;
 
+const SCORE_STANDARD_LABEL = '60 及格 · 80 优秀 · 90 极致';
+
 export function ScenarioSetup({
   difficultyOptions,
   featuredScenarios,
@@ -74,9 +76,6 @@ export function ScenarioSetup({
   }
 
   const selectedFeatured = featuredScenarios.find((entry) => entry.difficultyId === selectedOption.id);
-  const selectedGoal = selectedFeatured
-    ? goalCopy(selectedFeatured.scenario.presentation.goalContext, selectedFeatured.scenario.presentation.targetScore)
-    : null;
   const SelectedIcon = ICONS[selectedOption.id];
   const selectedTone = TONES[selectedOption.id];
   const primaryPreview = selectedOption.preview.slice(0, 4);
@@ -134,13 +133,10 @@ export function ScenarioSetup({
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <h2 className="text-[34px] font-semibold tracking-[-0.05em] text-white">{selectedOption.label}</h2>
-                {selectedFeatured && (
-                  <div className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${selectedTone.badge}`}>
-                    目标 {selectedFeatured.scenario.presentation.targetScore} 分
-                  </div>
-                )}
               </div>
-              <p className="mt-3 max-w-[38rem] text-[15px] font-semibold leading-7 text-white/82">{selectedOption.summary}</p>
+              <p className="mt-3 max-w-full overflow-x-auto whitespace-nowrap text-[14px] font-semibold leading-6 text-white/82 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {selectedOption.summary}
+              </p>
               <p className="mt-2 max-w-[42rem] text-[13px] leading-7 text-white/56">{selectedOption.detail}</p>
             </div>
           </div>
@@ -152,11 +148,10 @@ export function ScenarioSetup({
             </div>
           )}
 
-          {selectedGoal && (
+          {selectedFeatured && (
             <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-4">
-              <div className="seller-label text-white/40">这局看什么</div>
-              <div className={`mt-2 text-[18px] font-semibold ${selectedTone.accent}`}>{selectedGoal.title}</div>
-              <p className="mt-2 text-[13px] leading-7 text-white/64">{selectedGoal.detail}</p>
+              <div className="seller-label text-white/40">评分标准</div>
+              <div className={`mt-2 text-[18px] font-semibold ${selectedTone.accent}`}>{SCORE_STANDARD_LABEL}</div>
             </div>
           )}
 
@@ -200,8 +195,9 @@ export function ScenarioSetup({
               type="button"
               disabled={starting}
               onClick={() => onStartRandom(selectedOption.id)}
-              className="rounded-[14px] border border-white/10 bg-white/[0.04] px-4 py-3 text-[14px] font-semibold text-white/88 transition hover:bg-white/[0.07] disabled:cursor-wait disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-2 rounded-[14px] border border-white/10 bg-white/[0.04] px-4 py-3 text-[14px] font-semibold text-white/88 transition hover:bg-white/[0.07] disabled:cursor-wait disabled:opacity-60"
             >
+              <WandSparkles size={15} />
               {starting ? '正在生成...' : '随机开一局'}
             </button>
           </div>
@@ -237,23 +233,4 @@ function compactPreviewValue(value: string) {
     .replace('比较够用', '够用')
     .replace('持续吃紧', '吃紧')
     .replace('几乎满负荷', '满负荷');
-}
-
-function goalCopy(goalContext: ScenarioSummary['presentation']['goalContext'], targetScore: number) {
-  if (goalContext === 'defense') {
-    return {
-      title: `保住商圈聚焦房，目标 ${targetScore} 分`,
-      detail: '重点看最重要的房有没有留在你手里，别让好房子被隔壁门店抢走。',
-    };
-  }
-  if (goalContext === 'satisfaction') {
-    return {
-      title: `把结果做漂亮，目标 ${targetScore} 分`,
-      detail: '重点看业主最后是满意、无感，还是后悔和不满。',
-    };
-  }
-  return {
-    title: `把这组房卖得更好，目标 ${targetScore} 分`,
-    detail: '重点看每套房和同类房比，是卖得更顺、差不多，还是明显更难卖。',
-  };
 }

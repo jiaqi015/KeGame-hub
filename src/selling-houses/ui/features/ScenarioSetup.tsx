@@ -12,8 +12,9 @@ import {
   Store,
   TriangleAlert,
   Users,
+  WandSparkles,
 } from 'lucide-react';
-import type { DifficultyId, DifficultyOption, ScenarioSummary } from '../../domain/models';
+import type { DifficultyId, DifficultyOption } from '../../domain/models';
 import {
   buildGeneratedScenarioOpeningPreview,
   createGeneratedScenarioSeed,
@@ -71,6 +72,8 @@ const CHIP_TONES: Record<DifficultyPresentationTone, string> = {
   hard: 'border-rose-400/22 bg-rose-500/12 text-rose-100',
 };
 
+const SCORE_STANDARD_LABEL = '60 及格 · 80 优秀 · 90 极致';
+
 export function ScenarioSetup({
   difficultyOptions,
   featuredScenarios,
@@ -106,19 +109,22 @@ export function ScenarioSetup({
   }
 
   const selectedFeatured = featuredScenarios.find((entry) => entry.difficultyId === selectedOption.id);
-  const selectedGoal = selectedFeatured
-    ? goalCopy(selectedFeatured.scenario.presentation.goalContext, selectedFeatured.scenario.presentation.targetScore)
-    : null;
   const SelectedIcon = ICONS[selectedOption.id];
   const selectedTone = TONES[selectedOption.id];
   const selectedPresentation = buildDifficultyPresentation({
     difficultyId: selectedOption.id,
     label: selectedOption.label,
   });
+  const selectedOpeningPreview = selectedFeatured
+    ? buildGeneratedScenarioOpeningPreview(selectedOption.id, selectedFeatured.seed, 'standard')
+    : null;
   const primaryPreview = [
-    { label: '模拟周期', value: `${selectedPresentation.metrics.days} 天` },
-    { label: '市场容量', value: selectedPresentation.metrics.marketCapacity },
-    { label: '成交预期', value: selectedPresentation.metrics.selfDealExpectation },
+    {
+      label: '大世界规模',
+      value: selectedOpeningPreview?.briefing.worldScaleLabel ?? '生成后展示整体市场体量',
+    },
+    { label: '同类市场预计成交', value: selectedPresentation.metrics.marketCapacity },
+    { label: '成交转化率', value: selectedPresentation.metrics.dealConversionRate },
     { label: '对手压力', value: selectedPresentation.metrics.rivalStrength },
   ];
   const secondaryPreview = [
@@ -126,14 +132,13 @@ export function ScenarioSetup({
     { label: '额外空间', value: selectedPresentation.metrics.bonusPotential },
   ];
   const openFeaturedBriefing = () => {
-    if (!selectedFeatured) return;
+    if (!selectedFeatured || !selectedOpeningPreview) return;
     const seed = selectedFeatured.seed;
-    const preview = buildGeneratedScenarioOpeningPreview(selectedOption.id, seed, 'standard');
     setPendingOpening({
       mode: 'featured',
       difficultyId: selectedOption.id,
       seed,
-      briefing: preview.briefing,
+      briefing: selectedOpeningPreview.briefing,
     });
   };
   const openRandomBriefing = () => {
@@ -160,7 +165,6 @@ export function ScenarioSetup({
       <OpeningBriefingView
         briefing={pendingOpening.briefing}
         difficultyLabel={selectedPresentation.label}
-        targetScore={selectedFeatured?.scenario.presentation.targetScore}
         starting={starting}
         onBack={() => setPendingOpening(null)}
         onEnter={() => { void enterPendingOpening(); }}
@@ -216,11 +220,6 @@ export function ScenarioSetup({
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <h2 className="text-[34px] font-semibold tracking-[-0.05em] text-white">{selectedPresentation.label}</h2>
-                {selectedFeatured && (
-                  <div className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${selectedTone.badge}`}>
-                    目标 {selectedFeatured.scenario.presentation.targetScore} 分
-                  </div>
-                )}
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {selectedPresentation.chips.map((chip) => (
@@ -232,7 +231,9 @@ export function ScenarioSetup({
                   </span>
                 ))}
               </div>
-              <p className="mt-3 max-w-[42rem] text-[15px] font-semibold leading-7 text-white/82">{selectedPresentation.summary}</p>
+              <p className="mt-3 max-w-full overflow-x-auto whitespace-nowrap text-[14px] font-semibold leading-6 text-white/82 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {selectedPresentation.summary}
+              </p>
             </div>
           </div>
 
@@ -243,13 +244,10 @@ export function ScenarioSetup({
             </div>
           )}
 
-          {selectedGoal && (
+          {selectedFeatured && (
             <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-4">
-              <div className="seller-label text-white/40">这局看什么</div>
-              <div className={`mt-2 text-[18px] font-semibold ${selectedTone.accent}`}>{selectedGoal.title}</div>
-              {selectedGoal.detail ? (
-                <p className="mt-2 text-[13px] leading-7 text-white/64">{selectedGoal.detail}</p>
-              ) : null}
+              <div className="seller-label text-white/40">评分标准</div>
+              <div className={`mt-2 text-[18px] font-semibold ${selectedTone.accent}`}>{SCORE_STANDARD_LABEL}</div>
             </div>
           )}
 
@@ -285,8 +283,9 @@ export function ScenarioSetup({
               type="button"
               disabled={starting}
               onClick={openRandomBriefing}
-              className="rounded-[14px] border border-white/10 bg-white/[0.04] px-4 py-3 text-[14px] font-semibold text-white/88 transition hover:bg-white/[0.07] disabled:cursor-wait disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-2 rounded-[14px] border border-white/10 bg-white/[0.04] px-4 py-3 text-[14px] font-semibold text-white/88 transition hover:bg-white/[0.07] disabled:cursor-wait disabled:opacity-60"
             >
+              <WandSparkles size={15} />
               {starting ? '正在生成...' : '按照难度随机生成'}
             </button>
             <button
@@ -307,14 +306,12 @@ export function ScenarioSetup({
 function OpeningBriefingView({
   briefing,
   difficultyLabel,
-  targetScore,
   starting,
   onBack,
   onEnter,
 }: {
   briefing: ScenarioOpeningBriefing;
   difficultyLabel: string;
-  targetScore?: number;
   starting: boolean;
   onBack: () => void;
   onEnter: () => void;
@@ -333,11 +330,6 @@ function OpeningBriefingView({
         </button>
         <div className="flex flex-wrap gap-2">
           <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-semibold text-white/70">{difficultyLabel}</span>
-          {targetScore ? (
-            <span className="rounded-full border border-emerald-400/18 bg-emerald-500/12 px-3 py-1 text-[11px] font-semibold text-emerald-100">
-              目标 {targetScore} 分
-            </span>
-          ) : null}
         </div>
       </div>
 
@@ -346,9 +338,9 @@ function OpeningBriefingView({
           <div className="flex flex-wrap items-start justify-between gap-5">
             <div className="min-w-0">
               <div className="seller-label text-white/42">本局开局简报</div>
-              <h1 className="mt-2 text-[34px] font-semibold tracking-[-0.05em] text-white">先看接手局面</h1>
+              <h1 className="mt-2 text-[34px] font-semibold tracking-[-0.05em] text-white">今天先抓哪几套房</h1>
               <p className="mt-3 max-w-[42rem] text-[14px] font-semibold leading-7 text-white/72">
-                你不是从空白页开始，而是接手一组已经在市场里的房源、业主和客户线索。
+                这不是考试说明，而是你今天要接手的一摊真实生意：哪些业主急、哪些客户快、哪套房值得先花力气，先看完再进场。
               </p>
             </div>
             <div className="rounded-[20px] border border-white/10 bg-white/[0.04] p-4 text-right">
@@ -367,7 +359,7 @@ function OpeningBriefingView({
           <div className="rounded-[22px] border border-white/8 bg-white/[0.03] p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <div className="seller-label text-white/42">市场情况</div>
+                <div className="seller-label text-white/42">今天的市场故事</div>
                 <div className="mt-2 text-[18px] font-semibold text-white">{briefing.marketTitle}</div>
                 <p className="mt-2 text-[13px] font-semibold leading-6 text-white/62">{briefing.marketDetail}</p>
               </div>
@@ -391,9 +383,10 @@ function OpeningBriefingView({
                   <div className="min-w-0">
                     <div className="text-[16px] font-semibold leading-6 text-white">{caseItem.title}</div>
                     <div className="mt-1 text-[12px] font-semibold text-white/48">{caseItem.ownerName} · {caseItem.ownerMood}</div>
+                    <p className="mt-3 max-w-[32rem] text-[13px] font-semibold leading-6 text-white/70">{caseItem.storyLine}</p>
                   </div>
                   <span className="rounded-full border border-cyan-400/18 bg-cyan-500/12 px-3 py-1 text-[11px] font-semibold text-cyan-100">
-                    {caseItem.stageLabel}
+                    {caseItem.roleLabel}
                   </span>
                 </div>
                 <div className="mt-4 grid gap-2 sm:grid-cols-3">
@@ -401,7 +394,13 @@ function OpeningBriefingView({
                   <MiniFact label="业主" value={caseItem.ownerStateLabel} />
                   <MiniFact label="客户" value={caseItem.customerLabel} />
                 </div>
+                <div className="mt-3 rounded-[14px] border border-emerald-400/12 bg-emerald-500/8 px-3 py-2 text-[12px] font-semibold leading-5 text-emerald-100/80">
+                  {caseItem.decisionHint}
+                </div>
                 <div className="mt-3 flex flex-wrap gap-2">
+                  <span className="rounded-full bg-white/[0.05] px-2.5 py-1 text-[10px] font-semibold text-white/52">
+                    {caseItem.stageLabel}
+                  </span>
                   {caseItem.tags.map((tag) => (
                     <span
                       key={`${caseItem.id}-${tag}`}
@@ -483,22 +482,4 @@ function FactCard({
       {detail ? <div className="mt-1 text-[12px] leading-6 text-white/52">{detail}</div> : null}
     </div>
   );
-}
-
-function goalCopy(goalContext: ScenarioSummary['presentation']['goalContext'], targetScore: number) {
-  if (goalContext === 'defense') {
-    return {
-      title: `保住商圈聚焦房，目标 ${targetScore} 分`,
-      detail: '重点看最重要的房有没有留在你手里，别让好房子被隔壁门店抢走。',
-    };
-  }
-  if (goalContext === 'satisfaction') {
-    return {
-      title: `把结果做漂亮，目标 ${targetScore} 分`,
-      detail: '重点看业主最后是满意、无感，还是后悔和不满。',
-    };
-  }
-  return {
-    title: `把这组房卖得更好，目标 ${targetScore} 分`,
-  };
 }

@@ -821,6 +821,8 @@ export function buildOwnerExpectationSignalPOV(
 
   // Live owner perception refs from causal ledger
   const liveOwnerRefs = liveCtx?.ownerRefs ?? [];
+  // Include ALL live causal refs for cross-surface sharing
+  const liveAllRefs = liveCtx?.allRefs ?? [];
 
   // Use knowledge sources as ref backing when available
   const knowledgeRefs: POVCausalRef[] = knowledgeSources.slice(0, 3).map((s) => ({
@@ -829,11 +831,18 @@ export function buildOwnerExpectationSignalPOV(
     refLabel: s.summary.slice(0, 40),
   }));
 
+  // Collect all available refs for cross-surface sharing:
+  // live causal refs (event IDs) first, then knowledge refs (source record IDs)
+  const allAvailableRefs: POVCausalRef[] = [
+    ...liveAllRefs,
+    ...knowledgeRefs,
+  ];
+
   if (priceGapPct > 10) {
-    const signalRefs: POVCausalRef[] = knowledgeRefs.length > 0
-      ? knowledgeRefs.slice(0, 2)
-      : liveOwnerRefs.length > 0
-        ? [...liveOwnerRefs.slice(0, 1), { refType: 'case' as const, refId: caseItem.id, refLabel: caseItem.title }]
+    const signalRefs: POVCausalRef[] = allAvailableRefs.length >= 2
+      ? allAvailableRefs.slice(0, 2)
+      : allAvailableRefs.length > 0
+        ? [...allAvailableRefs, { refType: 'case' as const, refId: caseItem.id, refLabel: caseItem.title }]
         : [{ refType: 'case' as const, refId: caseItem.id, refLabel: caseItem.title }];
     signals.push({
       rank: 1,
@@ -852,11 +861,9 @@ export function buildOwnerExpectationSignalPOV(
       headline: '业主耐心持续消耗',
       detail: `耐心值 ${Math.round(patience)}，低于 40 表示业主开始焦虑，需要正向反馈。`,
       source: 'inferred',
-      refs: knowledgeRefs.length > 0
-        ? knowledgeRefs.slice(0, 1)
-        : liveOwnerRefs.length > 1
-          ? liveOwnerRefs.slice(1, 2)
-          : [{ refType: 'case' as const, refId: caseItem.id, refLabel: caseItem.title }],
+      refs: allAvailableRefs.length > 0
+        ? allAvailableRefs.slice(0, 1)
+        : [{ refType: 'case' as const, refId: caseItem.id, refLabel: caseItem.title }],
     });
     refs.push(signals[signals.length - 1].refs[0]);
   }
@@ -899,6 +906,19 @@ export function buildOwnerExpectationSignalPOV(
     compositePressure > 45 ? 'moderate' :
     compositePressure > 20 ? 'low' : 'none';
 
+  // Ensure refs always include at least one live causal ref for cross-surface sharing.
+  // Even when signal branches fire with knowledge refs, we must also reference
+  // live world state so that other surfaces (e.g. becauseBigProof) can share refs.
+  if (refs.length > 0 && liveAllRefs.length > 0) {
+    // Add a live causal ref that becauseBigProof might also reference
+    const liveRef = liveAllRefs[0];
+    if (!refs.some((r) => r.refId === liveRef.refId)) {
+      refs.push(liveRef);
+    }
+  } else if (refs.length === 0 && allAvailableRefs.length > 0) {
+    refs.push(allAvailableRefs[0]);
+  }
+
   return {
     priceGapPct,
     trustLevel: trust,
@@ -920,6 +940,7 @@ export function buildBrokerActionPressurePOV(
   caseId: string,
   _actorId?: string,
   liveCtx?: LiveCausalContext,
+  actorKnowledge?: import('./actorKnowledgeProjection.js').ActorKnowledgeSnapshot,
 ): BrokerActionPressurePOV {
   const caseItem = state.cases.find((c) => c.id === caseId);
   const cellId = caseItem?.marketCellId ?? '';
@@ -942,20 +963,34 @@ export function buildBrokerActionPressurePOV(
   // Live rival causal refs from runtime ledger
   const liveRivalRefs = liveCtx?.rivalRefs ?? [];
 
+  // Knowledge-derived refs when actorKnowledge is available
+  const knowledgeSources = actorKnowledge?.visibleSources ?? [];
+  const knowledgeRefs: POVCausalRef[] = knowledgeSources.slice(0, 3).map((s) => ({
+    refType: 'market-signal' as const,
+    refId: s.sourceId,
+    refLabel: s.summary.slice(0, 40),
+  }));
+
   const recentReprices = activeRivals.filter((r) => r.freshness > 60);
   if (recentReprices.length > 0) {
-    // Merge live rival refs with legacy refs
-    const signalRefs: POVCausalRef[] = liveRivalRefs.length > 0
-      ? [...liveRivalRefs.slice(0, 1), ...recentReprices.slice(0, 1).map((r) => ({
+    // Merge knowledge refs, live rival refs, and entity refs
+    const signalRefs: POVCausalRef[] = knowledgeRefs.length > 0
+      ? [...knowledgeRefs.slice(0, 1), ...recentReprices.slice(0, 1).map((r) => ({
         refType: 'rival-listing' as const,
         refId: r.id,
         refLabel: r.title,
       }))]
-      : recentReprices.slice(0, 2).map((r) => ({
-        refType: 'rival-listing' as const,
-        refId: r.id,
-        refLabel: r.title,
-      }));
+      : liveRivalRefs.length > 0
+        ? [...liveRivalRefs.slice(0, 1), ...recentReprices.slice(0, 1).map((r) => ({
+          refType: 'rival-listing' as const,
+          refId: r.id,
+          refLabel: r.title,
+        }))]
+        : recentReprices.slice(0, 2).map((r) => ({
+          refType: 'rival-listing' as const,
+          refId: r.id,
+          refLabel: r.title,
+        }));
     signals.push({
       rank: 1,
       headline: `同区竞品刚调价，${recentReprices.length} 套`,
@@ -1268,7 +1303,7 @@ export function buildWorkspaceBigWorldModule(
   const comparableSupply = buildComparableSupplyPOV(state, caseId, actorId);
   const demandMovement = buildDemandMovementPOV(state, caseId, actorId, liveCtx, actorKnowledge);
   const ownerExpectation = buildOwnerExpectationSignalPOV(state, caseId, actorId, liveCtx, actorKnowledge);
-  const brokerActionPressure = buildBrokerActionPressurePOV(state, caseId, actorId, liveCtx);
+  const brokerActionPressure = buildBrokerActionPressurePOV(state, caseId, actorId, liveCtx, actorKnowledge);
   const becauseBigProof = buildBecauseBigProof(state, caseId, actorId, liveCtx);
 
   // Decision-big: use actorKnowledge pipeline when available
@@ -1322,7 +1357,19 @@ export function buildWorkspaceBigWorldModule(
     demandMovement,
     ownerExpectation,
     brokerActionPressure,
-    becauseBigProof,
+    becauseBigProof: sharedCausalRefs
+      ? {
+        ...becauseBigProof,
+        safeCausalRefs: uniquePOVRefs([
+          ...becauseBigProof.safeCausalRefs,
+          ...sharedCausalRefs.allRefs.slice(0, 3).map((r) => ({
+            refType: r.refType as POVCausalRef['refType'],
+            refId: r.refId,
+            refLabel: r.refLabel,
+          })),
+        ]).slice(0, 8),
+      }
+      : becauseBigProof,
     recommendedActionReasons,
     sharedCausalRefs,
   };

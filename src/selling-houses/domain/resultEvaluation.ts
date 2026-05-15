@@ -16,6 +16,7 @@ import type {
   ScoreDimensionResult,
 } from './models.js';
 import { getPromotionBudget, resolveFormalSoldCount } from './runtimeStats.js';
+import { STANDARD_SCORE_THRESHOLDS, STANDARD_TARGET_SCORE } from './config/difficultyTargets.js';
 
 const ABILITY_ACTION_IDS = new Set([
   'story',
@@ -812,12 +813,8 @@ export function evaluateFinalResult(world: GameState, reason: string): FinalResu
   const satisfaction = buildSatisfactionDimension(caseResults, attribution);
   const customerReview = buildCustomerReview(world);
   const score = ability.score + defense.score + satisfaction.score;
-  const targetScore = world.runContext.scenarioSnapshot.scenario.targetScore || 72;
-  const thresholds = world.runContext.scenarioSnapshot.scenario.scoreThresholds || {
-    pass: Math.max(42, targetScore - 12),
-    strong: Math.min(94, targetScore + 12),
-    ace: Math.min(98, targetScore + 20),
-  };
+  const targetScore = STANDARD_TARGET_SCORE;
+  const thresholds = STANDARD_SCORE_THRESHOLDS;
   const goalContext = world.runContext.scenarioSnapshot.scenario.goalContext || 'ability';
   const gradeInfo = deriveGrade(score, thresholds);
 
@@ -829,7 +826,7 @@ export function evaluateFinalResult(world: GameState, reason: string): FinalResu
 
   return {
     title: gradeInfo.title,
-    summary: `${reason} 本局目标分 ${targetScore}，最终拿到 ${score} 分。${buildEndingStructureSummary(endingStats)}${deriveGoalSummary(goalContext)}`,
+    summary: `${reason} 本局按百分制结算，最终拿到 ${score} 分。${buildEndingStructureSummary(endingStats)}${deriveGoalSummary(goalContext)}`,
     reason,
     grade: gradeInfo.grade,
     goalContext,
@@ -851,7 +848,7 @@ export function evaluateFinalResult(world: GameState, reason: string): FinalResu
     endingStats,
     stats: [
       { label: '经营天数', value: `${Math.min(world.day, world.maxDay)} / ${world.maxDay} 天` },
-      { label: '目标分', value: `${targetScore}` },
+      { label: '评分口径', value: '60 及格 / 80 优秀 / 90 极致' },
       { label: '最终总分', value: `${score}` },
       { label: '正式成交', value: `${closedDealCount} 套` },
       { label: '房源结局', value: `${endingStats.good} 好 / ${endingStats.neutral} 一般 / ${endingStats.bad} 坏` },

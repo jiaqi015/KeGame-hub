@@ -52,6 +52,7 @@ import {
 import { ingestSourceRecords } from './sourceIngestionAdapter.js';
 import type { SourceIngestionReceipt } from './sourceIngestionAdapter.js';
 import { buildSourceRecordsFromPhaseOutput } from './sourceRecordBuilder.js';
+import { generateMarketFormationSourceRecords } from './marketFormationRuntime.js';
 
 import type { WorldCausalEvent } from '../causalEvents.js';
 import type {
@@ -60,6 +61,7 @@ import type {
   VisibilityPolicy,
   EntityRef,
   ActorRef,
+  RivalActionSubtype,
 } from '../informationSourceTypes.js';
 
 // ── Source record builders for new source kinds ────────────────────────
@@ -96,213 +98,577 @@ const SOURCE_CAUSAL_MAP: ReadonlyMap<SourceKind, readonly string[]> = new Map([
  *
  * This is the "source-big" guarantee: all 15 source kinds participate in
  * the runtime ingestion pipeline, not just the 9 that have dedicated phases.
+ *
+ * Round 15: redesigned for richer daily market dynamics. Each entity generates
+ * multiple records per day with different subtypes, using deterministic hashing
+ * with day-dependent seeds for real variation across days.
  */
+
+// ── Deterministic hashing (same algorithm as phases.ts) ─────────────────
+function stableHash(input: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function seededInt(seed: string, min: number, max: number): number {
+  return min + (stableHash(seed) % (max - min + 1));
+}
+
+function seededFloat(seed: string, min: number, max: number): number {
+  return min + (stableHash(seed) / 4294967296) * (max - min);
+}
+
+function seededChoice<T>(seed: string, items: readonly T[]): T {
+  return items[stableHash(seed) % items.length];
+}
+
 function generateAdditionalSourceRecords(
   input: BigWorldClockInput,
   day: number,
   runSeed: number,
 ): readonly InformationSourceRecord[] {
   const records: InformationSourceRecord[] = [];
+  const salt = `${runSeed}-${day}`;
 
-  // 1. supporting_facility_signal: derived from market cell data
-  //    Every market cell has community infrastructure that changes over time
-  for (const cell of input.marketCells) {
+  // ── 1. RIVAL ACTION: reprice / new_listing / withdraw / open_day ──────
+  //    Each day, 1-3 rival listings get acted on, with varying actions.
+  const activeListings = input.rivalListings.filter((l) => l.status === 'active');
+  const rivalActionCount = seededInt(`${salt}-ra-count`, 1, Math.min(3, activeListings.length));
+  for (let i = 0; i < rivalActionCount; i++) {
+    const idx = seededInt(`${salt}-ra-idx-${i}`, 0, activeListings.length - 1);
+    const listing = activeListings[idx];
+    if (!listing) continue;
+
+    const subtypes: readonly string[] = ['reprice', 'new_listing', 'withdraw_listing', 'open_day_held', 'customer_followed', 'owner_pitched'];
+    const subtype = seededChoice(`${salt}-ra-sub-${i}`, subtypes) as RivalActionSubtype;
+    const priceBefore = listing.askPrice;
+    const priceDelta = seededInt(`${salt}-ra-delta-${i}`, -15, 10);
+    const priceAfter = Math.max(100, priceBefore + priceDelta);
+
     records.push({
-      sourceId: `isr-sfs-${day}-${cell.id}`,
-      sourceKind: 'supporting_facility_signal',
+      sourceId: `isr-ra-${day}-${listing.id}-${i}`,
+      sourceKind: 'rival_action',
       payload: {
-        subtype: cell.demandHeat > 60 ? 'transit_access_changed' : cell.demandHeat < 40 ? 'noise_complaint' : 'community_environment_shift',
-        summary: `${cell.name}配套变化: 热度${cell.demandHeat}`,
-        marketCellId: cell.id,
-        facilityType: 'community',
-        before: 50,
-        after: cell.demandHeat,
-        dataSource: 'broker_observation',
+        subtype,
+        summary: `${listing.district}竞品${subtype}: ${listing.title}`,
+        rivalBrokerId: `shadow-broker-${listing.storeId}`,
+        rivalAcnId: `acn-${listing.segment}`,
+        listingId: listing.id,
+        priceBefore,
+        priceAfter,
+        marketCellId: listing.marketCellId,
+        evidenceStrength: 'direct',
       },
       day,
-      phase: 'morning',
-      entityRefs: [{ id: cell.id, kind: 'market_cell' }],
-      actorRefs: [{ id: 'system', role: 'system' }],
-      visibility: { scope: 'all_actors', baseDelayDays: 1 },
-      confidence: 0.6,
-      delayDays: 1,
-      replayKey: `rk-sfs-${runSeed}-${day}-${cell.id}`,
+      phase: seededChoice(`${salt}-ra-phase-${i}`, ['morning', 'afternoon'] as const),
+      entityRefs: [
+        { id: listing.id, kind: 'listing' },
+        { id: listing.marketCellId, kind: 'market_cell' },
+      ],
+      actorRefs: [{ id: `shadow-broker-${listing.storeId}`, role: 'rival_broker' }],
+      visibility: { scope: 'all_actors', baseDelayDays: 0 },
+      confidence: seededFloat(`${salt}-ra-conf-${i}`, 0.6, 0.95),
+      delayDays: 0,
+      replayKey: `rk-ra-${runSeed}-${day}-${listing.id}-${i}`,
       origin: 'ecosystem_tick',
-    } as InformationSourceRecord<'supporting_facility_signal'>);
+    } as InformationSourceRecord<'rival_action'>);
   }
 
-  // 2. broker_capacity_signal: derived from broker activity heat
-  for (const store of input.rivalStores) {
+  // ── 2. CUSTOMER INTERACTION: attention shift / budget change / fatigue ─
+  //    Each day, 1-2 customers shift attention or change budget.
+  const activeCustomers = input.customerStates.filter((c) => c.status !== 'lost' && c.status !== 'converted');
+  const custInteractionCount = seededInt(`${salt}-ci-count`, 1, Math.min(2, activeCustomers.length));
+  for (let i = 0; i < custInteractionCount; i++) {
+    const idx = seededInt(`${salt}-ci-idx-${i}`, 0, activeCustomers.length - 1);
+    const customer = activeCustomers[idx];
+    if (!customer) continue;
+
+    const subtypes: readonly string[] = ['preference_shifted', 'budget_adjusted', 'dropout_detected', 'family_decision_involved'];
+    const subtype = seededChoice(`${salt}-ci-sub-${i}`, subtypes);
+    const fromIdx = seededInt(`${salt}-ci-from-${i}`, 0, customer.activeCaseIds.length - 1);
+    const toIdx = (fromIdx + 1) % customer.activeCaseIds.length;
+
     records.push({
-      sourceId: `isr-bcs-${day}-${store.id}`,
+      sourceId: `isr-ci-${day}-${customer.customerId}-${i}`,
+      sourceKind: 'customer_interaction',
+      payload: {
+        subtype,
+        summary: `客户${customer.customerId} ${subtype}: 疲劳${customer.fatigue}`,
+        customerId: customer.customerId,
+        listingId: customer.activeCaseIds[toIdx],
+        observationMode: 'observed',
+      },
+      day,
+      phase: seededChoice(`${salt}-ci-phase-${i}`, ['morning', 'afternoon'] as const),
+      entityRefs: [
+        { id: customer.customerId, kind: 'customer' },
+        ...(customer.activeCaseIds[toIdx] ? [{ id: customer.activeCaseIds[toIdx], kind: 'listing' as const }] : []),
+      ],
+      actorRefs: [{ id: customer.customerId, role: 'customer' }],
+      visibility: { scope: 'player_only', baseDelayDays: 0 },
+      confidence: seededFloat(`${salt}-ci-conf-${i}`, 0.5, 0.9),
+      delayDays: 0,
+      replayKey: `rk-ci-${runSeed}-${day}-${customer.customerId}-${i}`,
+      origin: 'ecosystem_tick',
+    } as InformationSourceRecord<'customer_interaction'>);
+  }
+
+  // ── 3. OWNER INTERVIEW: trust/price/urgency signals ──────────────────
+  //    Each day, 1-2 owners express trust/price/urgency signals.
+  const ownerInterviewCount = seededInt(`${salt}-oi-count`, 1, Math.min(2, input.activeCases.length));
+  for (let i = 0; i < ownerInterviewCount; i++) {
+    const idx = seededInt(`${salt}-oi-idx-${i}`, 0, input.activeCases.length - 1);
+    const caseItem = input.activeCases[idx];
+    if (!caseItem) continue;
+
+    const subtypes: readonly string[] = ['price_discussed', 'trust_expressed', 'objection_raised', 'urgency_revealed'];
+    const subtype = seededChoice(`${salt}-oi-sub-${i}`, subtypes);
+    const tone = seededChoice(`${salt}-oi-tone-${i}`, ['positive', 'neutral', 'negative'] as const);
+
+    records.push({
+      sourceId: `isr-oi-${day}-${caseItem.id}-${i}`,
+      sourceKind: 'owner_interview',
+      payload: {
+        subtype,
+        summary: `${caseItem.ownerName}沟通: ${subtype}, 信任${caseItem.trust}`,
+        ownerId: caseItem.ownerName,
+        caseId: caseItem.id,
+        brokerId: 'player-broker',
+        trustLevel: caseItem.trust,
+        tone,
+        ownerStatement: `${subtype}: 信任${caseItem.trust}, 耐心${caseItem.patience}`,
+        interactionMode: seededChoice(`${salt}-oi-mode-${i}`, ['scheduled_call', 'ad_hoc', 'meeting'] as const),
+      },
+      day,
+      phase: 'afternoon',
+      entityRefs: [
+        { id: caseItem.id, kind: 'case' },
+        { id: caseItem.ownerName, kind: 'owner' },
+      ],
+      actorRefs: [
+        { id: 'player-broker', role: 'player_broker' },
+        { id: caseItem.ownerName, role: 'owner' },
+      ],
+      visibility: { scope: 'specific_actors', actorIds: ['player-broker', caseItem.ownerName], baseDelayDays: 0 },
+      confidence: seededFloat(`${salt}-oi-conf-${i}`, 0.6, 0.9),
+      delayDays: 0,
+      replayKey: `rk-oi-${runSeed}-${day}-${caseItem.id}-${i}`,
+      origin: 'ecosystem_tick',
+    } as InformationSourceRecord<'owner_interview'>);
+  }
+
+  // ── 4. BROKER CAPACITY: energy / schedule / collaboration signals ────
+  //    Each day, 1-2 rival stores report capacity signals.
+  const brokerCapacityCount = seededInt(`${salt}-bc-count`, 1, Math.min(2, input.rivalStores.length));
+  for (let i = 0; i < brokerCapacityCount; i++) {
+    const idx = seededInt(`${salt}-bc-idx-${i}`, 0, input.rivalStores.length - 1);
+    const store = input.rivalStores[idx];
+    if (!store) continue;
+
+    const subtypes: readonly string[] = ['workload_balanced', 'energy_depleted', 'organizational_pressure', 'collaboration_requested'];
+    const subtype = seededChoice(`${salt}-bc-sub-${i}`, subtypes);
+    const energy = seededInt(`${salt}-bc-energy-${i}`, 20, 90);
+
+    records.push({
+      sourceId: `isr-bc-${day}-${store.id}-${i}`,
       sourceKind: 'broker_capacity_signal',
       payload: {
-        subtype: 'workload_balanced',
-        summary: `${store.name}经纪人能力: 活跃度${store.activityHeat}`,
+        subtype,
+        summary: `${store.name}经纪人能力: ${subtype}, 精力${energy}`,
         brokerId: `shadow-broker-${store.id}`,
         acnId: `acn-${store.type}`,
-        energyLevel: store.activityHeat,
-        scheduleUtilization: Math.min(100, store.activityHeat + 20),
-        activeCaseCount: 0,
+        energyLevel: energy,
+        scheduleUtilization: seededInt(`${salt}-bc-util-${i}`, 30, 95),
+        activeCaseCount: seededInt(`${salt}-bc-cases-${i}`, 1, 8),
         affectedCaseIds: [],
-        pressureMagnitude: store.activityHeat,
+        pressureMagnitude: seededInt(`${salt}-bc-press-${i}`, 10, 80),
       },
       day,
       phase: 'morning',
       entityRefs: [{ id: store.id, kind: 'store' }],
       actorRefs: [{ id: `shadow-broker-${store.id}`, role: 'rival_broker' }],
       visibility: { scope: 'all_actors', baseDelayDays: 0 },
-      confidence: 0.7,
+      confidence: seededFloat(`${salt}-bc-conf-${i}`, 0.6, 0.9),
       delayDays: 0,
-      replayKey: `rk-bcs-${runSeed}-${day}-${store.id}`,
+      replayKey: `rk-bc-${runSeed}-${day}-${store.id}-${i}`,
       origin: 'ecosystem_tick',
     } as InformationSourceRecord<'broker_capacity_signal'>);
   }
 
-  // 3. owner_life_event_signal: derived from case perception signals
-  for (const caseItem of input.activeCases) {
+  // ── 5. MANAGER MESSAGE: focus case / resource allocation / strategy ───
+  //    Each day, manager selects focus case and allocates resources.
+  if (input.activeCases.length > 0) {
+    const sorted = [...input.activeCases].sort((a, b) => b.urgency - a.urgency);
+    const focusCase = sorted[0];
+    const priority = Math.round(focusCase.urgency * 0.8 + focusCase.competitiveness * 0.2);
+
+    const subtypes: readonly string[] = ['focus_case_selected', 'resource_allocated', 'strategic_direction'];
+    const subtype = seededChoice(`${salt}-mm-sub`, subtypes);
+
     records.push({
-      sourceId: `isr-ols-${day}-${caseItem.id}`,
+      sourceId: `isr-mm-${day}-focus`,
+      sourceKind: 'manager_message',
+      payload: {
+        subtype,
+        summary: `经理聚焦: ${focusCase.title} 紧急度${focusCase.urgency}`,
+        managerId: 'system-manager',
+        targetBrokerId: 'player-broker',
+        caseIds: [focusCase.id],
+        priority,
+        instruction: `重点关注 ${focusCase.title}，当前紧急度 ${focusCase.urgency}`,
+      },
+      day,
+      phase: 'morning',
+      entityRefs: [{ id: focusCase.id, kind: 'case' }],
+      actorRefs: [
+        { id: 'system-manager', role: 'manager' },
+        { id: 'player-broker', role: 'player_broker' },
+      ],
+      visibility: { scope: 'specific_actors', actorIds: ['player-broker', 'system-manager'], baseDelayDays: 0 },
+      confidence: 0.85,
+      delayDays: 0,
+      replayKey: `rk-mm-${runSeed}-${day}-focus`,
+      origin: 'ecosystem_tick',
+    } as InformationSourceRecord<'manager_message'>);
+  }
+
+  // ── 6. ACN NETWORK SIGNAL: competition / cooperation / info share ────
+  //    Each day, 1-2 ACN networks emit signals.
+  const acnSignalCount = seededInt(`${salt}-an-count`, 1, Math.min(2, input.rivalStores.length));
+  for (let i = 0; i < acnSignalCount; i++) {
+    const idx = seededInt(`${salt}-an-idx-${i}`, 0, input.rivalStores.length - 1);
+    const store = input.rivalStores[idx];
+    if (!store) continue;
+
+    const subtypes: readonly string[] = ['competition_escalation', 'info_share_received', 'cooperation_opportunity', 'cross_district_competition'];
+    const subtype = seededChoice(`${salt}-an-sub-${i}`, subtypes);
+    const acnId = `acn-${store.type}`;
+
+    records.push({
+      sourceId: `isr-an-${day}-${store.id}-${i}`,
+      sourceKind: 'acn_network_signal',
+      payload: {
+        subtype,
+        summary: `${store.name} ACN信号: ${subtype}, 活跃度${store.activityHeat}`,
+        sourceAcnId: acnId,
+        brokerIds: [`shadow-broker-${store.id}`],
+        cooperationScore: seededInt(`${salt}-an-coop-${i}`, 10, 90),
+      },
+      day,
+      phase: seededChoice(`${salt}-an-phase-${i}`, ['morning', 'afternoon'] as const),
+      entityRefs: [
+        { id: store.id, kind: 'store' },
+        { id: acnId, kind: 'acn' },
+      ],
+      actorRefs: [{ id: `shadow-broker-${store.id}`, role: 'rival_broker' }],
+      visibility: { scope: 'all_actors', baseDelayDays: 0 },
+      confidence: seededFloat(`${salt}-an-conf-${i}`, 0.5, 0.85),
+      delayDays: 0,
+      replayKey: `rk-an-${runSeed}-${day}-${store.id}-${i}`,
+      origin: 'ecosystem_tick',
+    } as InformationSourceRecord<'acn_network_signal'>);
+  }
+
+  // ── 7. SUPPORTING FACILITY: school/transit/commercial/neighborhood ───
+  //    Each day, 1-2 market cells report facility changes.
+  const facilityCount = seededInt(`${salt}-sf-count`, 1, Math.min(2, input.marketCells.length));
+  for (let i = 0; i < facilityCount; i++) {
+    const idx = seededInt(`${salt}-sf-idx-${i}`, 0, input.marketCells.length - 1);
+    const cell = input.marketCells[idx];
+    if (!cell) continue;
+
+    const facilityTypes = ['school', 'transit', 'commercial', 'community', 'noise'] as const;
+    const facilityType = seededChoice(`${salt}-sf-ft-${i}`, facilityTypes);
+    const subtypes: readonly string[] = ['school_district_changed', 'transit_access_changed', 'commercial_development', 'community_environment_shift', 'noise_complaint'];
+    const subtype = seededChoice(`${salt}-sf-sub-${i}`, subtypes);
+    const before = seededInt(`${salt}-sf-before-${i}`, 40, 70);
+    const after = seededInt(`${salt}-sf-after-${i}`, 30, 80);
+
+    records.push({
+      sourceId: `isr-sf-${day}-${cell.id}-${i}`,
+      sourceKind: 'supporting_facility_signal',
+      payload: {
+        subtype,
+        summary: `${cell.name}配套变化: ${facilityType}, ${before}→${after}`,
+        marketCellId: cell.id,
+        facilityType,
+        before,
+        after,
+        dataSource: seededChoice(`${salt}-sf-ds-${i}`, ['broker_observation', 'community_report', 'media'] as const),
+      },
+      day,
+      phase: 'morning',
+      entityRefs: [{ id: cell.id, kind: 'market_cell' }],
+      actorRefs: [{ id: 'system', role: 'system' }],
+      visibility: { scope: 'all_actors', baseDelayDays: 1 },
+      confidence: seededFloat(`${salt}-sf-conf-${i}`, 0.5, 0.85),
+      delayDays: 1,
+      replayKey: `rk-sf-${runSeed}-${day}-${cell.id}-${i}`,
+      origin: 'ecosystem_tick',
+    } as InformationSourceRecord<'supporting_facility_signal'>);
+  }
+
+  // ── 8. OWNER LIFE EVENT: financial_need / relocation / health ─────────
+  //    Each day, 1-2 owners experience life events.
+  const lifeEventCount = seededInt(`${salt}-ol-count`, 1, Math.min(2, input.activeCases.length));
+  for (let i = 0; i < lifeEventCount; i++) {
+    const idx = seededInt(`${salt}-ol-idx-${i}`, 0, input.activeCases.length - 1);
+    const caseItem = input.activeCases[idx];
+    if (!caseItem) continue;
+
+    const subtypes: readonly string[] = ['financial_need', 'relocation_planned', 'family_change', 'job_change'];
+    const subtype = seededChoice(`${salt}-ol-sub-${i}`, subtypes);
+
+    records.push({
+      sourceId: `isr-ol-${day}-${caseItem.id}-${i}`,
       sourceKind: 'owner_life_event_signal',
       payload: {
-        subtype: 'financial_need',
-        summary: `${caseItem.ownerName}生活事件: 信任${caseItem.trust} 耐心${caseItem.patience}`,
+        subtype,
+        summary: `${caseItem.ownerName}生活事件: ${subtype}`,
         ownerId: caseItem.ownerName,
         caseId: caseItem.id,
-        urgencyImpact: Math.round((100 - caseItem.patience) * 0.3),
-        priceFlexibilityImpact: Math.round((100 - caseItem.trust) * 0.2),
-        trustImpact: 0,
-        timelineDays: Math.max(1, Math.round((100 - caseItem.urgency) * 0.1)),
-        eventConfidence: 0.7,
+        urgencyImpact: seededInt(`${salt}-ol-urg-${i}`, -10, 20),
+        priceFlexibilityImpact: seededInt(`${salt}-ol-flex-${i}`, -15, 15),
+        trustImpact: seededInt(`${salt}-ol-trust-${i}`, -10, 10),
+        timelineDays: seededInt(`${salt}-ol-tl-${i}`, 1, 14),
+        eventConfidence: seededFloat(`${salt}-ol-conf-${i}`, 0.5, 0.9),
       },
       day,
       phase: 'afternoon',
-      entityRefs: [{ id: caseItem.id, kind: 'case' }, { id: caseItem.ownerName, kind: 'owner' }],
+      entityRefs: [
+        { id: caseItem.id, kind: 'case' },
+        { id: caseItem.ownerName, kind: 'owner' },
+      ],
       actorRefs: [{ id: caseItem.ownerName, role: 'owner' }],
       visibility: { scope: 'owner_only', baseDelayDays: 0 },
-      confidence: 0.7,
+      confidence: seededFloat(`${salt}-ol-vis-conf-${i}`, 0.5, 0.85),
       delayDays: 0,
-      replayKey: `rk-ols-${runSeed}-${day}-${caseItem.id}`,
+      replayKey: `rk-ol-${runSeed}-${day}-${caseItem.id}-${i}`,
       origin: 'ecosystem_tick',
     } as InformationSourceRecord<'owner_life_event_signal'>);
   }
 
-  // 4. buyer_financing_signal: derived from customer states
-  for (const customer of input.customerStates) {
-    if (customer.status === 'lost' || customer.status === 'converted') continue;
+  // ── 9. BUYER FINANCING: budget / loan / qualification signals ────────
+  //    Each day, 1-2 customers report financing changes.
+  const financingCount = seededInt(`${salt}-bf-count`, 1, Math.min(2, activeCustomers.length));
+  for (let i = 0; i < financingCount; i++) {
+    const idx = seededInt(`${salt}-bf-idx-${i}`, 0, activeCustomers.length - 1);
+    const customer = activeCustomers[idx];
+    if (!customer) continue;
+
+    const subtypes: readonly string[] = ['budget_adjusted', 'loan_pre_approved', 'down_payment_ready', 'family_veto'];
+    const subtype = seededChoice(`${salt}-bf-sub-${i}`, subtypes);
+
     records.push({
-      sourceId: `isr-bfs-${day}-${customer.customerId}`,
+      sourceId: `isr-bf-${day}-${customer.customerId}-${i}`,
       sourceKind: 'buyer_financing_signal',
       payload: {
-        subtype: 'budget_adjusted',
-        summary: `客户${customer.customerId}融资信号: 疲劳${customer.fatigue} 流失风险${customer.churnRisk}`,
+        subtype,
+        summary: `客户${customer.customerId}融资: ${subtype}, 流失风险${customer.churnRisk}`,
         customerId: customer.customerId,
-        readinessImpact: Math.round(customer.churnRisk * 0.5),
+        readinessImpact: seededInt(`${salt}-bf-impact-${i}`, -20, 20),
       },
       day,
       phase: 'afternoon',
       entityRefs: [{ id: customer.customerId, kind: 'customer' }],
       actorRefs: [{ id: customer.customerId, role: 'customer' }],
       visibility: { scope: 'player_only', baseDelayDays: 0 },
-      confidence: 0.65,
+      confidence: seededFloat(`${salt}-bf-conf-${i}`, 0.5, 0.85),
       delayDays: 0,
-      replayKey: `rk-bfs-${runSeed}-${day}-${customer.customerId}`,
+      replayKey: `rk-bf-${runSeed}-${day}-${customer.customerId}-${i}`,
       origin: 'ecosystem_tick',
     } as InformationSourceRecord<'buyer_financing_signal'>);
   }
 
-  // 5. micro_market_signal: derived from market cell supply/demand imbalance
-  for (const cell of input.marketCells) {
-    const imbalance = cell.supplyPressure - cell.demandHeat;
-    const subtype = imbalance > 5 ? 'supply_increased' : imbalance < -5 ? 'demand_shift' : 'inventory_absorption';
+  // ── 10. MICRO MARKET: supply/demand imbalance per cell ────────────────
+  //    Each day, 1-2 cells report micro-market shifts.
+  const microCount = seededInt(`${salt}-mm-count`, 1, Math.min(2, input.marketCells.length));
+  for (let i = 0; i < microCount; i++) {
+    const idx = seededInt(`${salt}-mm-idx-${i}`, 0, input.marketCells.length - 1);
+    const cell = input.marketCells[idx];
+    if (!cell) continue;
+
+    const subtypes: readonly string[] = ['supply_increased', 'demand_shift', 'price_band_squeeze', 'inventory_absorption'];
+    const subtype = seededChoice(`${salt}-mm-sub-${i}`, subtypes);
+    const supplyDelta = seededInt(`${salt}-mm-sup-${i}`, -10, 15);
+    const demandDelta = seededInt(`${salt}-mm-dem-${i}`, -10, 15);
+
     records.push({
-      sourceId: `isr-mms-${day}-${cell.id}`,
+      sourceId: `isr-mm-${day}-${cell.id}-${i}`,
       sourceKind: 'micro_market_signal',
       payload: {
         subtype,
-        summary: `${cell.name}微板块: 供需失衡${imbalance}`,
+        summary: `${cell.name}微板块: ${subtype}, 供${supplyDelta}/需${demandDelta}`,
         microMarketCellId: cell.id,
         marketCellId: cell.id,
-        supplyDelta: cell.supplyPressure,
-        demandDelta: cell.demandHeat,
-        priceBand: '200-400万',
-        absorptionRate: Math.round(50 + imbalance * 0.3),
+        supplyDelta,
+        demandDelta,
+        priceBand: `${seededInt(`${salt}-mm-lo-${i}`, 150, 300)}-${seededInt(`${salt}-mm-hi-${i}`, 300, 500)}万`,
+        absorptionRate: seededInt(`${salt}-mm-ar-${i}`, 30, 80),
       },
       day,
       phase: 'morning',
       entityRefs: [{ id: cell.id, kind: 'market_cell' }],
       actorRefs: [{ id: 'system', role: 'system' }],
       visibility: { scope: 'all_actors', baseDelayDays: 0 },
-      confidence: 0.6,
+      confidence: seededFloat(`${salt}-mm-conf-${i}`, 0.5, 0.85),
       delayDays: 0,
-      replayKey: `rk-mms-${runSeed}-${day}-${cell.id}`,
+      replayKey: `rk-mm-${runSeed}-${day}-${cell.id}-${i}`,
       origin: 'ecosystem_tick',
     } as InformationSourceRecord<'micro_market_signal'>);
   }
 
-  // 6. owner_interview: derived from active cases with owner interaction signals
-  for (const caseItem of input.activeCases) {
-    const tone = caseItem.trust < 40 ? 'negative' : caseItem.trust > 70 ? 'positive' : 'neutral';
-    records.push({
-      sourceId: `isr-oi-${day}-${caseItem.id}`,
-      sourceKind: 'owner_interview',
-      payload: {
-        subtype: 'price_discussed',
-        summary: `${caseItem.ownerName}沟通: 信任${caseItem.trust} 耐心${caseItem.patience}`,
-        ownerId: caseItem.ownerName,
-        caseId: caseItem.id,
-        brokerId: 'player-broker',
-        trustLevel: caseItem.trust,
-        tone,
-        ownerStatement: `业主当前状态: 信任${caseItem.trust}, 耐心${caseItem.patience}`,
-        interactionMode: 'scheduled_call',
-      },
-      day,
-      phase: 'afternoon',
-      entityRefs: [{ id: caseItem.id, kind: 'case' }, { id: caseItem.ownerName, kind: 'owner' }],
-      actorRefs: [{ id: 'player-broker', role: 'player_broker' }, { id: caseItem.ownerName, role: 'owner' }],
-      visibility: { scope: 'specific_actors', actorIds: ['player-broker', caseItem.ownerName], baseDelayDays: 0 },
-      confidence: 0.75,
-      delayDays: 0,
-      replayKey: `rk-oi-${runSeed}-${day}-${caseItem.id}`,
-      origin: 'ecosystem_tick',
-    } as InformationSourceRecord<'owner_interview'>);
-  }
+  // ── 11. COMPARABLE TRANSACTION: platform公开 / broker内部 ─────────────
+  //    Each day, 1-2 comparable transactions are observed.
+  const compCount = seededInt(`${salt}-ct-count`, 1, Math.min(2, activeListings.length));
+  for (let i = 0; i < compCount; i++) {
+    const idx = seededInt(`${salt}-ct-idx-${i}`, 0, activeListings.length - 1);
+    const listing = activeListings[idx];
+    if (!listing) continue;
 
-  // 7. comparable_transaction: derived from rival listings
-  for (const listing of input.rivalListings) {
-    if (listing.status !== 'active') continue;
+    const discountPct = seededInt(`${salt}-ct-disc-${i}`, 2, 15);
+    const price = Math.round(listing.askPrice * (1 - discountPct / 100));
 
-    const discountPct = listing.askPrice > 0
-      ? Math.round((1 - listing.heat / 100) * 10)
-      : 0;
     records.push({
-      sourceId: `isr-ct-${day}-${listing.id}`,
+      sourceId: `isr-ct-${day}-${listing.id}-${i}`,
       sourceKind: 'comparable_transaction',
       payload: {
         subtype: 'price_adjusted',
-        summary: `${listing.district}可比成交: ${listing.title}`,
+        summary: `${listing.district}可比成交: ${listing.title}, 折扣${discountPct}%`,
         marketCellId: listing.marketCellId,
         district: listing.district,
         layout: listing.segment,
-        areaSqm: 0,
-        price: Math.round(listing.askPrice * (1 - discountPct / 100)),
+        areaSqm: seededInt(`${salt}-ct-area-${i}`, 60, 150),
+        price,
         askPrice: listing.askPrice,
         discountPct,
         listingId: listing.id,
-        daysOnMarket: 30 - listing.daysLeft,
-        dataSource: 'platform公开',
+        daysOnMarket: seededInt(`${salt}-ct-dom-${i}`, 5, 90),
+        dataSource: seededChoice(`${salt}-ct-ds-${i}`, ['platform公开', 'broker内部', 'acn共享'] as const),
       },
       day,
       phase: 'morning',
-      entityRefs: [{ id: listing.id, kind: 'listing' }, { id: listing.marketCellId, kind: 'market_cell' }],
+      entityRefs: [
+        { id: listing.id, kind: 'listing' },
+        { id: listing.marketCellId, kind: 'market_cell' },
+      ],
       actorRefs: [{ id: 'system', role: 'system' }],
       visibility: { scope: 'all_actors', baseDelayDays: 1 },
-      confidence: 0.7,
+      confidence: seededFloat(`${salt}-ct-conf-${i}`, 0.6, 0.9),
       delayDays: 1,
-      replayKey: `rk-ct-${runSeed}-${day}-${listing.id}`,
+      replayKey: `rk-ct-${runSeed}-${day}-${listing.id}-${i}`,
       origin: 'ecosystem_tick',
     } as InformationSourceRecord<'comparable_transaction'>);
+  }
+
+  // ── 12. PLATFORM TRAFFIC: listing viewed / favorited / inquiry ────────
+  //    Each day, 1-2 listings get platform traffic signals.
+  const trafficCount = seededInt(`${salt}-pt-count`, 1, Math.min(2, activeListings.length));
+  for (let i = 0; i < trafficCount; i++) {
+    const idx = seededInt(`${salt}-pt-idx-${i}`, 0, activeListings.length - 1);
+    const listing = activeListings[idx];
+    if (!listing) continue;
+
+    const subtypes: readonly string[] = ['listing_viewed', 'listing_favorited', 'inquiry_received', 'traffic_spike'];
+    const subtype = seededChoice(`${salt}-pt-sub-${i}`, subtypes);
+
+    records.push({
+      sourceId: `isr-pt-${day}-${listing.id}-${i}`,
+      sourceKind: 'platform_traffic',
+      payload: {
+        subtype,
+        summary: `${listing.title}平台流量: ${subtype}`,
+        listingId: listing.id,
+        marketCellId: listing.marketCellId,
+        viewCount: seededInt(`${salt}-pt-views-${i}`, 10, 200),
+        favoriteCount: seededInt(`${salt}-pt-fav-${i}`, 0, 20),
+        inquiryCount: seededInt(`${salt}-pt-inq-${i}`, 0, 10),
+        timeWindow: 'last_24h',
+        isDelta: true,
+      },
+      day,
+      phase: 'afternoon',
+      entityRefs: [
+        { id: listing.id, kind: 'listing' },
+        { id: listing.marketCellId, kind: 'market_cell' },
+      ],
+      actorRefs: [{ id: 'system', role: 'system' }],
+      visibility: { scope: 'all_actors', baseDelayDays: 0 },
+      confidence: seededFloat(`${salt}-pt-conf-${i}`, 0.6, 0.9),
+      delayDays: 0,
+      replayKey: `rk-pt-${runSeed}-${day}-${listing.id}-${i}`,
+      origin: 'ecosystem_tick',
+    } as InformationSourceRecord<'platform_traffic'>);
+  }
+
+  return records;
+}
+
+/**
+ * Generate daily settlement source records for process_receipt.
+ *
+ * These represent "the day's settlement" — what processes settled.
+ * They're derived from phase output (recommendation changes, compaction stats)
+ * so they're deterministic and don't require external injection.
+ *
+ * Note: player_action_receipt is NOT generated here — it only comes from
+ * real executeAction calls via actionReceiptWiring.ts. The autonomous tick
+ * must not forge player_action_receipt records.
+ */
+function generateDailySettlementSourceRecords(
+  input: BigWorldClockInput,
+  day: number,
+  runSeed: number,
+  allCausalEvents: readonly WorldCausalEvent[],
+): readonly InformationSourceRecord[] {
+  const records: InformationSourceRecord[] = [];
+
+  // process_receipt: derived from compaction/closure signals this day.
+  // Represents "the day's processes settled."
+  const ownerPressureEvents = allCausalEvents.filter(
+    (e) => e.kind === 'OwnerMarketPressurePerceived' && e.day === day,
+  );
+  const repriceEvents = allCausalEvents.filter(
+    (e) => e.kind === 'RivalListingRepriced' && e.day === day,
+  );
+  const totalActivity = ownerPressureEvents.length + repriceEvents.length;
+
+  if (totalActivity > 0) {
+    const processType = repriceEvents.length > ownerPressureEvents.length
+      ? 'negotiation'
+      : 'open_day';
+    records.push({
+      sourceId: `isr-pr-${day}-settlement`,
+      sourceKind: 'process_receipt',
+      payload: {
+        subtype: repriceEvents.length > 0 ? 'negotiation_progressed' : 'open_day_completed',
+        summary: `日结: ${totalActivity}项活动 (${ownerPressureEvents.length}业主压力, ${repriceEvents.length}竞品调价)`,
+        processType,
+        processId: `settlement-${day}`,
+        caseIds: ownerPressureEvents.slice(0, 5).map((e) => e.entityIds[0] ?? 'unknown'),
+        customerIds: [],
+        brokerIds: ['player-broker'],
+        outcome: 'day_completed',
+        metrics: {
+          ownerPressureCount: ownerPressureEvents.length,
+          repriceCount: repriceEvents.length,
+          totalActivity,
+        },
+      },
+      day,
+      phase: 'tick_close',
+      entityRefs: ownerPressureEvents.slice(0, 3).map((e) => ({ id: e.entityIds[0] ?? 'unknown', kind: 'case' as const })),
+      actorRefs: [{ id: 'player-broker', role: 'player_broker' }],
+      visibility: { scope: 'player_only', baseDelayDays: 0 },
+      confidence: 0.85,
+      delayDays: 0,
+      replayKey: `rk-pr-${runSeed}-${day}-settlement`,
+      origin: 'daily_settlement',
+    } as InformationSourceRecord<'process_receipt'>);
   }
 
   return records;
@@ -329,7 +695,7 @@ function mergeCausalEventTraces(
 
   for (let pi = 0; pi < result.length; pi += 1) {
     const phaseEvt = result[pi];
-    const matchedSources: { sourceRecordId: string; sourceReplayKey: string; sourceKind: string }[] = [];
+    const matchedSources: { sourceRecordId: string; sourceReplayKey: string; sourceKind: SourceKind }[] = [];
 
     // Collect all source events that match this phase event
     for (let si = 0; si < sourceEvents.length; si += 1) {
@@ -349,7 +715,7 @@ function mergeCausalEventTraces(
         matchedSources.push({
           sourceRecordId: srcRecordId,
           sourceReplayKey: srcReplayKey ?? '',
-          sourceKind: srcKind ?? '',
+          sourceKind: srcKind ?? 'market_signal',
         });
       }
       usedSourceEvents.add(si);
@@ -363,8 +729,10 @@ function mergeCausalEventTraces(
         ...phaseEvt,
         sourceRecordId: matchedSources[0].sourceRecordId,
         sourceReplayKey: matchedSources[0].sourceReplayKey,
-        sourceKind: matchedSources[0].sourceKind as SourceKind,
+        sourceKind: matchedSources[0].sourceKind,
         sourceRecordIds: Object.freeze(matchedSources.map((s) => s.sourceRecordId)),
+        sourceReplayKeys: Object.freeze(matchedSources.map((s) => s.sourceReplayKey)),
+        sourceKinds: Object.freeze([...new Set(matchedSources.map((s) => s.sourceKind))]),
       });
     }
   }
@@ -493,11 +861,27 @@ export function runBigWorldDayTick(
   // should flow through the ingestion pipeline for full 15-kind coverage.
   const additionalSourceRecords = generateAdditionalSourceRecords(input, day, input.runSeed);
 
-  // Merge phase-derived source records with additional and external source records
+  // Generate market formation source records — time-dependent market dynamics.
+  // These represent real daily market activity: new listings, price adjustments,
+  // customer attention shifts, rival actions, owner life events, broker capacity,
+  // platform traffic, facility changes, micro-market signals.
+  // Key: uses day-dependent hashing → genuinely different dynamics each day.
+  const marketFormationRecords = generateMarketFormationSourceRecords(input, day, input.runSeed);
+
+  // Generate daily settlement records for player_action_receipt and process_receipt.
+  // These represent "the day's settlement" — what the player's daily activity produced
+  // and what processes settled. Completes the 15-kind source coverage.
+  const settlementRecords = generateDailySettlementSourceRecords(
+    input, day, input.runSeed, allCausalEvents,
+  );
+
+  // Merge phase-derived source records with additional, market formation, settlement, and external source records
   const externalSourceRecords = input.sourceRecords ?? [];
   const allSourceRecords: readonly import('../informationSourceTypes.js').InformationSourceRecord[] = [
     ...phaseSourceRecords,
     ...additionalSourceRecords,
+    ...marketFormationRecords,
+    ...settlementRecords,
     ...externalSourceRecords,
   ];
 
