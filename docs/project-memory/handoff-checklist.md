@@ -64,7 +64,7 @@
 11. `docs/selling-houses-domain-architecture-v1.md`
 12. `docs/selling-houses-customer-opportunity-architecture.md`
 13. `docs/selling-houses-deal-fact-and-closing-model.md`
-14. `docs/selling-houses-competition-and-cosale-architecture.md`
+14. `docs/selling-houses-competition-relation-model.md`
 15. `docs/selling-houses-matter-template-architecture.md`
 16. `docs/selling-houses-projection-architecture.md`
 17. `docs/selling-houses-organization-acn-model.md`

@@ -221,8 +221,8 @@
   - 平台账号、玩家、局、每日分、最终分、生涯总分和榜单的统一数据架构。
 - `docs/selling-houses-customer-opportunity-architecture.md`
   - 客户、客户状态、客户关系与机会阶段推进的详细设计。
-- `docs/selling-houses-competition-and-cosale-architecture.md`
-  - 竞争、联卖、房源端、客源端、丢盘丢客的详细设计。
+- `docs/selling-houses-competition-relation-model.md`
+  - 竞品、联卖、房源端、客源端、丢盘丢客的 Big World 关系合同。
 - `docs/selling-houses-archetype-architecture.md`
   - 业主与客户类型体系，定义动机、性格、需求、决策风格等差异。
 - `docs/selling-houses-field-ownership-matrix.md`

@@ -1,9 +1,9 @@
 {
   "name": "sabrina-workspace",
   "private": true,
-  "version": "0.2.3",
+  "version": "0.2.4",
   "versionType": "square",
-  "buildCode": "051519",
+  "buildCode": "051820",
   "lineCount": 228489,
   "type": "module",
   "scripts": {

@@ -38,8 +38,7 @@
 - [业主沟通架构](selling-houses-owner-conversation-architecture.md)
 - [经纪人动作架构](selling-houses-broker-action-architecture.md)
 - [成交事实与成交引擎设计](selling-houses-deal-fact-and-closing-model.md)
-- [竞争与联卖架构](selling-houses-competition-and-cosale-architecture.md)
-- [竞品关系数据模型](selling-houses-competition-relation-model.md)
+- [竞品与联卖关系合同](selling-houses-competition-relation-model.md)
 - [经纪公司、品牌与 ACN 架构](selling-houses-organization-acn-model.md)
 - [Matter 模板架构](selling-houses-matter-template-architecture.md)
 - [时间架构设计](selling-houses-time-architecture.md)
@@ -100,6 +99,7 @@
 - `docs/selling-houses-architecture-diagrams.md` 和 `docs/assets/*2026-04-21*`：旧 4K 图与图入口，已不匹配 Five-X / causal chain 当前口径。
 - `docs/open-day-phase1/2/3-*.md`：开放日阶段迁移记录，当前只保留 DDD、持久化演进和 DBA SOP。
 - `docs/selling-houses-interface-detail-design.md`、`docs/selling-houses-page-responsibility-matrix.md`：旧界面细稿和职责短表，当前边界已并入信息架构合同。
+- `docs/selling-houses-competition-and-cosale-architecture.md`：旧竞争/联卖长文，当前已并入竞品与联卖关系合同。
 
 保留原则：
 

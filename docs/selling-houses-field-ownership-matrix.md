@@ -357,7 +357,7 @@
 原来的字段归属缺口已经分别收口到：
 
 1. 竞品字段体系：
-   [selling-houses-competition-and-cosale-architecture.md](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-competition-and-cosale-architecture.md)
+   [selling-houses-competition-relation-model.md](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-competition-relation-model.md)
 2. 公司、门店、组织动作：
    [selling-houses-organization-acn-model.md](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-organization-acn-model.md)
 3. 房源阶段和生命周期：

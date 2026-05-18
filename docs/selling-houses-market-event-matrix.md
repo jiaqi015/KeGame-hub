@@ -303,7 +303,7 @@ eventProbability =
 时间、组织、竞争、业务事实已经分别收口到：
 
 - [selling-houses-time-architecture.md](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-time-architecture.md)
-- [selling-houses-competition-and-cosale-architecture.md](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-competition-and-cosale-architecture.md)
+- [selling-houses-competition-relation-model.md](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-competition-relation-model.md)
 - [selling-houses-organization-acn-model.md](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-organization-acn-model.md)
 - [selling-houses-business-facts.md](/Users/jiaqi/Documents/开放日测算/docs/selling-houses-business-facts.md)
 
