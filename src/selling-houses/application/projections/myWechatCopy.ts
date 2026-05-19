@@ -95,6 +95,65 @@ const AGENT_MESSAGE_TEMPLATES: readonly string[] = [
   '小陈：有个客户问到这个小区，但他比较在意后续置换时间。你把业主节奏摸清楚再说。',
 ];
 
+const BROKER_REPLY_TEMPLATES: Partial<Record<string, readonly string[]>> = {
+  owner_no_showing: [
+    '{ownerShortName}，我先把这两天入口和客户反馈查清楚，不只看带看数。今天我补一组更准的客源触达，晚上把真实反馈和下一步安排发您。',
+    '{ownerShortName}，我看一下同小区这两天新增房和客户停留情况。如果是竞品抢走注意力，我会把差异和能补的动作一起给您。',
+  ],
+  owner_price_doubt: [
+    '{ownerShortName}，我先把隔壁那套的价格、楼层、装修和最近反馈放一起比，不只看总价。我们这边如果确实吃亏，我给您一个能执行的调整口径。',
+    '{ownerShortName}，价格这件事我不空口判断。我今天拿同户型成交、客户反馈和竞品挂牌一起看，再跟您说是守住、微调，还是先换展示打法。',
+  ],
+  owner_urgent: [
+    '{ownerShortName}，我今天给您明确判断。先不急着一句话降价，我会把近两天客户反馈、竞品情况和您能等的时间整理清楚，下午给您两个可选方案。',
+    '{ownerShortName}，我明白家里催得紧。今天我先把还能等多久、价格要不要动、先约哪类客户这三件事讲清楚，不让您只听一句“再等等”。',
+  ],
+  owner_long_time_no_touch: [
+    '{ownerShortName}，这两天我没有同步够及时。我今天把客户反馈、竞品变化和接下来要做的事整理给您，先让您知道现在卡在哪里。',
+    '{ownerShortName}，我马上补一版进展给您。不是简单说没动静，我会把看过的人为什么没往下走、下一批客源怎么补讲清楚。',
+  ],
+  owner_trust_drop: [
+    '{ownerShortName}，您担心的点我收到了。今天我先把客户反馈和竞品差异讲透，再给一个明确安排，避免您只听到零散消息。',
+    '{ownerShortName}，我不跟您绕。现在卡住的原因我今天拆给您看：客户怎么比、竞品强在哪、我们下一步怎么接。',
+  ],
+  customer_comparing: [
+    '{customerShortName}，我把您对比的那套一起看一下。待会儿我按楼层、装修、总价和业主可谈空间给您讲清楚，方便您跟家里人一起判断。',
+    '{customerShortName}，可以比，我先不硬推。您关心的装修和价格我一起核一下，晚点给您一个这套到底值不值得再看的判断。',
+  ],
+  customer_price_sensitive: [
+    '{customerShortName}，预算我记下了。我先跟业主摸一下可谈边界，如果差距能收回来，我再帮您约下一步，不让您白跑。',
+    '{customerShortName}，我先确认业主态度。能谈到您预算附近我就继续推进，空间太小也会直接跟您说清楚。',
+  ],
+  customer_second_showing: [
+    '{customerShortName}，我来协调时间。二看前我也会先问清业主价格态度，您带家里人看完就能接着判断。',
+    '{customerShortName}，可以，我先帮您锁一个方便的时间，再把采光、楼层和价格这几个点提前准备好。',
+  ],
+  customer_churn_risk: [
+    '{customerShortName}，您先别急着排除。我把这套和您新看的两套放一起比，今天给您讲清楚优势和短板。',
+    '{customerShortName}，明白，选择多的时候更要比清楚。我晚点把这套的价格空间和真实卖点发您，您再决定要不要继续看。',
+  ],
+  event_followup_needed: [
+    '{customerShortName}，我今天把业主态度和价格边界问清楚，再给您一个明确回复。能推进就推进，不能推进我也不拖着您。',
+    '{customerShortName}，我现在去补这个反馈。晚点我会直接告诉您业主能不能谈、下一步值不值得约。',
+  ],
+  manager_push_priority: [
+    '收到，我上午先处理这套。先给业主回市场反馈，再把客户和竞品差异补齐，今天会有明确动作。',
+    '好，我先把这套放到今天前面。业主、客户、竞品三条我一起接上，不让沟通断档。',
+  ],
+  manager_warn_risk: [
+    '收到，我先稳业主预期，再补客源触达。今天不会只等自然流量，会把可回给业主的话准备出来。',
+    '明白，我先查竞品和客户反馈，再决定是补展示、补客源，还是先做价格沟通。',
+  ],
+  matter_pending: [
+    '收到，我今天处理掉。先把相关人和下一步时间确认清楚，再同步结果。',
+    '好，这件事我先接上，不让它继续挂着。',
+  ],
+  agent_lead_referral: [
+    '感谢，我先把房源卖点和业主节奏整理给你。客户如果关注楼层装修，我会把差异点讲得更具体。',
+    '可以，你先把客户核心顾虑发我。我这边确认业主空间后，再一起判断要不要推二看。',
+  ],
+};
+
 const OFFICIAL_ACCOUNT_TEMPLATES = {
   market_demand_change: {
     accountName: '贝壳市场观察',
@@ -137,6 +196,7 @@ export function renderWechatMessage(fact: WechatFact, context: WechatCopyContext
     senderRole,
     avatarLabel: getAvatarLabel(senderName),
     content,
+    brokerReply: renderBrokerReply(fact, context, senderRole),
     preview: toPreview(content, 54),
     timeLabel: getTimeLabel(fact),
     unread: true,
@@ -227,11 +287,80 @@ function selectMessageTemplate(fact: WechatFact, context: WechatCopyContext) {
 function fillTemplate(template: string, fact: WechatFact) {
   return template
     .replaceAll('{ownerName}', fact.ownerName || fact.senderName || '业主')
+    .replaceAll('{ownerShortName}', getShortPersonName(fact.ownerName || fact.senderName || '业主'))
     .replaceAll('{customerName}', fact.customerName || fact.senderName || '客户')
+    .replaceAll('{customerShortName}', getShortPersonName(fact.customerName || fact.senderName || '客户'))
     .replaceAll('{caseTitle}', fact.caseTitle || '这套房')
     .replaceAll('{community}', fact.community || '这个小区')
     .replaceAll('{district}', fact.district || '这个商圈')
     .replaceAll('{price}', fact.price ? `${Math.round(fact.price)} 万` : '业主可接受价格');
+}
+
+function renderBrokerReply(fact: WechatFact, context: WechatCopyContext, senderRole: WechatSenderRole) {
+  const templates = getBrokerReplyTemplates(fact, senderRole);
+  if (!templates) return undefined;
+
+  const seed = `${context.state.runId}:${context.state.day}:broker-reply:${fact.type}:${fact.caseId ?? ''}:${fact.opportunityId ?? ''}:${fact.eventId ?? ''}`;
+  const content = sanitizeMessageContent(fillTemplate(pickSeeded(templates, seed), fact));
+
+  return {
+    content,
+    timeLabel: getBrokerReplyTimeLabel(fact),
+  };
+}
+
+function getBrokerReplyTemplates(fact: WechatFact, senderRole: WechatSenderRole) {
+  if (fact.type === 'event_followup_needed' && senderRole !== 'customer') {
+    return getFallbackBrokerReplyTemplates(senderRole);
+  }
+  return BROKER_REPLY_TEMPLATES[fact.type] || getFallbackBrokerReplyTemplates(senderRole);
+}
+
+function getFallbackBrokerReplyTemplates(senderRole: WechatSenderRole) {
+  if (senderRole === 'owner') {
+    return [
+      '{ownerShortName}，我先把客户反馈和竞品变化整理清楚，再给您一个明确判断。',
+      '{ownerShortName}，我今天补一轮真实反馈，晚点跟您同步接下来怎么做。',
+    ];
+  }
+  if (senderRole === 'customer') {
+    return [
+      '{customerShortName}，我先确认业主态度和房源细节，再给您一个明确回复。',
+      '{customerShortName}，我把您关心的点记下了，晚点把价格和下一步安排同步给您。',
+    ];
+  }
+  if (senderRole === 'district_manager' || senderRole === 'store_manager') {
+    return [
+      '收到，我今天先处理这条，处理完同步结果。',
+      '好，我先把相关房源和客户接上，今天给到明确进展。',
+    ];
+  }
+  if (senderRole === 'agent') {
+    return [
+      '可以，我先确认房源和业主态度，再跟你对一下客户是否合适。',
+      '收到，我把卖点和可谈空间整理给你，方便你那边跟客户沟通。',
+    ];
+  }
+  return undefined;
+}
+
+function getBrokerReplyTimeLabel(fact: WechatFact) {
+  if (fact.day <= 1) return '刚刚';
+  return `DAY ${fact.day}`;
+}
+
+function getShortPersonName(senderName: string) {
+  const normalized = senderName
+    .replace(/[：:]/g, '')
+    .replace(/\s*(业主|客户)$/g, '')
+    .trim();
+  if (!normalized || normalized === '业主' || normalized === '客户') {
+    return normalized || '您好';
+  }
+  if (/经理$/.test(normalized)) {
+    return normalized;
+  }
+  return normalized.length <= 4 ? normalized : normalized.slice(0, 4);
 }
 
 function sanitizeMessageContent(content: string) {

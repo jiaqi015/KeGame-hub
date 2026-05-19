@@ -113,6 +113,11 @@ export const MARKETING_ACTION_EXECUTORS: ActionExecutorMap = {
       onMessage?.('周四上午才能提报聚焦会。');
       return false;
     }
+    if (hasFocusMeetingClosed(state)) {
+      refundResources(state, action, '本次聚焦会已经结束');
+      onMessage?.('本次聚焦会已经结束，不能重复提报。');
+      return false;
+    }
     const focusMeta = parseFocusMeetingMeta(meta);
     const requestedSubmittedCaseIds = uniqueCaseIds(focusMeta.submittedCaseIds);
     const requestedSelectedCaseId = typeof focusMeta.selectedCaseId === 'string' ? focusMeta.selectedCaseId : '';
@@ -192,5 +197,14 @@ export const MARKETING_ACTION_EXECUTORS: ActionExecutorMap = {
     return true;
   },
 };
+
+function hasFocusMeetingClosed(state: Parameters<ActionExecutorMap[string]>[0]['state']) {
+  if (state.focusMeeting.submissionDay !== state.day) {
+    return false;
+  }
+  return state.focusMeeting.selectedCaseIds.length > 0
+    || Boolean(state.focusMeeting.selectedCaseId)
+    || state.focusMeeting.submittedCaseIds.length >= 3;
+}
 
 export const MARKETING_ACTION_EXECUTOR_IDS = Object.freeze(Object.keys(MARKETING_ACTION_EXECUTORS));

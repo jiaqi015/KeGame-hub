@@ -60,7 +60,7 @@ export function WeeklySummaryOverlay({ summary, onContinue }: WeeklySummaryOverl
                 />
                 <ChangePanel
                   icon={<Users size={14} className="text-sky-600" />}
-                  title="客户意向变化"
+                  title="客户跟进变化"
                   items={summary.customerIntentChanges}
                 />
                 <ChangePanel

@@ -311,10 +311,9 @@ function buildCustomerIntentChanges(beforeState: GameState, afterState: GameStat
       if (score < 6) {
         return null;
       }
-      const stageText = stageChanged ? `，${before.stageLabel} → ${opportunity.stageLabel}` : '';
       return {
         title: opportunity.customerName,
-        detail: `意向 ${formatSigned(intentDelta)}，信心 ${formatSigned(confidenceDelta)}${stageText}`,
+        detail: describeCustomerFollowupChange(before, opportunity, intentDelta, confidenceDelta),
         tone: intentDelta + confidenceDelta >= 0 ? 'success' as Tone : 'danger' as Tone,
         score,
       };
@@ -325,7 +324,50 @@ function buildCustomerIntentChanges(beforeState: GameState, afterState: GameStat
     .map(({ score: _score, ...entry }) => entry);
   return changes.length > 0
     ? changes
-    : [{ title: '客户意向', detail: '这段时间客户意向整体波动不大。', tone: 'accent' }];
+    : [{ title: '客户跟进', detail: '这段时间客户整体比较稳定，没有明显升温或流失。', tone: 'accent' }];
+}
+
+function describeCustomerFollowupChange(
+  before: Opportunity,
+  after: Opportunity,
+  intentDelta: number,
+  confidenceDelta: number,
+) {
+  const stageChanged = before.stageIndex !== after.stageIndex || before.stageLabel !== after.stageLabel;
+  const totalDelta = intentDelta + confidenceDelta;
+  const stageText = stageChanged
+    ? `从「${before.stageLabel}」推进到「${after.stageLabel}」`
+    : `仍停在「${after.stageLabel}」`;
+
+  if (after.status === 'lost' || after.lifecycleStatus === 'lost') {
+    return `${stageText}，这条客户线已经流失，先复盘卡点，别再占用今天资源。`;
+  }
+  if (
+    after.status === 'closed'
+    || after.lifecycleStatus === 'closed_by_deal'
+    || after.lifecycleStatus === 'closed_by_case'
+  ) {
+    return `${stageText}，客户已经结束跟进，后面只保留必要记录。`;
+  }
+  if (stageChanged && totalDelta >= 0) {
+    return `${stageText}，热度在往前走，今天适合补一次确认和下一步邀约。`;
+  }
+  if (stageChanged) {
+    return `${stageText}，但把握感变弱，推进前先确认真实顾虑。`;
+  }
+  if (totalDelta >= 24) {
+    return `${stageText}，明显升温，适合趁热约带看或推进谈价。`;
+  }
+  if (totalDelta >= 8) {
+    return `${stageText}，有小幅升温，可以安排一次轻触达。`;
+  }
+  if (totalDelta <= -34) {
+    return `${stageText}，明显转冷，可能被竞品或价格预期分走注意力。`;
+  }
+  if (totalDelta <= -14) {
+    return `${stageText}，兴趣在回落，先用竞品对比或业主反馈重新拉回。`;
+  }
+  return `${stageText}，变化不大，保持常规跟进即可。`;
 }
 
 function buildOwnerPressureChanges(beforeState: GameState, afterState: GameState): WeeklySummaryChange[] {

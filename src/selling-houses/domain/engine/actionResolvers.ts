@@ -273,6 +273,9 @@ export function getActionAvailability(
     if (getDayOfWeek(state.day) !== 4) {
       return { enabled: false, reason: '周四上午才能提报聚焦会。' };
     }
+    if (hasFocusMeetingClosed(state)) {
+      return { enabled: false, reason: '本次聚焦会已经结束，不能重复提报。' };
+    }
     if (state.focusMeeting.submissionDay === state.day && state.focusMeeting.submittedCaseIds.includes(caseItem.id)) {
       return { enabled: false, reason: '这套房今天已经提报过了。' };
     }
@@ -288,6 +291,15 @@ export function getActionAvailability(
   }
 
   return { enabled: true, reason: '' };
+}
+
+function hasFocusMeetingClosed(state: GameState) {
+  if (state.focusMeeting.submissionDay !== state.day) {
+    return false;
+  }
+  return state.focusMeeting.selectedCaseIds.length > 0
+    || Boolean(state.focusMeeting.selectedCaseId)
+    || state.focusMeeting.submittedCaseIds.length >= 3;
 }
 
 // ── Source record builder for player_action_receipt ──────────────────────

@@ -91,6 +91,10 @@ export interface WechatMessage {
   senderRole: WechatSenderRole;
   avatarLabel: string;
   content: string;
+  brokerReply?: {
+    content: string;
+    timeLabel: string;
+  };
   preview: string;
   timeLabel: string;
   unread: boolean;

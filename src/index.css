@@ -234,6 +234,14 @@ select {
   color: var(--seller-chance);
 }
 
+.seller-wechat-reply-bubble {
+  background: #07c160;
+}
+
+.seller-wechat-reply-text {
+  color: #ffffff;
+}
+
 .seller-tabbar {
   display: flex;
   gap: 0.5rem;

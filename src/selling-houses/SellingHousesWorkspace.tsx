@@ -34,6 +34,7 @@ import type { ArrangementItemProjection, ProductOpportunityProjection } from './
 import type { Settlement } from './domain/actions/templates';
 import type { Case, TodayArrangementSlot } from './domain/models';
 import { ActionDecisionOverlay, buildActionDecisionConfig } from './ui/features/ActionDecisionOverlay';
+import { getActionAvailability } from './domain/engine';
 import { DailyJournal } from './ui/widgets/DailyJournal';
 import { Dashboard } from './ui/features/Dashboard';
 import { LiquidGlassSurface } from './ui/widgets/LiquidGlassSurface';
@@ -415,6 +416,11 @@ export function SellingHousesWorkspace({
       return false;
     }
     if (actionId === 'focus-meeting-submit') {
+      const availability = getActionAvailability(state, caseItem, actionId);
+      if (!availability.enabled) {
+        displayMessage(availability.reason);
+        return false;
+      }
       releaseWorkspaceFocus();
       setFocusMeetingSubmitDraft({
         todayPlanItemId: null,

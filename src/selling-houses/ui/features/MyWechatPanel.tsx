@@ -475,31 +475,53 @@ const WechatConversationDetail: React.FC<{
 
       <div className="flex-1 space-y-3 overflow-y-auto px-3 py-4">
         {conversation.messages.map((message) => (
-          <div key={message.id} className="flex items-start gap-2.5">
-            <WechatAvatar
-              senderName={message.senderName}
-              senderRole={message.senderRole}
-              label={message.avatarLabel}
-              className="mt-4 h-7 w-7 rounded-[9px]"
-            />
-            <div className="min-w-0 max-w-[78%]">
-              <div className="mb-1 flex items-center gap-2 text-[10px] text-[var(--seller-subtle)]">
-                <span>{message.timeLabel}</span>
-                {message.urgency !== 'low' ? <span>{urgencyLabel(message.urgency)}</span> : null}
-              </div>
-              <div className="rounded-[16px] rounded-tl-[5px] bg-[rgba(255,255,255,0.08)] px-3 py-2.5 shadow-[0_10px_24px_rgba(0,0,0,0.12)]">
-                <p className="whitespace-pre-wrap text-[12px] leading-5 text-[var(--seller-ink)]">{message.content}</p>
-                {message.primaryCtaLabel && message.primaryActionId && (
-                  <button
-                    type="button"
-                    onClick={() => onOpenMessageAction(message)}
-                    className="mt-2 rounded-full border border-[color:var(--seller-accent)]/24 bg-[color:var(--seller-accent)]/8 px-1 py-0 text-[8px] font-semibold leading-4 text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/14"
-                  >
-                    {message.primaryCtaLabel}
-                  </button>
-                )}
+          <div key={message.id} className="space-y-2">
+            <div className="flex items-start gap-2.5">
+              <WechatAvatar
+                senderName={message.senderName}
+                senderRole={message.senderRole}
+                label={message.avatarLabel}
+                className="mt-4 h-7 w-7 rounded-[9px]"
+              />
+              <div className="min-w-0 max-w-[78%]">
+                <div className="mb-1 flex items-center gap-2 text-[10px] text-[var(--seller-subtle)]">
+                  <span>{message.timeLabel}</span>
+                  {message.urgency !== 'low' ? <span>{urgencyLabel(message.urgency)}</span> : null}
+                </div>
+                <div className="rounded-[16px] rounded-tl-[5px] bg-[rgba(255,255,255,0.08)] px-3 py-2.5 shadow-[0_10px_24px_rgba(0,0,0,0.12)]">
+                  <p className="whitespace-pre-wrap text-[12px] leading-5 text-[var(--seller-ink)]">{message.content}</p>
+                  {message.primaryCtaLabel && message.primaryActionId && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenMessageAction(message)}
+                      className="mt-2 rounded-full border border-[color:var(--seller-accent)]/24 bg-[color:var(--seller-accent)]/8 px-1 py-0 text-[8px] font-semibold leading-4 text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/14"
+                    >
+                      {message.primaryCtaLabel}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
+
+            {message.brokerReply && (
+              <div className="flex justify-end gap-2.5">
+                <div className="min-w-0 max-w-[78%]">
+                  <div className="mb-1 flex justify-end gap-2 text-[10px] text-[var(--seller-subtle)]">
+                    <span>{message.brokerReply.timeLabel}</span>
+                    <span>我</span>
+                  </div>
+                  <div className="seller-wechat-reply-bubble rounded-[16px] rounded-tr-[5px] px-3 py-2.5 shadow-[0_10px_24px_rgba(0,0,0,0.12)]">
+                    <p className="seller-wechat-reply-text whitespace-pre-wrap text-[12px] leading-5">{message.brokerReply.content}</p>
+                  </div>
+                </div>
+                <WechatAvatar
+                  senderName="我"
+                  senderRole="agent"
+                  label="我"
+                  className="mt-4 h-7 w-7 rounded-[9px]"
+                />
+              </div>
+            )}
           </div>
         ))}
       </div>

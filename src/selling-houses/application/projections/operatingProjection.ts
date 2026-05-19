@@ -753,13 +753,22 @@ function buildFixedArrangementItems(state: GameState): ArrangementItemProjection
     const scheduleTitle = presentScheduleTitle(entry.title);
     const isBlockedRoutine = isSlotBlockingRoutine(entry);
     const isFocusMeetingSubmit = entry.actionId === 'focus-meeting-submit';
+    const isFocusMeetingClosed = isFocusMeetingSubmit && hasFocusMeetingClosed(state);
     const actionId = resolveFixedScheduleActionId(state, entry, linkedCase);
-    const shouldExposeAction = Boolean(actionId) && (!isBlockedRoutine || isFocusMeetingSubmit);
+    const shouldExposeAction = Boolean(actionId) && (!isBlockedRoutine || isFocusMeetingSubmit) && !isFocusMeetingClosed;
     const shouldExposeCase = !isBlockedRoutine || isFocusMeetingSubmit;
     const durationHours = resolveScheduleEntryDurationHours(entry);
     const displayTitle = isBlockedRoutine
       ? scheduleTitle
       : linkedCase ? `${linkedCase.title} · ${scheduleTitle}` : scheduleTitle;
+    const statusLabel = isFocusMeetingClosed
+      ? '本次已结束'
+      : presentScheduleBadge(entry.badge);
+    const detail = isFocusMeetingClosed
+      ? '聚焦会已经完成提报和筛选，结果会在后续经营里生效。'
+      : !isBlockedRoutine && entry.weekdayIntent
+        ? `${presentScheduleDetail(entry.note)} ${entry.weekdayIntent}。`
+        : presentScheduleDetail(entry.note);
     return {
       id: `fixed-schedule-${entry.key}`,
       source: 'fixed',
@@ -768,14 +777,12 @@ function buildFixedArrangementItems(state: GameState): ArrangementItemProjection
       title: displayTitle,
       displayTitle: !isBlockedRoutine && linkedOpportunity ? linkedOpportunity.customerName : undefined,
       contextTitle: !isBlockedRoutine && linkedOpportunity && linkedCase ? linkedCase.title : undefined,
-      detail: !isBlockedRoutine && entry.weekdayIntent
-        ? `${presentScheduleDetail(entry.note)} ${entry.weekdayIntent}。`
-        : presentScheduleDetail(entry.note),
+      detail,
       tone: entry.urgency >= 82 ? 'risk' : 'neutral',
       caseId: shouldExposeCase ? entry.caseId : undefined,
       durationHours,
       energyCost: durationHours,
-      statusLabel: presentScheduleBadge(entry.badge),
+      statusLabel,
       actionId: shouldExposeAction ? actionId : undefined,
       isDisabled: false,
       executionMode: shouldExposeAction && actionId && isScenarioAction(actionId)
@@ -834,6 +841,10 @@ function resolveFixedScheduleActionId(
   entry: GameState['schedule'][number],
   linkedCase: Case | null,
 ) {
+  if (entry.actionId === 'focus-meeting-submit' && hasFocusMeetingClosed(state)) {
+    return undefined;
+  }
+
   if (entry.actionId) {
     return entry.actionId;
   }
@@ -848,6 +859,15 @@ function resolveFixedScheduleActionId(
     : ['showing', 'weekly-feedback'];
 
   return actionCandidates.find((actionId) => getActionAvailability(state, linkedCase, actionId).enabled);
+}
+
+function hasFocusMeetingClosed(state: GameState) {
+  if (getDayOfWeek(state.day) !== 4 || state.focusMeeting.submissionDay !== state.day) {
+    return false;
+  }
+  return state.focusMeeting.selectedCaseIds.length > 0
+    || Boolean(state.focusMeeting.selectedCaseId)
+    || state.focusMeeting.submittedCaseIds.length >= 3;
 }
 
 function buildCandidateArrangementItems(

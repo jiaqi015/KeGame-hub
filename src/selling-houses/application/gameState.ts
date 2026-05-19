@@ -66,7 +66,7 @@ import {
 import { createMarketOpeningSnapshot } from '../domain/world-model/seededMarketWorld.js';
 import { createBigWorldBootstrap } from '../domain/world-model/bigWorldBootstrap.js';
 import { buildBigWorldBootstrapSummary } from '../domain/world-model/bigWorldBootstrapSummary.js';
-import { createDefaultRuntimeState, DEFAULT_COMPACTION_POLICY } from '../domain/world-model/runtime/index.js';
+import { createDefaultRuntimeState, DEFAULT_COMPACTION_POLICY, normalizeRuntimeState } from '../domain/world-model/runtime/index.js';
 
 function isBrowser() {
   return typeof window !== 'undefined' && Boolean(window.localStorage);
@@ -1486,10 +1486,8 @@ export function normalizeLoadedState(parsed: any): GameState | null {
     state.businessOutcomeReviewHistory = [];
   }
 
-  // Ensure big world runtime exists for old saves (optional field, default fallback)
-  if (!state.bigWorldRuntime || typeof state.bigWorldRuntime !== 'object') {
-    state.bigWorldRuntime = createDefaultRuntimeState(DEFAULT_COMPACTION_POLICY);
-  }
+  // Ensure big world runtime exists for old saves and partial dev snapshots.
+  state.bigWorldRuntime = normalizeRuntimeState(state.bigWorldRuntime, DEFAULT_COMPACTION_POLICY);
 
   // Ensure world causal events exists for old saves (optional field, empty fallback)
   if (!Array.isArray(state.worldCausalEvents)) {

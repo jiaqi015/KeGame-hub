@@ -48,7 +48,6 @@ import {
   runBigWorldDayTick,
   applyTickReceiptToRuntime,
   normalizeRuntimeState,
-  createDefaultRuntimeState,
   DEFAULT_COMPACTION_POLICY,
 } from './world-model/runtime/index.js';
 
@@ -359,16 +358,13 @@ function buildProcessReceiptSourceRecords(
  */
 function tickBigWorldRuntime(state: GameState): void {
   const clockInput = buildClockInputFromGameState(state);
-  const existingRuntime = state.bigWorldRuntime
-    ?? normalizeRuntimeState(state.bigWorldRuntime, DEFAULT_COMPACTION_POLICY);
+  const existingRuntime = normalizeRuntimeState(state.bigWorldRuntime, DEFAULT_COMPACTION_POLICY);
+  state.bigWorldRuntime = existingRuntime;
   const existingCausalEvents = Array.isArray(state.worldCausalEvents) ? state.worldCausalEvents : [];
 
   const receipt = runBigWorldDayTick(clockInput, existingRuntime, existingCausalEvents);
 
   // Apply receipt to runtime state (mutates in place)
-  if (!state.bigWorldRuntime) {
-    state.bigWorldRuntime = createDefaultRuntimeState(DEFAULT_COMPACTION_POLICY);
-  }
   state.bigWorldRuntime = applyTickReceiptToRuntime(state.bigWorldRuntime, receipt);
 
   // Append causal events to the world causal ledger
