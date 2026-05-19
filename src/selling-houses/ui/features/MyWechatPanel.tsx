@@ -630,18 +630,38 @@ const ConversationWorldContextCard: React.FC<{
         ))}
       </div>
       {context.replyAngles.length > 0 && (
-        <div className="mt-2 flex gap-1.5 overflow-x-auto pb-0.5">
-          {context.replyAngles.map((angle) => (
+        <div className="mt-2 rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.045)] px-2.5 py-2">
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="text-[9px] font-semibold text-[var(--seller-subtle)]">回复参考</div>
+              <p className="mt-0.5 line-clamp-2 text-[11px] leading-5 text-[var(--seller-ink)]">
+                {context.replyAngles[0]}
+              </p>
+            </div>
             <button
-              key={angle}
               type="button"
-              onClick={() => onUseAngle(angle)}
-              className="seller-wechat-suggestion-pill whitespace-nowrap rounded-full border border-[color:var(--seller-accent)]/22 bg-[color:var(--seller-accent)]/8 px-2.5 py-1 text-[9px] font-semibold text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/14"
-              title={angle}
+              onClick={() => onUseAngle(context.replyAngles[0])}
+              className="shrink-0 rounded-full border border-[color:var(--seller-accent)]/24 bg-[color:var(--seller-accent)]/10 px-2 py-0.5 text-[9px] font-semibold text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/16"
+              title={context.replyAngles[0]}
             >
-              {angle.length > 28 ? `${angle.slice(0, 28)}…` : angle}
+              填入
             </button>
-          ))}
+          </div>
+          {context.replyAngles.length > 1 && (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {context.replyAngles.slice(1, 3).map((angle, index) => (
+                <button
+                  key={angle}
+                  type="button"
+                  onClick={() => onUseAngle(angle)}
+                  className="rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] px-2 py-0.5 text-[9px] font-semibold text-[var(--seller-subtle)] transition hover:border-[color:var(--seller-accent)]/24 hover:text-[var(--seller-accent)]"
+                  title={angle}
+                >
+                  备选 {index + 2}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -884,7 +904,7 @@ const WechatConversationDetail: React.FC<{
       className={`seller-wechat-detail flex flex-col overflow-hidden rounded-[18px] border border-[var(--seller-border)] shadow-[0_20px_50px_rgba(0,0,0,0.14)] transition-all duration-200 ${
         expanded
           ? 'fixed bottom-3 left-3 right-3 top-[88px] z-[95] h-auto min-h-0 md:left-auto md:right-4 md:w-[min(620px,calc(100vw-24px))] xl:w-[min(700px,calc(100vw-24px))] xl:top-[96px] xl:right-5 xl:bottom-5'
-          : 'h-[min(720px,calc(100vh-150px))] min-h-[560px]'
+          : 'h-[min(820px,calc(100vh-110px))] min-h-[660px]'
       }`}
     >
       <div className="seller-wechat-topbar flex shrink-0 items-center gap-2 border-b border-[var(--seller-border)] px-3 py-2.5">
@@ -985,9 +1005,14 @@ const WechatConversationDetail: React.FC<{
       <div className="seller-wechat-composer shrink-0 border-t border-[var(--seller-border)] px-3 py-2.5">
         <div className="space-y-2">
           {replyTargetText && (
-            <div className="flex items-center gap-1.5 rounded-full bg-[rgba(255,255,255,0.05)] px-2 py-1 text-[10px] font-medium text-[var(--seller-subtle)]">
-              <span className="shrink-0 text-[9px] text-[var(--seller-accent)]">回复</span>
-              <span className="min-w-0 truncate">{replyTargetText}</span>
+            <div className="rounded-[10px] bg-[rgba(255,255,255,0.045)] px-2.5 py-1.5 text-[10px] font-medium text-[var(--seller-subtle)]">
+              <div className="flex items-center gap-1.5">
+                <span className="shrink-0 text-[9px] font-semibold text-[var(--seller-accent)]">正在回复</span>
+                <span className="min-w-0 truncate text-[var(--seller-muted)]">{displayName}</span>
+              </div>
+              <div className="mt-0.5 line-clamp-1 text-[9px] leading-4 text-[var(--seller-subtle)]">
+                {replyTargetText}
+              </div>
             </div>
           )}
           <form onSubmit={submitReply} className="flex items-end gap-2">

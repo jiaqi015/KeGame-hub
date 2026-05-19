@@ -943,16 +943,20 @@ D1 权重 = 0.50 意味着竞争力一半来自市场活力。但市场活力（
 
 **验证**：3 个 TDD 测试 + price-invariant gate。
 
-### 6.3 已识别未修复：Heat 无 Canonical 追踪
+### 6.3 ~~已识别未修复~~ → 已修复：Heat Canonical 追踪
 
 **问题**：heat 有 20+ 处直接写入 `caseItem.heat`，没有 canonical 追踪。与 trust/patience/urgency/windowDays 的 canonical-mirror 模式不一致。
 
-**影响**：
-- 无法回答"热度为什么变了"
-- 无法构建 heat 变化的 Receipt
-- 投影系统遇到 heat 变化时只能降级为 legacyFallback
+**修复**（2026-05-19）：
+1. 新建 `caseHeatWriteSource.ts`（Core 纯函数）和 `heatWriteHelper.ts`（Domain helper）
+2. 26 处直接写入全部替换为 `applyCaseHeatDelta`/`setCaseHeatValue`/`clampCaseHeat`
+3. GameState 新增 `runtimeCaseHeatStates: CaseHeatState[]`
+4. 9 个 TDD 测试覆盖所有替换位点 + 10 天模拟一致性验证
 
-**20+ 处写入位点**：
+**影响**：
+- ~~无法回答"热度为什么变了"~~ → canonical state 可追溯每次热度变化的 delta、reason、sourceEventRefs
+- ~~无法构建 heat 变化的 Receipt~~ → HeatWriteResult.record 提供完整收据
+- ~~投影系统遇到 heat 变化时只能降级为 legacyFallback~~ → canonical state 可驱动投影归因
 
 | 来源 | 写入方式 | 语义 |
 |------|---------|------|
@@ -967,7 +971,7 @@ D1 权重 = 0.50 意味着竞争力一半来自市场活力。但市场活力（
 
 **建议修复**：新建 `heatWriteHelper.ts`，参照 `trustWriteHelper.ts` 的 canonical-mirror 模式。
 
-### 6.4 已识别未修复：双引擎公式不一致
+### 6.4 已识别已审计：双引擎公式不一致（P1 审计完成）
 
 **问题**：客户引擎和机会引擎用不同公式计算兴趣/意图和置信度。
 
@@ -990,23 +994,37 @@ intentDelta = (heat-55)/10 + (d1-50)/16 + random - pricePenalty
 
 **影响**：sync 桥接时以客户引擎为准覆盖机会引擎，但在每日 tick 中两个引擎独立演化，产生时间差。
 
-### 6.5 已识别未修复：Receipt 覆盖率不足
+**审计结果**（2026-05-19，dual-engine-alignment.test.ts）：
+- 4.2% 的行为参数组合产生方向矛盾（客户引擎说"兴趣升"，机会引擎说"兴趣降"）
+- 阶段推进阈值差距：机会引擎固定 82，客户引擎按决策风格 64-78
+- 高疲劳度（80）使 drift 显著增大——客户引擎 penalize，机会引擎不受影响
+- 3 个竞对房源使 interest drift 增大、confidence drift 增大
+- **桥接机制**：不是覆盖，是叠加——客户引擎先写入绝对值，机会引擎后加增量
+- 建议行动：提取共享 calculateInterestSignal()，统一 heat + d1/trust 核心公式
+
+### 6.5 ~~已识别未修复~~ → 部分修复：Receipt 覆盖率补全（市场事件 + 竞对压力 + 窗口事件）
 
 **当前覆盖率**：
 
 | 事件类型 | 有 SourceRecord | 有 Receipt | 有 CausalEvent |
 |----------|----------------|-----------|---------------|
 | 玩家动作 | ✓ | ✓ | ✓ |
-| 市场事件 | ✗ | ✗ | ✗ |
-| 竞对压力 | ✗ | ✗ | ✗ |
+| 市场事件 | ✓（已修复） | ✓ | ✓ |
+| 竞对压力 | ✓（已修复） | ✓ | ✓ |
+| 窗口续期 | ✓（已修复） | ✓ | ✓ |
+| 窗口核销 | ✓（已修复） | ✓ | ✓ |
 | 客户反馈 | ✗ | ✗ | ✗ |
 | 竞争损失 | ✗ | ✗ | ✗ |
-| 窗口续期 | ✗ | ✗ | ✗ |
-| 窗口核销 | ✗ | ✗ | ✗ |
 
-只有玩家动作有完整的溯源链。其他事件虽然改变了状态（trust, heat, patience, urgency），但无法追溯"为什么变了"。
+**修复**（2026-05-19）：
+1. 新建 `domainSourceRecordEmitter.ts`，提供 `emitMarketSignal`、`emitRivalAction`、`emitWindowEvent` 三个 emitter
+2. marketEngine.tickCases 中未触达热度衰减、溢价过高、窗口续期/核销位点已接入
+3. competitionEngine.resolveCompetitivePressure 中竞争压力位点已接入
+4. 验证：10 天模拟产生 14 种非动作 source kind，38 个 MarketHeatShifted 因果事件
 
-**影响范围**：投影系统在处理非动作事件时只能降级为 legacyFallback——直接读 Case 字段变化，无法给出归因。
+**未覆盖**：客户反馈（applyCustomerFeedbackToCases）和竞争损失（shouldLoseToRival）仍未发出 SourceRecord。
+
+**影响范围**：投影系统在处理市场事件、竞对压力、窗口事件时不再降级为 legacyFallback。
 
 ---
 
