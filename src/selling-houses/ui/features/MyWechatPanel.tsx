@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronRight, Loader2, MessageCircle, Newspaper, Send } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { ChevronRight, Loader2, Maximize2, MessageCircle, Minimize2, Newspaper, Send } from 'lucide-react';
 import type {
   ConversationNextStepDraft,
   ConversationReceipt,
@@ -469,11 +470,11 @@ function buildConversationWorldContext(
   const replyAngles: string[] = [];
 
   if (caseItem) {
-    signals.push(describeListingPricePosition(caseItem));
-    signals.push(`${caseItem.ownerName}${describeOwnerState(caseItem)}`);
-    signals.push(caseItem.hasCompletedFirstVisit ? '已做过面访，适合继续用反馈推进' : '还没面访，先把信任和判断框架搭起来');
+    signals.push(describeListingPricePositionShort(caseItem));
+    signals.push(`${caseItem.ownerName} · ${describeOwnerStateShort(caseItem)}`);
+    signals.push(caseItem.hasCompletedFirstVisit ? '已做过面访' : '待首次面访');
     if (caseItem.viewings > 0 || caseItem.offers > 0) {
-      signals.push(`累计带看 ${caseItem.viewings} 次，报价 ${caseItem.offers} 次`);
+      signals.push(`带看 ${caseItem.viewings} 次 · 报价 ${caseItem.offers} 次`);
     }
     replyAngles.push(buildOwnerReplyAngle(caseItem));
     replyAngles.push(buildMarketEvidenceReplyAngle(caseItem));
@@ -483,39 +484,43 @@ function buildConversationWorldContext(
   }
 
   if (opportunity) {
-    signals.push(`${opportunity.customerName} 在「${opportunity.stageLabel}」，意向${describeLevel(opportunity.intent)}、信心${describeLevel(opportunity.confidence)}`);
+    signals.push(describeOpportunityIntentShort(opportunity));
     replyAngles.push(`我先把${opportunity.customerName}的顾虑和可接受价格问清，再回来给您一个实在判断。`);
-  }
-
-  if (anchorMessage?.sourceTrace?.reason) {
-    signals.push(anchorMessage.sourceTrace.reason);
   }
 
   return {
     title: caseItem?.title || opportunity?.customerName || getWechatSenderDisplayName(conversation.senderName, conversation.senderRole),
     primaryLine: caseItem
-      ? `${caseItem.community} · ${caseItem.district} · ${caseItem.stageLabel}`
+      ? `${caseItem.community} · ${caseItem.district} · 这条微信会影响今天的跟进节奏`
       : '这条微信会影响今天的跟进节奏',
     signals: dedupeStrings(signals).slice(0, 4),
     replyAngles: dedupeStrings(replyAngles).slice(0, 3),
   };
 }
 
-function describeListingPricePosition(caseItem: GameState['cases'][number]) {
+function describeListingPricePositionShort(caseItem: GameState['cases'][number]) {
   const gap = Number.isFinite(caseItem.priceGapPct) ? caseItem.priceGapPct : 0;
-  if (gap >= 3) return `挂牌明显高于市场 ${Math.round(gap)}%，沟通要带竞品和客户反馈`;
-  if (gap >= 1) return `挂牌略高于市场 ${Math.round(gap)}%，适合先解释差异再谈方案`;
-  if (gap <= -1) return `价格低于市场约 ${Math.abs(Math.round(gap))}%，重点是守住价值感`;
-  return '价格接近市场，重点看客户承接和业主配合';
+  if (gap >= 3) return `挂价高于市场 ${Math.round(gap)}%`;
+  if (gap >= 1) return `挂价略高 ${Math.round(gap)}%`;
+  if (gap <= -1) return `挂价低于市场 ${Math.abs(Math.round(gap))}%`;
+  return '价格接近市场';
 }
 
-function describeOwnerState(caseItem: GameState['cases'][number]) {
-  const pieces = [
-    `信任${describeLevel(caseItem.trust)}`,
-    `耐心${describeLevel(caseItem.patience)}`,
-    `催促${describeLevel(caseItem.urgency)}`,
-  ];
-  return `：${pieces.join(' · ')}`;
+function describeOwnerStateShort(caseItem: GameState['cases'][number]) {
+  const trust = describeLevel(caseItem.trust);
+  const patience = describeLevel(caseItem.patience);
+  const urgency = describeLevel(caseItem.urgency);
+  return `信任${trust} · 耐心${patience} · 催促${urgency}`;
+}
+
+function describeOpportunityIntentShort(opportunity: NonNullable<GameState['opportunities'][number]>) {
+  if (opportunity.intent >= 72) {
+    return `${opportunity.customerName} 准备出价`;
+  }
+  if (opportunity.intent >= 45) {
+    return `${opportunity.customerName} 在对比`;
+  }
+  return `${opportunity.customerName} 意向偏薄`;
 }
 
 function describeLevel(value: number) {
@@ -555,17 +560,17 @@ const WechatDraftReplySuggestion: React.FC<{
 }> = ({ reply, onUse }) => {
   return (
     <div className="flex justify-end gap-2.5">
-      <div className="min-w-0 max-w-[78%]">
-        <div className="mb-1 flex justify-end gap-2 text-[10px] text-[var(--seller-subtle)]">
+      <div className="min-w-0 max-w-[80%]">
+        <div className="mb-1 flex items-center justify-end gap-2 text-[10px] text-[var(--seller-subtle)]">
           <span>{reply.timeLabel}</span>
-          <span>回复建议</span>
+          <span>AI 回复建议</span>
         </div>
-        <div className="rounded-[14px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.05)] px-3 py-2.5">
+        <div className="rounded-[14px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.06)] px-3 py-2.5 shadow-[0_10px_24px_rgba(0,0,0,0.06)]">
           <p className="whitespace-pre-wrap text-[12px] leading-5 text-[var(--seller-ink)]">{reply.content}</p>
           <button
             type="button"
             onClick={onUse}
-            className="mt-2 rounded-full border border-[color:var(--seller-accent)]/24 bg-[color:var(--seller-accent)]/10 px-2 py-0.5 text-[9px] font-semibold text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/16"
+            className="mt-2 inline-flex items-center gap-1 rounded-full border border-[color:var(--seller-accent)]/24 bg-[color:var(--seller-accent)]/10 px-2 py-0.5 text-[9px] font-semibold text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/16"
           >
             填入
           </button>
@@ -580,16 +585,38 @@ const ConversationWorldContextCard: React.FC<{
   latestReceipt: ConversationReceipt | null;
   onUseAngle: (text: string) => void;
   onUseNextStep: (receipt: ConversationReceipt, step: ConversationNextStepDraft) => void;
-}> = ({ context, latestReceipt, onUseAngle, onUseNextStep }) => {
+  isNextStepHandled?: (receipt: ConversationReceipt, step: ConversationNextStepDraft) => boolean;
+}> = ({ context, latestReceipt, onUseAngle, onUseNextStep, isNextStepHandled }) => {
   const latestNextSteps = latestReceipt ? getConversationNextSteps(latestReceipt) : [];
+  const primaryNextStep = latestNextSteps[0] || null;
+  const primaryNextStepHandled = Boolean(latestReceipt && primaryNextStep && isNextStepHandled?.(latestReceipt, primaryNextStep));
 
   return (
-    <div className="border-b border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] px-3 py-2.5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <div className="border-b border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] px-3 py-2.5">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="seller-label text-[9px]">这句微信背后的局面</div>
+          <div className="seller-label text-[9px]">会话背景</div>
           <div className="mt-1 truncate text-[12px] font-semibold text-[var(--seller-ink)]">{context.title}</div>
           <div className="mt-0.5 truncate text-[10px] text-[var(--seller-subtle)]">{context.primaryLine}</div>
+        </div>
+        <div className="flex shrink-0 flex-wrap justify-end gap-1">
+          <span className={`seller-chip ${latestReceipt ? 'seller-chip-accent' : ''}`}>
+            {latestReceipt ? '已回复' : '待回复'}
+          </span>
+          {primaryNextStep && latestReceipt && primaryNextStepHandled ? (
+            <span className="seller-chip seller-chip-chance">
+              已接入今日安排
+            </span>
+          ) : primaryNextStep && latestReceipt ? (
+            <button
+              type="button"
+              onClick={() => onUseNextStep(latestReceipt, primaryNextStep)}
+              className="seller-chip seller-chip-chance"
+              title={primaryNextStep.reason}
+            >
+              下一步：{primaryNextStep.label}
+            </button>
+          ) : null}
         </div>
       </div>
       <div className="mt-2 flex flex-wrap gap-1.5">
@@ -602,46 +629,17 @@ const ConversationWorldContextCard: React.FC<{
           </span>
         ))}
       </div>
-      {latestReceipt && (
-        <div className="mt-2 rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.035)] px-2.5 py-2">
-          <div className="seller-label text-[9px]">最近一次回复推动了什么</div>
-          <p className="mt-1 text-[10px] leading-4 text-[var(--seller-muted)]">
-            {buildConversationImpactText(latestReceipt) || latestReceipt.summary}
-          </p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {getConversationEffectLabels(latestReceipt).slice(0, 4).map((label) => (
-              <span
-                key={label}
-                className="rounded-full border border-[color:var(--seller-accent)]/22 bg-[color:var(--seller-accent)]/8 px-2 py-0.5 text-[9px] font-semibold text-[var(--seller-accent)]"
-              >
-                {label}
-              </span>
-            ))}
-            {latestNextSteps.map((step) => (
-              <button
-                key={`${latestReceipt.receiptId}-${step.kind}`}
-                type="button"
-                onClick={() => onUseNextStep(latestReceipt, step)}
-                className="rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.05)] px-2 py-0.5 text-[9px] font-semibold text-[var(--seller-ink)] transition hover:border-[color:var(--seller-accent)]/35 hover:text-[var(--seller-accent)] disabled:opacity-50"
-                title={step.reason}
-              >
-                下一步：{step.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
       {context.replyAngles.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1.5">
+        <div className="mt-2 flex gap-1.5 overflow-x-auto pb-0.5">
           {context.replyAngles.map((angle) => (
             <button
               key={angle}
               type="button"
               onClick={() => onUseAngle(angle)}
-              className="rounded-full border border-[color:var(--seller-accent)]/24 bg-[color:var(--seller-accent)]/8 px-2 py-1 text-[9px] font-semibold text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/14"
+              className="seller-wechat-suggestion-pill whitespace-nowrap rounded-full border border-[color:var(--seller-accent)]/22 bg-[color:var(--seller-accent)]/8 px-2.5 py-1 text-[9px] font-semibold text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/14"
               title={angle}
             >
-              {angle.length > 18 ? `${angle.slice(0, 18)}…` : angle}
+              {angle.length > 28 ? `${angle.slice(0, 28)}…` : angle}
             </button>
           ))}
         </div>
@@ -759,7 +757,7 @@ const WechatMessageRow: React.FC<WechatMessageRowProps> = ({
         senderName={conversation.senderName}
         senderRole={conversation.senderRole}
         label={conversation.avatarLabel}
-        className="h-9 w-9 rounded-[12px]"
+        className="h-9 w-9 rounded-full"
       />
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center justify-between gap-2">
@@ -835,11 +833,13 @@ const WechatConversationDetail: React.FC<{
   const [draftText, setDraftText] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(true);
 
   useEffect(() => {
     setDraftText('');
     setSendError(null);
     setSending(false);
+    setExpanded(true);
   }, [conversation.key]);
 
   const submitReply = async (event: React.FormEvent) => {
@@ -866,40 +866,32 @@ const WechatConversationDetail: React.FC<{
   };
 
   const useNextStep = (receipt: ConversationReceipt, step: ConversationNextStepDraft) => {
-    const sourceMessage = conversation.messages.find((message) => message.id === receipt.sourceMessageId)
-      || replyTarget
-      || conversation.primaryMessage
-      || conversation.messages[0]
-      || null;
-    const targetCaseId = receipt.targetCaseId || sourceMessage?.targetCaseId;
-    const caseItem = targetCaseId ? state.cases.find((entry) => entry.id === targetCaseId) || null : null;
-    const resolvedActionId = step.actionId || (step.kind === 'open_case'
-      ? (caseItem?.hasCompletedFirstVisit ? 'deep-diagnosis' : 'first-visit')
-      : undefined);
+    const actionMessage = buildNextStepActionMessage(conversation, state, replyTarget, receipt, step);
 
-    if (resolvedActionId && sourceMessage && targetCaseId) {
-      const scheduled = onOpenMessageAction({
-        ...sourceMessage,
-        targetCaseId,
-        targetOpportunityId: receipt.targetOpportunityId || sourceMessage.targetOpportunityId,
-        primaryActionId: resolvedActionId,
-        primaryCtaLabel: step.label,
-      });
+    if (actionMessage) {
+      const scheduled = onOpenMessageAction(actionMessage);
       if (scheduled) return;
     }
 
+    const targetCaseId = receipt.targetCaseId || actionMessage?.targetCaseId;
     if (targetCaseId) {
       onSelectCase(targetCaseId);
     }
   };
 
-  return (
-    <div className="seller-wechat-detail flex h-[min(560px,calc(100vh-220px))] min-h-[420px] flex-col overflow-hidden rounded-[14px] border border-[var(--seller-border)]">
-      <div className="flex shrink-0 items-center gap-2 border-b border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] px-3 py-2.5">
+  const detailPanel = (
+    <div
+      className={`seller-wechat-detail flex flex-col overflow-hidden rounded-[18px] border border-[var(--seller-border)] shadow-[0_20px_50px_rgba(0,0,0,0.14)] transition-all duration-200 ${
+        expanded
+          ? 'fixed bottom-3 left-3 right-3 top-[88px] z-[95] h-auto min-h-0 md:left-auto md:right-4 md:w-[min(620px,calc(100vw-24px))] xl:w-[min(700px,calc(100vw-24px))] xl:top-[96px] xl:right-5 xl:bottom-5'
+          : 'h-[min(720px,calc(100vh-150px))] min-h-[560px]'
+      }`}
+    >
+      <div className="seller-wechat-topbar flex shrink-0 items-center gap-2 border-b border-[var(--seller-border)] px-3 py-2.5">
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[15px] text-[var(--seller-muted)] transition hover:bg-[rgba(255,255,255,0.06)] hover:text-[var(--seller-ink)]"
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[16px] text-[var(--seller-muted)] transition hover:bg-[rgba(255,255,255,0.08)] hover:text-[var(--seller-ink)]"
           aria-label="返回消息列表"
         >
           ←
@@ -908,12 +900,26 @@ const WechatConversationDetail: React.FC<{
           senderName={conversation.senderName}
           senderRole={conversation.senderRole}
           label={conversation.avatarLabel}
-          className="h-8 w-8 rounded-[10px]"
+          className="h-8 w-8 rounded-full"
         />
         <div className="min-w-0 flex-1">
           <div className="truncate text-[13px] font-semibold text-[var(--seller-ink)]">{displayName}</div>
-          <div className="mt-0.5 text-[10px] text-[var(--seller-subtle)]">{senderRoleLabel(conversation.senderRole)}</div>
+          <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px] text-[var(--seller-subtle)]">
+            <span>{senderRoleLabel(conversation.senderRole)}</span>
+            <span className="h-0.5 w-0.5 rounded-full bg-current opacity-50" />
+            <span>DAY {state.day}</span>
+          </div>
         </div>
+        <span className="seller-chip shrink-0">{conversation.messages.length} 条</span>
+        <button
+          type="button"
+          onClick={() => setExpanded((current) => !current)}
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.05)] text-[var(--seller-muted)] transition hover:border-[color:var(--seller-accent)]/35 hover:bg-[rgba(255,255,255,0.08)] hover:text-[var(--seller-ink)]"
+          title={expanded ? '回到右栏会话卡片' : '展开为会话焦点'}
+          aria-label={expanded ? '回到右栏会话卡片' : '展开为会话焦点'}
+        >
+          {expanded ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+        </button>
       </div>
 
       {worldContext && (
@@ -921,11 +927,20 @@ const WechatConversationDetail: React.FC<{
           context={worldContext}
           latestReceipt={latestReceipt}
           onUseNextStep={useNextStep}
+          isNextStepHandled={(receipt, step) => {
+            const actionMessage = buildNextStepActionMessage(conversation, state, replyTarget, receipt, step);
+            return actionMessage ? isMessageActionScheduled(state, actionMessage) : false;
+          }}
           onUseAngle={(text) => setDraftText((current) => current.trim() ? current : text)}
         />
       )}
 
-      <div className="flex-1 space-y-3 overflow-y-auto px-3 py-4">
+      <div className="seller-wechat-chat flex-1 space-y-3 overflow-y-auto px-3 py-4">
+        <div className="flex justify-center">
+          <span className="seller-wechat-date-pill rounded-full px-2 py-0.5 text-[9px] font-semibold text-[var(--seller-subtle)]">
+            DAY {state.day}
+          </span>
+        </div>
         {conversation.messages.map((message) => {
           const turnHistory = message.conversationTurns || [];
           const brokerReply = turnHistory.length > 0 ? null : brokerReplies[message.id] || message.brokerReply;
@@ -936,14 +951,14 @@ const WechatConversationDetail: React.FC<{
                   senderName={message.senderName}
                   senderRole={message.senderRole}
                   label={message.avatarLabel}
-                  className="mt-4 h-7 w-7 rounded-[9px]"
+                  className="mt-4 h-7 w-7 rounded-full"
                 />
                 <div className="min-w-0 max-w-[78%]">
                   <div className="mb-1 flex items-center gap-2 text-[10px] text-[var(--seller-subtle)]">
                     <span>{message.timeLabel}</span>
                     {message.urgency !== 'low' ? <span>{urgencyLabel(message.urgency)}</span> : null}
                   </div>
-                  <div className="rounded-[16px] rounded-tl-[5px] bg-[rgba(255,255,255,0.08)] px-3 py-2.5 shadow-[0_10px_24px_rgba(0,0,0,0.12)]">
+                  <div className="seller-wechat-bubble-in rounded-[16px] rounded-tl-[5px] px-3 py-2.5 shadow-[0_8px_18px_rgba(0,0,0,0.08)]">
                     <p className="whitespace-pre-wrap text-[12px] leading-5 text-[var(--seller-ink)]">
                       {stripWechatSpeakerPrefix(message.content, message.senderName, message.senderRole)}
                     </p>
@@ -970,8 +985,9 @@ const WechatConversationDetail: React.FC<{
       <div className="seller-wechat-composer shrink-0 border-t border-[var(--seller-border)] px-3 py-2.5">
         <div className="space-y-2">
           {replyTargetText && (
-            <div className="line-clamp-1 text-[10px] font-medium text-[var(--seller-subtle)]">
-              回复对象：{replyTargetText}
+            <div className="flex items-center gap-1.5 rounded-full bg-[rgba(255,255,255,0.05)] px-2 py-1 text-[10px] font-medium text-[var(--seller-subtle)]">
+              <span className="shrink-0 text-[9px] text-[var(--seller-accent)]">回复</span>
+              <span className="min-w-0 truncate">{replyTargetText}</span>
             </div>
           )}
           <form onSubmit={submitReply} className="flex items-end gap-2">
@@ -981,17 +997,27 @@ const WechatConversationDetail: React.FC<{
                 setDraftText(event.target.value);
                 if (sendError) setSendError(null);
               }}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) {
+                  return;
+                }
+                event.preventDefault();
+                if (draftText.trim() && replyTarget && onSendConversationReply && !sending) {
+                  event.currentTarget.form?.requestSubmit();
+                }
+              }}
               disabled={!replyTarget || !onSendConversationReply || sending}
               maxLength={220}
               rows={2}
               placeholder={replyTarget ? `回复 ${displayName}` : '暂无可回复消息'}
-              className="seller-wechat-input min-h-[48px] flex-1 resize-none rounded-[12px] border border-[var(--seller-border)] px-3 py-2 text-[12px] leading-5 text-[var(--seller-ink)] outline-none transition placeholder:text-[var(--seller-subtle)] focus:border-[color:var(--seller-accent)]/50 disabled:opacity-60"
+              title="回车发送，Shift+Enter 换行"
+              className="seller-wechat-input min-h-[44px] flex-1 resize-none rounded-[18px] border border-[var(--seller-border)] px-3 py-2 text-[12px] leading-5 text-[var(--seller-ink)] outline-none transition placeholder:text-[var(--seller-subtle)] focus:border-[color:var(--seller-accent)]/50 disabled:opacity-60"
             />
             <button
               type="submit"
               disabled={!draftText.trim() || !replyTarget || !onSendConversationReply || sending}
-              className="seller-button-primary inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full disabled:cursor-not-allowed disabled:opacity-55"
-              title="发送"
+              title="发送（回车可发送）"
+              className="seller-button-primary inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full disabled:cursor-not-allowed disabled:opacity-55"
             >
               {sending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
             </button>
@@ -1038,6 +1064,23 @@ const WechatConversationDetail: React.FC<{
       </div>
     </div>
   );
+
+  if (expanded && typeof document !== 'undefined') {
+    return createPortal(
+      <>
+        <button
+          type="button"
+          aria-label="回到右栏会话卡片"
+          onClick={() => setExpanded(false)}
+          className="fixed inset-0 z-[94] cursor-default bg-[rgba(5,8,12,0.16)] backdrop-blur-[1px]"
+        />
+        {detailPanel}
+      </>,
+      document.body,
+    );
+  }
+
+  return detailPanel;
 };
 
 const ConversationTurnThread: React.FC<{
@@ -1053,7 +1096,7 @@ const ConversationTurnThread: React.FC<{
             <span>DAY {turn.day}</span>
             <span>我</span>
           </div>
-          <div className="seller-wechat-reply-bubble rounded-[16px] rounded-tr-[5px] px-3 py-2.5 shadow-[0_10px_24px_rgba(0,0,0,0.12)]">
+          <div className="seller-wechat-reply-bubble rounded-[16px] rounded-tr-[5px] px-3 py-2.5 shadow-[0_8px_18px_rgba(0,0,0,0.08)]">
             <p className="seller-wechat-reply-text whitespace-pre-wrap text-[12px] leading-5">{turn.playerText}</p>
           </div>
         </div>
@@ -1061,7 +1104,7 @@ const ConversationTurnThread: React.FC<{
           senderName="我"
           senderRole="agent"
           label="我"
-          className="mt-4 h-7 w-7 rounded-[9px]"
+          className="mt-4 h-7 w-7 rounded-full"
         />
       </div>
 
@@ -1070,13 +1113,13 @@ const ConversationTurnThread: React.FC<{
           senderName={message.senderName}
           senderRole={message.senderRole}
           label={message.avatarLabel}
-          className="mt-4 h-7 w-7 rounded-[9px]"
+          className="mt-4 h-7 w-7 rounded-full"
         />
         <div className="min-w-0 max-w-[78%]">
           <div className="mb-1 flex items-center gap-2 text-[10px] text-[var(--seller-subtle)]">
             <span>{displayName}</span>
           </div>
-          <div className="rounded-[16px] rounded-tl-[5px] bg-[rgba(255,255,255,0.08)] px-3 py-2.5 shadow-[0_10px_24px_rgba(0,0,0,0.12)]">
+          <div className="seller-wechat-bubble-in rounded-[16px] rounded-tl-[5px] px-3 py-2.5 shadow-[0_8px_18px_rgba(0,0,0,0.08)]">
             <p className="whitespace-pre-wrap text-[12px] leading-5 text-[var(--seller-ink)]">
               {stripWechatSpeakerPrefix(turn.recipientReply, message.senderName, message.senderRole)}
             </p>
@@ -1087,6 +1130,41 @@ const ConversationTurnThread: React.FC<{
     </div>
   );
 };
+
+function buildNextStepActionMessage(
+  conversation: WechatConversation,
+  state: GameState,
+  replyTarget: WechatMessage | null,
+  receipt: ConversationReceipt,
+  step: ConversationNextStepDraft,
+): WechatMessage | null {
+  const sourceMessage = conversation.messages.find((message) => message.id === receipt.sourceMessageId)
+    || replyTarget
+    || conversation.primaryMessage
+    || conversation.messages[0]
+    || null;
+  const targetCaseId = receipt.targetCaseId || sourceMessage?.targetCaseId;
+  if (!sourceMessage || !targetCaseId) {
+    return null;
+  }
+
+  const caseItem = state.cases.find((entry) => entry.id === targetCaseId) || null;
+  const resolvedActionId = step.actionId || (step.kind === 'open_case'
+    ? (caseItem?.hasCompletedFirstVisit ? 'deep-diagnosis' : 'first-visit')
+    : undefined);
+
+  if (!resolvedActionId) {
+    return null;
+  }
+
+  return {
+    ...sourceMessage,
+    targetCaseId,
+    targetOpportunityId: receipt.targetOpportunityId || sourceMessage.targetOpportunityId,
+    primaryActionId: resolvedActionId,
+    primaryCtaLabel: step.label,
+  };
+}
 
 function renderMessageActionSlot(
   state: GameState,
@@ -1128,12 +1206,12 @@ const ConversationEffectStrip: React.FC<{ turn: ConversationReceipt }> = ({ turn
   const impactText = buildConversationImpactText(turn);
 
   return (
-    <div className="mt-1.5 space-y-1.5">
+    <div className="mt-1.5 space-y-1">
       <div className="flex flex-wrap gap-1.5">
         {labels.slice(0, 4).map((label) => (
           <span
             key={label}
-            className="rounded-full border border-[color:var(--seller-accent)]/22 bg-[color:var(--seller-accent)]/8 px-2 py-0.5 text-[9px] font-semibold text-[var(--seller-accent)]"
+            className="rounded-full border border-[color:var(--seller-accent)]/18 bg-[color:var(--seller-accent)]/7 px-2 py-0.5 text-[9px] font-semibold text-[var(--seller-accent)]"
           >
             {label}
           </span>
@@ -1145,7 +1223,7 @@ const ConversationEffectStrip: React.FC<{ turn: ConversationReceipt }> = ({ turn
         )}
       </div>
       {impactText && (
-        <div className="max-w-full rounded-[10px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.035)] px-2 py-1 text-[9px] leading-4 text-[var(--seller-muted)]">
+        <div className="max-w-full px-0.5 text-[9px] leading-4 text-[var(--seller-subtle)]">
           {impactText}
         </div>
       )}
@@ -1156,7 +1234,7 @@ const ConversationEffectStrip: React.FC<{ turn: ConversationReceipt }> = ({ turn
 function buildConversationImpactText(turn: ConversationReceipt) {
   const settlement = (turn as { settlement?: Partial<ConversationReceipt['settlement']> }).settlement || {};
   if (typeof settlement.askPriceBefore === 'number' && typeof settlement.askPriceAfter === 'number') {
-    return `世界变化：挂牌价从 ${settlement.askPriceBefore} 调到 ${settlement.askPriceAfter}，这会改变客户比价和业主预期。`;
+    return `影响：挂牌价从 ${settlement.askPriceBefore} 调到 ${settlement.askPriceAfter}，客户比价和业主预期会一起变化。`;
   }
   if (settlement.trustDelta || settlement.patienceDelta || settlement.urgencyDelta) {
     const pieces: string[] = [];
@@ -1166,10 +1244,10 @@ function buildConversationImpactText(turn: ConversationReceipt) {
     if (settlement.patienceDelta < 0) pieces.push('可沟通窗口变窄');
     if (settlement.urgencyDelta < 0) pieces.push('催促感下降');
     if (settlement.urgencyDelta > 0) pieces.push('催促感上升');
-    return pieces.length ? `世界变化：${pieces.slice(0, 3).join('，')}。` : '';
+    return pieces.length ? `影响：${pieces.slice(0, 3).join('，')}。` : '';
   }
   if (settlement.customerIntentDelta || settlement.customerConfidenceDelta) {
-    return '世界变化：客户更愿意继续等反馈，后续跟进空间变大。';
+    return '影响：客户更愿意继续等反馈，后续跟进空间变大。';
   }
   const nextSteps = getConversationNextSteps(turn);
   if (nextSteps.length > 0) {
