@@ -54,6 +54,10 @@ import {
   buildNegotiationProcessResultSummary,
   buildProductRunProcessResultSummary,
 } from '../runtime/simulation/processes/processResultSummary.js';
+import {
+  settleWechatConversationTurn,
+  type WechatConversationTurnInput,
+} from './wechatConversation.js';
 
 // Register runtime process managers into domain facade.
 // This breaks the domain→runtime reverse dependency.
@@ -204,6 +208,30 @@ export function executeGameAction(
   return {
     nextState,
     success,
+  };
+}
+
+export function sendWechatConversationReply(
+  state: GameState,
+  input: WechatConversationTurnInput,
+): ReturnType<typeof settleWechatConversationTurn> {
+  let result: ReturnType<typeof settleWechatConversationTurn> | null = null;
+  const nextState = transitionGameState(state, (next) => {
+    result = settleWechatConversationTurn(next, input);
+  });
+
+  if (!result?.success) {
+    return {
+      nextState: state,
+      success: false,
+      reason: result?.reason || '微信回复没有生效。',
+      receipt: null,
+    };
+  }
+
+  return {
+    ...result,
+    nextState,
   };
 }
 

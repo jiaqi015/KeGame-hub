@@ -53,13 +53,16 @@ export function buildMyWechatProjection({
     .filter((fact) => fact.relatedCaseIds?.some((caseId) => activeCaseIds.has(caseId)) || (fact.caseId && activeCaseIds.has(fact.caseId)));
   const messageFacts = facts.filter((fact) => fact.source !== 'market_intel');
 
-  const messages = limitMessages(
-    dedupeMessages(messageFacts)
-      .sort((left, right) => compareFacts(left, right, state, resolvedDashboard))
-      .map((fact) => renderWechatMessage(fact, { state }))
-      .filter((message) => isValidMessageTarget(message, state)),
+  const messages = attachConversationTurns(
+    limitMessages(
+      dedupeMessages(messageFacts)
+        .sort((left, right) => compareFacts(left, right, state, resolvedDashboard))
+        .map((fact) => renderWechatMessage(fact, { state }))
+        .filter((message) => isValidMessageTarget(message, state)),
+      state,
+      resolvedDashboard,
+    ),
     state,
-    resolvedDashboard,
   );
 
   const officialAccounts = limitOfficialAccounts(
@@ -187,6 +190,27 @@ function limitMessages(messages: WechatMessage[], state: GameState, dashboard: D
 
 function limitOfficialAccounts(articles: OfficialAccountArticle[]) {
   return articles.slice(0, 5);
+}
+
+function attachConversationTurns(messages: WechatMessage[], state: GameState): WechatMessage[] {
+  const receiptsByMessageId = new Map<string, NonNullable<WechatMessage['conversationTurns']>>();
+
+  (state.wechatConversationHistory || []).forEach((receipt) => {
+    const turns = receiptsByMessageId.get(receipt.sourceMessageId) || [];
+    turns.push(receipt);
+    receiptsByMessageId.set(receipt.sourceMessageId, turns);
+  });
+
+  if (receiptsByMessageId.size === 0) {
+    return messages;
+  }
+
+  return messages.map((message) => {
+    const conversationTurns = receiptsByMessageId.get(message.id);
+    return conversationTurns?.length
+      ? { ...message, conversationTurns }
+      : message;
+  });
 }
 
 function dedupeOfficialArticleContent() {

@@ -54,12 +54,19 @@ import {
   type AdvanceGameDaysSummary,
   executeTodayPlanItem,
   removeTodayPlanItem,
+  sendWechatConversationReply,
   syncTodayPlanForCurrentDay,
   executeGameAction,
   executeScenarioAction,
 } from './gameTransitions.js';
 import type { Settlement } from '../domain/actions/templates.js';
 import type { TodayPlanDraft } from './todayPlan.js';
+import type { WechatMessage } from './projections/myWechatTypes.js';
+import {
+  buildWechatConversationScenePack,
+  sanitizeWechatPlayerText,
+} from './wechatConversation.js';
+import { fetchMyWechatConversationEffectProposal } from '../infrastructure/myWechatConversationClient.js';
 import {
   buildKeepLocalWarning,
   buildSaveComparisonLog,
@@ -603,6 +610,46 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
     return success;
   }, [commitLocalStateChange]);
 
+  const handleSendWechatConversationReply = useCallback(async (
+    conversationKey: string,
+    message: WechatMessage,
+    playerText: string,
+  ) => {
+    if (!state) {
+      return { success: false, reason: '当前局面还没加载完成。', receipt: null };
+    }
+
+    const sanitizedText = sanitizeWechatPlayerText(playerText);
+    if (sanitizedText.length < 2) {
+      return { success: false, reason: '先输入要回复的内容。', receipt: null };
+    }
+
+    const scene = buildWechatConversationScenePack(state, {
+      conversationKey,
+      message,
+      playerText: sanitizedText,
+    });
+
+    const proposalResult = await fetchMyWechatConversationEffectProposal(scene).catch(() => null);
+    const result = sendWechatConversationReply(state, {
+      conversationKey,
+      message,
+      playerText: sanitizedText,
+      proposal: proposalResult?.proposal || null,
+      proposalSource: proposalResult?.source || 'fallback',
+    });
+
+    if (result.success) {
+      setState(commitLocalStateChange(result.nextState));
+    }
+
+    return {
+      success: result.success,
+      reason: result.reason,
+      receipt: result.receipt,
+    };
+  }, [commitLocalStateChange, state]);
+
   const handleSyncTodayPlan = useCallback(() => {
     setState((prev) => {
       if (!prev) return null;
@@ -692,6 +739,7 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
     handleAdvanceDaysWithSummary,
     handleExecuteAction,
     handleExecuteScenarioAction,
+    handleSendWechatConversationReply,
     handleSyncTodayPlan,
     handleAddTodayPlanItem,
     handleRemoveTodayPlanItem,

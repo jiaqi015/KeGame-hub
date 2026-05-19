@@ -132,6 +132,7 @@ export function SellingHousesWorkspace({
     handleAdvanceDaysWithSummary,
     handleExecuteAction,
     handleExecuteScenarioAction,
+    handleSendWechatConversationReply,
     handleAddTodayPlanItem,
     handleRemoveTodayPlanItem,
     handleExecuteTodayPlanItem,
@@ -654,6 +655,7 @@ export function SellingHousesWorkspace({
             onOpenMarket={openMarketView}
             onOpenCaseFromWechat={openCaseFromWechat}
             onMarkWechatRead={markWechatRead}
+            onSendWechatConversationReply={handleSendWechatConversationReply}
             onAdvanceToDay={(targetDay) => advanceByDays(targetDay - state.day)}
           />
         );
@@ -703,6 +705,7 @@ export function SellingHousesWorkspace({
             onOpenMarket={openMarketView}
             onOpenCaseFromWechat={openCaseFromWechat}
             onMarkWechatRead={markWechatRead}
+            onSendWechatConversationReply={handleSendWechatConversationReply}
             onAdvanceToDay={(targetDay) => advanceByDays(targetDay - state.day)}
           />
         );

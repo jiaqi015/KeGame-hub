@@ -38,6 +38,11 @@ interface DashboardProps {
   onOpenMarket: (layer?: IntelLayerTab) => void;
   onOpenCaseFromWechat: (caseId: string) => void;
   onMarkWechatRead: (id: string) => void;
+  onSendWechatConversationReply: (
+    conversationKey: string,
+    message: WechatMessage,
+    playerText: string,
+  ) => Promise<{ success: boolean; reason: string; receipt: unknown | null }>;
   onAdvanceToDay: (targetDay: number) => void;
 }
 
@@ -101,6 +106,7 @@ export function Dashboard({
   onOpenMarket,
   onOpenCaseFromWechat,
   onMarkWechatRead,
+  onSendWechatConversationReply,
   onAdvanceToDay,
 }: DashboardProps) {
   const operatingProjection = useMemo(() => buildOperatingProjection(state), [state]);
@@ -323,11 +329,13 @@ export function Dashboard({
             <div className="space-y-3">
               {/* 旧右栏“机会 / 今日新闻摘要 / 推荐跟进房源”已由“我的微信”替代，旧组件保留便于回滚。 */}
               <MyWechatPanel
+                state={state}
                 projection={myWechat}
                 readIds={wechatReadIds}
                 onMarkRead={onMarkWechatRead}
                 onSelectCase={onOpenCaseFromWechat}
                 onScheduleMessageAction={scheduleWechatMessageAction}
+                onSendConversationReply={onSendWechatConversationReply}
                 onOpenMarket={(layer) => onOpenMarket(layer || 'macro')}
               />
             </div>

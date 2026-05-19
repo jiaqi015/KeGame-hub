@@ -50,6 +50,8 @@ import {
   handleSellingHousesScenarioGet,
   handleSellingHousesScenarioList,
 } from "./src/selling-houses/interfaces/http/sellingHousesScenarioHandlers.js";
+import { handleMyWechatBrokerReplyDraft } from "./src/selling-houses/interfaces/http/myWechatAiHandlers.js";
+import { handleMyWechatConversationTurn } from "./src/selling-houses/interfaces/http/myWechatConversationHandlers.js";
 import {
   getFirstFieldValue,
   hasQueryValue,
@@ -503,6 +505,42 @@ async function startServer() {
       return res.json(payload);
     } catch (error) {
       return res.status(400).json({ error: error instanceof Error ? error.message : "剧本查询失败" });
+    }
+  });
+
+  app.post("/api/selling-houses-wechat-replies", async (req, res) => {
+    try {
+      const authorization = await authorizeRequestPersisted(req, "selling-houses");
+      if (!authorization.ok) {
+        return res.status(authorization.status).json({ error: authorization.error });
+      }
+
+      const result = await handleMyWechatBrokerReplyDraft(req.body);
+      return res.status(result.status).json(result.body);
+    } catch (error) {
+      return res.status(500).json({
+        ok: false,
+        replies: [],
+        error: error instanceof Error ? error.message : "微信对话生成失败",
+      });
+    }
+  });
+
+  app.post("/api/selling-houses-wechat-turns", async (req, res) => {
+    try {
+      const authorization = await authorizeRequestPersisted(req, "selling-houses");
+      if (!authorization.ok) {
+        return res.status(authorization.status).json({ error: authorization.error });
+      }
+
+      const result = await handleMyWechatConversationTurn(req.body);
+      return res.status(result.status).json(result.body);
+    } catch (error) {
+      return res.status(200).json({
+        ok: false,
+        source: "fallback",
+        error: error instanceof Error ? error.message : "微信对话理解失败",
+      });
     }
   });
 

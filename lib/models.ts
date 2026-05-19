@@ -50,6 +50,18 @@ export const MODEL_CONFIGS: AIModel[] = [
     thinkingStreamMode: 'native',
   },
   {
+    id: 'deepseek-v4-flash',
+    name: 'DeepSeek V4 Flash',
+    channel: 'china',
+    category: 'DeepSeek',
+    description: 'DeepSeek 官方低延迟模型，适合对话改写与轻量文本生成',
+    provider: 'deepseek',
+    upstreamModel: 'deepseek-v4-flash',
+    enabled: true,
+    visible: false,
+    thinkingStreamMode: 'prompt',
+  },
+  {
     id: 'deepseek-v4-pro',
     name: 'DeepSeek V4 Pro',
     channel: 'china',

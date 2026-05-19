@@ -1,10 +1,10 @@
 {
   "name": "sabrina-workspace",
   "private": true,
-  "version": "0.2.5",
+  "version": "0.2.6",
   "versionType": "square",
-  "buildCode": "051910",
-  "lineCount": 228740,
+  "buildCode": "051914",
+  "lineCount": 231271,
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",

@@ -22,6 +22,20 @@ interface DeepSeekChatResponse {
   };
 }
 
+export interface DeepSeekChatMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+export interface DeepSeekChatOptions {
+  stream?: boolean;
+  signal?: AbortSignal;
+  responseFormat?: 'json_object';
+  thinking?: 'enabled' | 'disabled';
+  temperature?: number;
+  maxTokens?: number;
+}
+
 function getDeepSeekApiKey(): string {
   return (process.env.DEEPSEEK_API_KEY || '').trim();
 }
@@ -78,20 +92,116 @@ function formatDeepSeekException(error: unknown, timeoutMs: number): string {
   return error instanceof Error ? error.message : 'DeepSeek 请求异常。';
 }
 
-function buildRequestBody(model: AIModel, prompt: string, stream: boolean) {
-  return {
-    model: model.upstreamModel,
-    messages: [
+function buildRequestBody(
+  model: AIModel,
+  prompt: string,
+  stream: boolean,
+  options: Pick<DeepSeekChatOptions, 'responseFormat' | 'thinking' | 'temperature' | 'maxTokens'> = {},
+) {
+  return buildChatRequestBody(
+    model,
+    [
       {
-        role: 'user' as const,
+        role: 'user',
         content: prompt,
       },
     ],
     stream,
+    options,
+  );
+}
+
+function buildChatRequestBody(
+  model: AIModel,
+  messages: readonly DeepSeekChatMessage[],
+  stream: boolean,
+  options: Pick<DeepSeekChatOptions, 'responseFormat' | 'thinking' | 'temperature' | 'maxTokens'> = {},
+) {
+  const body: Record<string, unknown> = {
+    model: model.upstreamModel,
+    messages,
+    stream,
     thinking: {
-      type: model.thinkingStreamMode === 'native' ? ('enabled' as const) : ('disabled' as const),
+      type: options.thinking || (model.thinkingStreamMode === 'native' ? 'enabled' : 'disabled'),
     },
   };
+
+  if (options.responseFormat === 'json_object') {
+    body.response_format = { type: 'json_object' };
+  }
+  if (typeof options.temperature === 'number') {
+    body.temperature = options.temperature;
+  }
+  if (typeof options.maxTokens === 'number' && options.maxTokens > 0) {
+    body.max_tokens = Math.round(options.maxTokens);
+  }
+
+  return body;
+}
+
+export async function callDeepSeekChat(
+  messages: readonly DeepSeekChatMessage[],
+  model: AIModel,
+  options: DeepSeekChatOptions = {},
+): Promise<CompareResult> {
+  const apiKey = getDeepSeekApiKey();
+  const baseUrl = getDeepSeekBaseUrl();
+  const timeoutMs = getDeepSeekTimeoutMs();
+
+  if (!apiKey) {
+    return {
+      modelId: model.id,
+      result: '未配置 DEEPSEEK_API_KEY。',
+      status: 'error',
+    };
+  }
+
+  try {
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(buildChatRequestBody(model, messages, Boolean(options.stream), options)),
+      signal: getRequestSignal(timeoutMs, options.signal),
+    });
+
+    const payload = (await response.json().catch(() => ({}))) as DeepSeekChatResponse;
+
+    if (!response.ok) {
+      return {
+        modelId: model.id,
+        result: payload.error?.message || `DeepSeek 请求失败，HTTP ${response.status}。`,
+        status: 'error',
+      };
+    }
+
+    const text = extractMessage(payload);
+    const reasoning = extractReasoningMessage(payload);
+
+    if (!text) {
+      return {
+        modelId: model.id,
+        result: reasoning ? 'DeepSeek 只返回了思考过程，没有最终答案。' : 'DeepSeek 返回了空响应。',
+        status: 'error',
+        reasoning: reasoning || undefined,
+      };
+    }
+
+    return {
+      modelId: model.id,
+      result: text,
+      status: 'completed',
+      reasoning: reasoning || undefined,
+    };
+  } catch (error) {
+    return {
+      modelId: model.id,
+      result: formatDeepSeekException(error, timeoutMs),
+      status: 'error',
+    };
+  }
 }
 
 export async function callDeepSeekModel(prompt: string, model: AIModel): Promise<CompareResult> {

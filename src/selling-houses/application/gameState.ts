@@ -571,6 +571,7 @@ export function createInitialState(snapshot: ScenarioSnapshot, seedInput: RunSee
     managerInterventionReceiptHistory: [],
     negotiationReplayHistory: [],
     businessOutcomeReviewHistory: [],
+    wechatConversationHistory: [],
     bigWorldRuntime: createDefaultRuntimeState(DEFAULT_COMPACTION_POLICY),
     worldCausalEvents: [],
   };
@@ -1484,6 +1485,11 @@ export function normalizeLoadedState(parsed: any): GameState | null {
   // Ensure business outcome review history exists for old saves (optional field, empty fallback)
   if (!Array.isArray(state.businessOutcomeReviewHistory)) {
     state.businessOutcomeReviewHistory = [];
+  }
+
+  // Ensure WeChat conversation receipt history exists for old saves.
+  if (!Array.isArray(state.wechatConversationHistory)) {
+    state.wechatConversationHistory = [];
   }
 
   // Ensure big world runtime exists for old saves and partial dev snapshots.

@@ -1,19 +1,31 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronRight, MessageCircle, Newspaper } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronRight, Loader2, MessageCircle, Newspaper, Send } from 'lucide-react';
+import type {
+  ConversationNextStepDraft,
+  ConversationReceipt,
+} from '../../core/world-state/conversation/models.js';
+import type { GameState } from '../../domain/models.js';
 import type {
   MyWechatProjection,
   OfficialAccountArticle,
   WechatMessage,
   WechatMessageUrgency,
 } from '../../application/projections/myWechatTypes.js';
+import { fetchMyWechatBrokerReplyDrafts } from '../../infrastructure/myWechatAiClient.js';
 import type { IntelLayerTab } from './marketIntel.js';
 
 interface MyWechatPanelProps {
+  state: GameState;
   projection: MyWechatProjection;
   readIds?: Set<string>;
   onMarkRead?: (id: string) => void;
   onSelectCase: (caseId: string) => void;
   onScheduleMessageAction?: (message: WechatMessage) => boolean;
+  onSendConversationReply?: (
+    conversationKey: string,
+    message: WechatMessage,
+    playerText: string,
+  ) => Promise<{ success: boolean; reason: string; receipt: unknown | null }>;
   onOpenMarket?: (layer?: IntelLayerTab) => void;
 }
 
@@ -28,8 +40,16 @@ type WechatConversation = {
   caseIds: string[];
   primaryMessage: WechatMessage | null;
 };
+type ConversationWorldContext = {
+  title: string;
+  primaryLine: string;
+  signals: string[];
+  replyAngles: string[];
+};
+type BrokerReplyMap = Record<string, NonNullable<WechatMessage['brokerReply']>>;
 type WechatMessageRowProps = {
   conversation: WechatConversation;
+  state: GameState;
   read: boolean;
   lead: boolean;
   onClick: () => void;
@@ -68,17 +88,21 @@ const OFFICIAL_ACCOUNT_AVATAR_BY_NAME: Record<string, string> = {
 const OFFICIAL_ACCOUNT_AVATAR_FALLBACKS = Object.values(OFFICIAL_ACCOUNT_AVATAR_BY_NAME);
 
 export function MyWechatPanel({
+  state,
   projection,
   readIds,
   onMarkRead,
   onSelectCase,
   onScheduleMessageAction,
+  onSendConversationReply,
   onOpenMarket,
 }: MyWechatPanelProps) {
   const [activeTab, setActiveTab] = useState<WechatTab>('messages');
   const [selectedConversationKey, setSelectedConversationKey] = useState<string | null>(null);
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
   const [localReadIds, setLocalReadIds] = useState<Set<string>>(() => new Set());
+  const [aiBrokerReplies, setAiBrokerReplies] = useState<BrokerReplyMap>({});
+  const aiReplyRequestKeysRef = useRef<Set<string>>(new Set());
   const effectiveReadIds = readIds || localReadIds;
   const visibleIds = useMemo(
     () => new Set([
@@ -133,6 +157,55 @@ export function MyWechatPanel({
     }
   }, [activeTab, selectedArticleId, sortedOfficialAccounts]);
 
+  useEffect(() => {
+    if (activeTab !== 'messages' || !selectedConversation) {
+      return;
+    }
+
+    const messagesToDraft = selectedConversation.messages.filter((message) =>
+      !message.conversationTurns?.length && !aiBrokerReplies[message.id]);
+    if (messagesToDraft.length === 0) {
+      return;
+    }
+
+    const requestKey = `${selectedConversation.key}:${messagesToDraft.map((message) => message.id).join(',')}`;
+    if (aiReplyRequestKeysRef.current.has(requestKey)) {
+      return;
+    }
+
+    aiReplyRequestKeysRef.current.add(requestKey);
+    const controller = new AbortController();
+
+    fetchMyWechatBrokerReplyDrafts(selectedConversation.key, messagesToDraft, controller.signal)
+      .then((replies) => {
+        if (controller.signal.aborted || replies.length === 0) {
+          return;
+        }
+        setAiBrokerReplies((current) => {
+          const next = { ...current };
+          replies.forEach((reply) => {
+            next[reply.messageId] = {
+              content: reply.content,
+              timeLabel: reply.timeLabel || '刚刚',
+            };
+          });
+          return next;
+        });
+      })
+      .catch(() => {
+        // Deterministic projection copy stays visible when AI is unavailable.
+      })
+      .finally(() => {
+        if (controller.signal.aborted) {
+          aiReplyRequestKeysRef.current.delete(requestKey);
+        }
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [activeTab, aiBrokerReplies, selectedConversation]);
+
   const switchTab = (tab: WechatTab) => {
     setActiveTab(tab);
     if (tab === 'messages') {
@@ -162,10 +235,11 @@ export function MyWechatPanel({
   const triggerMessageAction = (message: WechatMessage) => {
     markRead(message.id);
     if (message.primaryActionId && onScheduleMessageAction) {
-      onScheduleMessageAction(message);
-      return;
+      const scheduled = onScheduleMessageAction(message);
+      if (scheduled) return true;
     }
     setSelectedConversationKey(conversationKeyForMessage(message));
+    return false;
   };
 
   const openArticle = (article: OfficialAccountArticle) => {
@@ -213,15 +287,19 @@ export function MyWechatPanel({
           selectedConversation ? (
             <WechatConversationDetail
               conversation={selectedConversation}
+              state={state}
+              brokerReplies={aiBrokerReplies}
               onBack={() => setSelectedConversationKey(null)}
               onSelectCase={onSelectCase}
               onOpenMessageAction={triggerMessageAction}
+              onSendConversationReply={onSendConversationReply}
             />
           ) : conversations.length > 0 ? (
             conversations.map((conversation) => (
               <WechatMessageRow
                 key={conversation.key}
                 conversation={conversation}
+                state={state}
                 read={conversation.unreadCount === 0}
                 lead={conversation.messages.some((message) => message.id === projection.leadCaseMessageId)}
                 onClick={() => openConversation(conversation)}
@@ -297,6 +375,281 @@ function conversationKeyForMessage(message: WechatMessage) {
   return `${message.senderRole}:${message.senderName}`;
 }
 
+function getWechatSenderDisplayName(senderName: string, senderRole: WechatMessage['senderRole']) {
+  const raw = senderName.replace(/\s+/g, ' ').trim();
+  const suffix = senderRoleLabel(senderRole);
+  return raw.replace(new RegExp(`\\s*${suffix}$`), '').trim() || raw;
+}
+
+function stripWechatSpeakerPrefix(text: string, senderName: string, senderRole: WechatMessage['senderRole']) {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  const displayName = getWechatSenderDisplayName(senderName, senderRole);
+  const candidates = [
+    `${senderName}：`,
+    `${senderName}:`,
+    `${displayName}：`,
+    `${displayName}:`,
+  ];
+  for (const prefix of candidates) {
+    if (normalized.startsWith(prefix)) {
+      return normalized.slice(prefix.length).trim();
+    }
+  }
+  return normalized;
+}
+
+function resolveReplyTargetMessage(conversation: WechatConversation) {
+  const bottomFirstMessages = [...conversation.messages].reverse();
+  return bottomFirstMessages.find((message) =>
+    (message.primaryActionId || message.urgency === 'high') && !(message.conversationTurns?.length))
+    || bottomFirstMessages.find((message) => !(message.conversationTurns?.length))
+    || bottomFirstMessages[0]
+    || conversation.primaryMessage
+    || null;
+}
+
+function getLatestConversationReceipt(conversation: WechatConversation) {
+  return conversation.messages
+    .flatMap((message) => message.conversationTurns || [])
+    .sort((left, right) => right.turnIndex - left.turnIndex)[0] || null;
+}
+
+function hasConversationHandledMessage(message: WechatMessage) {
+  return Boolean(message.conversationTurns?.length);
+}
+
+function isMessageActionScheduled(state: GameState, message: WechatMessage) {
+  if (!message.primaryActionId || !message.targetCaseId) {
+    return false;
+  }
+
+  return Boolean(state.todayPlan?.playerItems?.some((item) => (
+    item.day === state.day
+    && (item.status === 'planned' || item.status === 'completed')
+    && item.linkedActionId === message.primaryActionId
+    && item.linkedCaseId === message.targetCaseId
+    && (!message.targetCustomerId || item.linkedCustomerId === message.targetCustomerId)
+    && (!message.targetOpportunityId || item.linkedOpportunityId === message.targetOpportunityId)
+  )));
+}
+
+function buildConversationListImpactText(turn: ConversationReceipt) {
+  const labels = getConversationEffectLabels(turn);
+  const nextStep = getConversationNextSteps(turn)[0] || null;
+  if (labels.length > 0 && nextStep) {
+    return `已回复 · ${labels.slice(0, 2).join(' · ')} · 下一步 ${nextStep.label}`;
+  }
+  if (labels.length > 0) {
+    return `已回复 · ${labels.slice(0, 3).join(' · ')}`;
+  }
+  if (nextStep) {
+    return `已回复 · 下一步 ${nextStep.label}`;
+  }
+  return turn.summary ? `已回复 · ${turn.summary}` : '已回复';
+}
+
+function buildConversationWorldContext(
+  conversation: WechatConversation,
+  state: GameState,
+): ConversationWorldContext | null {
+  const anchorMessage = resolveReplyTargetMessage(conversation) || conversation.messages[0] || null;
+  const caseId = anchorMessage?.targetCaseId || conversation.caseIds[0] || '';
+  const caseItem = caseId ? state.cases.find((entry) => entry.id === caseId) || null : null;
+  const opportunity = anchorMessage?.targetOpportunityId
+    ? state.opportunities.find((entry) => entry.id === anchorMessage.targetOpportunityId) || null
+    : caseItem
+      ? state.opportunities.find((entry) => entry.caseId === caseItem.id && entry.status === 'active') || null
+      : null;
+
+  if (!caseItem && !opportunity && !anchorMessage) {
+    return null;
+  }
+
+  const signals: string[] = [];
+  const replyAngles: string[] = [];
+
+  if (caseItem) {
+    signals.push(describeListingPricePosition(caseItem));
+    signals.push(`${caseItem.ownerName}${describeOwnerState(caseItem)}`);
+    signals.push(caseItem.hasCompletedFirstVisit ? '已做过面访，适合继续用反馈推进' : '还没面访，先把信任和判断框架搭起来');
+    if (caseItem.viewings > 0 || caseItem.offers > 0) {
+      signals.push(`累计带看 ${caseItem.viewings} 次，报价 ${caseItem.offers} 次`);
+    }
+    replyAngles.push(buildOwnerReplyAngle(caseItem));
+    replyAngles.push(buildMarketEvidenceReplyAngle(caseItem));
+    if (caseItem.priceGapPct > 1.5 || caseItem.urgency >= 68) {
+      replyAngles.push(buildPriceReplyAngle(caseItem));
+    }
+  }
+
+  if (opportunity) {
+    signals.push(`${opportunity.customerName} 在「${opportunity.stageLabel}」，意向${describeLevel(opportunity.intent)}、信心${describeLevel(opportunity.confidence)}`);
+    replyAngles.push(`我先把${opportunity.customerName}的顾虑和可接受价格问清，再回来给您一个实在判断。`);
+  }
+
+  if (anchorMessage?.sourceTrace?.reason) {
+    signals.push(anchorMessage.sourceTrace.reason);
+  }
+
+  return {
+    title: caseItem?.title || opportunity?.customerName || getWechatSenderDisplayName(conversation.senderName, conversation.senderRole),
+    primaryLine: caseItem
+      ? `${caseItem.community} · ${caseItem.district} · ${caseItem.stageLabel}`
+      : '这条微信会影响今天的跟进节奏',
+    signals: dedupeStrings(signals).slice(0, 4),
+    replyAngles: dedupeStrings(replyAngles).slice(0, 3),
+  };
+}
+
+function describeListingPricePosition(caseItem: GameState['cases'][number]) {
+  const gap = Number.isFinite(caseItem.priceGapPct) ? caseItem.priceGapPct : 0;
+  if (gap >= 3) return `挂牌明显高于市场 ${Math.round(gap)}%，沟通要带竞品和客户反馈`;
+  if (gap >= 1) return `挂牌略高于市场 ${Math.round(gap)}%，适合先解释差异再谈方案`;
+  if (gap <= -1) return `价格低于市场约 ${Math.abs(Math.round(gap))}%，重点是守住价值感`;
+  return '价格接近市场，重点看客户承接和业主配合';
+}
+
+function describeOwnerState(caseItem: GameState['cases'][number]) {
+  const pieces = [
+    `信任${describeLevel(caseItem.trust)}`,
+    `耐心${describeLevel(caseItem.patience)}`,
+    `催促${describeLevel(caseItem.urgency)}`,
+  ];
+  return `：${pieces.join(' · ')}`;
+}
+
+function describeLevel(value: number) {
+  if (value >= 72) return '高';
+  if (value >= 45) return '中';
+  return '低';
+}
+
+function buildOwnerReplyAngle(caseItem: GameState['cases'][number]) {
+  if (!caseItem.hasCompletedFirstVisit) {
+    return `${caseItem.ownerName}，我今天先不让您只听一句再等等，下午当面把客户反馈、竞品价格和可选方案摊开说清楚。`;
+  }
+  return `${caseItem.ownerName}，我今天把近两天反馈和同类竞品放在一起复盘，给您一个能执行的判断。`;
+}
+
+function buildMarketEvidenceReplyAngle(caseItem: GameState['cases'][number]) {
+  return `我会拿${caseItem.community}同类房、最近客户反馈和我们这套的差异一起讲，不让您凭感觉做决定。`;
+}
+
+function buildPriceReplyAngle(caseItem: GameState['cases'][number]) {
+  return `价格我不空口劝您动，先用客户反馈和同类成交判断：是守住、微调，还是先换展示打法。`;
+}
+
+function dedupeStrings(values: string[]) {
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    const normalized = value.replace(/\s+/g, ' ').trim();
+    if (!normalized || seen.has(normalized)) return false;
+    seen.add(normalized);
+    return true;
+  });
+}
+
+const WechatDraftReplySuggestion: React.FC<{
+  reply: NonNullable<WechatMessage['brokerReply']>;
+  onUse: () => void;
+}> = ({ reply, onUse }) => {
+  return (
+    <div className="flex justify-end gap-2.5">
+      <div className="min-w-0 max-w-[78%]">
+        <div className="mb-1 flex justify-end gap-2 text-[10px] text-[var(--seller-subtle)]">
+          <span>{reply.timeLabel}</span>
+          <span>回复建议</span>
+        </div>
+        <div className="rounded-[14px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.05)] px-3 py-2.5">
+          <p className="whitespace-pre-wrap text-[12px] leading-5 text-[var(--seller-ink)]">{reply.content}</p>
+          <button
+            type="button"
+            onClick={onUse}
+            className="mt-2 rounded-full border border-[color:var(--seller-accent)]/24 bg-[color:var(--seller-accent)]/10 px-2 py-0.5 text-[9px] font-semibold text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/16"
+          >
+            填入
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ConversationWorldContextCard: React.FC<{
+  context: ConversationWorldContext;
+  latestReceipt: ConversationReceipt | null;
+  onUseAngle: (text: string) => void;
+  onUseNextStep: (receipt: ConversationReceipt, step: ConversationNextStepDraft) => void;
+}> = ({ context, latestReceipt, onUseAngle, onUseNextStep }) => {
+  const latestNextSteps = latestReceipt ? getConversationNextSteps(latestReceipt) : [];
+
+  return (
+    <div className="border-b border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] px-3 py-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="seller-label text-[9px]">这句微信背后的局面</div>
+          <div className="mt-1 truncate text-[12px] font-semibold text-[var(--seller-ink)]">{context.title}</div>
+          <div className="mt-0.5 truncate text-[10px] text-[var(--seller-subtle)]">{context.primaryLine}</div>
+        </div>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {context.signals.map((signal) => (
+          <span
+            key={signal}
+            className="rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.05)] px-2 py-0.5 text-[9px] font-semibold text-[var(--seller-muted)]"
+          >
+            {signal}
+          </span>
+        ))}
+      </div>
+      {latestReceipt && (
+        <div className="mt-2 rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.035)] px-2.5 py-2">
+          <div className="seller-label text-[9px]">最近一次回复推动了什么</div>
+          <p className="mt-1 text-[10px] leading-4 text-[var(--seller-muted)]">
+            {buildConversationImpactText(latestReceipt) || latestReceipt.summary}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {getConversationEffectLabels(latestReceipt).slice(0, 4).map((label) => (
+              <span
+                key={label}
+                className="rounded-full border border-[color:var(--seller-accent)]/22 bg-[color:var(--seller-accent)]/8 px-2 py-0.5 text-[9px] font-semibold text-[var(--seller-accent)]"
+              >
+                {label}
+              </span>
+            ))}
+            {latestNextSteps.map((step) => (
+              <button
+                key={`${latestReceipt.receiptId}-${step.kind}`}
+                type="button"
+                onClick={() => onUseNextStep(latestReceipt, step)}
+                className="rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.05)] px-2 py-0.5 text-[9px] font-semibold text-[var(--seller-ink)] transition hover:border-[color:var(--seller-accent)]/35 hover:text-[var(--seller-accent)] disabled:opacity-50"
+                title={step.reason}
+              >
+                下一步：{step.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {context.replyAngles.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {context.replyAngles.map((angle) => (
+            <button
+              key={angle}
+              type="button"
+              onClick={() => onUseAngle(angle)}
+              className="rounded-full border border-[color:var(--seller-accent)]/24 bg-[color:var(--seller-accent)]/8 px-2 py-1 text-[9px] font-semibold text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/14"
+              title={angle}
+            >
+              {angle.length > 18 ? `${angle.slice(0, 18)}…` : angle}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 function collectRelatedCases(messages: WechatMessage[]): RelatedWechatCase[] {
   const relatedCases = new Map<string, RelatedWechatCase>();
   messages.forEach((message) => {
@@ -321,7 +674,7 @@ function collectRelatedCases(messages: WechatMessage[]): RelatedWechatCase[] {
 function senderRoleLabel(role: WechatMessage['senderRole']) {
   if (role === 'owner') return '业主';
   if (role === 'customer') return '客户';
-  if (role === 'district_manager') return '张经理';
+  if (role === 'district_manager') return '区域经理';
   if (role === 'store_manager') return '商圈经理';
   if (role === 'agent') return '经纪人';
   if (role === 'official_account') return '公众号';
@@ -372,12 +725,17 @@ function WechatTabButton({
 
 const WechatMessageRow: React.FC<WechatMessageRowProps> = ({
   conversation,
+  state,
   read,
   lead,
   onClick,
   onPrimaryAction,
 }) => {
   const latestMessage = conversation.messages[0];
+  const displayName = getWechatSenderDisplayName(conversation.senderName, conversation.senderRole);
+  const latestReceipt = getLatestConversationReceipt(conversation);
+  const latestImpact = latestReceipt ? buildConversationListImpactText(latestReceipt) : '';
+  const primaryActionHandled = hasConversationHandledMessage(latestMessage) || isMessageActionScheduled(state, latestMessage);
   return (
     <div
       data-my-wechat-message-row="true"
@@ -405,16 +763,24 @@ const WechatMessageRow: React.FC<WechatMessageRowProps> = ({
       />
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center justify-between gap-2">
-          <div className="min-w-0 truncate text-[13px] font-semibold text-[var(--seller-ink)]">{conversation.senderName}</div>
+          <div className="min-w-0 truncate text-[13px] font-semibold text-[var(--seller-ink)]">{displayName}</div>
           <span className="shrink-0 text-[10px] font-medium text-[var(--seller-subtle)]">{latestMessage.timeLabel}</span>
         </div>
-        <p className="mt-1 line-clamp-2 text-[11px] leading-5 text-[var(--seller-muted)]">{latestMessage.preview}</p>
+        <p className={`mt-1 line-clamp-2 text-[11px] leading-5 ${latestImpact ? 'font-medium text-[var(--seller-ink)]' : 'text-[var(--seller-muted)]'}`}>
+          {latestImpact || stripWechatSpeakerPrefix(latestMessage.preview, conversation.senderName, conversation.senderRole)}
+        </p>
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${urgencyClassName(latestMessage.urgency)}`}>
             {urgencyLabel(latestMessage.urgency)}
           </span>
           {lead && <span className="seller-chip seller-chip-accent">今日重点</span>}
-          {latestMessage.primaryCtaLabel && onPrimaryAction ? (
+          {latestReceipt && <span className="seller-chip">已回复</span>}
+          {latestReceipt && getConversationEffectLabels(latestReceipt).slice(0, 2).map((label) => (
+            <span key={label} className="seller-chip seller-chip-accent">{label}</span>
+          ))}
+          {latestMessage.primaryCtaLabel && primaryActionHandled ? (
+            <span className="seller-chip">已承接</span>
+          ) : latestMessage.primaryCtaLabel && onPrimaryAction ? (
             <button
               type="button"
               data-my-wechat-message-action="true"
@@ -439,19 +805,96 @@ const WechatMessageRow: React.FC<WechatMessageRowProps> = ({
 
 const WechatConversationDetail: React.FC<{
   conversation: WechatConversation;
+  state: GameState;
+  brokerReplies: BrokerReplyMap;
   onBack: () => void;
   onSelectCase: (caseId: string) => void;
-  onOpenMessageAction: (message: WechatMessage) => void;
+  onOpenMessageAction: (message: WechatMessage) => boolean;
+  onSendConversationReply?: (
+    conversationKey: string,
+    message: WechatMessage,
+    playerText: string,
+  ) => Promise<{ success: boolean; reason: string; receipt: unknown | null }>;
 }> = ({
   conversation,
+  state,
+  brokerReplies,
   onBack,
   onSelectCase,
   onOpenMessageAction,
+  onSendConversationReply,
 }) => {
   const relatedCases = collectRelatedCases(conversation.messages);
+  const replyTarget = resolveReplyTargetMessage(conversation);
+  const displayName = getWechatSenderDisplayName(conversation.senderName, conversation.senderRole);
+  const worldContext = buildConversationWorldContext(conversation, state);
+  const latestReceipt = getLatestConversationReceipt(conversation);
+  const replyTargetText = replyTarget
+    ? stripWechatSpeakerPrefix(replyTarget.content, replyTarget.senderName, replyTarget.senderRole)
+    : '';
+  const [draftText, setDraftText] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDraftText('');
+    setSendError(null);
+    setSending(false);
+  }, [conversation.key]);
+
+  const submitReply = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const text = draftText.replace(/\s+/g, ' ').trim();
+    if (!text || !replyTarget || !onSendConversationReply || sending) {
+      return;
+    }
+
+    setSending(true);
+    setSendError(null);
+    try {
+      const result = await onSendConversationReply(conversation.key, replyTarget, text);
+      if (result.success) {
+        setDraftText('');
+        return;
+      }
+      setSendError(result.reason || '这条回复暂时没有发出去。');
+    } catch (error) {
+      setSendError(error instanceof Error ? error.message : '这条回复暂时没有发出去。');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const useNextStep = (receipt: ConversationReceipt, step: ConversationNextStepDraft) => {
+    const sourceMessage = conversation.messages.find((message) => message.id === receipt.sourceMessageId)
+      || replyTarget
+      || conversation.primaryMessage
+      || conversation.messages[0]
+      || null;
+    const targetCaseId = receipt.targetCaseId || sourceMessage?.targetCaseId;
+    const caseItem = targetCaseId ? state.cases.find((entry) => entry.id === targetCaseId) || null : null;
+    const resolvedActionId = step.actionId || (step.kind === 'open_case'
+      ? (caseItem?.hasCompletedFirstVisit ? 'deep-diagnosis' : 'first-visit')
+      : undefined);
+
+    if (resolvedActionId && sourceMessage && targetCaseId) {
+      const scheduled = onOpenMessageAction({
+        ...sourceMessage,
+        targetCaseId,
+        targetOpportunityId: receipt.targetOpportunityId || sourceMessage.targetOpportunityId,
+        primaryActionId: resolvedActionId,
+        primaryCtaLabel: step.label,
+      });
+      if (scheduled) return;
+    }
+
+    if (targetCaseId) {
+      onSelectCase(targetCaseId);
+    }
+  };
 
   return (
-    <div className="flex h-[min(560px,calc(100vh-220px))] min-h-[420px] flex-col overflow-hidden rounded-[14px] border border-[var(--seller-border)] bg-[#0c131c]">
+    <div className="seller-wechat-detail flex h-[min(560px,calc(100vh-220px))] min-h-[420px] flex-col overflow-hidden rounded-[14px] border border-[var(--seller-border)]">
       <div className="flex shrink-0 items-center gap-2 border-b border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] px-3 py-2.5">
         <button
           type="button"
@@ -468,70 +911,99 @@ const WechatConversationDetail: React.FC<{
           className="h-8 w-8 rounded-[10px]"
         />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[13px] font-semibold text-[var(--seller-ink)]">{conversation.senderName}</div>
+          <div className="truncate text-[13px] font-semibold text-[var(--seller-ink)]">{displayName}</div>
           <div className="mt-0.5 text-[10px] text-[var(--seller-subtle)]">{senderRoleLabel(conversation.senderRole)}</div>
         </div>
       </div>
 
-      <div className="flex-1 space-y-3 overflow-y-auto px-3 py-4">
-        {conversation.messages.map((message) => (
-          <div key={message.id} className="space-y-2">
-            <div className="flex items-start gap-2.5">
-              <WechatAvatar
-                senderName={message.senderName}
-                senderRole={message.senderRole}
-                label={message.avatarLabel}
-                className="mt-4 h-7 w-7 rounded-[9px]"
-              />
-              <div className="min-w-0 max-w-[78%]">
-                <div className="mb-1 flex items-center gap-2 text-[10px] text-[var(--seller-subtle)]">
-                  <span>{message.timeLabel}</span>
-                  {message.urgency !== 'low' ? <span>{urgencyLabel(message.urgency)}</span> : null}
-                </div>
-                <div className="rounded-[16px] rounded-tl-[5px] bg-[rgba(255,255,255,0.08)] px-3 py-2.5 shadow-[0_10px_24px_rgba(0,0,0,0.12)]">
-                  <p className="whitespace-pre-wrap text-[12px] leading-5 text-[var(--seller-ink)]">{message.content}</p>
-                  {message.primaryCtaLabel && message.primaryActionId && (
-                    <button
-                      type="button"
-                      onClick={() => onOpenMessageAction(message)}
-                      className="mt-2 rounded-full border border-[color:var(--seller-accent)]/24 bg-[color:var(--seller-accent)]/8 px-1 py-0 text-[8px] font-semibold leading-4 text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/14"
-                    >
-                      {message.primaryCtaLabel}
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
+      {worldContext && (
+        <ConversationWorldContextCard
+          context={worldContext}
+          latestReceipt={latestReceipt}
+          onUseNextStep={useNextStep}
+          onUseAngle={(text) => setDraftText((current) => current.trim() ? current : text)}
+        />
+      )}
 
-            {message.brokerReply && (
-              <div className="flex justify-end gap-2.5">
-                <div className="min-w-0 max-w-[78%]">
-                  <div className="mb-1 flex justify-end gap-2 text-[10px] text-[var(--seller-subtle)]">
-                    <span>{message.brokerReply.timeLabel}</span>
-                    <span>我</span>
-                  </div>
-                  <div className="seller-wechat-reply-bubble rounded-[16px] rounded-tr-[5px] px-3 py-2.5 shadow-[0_10px_24px_rgba(0,0,0,0.12)]">
-                    <p className="seller-wechat-reply-text whitespace-pre-wrap text-[12px] leading-5">{message.brokerReply.content}</p>
-                  </div>
-                </div>
+      <div className="flex-1 space-y-3 overflow-y-auto px-3 py-4">
+        {conversation.messages.map((message) => {
+          const turnHistory = message.conversationTurns || [];
+          const brokerReply = turnHistory.length > 0 ? null : brokerReplies[message.id] || message.brokerReply;
+          return (
+            <div key={message.id} className="space-y-2">
+              <div className="flex items-start gap-2.5">
                 <WechatAvatar
-                  senderName="我"
-                  senderRole="agent"
-                  label="我"
+                  senderName={message.senderName}
+                  senderRole={message.senderRole}
+                  label={message.avatarLabel}
                   className="mt-4 h-7 w-7 rounded-[9px]"
                 />
+                <div className="min-w-0 max-w-[78%]">
+                  <div className="mb-1 flex items-center gap-2 text-[10px] text-[var(--seller-subtle)]">
+                    <span>{message.timeLabel}</span>
+                    {message.urgency !== 'low' ? <span>{urgencyLabel(message.urgency)}</span> : null}
+                  </div>
+                  <div className="rounded-[16px] rounded-tl-[5px] bg-[rgba(255,255,255,0.08)] px-3 py-2.5 shadow-[0_10px_24px_rgba(0,0,0,0.12)]">
+                    <p className="whitespace-pre-wrap text-[12px] leading-5 text-[var(--seller-ink)]">
+                      {stripWechatSpeakerPrefix(message.content, message.senderName, message.senderRole)}
+                    </p>
+                    {renderMessageActionSlot(state, message, onOpenMessageAction)}
+                  </div>
+                </div>
               </div>
-            )}
-          </div>
-        ))}
+
+              {brokerReply && (
+                <WechatDraftReplySuggestion
+                  reply={brokerReply}
+                  onUse={() => setDraftText(brokerReply.content)}
+                />
+              )}
+
+              {turnHistory.map((turn) => (
+                <ConversationTurnThread key={turn.receiptId} turn={turn} message={message} />
+              ))}
+            </div>
+          );
+        })}
       </div>
 
-      <div className="shrink-0 border-t border-[var(--seller-border)] bg-[rgba(5,8,12,0.72)] px-3 py-2.5">
-        {relatedCases.length > 0 ? (
-          <div className="space-y-2">
-            <div className="text-[10px] font-semibold text-[var(--seller-subtle)]">
-              关联房源 {relatedCases.length} 套
+      <div className="seller-wechat-composer shrink-0 border-t border-[var(--seller-border)] px-3 py-2.5">
+        <div className="space-y-2">
+          {replyTargetText && (
+            <div className="line-clamp-1 text-[10px] font-medium text-[var(--seller-subtle)]">
+              回复对象：{replyTargetText}
             </div>
+          )}
+          <form onSubmit={submitReply} className="flex items-end gap-2">
+            <textarea
+              value={draftText}
+              onChange={(event) => {
+                setDraftText(event.target.value);
+                if (sendError) setSendError(null);
+              }}
+              disabled={!replyTarget || !onSendConversationReply || sending}
+              maxLength={220}
+              rows={2}
+              placeholder={replyTarget ? `回复 ${displayName}` : '暂无可回复消息'}
+              className="seller-wechat-input min-h-[48px] flex-1 resize-none rounded-[12px] border border-[var(--seller-border)] px-3 py-2 text-[12px] leading-5 text-[var(--seller-ink)] outline-none transition placeholder:text-[var(--seller-subtle)] focus:border-[color:var(--seller-accent)]/50 disabled:opacity-60"
+            />
+            <button
+              type="submit"
+              disabled={!draftText.trim() || !replyTarget || !onSendConversationReply || sending}
+              className="seller-button-primary inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full disabled:cursor-not-allowed disabled:opacity-55"
+              title="发送"
+            >
+              {sending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+            </button>
+          </form>
+
+          {sendError && (
+            <div className="rounded-[10px] border border-rose-500/20 bg-rose-500/10 px-2.5 py-1.5 text-[10px] leading-4 text-rose-200">
+              {sendError}
+            </div>
+          )}
+
+          {relatedCases.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {relatedCases.map((relatedCase) => (
                 <div
@@ -545,7 +1017,11 @@ const WechatConversationDetail: React.FC<{
                   >
                     {relatedCase.title}
                   </button>
-                  {relatedCase.actionMessage?.primaryCtaLabel ? (
+                  {relatedCase.actionMessage?.primaryCtaLabel && isMessageActionHandled(state, relatedCase.actionMessage) ? (
+                    <span className="rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] px-1.5 py-0 text-[8px] font-semibold leading-4 text-[var(--seller-subtle)]">
+                      已承接
+                    </span>
+                  ) : relatedCase.actionMessage?.primaryCtaLabel ? (
                     <button
                       type="button"
                       onClick={() => onOpenMessageAction(relatedCase.actionMessage!)}
@@ -557,14 +1033,225 @@ const WechatConversationDetail: React.FC<{
                 </div>
               ))}
             </div>
-          </div>
-        ) : (
-          <div className="text-center text-[11px] text-[var(--seller-muted)]">暂无关联房源</div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
 };
+
+const ConversationTurnThread: React.FC<{
+  turn: ConversationReceipt;
+  message: WechatMessage;
+}> = ({ turn, message }) => {
+  const displayName = getWechatSenderDisplayName(message.senderName, message.senderRole);
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-end gap-2.5">
+        <div className="min-w-0 max-w-[78%]">
+          <div className="mb-1 flex justify-end gap-2 text-[10px] text-[var(--seller-subtle)]">
+            <span>DAY {turn.day}</span>
+            <span>我</span>
+          </div>
+          <div className="seller-wechat-reply-bubble rounded-[16px] rounded-tr-[5px] px-3 py-2.5 shadow-[0_10px_24px_rgba(0,0,0,0.12)]">
+            <p className="seller-wechat-reply-text whitespace-pre-wrap text-[12px] leading-5">{turn.playerText}</p>
+          </div>
+        </div>
+        <WechatAvatar
+          senderName="我"
+          senderRole="agent"
+          label="我"
+          className="mt-4 h-7 w-7 rounded-[9px]"
+        />
+      </div>
+
+      <div className="flex items-start gap-2.5">
+        <WechatAvatar
+          senderName={message.senderName}
+          senderRole={message.senderRole}
+          label={message.avatarLabel}
+          className="mt-4 h-7 w-7 rounded-[9px]"
+        />
+        <div className="min-w-0 max-w-[78%]">
+          <div className="mb-1 flex items-center gap-2 text-[10px] text-[var(--seller-subtle)]">
+            <span>{displayName}</span>
+          </div>
+          <div className="rounded-[16px] rounded-tl-[5px] bg-[rgba(255,255,255,0.08)] px-3 py-2.5 shadow-[0_10px_24px_rgba(0,0,0,0.12)]">
+            <p className="whitespace-pre-wrap text-[12px] leading-5 text-[var(--seller-ink)]">
+              {stripWechatSpeakerPrefix(turn.recipientReply, message.senderName, message.senderRole)}
+            </p>
+          </div>
+          <ConversationEffectStrip turn={turn} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+function renderMessageActionSlot(
+  state: GameState,
+  message: WechatMessage,
+  onOpenMessageAction: (message: WechatMessage) => boolean,
+) {
+  if (!message.primaryCtaLabel || !message.primaryActionId) {
+    return null;
+  }
+
+  if (isMessageActionHandled(state, message)) {
+    return (
+      <span className="mt-2 inline-flex rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] px-1.5 py-0 text-[8px] font-semibold leading-4 text-[var(--seller-subtle)]">
+        已承接
+      </span>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpenMessageAction(message)}
+      className="mt-2 rounded-full border border-[color:var(--seller-accent)]/24 bg-[color:var(--seller-accent)]/8 px-1 py-0 text-[8px] font-semibold leading-4 text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/14"
+    >
+      {message.primaryCtaLabel}
+    </button>
+  );
+}
+
+function isMessageActionHandled(state: GameState, message: WechatMessage) {
+  return hasConversationHandledMessage(message) || isMessageActionScheduled(state, message);
+}
+
+const ConversationEffectStrip: React.FC<{ turn: ConversationReceipt }> = ({ turn }) => {
+  const effectLabels = getConversationEffectLabels(turn);
+  const labels = effectLabels.length > 0
+    ? effectLabels
+    : [turn.summary];
+  const impactText = buildConversationImpactText(turn);
+
+  return (
+    <div className="mt-1.5 space-y-1.5">
+      <div className="flex flex-wrap gap-1.5">
+        {labels.slice(0, 4).map((label) => (
+          <span
+            key={label}
+            className="rounded-full border border-[color:var(--seller-accent)]/22 bg-[color:var(--seller-accent)]/8 px-2 py-0.5 text-[9px] font-semibold text-[var(--seller-accent)]"
+          >
+            {label}
+          </span>
+        ))}
+        {turn.source === 'fallback' && (
+          <span className="rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] px-2 py-0.5 text-[9px] font-semibold text-[var(--seller-subtle)]">
+            本地判断
+          </span>
+        )}
+      </div>
+      {impactText && (
+        <div className="max-w-full rounded-[10px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.035)] px-2 py-1 text-[9px] leading-4 text-[var(--seller-muted)]">
+          {impactText}
+        </div>
+      )}
+    </div>
+  );
+};
+
+function buildConversationImpactText(turn: ConversationReceipt) {
+  const settlement = (turn as { settlement?: Partial<ConversationReceipt['settlement']> }).settlement || {};
+  if (typeof settlement.askPriceBefore === 'number' && typeof settlement.askPriceAfter === 'number') {
+    return `世界变化：挂牌价从 ${settlement.askPriceBefore} 调到 ${settlement.askPriceAfter}，这会改变客户比价和业主预期。`;
+  }
+  if (settlement.trustDelta || settlement.patienceDelta || settlement.urgencyDelta) {
+    const pieces: string[] = [];
+    if (settlement.trustDelta > 0) pieces.push('业主更愿意听你的判断');
+    if (settlement.trustDelta < 0) pieces.push('业主对你的信任受损');
+    if (settlement.patienceDelta > 0) pieces.push('可沟通时间变宽');
+    if (settlement.patienceDelta < 0) pieces.push('可沟通窗口变窄');
+    if (settlement.urgencyDelta < 0) pieces.push('催促感下降');
+    if (settlement.urgencyDelta > 0) pieces.push('催促感上升');
+    return pieces.length ? `世界变化：${pieces.slice(0, 3).join('，')}。` : '';
+  }
+  if (settlement.customerIntentDelta || settlement.customerConfidenceDelta) {
+    return '世界变化：客户更愿意继续等反馈，后续跟进空间变大。';
+  }
+  const nextSteps = getConversationNextSteps(turn);
+  if (nextSteps.length > 0) {
+    return `下一步：${nextSteps[0]?.label || '继续跟进'}。`;
+  }
+  return '';
+}
+
+function getConversationEffectLabels(turn: ConversationReceipt) {
+  const rawLabels = (turn as { settlement?: { effectLabels?: unknown } }).settlement?.effectLabels;
+  return Array.isArray(rawLabels)
+    ? rawLabels.filter((label): label is string => typeof label === 'string' && label.trim().length > 0)
+    : [];
+}
+
+function getConversationNextSteps(turn: ConversationReceipt): ConversationNextStepDraft[] {
+  const rawNextSteps = (turn as { nextSteps?: unknown }).nextSteps;
+  const explicitSteps = Array.isArray(rawNextSteps)
+    ? rawNextSteps.map(normalizeConversationNextStep).filter((step): step is ConversationNextStepDraft => Boolean(step))
+    : [];
+  if (explicitSteps.length > 0) return explicitSteps;
+
+  const proposalStep = normalizeConversationNextStep((turn as { proposal?: { nextStep?: unknown } }).proposal?.nextStep);
+  if (proposalStep) return [proposalStep];
+
+  if (needsRecoveryConversation(turn)) {
+    return [{
+      kind: 'open_case',
+      label: '补救沟通',
+      reason: '这次回复让关系或催促感变差，需要补一条带方案的沟通。',
+      priority: 'high',
+    }];
+  }
+
+  return [];
+}
+
+function normalizeConversationNextStep(value: unknown): ConversationNextStepDraft | null {
+  if (!value || typeof value !== 'object') return null;
+  const candidate = value as Partial<ConversationNextStepDraft>;
+  const kind = candidate.kind;
+  if (
+    kind !== 'schedule_face_visit'
+    && kind !== 'review_price'
+    && kind !== 'prepare_competition_comparison'
+    && kind !== 'follow_customer'
+    && kind !== 'confirm_price_adjustment'
+    && kind !== 'open_case'
+  ) {
+    return null;
+  }
+
+  return {
+    kind,
+    actionId: typeof candidate.actionId === 'string' ? candidate.actionId : undefined,
+    label: typeof candidate.label === 'string' && candidate.label.trim() ? candidate.label.trim() : fallbackNextStepLabel(kind),
+    reason: typeof candidate.reason === 'string' && candidate.reason.trim() ? candidate.reason.trim() : '把这次微信承接成今天能做的事项。',
+    priority: candidate.priority === 'urgent' || candidate.priority === 'high' || candidate.priority === 'medium' || candidate.priority === 'low'
+      ? candidate.priority
+      : 'medium',
+  };
+}
+
+function fallbackNextStepLabel(kind: ConversationNextStepDraft['kind']) {
+  if (kind === 'schedule_face_visit') return '安排面访';
+  if (kind === 'review_price') return '做价格沟通';
+  if (kind === 'prepare_competition_comparison') return '准备竞品对比';
+  if (kind === 'follow_customer') return '跟进客户';
+  if (kind === 'confirm_price_adjustment') return '确认挂牌价调整';
+  return '补救沟通';
+}
+
+function needsRecoveryConversation(turn: ConversationReceipt) {
+  const settlement = (turn as { settlement?: Partial<ConversationReceipt['settlement']> }).settlement || {};
+  const riskKinds = (turn as { proposal?: { riskKinds?: unknown } }).proposal?.riskKinds;
+  const hasRisk = Array.isArray(riskKinds) && riskKinds.some((risk) => typeof risk === 'string' && risk !== 'none');
+  return hasRisk && (
+    Number(settlement.trustDelta || 0) < 0
+    || Number(settlement.patienceDelta || 0) < 0
+    || Number(settlement.urgencyDelta || 0) > 0
+  );
+}
 
 const OfficialArticleRow: React.FC<OfficialArticleRowProps> = ({
   article,
@@ -741,9 +1428,10 @@ function WechatAvatar({ senderName, senderRole, label, className }: WechatAvatar
       className={`relative shrink-0 overflow-hidden border border-[var(--seller-border)] bg-[rgba(255,255,255,0.06)] ${className}`}
       aria-hidden="true"
     >
-      <span className="absolute inset-0 flex items-center justify-center text-[11px] font-semibold text-[var(--seller-ink)]">
-        {label}
-      </span>
+      <span
+        className="seller-wechat-avatar-fallback absolute inset-0 flex items-center justify-center text-[11px] font-semibold text-[var(--seller-ink)]"
+        data-avatar-label={label}
+      />
       <img
         src={getWechatAvatarSrc(senderName, senderRole)}
         alt=""

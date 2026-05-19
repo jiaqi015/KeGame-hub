@@ -242,6 +242,22 @@ select {
   color: #ffffff;
 }
 
+.seller-wechat-detail {
+  background: #0c131c;
+}
+
+.seller-wechat-composer {
+  background: rgba(5, 8, 12, 0.72);
+}
+
+.seller-wechat-input {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.seller-wechat-avatar-fallback::before {
+  content: attr(data-avatar-label);
+}
+
 .seller-tabbar {
   display: flex;
   gap: 0.5rem;
@@ -879,6 +895,18 @@ select {
 
 .selling-houses-shell[data-theme="light"] .seller-button-ghost:hover {
   background: rgba(0, 0, 0, 0.04) !important;
+}
+
+.selling-houses-shell[data-theme="light"] .seller-wechat-detail {
+  background: rgba(255, 255, 255, 0.34) !important;
+}
+
+.selling-houses-shell[data-theme="light"] .seller-wechat-composer {
+  background: rgba(255, 255, 255, 0.44) !important;
+}
+
+.selling-houses-shell[data-theme="light"] .seller-wechat-input {
+  background: rgba(255, 255, 255, 0.48) !important;
 }
 
 .selling-houses-shell[data-theme="light"] .seller-tone-neutral {

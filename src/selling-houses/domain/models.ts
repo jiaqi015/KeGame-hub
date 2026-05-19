@@ -1918,6 +1918,12 @@ export interface GameState {
    * Does NOT create ContractFact. Old saves without this field work normally (empty array fallback).
    */
   businessOutcomeReviewHistory?: BusinessOutcomeReview[];
+  /**
+   * Optional WeChat conversation receipts — player-authored dialogue turns
+   * settled into bounded business effects. The text is not truth by itself;
+   * the receipt records the applied deltas and next-step drafts.
+   */
+  wechatConversationHistory?: import('../core/world-state/conversation/models.js').ConversationReceipt[];
   marketShadow: ShadowMarketState;
   expectationStore?: Expectation[];
   foreshadowingStore?: ForeshadowingHook[];

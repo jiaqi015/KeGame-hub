@@ -1,3 +1,5 @@
+import type { ConversationReceipt } from '../../core/world-state/conversation/models.js';
+
 export type WechatSenderRole =
   | 'owner'
   | 'customer'
@@ -95,6 +97,7 @@ export interface WechatMessage {
     content: string;
     timeLabel: string;
   };
+  conversationTurns?: ConversationReceipt[];
   preview: string;
   timeLabel: string;
   unread: boolean;
