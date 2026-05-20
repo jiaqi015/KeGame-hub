@@ -602,6 +602,7 @@ const ConversationWorldContextCard: React.FC<{
   isNextStepHandled?: (receipt: ConversationReceipt, step: ConversationNextStepDraft) => boolean;
 }> = ({ context, latestReceipt, onUseAngle, onUseNextStep, isNextStepHandled }) => {
   const [selectedAngleIndex, setSelectedAngleIndex] = useState(0);
+  const [memoryExpanded, setMemoryExpanded] = useState(false);
   const latestNextSteps = latestReceipt ? getConversationNextSteps(latestReceipt) : [];
   const primaryNextStep = latestNextSteps[0] || null;
   const primaryNextStepHandled = Boolean(latestReceipt && primaryNextStep && isNextStepHandled?.(latestReceipt, primaryNextStep));
@@ -610,6 +611,7 @@ const ConversationWorldContextCard: React.FC<{
 
   useEffect(() => {
     setSelectedAngleIndex(0);
+    setMemoryExpanded(false);
   }, [context.title, context.primaryLine, replyAngleKey]);
 
   return (
@@ -651,49 +653,55 @@ const ConversationWorldContextCard: React.FC<{
         ))}
       </div>
       {context.replyAngles.length > 0 && (
-        <div className="mt-2 rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.045)] px-2.5 py-2">
-          <div className="flex items-start gap-2">
-            <div className="min-w-0 flex-1">
-              <div className="text-[9px] font-semibold text-[var(--seller-subtle)]">回复参考</div>
-              <p className="mt-0.5 line-clamp-2 text-[11px] leading-5 text-[var(--seller-ink)]">
-                {selectedAngle}
-              </p>
-            </div>
+        <div className="mt-2 rounded-[10px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.045)] px-2.5 py-1.5">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="shrink-0 text-[9px] font-semibold text-[var(--seller-subtle)]">回复参考</span>
+            <p className="min-w-0 flex-1 truncate text-[11px] leading-5 text-[var(--seller-ink)]" title={selectedAngle}>
+              {selectedAngle}
+            </p>
             <button
               type="button"
               onClick={() => onUseAngle(selectedAngle)}
-              className="shrink-0 rounded-full border border-[color:var(--seller-accent)]/24 bg-[color:var(--seller-accent)]/10 px-2 py-0.5 text-[9px] font-semibold text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/16"
+              className="shrink-0 rounded-full border border-[color:var(--seller-accent)]/20 bg-[color:var(--seller-accent)]/8 px-1.5 py-0 text-[8px] font-semibold leading-4 text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/14"
               title={selectedAngle}
             >
               填入
             </button>
+            {context.replyAngles.length > 1 && (
+              <div className="flex shrink-0 gap-0.5">
+                {context.replyAngles.slice(1, 3).map((angle, index) => (
+                  <button
+                    key={angle}
+                    type="button"
+                    onClick={() => setSelectedAngleIndex(index + 1)}
+                    aria-pressed={selectedAngleIndex === index + 1}
+                    className={`rounded-full border px-1.5 py-0 text-[8px] font-semibold leading-4 transition ${
+                      selectedAngleIndex === index + 1
+                        ? 'border-[color:var(--seller-accent)]/35 bg-[color:var(--seller-accent)]/10 text-[var(--seller-accent)]'
+                        : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] text-[var(--seller-subtle)] hover:border-[color:var(--seller-accent)]/24 hover:text-[var(--seller-accent)]'
+                    }`}
+                    title={`查看：${angle}`}
+                  >
+                    备{index + 2}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-          {context.replyAngles.length > 1 && (
-            <div className="mt-1.5 flex flex-wrap gap-1">
-              {context.replyAngles.slice(1, 3).map((angle, index) => (
-                <button
-                  key={angle}
-                  type="button"
-                  onClick={() => setSelectedAngleIndex(index + 1)}
-                  aria-pressed={selectedAngleIndex === index + 1}
-                  className={`rounded-full border px-2 py-0.5 text-[9px] font-semibold transition ${
-                    selectedAngleIndex === index + 1
-                      ? 'border-[color:var(--seller-accent)]/35 bg-[color:var(--seller-accent)]/10 text-[var(--seller-accent)]'
-                      : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] text-[var(--seller-subtle)] hover:border-[color:var(--seller-accent)]/24 hover:text-[var(--seller-accent)]'
-                  }`}
-                  title={`查看：${angle}`}
-                >
-                  备选 {index + 2}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
       )}
       {context.memoryFacts.length > 0 && (
-        <div className="mt-2 grid gap-1.5">
-          <div className="text-[9px] font-semibold text-[var(--seller-subtle)]">记忆线索</div>
-          {context.memoryFacts.slice(0, 3).map((fact) => (
+        <div className="mt-1.5 grid gap-1">
+          <button
+            type="button"
+            onClick={() => setMemoryExpanded((expanded) => !expanded)}
+            aria-expanded={memoryExpanded}
+            className="inline-flex h-6 w-fit items-center gap-1.5 rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] px-2 text-left text-[9px] font-semibold text-[var(--seller-subtle)] transition hover:border-[color:var(--seller-accent)]/24 hover:text-[var(--seller-ink)]"
+          >
+            <span>记忆线索 {context.memoryFacts.length} 条</span>
+            <ChevronRight size={10} className={`transition-transform ${memoryExpanded ? 'rotate-90' : ''}`} />
+          </button>
+          {memoryExpanded && context.memoryFacts.slice(0, 3).map((fact) => (
             <div
               key={fact.factId}
               className="rounded-[10px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.035)] px-2.5 py-1.5 text-[9px] leading-4 text-[var(--seller-muted)]"

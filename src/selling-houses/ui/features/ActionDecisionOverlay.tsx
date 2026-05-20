@@ -10,7 +10,7 @@ import { ExecuteMatterView } from './matters/ExecuteMatterView';
 import { NegotiateMatterView } from './matters/NegotiateMatterView';
 import { buildOwnerProfilingMemorySummary } from '../../application/projections/ownerProfilingMemory.js';
 import {
-  buildFallbackActionAdvice,
+  buildFallbackActionScenarioSimulation,
   type ActionAdviceProposal,
   type ActionAdviceRequest,
 } from '../../application/actionDecisionAdvice.js';
@@ -187,83 +187,63 @@ type OverlayPhase = 'choosing' | 'feedback' | 'result';
 const MAX_MAIN_TOPIC_SELECTIONS = 2;
 
 interface ActionAdviceState {
-  advice: ActionAdviceProposal | null;
+  simulation: ActionAdviceProposal | null;
   source: 'ai' | 'fallback';
   loading: boolean;
   error?: string;
 }
 
-function ActionAdvicePanel({
-  adviceState,
-  currentRoundConfig,
-  onApply,
-}: {
-  adviceState: ActionAdviceState;
-  currentRoundConfig: any;
-  onApply: () => void;
-}) {
-  const advice = adviceState.advice;
-  if (!advice) return null;
+function mergeSimulatedRoundConfig(baseRound: any, simulation: ActionAdviceProposal | null) {
+  if (!simulation) return baseRound;
+  return {
+    ...baseRound,
+    title: simulation.roundTitle || baseRound.title,
+    description: simulation.roundDescription || baseRound.description,
+    mainStrategies: simulation.mainStrategies?.length ? simulation.mainStrategies : baseRound.mainStrategies,
+    assistStrategies: simulation.assistStrategies?.length ? simulation.assistStrategies : baseRound.assistStrategies,
+  };
+}
 
-  const mainTitles = advice.mainOptionIds
-    .map((id) => currentRoundConfig.mainStrategies?.find((option: any) => option.id === id)?.title || '')
-    .filter(Boolean);
-  const assistTitle = advice.assistOptionId
-    ? currentRoundConfig.assistStrategies?.find((option: any) => option.id === advice.assistOptionId)?.title || ''
-    : '';
+function ScenarioSimulationPanel({
+  simulationState,
+}: {
+  simulationState: ActionAdviceState;
+}) {
+  const simulation = simulationState.simulation;
+  if (!simulation) return null;
 
   return (
     <div className="mb-5 rounded-[16px] border border-[color:var(--seller-accent)]/26 bg-[color:var(--seller-accent)]/8 p-4">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--seller-accent)]">AI 参谋</span>
+            <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--seller-accent)]">情景模拟</span>
             <span className="rounded-full border border-[var(--seller-border)] bg-[var(--seller-paper)] px-2 py-0.5 text-[10px] font-semibold text-[var(--seller-muted)]">
-              {adviceState.loading ? '生成中' : adviceState.source === 'ai' ? 'DeepSeek' : '本地兜底'}
+              {simulationState.loading ? '生成中' : simulationState.source === 'ai' ? 'Agent' : '规则'}
             </span>
           </div>
-          <h4 className="mt-1 text-[15px] font-bold text-[var(--seller-ink)]">{advice.headline}</h4>
-          <p className="mt-1 text-[12px] leading-5 text-[var(--seller-muted)]">{advice.recommendation}</p>
+          <h4 className="mt-1 text-[15px] font-bold text-[var(--seller-ink)]">{simulation.sceneTitle}</h4>
+          <p className="mt-1 text-[12px] leading-5 text-[var(--seller-muted)]">{simulation.sceneOpening}</p>
         </div>
-        <button
-          type="button"
-          onClick={onApply}
-          className="shrink-0 rounded-[12px] border border-[color:var(--seller-accent)]/35 bg-[var(--seller-paper)] px-3 py-2 text-[12px] font-bold text-[var(--seller-accent)] transition-colors hover:bg-[var(--seller-accent-soft)]"
-        >
-          采用
-        </button>
       </div>
-
-      {(mainTitles.length > 0 || assistTitle) ? (
-        <div className="mb-3 flex flex-wrap gap-1.5">
-          {mainTitles.map((title) => (
-            <span key={title} className="seller-chip seller-chip-accent">{title}</span>
-          ))}
-          {assistTitle ? <span className="seller-chip">{assistTitle}</span> : null}
-        </div>
-      ) : null}
 
       <div className="grid gap-2 sm:grid-cols-2">
         <div className="rounded-[12px] bg-[rgba(255,255,255,0.035)] px-3 py-2">
-          <div className="mb-1 text-[10px] font-semibold text-[var(--seller-subtle)]">看点</div>
-          <ul className="space-y-1">
-            {advice.reasons.slice(0, 2).map((reason) => (
-              <li key={reason} className="text-[11px] leading-5 text-[var(--seller-muted)]">{reason}</li>
-            ))}
-          </ul>
+          <div className="mb-1 text-[10px] font-semibold text-[var(--seller-subtle)]">对方状态</div>
+          <p className="text-[11px] leading-5 text-[var(--seller-muted)]">{simulation.roleCue}</p>
         </div>
         <div className="rounded-[12px] bg-[rgba(255,255,255,0.035)] px-3 py-2">
-          <div className="mb-1 text-[10px] font-semibold text-[var(--seller-subtle)]">留意</div>
+          <div className="mb-1 text-[10px] font-semibold text-[var(--seller-subtle)]">局面压力</div>
           <ul className="space-y-1">
-            {advice.risks.slice(0, 2).map((risk) => (
-              <li key={risk} className="text-[11px] leading-5 text-[var(--seller-muted)]">{risk}</li>
+            {simulation.stakes.slice(0, 2).map((stake) => (
+              <li key={stake} className="text-[11px] leading-5 text-[var(--seller-muted)]">{stake}</li>
             ))}
           </ul>
         </div>
       </div>
 
-      {adviceState.error ? (
-        <p className="mt-2 text-[10px] text-[var(--seller-subtle)]">{adviceState.error}</p>
+      {simulationState.error ? (
+        <p className="mt-2 text-[10px] text-[var(--seller-subtle)]">{simulationState.error}</p>
       ) : null}
     </div>
   );
@@ -310,8 +290,8 @@ export function ActionDecisionOverlay({
   const [feedbacks, setFeedbacks] = useState<CharacterFeedback[]>([]);
   const [result, setResult] = useState<Settlement | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
-  const [adviceState, setAdviceState] = useState<ActionAdviceState>({
-    advice: null,
+  const [simulationState, setSimulationState] = useState<ActionAdviceState>({
+    simulation: null,
     source: 'fallback',
     loading: false,
   });
@@ -330,10 +310,10 @@ export function ActionDecisionOverlay({
     if (mode === 'direct' || phase !== 'choosing' || !currentRoundConfig) return;
 
     const request = buildActionAdviceRequest(config, currentRoundConfig, currentRound, totalRounds, caseItem);
-    const fallback = buildFallbackActionAdvice(request);
+    const fallback = buildFallbackActionScenarioSimulation(request);
     const controller = new AbortController();
-    setAdviceState({
-      advice: fallback,
+    setSimulationState({
+      simulation: fallback,
       source: 'fallback',
       loading: true,
     });
@@ -341,16 +321,16 @@ export function ActionDecisionOverlay({
     fetchActionDecisionAdvice(request, controller.signal)
       .then((result) => {
         if (!result) {
-          setAdviceState({
-            advice: fallback,
+          setSimulationState({
+            simulation: fallback,
             source: 'fallback',
             loading: false,
-            error: '本地先按规则给出参谋。',
+            error: '本地先按规则模拟这一轮。',
           });
           return;
         }
-        setAdviceState({
-          advice: result.advice,
+        setSimulationState({
+          simulation: result.advice,
           source: result.source,
           loading: false,
           error: result.error,
@@ -358,11 +338,11 @@ export function ActionDecisionOverlay({
       })
       .catch((error) => {
         if (error instanceof DOMException && error.name === 'AbortError') return;
-        setAdviceState({
-          advice: fallback,
+        setSimulationState({
+          simulation: fallback,
           source: 'fallback',
           loading: false,
-          error: error instanceof Error ? error.message : '动作参谋暂时不可用。',
+          error: error instanceof Error ? error.message : '情景模拟暂时不可用。',
         });
       });
 
@@ -381,24 +361,15 @@ export function ActionDecisionOverlay({
     });
   };
 
-  const applyAdvice = () => {
-    const advice = adviceState.advice;
-    if (!advice || !currentRoundConfig) return;
-    const validMainIds = new Set(currentRoundConfig.mainStrategies.map((option: any) => option.id));
-    const validAssistIds = new Set(currentRoundConfig.assistStrategies.map((option: any) => option.id));
-    const mainIds = advice.mainOptionIds
-      .filter((id) => validMainIds.has(id))
-      .slice(0, mainSelectionLimit);
-    if (mainIds.length > 0) {
-      setSelectedMainIds(mainIds);
-    }
-    if (advice.assistOptionId && validAssistIds.has(advice.assistOptionId)) {
-      setSelectedAssist(advice.assistOptionId);
-    }
-  };
+  const displayRoundConfig = currentRoundConfig
+    ? mergeSimulatedRoundConfig(currentRoundConfig, simulationState.simulation)
+    : null;
 
   const formatMainTopics = (choice: ScenarioChoice) => {
-    const roundDef = config.rounds?.[choice.round - 1];
+    const baseRound = config.rounds?.[choice.round - 1];
+    const roundDef = choice.round === currentRound && baseRound
+      ? mergeSimulatedRoundConfig(baseRound, simulationState.simulation)
+      : baseRound;
     const topicIds = choice.mainTopics?.length ? choice.mainTopics : [choice.main];
     return topicIds
       .map((topicId) => roundDef?.mainStrategies?.find((option: any) => option.id === topicId)?.title || topicId)
@@ -584,16 +555,12 @@ export function ActionDecisionOverlay({
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 pt-4">
-          {phase === 'choosing' && currentRoundConfig && (
+          {phase === 'choosing' && currentRoundConfig && displayRoundConfig && (
             <>
-              <ActionAdvicePanel
-                adviceState={adviceState}
-                currentRoundConfig={currentRoundConfig}
-                onApply={applyAdvice}
-              />
+              <ScenarioSimulationPanel simulationState={simulationState} />
 
-              <h4 className="mb-2 text-[14px] font-bold text-[var(--seller-ink)]">{currentRoundConfig.title}</h4>
-              <p className="mb-5 text-[12px] text-[var(--seller-muted)]">{currentRoundConfig.description}</p>
+              <h4 className="mb-2 text-[14px] font-bold text-[var(--seller-ink)]">{displayRoundConfig.title}</h4>
+              <p className="mb-5 text-[12px] text-[var(--seller-muted)]">{displayRoundConfig.description}</p>
 
               <div className="mb-5">
                 <div className="mb-2 flex items-center justify-between gap-3">
@@ -601,7 +568,7 @@ export function ActionDecisionOverlay({
                   <div className="text-[10px] font-semibold text-[var(--seller-subtle)]">最多选 {mainSelectionLimit} 个</div>
                 </div>
                 <div className="space-y-2.5">
-                  {currentRoundConfig.mainStrategies.map((option: any) => {
+                  {displayRoundConfig.mainStrategies.map((option: any) => {
                     const selectedIndex = selectedMainIds.indexOf(option.id);
                     const isSelected = selectedIndex >= 0;
                     const disabled = !isSelected && mainSelectionLimitReached;
@@ -639,7 +606,7 @@ export function ActionDecisionOverlay({
               <div>
                 <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--seller-muted)]">态度</div>
                 <div className="grid grid-cols-2 gap-2.5">
-                  {currentRoundConfig.assistStrategies.map((option: any) => (
+                  {displayRoundConfig.assistStrategies.map((option: any) => (
                     <button
                       key={option.id}
                       type="button"
