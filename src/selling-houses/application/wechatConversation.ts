@@ -332,8 +332,24 @@ export function settleWechatConversationTurn(
 function buildTraceSnapshot(
   trace: AgentRunTrace | undefined,
   arbiterResult: AgentArbiterResult | undefined,
-): ConversationTraceSnapshot | undefined {
-  if (!trace && !arbiterResult) return undefined;
+): ConversationTraceSnapshot {
+  if (!trace && !arbiterResult) {
+    // Fallback path: no agent trace available. Still produce a snapshot so the
+    // receipt is never opaque. LLM is NOT simulation truth — this trace records
+    // that the fallback was used, not that "AI decided".
+    return {
+      acceptedSource: 'fallback',
+      ruleConfidence: 0.5,
+      llmConfidence: null,
+      pressure: [],
+      uncertainty: [],
+      memoryFactCount: 0,
+      contextSignalCount: 0,
+      arbiterDecision: 'no_agent_trace_available',
+      validationNotes: ['fallback_without_agent_trace'],
+      rejectedReasons: [],
+    };
+  }
   return {
     acceptedSource: arbiterResult?.acceptedSource ?? trace?.acceptedSource ?? 'fallback',
     ruleConfidence: trace?.ruleConfidence ?? 0.5,

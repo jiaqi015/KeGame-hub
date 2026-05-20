@@ -37,7 +37,23 @@ export async function fetchMyWechatConversationEffectProposal(
     arbiterResult?: unknown;
   };
 
+  // Even on non-OK responses (e.g. 400 invalid input), the handler may return
+  // a fallback proposal with trace. Extract trace/arbiterResult regardless of status.
+  const trace = payload.trace as AgentRunTrace | undefined;
+  const arbiterResult = payload.arbiterResult as AgentArbiterResult | undefined;
+
   if (!response.ok || !payload.proposal || typeof payload.proposal !== 'object') {
+    // Return trace even when proposal is unavailable, so the caller can
+    // attach observability data to the fallback receipt.
+    if (trace || arbiterResult) {
+      return {
+        proposal: null as unknown as ConversationEffectProposal,
+        source: 'fallback',
+        error: typeof payload.error === 'string' ? payload.error : `HTTP ${response.status}`,
+        trace,
+        arbiterResult,
+      };
+    }
     return null;
   }
 
@@ -45,8 +61,8 @@ export async function fetchMyWechatConversationEffectProposal(
     proposal: payload.proposal as ConversationEffectProposal,
     source: payload.source === 'ai' ? 'ai' : 'fallback',
     error: typeof payload.error === 'string' ? payload.error : undefined,
-    trace: payload.trace as AgentRunTrace | undefined,
-    arbiterResult: payload.arbiterResult as AgentArbiterResult | undefined,
+    trace,
+    arbiterResult,
   };
 }
 

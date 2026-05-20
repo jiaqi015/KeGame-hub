@@ -865,14 +865,18 @@ check(Array.isArray(snap15.validationNotes), 'traceSnapshot has validationNotes'
 check(Array.isArray(snap15.rejectedReasons), 'traceSnapshot has rejectedReasons');
 check(typeof snap15.arbiterDecision === 'string', 'traceSnapshot has arbiterDecision');
 
-// 15c. Receipt without trace → traceSnapshot is undefined (old save compat)
+// 15c. Receipt without trace → traceSnapshot is a fallback trace (not undefined)
+// Old saved receipts with traceSnapshot:undefined still load fine via the ? optional field.
+// But NEW receipts always produce a trace for observability.
 const turn15b = settleWechatConversationTurn(buildTestState(), {
   conversationKey: 'test',
   message: makeWechatMessage(case15.id, case15.ownerName, 'owner'),
   playerText: '正常回复内容',
 });
 check(turn15b.receipt !== null, 'turn15b has receipt');
-check(turn15b.receipt!.traceSnapshot === undefined, 'receipt without trace has no traceSnapshot (old save compat)');
+check(turn15b.receipt!.traceSnapshot !== undefined, 'receipt without trace still has fallback traceSnapshot');
+check(turn15b.receipt!.traceSnapshot!.acceptedSource === 'fallback', 'fallback traceSnapshot acceptedSource is fallback');
+check(turn15b.receipt!.traceSnapshot!.arbiterDecision === 'no_agent_trace_available', 'fallback traceSnapshot records no_agent_trace_available');
 
 // 15d. useGame handler returns trace + arbiterResult
 const useGameSrc = readFileSync(join(ROOT, 'src/selling-houses/application/useGame.ts'), 'utf-8');

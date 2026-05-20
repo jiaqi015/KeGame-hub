@@ -8,6 +8,8 @@ import {
 } from '../src/selling-houses/runtime/simulation/processes/index.js';
 
 const engineSource = readFileSync('src/selling-houses/domain/engine.ts', 'utf8');
+const facadeSource = readFileSync('src/selling-houses/domain/engine/processManagerFacade.ts', 'utf8');
+const applicationTransitionsSource = readFileSync('src/selling-houses/application/gameTransitions.ts', 'utf8');
 const managerSource = readFileSync(
   'src/selling-houses/runtime/simulation/processes/productRunProcessManager.ts',
   'utf8',
@@ -75,12 +77,24 @@ assert.ok(Object.isFrozen(result), 'Expected product run manager result to be fr
 assert.ok(Object.isFrozen(result.transitions), 'Expected product run manager transitions to be frozen');
 assert.ok(Object.isFrozen(result.eventIds), 'Expected product run manager event ids to be frozen');
 assert.ok(
-  engineSource.includes('advanceProductRunProcessesForDay(state)'),
-  'Expected daily engine tick to advance product runs through the process manager',
+  engineSource.includes('callAdvanceProductRunProcesses(state)'),
+  'Expected daily engine tick to advance product runs through the domain process-manager facade',
+);
+assert.ok(
+  facadeSource.includes('registerProcessManagers'),
+  'Expected domain process-manager facade to expose runtime registration',
+);
+assert.ok(
+  applicationTransitionsSource.includes('advanceProductRunProcessesForDay(state)'),
+  'Expected application layer to register the runtime product-run process manager',
 );
 assert.ok(
   !engineSource.includes('advanceProductRunsForDay(state)'),
   'Expected daily engine tick not to call legacy advanceProductRunsForDay directly',
+);
+assert.ok(
+  !engineSource.includes('../runtime/'),
+  'Expected daily engine tick not to import runtime process managers directly',
 );
 assert.ok(
   !managerSource.includes('advanceProductRunsForDay'),

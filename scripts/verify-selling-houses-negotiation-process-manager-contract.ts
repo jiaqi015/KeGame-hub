@@ -7,6 +7,8 @@ import {
 } from '../src/selling-houses/runtime/simulation/processes/index.js';
 
 const engineSource = readFileSync('src/selling-houses/domain/engine.ts', 'utf8');
+const facadeSource = readFileSync('src/selling-houses/domain/engine/processManagerFacade.ts', 'utf8');
+const applicationTransitionsSource = readFileSync('src/selling-houses/application/gameTransitions.ts', 'utf8');
 const managerSource = readFileSync(
   'src/selling-houses/runtime/simulation/processes/negotiationProcessManager.ts',
   'utf8',
@@ -69,6 +71,14 @@ function buildMinimalState(): GameState {
     day: 2,
     currentDate: '2026-04-30',
     cases: [buildCase()],
+    markets: [{
+      id: 'cell-jingan',
+      name: '静安',
+      demandHeat: 70,
+      supplyPressure: 35,
+      competitivePressure: 25,
+      sentiment: 70,
+    }],
     opportunities: [buildOpportunity()],
     customerStates: [],
     closedDeals: [],
@@ -126,12 +136,24 @@ assert.ok(Object.isFrozen(result.resolvedOpportunityIds), 'Expected resolvedOppo
 assert.ok(Object.isFrozen(result.emittedEvents), 'Expected emittedEvents list to be frozen');
 assert.ok(Object.isFrozen(result.closedDeals), 'Expected closedDeals list to be frozen');
 assert.ok(
-  engineSource.includes('settleNegotiationProcessesForDay(state)'),
-  'Expected daily engine tick to settle negotiations through the runtime process manager facade',
+  engineSource.includes('callSettleNegotiationProcesses(state)'),
+  'Expected daily engine tick to settle negotiations through the domain process-manager facade',
+);
+assert.ok(
+  facadeSource.includes('registerProcessManagers'),
+  'Expected domain process-manager facade to expose runtime registration',
+);
+assert.ok(
+  applicationTransitionsSource.includes('settleNegotiationProcessesForDay(state)'),
+  'Expected application layer to register the runtime negotiation process manager',
 );
 assert.ok(
   !engineSource.includes('settlePendingDealClosings(state)'),
   'Expected daily engine tick not to call legacy settlePendingDealClosings directly',
+);
+assert.ok(
+  !engineSource.includes('../runtime/'),
+  'Expected daily engine tick not to import runtime process managers directly',
 );
 assert.ok(
   managerSource.includes('settlePendingDealClosings(state)'),

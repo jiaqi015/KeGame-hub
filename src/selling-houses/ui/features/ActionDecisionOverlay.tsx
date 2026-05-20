@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { GameState, Case, ActionDefinition } from '../../domain/models';
 import { ACTIONS } from '../../domain/actions/definitions';
 import { getActionTemplate, getScenarioMode, getScenarioTemplate, isScenarioAction } from '../../domain/actions/templates';
@@ -9,6 +9,12 @@ import { DiagnoseMatterView } from './matters/DiagnoseMatterView';
 import { ExecuteMatterView } from './matters/ExecuteMatterView';
 import { NegotiateMatterView } from './matters/NegotiateMatterView';
 import { buildOwnerProfilingMemorySummary } from '../../application/projections/ownerProfilingMemory.js';
+import {
+  buildFallbackActionAdvice,
+  type ActionAdviceProposal,
+  type ActionAdviceRequest,
+} from '../../application/actionDecisionAdvice.js';
+import { fetchActionDecisionAdvice } from '../../infrastructure/actionDecisionAdviceClient.js';
 
 export type CharacterFeedback = {
   actor: 'owner' | 'customer' | 'market';
@@ -130,9 +136,138 @@ export function buildActionDecisionConfig(
   };
 }
 
+function buildActionAdviceRequest(
+  config: ActionDecisionConfig,
+  currentRoundConfig: any,
+  currentRound: number,
+  totalRounds: number,
+  caseItem?: Case,
+): ActionAdviceRequest {
+  return {
+    actionId: config.actionId,
+    title: config.title,
+    summary: config.summary,
+    body: config.body,
+    actorLabel: config.actorLabel,
+    currentRound,
+    totalRounds,
+    contextBullets: config.contextBullets || [],
+    round: {
+      title: String(currentRoundConfig.title || ''),
+      description: String(currentRoundConfig.description || ''),
+      mainStrategies: (currentRoundConfig.mainStrategies || []).map((option: any) => ({
+        id: String(option.id || ''),
+        title: String(option.title || ''),
+        note: String(option.note || ''),
+      })),
+      assistStrategies: (currentRoundConfig.assistStrategies || []).map((option: any) => ({
+        id: String(option.id || ''),
+        title: String(option.title || ''),
+        note: String(option.note || ''),
+      })),
+    },
+    caseContext: caseItem ? {
+      title: caseItem.title,
+      ownerName: caseItem.ownerName,
+      district: caseItem.district,
+      community: caseItem.community,
+      askPrice: caseItem.askPrice,
+      marketPrice: caseItem.marketPrice,
+      trust: caseItem.trust,
+      patience: caseItem.patience,
+      urgency: caseItem.urgency,
+      heat: caseItem.heat,
+      stageLabel: caseItem.stageLabel,
+    } : undefined,
+  };
+}
+
 type OverlayMode = 'direct' | 'light' | 'heavy';
 type OverlayPhase = 'choosing' | 'feedback' | 'result';
 const MAX_MAIN_TOPIC_SELECTIONS = 2;
+
+interface ActionAdviceState {
+  advice: ActionAdviceProposal | null;
+  source: 'ai' | 'fallback';
+  loading: boolean;
+  error?: string;
+}
+
+function ActionAdvicePanel({
+  adviceState,
+  currentRoundConfig,
+  onApply,
+}: {
+  adviceState: ActionAdviceState;
+  currentRoundConfig: any;
+  onApply: () => void;
+}) {
+  const advice = adviceState.advice;
+  if (!advice) return null;
+
+  const mainTitles = advice.mainOptionIds
+    .map((id) => currentRoundConfig.mainStrategies?.find((option: any) => option.id === id)?.title || '')
+    .filter(Boolean);
+  const assistTitle = advice.assistOptionId
+    ? currentRoundConfig.assistStrategies?.find((option: any) => option.id === advice.assistOptionId)?.title || ''
+    : '';
+
+  return (
+    <div className="mb-5 rounded-[16px] border border-[color:var(--seller-accent)]/26 bg-[color:var(--seller-accent)]/8 p-4">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--seller-accent)]">AI 参谋</span>
+            <span className="rounded-full border border-[var(--seller-border)] bg-[var(--seller-paper)] px-2 py-0.5 text-[10px] font-semibold text-[var(--seller-muted)]">
+              {adviceState.loading ? '生成中' : adviceState.source === 'ai' ? 'DeepSeek' : '本地兜底'}
+            </span>
+          </div>
+          <h4 className="mt-1 text-[15px] font-bold text-[var(--seller-ink)]">{advice.headline}</h4>
+          <p className="mt-1 text-[12px] leading-5 text-[var(--seller-muted)]">{advice.recommendation}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onApply}
+          className="shrink-0 rounded-[12px] border border-[color:var(--seller-accent)]/35 bg-[var(--seller-paper)] px-3 py-2 text-[12px] font-bold text-[var(--seller-accent)] transition-colors hover:bg-[var(--seller-accent-soft)]"
+        >
+          采用
+        </button>
+      </div>
+
+      {(mainTitles.length > 0 || assistTitle) ? (
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          {mainTitles.map((title) => (
+            <span key={title} className="seller-chip seller-chip-accent">{title}</span>
+          ))}
+          {assistTitle ? <span className="seller-chip">{assistTitle}</span> : null}
+        </div>
+      ) : null}
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        <div className="rounded-[12px] bg-[rgba(255,255,255,0.035)] px-3 py-2">
+          <div className="mb-1 text-[10px] font-semibold text-[var(--seller-subtle)]">看点</div>
+          <ul className="space-y-1">
+            {advice.reasons.slice(0, 2).map((reason) => (
+              <li key={reason} className="text-[11px] leading-5 text-[var(--seller-muted)]">{reason}</li>
+            ))}
+          </ul>
+        </div>
+        <div className="rounded-[12px] bg-[rgba(255,255,255,0.035)] px-3 py-2">
+          <div className="mb-1 text-[10px] font-semibold text-[var(--seller-subtle)]">留意</div>
+          <ul className="space-y-1">
+            {advice.risks.slice(0, 2).map((risk) => (
+              <li key={risk} className="text-[11px] leading-5 text-[var(--seller-muted)]">{risk}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      {adviceState.error ? (
+        <p className="mt-2 text-[10px] text-[var(--seller-subtle)]">{adviceState.error}</p>
+      ) : null}
+    </div>
+  );
+}
 
 export function ActionDecisionOverlay({
   config,
@@ -175,6 +310,11 @@ export function ActionDecisionOverlay({
   const [feedbacks, setFeedbacks] = useState<CharacterFeedback[]>([]);
   const [result, setResult] = useState<Settlement | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [adviceState, setAdviceState] = useState<ActionAdviceState>({
+    advice: null,
+    source: 'fallback',
+    loading: false,
+  });
 
   const getCurrentRound = () => {
     if (mode === 'direct') return null;
@@ -186,6 +326,49 @@ export function ActionDecisionOverlay({
   const mainSelectionLimit = config.actionId === 'showing' ? 1 : MAX_MAIN_TOPIC_SELECTIONS;
   const mainSelectionLimitReached = selectedMainIds.length >= mainSelectionLimit;
 
+  useEffect(() => {
+    if (mode === 'direct' || phase !== 'choosing' || !currentRoundConfig) return;
+
+    const request = buildActionAdviceRequest(config, currentRoundConfig, currentRound, totalRounds, caseItem);
+    const fallback = buildFallbackActionAdvice(request);
+    const controller = new AbortController();
+    setAdviceState({
+      advice: fallback,
+      source: 'fallback',
+      loading: true,
+    });
+
+    fetchActionDecisionAdvice(request, controller.signal)
+      .then((result) => {
+        if (!result) {
+          setAdviceState({
+            advice: fallback,
+            source: 'fallback',
+            loading: false,
+            error: '本地先按规则给出参谋。',
+          });
+          return;
+        }
+        setAdviceState({
+          advice: result.advice,
+          source: result.source,
+          loading: false,
+          error: result.error,
+        });
+      })
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setAdviceState({
+          advice: fallback,
+          source: 'fallback',
+          loading: false,
+          error: error instanceof Error ? error.message : '动作参谋暂时不可用。',
+        });
+      });
+
+    return () => controller.abort();
+  }, [caseItem, config, currentRound, currentRoundConfig, mode, phase, totalRounds]);
+
   const toggleMainTopic = (optionId: string) => {
     setSelectedMainIds((current) => {
       if (current.includes(optionId)) {
@@ -196,6 +379,22 @@ export function ActionDecisionOverlay({
       }
       return [...current, optionId];
     });
+  };
+
+  const applyAdvice = () => {
+    const advice = adviceState.advice;
+    if (!advice || !currentRoundConfig) return;
+    const validMainIds = new Set(currentRoundConfig.mainStrategies.map((option: any) => option.id));
+    const validAssistIds = new Set(currentRoundConfig.assistStrategies.map((option: any) => option.id));
+    const mainIds = advice.mainOptionIds
+      .filter((id) => validMainIds.has(id))
+      .slice(0, mainSelectionLimit);
+    if (mainIds.length > 0) {
+      setSelectedMainIds(mainIds);
+    }
+    if (advice.assistOptionId && validAssistIds.has(advice.assistOptionId)) {
+      setSelectedAssist(advice.assistOptionId);
+    }
   };
 
   const formatMainTopics = (choice: ScenarioChoice) => {
@@ -387,6 +586,12 @@ export function ActionDecisionOverlay({
         <div className="flex-1 overflow-y-auto p-6 pt-4">
           {phase === 'choosing' && currentRoundConfig && (
             <>
+              <ActionAdvicePanel
+                adviceState={adviceState}
+                currentRoundConfig={currentRoundConfig}
+                onApply={applyAdvice}
+              />
+
               <h4 className="mb-2 text-[14px] font-bold text-[var(--seller-ink)]">{currentRoundConfig.title}</h4>
               <p className="mb-5 text-[12px] text-[var(--seller-muted)]">{currentRoundConfig.description}</p>
 

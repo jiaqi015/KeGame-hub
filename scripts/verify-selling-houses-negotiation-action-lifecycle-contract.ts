@@ -31,8 +31,8 @@ assert.ok(
   'queueNegotiationProcessEvaluation must preserve the action message side effect',
 );
 assert.ok(
-  /export function queueDealClosingEvaluation[\s\S]*?pendingClosingEvaluation\s*=\s*true/.test(dealClosingSource),
-  'queueDealClosingEvaluation must continue marking opportunities as pending closing evaluations',
+  /export function queueDealClosingEvaluation[\s\S]*?setOpportunityPendingClosingOnState\(state,\s*opportunity,\s*true/.test(dealClosingSource),
+  'queueDealClosingEvaluation must continue marking opportunities as pending closing evaluations through the authoritative write helper',
 );
 assert.ok(
   processAdaptersSource.includes('mapPendingClosingOpportunityToNegotiationProcess'),

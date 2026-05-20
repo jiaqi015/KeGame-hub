@@ -45,11 +45,108 @@
  * └─────────────────────────┴───────────────────────────────────────────────────────┘
  */
 
-import type {
-  OwnerProfilingMemorySummary,
-} from '../../domain/ownerProfilingMemoryTypes.js';
+export type RelationOwnerProfilingDimensionValue =
+  | 'strong'
+  | 'weak'
+  | 'short'
+  | 'long'
+  | 'low'
+  | 'high'
+  | 'self_decide'
+  | 'guided_or_joint'
+  | 'unknown';
 
-import type { Case, GameState } from '../../domain/models.js';
+export type RelationOwnerProfilingConfidence = 'high' | 'medium' | 'low';
+export type RelationOwnerProfilingTone = 'accent' | 'chance' | 'risk' | 'neutral';
+
+export type RelationOwnerProfilingTypeKey =
+  | 'strong-short-high-self_decide'
+  | 'strong-short-high-guided_or_joint'
+  | 'strong-short-low-self_decide'
+  | 'strong-short-low-guided_or_joint'
+  | 'strong-long-high-self_decide'
+  | 'strong-long-high-guided_or_joint'
+  | 'strong-long-low-self_decide'
+  | 'strong-long-low-guided_or_joint'
+  | 'weak-short-high-self_decide'
+  | 'weak-short-high-guided_or_joint'
+  | 'weak-short-low-self_decide'
+  | 'weak-short-low-guided_or_joint'
+  | 'weak-long-high-self_decide'
+  | 'weak-long-high-guided_or_joint'
+  | 'weak-long-low-self_decide'
+  | 'weak-long-low-guided_or_joint';
+
+export interface RelationOwnerProfilingDimension {
+  key: 'price_anchor' | 'time_window' | 'transaction_experience' | 'decision_style';
+  label: string;
+  value: RelationOwnerProfilingDimensionValue;
+  valueLabel: string;
+  confidence: RelationOwnerProfilingConfidence;
+  evidenceIds: string[];
+}
+
+export interface RelationOwnerProfilingLabel {
+  name: string;
+  value: string;
+  confidence: RelationOwnerProfilingConfidence;
+  evidenceIds: string[];
+}
+
+export interface RelationOwnerProfilingEvidence {
+  id: string;
+  sourceType: 'interview' | 'listing_data' | 'market_data' | 'manual';
+  text: string;
+  linkedDimensions: string[];
+  confidence: RelationOwnerProfilingConfidence;
+}
+
+export interface RelationOwnerProfilingMemorySummary {
+  ownerTypeKey: RelationOwnerProfilingTypeKey;
+  ownerTypeName: string;
+  ownerTypeDescription: string;
+  ownerTypeTone: RelationOwnerProfilingTone;
+  dimensions: RelationOwnerProfilingDimension[];
+  labels: RelationOwnerProfilingLabel[];
+  evidenceBank: RelationOwnerProfilingEvidence[];
+  serviceStrategy: {
+    primaryGoal: string;
+    mainBlocker: string;
+    recommendedNextAction: string;
+    communicationStyle: string;
+  };
+  openQuestions: string[];
+}
+
+export type RelationProjectionPersonality = 'pragmatic' | 'emotional' | 'urgent';
+
+export type RelationProjectionCaseLike = Readonly<{
+  id: string;
+  trust: number;
+  patience: number;
+  urgency: number;
+  windowDays: number;
+  personality: RelationProjectionPersonality;
+  ownerArchetypeId?: string;
+  hasCompletedFirstVisit?: boolean;
+  ownerProfilingMemory?: RelationOwnerProfilingMemorySummary;
+}>;
+
+export type RelationProjectionGameStateLike = Readonly<{
+  runtimeBrokerOwnerRelations?: readonly Readonly<{
+    relationId: string;
+    brokerId: string;
+    ownerId: string;
+    trust: number;
+  }>[];
+  runtimeOwnerCaseReadinessStates?: readonly Readonly<{
+    relationId: string;
+    ownerId: string;
+    assetCaseId: string;
+    patience: number;
+    urgency: number;
+  }>[];
+}>;
 
 // ---------------------------------------------------------------------------
 // RelationTrustProjection: trust read through broker-owner relation
@@ -88,22 +185,22 @@ export interface RelationReadinessProjection {
 export interface OwnerProfileProjection {
   readonly caseId: string;
   /** 16-type profiling is the authoritative owner type source. */
-  readonly profiling: OwnerProfilingMemorySummary | null;
+  readonly profiling: RelationOwnerProfilingMemorySummary | null;
   /** Legacy 4-type personality — compatibility mirror only, not authoritative. */
-  readonly legacyPersonality: Case['personality'];
+  readonly legacyPersonality: RelationProjectionPersonality;
   /** Legacy ownerArchetypeId — compatibility mirror only. */
-  readonly legacyArchetypeId: string;
+  readonly legacyArchetypeId?: string;
   /** Whether profiling has been revealed (first visit completed). */
   readonly isRevealed: boolean;
 }
 
-export function readOwnerProfile(caseItem: Case): OwnerProfileProjection {
+export function readOwnerProfile(caseItem: RelationProjectionCaseLike): OwnerProfileProjection {
   return Object.freeze({
     caseId: caseItem.id,
     profiling: caseItem.ownerProfilingMemory ?? null,
     legacyPersonality: caseItem.personality,
     legacyArchetypeId: caseItem.ownerArchetypeId,
-    isRevealed: caseItem.hasCompletedFirstVisit,
+    isRevealed: Boolean(caseItem.hasCompletedFirstVisit),
   });
 }
 
@@ -146,9 +243,9 @@ export interface OwnerRelationBusinessContext {
   /** Reasons why fallback was used (empty when fully relation-backed). */
   readonly fallbackReasons: readonly string[];
   /** 16-type profiling memory (authoritative owner type source). Null if not revealed. */
-  readonly profiling: import('../../domain/ownerProfilingMemoryTypes.js').OwnerProfilingMemorySummary | null;
+  readonly profiling: RelationOwnerProfilingMemorySummary | null;
   /** Legacy 4-type personality — compatibility mirror only, not authoritative. */
-  readonly legacyPersonality: Case['personality'];
+  readonly legacyPersonality: RelationProjectionPersonality;
 }
 
 /**
@@ -180,8 +277,8 @@ export const readCaseRelationBusinessContextFromRuntime = readOwnerRelationBusin
  * then `ctx.trustValue` instead of `caseItem.trust`.
  */
 export function readOwnerRelationBusinessContext(
-  state: GameState,
-  caseItem: Case,
+  state: RelationProjectionGameStateLike,
+  caseItem: RelationProjectionCaseLike,
 ): OwnerRelationBusinessContext {
   const ownerId = `owner:${caseItem.id}`;
   const fallbackReasons: string[] = [];
@@ -265,8 +362,8 @@ export function readOwnerRelationBusinessContext(
  * (old saves or early-game states before first mutation).
  */
 export function readCaseRelationBundleFromRuntime(
-  state: GameState,
-  caseItem: Case,
+  state: RelationProjectionGameStateLike,
+  caseItem: RelationProjectionCaseLike,
 ): CaseRelationBundle {
   const ownerId = `owner:${caseItem.id}`;
 

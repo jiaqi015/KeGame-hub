@@ -1297,7 +1297,7 @@ const AgentTraceDetail: React.FC<{ snapshot: ConversationTraceSnapshot }> = ({ s
     'text-[var(--seller-muted)]';
 
   return (
-    <div className="mt-1 space-y-0.5 rounded-lg border border-[var(--seller-border)] bg-[rgba(255,255,255,0.02)] px-2.5 py-2 text-[9px] leading-[18px]">
+    <div className="mt-1 min-w-0 space-y-0.5 overflow-hidden rounded-lg border border-[var(--seller-border)] bg-[rgba(255,255,255,0.02)] px-2.5 py-2 text-[9px] leading-[18px]">
       <div>
         <span className="text-[var(--seller-subtle)]">本次采用：</span>
         <span className={sourceColor}>{sourceLabel}</span>
@@ -1313,19 +1313,31 @@ const AgentTraceDetail: React.FC<{ snapshot: ConversationTraceSnapshot }> = ({ s
         <span className="text-[var(--seller-subtle)]">上下文：{snapshot.contextSignalCount} 条</span>
       </div>
       {snapshot.pressure.length > 0 && (
-        <div className="text-[var(--seller-subtle)]">压力：{snapshot.pressure.slice(0, 2).join('、')}</div>
+        <div className="min-w-0 break-words text-[var(--seller-subtle)]">
+          压力：{snapshot.pressure.slice(0, 2).join('、')}
+        </div>
       )}
       {snapshot.uncertainty.length > 0 && (
-        <div className="text-[var(--seller-subtle)]">不确定点：{snapshot.uncertainty.slice(0, 2).join('、')}</div>
+        <div className="min-w-0 break-words text-[var(--seller-subtle)]">
+          不确定点：{snapshot.uncertainty.slice(0, 2).join('、')}
+        </div>
       )}
       {snapshot.validationNotes.length > 0 && (
-        <div className="text-[var(--seller-subtle)]">校验：{snapshot.validationNotes.join('、')}</div>
+        <div className="min-w-0 break-words text-[var(--seller-subtle)]">
+          校验：{snapshot.validationNotes.slice(0, 3).join('、')}
+          {snapshot.validationNotes.length > 3 && ` 等${snapshot.validationNotes.length}条`}
+        </div>
       )}
       {snapshot.rejectedReasons.length > 0 && (
-        <div className="text-rose-300">拒绝：{snapshot.rejectedReasons.join('、')}</div>
+        <div className="min-w-0 break-words text-rose-300">
+          拒绝：{snapshot.rejectedReasons.slice(0, 2).join('、')}
+          {snapshot.rejectedReasons.length > 2 && ` 等${snapshot.rejectedReasons.length}条`}
+        </div>
       )}
       {snapshot.arbiterDecision && (
-        <div className="text-[var(--seller-subtle)]">原因：{snapshot.arbiterDecision}</div>
+        <div className="min-w-0 line-clamp-2 break-words text-[var(--seller-subtle)]">
+          原因：{snapshot.arbiterDecision}
+        </div>
       )}
     </div>
   );

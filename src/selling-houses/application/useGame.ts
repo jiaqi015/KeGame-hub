@@ -650,6 +650,8 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
       playerText: sanitizedText,
       proposal: proposalResult?.proposal || fallbackProposal,
       proposalSource: proposalResult?.source === 'ai' ? 'ai' : 'fallback',
+      // Trace may be available even when proposal is null (e.g. server returned
+      // fallback trace on error). Always prefer server trace over no trace.
       trace: proposalResult?.trace,
       arbiterResult: proposalResult?.arbiterResult,
     });

@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 
+import '../src/selling-houses/application/gameTransitions.js';
 import { createInitialState, updateDerivedState } from '../src/selling-houses/application/gameState.js';
 import { advanceOneDay, executeAction, seedInitialOpportunities } from '../src/selling-houses/domain/engine.js';
 import { createProductRun } from '../src/selling-houses/domain/productRuns.js';
 import { getScenarioSnapshotById } from '../src/selling-houses/domain/scenarioCatalog.js';
+import { setBrokerOwnerTrust } from '../src/selling-houses/domain/trustWriteHelper.js';
 import { normalizeDailyProcessResultReadModel } from '../src/selling-houses/runtime/simulation/dailyProcessResult.js';
 
 const snapshot = getScenarioSnapshotById('standard-window-chain');
@@ -22,7 +24,7 @@ if (!caseItem || !opportunity) {
 }
 
 caseItem.askPrice = caseItem.marketPrice;
-caseItem.trust = 100;
+setBrokerOwnerTrust(world, caseItem, 100, 'daily process result fixture relation trust');
 caseItem.competitiveness = 100;
 caseItem.hasCompletedFirstVisit = true;
 caseItem.stageIndex = 5;
