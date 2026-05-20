@@ -63,6 +63,7 @@ import type { Settlement } from '../domain/actions/templates.js';
 import type { TodayPlanDraft } from './todayPlan.js';
 import type { WechatMessage } from './projections/myWechatTypes.js';
 import {
+  buildFallbackConversationEffectProposal,
   buildWechatConversationScenePack,
   sanitizeWechatPlayerText,
 } from './wechatConversation.js';
@@ -87,6 +88,8 @@ const scenarioCatalogRefreshInFlight = new Map<
   Promise<Awaited<ReturnType<typeof loadScenarioOpeningCatalog>>>
 >();
 
+const WECHAT_AGENT_TIMEOUT_MS = 1800;
+
 function dedupeInFlight<T>(cache: Map<string, Promise<T>>, key: string, loader: () => Promise<T>) {
   const existing = cache.get(key);
   if (existing) {
@@ -98,6 +101,12 @@ function dedupeInFlight<T>(cache: Map<string, Promise<T>>, key: string, loader: 
   });
   cache.set(key, promise);
   return promise;
+}
+
+function delay(ms: number) {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
 }
 
 export function useGame(input?: { activationKey?: string } & SellingHousesPlayerContextInput) {
@@ -630,13 +639,19 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
       playerText: sanitizedText,
     });
 
-    const proposalResult = await fetchMyWechatConversationEffectProposal(scene).catch(() => null);
+    const fallbackProposal = buildFallbackConversationEffectProposal(scene);
+    const proposalResult = await Promise.race([
+      fetchMyWechatConversationEffectProposal(scene).catch(() => null),
+      delay(WECHAT_AGENT_TIMEOUT_MS).then(() => null),
+    ]);
     const result = sendWechatConversationReply(state, {
       conversationKey,
       message,
       playerText: sanitizedText,
-      proposal: proposalResult?.proposal || null,
-      proposalSource: proposalResult?.source || 'fallback',
+      proposal: proposalResult?.proposal || fallbackProposal,
+      proposalSource: proposalResult?.source === 'ai' ? 'ai' : 'fallback',
+      trace: proposalResult?.trace,
+      arbiterResult: proposalResult?.arbiterResult,
     });
 
     if (result.success) {
@@ -647,6 +662,8 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
       success: result.success,
       reason: result.reason,
       receipt: result.receipt,
+      trace: result.trace,
+      arbiterResult: result.arbiterResult,
     };
   }, [commitLocalStateChange, state]);
 

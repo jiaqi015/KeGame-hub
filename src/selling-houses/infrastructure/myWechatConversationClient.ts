@@ -2,6 +2,10 @@ import type {
   ConversationEffectProposal,
   ConversationSceneInputPack,
 } from '../core/world-state/conversation/models.js';
+import type {
+  AgentArbiterResult,
+  AgentRunTrace,
+} from '../core/world-state/agents/proposal.js';
 
 const ACTIVATION_STORAGE_KEY = 'sabrina-activation-key';
 const ACTIVATION_HEADER_NAME = 'x-activation-key';
@@ -10,6 +14,8 @@ export interface WechatConversationEffectProposalResult {
   proposal: ConversationEffectProposal;
   source: 'ai' | 'fallback';
   error?: string;
+  trace?: AgentRunTrace;
+  arbiterResult?: AgentArbiterResult;
 }
 
 export async function fetchMyWechatConversationEffectProposal(
@@ -27,6 +33,8 @@ export async function fetchMyWechatConversationEffectProposal(
     proposal?: unknown;
     source?: unknown;
     error?: unknown;
+    trace?: unknown;
+    arbiterResult?: unknown;
   };
 
   if (!response.ok || !payload.proposal || typeof payload.proposal !== 'object') {
@@ -37,6 +45,8 @@ export async function fetchMyWechatConversationEffectProposal(
     proposal: payload.proposal as ConversationEffectProposal,
     source: payload.source === 'ai' ? 'ai' : 'fallback',
     error: typeof payload.error === 'string' ? payload.error : undefined,
+    trace: payload.trace as AgentRunTrace | undefined,
+    arbiterResult: payload.arbiterResult as AgentArbiterResult | undefined,
   };
 }
 

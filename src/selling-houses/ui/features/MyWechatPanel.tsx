@@ -4,7 +4,11 @@ import { ChevronRight, Loader2, Maximize2, MessageCircle, Minimize2, Newspaper, 
 import type {
   ConversationNextStepDraft,
   ConversationReceipt,
+  ConversationTraceSnapshot,
 } from '../../core/world-state/conversation/models.js';
+import type { AgentMemoryFact } from '../../core/world-state/agents/models.js';
+import { selectAgentMemoryFacts } from '../../core/world-state/agents/memoryStore.js';
+import { OWNER_URGENCY_HIGH, PRICE_GAP_SIGNIFICANT } from '../../core/world-state/agents/thresholds.js';
 import type { GameState } from '../../domain/models.js';
 import type {
   MyWechatProjection,
@@ -26,7 +30,13 @@ interface MyWechatPanelProps {
     conversationKey: string,
     message: WechatMessage,
     playerText: string,
-  ) => Promise<{ success: boolean; reason: string; receipt: unknown | null }>;
+  ) => Promise<{
+    success: boolean;
+    reason: string;
+    receipt: unknown | null;
+    trace?: unknown;
+    arbiterResult?: unknown;
+  }>;
   onOpenMarket?: (layer?: IntelLayerTab) => void;
 }
 
@@ -46,6 +56,7 @@ type ConversationWorldContext = {
   primaryLine: string;
   signals: string[];
   replyAngles: string[];
+  memoryFacts: AgentMemoryFact[];
 };
 type BrokerReplyMap = Record<string, NonNullable<WechatMessage['brokerReply']>>;
 type WechatMessageRowProps = {
@@ -55,11 +66,6 @@ type WechatMessageRowProps = {
   lead: boolean;
   onClick: () => void;
   onPrimaryAction?: () => void;
-};
-type RelatedWechatCase = {
-  id: string;
-  title: string;
-  actionMessage: WechatMessage | null;
 };
 type OfficialArticleRowProps = {
   article: OfficialAccountArticle;
@@ -468,6 +474,14 @@ function buildConversationWorldContext(
 
   const signals: string[] = [];
   const replyAngles: string[] = [];
+  const memoryFacts = selectAgentMemoryFacts(state.agentMemoryStore, {
+    conversationKey: conversation.key,
+    caseId: caseItem?.id,
+    opportunityId: opportunity?.id,
+    channel: 'wechat',
+    day: state.day,
+    limit: 4,
+  });
 
   if (caseItem) {
     signals.push(describeListingPricePositionShort(caseItem));
@@ -478,7 +492,7 @@ function buildConversationWorldContext(
     }
     replyAngles.push(buildOwnerReplyAngle(caseItem));
     replyAngles.push(buildMarketEvidenceReplyAngle(caseItem));
-    if (caseItem.priceGapPct > 1.5 || caseItem.urgency >= 68) {
+    if (caseItem.priceGapPct > PRICE_GAP_SIGNIFICANT || caseItem.urgency >= OWNER_URGENCY_HIGH) {
       replyAngles.push(buildPriceReplyAngle(caseItem));
     }
   }
@@ -495,6 +509,7 @@ function buildConversationWorldContext(
       : '这条微信会影响今天的跟进节奏',
     signals: dedupeStrings(signals).slice(0, 4),
     replyAngles: dedupeStrings(replyAngles).slice(0, 3),
+    memoryFacts,
   };
 }
 
@@ -563,7 +578,6 @@ const WechatDraftReplySuggestion: React.FC<{
       <div className="min-w-0 max-w-[80%]">
         <div className="mb-1 flex items-center justify-end gap-2 text-[10px] text-[var(--seller-subtle)]">
           <span>{reply.timeLabel}</span>
-          <span>AI 回复建议</span>
         </div>
         <div className="rounded-[14px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.06)] px-3 py-2.5 shadow-[0_10px_24px_rgba(0,0,0,0.06)]">
           <p className="whitespace-pre-wrap text-[12px] leading-5 text-[var(--seller-ink)]">{reply.content}</p>
@@ -587,9 +601,16 @@ const ConversationWorldContextCard: React.FC<{
   onUseNextStep: (receipt: ConversationReceipt, step: ConversationNextStepDraft) => void;
   isNextStepHandled?: (receipt: ConversationReceipt, step: ConversationNextStepDraft) => boolean;
 }> = ({ context, latestReceipt, onUseAngle, onUseNextStep, isNextStepHandled }) => {
+  const [selectedAngleIndex, setSelectedAngleIndex] = useState(0);
   const latestNextSteps = latestReceipt ? getConversationNextSteps(latestReceipt) : [];
   const primaryNextStep = latestNextSteps[0] || null;
   const primaryNextStepHandled = Boolean(latestReceipt && primaryNextStep && isNextStepHandled?.(latestReceipt, primaryNextStep));
+  const replyAngleKey = context.replyAngles.join('\u0001');
+  const selectedAngle = context.replyAngles[selectedAngleIndex] || context.replyAngles[0];
+
+  useEffect(() => {
+    setSelectedAngleIndex(0);
+  }, [context.title, context.primaryLine, replyAngleKey]);
 
   return (
     <div className="border-b border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] px-3 py-2.5">
@@ -635,14 +656,14 @@ const ConversationWorldContextCard: React.FC<{
             <div className="min-w-0 flex-1">
               <div className="text-[9px] font-semibold text-[var(--seller-subtle)]">回复参考</div>
               <p className="mt-0.5 line-clamp-2 text-[11px] leading-5 text-[var(--seller-ink)]">
-                {context.replyAngles[0]}
+                {selectedAngle}
               </p>
             </div>
             <button
               type="button"
-              onClick={() => onUseAngle(context.replyAngles[0])}
+              onClick={() => onUseAngle(selectedAngle)}
               className="shrink-0 rounded-full border border-[color:var(--seller-accent)]/24 bg-[color:var(--seller-accent)]/10 px-2 py-0.5 text-[9px] font-semibold text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/16"
-              title={context.replyAngles[0]}
+              title={selectedAngle}
             >
               填入
             </button>
@@ -653,9 +674,14 @@ const ConversationWorldContextCard: React.FC<{
                 <button
                   key={angle}
                   type="button"
-                  onClick={() => onUseAngle(angle)}
-                  className="rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] px-2 py-0.5 text-[9px] font-semibold text-[var(--seller-subtle)] transition hover:border-[color:var(--seller-accent)]/24 hover:text-[var(--seller-accent)]"
-                  title={angle}
+                  onClick={() => setSelectedAngleIndex(index + 1)}
+                  aria-pressed={selectedAngleIndex === index + 1}
+                  className={`rounded-full border px-2 py-0.5 text-[9px] font-semibold transition ${
+                    selectedAngleIndex === index + 1
+                      ? 'border-[color:var(--seller-accent)]/35 bg-[color:var(--seller-accent)]/10 text-[var(--seller-accent)]'
+                      : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] text-[var(--seller-subtle)] hover:border-[color:var(--seller-accent)]/24 hover:text-[var(--seller-accent)]'
+                  }`}
+                  title={`查看：${angle}`}
                 >
                   备选 {index + 2}
                 </button>
@@ -664,30 +690,23 @@ const ConversationWorldContextCard: React.FC<{
           )}
         </div>
       )}
+      {context.memoryFacts.length > 0 && (
+        <div className="mt-2 grid gap-1.5">
+          <div className="text-[9px] font-semibold text-[var(--seller-subtle)]">记忆线索</div>
+          {context.memoryFacts.slice(0, 3).map((fact) => (
+            <div
+              key={fact.factId}
+              className="rounded-[10px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.035)] px-2.5 py-1.5 text-[9px] leading-4 text-[var(--seller-muted)]"
+              title={fact.kind}
+            >
+              {fact.summary}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
-
-function collectRelatedCases(messages: WechatMessage[]): RelatedWechatCase[] {
-  const relatedCases = new Map<string, RelatedWechatCase>();
-  messages.forEach((message) => {
-    if (!message.targetCaseId) return;
-    if (!relatedCases.has(message.targetCaseId)) {
-      relatedCases.set(message.targetCaseId, {
-        id: message.targetCaseId,
-        title: message.targetCaseTitle || '关联房源',
-        actionMessage: message.primaryActionId ? message : null,
-      });
-      return;
-    }
-
-    const relatedCase = relatedCases.get(message.targetCaseId);
-    if (relatedCase && !relatedCase.actionMessage && message.primaryActionId) {
-      relatedCase.actionMessage = message;
-    }
-  });
-  return [...relatedCases.values()];
-}
 
 function senderRoleLabel(role: WechatMessage['senderRole']) {
   if (role === 'owner') return '业主';
@@ -842,18 +861,19 @@ const WechatConversationDetail: React.FC<{
   onOpenMessageAction,
   onSendConversationReply,
 }) => {
-  const relatedCases = collectRelatedCases(conversation.messages);
   const replyTarget = resolveReplyTargetMessage(conversation);
   const displayName = getWechatSenderDisplayName(conversation.senderName, conversation.senderRole);
   const worldContext = buildConversationWorldContext(conversation, state);
   const latestReceipt = getLatestConversationReceipt(conversation);
-  const replyTargetText = replyTarget
-    ? stripWechatSpeakerPrefix(replyTarget.content, replyTarget.senderName, replyTarget.senderRole)
-    : '';
   const [draftText, setDraftText] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [fallbackHint, setFallbackHint] = useState(false);
   const [expanded, setExpanded] = useState(true);
+  const chatScrollRef = useRef<HTMLDivElement | null>(null);
+  const prevScrollKey = useRef({ key: '', turns: 0, brokers: 0 });
+  const conversationTurnCount = conversation.messages.reduce((total, message) => total + (message.conversationTurns?.length || 0), 0);
+  const brokerReplyCount = conversation.messages.reduce((total, message) => total + (brokerReplies[message.id] ? 1 : 0), 0);
 
   useEffect(() => {
     setDraftText('');
@@ -861,6 +881,30 @@ const WechatConversationDetail: React.FC<{
     setSending(false);
     setExpanded(true);
   }, [conversation.key]);
+
+  useEffect(() => {
+    const node = chatScrollRef.current;
+    if (!node) return;
+
+    const prev = prevScrollKey.current;
+    const isKeyChange = prev.key !== conversation.key;
+    const hasNewContent = !isKeyChange && (
+      conversationTurnCount > prev.turns || brokerReplyCount > prev.brokers
+    );
+
+    prevScrollKey.current = { key: conversation.key, turns: conversationTurnCount, brokers: brokerReplyCount };
+
+    if (!isKeyChange && !hasNewContent) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      if (!chatScrollRef.current) return;
+      chatScrollRef.current.scrollTo({
+        top: chatScrollRef.current.scrollHeight,
+        behavior: isKeyChange ? 'instant' as ScrollBehavior : 'smooth' as ScrollBehavior,
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [conversation.key, conversationTurnCount, brokerReplyCount]);
 
   const submitReply = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -871,14 +915,20 @@ const WechatConversationDetail: React.FC<{
 
     setSending(true);
     setSendError(null);
+    setFallbackHint(false);
+    const fallbackTimer = setTimeout(() => setFallbackHint(true), 1200);
     try {
       const result = await onSendConversationReply(conversation.key, replyTarget, text);
+      clearTimeout(fallbackTimer);
+      setFallbackHint(false);
       if (result.success) {
         setDraftText('');
         return;
       }
       setSendError(result.reason || '这条回复暂时没有发出去。');
     } catch (error) {
+      clearTimeout(fallbackTimer);
+      setFallbackHint(false);
       setSendError(error instanceof Error ? error.message : '这条回复暂时没有发出去。');
     } finally {
       setSending(false);
@@ -955,7 +1005,7 @@ const WechatConversationDetail: React.FC<{
         />
       )}
 
-      <div className="seller-wechat-chat flex-1 space-y-3 overflow-y-auto px-3 py-4">
+      <div ref={chatScrollRef} className="seller-wechat-chat flex-1 space-y-3 overflow-y-auto px-3 py-4">
         <div className="flex justify-center">
           <span className="seller-wechat-date-pill rounded-full px-2 py-0.5 text-[9px] font-semibold text-[var(--seller-subtle)]">
             DAY {state.day}
@@ -1004,17 +1054,6 @@ const WechatConversationDetail: React.FC<{
 
       <div className="seller-wechat-composer shrink-0 border-t border-[var(--seller-border)] px-3 py-2.5">
         <div className="space-y-2">
-          {replyTargetText && (
-            <div className="rounded-[10px] bg-[rgba(255,255,255,0.045)] px-2.5 py-1.5 text-[10px] font-medium text-[var(--seller-subtle)]">
-              <div className="flex items-center gap-1.5">
-                <span className="shrink-0 text-[9px] font-semibold text-[var(--seller-accent)]">正在回复</span>
-                <span className="min-w-0 truncate text-[var(--seller-muted)]">{displayName}</span>
-              </div>
-              <div className="mt-0.5 line-clamp-1 text-[9px] leading-4 text-[var(--seller-subtle)]">
-                {replyTargetText}
-              </div>
-            </div>
-          )}
           <form onSubmit={submitReply} className="flex items-end gap-2">
             <textarea
               value={draftText}
@@ -1027,16 +1066,21 @@ const WechatConversationDetail: React.FC<{
                   return;
                 }
                 event.preventDefault();
-                if (draftText.trim() && replyTarget && onSendConversationReply && !sending) {
+                const trimmed = draftText.trim();
+                if (trimmed.length > 0 && trimmed.length < 2) {
+                  setSendError('请至少输入 2 个字。');
+                  return;
+                }
+                if (trimmed && replyTarget && onSendConversationReply && !sending) {
                   event.currentTarget.form?.requestSubmit();
                 }
               }}
               disabled={!replyTarget || !onSendConversationReply || sending}
               maxLength={220}
-              rows={2}
+              rows={1}
               placeholder={replyTarget ? `回复 ${displayName}` : '暂无可回复消息'}
               title="回车发送，Shift+Enter 换行"
-              className="seller-wechat-input min-h-[44px] flex-1 resize-none rounded-[18px] border border-[var(--seller-border)] px-3 py-2 text-[12px] leading-5 text-[var(--seller-ink)] outline-none transition placeholder:text-[var(--seller-subtle)] focus:border-[color:var(--seller-accent)]/50 disabled:opacity-60"
+              className="seller-wechat-input h-9 max-h-[76px] flex-1 resize-none rounded-full border border-[var(--seller-border)] px-3 py-2 text-[12px] leading-5 text-[var(--seller-ink)] outline-none transition placeholder:text-[var(--seller-subtle)] focus:border-[color:var(--seller-accent)]/50 disabled:opacity-60"
             />
             <button
               type="submit"
@@ -1054,37 +1098,12 @@ const WechatConversationDetail: React.FC<{
             </div>
           )}
 
-          {relatedCases.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {relatedCases.map((relatedCase) => (
-                <div
-                  key={relatedCase.id}
-                  className="flex max-w-full items-center gap-1.5 rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] px-2 py-1"
-                >
-                  <button
-                    type="button"
-                    onClick={() => onSelectCase(relatedCase.id)}
-                    className="max-w-[160px] truncate text-[11px] font-semibold text-[var(--seller-ink)] transition hover:text-[var(--seller-accent)]"
-                  >
-                    {relatedCase.title}
-                  </button>
-                  {relatedCase.actionMessage?.primaryCtaLabel && isMessageActionHandled(state, relatedCase.actionMessage) ? (
-                    <span className="rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] px-1.5 py-0 text-[8px] font-semibold leading-4 text-[var(--seller-subtle)]">
-                      已承接
-                    </span>
-                  ) : relatedCase.actionMessage?.primaryCtaLabel ? (
-                    <button
-                      type="button"
-                      onClick={() => onOpenMessageAction(relatedCase.actionMessage!)}
-                      className="rounded-full border border-[color:var(--seller-accent)]/24 bg-[color:var(--seller-accent)]/8 px-1 py-0 text-[8px] font-semibold leading-4 text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/14"
-                    >
-                      {relatedCase.actionMessage.primaryCtaLabel}
-                    </button>
-                  ) : null}
-                </div>
-              ))}
+          {fallbackHint && !sendError && (
+            <div className="text-[10px] text-[var(--seller-subtle)] px-3 pb-1">
+              回复较慢，正在用本地判断生成回复...
             </div>
           )}
+
         </div>
       </div>
     </div>
@@ -1229,10 +1248,12 @@ const ConversationEffectStrip: React.FC<{ turn: ConversationReceipt }> = ({ turn
     ? effectLabels
     : [turn.summary];
   const impactText = buildConversationImpactText(turn);
+  const snapshot = turn.traceSnapshot;
+  const [traceOpen, setTraceOpen] = useState(false);
 
   return (
     <div className="mt-1.5 space-y-1">
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
         {labels.slice(0, 4).map((label) => (
           <span
             key={label}
@@ -1246,11 +1267,65 @@ const ConversationEffectStrip: React.FC<{ turn: ConversationReceipt }> = ({ turn
             本地判断
           </span>
         )}
+        {snapshot && (
+          <button
+            type="button"
+            onClick={() => setTraceOpen((v) => !v)}
+            className="rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] px-2 py-0.5 text-[9px] font-semibold text-[var(--seller-subtle)] hover:bg-[rgba(255,255,255,0.08)]"
+          >
+            {traceOpen ? '收起判断' : '查看判断'}
+          </button>
+        )}
       </div>
       {impactText && (
         <div className="max-w-full px-0.5 text-[9px] leading-4 text-[var(--seller-subtle)]">
           {impactText}
         </div>
+      )}
+      {snapshot && traceOpen && <AgentTraceDetail snapshot={snapshot} />}
+    </div>
+  );
+};
+
+const AgentTraceDetail: React.FC<{ snapshot: ConversationTraceSnapshot }> = ({ snapshot }) => {
+  const sourceLabel =
+    snapshot.acceptedSource === 'llm' ? 'AI' :
+    snapshot.acceptedSource === 'rule' ? '规则兜底' : 'fallback';
+  const sourceColor =
+    snapshot.acceptedSource === 'llm' ? 'text-[var(--seller-accent)]' :
+    snapshot.acceptedSource === 'rule' ? 'text-[var(--seller-ink)]' :
+    'text-[var(--seller-muted)]';
+
+  return (
+    <div className="mt-1 space-y-0.5 rounded-lg border border-[var(--seller-border)] bg-[rgba(255,255,255,0.02)] px-2.5 py-2 text-[9px] leading-[18px]">
+      <div>
+        <span className="text-[var(--seller-subtle)]">本次采用：</span>
+        <span className={sourceColor}>{sourceLabel}</span>
+      </div>
+      <div className="flex flex-wrap gap-x-3">
+        <span className="text-[var(--seller-subtle)]">规则置信度 {Math.round(snapshot.ruleConfidence * 100)}%</span>
+        <span className="text-[var(--seller-subtle)]">
+          LLM 置信度 {snapshot.llmConfidence != null ? `${Math.round(snapshot.llmConfidence * 100)}%` : '未启用'}
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-x-3">
+        <span className="text-[var(--seller-subtle)]">记忆：{snapshot.memoryFactCount} 条</span>
+        <span className="text-[var(--seller-subtle)]">上下文：{snapshot.contextSignalCount} 条</span>
+      </div>
+      {snapshot.pressure.length > 0 && (
+        <div className="text-[var(--seller-subtle)]">压力：{snapshot.pressure.slice(0, 2).join('、')}</div>
+      )}
+      {snapshot.uncertainty.length > 0 && (
+        <div className="text-[var(--seller-subtle)]">不确定点：{snapshot.uncertainty.slice(0, 2).join('、')}</div>
+      )}
+      {snapshot.validationNotes.length > 0 && (
+        <div className="text-[var(--seller-subtle)]">校验：{snapshot.validationNotes.join('、')}</div>
+      )}
+      {snapshot.rejectedReasons.length > 0 && (
+        <div className="text-rose-300">拒绝：{snapshot.rejectedReasons.join('、')}</div>
+      )}
+      {snapshot.arbiterDecision && (
+        <div className="text-[var(--seller-subtle)]">原因：{snapshot.arbiterDecision}</div>
       )}
     </div>
   );

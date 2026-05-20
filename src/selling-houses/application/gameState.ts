@@ -67,6 +67,10 @@ import { createMarketOpeningSnapshot } from '../domain/world-model/seededMarketW
 import { createBigWorldBootstrap } from '../domain/world-model/bigWorldBootstrap.js';
 import { buildBigWorldBootstrapSummary } from '../domain/world-model/bigWorldBootstrapSummary.js';
 import { createDefaultRuntimeState, DEFAULT_COMPACTION_POLICY, normalizeRuntimeState } from '../domain/world-model/runtime/index.js';
+import {
+  createEmptyAgentMemoryStore,
+  normalizeAgentMemoryStore,
+} from '../core/world-state/agents/memoryStore.js';
 
 function isBrowser() {
   return typeof window !== 'undefined' && Boolean(window.localStorage);
@@ -572,6 +576,7 @@ export function createInitialState(snapshot: ScenarioSnapshot, seedInput: RunSee
     negotiationReplayHistory: [],
     businessOutcomeReviewHistory: [],
     wechatConversationHistory: [],
+    agentMemoryStore: createEmptyAgentMemoryStore(),
     bigWorldRuntime: createDefaultRuntimeState(DEFAULT_COMPACTION_POLICY),
     worldCausalEvents: [],
   };
@@ -1491,6 +1496,8 @@ export function normalizeLoadedState(parsed: any): GameState | null {
   if (!Array.isArray(state.wechatConversationHistory)) {
     state.wechatConversationHistory = [];
   }
+
+  state.agentMemoryStore = normalizeAgentMemoryStore(state.agentMemoryStore);
 
   // Ensure big world runtime exists for old saves and partial dev snapshots.
   state.bigWorldRuntime = normalizeRuntimeState(state.bigWorldRuntime, DEFAULT_COMPACTION_POLICY);

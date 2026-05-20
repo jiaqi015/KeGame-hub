@@ -22,7 +22,19 @@ import type {
   ConversationRiskKind,
   ConversationSceneInputPack,
   ConversationSceneType,
+  ConversationTraceSnapshot,
 } from '../core/world-state/conversation/models.js';
+import type { AgentMemoryFact } from '../core/world-state/agents/models.js';
+import type { AgentRunTrace, AgentArbiterResult } from '../core/world-state/agents/proposal.js';
+import {
+  mergeAgentMemoryFacts,
+  selectAgentMemoryFacts,
+} from '../core/world-state/agents/memoryStore.js';
+import {
+  buildWechatLocalReplyVariants,
+  resolveWechatAgentProfile,
+  buildWechatRuntimeAgentId,
+} from './agents/wechatAgentAdapter.js';
 
 export interface WechatConversationTurnInput {
   conversationKey: string;
@@ -30,6 +42,8 @@ export interface WechatConversationTurnInput {
   playerText: string;
   proposal?: ConversationEffectProposal | null;
   proposalSource?: 'ai' | 'fallback';
+  trace?: AgentRunTrace;
+  arbiterResult?: AgentArbiterResult;
 }
 
 export interface WechatConversationTurnResult {
@@ -37,6 +51,8 @@ export interface WechatConversationTurnResult {
   success: boolean;
   reason: string;
   receipt: ConversationReceipt | null;
+  trace?: AgentRunTrace;
+  arbiterResult?: AgentArbiterResult;
 }
 
 const MAX_PLAYER_TEXT_CHARS = 220;
@@ -61,6 +77,63 @@ export function buildWechatConversationScenePack(
       ? state.customers.find((entry) => entry.id === input.message.targetCustomerId) || null
       : null;
   const turnIndex = (state.wechatConversationHistory || []).length + 1;
+  const sceneCaseContext = caseItem
+    ? {
+        caseId: caseItem.id,
+        title: caseItem.title,
+        ownerName: caseItem.ownerName,
+        district: caseItem.district,
+        community: caseItem.community,
+        askPrice: caseItem.askPrice,
+        marketPrice: caseItem.marketPrice,
+        priceGapPct: caseItem.priceGapPct,
+        trust: caseItem.trust,
+        patience: caseItem.patience,
+        urgency: caseItem.urgency,
+        heat: caseItem.heat,
+        competitiveness: caseItem.competitiveness,
+        hasCompletedFirstVisit: caseItem.hasCompletedFirstVisit,
+        ownerProfileLabel: caseItem.ownerProfilingMemory?.ownerTypeName || caseItem.personality || '未知业主',
+      }
+    : undefined;
+  const sceneOpportunityContext = opportunity
+    ? {
+        opportunityId: opportunity.id,
+        customerName: customer?.name || input.message.senderName,
+        stage: opportunity.stageLabel,
+        intent: opportunity.intent,
+        confidence: opportunity.confidence,
+      }
+    : undefined;
+  // Derive agentId without full profile resolution to avoid double-resolving.
+  // buildWechatRuntimeAgentId uses the same key-building logic as resolveProfile.
+  const probedAgentId = buildWechatRuntimeAgentId({
+    sceneId: '',
+    runId: '',
+    day: state.day,
+    conversationKey: input.conversationKey,
+    sourceMessageId: input.message.id,
+    sceneType: resolveSceneType(input.message),
+    playerText: '',
+    sourceMessage: {
+      messageId: input.message.id,
+      senderName: input.message.senderName,
+      senderRole: input.message.senderRole,
+      content: '',
+      timeLabel: '',
+      urgency: 'medium',
+    },
+    recentTurns: [],
+  });
+  const agentMemory = selectAgentMemoryFacts(state.agentMemoryStore, {
+    agentId: probedAgentId,
+    conversationKey: input.conversationKey,
+    caseId: caseItem?.id,
+    opportunityId: opportunity?.id,
+    channel: 'wechat',
+    day: state.day,
+    limit: 8,
+  });
 
   return {
     sceneId: `wechat-scene-${state.day}-${turnIndex}-${input.message.id}`,
@@ -79,34 +152,9 @@ export function buildWechatConversationScenePack(
       urgency: input.message.urgency,
       primaryCtaLabel: input.message.primaryCtaLabel,
     },
-    caseContext: caseItem
-      ? {
-          caseId: caseItem.id,
-          title: caseItem.title,
-          ownerName: caseItem.ownerName,
-          district: caseItem.district,
-          community: caseItem.community,
-          askPrice: caseItem.askPrice,
-          marketPrice: caseItem.marketPrice,
-          priceGapPct: caseItem.priceGapPct,
-          trust: caseItem.trust,
-          patience: caseItem.patience,
-          urgency: caseItem.urgency,
-          heat: caseItem.heat,
-          competitiveness: caseItem.competitiveness,
-          hasCompletedFirstVisit: caseItem.hasCompletedFirstVisit,
-          ownerProfileLabel: caseItem.ownerProfilingMemory?.ownerTypeName || caseItem.personality || '未知业主',
-        }
-      : undefined,
-    opportunityContext: opportunity
-      ? {
-          opportunityId: opportunity.id,
-          customerName: customer?.name || input.message.senderName,
-          stage: opportunity.stageLabel,
-          intent: opportunity.intent,
-          confidence: opportunity.confidence,
-        }
-      : undefined,
+    caseContext: sceneCaseContext,
+    opportunityContext: sceneOpportunityContext,
+    agentMemory,
     recentTurns: (state.wechatConversationHistory || [])
       .filter((entry) => entry.conversationKey === input.conversationKey)
       .slice(-3)
@@ -197,7 +245,7 @@ export function normalizeConversationEffectProposal(
   let nextStep = normalizeNextStep(proposal.nextStep, intentKinds, scene);
   const trustDelta = normalizeDelta(proposal.trustDelta, -5, 6, fallback.trustDelta || 0);
   const patienceDelta = normalizeDelta(proposal.patienceDelta, -5, 6, fallback.patienceDelta || 0);
-  const urgencyDelta = normalizeDelta(proposal.urgencyDelta, -6, 5, fallback.urgencyDelta || 0);
+  const urgencyDelta = normalizeDelta(proposal.urgencyDelta, -6, 6, fallback.urgencyDelta || 0);
   const priceFlexibilityDelta = normalizeDelta(proposal.priceFlexibilityDelta, -6, 10, fallback.priceFlexibilityDelta || 0);
   const customerIntentDelta = normalizeDelta(proposal.customerIntentDelta, -8, 8, fallback.customerIntentDelta || 0);
   const customerConfidenceDelta = normalizeDelta(proposal.customerConfidenceDelta, -8, 8, fallback.customerConfidenceDelta || 0);
@@ -260,10 +308,15 @@ export function settleWechatConversationTurn(
     settlement,
     nextSteps: proposal.nextStep && proposal.nextStep.kind !== 'none' ? [proposal.nextStep] : [],
     source: input.proposalSource === 'ai' && input.proposal ? 'ai' : 'fallback',
+    traceSnapshot: buildTraceSnapshot(input.trace, input.arbiterResult),
   });
 
   applyConversationSettlement(state, caseItem, opportunity, settlement, receipt);
   state.wechatConversationHistory = [...(state.wechatConversationHistory || []), receipt].slice(-80);
+  state.agentMemoryStore = mergeAgentMemoryFacts(
+    state.agentMemoryStore,
+    buildWechatAgentMemoryFactsFromReceipt(scene, receipt),
+  );
   updateDerivedState(state);
 
   return {
@@ -271,7 +324,126 @@ export function settleWechatConversationTurn(
     success: true,
     reason: receipt.summary,
     receipt,
+    trace: input.trace,
+    arbiterResult: input.arbiterResult,
   };
+}
+
+function buildTraceSnapshot(
+  trace: AgentRunTrace | undefined,
+  arbiterResult: AgentArbiterResult | undefined,
+): ConversationTraceSnapshot | undefined {
+  if (!trace && !arbiterResult) return undefined;
+  return {
+    acceptedSource: arbiterResult?.acceptedSource ?? trace?.acceptedSource ?? 'fallback',
+    ruleConfidence: trace?.ruleConfidence ?? 0.5,
+    llmConfidence: trace?.llmConfidence ?? null,
+    pressure: [...(trace?.pressure ?? [])],
+    uncertainty: [...(trace?.uncertainty ?? [])],
+    memoryFactCount: trace?.memoryFactIds?.length ?? 0,
+    contextSignalCount: trace?.visibleRefs?.length ?? 0,
+    arbiterDecision: arbiterResult?.reason ?? trace?.arbiterDecision ?? '',
+    validationNotes: [...(arbiterResult?.validationNotes ?? trace?.validationNotes ?? [])],
+    rejectedReasons: [...(arbiterResult?.rejectedReasons ?? [])],
+  };
+}
+
+function buildWechatAgentMemoryFactsFromReceipt(
+  scene: ConversationSceneInputPack,
+  receipt: ConversationReceipt,
+): AgentMemoryFact[] {
+  const profile = resolveWechatAgentProfile(scene);
+  const scope = {
+    conversationKey: receipt.conversationKey,
+    caseId: receipt.targetCaseId,
+    opportunityId: receipt.targetOpportunityId,
+    channel: 'wechat' as const,
+  };
+  const sourceRef = {
+    refType: 'conversation_receipt',
+    refId: receipt.receiptId,
+  };
+  const facts: AgentMemoryFact[] = [
+    {
+      factId: `wechat:${receipt.conversationKey}:last-reply`,
+      agentId: profile.agentId,
+      kind: 'recent_interaction',
+      summary: `上次玩家说：“${trimMemoryText(receipt.playerText, 44)}”；你当时回：“${trimMemoryText(receipt.recipientReply, 38)}”`,
+      strength: 0.82,
+      scope,
+      sourceRef,
+      createdAtDay: receipt.day,
+      updatedAtDay: receipt.day,
+      expiresAtDay: receipt.day + 7,
+    },
+    {
+      factId: `wechat:${receipt.conversationKey}:latest-effect`,
+      agentId: profile.agentId,
+      kind: 'relationship_effect',
+      summary: receipt.settlement.effectLabels.length > 0
+        ? `这轮对话结果：${receipt.settlement.effectLabels.join('、')}`
+        : `这轮对话结果：${receipt.summary}`,
+      strength: 0.76,
+      scope,
+      sourceRef,
+      createdAtDay: receipt.day,
+      updatedAtDay: receipt.day,
+      expiresAtDay: receipt.day + 10,
+    },
+  ];
+
+  if (receipt.nextSteps.length > 0) {
+    const step = receipt.nextSteps[0];
+    facts.push({
+      factId: `wechat:${receipt.conversationKey}:next-step`,
+      agentId: profile.agentId,
+      kind: 'active_next_step',
+      summary: `下一步期待：${step.label}，原因是${step.reason}`,
+      strength: step.priority === 'urgent' || step.priority === 'high' ? 0.9 : 0.72,
+      scope,
+      sourceRef,
+      createdAtDay: receipt.day,
+      updatedAtDay: receipt.day,
+      expiresAtDay: receipt.day + 6,
+    });
+  }
+
+  if (receipt.proposal.riskKinds.some((risk) => risk !== 'none')) {
+    facts.push({
+      factId: `wechat:${receipt.conversationKey}:risk`,
+      agentId: profile.agentId,
+      kind: 'open_risk',
+      summary: `未消化风险：${receipt.proposal.riskKinds.filter((risk) => risk !== 'none').join('、')}`,
+      strength: 0.78,
+      scope,
+      sourceRef,
+      createdAtDay: receipt.day,
+      updatedAtDay: receipt.day,
+      expiresAtDay: receipt.day + 5,
+    });
+  }
+
+  if (receipt.settlement.askPriceAfter && receipt.settlement.askPriceBefore && receipt.settlement.askPriceAfter < receipt.settlement.askPriceBefore) {
+    facts.push({
+      factId: `wechat:${receipt.conversationKey}:price-moved`,
+      agentId: profile.agentId,
+      kind: 'price_commitment',
+      summary: `微信沟通后挂牌价从 ${receipt.settlement.askPriceBefore} 调整到 ${receipt.settlement.askPriceAfter}`,
+      strength: 0.95,
+      scope,
+      sourceRef,
+      createdAtDay: receipt.day,
+      updatedAtDay: receipt.day,
+      expiresAtDay: receipt.day + 14,
+    });
+  }
+
+  return facts;
+}
+
+function trimMemoryText(text: string, maxLength: number) {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  return normalized.length > maxLength ? `${normalized.slice(0, maxLength - 1)}…` : normalized;
 }
 
 function buildConversationSettlement(
@@ -464,23 +636,30 @@ function buildFallbackRecipientReply(
   risks: readonly ConversationRiskKind[],
   scene: ConversationSceneInputPack,
 ) {
-  const name = scene.sourceMessage.senderName;
+  const variants = buildWechatLocalReplyVariants(scene);
   if (risks.includes('overpromise')) {
-    return `${name}：你这么说我先记下了，但后面要是还没变化，我还是需要你给我一个实在判断。`;
+    return variants.skeptical;
   }
   if (intents.includes('secure_price_adjustment')) {
-    return `${name}：可以，你先把依据发我，我们按你说的方案看怎么调整。`;
+    return variants.positive;
   }
   if (intents.includes('propose_face_visit')) {
-    return `${name}：好，那你把时间和要看的材料发我，我们当面说清楚。`;
+    return variants.positive;
   }
   if (intents.includes('discuss_price')) {
-    return `${name}：价格这块我可以听，但你要把客户反馈和竞品情况讲具体。`;
+    return variants.neutral;
   }
   if (scene.sceneType === 'customer_wechat') {
-    return `${name}：行，你先帮我确认清楚，我这边等你一个准话。`;
+    return intents.includes('follow_customer') || intents.includes('present_market_evidence')
+      ? variants.positive
+      : variants.neutral;
   }
-  return `${name}：收到，你先按这个方向推进，晚点同步我结果。`;
+  if (risks.includes('missing_next_step') || risks.includes('empty_comfort')) {
+    return variants.skeptical;
+  }
+  return intents.includes('present_market_evidence') || intents.includes('promise_feedback')
+    ? variants.neutral
+    : variants.skeptical;
 }
 
 function buildEffectLabels(input: {

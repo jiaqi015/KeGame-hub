@@ -1,3 +1,5 @@
+import type { AgentMemoryFact } from '../agents/models.js';
+
 /**
  * WeChat Conversation v0 — pure contracts for player-operated dialogue.
  *
@@ -10,6 +12,15 @@ export type ConversationSceneType =
   | 'customer_wechat'
   | 'manager_wechat'
   | 'broker_wechat';
+
+export type ConversationSenderRole =
+  | 'owner'
+  | 'customer'
+  | 'district_manager'
+  | 'store_manager'
+  | 'agent'
+  | 'official_account'
+  | 'system';
 
 export type ConversationIntentKind =
   | 'reassure'
@@ -61,7 +72,7 @@ export interface ConversationSceneCaseContext {
 export interface ConversationSceneSourceMessage {
   readonly messageId: string;
   readonly senderName: string;
-  readonly senderRole: string;
+  readonly senderRole: ConversationSenderRole | string;
   readonly content: string;
   readonly timeLabel: string;
   readonly urgency: string;
@@ -85,6 +96,7 @@ export interface ConversationSceneInputPack {
     readonly intent: number;
     readonly confidence: number;
   };
+  readonly agentMemory?: readonly AgentMemoryFact[];
   readonly recentTurns: readonly {
     readonly playerText: string;
     readonly recipientReply: string;
@@ -128,6 +140,19 @@ export interface ConversationEffectSettlement {
   readonly effectLabels: readonly string[];
 }
 
+export interface ConversationTraceSnapshot {
+  readonly acceptedSource: 'rule' | 'llm' | 'fallback';
+  readonly ruleConfidence: number;
+  readonly llmConfidence: number | null;
+  readonly pressure: readonly string[];
+  readonly uncertainty: readonly string[];
+  readonly memoryFactCount: number;
+  readonly contextSignalCount: number;
+  readonly arbiterDecision: string;
+  readonly validationNotes: readonly string[];
+  readonly rejectedReasons: readonly string[];
+}
+
 export interface ConversationReceipt {
   readonly receiptId: string;
   readonly conversationKey: string;
@@ -146,4 +171,5 @@ export interface ConversationReceipt {
   readonly settlement: ConversationEffectSettlement;
   readonly nextSteps: readonly ConversationNextStepDraft[];
   readonly source: 'ai' | 'fallback';
+  readonly traceSnapshot?: ConversationTraceSnapshot;
 }

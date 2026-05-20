@@ -1924,6 +1924,11 @@ export interface GameState {
    * the receipt records the applied deltas and next-step drafts.
    */
   wechatConversationHistory?: import('../core/world-state/conversation/models.js').ConversationReceipt[];
+  /**
+   * Optional agent memory store — compressed, receipt-backed facts that let
+   * scene agents remember prior interactions without owning world truth.
+   */
+  agentMemoryStore?: import('../core/world-state/agents/models.js').AgentMemoryStore;
   marketShadow: ShadowMarketState;
   expectationStore?: Expectation[];
   foreshadowingStore?: ForeshadowingHook[];
