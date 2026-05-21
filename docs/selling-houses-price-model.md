@@ -1,6 +1,6 @@
 # 卖房（资产顾问）价格模型设计
 
-最后更新：2026-04-21
+最后更新：2026-05-21
 
 这份文档回答的是：
 
@@ -11,7 +11,29 @@
 
 ---
 
-## 0. 一句话结论
+## 0. 术语对照（文档 ↔ 代码）
+
+> **本文档使用设计层命名，代码使用实现层命名。** 两套命名的映射关系如下，加新字段时必须同时更新此表。
+
+| 语义 | 本文档命名 | 代码 Case 字段 | 归属 | 说明 |
+| ---- | ---------- | -------------- | ---- | ---- |
+| 挂牌价 | `listingPrice` | `askPrice` | OwnerCaseRelation | 当前对外挂价，客户直接感知 |
+| 市场估价 | `marketEstimatedPrice` | `marketPrice` | PriceModelOutput | 模型评估的市场价，非业主说了算 |
+| 底价 | — | `bottomPrice` | OwnerCaseRelation | 业主能接受的最低成交价 |
+| 业主心理价 | `ownerPsychPrice` | — | PriceModelOutput | 业主认为合理的价格（≠底价） |
+| 价差 | `priceGapToMarket` | `priceGapPct` | PriceModelOutput | 挂牌价与市场价的差距百分比 |
+
+**关键区分：`bottomPrice` ≠ `ownerPsychPrice`**
+- `bottomPrice`：业主能接受的最低成交价，是谈判底线
+- `ownerPsychPrice`：业主认为合理的价格，可能高于或低于挂牌价
+
+**代码中无对应字段的概念：**
+- `ownerPsychPrice`：当前未在 Case 上实现，需要通过 OwnerProfile + OwnerCaseRelation 推导
+- `dealFeasibility`：当前未实现，需要通过 priceFlexibility + pricePressure 计算
+
+---
+
+## 0.1 一句话结论
 
 我建议价格模型至少同时维护 5 个核心值：
 

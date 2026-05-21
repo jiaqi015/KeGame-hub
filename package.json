@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
+    "generate:field-ownership": "tsx scripts/generate-field-ownership-matrix.ts",
     "verify:platform-smoke": "tsx scripts/verify-platform-smoke.ts",
     "verify:open-day-large-export": "tsx scripts/verify-open-day-large-export.ts",
     "verify:open-day-area-fallback": "tsx scripts/verify-open-day-area-fallback.ts",

@@ -1,6 +1,6 @@
 # 卖房 Big World 架构总纲
 
-最后整理：2026-05-15
+最后整理：2026-05-21
 
 这份总纲是资产顾问玩法的当前架构入口。旧的 6 周小世界路径、世界-视角长论证、2026-04 架构图和阶段报告已经清理，不再作为事实来源。
 
@@ -125,11 +125,15 @@ UI 可以表达：
 
 ## 6. 文档分工
 
-当前文档只保留三类：
+当前文档只保留四类：
 
 1. 当前主文：本总纲、总设计、母模型工作板、实现合同、信息架构。
 2. 专题细化：客户、业主、动作、成交、竞争、组织、Matter、时间、projection、价格、评分等。
 3. 平台与持久化：账号、run、score、leaderboard、物理表、DBA 治理。
+4. 实体与字段地图（2026-05-21 起新增，新人/AI 接手优先看）：
+   - [`selling-houses-entity-canonical-map.md`](selling-houses-entity-canonical-map.md) — 每个业务概念在 legacy / 母模型视图 / 大世界种群中的 canonical / derived / shadow 声明。
+   - [`selling-houses-entity-relation-map-2026-05-21.md`](selling-houses-entity-relation-map-2026-05-21.md) — 80+ 实体的六层全景 ER 图。
+   - [`selling-houses-field-ownership-matrix.md`](selling-houses-field-ownership-matrix.md) — Case 字段归属表，**脚本生成**，SOT 是 [`legacy-case-field-ownership.ts`](../src/selling-houses/core/world-state/legacy-case-field-ownership.ts)。改字段归属请改 TS registry，然后跑 `npm run generate:field-ownership`。
 
 历史过程文、一次性报告、旧图、阶段迁移说明不再放在主文档体系中。
 
