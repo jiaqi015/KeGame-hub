@@ -26,6 +26,10 @@ import type {
 } from '../core/world-state/conversation/models.js';
 import type { AgentMemoryFact } from '../core/world-state/agents/models.js';
 import type { AgentRunTrace, AgentArbiterResult } from '../core/world-state/agents/proposal.js';
+import type { AgentEvaluationReport } from '../core/world-state/agents/evaluationReport.js';
+import type { AgentShadowReport } from '../core/world-state/agents/shadowReport.js';
+import { buildConversationMemoryWriteback } from '../core/world-state/agents/conversationMemory.js';
+import type { CaseAgentMeshHarnessReport } from './agents/caseMeshHarness.js';
 import {
   mergeAgentMemoryFacts,
   selectAgentMemoryFacts,
@@ -35,6 +39,8 @@ import {
   resolveWechatAgentProfile,
   buildWechatRuntimeAgentId,
 } from './agents/wechatAgentAdapter.js';
+import { buildCaseAgentContextPack } from './agents/caseContextPackBuilder.js';
+import { formatConversationRiskSummary } from './agents/conversationRiskLabels.js';
 
 export interface WechatConversationTurnInput {
   conversationKey: string;
@@ -44,6 +50,9 @@ export interface WechatConversationTurnInput {
   proposalSource?: 'ai' | 'fallback';
   trace?: AgentRunTrace;
   arbiterResult?: AgentArbiterResult;
+  shadowReport?: AgentShadowReport;
+  evaluationReport?: AgentEvaluationReport;
+  meshReport?: CaseAgentMeshHarnessReport | null;
 }
 
 export interface WechatConversationTurnResult {
@@ -53,6 +62,11 @@ export interface WechatConversationTurnResult {
   receipt: ConversationReceipt | null;
   trace?: AgentRunTrace;
   arbiterResult?: AgentArbiterResult;
+}
+
+export interface ConversationNormalizationResult {
+  readonly proposal: ConversationEffectProposal;
+  readonly validationNotes: readonly string[];
 }
 
 const MAX_PLAYER_TEXT_CHARS = 220;
@@ -135,7 +149,7 @@ export function buildWechatConversationScenePack(
     limit: 8,
   });
 
-  return {
+  const scene: ConversationSceneInputPack = {
     sceneId: `wechat-scene-${state.day}-${turnIndex}-${input.message.id}`,
     runId: state.runId,
     day: state.day,
@@ -164,13 +178,53 @@ export function buildWechatConversationScenePack(
         summary: entry.summary,
       })),
   };
+  return {
+    ...scene,
+    caseContextPack: buildCaseAgentContextPack(state, scene),
+  };
+}
+
+export function isHostileWechatPlayerText(text: string) {
+  const normalized = text
+    .replace(/\s+/g, '')
+    .replace(/[，。！？、,.!?]/g, '')
+    .toLowerCase();
+  return /傻[逼比屄]|煞笔|沙币|蠢货|废物|sb\b|爱咋咋地|关我屁事|你有病|滚|闭嘴|别烦|烦死|懒得管|不想管|别找我|随便你|你自己看着办|老子/.test(normalized);
+}
+
+function isEmptyComfortText(text: string) {
+  const normalized = text.replace(/\s+/g, '').replace(/[，。！？、,.!?]/g, '');
+  if (normalized.length <= 10 && /^(收到|好的|好|嗯|明白|知道了|先这样|再说|再等等|我看看)$/.test(normalized)) {
+    return true;
+  }
+  return normalized.length <= 18 && /^(收到|好的|好|明白|知道了).*(先这样|再说|再等等|我看看)?$/.test(normalized);
+}
+
+function isIgnoringSourceQuestion(scene: ConversationSceneInputPack) {
+  const source = scene.sourceMessage.content;
+  if (!/价格|价|装修|竞品|同小区|空间|低|高|方案|明确|怎么办|怎么做|时间|什么时候/.test(source)) {
+    return false;
+  }
+  const text = scene.playerText;
+  return !/价格|价|装修|竞品|同类|同小区|空间|反馈|方案|面访|当面|下午|明天|时间|比较|核|确认|安排|看|谈/.test(text);
 }
 
 export function buildFallbackConversationEffectProposal(scene: ConversationSceneInputPack): ConversationEffectProposal {
+  if (isHostileWechatPlayerText(scene.playerText)) {
+    return buildHostileConversationEffectProposal(scene);
+  }
+
   const text = scene.playerText;
   const intents = new Set<ConversationIntentKind>();
   const risks = new Set<ConversationRiskKind>();
 
+  if (isEmptyComfortText(text)) {
+    intents.add('reassure');
+    risks.add('empty_comfort');
+  }
+  if (isIgnoringSourceQuestion(scene)) {
+    risks.add('ignores_customer');
+  }
   if (/保证|肯定|一定成交|包卖|绝对/.test(text)) {
     intents.add('overpromise');
     risks.add('overpromise');
@@ -203,13 +257,13 @@ export function buildFallbackConversationEffectProposal(scene: ConversationScene
   let nextStep = resolveNextStep([...intents], scene);
   const hasEvidence = intents.has('present_market_evidence');
   const hasNextStep = nextStep.kind !== 'none';
-  if (!hasNextStep && !risks.has('overpromise')) {
+  if (!hasNextStep && !risks.has('overpromise') && risks.size === 0) {
     risks.add('missing_next_step');
   }
   if (nextStep.kind === 'none' && shouldRecommendRecoveryStep([...risks], {
-    trustDelta: risks.has('overpromise') ? -3 : 0,
-    patienceDelta: risks.has('overpromise') ? -1 : 0,
-    urgencyDelta: risks.has('overpromise') ? 2 : 0,
+    trustDelta: risks.has('overpromise') ? -3 : risks.has('empty_comfort') || risks.has('ignores_customer') ? -1 : 0,
+    patienceDelta: risks.has('overpromise') ? -1 : risks.has('empty_comfort') || risks.has('ignores_customer') ? -1 : 0,
+    urgencyDelta: risks.has('overpromise') ? 2 : risks.has('empty_comfort') || risks.has('ignores_customer') ? 1 : 0,
   })) {
     nextStep = buildNextStep('open_case', scene);
   }
@@ -220,21 +274,87 @@ export function buildFallbackConversationEffectProposal(scene: ConversationScene
     intentKinds: [...intents],
     riskKinds: risks.size > 0 ? [...risks] : ['none'],
     evidenceUse: hasEvidence ? 'specific' : 'mentioned',
-    trustDelta: risks.has('overpromise') ? -3 : hasEvidence || hasNextStep ? 3 : 1,
-    patienceDelta: risks.has('overpromise') ? -1 : hasNextStep ? 2 : 0,
-    urgencyDelta: risks.has('overpromise') ? 2 : hasNextStep ? -2 : 0,
+    trustDelta: risks.has('overpromise') ? -3 : risks.has('empty_comfort') || risks.has('ignores_customer') ? -1 : hasEvidence || hasNextStep ? 3 : 1,
+    patienceDelta: risks.has('overpromise') ? -1 : risks.has('empty_comfort') || risks.has('ignores_customer') ? -1 : hasNextStep ? 2 : 0,
+    urgencyDelta: risks.has('overpromise') ? 2 : risks.has('empty_comfort') || risks.has('ignores_customer') ? 1 : hasNextStep ? -2 : 0,
     priceFlexibilityDelta: intents.has('secure_price_adjustment') ? 9 : intents.has('discuss_price') && hasEvidence ? 5 : 0,
-    customerIntentDelta: scene.sceneType === 'customer_wechat' ? 4 : 0,
-    customerConfidenceDelta: scene.sceneType === 'customer_wechat' ? 4 : 0,
+    customerIntentDelta: scene.sceneType === 'customer_wechat' ? risks.has('ignores_customer') ? -4 : 4 : 0,
+    customerConfidenceDelta: scene.sceneType === 'customer_wechat' ? risks.has('ignores_customer') ? -4 : 4 : 0,
     nextStep,
     confidence: 0.72,
   };
+}
+
+export function normalizeConversationEffectProposalDetailed(
+  proposal: ConversationEffectProposal | null | undefined,
+  scene: ConversationSceneInputPack,
+): ConversationNormalizationResult {
+  const normalized = normalizeConversationEffectProposal(proposal, scene);
+  const validationNotes: string[] = [];
+
+  if (proposal?.nextStep?.actionId && proposal.nextStep.actionId !== normalized.nextStep?.actionId) {
+    validationNotes.push(
+      `next_step_actionId_normalized:${proposal.nextStep.actionId}->${normalized.nextStep?.actionId}`,
+    );
+  }
+
+  if (proposal) {
+    validationNotes.push(...collectNormalizedDeltaNotes(proposal, normalized));
+    if (proposal.evidenceUse !== normalized.evidenceUse) {
+      validationNotes.push(`evidenceUse_normalized:${proposal.evidenceUse}->${normalized.evidenceUse}`);
+    }
+    if (Array.isArray(proposal.intentKinds) && proposal.intentKinds.length > 0 && normalized.intentKinds.length === 0) {
+      validationNotes.push('intentKinds_fallback_to_scene_default');
+    }
+    if (Array.isArray(proposal.riskKinds) && proposal.riskKinds.length > 0 && normalized.riskKinds.length === 0) {
+      validationNotes.push('riskKinds_fallback_to_scene_default');
+    }
+  }
+
+  return { proposal: normalized, validationNotes };
+}
+
+function collectNormalizedDeltaNotes(
+  original: ConversationEffectProposal,
+  normalized: ConversationEffectProposal,
+): string[] {
+  const notes: string[] = [];
+  const deltaFields: readonly (keyof Pick<
+    ConversationEffectProposal,
+    | 'trustDelta'
+    | 'patienceDelta'
+    | 'urgencyDelta'
+    | 'priceFlexibilityDelta'
+    | 'customerIntentDelta'
+    | 'customerConfidenceDelta'
+  >)[] = [
+    'trustDelta',
+    'patienceDelta',
+    'urgencyDelta',
+    'priceFlexibilityDelta',
+    'customerIntentDelta',
+    'customerConfidenceDelta',
+  ];
+
+  for (const field of deltaFields) {
+    const raw = original[field];
+    const next = normalized[field];
+    if (typeof raw === 'number' && typeof next === 'number' && raw !== next) {
+      notes.push(`${field}_normalized:${raw}->${next}`);
+    }
+  }
+
+  return notes;
 }
 
 export function normalizeConversationEffectProposal(
   proposal: ConversationEffectProposal | null | undefined,
   scene: ConversationSceneInputPack,
 ): ConversationEffectProposal {
+  if (isHostileWechatPlayerText(scene.playerText)) {
+    return buildHostileConversationEffectProposal(scene);
+  }
+
   if (!proposal) {
     return buildFallbackConversationEffectProposal(scene);
   }
@@ -281,7 +401,8 @@ export function settleWechatConversationTurn(
   }
 
   const scene = buildWechatConversationScenePack(state, { ...input, playerText });
-  const proposal = normalizeConversationEffectProposal(input.proposal, scene);
+  const normalization = normalizeConversationEffectProposalDetailed(input.proposal, scene);
+  const proposal = normalization.proposal;
   const caseItem = input.message.targetCaseId
     ? state.cases.find((entry) => entry.id === input.message.targetCaseId) || null
     : null;
@@ -308,7 +429,15 @@ export function settleWechatConversationTurn(
     settlement,
     nextSteps: proposal.nextStep && proposal.nextStep.kind !== 'none' ? [proposal.nextStep] : [],
     source: input.proposalSource === 'ai' && input.proposal ? 'ai' : 'fallback',
-    traceSnapshot: buildTraceSnapshot(input.trace, input.arbiterResult),
+    traceSnapshot: buildTraceSnapshot(
+      scene,
+      input.trace,
+      input.arbiterResult,
+      normalization,
+      input.shadowReport,
+      input.evaluationReport,
+      input.meshReport || undefined,
+    ),
   });
 
   applyConversationSettlement(state, caseItem, opportunity, settlement, receipt);
@@ -330,8 +459,13 @@ export function settleWechatConversationTurn(
 }
 
 function buildTraceSnapshot(
+  scene: ConversationSceneInputPack,
   trace: AgentRunTrace | undefined,
   arbiterResult: AgentArbiterResult | undefined,
+  normalization: ConversationNormalizationResult,
+  shadowReport?: AgentShadowReport,
+  evaluationReport?: AgentEvaluationReport,
+  meshReport?: CaseAgentMeshHarnessReport,
 ): ConversationTraceSnapshot {
   if (!trace && !arbiterResult) {
     // Fallback path: no agent trace available. Still produce a snapshot so the
@@ -341,27 +475,77 @@ function buildTraceSnapshot(
       acceptedSource: 'fallback',
       ruleConfidence: 0.5,
       llmConfidence: null,
+      contextPackId: scene.caseContextPack?.packId,
+      contextBudget: scene.caseContextPack?.contextBudget.summary,
+      visibleRefCount: countVisibleRefs(scene),
       pressure: [],
       uncertainty: [],
       memoryFactCount: 0,
       contextSignalCount: 0,
       arbiterDecision: 'no_agent_trace_available',
       validationNotes: ['fallback_without_agent_trace'],
+      normalizationNotes: [...normalization.validationNotes],
       rejectedReasons: [],
+      shadowStatus: shadowReport?.status,
+      shadowDecision: shadowReport?.decision,
+      shadowRiskLevel: shadowReport?.riskLevel,
+      shadowConfidenceDelta: shadowReport?.confidenceDelta ?? null,
+      shadowAcceptedProposalId: shadowReport?.acceptedProposalId,
+      shadowSignals: shadowReport?.signals ? [...shadowReport.signals] : [],
+      shadowSummary: shadowReport?.summary,
+      evaluationScore: evaluationReport?.score,
+      evaluationVerdict: evaluationReport?.verdict,
+      evaluationStatus: evaluationReport?.status,
+      evaluationSignals: evaluationReport?.signals ? [...evaluationReport.signals] : [],
+      evaluationSummary: evaluationReport?.summary,
+      meshReadiness: meshReport?.readiness,
+      meshPrimaryRoleId: meshReport?.roleSnapshots.find((role) => role.kind === 'primary')?.roleId,
+      meshSignals: meshReport?.signals ? [...meshReport.signals] : [],
+      meshSummary: meshReport?.summary,
     };
   }
   return {
     acceptedSource: arbiterResult?.acceptedSource ?? trace?.acceptedSource ?? 'fallback',
     ruleConfidence: trace?.ruleConfidence ?? 0.5,
     llmConfidence: trace?.llmConfidence ?? null,
+    contextPackId: scene.caseContextPack?.packId,
+    contextBudget: scene.caseContextPack?.contextBudget.summary,
+    visibleRefCount: trace?.visibleRefs.length ?? countVisibleRefs(scene),
     pressure: [...(trace?.pressure ?? [])],
     uncertainty: [...(trace?.uncertainty ?? [])],
     memoryFactCount: trace?.memoryFactIds?.length ?? 0,
     contextSignalCount: trace?.visibleRefs?.length ?? 0,
     arbiterDecision: arbiterResult?.reason ?? trace?.arbiterDecision ?? '',
     validationNotes: [...(arbiterResult?.validationNotes ?? trace?.validationNotes ?? [])],
+    normalizationNotes: [...normalization.validationNotes],
     rejectedReasons: [...(arbiterResult?.rejectedReasons ?? [])],
+    modelId: trace?.modelId,
+    provider: trace?.provider,
+    llmError: trace?.llmError,
+    shadowStatus: shadowReport?.status,
+    shadowDecision: shadowReport?.decision,
+    shadowRiskLevel: shadowReport?.riskLevel,
+    shadowConfidenceDelta: shadowReport?.confidenceDelta ?? null,
+    shadowAcceptedProposalId: shadowReport?.acceptedProposalId,
+    shadowSignals: shadowReport?.signals ? [...shadowReport.signals] : [],
+    shadowSummary: shadowReport?.summary,
+    evaluationScore: evaluationReport?.score,
+    evaluationVerdict: evaluationReport?.verdict,
+    evaluationStatus: evaluationReport?.status,
+    evaluationSignals: evaluationReport?.signals ? [...evaluationReport.signals] : [],
+    evaluationSummary: evaluationReport?.summary,
+    meshReadiness: meshReport?.readiness,
+    meshPrimaryRoleId: meshReport?.roleSnapshots.find((role) => role.kind === 'primary')?.roleId,
+    meshSignals: meshReport?.signals ? [...meshReport.signals] : [],
+    meshSummary: meshReport?.summary,
   };
+}
+
+function countVisibleRefs(scene: ConversationSceneInputPack) {
+  let count = 1;
+  if (scene.caseContext?.caseId) count += 1;
+  if (scene.opportunityContext?.opportunityId) count += 1;
+  return count;
 }
 
 function buildWechatAgentMemoryFactsFromReceipt(
@@ -429,7 +613,7 @@ function buildWechatAgentMemoryFactsFromReceipt(
       factId: `wechat:${receipt.conversationKey}:risk`,
       agentId: profile.agentId,
       kind: 'open_risk',
-      summary: `未消化风险：${receipt.proposal.riskKinds.filter((risk) => risk !== 'none').join('、')}`,
+      summary: formatConversationRiskSummary(`未消化风险：${receipt.proposal.riskKinds.filter((risk) => risk !== 'none').join('、')}`),
       strength: 0.78,
       scope,
       sourceRef,
@@ -454,7 +638,13 @@ function buildWechatAgentMemoryFactsFromReceipt(
     });
   }
 
-  return facts;
+  return [
+    ...facts,
+    ...buildConversationMemoryWriteback({
+      receipt,
+      existingFacts: scene.agentMemory,
+    }).facts,
+  ];
 }
 
 function trimMemoryText(text: string, maxLength: number) {
@@ -573,6 +763,37 @@ function shouldApplyPriceAdjustment(
   return /调价|降价|改价|下调|价格.*动|动一动/.test(scene.playerText);
 }
 
+function buildHostileConversationEffectProposal(scene: ConversationSceneInputPack): ConversationEffectProposal {
+  return {
+    summary: '这句回复冒犯了对方，关系明显受损。',
+    recipientReply: buildHostileRecipientReply(scene),
+    intentKinds: ['hostile'],
+    riskKinds: ['offensive_reply'],
+    evidenceUse: 'none',
+    trustDelta: -5,
+    patienceDelta: -4,
+    urgencyDelta: 4,
+    priceFlexibilityDelta: -4,
+    customerIntentDelta: scene.sceneType === 'customer_wechat' ? -6 : 0,
+    customerConfidenceDelta: scene.sceneType === 'customer_wechat' ? -6 : 0,
+    nextStep: buildNextStep('open_case', scene),
+    confidence: 0.9,
+  };
+}
+
+function buildHostileRecipientReply(scene: ConversationSceneInputPack) {
+  if (scene.sceneType === 'customer_wechat') {
+    return '你这个态度，我就先不跟你聊这套了。';
+  }
+  if (scene.sceneType === 'manager_wechat') {
+    return '这个态度不行，先把客户和业主稳住。';
+  }
+  if (scene.sceneType === 'owner_wechat') {
+    return '你要是这个态度，那我没法继续信你了。';
+  }
+  return '这个态度没法继续配合，先冷静一下。';
+}
+
 function resolveSceneType(message: WechatMessage): ConversationSceneType {
   if (message.senderRole === 'owner') return 'owner_wechat';
   if (message.senderRole === 'customer') return 'customer_wechat';
@@ -639,6 +860,7 @@ function shouldRecommendRecoveryStep(
 }
 
 function buildFallbackSummary(intents: readonly ConversationIntentKind[], scene: ConversationSceneInputPack) {
+  if (intents.includes('hostile')) return '这句回复冒犯了对方，关系明显受损。';
   if (intents.includes('overpromise')) return '回复里有结果承诺，短期能安抚，但后续兑现压力会变大。';
   if (intents.includes('secure_price_adjustment')) return '对话把价格问题推到可确认阶段，业主开始松动挂牌预期。';
   if (intents.includes('propose_face_visit')) return '回复给了明确见面安排，能把焦虑转成下一步沟通。';
@@ -653,6 +875,9 @@ function buildFallbackRecipientReply(
   scene: ConversationSceneInputPack,
 ) {
   const variants = buildWechatLocalReplyVariants(scene);
+  if (risks.includes('offensive_reply') || intents.includes('hostile')) {
+    return buildHostileRecipientReply(scene);
+  }
   if (risks.includes('overpromise')) {
     return variants.skeptical;
   }
@@ -718,6 +943,7 @@ function normalizeIntentKinds(values: readonly unknown[] | undefined): Conversat
     'follow_customer',
     'align_manager',
     'overpromise',
+    'hostile',
     'unclear',
   ]);
   return Array.isArray(values) ? [...new Set(values.filter((value): value is ConversationIntentKind => allowed.has(value as ConversationIntentKind)))] : [];
@@ -731,6 +957,7 @@ function normalizeRiskKinds(values: readonly unknown[] | undefined): Conversatio
     'price_pressure_too_fast',
     'missing_next_step',
     'ignores_customer',
+    'offensive_reply',
   ]);
   return Array.isArray(values) ? [...new Set(values.filter((value): value is ConversationRiskKind => allowed.has(value as ConversationRiskKind)))] : [];
 }
@@ -746,7 +973,7 @@ function normalizeNextStep(
   const fallback = buildNextStep(kind, scene);
   return {
     kind,
-    actionId: typeof nextStep.actionId === 'string' ? nextStep.actionId : fallback.actionId,
+    actionId: fallback.actionId,
     label: normalizeText(nextStep.label, fallback.label, 24),
     reason: normalizeText(nextStep.reason, fallback.reason, 80),
     priority: nextStep.priority === 'urgent' || nextStep.priority === 'high' || nextStep.priority === 'medium' || nextStep.priority === 'low'

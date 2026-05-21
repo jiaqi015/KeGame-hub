@@ -123,6 +123,7 @@ function testSubBuilderContracts() {
   const broker = buildBrokerActionPressurePOV(world, caseId) as BrokerActionPressurePOV;
   assert.equal(typeof broker.activeRivalStoreCount, 'number');
   assert.equal(typeof broker.recentRepriceCount, 'number');
+  assert.equal(typeof broker.internalPressure, 'number');
   assert.ok(Array.isArray(broker.topSignals));
   assert.ok(broker.topSignals.length <= 3);
 

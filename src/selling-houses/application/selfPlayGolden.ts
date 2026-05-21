@@ -6,6 +6,7 @@ import {
   type SelfPlayFinding,
   type SelfPlayReport,
 } from './localAdversarialSelfPlayArena.js';
+import type { WorldGraphSummary } from '../domain/world-model/runtime/types.js';
 
 export interface SelfPlayGoldenReport {
   schemaVersion: 1;
@@ -35,6 +36,8 @@ export interface SelfPlayGoldenReport {
     ownerSatisfaction: string;
     endingBucket: string;
   }>;
+  /** Final WorldGraph summary from the self-play run. */
+  worldGraphSummary?: WorldGraphSummary;
 }
 
 export interface SelfPlayGoldenDiff {
@@ -79,6 +82,7 @@ export function buildSelfPlayGoldenReport(report: SelfPlayReport): SelfPlayGolde
       ownerSatisfaction: entry.ownerSatisfaction,
       endingBucket: entry.endingBucket,
     })),
+    worldGraphSummary: report.worldGraphSummary,
   };
 }
 

@@ -159,17 +159,21 @@ export function computeDailyResourceSnapshot(
   // ── Owner trust/patience: from action fieldDeltas + seeded fallback ──
   let realTrustNet = 0;
   let realPatienceNet = 0;
+  let trustObserved = false;
+  let patienceObserved = false;
   for (const receipt of actionReceipts) {
     const payload = receipt.payload as { fieldDeltas?: readonly { field: string; from: string | number | boolean; to: string | number | boolean }[] };
     if (payload.fieldDeltas) {
+      trustObserved = true;
+      patienceObserved = true;
       for (const fd of payload.fieldDeltas) {
         if (fd.field === 'trust') realTrustNet += Number(fd.to) - Number(fd.from);
         if (fd.field === 'patience') realPatienceNet += Number(fd.to) - Number(fd.from);
       }
     }
   }
-  const trustNet = realTrustNet !== 0 ? realTrustNet : seededInt(`${salt}-trust-net`, -3, 3);
-  const patienceNet = realPatienceNet !== 0 ? realPatienceNet : seededInt(`${salt}-patience-net`, -2, 2);
+  const trustNet = trustObserved ? realTrustNet : seededInt(`${salt}-trust-net`, -3, 3);
+  const patienceNet = patienceObserved ? realPatienceNet : seededInt(`${salt}-patience-net`, -2, 2);
 
   // ── Rival resource competition: seeded deterministic ──────────
   const rivalCount = input.rivalStores.length;
@@ -416,7 +420,7 @@ export function generateEconomySourceRecords(
           subtype: seededChoice(`${salt}-rival-sub`, ['reprice', 'customer_followed', 'push_listing', 'owner_pitched'] as const),
           summary: `${store.name}资源竞争: ${snapshot.rivalActionsToday}个动作，争夺${snapshot.rivalResourceCompeted}单位资源`,
           rivalBrokerId: `shadow-broker-${store.id}`,
-          rivalAcnId: `acn-${store.type}`,
+          rivalAcnId: store.acnId ?? `acn-${store.type}`,
           listingId: targetListing?.id,
           priceBefore: targetListing?.askPrice,
           priceAfter: targetListing ? Math.max(100, targetListing.askPrice + seededInt(`${salt}-rival-delta`, -10, 5)) : undefined,

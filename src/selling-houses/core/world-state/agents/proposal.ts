@@ -121,6 +121,9 @@ export interface AgentRunTrace {
   readonly llmConfidence: number | null;
   readonly durationUs: number | null;
   readonly validationNotes: readonly string[];
+  readonly modelId?: string;
+  readonly provider?: string;
+  readonly llmError?: string;
 }
 
 export function buildAgentRunTrace(input: {
@@ -140,6 +143,9 @@ export function buildAgentRunTrace(input: {
   llmConfidence: number | null;
   durationUs?: number | null;
   validationNotes?: readonly string[];
+  modelId?: string;
+  provider?: string;
+  llmError?: string;
 }): AgentRunTrace {
   return Object.freeze({
     traceId: input.traceId,
@@ -158,6 +164,9 @@ export function buildAgentRunTrace(input: {
     llmConfidence: input.llmConfidence,
     durationUs: input.durationUs ?? null,
     validationNotes: Object.freeze([...(input.validationNotes || [])]),
+    modelId: input.modelId,
+    provider: input.provider,
+    llmError: input.llmError,
   });
 }
 

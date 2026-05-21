@@ -24,8 +24,93 @@ import {
   arbitrateAgentProposals,
   buildAgentRunTrace,
 } from '../../core/world-state/agents/proposal.js';
+import type { AgentHarnessObservation } from '../../core/world-state/agents/observation.js';
+import { buildAgentHarnessObservation } from '../../core/world-state/agents/observation.js';
+import type { AgentEvaluationReport } from '../../core/world-state/agents/evaluationReport.js';
+import { buildAgentEvaluationReport } from '../../core/world-state/agents/evaluationReport.js';
+import type { AgentShadowReport } from '../../core/world-state/agents/shadowReport.js';
+import { buildAgentShadowReport } from '../../core/world-state/agents/shadowReport.js';
+import type { ConversationEvaluationReport } from '../../core/world-state/agents/conversationEvaluation.js';
+import { buildConversationEvaluationReport } from '../../core/world-state/agents/conversationEvaluation.js';
+import { resolveAgentToolManifest } from '../../core/world-state/agents/toolRegistry.js';
+import type { CaseAgentMeshHarnessReport } from './caseMeshHarness.js';
+import { buildCaseAgentMeshPlan } from './caseMesh.js';
+import { buildCaseAgentMeshHarnessReport } from './caseMeshHarness.js';
 import { buildFallbackConversationEffectProposal } from '../wechatConversation.js';
 import { buildWechatAgentRuntime } from './wechatAgentAdapter.js';
+
+// ---------------------------------------------------------------------------
+// Forbidden tool claim validator
+// ---------------------------------------------------------------------------
+
+interface ForbiddenToolPattern {
+  readonly toolId: string;
+  readonly patterns: readonly RegExp[];
+}
+
+const FORBIDDEN_TOOL_PATTERNS: readonly ForbiddenToolPattern[] = [
+  {
+    toolId: 'state.writeDirectly',
+    patterns: [
+      /已经改[了到好完]/,
+      /已经调整[了到好]/,
+      /已更新状态/,
+      /已写入/,
+      /已操作[了完]/,
+      /状态已[经]?改/,
+    ],
+  },
+  {
+    toolId: 'price.changeDirectly',
+    patterns: [
+      /已经把价[格]?[改调][到了为]/,
+      /[已就把]价[格]?[已调改][到了为]/,
+      /挂牌价已[经]?[改为]/,
+      /价格已[经]?调整为/,
+      /[已就把][价挂][下调][降到]了?\s*\d/,
+      /已[经]?[下上]调[到了]/,
+    ],
+  },
+  {
+    toolId: 'deal.closeDirectly',
+    patterns: [
+      /已经成交/,
+      /已[经]?签约/,
+      /已[经]?关闭[了交]/,
+      /成交价[格是为]/,
+      /已[经]?售出/,
+      /已[经]?卖[了出]/,
+      /已[经]?过户/,
+    ],
+  },
+];
+
+export function validateProposalDoesNotClaimForbiddenTools(proposal: ConversationEffectProposal): {
+  ok: boolean;
+  reason?: string;
+  bounded?: boolean;
+} {
+  const text = `${proposal.summary} ${proposal.recipientReply}`;
+  const violations: string[] = [];
+
+  for (const { toolId, patterns } of FORBIDDEN_TOOL_PATTERNS) {
+    for (const pattern of patterns) {
+      if (pattern.test(text)) {
+        violations.push(`${toolId} claimed: "${text.match(pattern)?.[0]}"`);
+        break; // one match per tool is enough
+      }
+    }
+  }
+
+  if (violations.length > 0) {
+    return {
+      ok: false,
+      reason: `proposal_claims_forbidden_action: ${violations.join('; ')}`,
+      bounded: true,
+    };
+  }
+  return { ok: true };
+}
 
 // ---------------------------------------------------------------------------
 // WeChat delta bounds validator (injected into generic arbiter)
@@ -66,6 +151,8 @@ export interface WechatDualRuntimeOptions {
   readonly llmProposal?: ConversationEffectProposal | null;
   readonly llmError?: string | null;
   readonly durationUs?: number | null;
+  readonly modelId?: string;
+  readonly provider?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -77,6 +164,10 @@ export interface WechatDualRuntimeResult {
   readonly llmProposal: AgentProposalEnvelope<ConversationEffectProposal> | null;
   readonly arbiterResult: AgentArbiterResult<ConversationEffectProposal>;
   readonly trace: AgentRunTrace;
+  readonly observation: AgentHarnessObservation;
+  readonly shadowReport: AgentShadowReport;
+  readonly evaluationReport: AgentEvaluationReport;
+  readonly meshReport: CaseAgentMeshHarnessReport | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -89,6 +180,8 @@ export function buildWechatDualRuntime(
 ): WechatDualRuntimeResult {
   const llmError = options?.llmError ?? null;
   const durationUs = options?.durationUs ?? null;
+  const modelId = options?.modelId;
+  const provider = options?.provider;
 
   // Step 1: Build rule proposal (always available)
   const agent = buildWechatAgentRuntime(scene);
@@ -127,11 +220,15 @@ export function buildWechatDualRuntime(
     });
   }
 
-  // Step 3: Arbitrate with WeChat delta validator
+  // Step 3: Arbitrate with composed validators (delta bounds + forbidden tool claims)
   const arbiterResult = arbitrateAgentProposals<ConversationEffectProposal>({
     ruleProposal,
     llmProposal: llmEnvelope,
-    validateLlmProposal: validateWechatDeltaBounds,
+    validateLlmProposal: (proposal) => {
+      const deltaResult = validateWechatDeltaBounds(proposal);
+      if (!deltaResult.ok) return deltaResult;
+      return validateProposalDoesNotClaimForbiddenTools(proposal);
+    },
   });
 
   // Step 4: If LLM errored, annotate the arbiter result
@@ -166,12 +263,87 @@ export function buildWechatDualRuntime(
     llmConfidence: llmEnvelope?.confidence ?? null,
     durationUs,
     validationNotes: finalArbiterResult.validationNotes,
+    modelId,
+    provider,
+    llmError: llmError ?? undefined,
   });
+
+  const toolManifest = resolveAgentToolManifest({ channel: 'wechat', mode: 'hybrid' });
+  const observation = buildAgentHarnessObservation({
+    observationId: `observation:${scene.sceneId}`,
+    runId: scene.runId,
+    trace,
+    contextPackRef: scene.caseContextPack?.packId,
+    contextBudgetSummary: scene.caseContextPack?.contextBudget.summary,
+    toolManifest,
+    ruleProposal,
+    llmProposal: llmEnvelope,
+    arbiterResult: finalArbiterResult,
+  });
+  const shadowReport = buildAgentShadowReport(observation);
+  const evaluationReport = buildWechatEvaluationReport(scene, finalArbiterResult, observation, shadowReport);
+  const meshReport = scene.caseContextPack
+    ? buildCaseAgentMeshHarnessReport(buildCaseAgentMeshPlan({
+        scene,
+        caseContextPack: scene.caseContextPack,
+      }))
+    : null;
 
   return {
     ruleProposal,
     llmProposal: llmEnvelope,
     arbiterResult: finalArbiterResult,
     trace,
+    observation,
+    shadowReport,
+    evaluationReport,
+    meshReport,
   };
+}
+
+function buildWechatEvaluationReport(
+  scene: ConversationSceneInputPack,
+  arbiterResult: AgentArbiterResult<ConversationEffectProposal>,
+  observation: AgentHarnessObservation,
+  shadowReport: AgentShadowReport,
+): AgentEvaluationReport {
+  const baseReport = buildAgentEvaluationReport(observation, shadowReport);
+  const conversationReport = buildConversationEvaluationReport({
+    conversationKey: scene.conversationKey,
+    channel: 'wechat',
+    day: scene.day,
+    actorLabel: scene.sourceMessage.senderName,
+    sourceMessage: {
+      content: scene.sourceMessage.content,
+      primaryCtaLabel: scene.sourceMessage.primaryCtaLabel,
+    },
+    playerText: scene.playerText,
+    recipientReply: arbiterResult.finalProposal.recipientReply,
+    summary: arbiterResult.finalProposal.summary,
+    intentKinds: arbiterResult.finalProposal.intentKinds,
+    riskKinds: arbiterResult.finalProposal.riskKinds,
+    evidenceUse: arbiterResult.finalProposal.evidenceUse,
+    nextStep: arbiterResult.finalProposal.nextStep ?? null,
+    trustDelta: arbiterResult.finalProposal.trustDelta,
+    patienceDelta: arbiterResult.finalProposal.patienceDelta,
+    urgencyDelta: arbiterResult.finalProposal.urgencyDelta,
+    priceFlexibilityDelta: arbiterResult.finalProposal.priceFlexibilityDelta,
+    customerIntentDelta: arbiterResult.finalProposal.customerIntentDelta,
+    customerConfidenceDelta: arbiterResult.finalProposal.customerConfidenceDelta,
+  });
+
+  const shouldEscalateConversationReview = conversationReport.status === 'review' && shadowReport.status !== 'no-shadow';
+
+  return Object.freeze({
+    ...baseReport,
+    status: baseReport.status === 'review' || shouldEscalateConversationReview ? 'review' : baseReport.status,
+    signals: Object.freeze([
+      ...baseReport.signals,
+      `conversation:score:${conversationReport.score}`,
+      `conversation:status:${conversationReport.status}`,
+      `conversation:verdict:${conversationReport.verdict}`,
+      ...conversationReport.signals.map((signal) => `conversation:${signal}`),
+    ]),
+    summary: `${baseReport.summary} 微信回合：${conversationReport.summary}`,
+  });
 }

@@ -15,6 +15,8 @@ import {
   type ActionAdviceRequest,
 } from '../../application/actionDecisionAdvice.js';
 import { fetchActionDecisionAdvice } from '../../infrastructure/actionDecisionAdviceClient.js';
+import type { AgentEvaluationReport } from '../../core/world-state/agents/evaluationReport.js';
+import type { AgentShadowReport } from '../../core/world-state/agents/shadowReport.js';
 
 export type CharacterFeedback = {
   actor: 'owner' | 'customer' | 'market';
@@ -191,6 +193,8 @@ interface ActionAdviceState {
   source: 'ai' | 'fallback';
   loading: boolean;
   error?: string;
+  shadowReport?: AgentShadowReport | null;
+  evaluationReport?: AgentEvaluationReport | null;
 }
 
 function mergeSimulatedRoundConfig(baseRound: any, simulation: ActionAdviceProposal | null) {
@@ -241,6 +245,37 @@ function ScenarioSimulationPanel({
           </ul>
         </div>
       </div>
+
+      {simulationState.shadowReport && (
+        <div className="mt-3 rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-2">
+          <div className="mb-1 text-[10px] font-semibold text-[var(--seller-subtle)]">Shadow 对比</div>
+          <div className="text-[11px] leading-5 text-[var(--seller-muted)]">
+            {simulationState.shadowReport.status} / {simulationState.shadowReport.decision}
+            {typeof simulationState.shadowReport.confidenceDelta === 'number'
+              ? ` / ${simulationState.shadowReport.confidenceDelta.toFixed(2)}`
+              : ''}
+          </div>
+          {simulationState.shadowReport.summary && (
+            <div className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">
+              {simulationState.shadowReport.summary}
+            </div>
+          )}
+        </div>
+      )}
+
+      {simulationState.evaluationReport && (
+        <div className="mt-2 rounded-[12px] border border-[color:var(--seller-accent)]/18 bg-[color:var(--seller-accent)]/6 px-3 py-2">
+          <div className="mb-1 text-[10px] font-semibold text-[var(--seller-subtle)]">Evaluation</div>
+          <div className="text-[11px] leading-5 text-[var(--seller-muted)]">
+            {simulationState.evaluationReport.status} / {simulationState.evaluationReport.verdict} / {simulationState.evaluationReport.score}
+          </div>
+          {simulationState.evaluationReport.summary && (
+            <div className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">
+              {simulationState.evaluationReport.summary}
+            </div>
+          )}
+        </div>
+      )}
 
       {simulationState.error ? (
         <p className="mt-2 text-[10px] text-[var(--seller-subtle)]">{simulationState.error}</p>
@@ -316,6 +351,8 @@ export function ActionDecisionOverlay({
       simulation: fallback,
       source: 'fallback',
       loading: true,
+      shadowReport: null,
+      evaluationReport: null,
     });
 
     fetchActionDecisionAdvice(request, controller.signal)
@@ -326,6 +363,8 @@ export function ActionDecisionOverlay({
             source: 'fallback',
             loading: false,
             error: '本地先按规则模拟这一轮。',
+            shadowReport: result?.shadowReport ?? null,
+            evaluationReport: result?.evaluationReport ?? null,
           });
           return;
         }
@@ -334,6 +373,8 @@ export function ActionDecisionOverlay({
           source: result.source,
           loading: false,
           error: result.error,
+          shadowReport: result.shadowReport ?? null,
+          evaluationReport: result.evaluationReport ?? null,
         });
       })
       .catch((error) => {
@@ -343,6 +384,8 @@ export function ActionDecisionOverlay({
           source: 'fallback',
           loading: false,
           error: error instanceof Error ? error.message : '情景模拟暂时不可用。',
+          shadowReport: null,
+          evaluationReport: null,
         });
       });
 

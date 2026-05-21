@@ -3,11 +3,18 @@ import type {
   AgentProposalEnvelope,
   AgentRunTrace,
 } from '../../core/world-state/agents/proposal.js';
+import type { AgentHarnessObservation } from '../../core/world-state/agents/observation.js';
+import type { AgentEvaluationReport } from '../../core/world-state/agents/evaluationReport.js';
+import type { AgentShadowReport } from '../../core/world-state/agents/shadowReport.js';
 import {
   arbitrateAgentProposals,
   buildAgentProposalEnvelope,
   buildAgentRunTrace,
 } from '../../core/world-state/agents/proposal.js';
+import { buildAgentHarnessObservation } from '../../core/world-state/agents/observation.js';
+import { buildAgentEvaluationReport } from '../../core/world-state/agents/evaluationReport.js';
+import { buildAgentShadowReport } from '../../core/world-state/agents/shadowReport.js';
+import { resolveAgentToolManifest } from '../../core/world-state/agents/toolRegistry.js';
 import {
   buildFallbackActionScenarioSimulation,
   type ActionAdviceProposal,
@@ -29,6 +36,9 @@ export interface ActionDecisionDualRuntimeResult {
   readonly llmProposal: AgentProposalEnvelope<ActionAdviceProposal> | null;
   readonly arbiterResult: AgentArbiterResult<ActionAdviceProposal>;
   readonly trace: AgentRunTrace;
+  readonly observation: AgentHarnessObservation;
+  readonly shadowReport: AgentShadowReport;
+  readonly evaluationReport: AgentEvaluationReport;
 }
 
 export function buildActionDecisionDualRuntime(
@@ -83,28 +93,48 @@ export function buildActionDecisionDualRuntime(
     }
     : arbiterResult;
 
+  const trace = buildAgentRunTrace({
+    traceId: `trace:${request.actionId}:${request.currentRound}`,
+    agentId: agent.profile.agentId,
+    channel,
+    day: agent.perception.day,
+    visibleRefs: agent.perception.visibleRefs,
+    memoryFactIds: agent.perception.memory.map((fact) => fact.factId),
+    pressure: agent.perception.pressure,
+    uncertainty: agent.perception.uncertainty,
+    ruleSource: ruleProposal.source,
+    llmSource: llmEnvelope?.source ?? null,
+    arbiterDecision: finalArbiterResult.reason,
+    acceptedSource: finalArbiterResult.acceptedSource,
+    ruleConfidence: ruleProposal.confidence,
+    llmConfidence: llmEnvelope?.confidence ?? null,
+    durationUs: options?.durationUs ?? null,
+    validationNotes: finalArbiterResult.validationNotes,
+  });
+  const toolManifest = resolveAgentToolManifest({ channel, mode: 'hybrid' });
+
+  const observation = buildAgentHarnessObservation({
+    observationId: `observation:${request.actionId}:${request.currentRound}`,
+    runId: `action:${request.actionId}`,
+    trace,
+    contextPackRef: request.caseContext?.title ? `case:${request.caseContext.title}` : undefined,
+    contextBudgetSummary: `contextBullets ${Math.min(request.contextBullets.length, 12)}/${request.contextBullets.length}`,
+    toolManifest,
+    ruleProposal,
+    llmProposal: llmEnvelope,
+    arbiterResult: finalArbiterResult,
+  });
+  const shadowReport = buildAgentShadowReport(observation);
+  const evaluationReport = buildAgentEvaluationReport(observation, shadowReport);
+
   return {
     ruleProposal,
     llmProposal: llmEnvelope,
     arbiterResult: finalArbiterResult,
-    trace: buildAgentRunTrace({
-      traceId: `trace:${request.actionId}:${request.currentRound}`,
-      agentId: agent.profile.agentId,
-      channel,
-      day: agent.perception.day,
-      visibleRefs: agent.perception.visibleRefs,
-      memoryFactIds: agent.perception.memory.map((fact) => fact.factId),
-      pressure: agent.perception.pressure,
-      uncertainty: agent.perception.uncertainty,
-      ruleSource: ruleProposal.source,
-      llmSource: llmEnvelope?.source ?? null,
-      arbiterDecision: finalArbiterResult.reason,
-      acceptedSource: finalArbiterResult.acceptedSource,
-      ruleConfidence: ruleProposal.confidence,
-      llmConfidence: llmEnvelope?.confidence ?? null,
-      durationUs: options?.durationUs ?? null,
-      validationNotes: finalArbiterResult.validationNotes,
-    }),
+    trace,
+    observation,
+    shadowReport,
+    evaluationReport,
   };
 }
 

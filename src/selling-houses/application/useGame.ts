@@ -38,6 +38,7 @@ import {
 import type { MaintainerLeaderboardDetail } from './cloudSync.js';
 import { loadPreferredMaintainerCloudRun } from './cloudResume.js';
 import { buildSellingHousesPlayerContext, type SellingHousesPlayerContextInput } from './playerContext.js';
+import type { WorldGraphSummary } from '../domain/world-model/runtime/types.js';
 import type { FeaturedScenarioPreview } from './scenarioOpening.js';
 import {
   buildLocalScenarioOpeningCatalog,
@@ -739,9 +740,15 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
     });
   }, [commitLocalStateChange]);
 
+  const worldGraphSummary: WorldGraphSummary | null = useMemo(() => {
+    if (!state) return null;
+    return state.bigWorldRuntime?.worldGraphSummary ?? null;
+  }, [state]);
+
   return {
     phase: booting ? 'loading' as const : state ? 'playing' as const : 'setup' as const,
     state,
+    worldGraphSummary,
     catalog,
     difficultyOptions,
     featuredScenarios,

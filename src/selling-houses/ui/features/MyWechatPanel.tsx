@@ -1310,6 +1310,52 @@ const AgentTraceDetail: React.FC<{ snapshot: ConversationTraceSnapshot }> = ({ s
         <span className="text-[var(--seller-subtle)]">本次采用：</span>
         <span className={sourceColor}>{sourceLabel}</span>
       </div>
+      {snapshot.modelId && (
+        <div>
+          <span className="text-[var(--seller-subtle)]">模型：</span>
+          <span className="text-[var(--seller-ink)]">{snapshot.modelId}</span>
+        </div>
+      )}
+      {snapshot.llmError && (
+        <div>
+          <span className="text-[var(--seller-subtle)]">LLM 异常：</span>
+          <span className="text-rose-300">{snapshot.llmError}</span>
+        </div>
+      )}
+      {snapshot.shadowStatus && (
+        <div className="min-w-0 break-words text-[var(--seller-subtle)]">
+          Shadow：{snapshot.shadowStatus}{snapshot.shadowDecision ? ` / ${snapshot.shadowDecision}` : ''}
+          {snapshot.shadowRiskLevel ? ` / ${snapshot.shadowRiskLevel}` : ''}
+        </div>
+      )}
+      {snapshot.shadowSummary && (
+        <div className="min-w-0 break-words text-[var(--seller-subtle)]">
+          对比：{snapshot.shadowSummary}
+        </div>
+      )}
+      {snapshot.evaluationStatus && (
+        <div className="min-w-0 break-words text-[var(--seller-subtle)]">
+          会话：{snapshot.evaluationStatus}{snapshot.evaluationVerdict ? ` / ${snapshot.evaluationVerdict}` : ''}
+          {typeof snapshot.evaluationScore === 'number' ? ` / ${snapshot.evaluationScore}` : ''}
+        </div>
+      )}
+      {snapshot.evaluationSummary && (
+        <div className="min-w-0 break-words text-[var(--seller-subtle)]">
+          判断：{snapshot.evaluationSummary}
+        </div>
+      )}
+      {snapshot.evaluationSignals && snapshot.evaluationSignals.length > 0 && (
+        <div className="min-w-0 break-words text-[var(--seller-subtle)]">
+          会话信号：{snapshot.evaluationSignals.slice(0, 3).join('、')}
+          {snapshot.evaluationSignals.length > 3 && ` 等${snapshot.evaluationSignals.length}条`}
+        </div>
+      )}
+      {snapshot.shadowSignals && snapshot.shadowSignals.length > 0 && (
+        <div className="min-w-0 break-words text-[var(--seller-subtle)]">
+          信号：{snapshot.shadowSignals.slice(0, 3).join('、')}
+          {snapshot.shadowSignals.length > 3 && ` 等${snapshot.shadowSignals.length}条`}
+        </div>
+      )}
       <div className="flex flex-wrap gap-x-3">
         <span className="text-[var(--seller-subtle)]">规则置信度 {Math.round(snapshot.ruleConfidence * 100)}%</span>
         <span className="text-[var(--seller-subtle)]">
@@ -1320,6 +1366,11 @@ const AgentTraceDetail: React.FC<{ snapshot: ConversationTraceSnapshot }> = ({ s
         <span className="text-[var(--seller-subtle)]">记忆：{snapshot.memoryFactCount} 条</span>
         <span className="text-[var(--seller-subtle)]">上下文：{snapshot.contextSignalCount} 条</span>
       </div>
+      {snapshot.contextBudget && (
+        <div className="min-w-0 break-words text-[var(--seller-subtle)]">
+          预算：{snapshot.contextBudget}
+        </div>
+      )}
       {snapshot.pressure.length > 0 && (
         <div className="min-w-0 break-words text-[var(--seller-subtle)]">
           压力：{snapshot.pressure.slice(0, 2).join('、')}
@@ -1334,6 +1385,12 @@ const AgentTraceDetail: React.FC<{ snapshot: ConversationTraceSnapshot }> = ({ s
         <div className="min-w-0 break-words text-[var(--seller-subtle)]">
           校验：{snapshot.validationNotes.slice(0, 3).join('、')}
           {snapshot.validationNotes.length > 3 && ` 等${snapshot.validationNotes.length}条`}
+        </div>
+      )}
+      {snapshot.normalizationNotes && snapshot.normalizationNotes.length > 0 && (
+        <div className="min-w-0 break-words text-[var(--seller-subtle)]">
+          归一化：{snapshot.normalizationNotes.slice(0, 2).join('、')}
+          {snapshot.normalizationNotes.length > 2 && ` 等${snapshot.normalizationNotes.length}条`}
         </div>
       )}
       {snapshot.rejectedReasons.length > 0 && (

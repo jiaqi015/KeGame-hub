@@ -1,4 +1,6 @@
 import { buildAgentRuntimePack } from '../../core/world-state/agents/harness.js';
+import { resolveAgentPromptPreset, type AgentPromptPresetId } from '../../core/world-state/agents/promptCatalog.js';
+import { resolveAgentToolManifest } from '../../core/world-state/agents/toolRegistry.js';
 import type {
   AgentChannel,
   AgentHarnessAdapter,
@@ -49,6 +51,9 @@ const actionDecisionAgentAdapter: AgentHarnessAdapter<ActionAdviceRequest> = {
   },
 
   compilePrompt(profile, perception) {
+    const channel = resolveActionDecisionChannel(perception.context.actionId);
+    const preset = resolveActionDecisionPromptPreset(channel);
+    const toolManifest = resolveAgentToolManifest({ channel, mode: 'hybrid' });
     return {
       systemLines: [
         `agent：${profile.roleLabel}`,
@@ -57,16 +62,23 @@ const actionDecisionAgentAdapter: AgentHarnessAdapter<ActionAdviceRequest> = {
         `判断偏好：${profile.traits.join('；')}`,
         `边界：${profile.boundaries.join('；')}`,
         `表达方式：${profile.speakingStyle.join('；')}`,
+        ...(preset ? [
+          `预制场景 agent：${preset.roleLabel}`,
+          ...preset.rootLines,
+        ] : []),
       ],
       contextLines: [
         `当前压力：${perception.pressure.join('；') || '暂无明显压力'}`,
         `不确定点：${perception.uncertainty.join('；') || '暂无'}`,
         `记忆：${perception.memory.map((fact) => fact.summary).join('；') || '暂无记忆'}`,
+        ...toolManifest.promptLines,
+        ...(preset?.guardrailLines || []),
       ],
       outputContractLines: [
         '输出是动作情景模拟，不是选择建议，也不是结算结果。',
         'mainStrategies 和 assistStrategies 必须保留来自输入的 option id。',
         '不要说系统、AI、模型、评分、内部变量。',
+        ...(preset?.outputContractLines || []),
       ],
     };
   },
@@ -99,6 +111,16 @@ export function resolveActionDecisionChannel(actionId: string): AgentChannel {
   if (actionId === 'weekly-feedback' || actionId === 'deep-diagnosis') return 'focus_meeting';
   if (actionId === 'pricing' || actionId === 'ask-psychological-price') return 'market_reaction';
   return 'face_visit';
+}
+
+function resolveActionDecisionPromptPreset(channel: AgentChannel) {
+  const presetIdByChannel: Partial<Record<AgentChannel, AgentPromptPresetId>> = {
+    open_day: 'scenario.openDay',
+    sincere_sale: 'scenario.sincereSale',
+    focus_meeting: 'scenario.focusMeeting',
+  };
+  const presetId = presetIdByChannel[channel];
+  return presetId ? resolveAgentPromptPreset(presetId) : null;
 }
 
 export function buildActionDecisionAgentId(context: ActionAdviceRequest) {

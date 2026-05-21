@@ -18,6 +18,8 @@ import { buildMyWechatProjection } from '../../application/projections/myWechatP
 import type { WechatMessage } from '../../application/projections/myWechatTypes.js';
 import { buildMarketIntelProjection, type IntelLayerTab } from './marketIntel';
 import { MyWechatPanel } from './MyWechatPanel';
+import { WorldGraphSummaryPanel } from './WorldGraphSummaryPanel';
+import type { WorldGraphSummary } from '../../domain/world-model/runtime/types';
 import {
   ArrowRight,
   Calendar,
@@ -26,6 +28,7 @@ import {
 
 interface DashboardProps {
   state: GameState;
+  worldGraphSummary: WorldGraphSummary | null;
   wechatReadIds: Set<string>;
   onSelectCase: (id: string) => void;
   onExecuteAction: (actionId: string, caseId: string) => boolean;
@@ -94,6 +97,7 @@ export function resolveDashboardSelectedDayAfterStateDayChange(
 
 export function Dashboard({
   state,
+  worldGraphSummary,
   wechatReadIds,
   onSelectCase,
   onExecuteAction,
@@ -327,7 +331,13 @@ export function Dashboard({
             />
 
             <div className="space-y-3">
-              {/* 旧右栏“机会 / 今日新闻摘要 / 推荐跟进房源”已由“我的微信”替代，旧组件保留便于回滚。 */}
+              {worldGraphSummary && (
+                <WorldGraphSummaryPanel
+                  worldGraphSummary={worldGraphSummary}
+                  onOpenMarket={(layer) => onOpenMarket(layer || 'district')}
+                />
+              )}
+              {/* 旧右栏"机会 / 今日新闻摘要 / 推荐跟进房源"已由"我的微信"替代，旧组件保留便于回滚。 */}
               <MyWechatPanel
                 state={state}
                 projection={myWechat}
@@ -775,7 +785,7 @@ function buildAgendaSummary(
   const totalFixed = arrangement.fixedItems.length;
   const totalPlanned = arrangement.plannedItems.length;
   if (totalPlanned > 0) {
-    return `今天你主动排了 ${totalPlanned} 件事，系统还放进 ${totalFixed} 个固定/临时事项。当前只看${activeSlot.label}，先处理绿色“当前要做”，再切换时段补其他事。`;
+    return `今天你主动排了 ${totalPlanned} 件事，系统还放进 ${totalFixed} 个固定/临时事项。当前只看${activeSlot.label}，先处理绿色"当前要做"，再切换时段补其他事。`;
   }
   if (arrangement.candidateItems.length > 0) {
     return `当前有 ${arrangement.candidateItems.length} 件推荐动作。`;
@@ -920,7 +930,7 @@ function HalfDayAgendaSection({
           <AgendaGroup
             title="我排的动作"
             helper={arrangement.plannedItems.length > 1
-              ? '点击卡片或“切到这件”切换当前日程。'
+              ? '点击卡片或"切到这件"切换当前日程。'
               : '当前日程可直接进入情景处理。'}
           >
             {arrangement.plannedItems.map((item) => (

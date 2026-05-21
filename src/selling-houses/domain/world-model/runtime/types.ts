@@ -363,6 +363,49 @@ export interface ActionResourceReceipt {
   readonly replayKey: string;
 }
 
+// ---------------------------------------------------------------------------
+// WorldGraphSummary — compressed world graph snapshot for runtime caching
+// ---------------------------------------------------------------------------
+
+/**
+ * Summary of the world graph — computed after each daily tick, cached on
+ * BigWorldRuntimeState so that UI does not recompute on every render.
+ *
+ * Deterministic: same seed + same action sequence → same summary.
+ * Bounded: node and edge counts are capped.
+ */
+export interface WorldGraphSummary {
+  readonly acnCount: number;
+  readonly brokerCount: number;
+  readonly listingCount: number;
+  readonly shadowListingCount: number;
+  readonly rivalListingCount: number;
+  readonly customerCount: number;
+  readonly marketCellCount: number;
+  readonly microCellCount: number;
+  readonly storeCount: number;
+  readonly ownerCount: number;
+  readonly coSaleEdgeCount: number;
+  readonly rivalEdgeCount: number;
+  readonly marketCellSummaries: readonly MarketCellGraphSummary[];
+}
+
+export interface MarketCellGraphSummary {
+  readonly cellId: string;
+  readonly cellName: string;
+  readonly heat: number;
+  readonly supplyPressure: number;
+  readonly competitivePressure: number;
+  readonly listingCount: number;
+  readonly rivalListingCount: number;
+  readonly shadowListingCount: number;
+  readonly activeCustomerCount: number;
+  readonly coSalePressure: number;
+  /** Pressure from same-brand different-ACN stores (semi-competitive internal rivalry). */
+  readonly internalPressure: number;
+  readonly rivalPressure: number;
+}
+
 /** Autonomous world runtime state. Lives on GameState.bigWorldRuntime. */
 export interface BigWorldRuntimeState {
   /** Current compaction policy. */
@@ -387,6 +430,12 @@ export interface BigWorldRuntimeState {
    * Grows with player actions; bounded by same policy as daily events.
    */
   actionResourceReceipts: ActionResourceReceipt[];
+  /**
+   * WorldGraphSummary — cached after each daily tick.
+   * Computed by buildWorldGraphSummary, not recomputed on every render.
+   * Undefined before first tick or on old saves.
+   */
+  worldGraphSummary?: WorldGraphSummary;
   /** Total events emitted since game start. Monotonic. */
   totalEventsEmitted: number;
   /** Total mutations since game start. Monotonic. */
@@ -395,11 +444,43 @@ export interface BigWorldRuntimeState {
   tickCount: number;
   /** Errors encountered during ticks (most recent first, bounded). */
   recentErrors: string[];
+  /**
+   * Player's ACN id — set once at game init from bootstrap.
+   * Used by acnAttribution to decompose pressure into coSale/internal/rival channels.
+   */
+  playerBrokerAcnId?: string;
 }
 
 // ---------------------------------------------------------------------------
 // BigWorldClockInput — input for runBigWorldDayTick
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// TimeContext — structured time semantics for the daily tick
+// ---------------------------------------------------------------------------
+
+/** Time context derived from settledDay — replaces scattered `day % 7` logic. */
+export interface TimeContext {
+  /** The settled day number. */
+  readonly settledDay: number;
+  /** 0=Sunday … 6=Saturday, derived from settledDay. */
+  readonly weekdayIndex: number;
+  /** True on the first weekday (Monday) — weekly budget allocation day. */
+  readonly isWeeklyBudgetDay: boolean;
+  /** True on the org credit day (Thursday) — focus meeting credit settlement. */
+  readonly isOrgCreditDay: boolean;
+}
+
+/** Build a TimeContext from a settled day number. Deterministic. */
+export function buildTimeContext(settledDay: number): TimeContext {
+  const weekdayIndex = settledDay % 7; // 0=Sun,1=Mon,2=Tue,3=Wed,4=Thu,5=Fri,6=Sat
+  return {
+    settledDay,
+    weekdayIndex,
+    isWeeklyBudgetDay: weekdayIndex === 1,   // Monday
+    isOrgCreditDay: weekdayIndex === 4,       // Thursday
+  };
+}
 
 /** Input for the big world day tick. Adapts existing GameState shape. */
 export interface BigWorldClockInput {
@@ -407,6 +488,8 @@ export interface BigWorldClockInput {
   readonly settledDay: number;
   /** Run seed for deterministic operations. */
   readonly runSeed: number;
+  /** Structured time context derived from settledDay — replaces scattered day % 7. */
+  readonly timeContext: TimeContext;
   /** Market cells (from GameState.markets). */
   readonly marketCells: readonly { readonly id: string; readonly name: string; readonly demandHeat: number; readonly supplyPressure: number; readonly competitivePressure: number; readonly sentiment: number }[];
   /** Active cases (from GameState.cases, filtered to status === 'active'). */
@@ -416,7 +499,7 @@ export interface BigWorldClockInput {
   /** Rival listings (from GameState.marketShadow.rivalListings). */
   readonly rivalListings: readonly { readonly id: string; readonly storeId: string; readonly title: string; readonly district: string; readonly marketCellId: string; readonly segment: string; readonly askPrice: number; readonly heat: number; readonly freshness: number; readonly status: string; readonly daysLeft: number }[];
   /** Rival stores (from GameState.marketShadow.rivalStores). */
-  readonly rivalStores: readonly { readonly id: string; readonly name: string; readonly type: string; readonly style: string; readonly districtFocus: readonly string[]; readonly leadCapturePower: number; readonly sellerInfluencePower: number; readonly pricingPressurePower: number; readonly activityHeat: number }[];
+  readonly rivalStores: readonly { readonly id: string; readonly name: string; readonly type: string; readonly style: string; readonly districtFocus: readonly string[]; readonly leadCapturePower: number; readonly sellerInfluencePower: number; readonly pricingPressurePower: number; readonly activityHeat: number; readonly acnId?: string; readonly brandId?: string }[];
   /** Customer states (from GameState.customerStates). */
   readonly customerStates: readonly { readonly customerId: string; readonly status: string; readonly fatigue: number; readonly churnRisk: number; readonly activeCaseIds: readonly string[] }[];
   // --- Shadow entity inputs (from bootstrap, for hundreds-scale runtime) ---

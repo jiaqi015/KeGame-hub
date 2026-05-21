@@ -1035,6 +1035,7 @@ export function applyTickReceiptToRuntime(
         economicResourceLedger: [...runtime.economicResourceLedger],
         actionResourceReceipts: [...runtime.actionResourceReceipts],
         recentErrors: [...runtime.recentErrors],
+        worldGraphSummary: runtime.worldGraphSummary,
       }
     : runtime;
   // Prepend new daily events (newest first)

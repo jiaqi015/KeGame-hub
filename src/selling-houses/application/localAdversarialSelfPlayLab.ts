@@ -24,6 +24,12 @@ export interface SelfPlayLabRunSummary {
   dailyEventCount: number;
   rivalPressureEvents: number;
   companyPressureEvents: number;
+  meshTurnCount: number;
+  meshReadyCount: number;
+  meshNeedsReviewCount: number;
+  meshBlockedCount: number;
+  meshShadowRoleCount: number;
+  meshComparisonMatched: boolean | null;
   verdict: string;
   remainingActiveCases: number;
   remainingActiveOpportunities: number;
@@ -53,6 +59,13 @@ export interface SelfPlayLabReport {
   averageDailyEventCount: number;
   averageRivalPressureEvents: number;
   averageCompanyPressureEvents: number;
+  averageMeshTurnCount: number;
+  averageMeshReadyCount: number;
+  averageMeshNeedsReviewCount: number;
+  averageMeshBlockedCount: number;
+  meshTraceRunRate: number;
+  meshReadyRunRate: number;
+  meshComparisonMatchRunRate: number | null;
   scoreSpread: number;
   runs: SelfPlayLabRunSummary[];
   findings: SelfPlayLabFinding[];
@@ -61,12 +74,14 @@ export interface SelfPlayLabReport {
 interface SelfPlayLabOptions {
   scenarioId: string;
   seeds: number[];
+  referenceMeshReport?: unknown;
 }
 
 export class LocalAdversarialSelfPlayLab {
   private readonly scenarioId: string;
   private readonly seeds: number[];
   private readonly difficultyId: DifficultyId;
+  private readonly referenceMeshReport: unknown;
 
   constructor(options: SelfPlayLabOptions) {
     if (!options.seeds.length) {
@@ -76,6 +91,7 @@ export class LocalAdversarialSelfPlayLab {
     this.scenarioId = options.scenarioId;
     this.seeds = options.seeds;
     this.difficultyId = getScenarioSnapshotById(options.scenarioId)?.scenario.difficultyId || 'standard';
+    this.referenceMeshReport = options.referenceMeshReport ?? null;
   }
 
   runBatch() {
@@ -83,6 +99,7 @@ export class LocalAdversarialSelfPlayLab {
       const arena = new LocalAdversarialSelfPlayArena({
         scenarioId: this.scenarioId,
         seed,
+        referenceMeshReport: this.referenceMeshReport,
       });
       return arena.playOneGame();
     });
@@ -100,8 +117,16 @@ export class LocalAdversarialSelfPlayLab {
     const dailyEventCounts = runs.map((entry) => entry.dailyEventCount);
     const rivalPressureEvents = runs.map((entry) => entry.rivalPressureEvents);
     const companyPressureEvents = runs.map((entry) => entry.companyPressureEvents);
+    const meshTurnCounts = runs.map((entry) => entry.meshTurnCount);
+    const meshReadyCounts = runs.map((entry) => entry.meshReadyCount);
+    const meshNeedsReviewCounts = runs.map((entry) => entry.meshNeedsReviewCount);
+    const meshBlockedCounts = runs.map((entry) => entry.meshBlockedCount);
     const coreBadRuns = runs.filter((entry) => entry.coreBadCount > 0).length;
     const rivalLossRuns = runs.filter((entry) => entry.lostToRivalCount > 0).length;
+    const meshTraceRuns = runs.filter((entry) => entry.meshTurnCount > 0).length;
+    const meshReadyRuns = runs.filter((entry) => entry.meshReadyCount > 0).length;
+    const meshComparisonRuns = runs.filter((entry) => entry.meshComparisonMatched !== null).length;
+    const meshComparisonMatchRuns = runs.filter((entry) => entry.meshComparisonMatched === true).length;
 
     return {
       scenarioId: this.scenarioId,
@@ -121,6 +146,15 @@ export class LocalAdversarialSelfPlayLab {
       averageDailyEventCount: average(dailyEventCounts),
       averageRivalPressureEvents: average(rivalPressureEvents),
       averageCompanyPressureEvents: average(companyPressureEvents),
+      averageMeshTurnCount: average(meshTurnCounts),
+      averageMeshReadyCount: average(meshReadyCounts),
+      averageMeshNeedsReviewCount: average(meshNeedsReviewCounts),
+      averageMeshBlockedCount: average(meshBlockedCounts),
+      meshTraceRunRate: round((meshTraceRuns / runs.length) * 100),
+      meshReadyRunRate: round((meshReadyRuns / runs.length) * 100),
+      meshComparisonMatchRunRate: meshComparisonRuns > 0
+        ? round((meshComparisonMatchRuns / meshComparisonRuns) * 100)
+        : null,
       scoreSpread: round(Math.max(...scores) - Math.min(...scores)),
       runs,
       findings: this.buildFindings(runs),
@@ -147,6 +181,12 @@ export class LocalAdversarialSelfPlayLab {
       dailyEventCount: report.shadowStats.dailyEventCount,
       rivalPressureEvents: report.shadowStats.rivalPressureEvents,
       companyPressureEvents: report.shadowStats.companyPressureEvents,
+      meshTurnCount: 0,
+      meshReadyCount: 0,
+      meshNeedsReviewCount: 0,
+      meshBlockedCount: 0,
+      meshShadowRoleCount: 0,
+      meshComparisonMatched: null,
       verdict: report.evaluation.verdict,
       remainingActiveCases: report.remainingActiveCases,
       remainingActiveOpportunities: report.remainingActiveOpportunities,
@@ -162,12 +202,18 @@ export class LocalAdversarialSelfPlayLab {
     const averageInboundCount = average(runs.map((entry) => entry.inboundCount));
     const averageDailyEventCount = average(runs.map((entry) => entry.dailyEventCount));
     const averageRivalPressureEvents = average(runs.map((entry) => entry.rivalPressureEvents));
+    const averageMeshTurnCount = average(runs.map((entry) => entry.meshTurnCount));
+    const averageMeshReadyCount = average(runs.map((entry) => entry.meshReadyCount));
     const averageScore = average(scores);
     const averageDefenseScore = average(defenseScores);
     const averageEndingBad = average(endingBadCounts);
     const coreBadRuns = runs.filter((entry) => entry.coreBadCount > 0).length;
     const rivalLossRuns = runs.filter((entry) => entry.lostToRivalCount > 0).length;
     const noGoodFinishRuns = runs.filter((entry) => entry.endingGood === 0).length;
+    const meshTraceRuns = runs.filter((entry) => entry.meshTurnCount > 0).length;
+    const meshReadyRuns = runs.filter((entry) => entry.meshReadyCount > 0).length;
+    const meshComparisonRuns = runs.filter((entry) => entry.meshComparisonMatched !== null).length;
+    const meshComparisonMatchRuns = runs.filter((entry) => entry.meshComparisonMatched === true).length;
     const scoreSpread = Math.max(...scores) - Math.min(...scores);
     const defenseSpread = Math.max(...defenseScores) - Math.min(...defenseScores);
 
@@ -266,6 +312,28 @@ export class LocalAdversarialSelfPlayLab {
         severity: 'minor',
         title: '难度偏软',
         detail: '样本里几乎没有出现失守和坏收尾，后续可以继续加压。',
+      });
+    }
+
+    if (averageMeshTurnCount === 0) {
+      findings.push({
+        severity: 'minor',
+        title: '没有观测到 mesh 证据',
+        detail: '本批次没有任何对话 mesh trace，说明 self-play 目前还主要停留在经营动作层。',
+      });
+    } else if (averageMeshReadyCount === 0) {
+      findings.push({
+        severity: 'minor',
+        title: 'mesh 准备度偏低',
+        detail: '本批次虽然有对话 mesh trace，但没有 ready 记录，提示词或角色顺序还需要继续打磨。',
+      });
+    }
+
+    if (meshComparisonRuns > 0 && meshComparisonMatchRuns < meshComparisonRuns) {
+      findings.push({
+        severity: 'minor',
+        title: 'mesh 对照存在偏差',
+        detail: `有 ${meshComparisonMatchRuns}/${meshComparisonRuns} 局与参考 mesh 完全一致，说明 role ordering 或 readiness 仍有漂移。`,
       });
     }
 

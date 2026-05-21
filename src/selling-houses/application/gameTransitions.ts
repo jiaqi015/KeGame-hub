@@ -43,9 +43,9 @@ import {
   resolveTodayPlanExecutionMode,
   syncTodayPlanForCurrentDayMutable,
 } from './todayPlan.js';
-import { emitDecisionMomentTriggers, advanceFlowProgress } from '../runtime/simulation/decisionMomentEmission.js';
 import { buildOwnerProfilingMemorySummary } from './projections/ownerProfilingMemory.js';
 import { registerProcessManagers } from '../domain/engine/processManagerFacade.js';
+import { rebuildWorldGraphSummary } from './projections/worldGraphBuilder.js';
 import {
   settleNegotiationProcessesForDay,
   advanceProductRunProcessesForDay,
@@ -58,6 +58,7 @@ import {
   settleWechatConversationTurn,
   type WechatConversationTurnInput,
 } from './wechatConversation.js';
+import { emitDecisionMomentTriggers, advanceFlowProgress } from '../runtime/simulation/decisionMomentEmission.js';
 
 // Register runtime process managers into domain facade.
 // This breaks the domain→runtime reverse dependency.
@@ -121,6 +122,10 @@ export function advanceGameDaysWithSummary(
         isGameOver: tickState.gameOver,
       });
       allDiagnostics.push(...diagnostics);
+
+      // WorldGraph: rebuild summary after each tick for runtime caching.
+      // Cached on BigWorldRuntimeState, not recomputed on every render.
+      rebuildWorldGraphSummary(tickState);
     });
     syncTodayPlanForCurrentDayMutable(next);
   });
@@ -160,12 +165,6 @@ export function executeGameAction(
     const currentCase = next.cases.find((entry) => entry.id === caseId);
     if (currentCase) {
       success = executeAction(next, actionId, currentCase, optionId, onMessage, meta);
-      // Runtime enrichment after domain execution:
-      // 1. Decision moment emission and flow progress (moved from domain/actionResolvers)
-      if (success) {
-        emitDecisionMomentTriggers(next, actionId, currentCase, optionId ?? undefined);
-        advanceFlowProgress(next, actionId, currentCase.id);
-      }
       // 2. Build action receipts from domain snapshots
       try {
         for (const snapshot of popPendingActionReceiptSnapshots()) {
@@ -360,8 +359,8 @@ export function executeScenarioAction(
       },
     });
 
-    emitDecisionMomentTriggers(next, actionId, currentCase, finalOptionId ?? undefined);
-    advanceFlowProgress(next, actionId, currentCase.id);
+    emitDecisionMomentTriggers(next, executorActionId, currentCase, finalOptionId ?? undefined);
+    advanceFlowProgress(next, executorActionId, currentCase.id);
 
     if (action.id === 'open-day') {
       const targetIds = next.cases

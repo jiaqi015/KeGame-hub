@@ -6,6 +6,9 @@ import type {
   AgentArbiterResult,
   AgentRunTrace,
 } from '../core/world-state/agents/proposal.js';
+import type { AgentHarnessObservation } from '../core/world-state/agents/observation.js';
+import type { AgentEvaluationReport } from '../core/world-state/agents/evaluationReport.js';
+import type { AgentShadowReport } from '../core/world-state/agents/shadowReport.js';
 
 const ACTIVATION_STORAGE_KEY = 'sabrina-activation-key';
 const ACTIVATION_HEADER_NAME = 'x-activation-key';
@@ -16,6 +19,9 @@ export interface ActionDecisionAdviceResult {
   readonly error?: string;
   readonly trace?: AgentRunTrace;
   readonly arbiterResult?: AgentArbiterResult<ActionAdviceProposal>;
+  readonly observation?: AgentHarnessObservation;
+  readonly shadowReport?: AgentShadowReport;
+  readonly evaluationReport?: AgentEvaluationReport;
 }
 
 export async function fetchActionDecisionAdvice(
@@ -35,6 +41,9 @@ export async function fetchActionDecisionAdvice(
     error?: unknown;
     trace?: unknown;
     arbiterResult?: unknown;
+    observation?: unknown;
+    shadowReport?: unknown;
+    evaluationReport?: unknown;
   };
 
   if (!response.ok || !payload.advice || typeof payload.advice !== 'object') {
@@ -47,6 +56,9 @@ export async function fetchActionDecisionAdvice(
     error: typeof payload.error === 'string' ? payload.error : undefined,
     trace: payload.trace as AgentRunTrace | undefined,
     arbiterResult: payload.arbiterResult as AgentArbiterResult<ActionAdviceProposal> | undefined,
+    observation: payload.observation as AgentHarnessObservation | undefined,
+    shadowReport: payload.shadowReport as AgentShadowReport | undefined,
+    evaluationReport: payload.evaluationReport as AgentEvaluationReport | undefined,
   };
 }
 

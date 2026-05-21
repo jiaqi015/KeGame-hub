@@ -280,16 +280,21 @@ function normalizeCompanyPressure(input?: Partial<CompanyPressureState>): Compan
 }
 
 function normalizeRivalStore(entry: any, index: number): RivalStore {
+  const type: 'same_company' | 'external_company' = entry?.type === 'same_company' ? 'same_company' : 'external_company';
+  const acnId = (type === 'same_company' && typeof entry?.acnId === 'string' && entry.acnId) ? entry.acnId : undefined;
+  const brandId = (type === 'same_company' && typeof entry?.brandId === 'string' && entry.brandId) ? entry.brandId : undefined;
   return {
     id: String(entry?.id || `rival-store-${index + 1}`),
     name: String(entry?.name || `其他门店 ${index + 1}`),
-    type: entry?.type === 'same_company' ? 'same_company' : 'external_company',
+    type,
     style: ['aggressive', 'steady', 'relationship', 'traffic'].includes(entry?.style) ? entry.style : 'steady',
     districtFocus: Array.isArray(entry?.districtFocus) ? entry.districtFocus.map(String) : [],
     leadCapturePower: clamp(Number(entry?.leadCapturePower ?? 45), 0, 100),
     sellerInfluencePower: clamp(Number(entry?.sellerInfluencePower ?? 45), 0, 100),
     pricingPressurePower: clamp(Number(entry?.pricingPressurePower ?? 45), 0, 100),
     activityHeat: clamp(Number(entry?.activityHeat ?? 50), 0, 100),
+    ...(acnId ? { acnId } : {}),
+    ...(brandId ? { brandId } : {}),
   };
 }
 
@@ -1501,6 +1506,14 @@ export function normalizeLoadedState(parsed: any): GameState | null {
 
   // Ensure big world runtime exists for old saves and partial dev snapshots.
   state.bigWorldRuntime = normalizeRuntimeState(state.bigWorldRuntime, DEFAULT_COMPACTION_POLICY);
+
+  // Set playerBrokerAcnId if not already set. The player always belongs to the cooperative ACN.
+  if (!state.bigWorldRuntime.playerBrokerAcnId) {
+    state.bigWorldRuntime = {
+      ...state.bigWorldRuntime,
+      playerBrokerAcnId: 'acn-cooperative',
+    };
+  }
 
   // Ensure world causal events exists for old saves (optional field, empty fallback)
   if (!Array.isArray(state.worldCausalEvents)) {

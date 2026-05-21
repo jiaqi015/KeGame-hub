@@ -7,6 +7,7 @@ import type { Case, FinalResult, GameState, Opportunity, ScenarioSnapshot } from
 import { getPromotionBudget, resolveFormalSoldCount } from '../domain/runtimeStats.js';
 import { readCaseRelationBusinessContextFromRuntime } from '../core/world-state/relationReadProjection.js';
 import { readOwnerBehaviorDimensions } from '../domain/ownerDecisionProfileHelper.js';
+import type { WorldGraphSummary } from '../domain/world-model/runtime/types.js';
 
 type Severity = 'critical' | 'major' | 'minor';
 
@@ -52,6 +53,8 @@ export interface SelfPlayReport {
   decisions: SelfPlayDecision[];
   findings: SelfPlayFinding[];
   evaluation: SelfPlayEvaluation;
+  /** Final WorldGraph summary after game completion. Computed once, deterministic. */
+  worldGraphSummary?: WorldGraphSummary;
 }
 
 export interface SelfPlayShadowStats {
@@ -93,6 +96,7 @@ interface ArenaOptions {
   scenarioId?: string;
   snapshot?: ScenarioSnapshot;
   seed?: number;
+  referenceMeshReport?: unknown;
 }
 
 export class LocalAdversarialSelfPlayArena {
@@ -128,6 +132,9 @@ export class LocalAdversarialSelfPlayArena {
     updateDerivedState(state);
     const soldCount = resolveFormalSoldCount(state);
 
+    // Read cached WorldGraph summary from runtime state (populated by daily tick)
+    const finalGraphSummary = state.bigWorldRuntime?.worldGraphSummary;
+
     return {
       scenarioId: this.snapshot.scenario.id,
       scenarioName: this.snapshot.scenario.name,
@@ -143,6 +150,7 @@ export class LocalAdversarialSelfPlayArena {
       decisions: this.decisions,
       findings: this.dedupeFindings(),
       evaluation: this.buildEvaluation(state),
+      worldGraphSummary: finalGraphSummary,
     } satisfies SelfPlayReport;
   }
 

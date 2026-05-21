@@ -13,6 +13,9 @@ import type {
   AgentArbiterResult,
   AgentRunTrace,
 } from '../../core/world-state/agents/proposal.js';
+import type { AgentHarnessObservation } from '../../core/world-state/agents/observation.js';
+import type { AgentEvaluationReport } from '../../core/world-state/agents/evaluationReport.js';
+import type { AgentShadowReport } from '../../core/world-state/agents/shadowReport.js';
 
 const DEFAULT_ACTION_ADVICE_MODEL_ID = 'deepseek-v4-flash';
 
@@ -27,6 +30,9 @@ export interface ActionDecisionAdviceHandlerResult {
     error?: string;
     trace?: AgentRunTrace;
     arbiterResult?: AgentArbiterResult<ActionAdviceProposal>;
+    observation?: AgentHarnessObservation;
+    shadowReport?: AgentShadowReport;
+    evaluationReport?: AgentEvaluationReport;
   };
 }
 
@@ -44,6 +50,9 @@ export async function handleActionDecisionAdvice(input: unknown): Promise<Action
         error: '动作上下文不可用。',
         trace: dual.trace,
         arbiterResult: dual.arbiterResult,
+        observation: dual.observation,
+        shadowReport: dual.shadowReport,
+        evaluationReport: dual.evaluationReport,
       },
     };
   }
@@ -64,6 +73,9 @@ export async function handleActionDecisionAdvice(input: unknown): Promise<Action
         error: '动作参谋模型未启用或不是 DeepSeek 渠道。',
         trace: dual.trace,
         arbiterResult: dual.arbiterResult,
+        observation: dual.observation,
+        shadowReport: dual.shadowReport,
+        evaluationReport: dual.evaluationReport,
       },
     };
   }
@@ -107,6 +119,9 @@ export async function handleActionDecisionAdvice(input: unknown): Promise<Action
         error: result.result || 'DeepSeek 动作参谋生成失败。',
         trace: dual.trace,
         arbiterResult: dual.arbiterResult,
+        observation: dual.observation,
+        shadowReport: dual.shadowReport,
+        evaluationReport: dual.evaluationReport,
       },
     };
   }
@@ -128,6 +143,9 @@ export async function handleActionDecisionAdvice(input: unknown): Promise<Action
         provider: 'deepseek',
         trace: dual.trace,
         arbiterResult: dual.arbiterResult,
+        observation: dual.observation,
+        shadowReport: dual.shadowReport,
+        evaluationReport: dual.evaluationReport,
       },
     };
   } catch (error) {
@@ -146,6 +164,9 @@ export async function handleActionDecisionAdvice(input: unknown): Promise<Action
         error: error instanceof Error ? error.message : 'DeepSeek 动作参谋返回格式不可用。',
         trace: dual.trace,
         arbiterResult: dual.arbiterResult,
+        observation: dual.observation,
+        shadowReport: dual.shadowReport,
+        evaluationReport: dual.evaluationReport,
       },
     };
   }

@@ -27,6 +27,10 @@ import type {
   RivalListing,
 } from '../../domain/models.js';
 
+import {
+  attributePressure,
+} from './acnAttribution.js';
+
 import type {
   ActorKnowledgeSnapshot,
 } from './actorKnowledgeProjection.js';
@@ -124,6 +128,119 @@ function eventToPOVRef(event: WorldCausalEvent): POVCausalRef {
     return { refType: 'market-signal', refId: event.id, refLabel: `系统建议变化 day ${event.day}` };
   }
   return { refType: 'market-signal', refId: event.id, refLabel: `市场变化 day ${event.day}` };
+}
+
+type ColdLedgerSummaryLike = {
+  readonly bySourceKind: ReadonlyMap<string, { readonly count: number; readonly causalEventsProduced: number }> | Record<string, { readonly count: number; readonly causalEventsProduced: number }>;
+  readonly latestSourceIdByKind: ReadonlyMap<string, string> | Record<string, string>;
+  readonly latestReplayKeyByKind: ReadonlyMap<string, string> | Record<string, string>;
+  readonly fromDay: number;
+  readonly toDay: number;
+};
+
+interface ColdLedgerContext {
+  readonly rangeLabel: string;
+  readonly rivalCount: number;
+  readonly customerCount: number;
+  readonly ownerCount: number;
+  readonly managerCount: number;
+  readonly rivalRefs: readonly POVCausalRef[];
+  readonly customerRefs: readonly POVCausalRef[];
+  readonly ownerRefs: readonly POVCausalRef[];
+  readonly recommendationRefs: readonly POVCausalRef[];
+}
+
+function readMapLikeValue<T>(input: ReadonlyMap<string, T> | Record<string, T> | undefined | null, key: string): T | undefined {
+  if (!input) return undefined;
+  if (input instanceof Map) {
+    return input.get(key);
+  }
+  return Object.prototype.hasOwnProperty.call(input, key)
+    ? (input as Record<string, T>)[key]
+    : undefined;
+}
+
+function buildColdLedgerContext(state: GameState): ColdLedgerContext | null {
+  const summaries = Array.isArray(state.bigWorldRuntime?.coldLedgerSummaries)
+    ? (state.bigWorldRuntime?.coldLedgerSummaries as readonly ColdLedgerSummaryLike[])
+    : [];
+  if (summaries.length === 0) return null;
+
+  const kindKeys = ['rival_action', 'customer_interaction', 'owner_life_event_signal', 'manager_message'] as const;
+  const aggregates = new Map<string, {
+    count: number;
+    causalEventsProduced: number;
+    latestSourceId?: string;
+    latestReplayKey?: string;
+  }>();
+
+  let fromDay = Number.POSITIVE_INFINITY;
+  let toDay = Number.NEGATIVE_INFINITY;
+
+  for (const summary of summaries) {
+    if (!summary) continue;
+    fromDay = Math.min(fromDay, summary.fromDay);
+    toDay = Math.max(toDay, summary.toDay);
+    for (const kind of kindKeys) {
+      const entry = readMapLikeValue(summary.bySourceKind, kind);
+      if (entry && entry.count > 0) {
+        const existing = aggregates.get(kind) ?? {
+          count: 0,
+          causalEventsProduced: 0,
+        };
+        existing.count += entry.count;
+        existing.causalEventsProduced += entry.causalEventsProduced;
+        const latestSourceId = readMapLikeValue(summary.latestSourceIdByKind, kind);
+        if (latestSourceId && !existing.latestSourceId) {
+          existing.latestSourceId = latestSourceId;
+        }
+        const latestReplayKey = readMapLikeValue(summary.latestReplayKeyByKind, kind);
+        if (latestReplayKey && !existing.latestReplayKey) {
+          existing.latestReplayKey = latestReplayKey;
+        }
+        aggregates.set(kind, existing);
+      }
+    }
+  }
+
+  if (!Number.isFinite(fromDay) || !Number.isFinite(toDay)) return null;
+
+  const rangeLabel = fromDay === toDay ? `Day ${fromDay}` : `Day ${fromDay}-${toDay}`;
+  const rival = aggregates.get('rival_action') ?? null;
+  const customer = aggregates.get('customer_interaction') ?? null;
+  const owner = aggregates.get('owner_life_event_signal') ?? null;
+  const manager = aggregates.get('manager_message') ?? null;
+
+  const buildRef = (
+    kind: 'rival_action' | 'customer_interaction' | 'owner_life_event_signal' | 'manager_message',
+    refType: POVCausalRef['refType'],
+    label: string,
+  ): POVCausalRef | null => {
+    const aggregate = aggregates.get(kind);
+    if (!aggregate?.latestSourceId || !aggregate.count) return null;
+    return {
+      refType,
+      refId: aggregate.latestSourceId,
+      refLabel: `${label} (${rangeLabel})`,
+    };
+  };
+
+  const rivalRef = buildRef('rival_action', 'rival-listing', '竞品历史动作');
+  const customerRef = buildRef('customer_interaction', 'market-signal', '客户历史需求变化');
+  const ownerRef = buildRef('owner_life_event_signal', 'case', '业主历史压力感知');
+  const managerRef = buildRef('manager_message', 'market-signal', '历史策略建议');
+
+  return {
+    rangeLabel,
+    rivalCount: rival?.count ?? 0,
+    customerCount: customer?.count ?? 0,
+    ownerCount: owner?.count ?? 0,
+    managerCount: manager?.count ?? 0,
+    rivalRefs: rivalRef ? [rivalRef] : [],
+    customerRefs: customerRef ? [customerRef] : [],
+    ownerRefs: ownerRef ? [ownerRef] : [],
+    recommendationRefs: managerRef ? [managerRef] : [],
+  };
 }
 
 function buildFallbackLiveEventRefs(
@@ -238,6 +355,8 @@ export interface BrokerActionPressurePOV {
   topSignals: BrokerActionSignal[];
   activeRivalStoreCount: number;
   recentRepriceCount: number;
+  /** Internal pressure from same-brand different-ACN stores (semi-competitive). 0-100. */
+  internalPressure: number;
   refs: POVCausalRef[];
 }
 
@@ -351,6 +470,7 @@ export function buildLiveCausalContext(
 ): LiveCausalContext {
   const caseItem = state.cases.find((c) => c.id === caseId);
   const cellId = caseItem?.marketCellId ?? '';
+  const coldLedgerContext = buildColdLedgerContext(state);
 
   const causalEvents = Array.isArray(state.worldCausalEvents) ? state.worldCausalEvents : [];
   const recentWindow = state.day - 3;
@@ -409,10 +529,20 @@ export function buildLiveCausalContext(
     refLabel: `策略建议 day ${e.day}`,
   }));
 
+  const coldRivalRefs = coldLedgerContext?.rivalRefs ?? [];
+  const coldCustomerRefs = coldLedgerContext?.customerRefs ?? [];
+  const coldOwnerRefs = coldLedgerContext?.ownerRefs ?? [];
+  const coldRecommendationRefs = coldLedgerContext?.recommendationRefs ?? [];
+
   // --- Deduplicate all refs by refId ---
   const seen = new Set<string>();
   const allRefs: POVCausalRef[] = [];
-  for (const ref of [...rivalRefs, ...customerRefs, ...ownerRefs, ...recommendationRefs]) {
+  for (const ref of [
+    ...(rivalRefs.length > 0 ? rivalRefs : coldRivalRefs),
+    ...(customerRefs.length > 0 ? customerRefs : coldCustomerRefs),
+    ...(ownerRefs.length > 0 ? ownerRefs : coldOwnerRefs),
+    ...(recommendationRefs.length > 0 ? recommendationRefs : coldRecommendationRefs),
+  ]) {
     if (!seen.has(ref.refId)) {
       seen.add(ref.refId);
       allRefs.push(ref);
@@ -420,10 +550,10 @@ export function buildLiveCausalContext(
   }
 
   return {
-    rivalRefs,
-    customerRefs,
-    ownerRefs,
-    recommendationRefs,
+    rivalRefs: rivalRefs.length > 0 ? rivalRefs : coldRivalRefs,
+    customerRefs: customerRefs.length > 0 ? customerRefs : coldCustomerRefs,
+    ownerRefs: ownerRefs.length > 0 ? ownerRefs : coldOwnerRefs,
+    recommendationRefs: recommendationRefs.length > 0 ? recommendationRefs : coldRecommendationRefs,
     allRefs,
   };
 }
@@ -957,6 +1087,18 @@ export function buildBrokerActionPressurePOV(
     (s) => s.districtFocus.some((d) => d === caseDistrict),
   );
 
+  // ── Attribute pressure into three channels via acnAttribution ──
+  // Derive player's ACN from the player broker in bootstrap or from state
+  const playerAcnId = state.bigWorldRuntime?.playerBrokerAcnId ?? undefined;
+  const playerBrandId = playerAcnId ? playerAcnId.replace(/-[^-]+$/, '') : undefined;
+  const pressureAttribution = attributePressure(
+    visibleRivalStores,
+    state.marketShadow.rivalListings,
+    cellId,
+    playerAcnId,
+    playerBrandId,
+  );
+
   const signals: BrokerActionSignal[] = [];
   const refs: POVCausalRef[] = [];
 
@@ -1017,6 +1159,25 @@ export function buildBrokerActionPressurePOV(
     refs.push(...signals[signals.length - 1].refs);
   }
 
+  // Add internal pressure signal when same-brand different-ACN stores are active
+  if (pressureAttribution.internalPressure > 15) {
+    signals.push({
+      rank: signals.length + 1,
+      headline: `同品牌不同ACN门店分流客户`,
+      detail: `内部竞争压力 ${pressureAttribution.internalPressure}，同品牌其他ACN门店也在抢客。`,
+      source: 'inferred',
+      refs: visibleRivalStores
+        .filter((s) => s.type === 'same_company' && s.acnId && s.acnId !== playerAcnId)
+        .slice(0, 1)
+        .map((s) => ({
+          refType: 'rival-store' as const,
+          refId: s.id,
+          refLabel: s.name,
+        })),
+    });
+    refs.push(...signals[signals.length - 1].refs);
+  }
+
   if (caseItem && caseItem.lastRivalThreatDay && state.day - caseItem.lastRivalThreatDay <= 3) {
     signals.push({
       rank: signals.length + 1,
@@ -1034,6 +1195,7 @@ export function buildBrokerActionPressurePOV(
     topSignals: signals.slice(0, 3),
     activeRivalStoreCount: visibleRivalStores.filter((s) => s.activityHeat > 30).length,
     recentRepriceCount: recentReprices.length,
+    internalPressure: pressureAttribution.internalPressure,
     refs,
   };
 }
@@ -1050,6 +1212,8 @@ export function buildBecauseBigProof(
 ): BecauseBigProof {
   const caseItem = state.cases.find((c) => c.id === caseId);
   const cellId = caseItem?.marketCellId ?? '';
+  const coldLedgerContext = buildColdLedgerContext(state);
+  const resolvedLiveCtx = liveCtx ?? buildLiveCausalContext(state, caseId);
 
   // --- Consume real causal data from bigWorldRuntime when available ---
   const runtimeSummaries = state.bigWorldRuntime?.dailySummaries ?? [];
@@ -1078,7 +1242,8 @@ export function buildBecauseBigProof(
   );
   const hasRivalMovement = rivalRepriceEvents.length > 0
     || rivalActionEvents.length > 0
-    || activeRivals.some((r) => r.freshness > 50 || r.heat > 60);
+    || activeRivals.some((r) => r.freshness > 50 || r.heat > 60)
+    || (coldLedgerContext?.rivalCount ?? 0) > 0;
 
   // --- Demand shift: prefer causal events ---
   const demandShiftEvents = causalEvents.filter((e) =>
@@ -1091,20 +1256,22 @@ export function buildBecauseBigProof(
   const comparingCount = activeCustomers.filter((cs) => cs.status === 'comparing').length;
   const hasDemandShift = demandShiftEvents.length > 0
     || comparingCount > 0
-    || activeCustomers.some((cs) => cs.churnRisk > 40);
+    || activeCustomers.some((cs) => cs.churnRisk > 40)
+    || (coldLedgerContext?.customerCount ?? 0) > 0;
 
   // --- Owner pressure: prefer causal events ---
   const ownerPressureEvents = cellCausalEvents.filter((e) => e.kind === 'OwnerMarketPressurePerceived');
   const hasOwnerPressureDelta = ownerPressureEvents.length > 0
-    || (caseItem ? caseItem.priceGapPct > 8 || caseItem.patience < 45 || caseItem.trust < 45 : false);
+    || (caseItem ? caseItem.priceGapPct > 8 || caseItem.patience < 45 || caseItem.trust < 45 : false)
+    || (coldLedgerContext?.ownerCount ?? 0) > 0;
 
   // --- Detect cross-domain live causal events ---
   // A cross-domain event is one whose refId appears in liveCtx.allRefs AND
   // is referenced by 2+ different sub-projection domains.
-  const liveRivalIds = new Set((liveCtx?.rivalRefs ?? []).map((r) => r.refId));
-  const liveCustomerIds = new Set((liveCtx?.customerRefs ?? []).map((r) => r.refId));
-  const liveOwnerIds = new Set((liveCtx?.ownerRefs ?? []).map((r) => r.refId));
-  const liveRecIds = new Set((liveCtx?.recommendationRefs ?? []).map((r) => r.refId));
+  const liveRivalIds = new Set((resolvedLiveCtx?.rivalRefs ?? []).map((r) => r.refId));
+  const liveCustomerIds = new Set((resolvedLiveCtx?.customerRefs ?? []).map((r) => r.refId));
+  const liveOwnerIds = new Set((resolvedLiveCtx?.ownerRefs ?? []).map((r) => r.refId));
+  const liveRecIds = new Set((resolvedLiveCtx?.recommendationRefs ?? []).map((r) => r.refId));
 
   // Find event IDs that appear in 2+ domain sets (cross-domain proof)
   const crossDomainEventIds: string[] = [];
@@ -1149,8 +1316,10 @@ export function buildBecauseBigProof(
   if (hasRivalMovement) {
     const rivalEventRefs: POVCausalRef[] = [];
     // Prefer live causal refs from runtime ledger
-    if (liveCtx && liveCtx.rivalRefs.length > 0) {
-      rivalEventRefs.push(...liveCtx.rivalRefs.slice(0, 2));
+    if (resolvedLiveCtx && resolvedLiveCtx.rivalRefs.length > 0) {
+      rivalEventRefs.push(...resolvedLiveCtx.rivalRefs.slice(0, 2));
+    } else if (coldLedgerContext?.rivalRefs.length) {
+      rivalEventRefs.push(...coldLedgerContext.rivalRefs.slice(0, 2));
     } else {
       for (const evt of rivalRepriceEvents.slice(0, 2)) {
         const listingId = (evt.payload as Record<string, unknown>).listingId;
@@ -1169,12 +1338,18 @@ export function buildBecauseBigProof(
         }
       }
     }
+    const rivalArchiveCount = coldLedgerContext?.rivalCount ?? 0;
+    const rivalCount = rivalRepriceEvents.length + rivalActionEvents.length;
     evidence.push({
       kind: 'rival-movement',
-      headline: `${rivalRepriceEvents.length + rivalActionEvents.length} 条竞品动作因果记录`,
+      headline: rivalCount > 0
+        ? `${rivalCount} 条竞品动作因果记录`
+        : `历史记录 ${rivalArchiveCount} 次竞品动作`,
       detail: rivalRepriceEvents.length > 0
         ? `竞品调价因果事件，分流潜在客户注意力。`
-        : `竞品近期有活跃变动，分流潜在客户注意力。`,
+        : rivalCount > 0
+          ? `竞品近期有活跃变动，分流潜在客户注意力。`
+          : '历史归档的竞品动作记录，持续分流潜在客户注意力。',
       refs: rivalEventRefs.length > 0 ? rivalEventRefs : [{
         refType: 'market-cell' as const,
         refId: cellId,
@@ -1187,8 +1362,10 @@ export function buildBecauseBigProof(
   if (hasDemandShift) {
     const demandEventRefs: POVCausalRef[] = [];
     // Prefer live causal refs
-    if (liveCtx && liveCtx.customerRefs.length > 0) {
-      demandEventRefs.push(...liveCtx.customerRefs.slice(0, 2));
+    if (resolvedLiveCtx && resolvedLiveCtx.customerRefs.length > 0) {
+      demandEventRefs.push(...resolvedLiveCtx.customerRefs.slice(0, 2));
+    } else if (coldLedgerContext?.customerRefs.length) {
+      demandEventRefs.push(...coldLedgerContext.customerRefs.slice(0, 2));
     } else {
       for (const evt of demandShiftEvents.slice(0, 2)) {
         demandEventRefs.push({
@@ -1210,12 +1387,18 @@ export function buildBecauseBigProof(
         }
       }
     }
+    const demandArchiveCount = coldLedgerContext?.customerCount ?? 0;
+    const demandCount = demandShiftEvents.length;
     evidence.push({
       kind: 'demand-shift',
-      headline: `${comparingCount} 位客户处于比较阶段`,
+      headline: demandCount > 0
+        ? `${comparingCount} 位客户处于比较阶段`
+        : `历史记录 ${demandArchiveCount} 次客户需求变动`,
       detail: demandShiftEvents.length > 0
         ? `检测到 ${demandShiftEvents.length} 条客户需求比较/注意力转移因果事件。`
-        : `客户需求正在流动，比较阶段的客户最容易被竞品吸引。`,
+        : demandCount > 0
+          ? `客户需求正在流动，比较阶段的客户最容易被竞品吸引。`
+          : '历史归档的客户比对及注意力事件，表明需求正在流动。',
       refs: demandEventRefs.length > 0 ? demandEventRefs : [{
         refType: 'market-cell' as const,
         refId: cellId,
@@ -1228,8 +1411,10 @@ export function buildBecauseBigProof(
   if (hasOwnerPressureDelta && caseItem) {
     const ownerEventRefs: POVCausalRef[] = [];
     // Prefer live causal refs
-    if (liveCtx && liveCtx.ownerRefs.length > 0) {
-      ownerEventRefs.push(...liveCtx.ownerRefs.slice(0, 2));
+    if (resolvedLiveCtx && resolvedLiveCtx.ownerRefs.length > 0) {
+      ownerEventRefs.push(...resolvedLiveCtx.ownerRefs.slice(0, 2));
+    } else if (coldLedgerContext?.ownerRefs.length) {
+      ownerEventRefs.push(...coldLedgerContext.ownerRefs.slice(0, 2));
     } else {
       for (const evt of ownerPressureEvents.slice(0, 2)) {
         ownerEventRefs.push({
@@ -1242,10 +1427,16 @@ export function buildBecauseBigProof(
         ownerEventRefs.push({ refType: 'case' as const, refId: caseItem.id, refLabel: caseItem.title });
       }
     }
+    const ownerArchiveCount = coldLedgerContext?.ownerCount ?? 0;
+    const ownerCount = ownerPressureEvents.length;
     evidence.push({
       kind: 'owner-pressure',
-      headline: `业主预期压力偏高`,
-      detail: `挂牌价高于市场价 ${Math.round(caseItem.priceGapPct)}%，业主需要市场证据辅助判断。`,
+      headline: ownerCount > 0
+        ? '业主预期压力偏高'
+        : `历史归档 ${ownerArchiveCount} 次业主压力波动`,
+      detail: ownerCount > 0
+        ? `挂牌价高于市场价 ${Math.round(caseItem.priceGapPct)}%，业主需要市场证据辅助判断。`
+        : '历史压力记录表明业主对价格偏差持续敏感，建议适时面访。',
       refs: ownerEventRefs,
     });
     safeRefs.push(...evidence[evidence.length - 1].refs);
@@ -1255,7 +1446,7 @@ export function buildBecauseBigProof(
   if (crossDomainEventIds.length > 0) {
     const crossRefs: POVCausalRef[] = [];
     for (const id of crossDomainEventIds) {
-      const allLive = liveCtx?.allRefs ?? [];
+      const allLive = resolvedLiveCtx?.allRefs ?? [];
       const found = allLive.find((r) => r.refId === id);
       if (found) crossRefs.push(found);
     }

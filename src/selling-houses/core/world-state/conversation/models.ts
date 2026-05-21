@@ -1,4 +1,5 @@
 import type { AgentMemoryFact } from '../agents/models.js';
+import type { CaseAgentContextPack } from '../agents/caseContextPack.js';
 
 /**
  * WeChat Conversation v0 — pure contracts for player-operated dialogue.
@@ -32,6 +33,7 @@ export type ConversationIntentKind =
   | 'follow_customer'
   | 'align_manager'
   | 'overpromise'
+  | 'hostile'
   | 'unclear';
 
 export type ConversationRiskKind =
@@ -40,7 +42,8 @@ export type ConversationRiskKind =
   | 'empty_comfort'
   | 'price_pressure_too_fast'
   | 'missing_next_step'
-  | 'ignores_customer';
+  | 'ignores_customer'
+  | 'offensive_reply';
 
 export type ConversationNextStepKind =
   | 'schedule_face_visit'
@@ -89,6 +92,7 @@ export interface ConversationSceneInputPack {
   readonly playerText: string;
   readonly sourceMessage: ConversationSceneSourceMessage;
   readonly caseContext?: ConversationSceneCaseContext;
+  readonly caseContextPack?: CaseAgentContextPack;
   readonly opportunityContext?: {
     readonly opportunityId: string;
     readonly customerName: string;
@@ -144,13 +148,36 @@ export interface ConversationTraceSnapshot {
   readonly acceptedSource: 'rule' | 'llm' | 'fallback';
   readonly ruleConfidence: number;
   readonly llmConfidence: number | null;
+  readonly contextPackId?: string;
+  readonly contextBudget?: string;
+  readonly visibleRefCount?: number;
   readonly pressure: readonly string[];
   readonly uncertainty: readonly string[];
   readonly memoryFactCount: number;
   readonly contextSignalCount: number;
   readonly arbiterDecision: string;
   readonly validationNotes: readonly string[];
+  readonly normalizationNotes?: readonly string[];
   readonly rejectedReasons: readonly string[];
+  readonly modelId?: string;
+  readonly provider?: string;
+  readonly llmError?: string;
+  readonly shadowStatus?: 'clean' | 'needs-review' | 'no-shadow';
+  readonly shadowDecision?: 'rule-only' | 'llm-won' | 'rule-kept';
+  readonly shadowRiskLevel?: 'low' | 'medium' | 'high';
+  readonly shadowConfidenceDelta?: number | null;
+  readonly shadowAcceptedProposalId?: string;
+  readonly shadowSignals?: readonly string[];
+  readonly shadowSummary?: string;
+  readonly evaluationScore?: number;
+  readonly evaluationVerdict?: 'strong' | 'acceptable' | 'needs-work';
+  readonly evaluationStatus?: 'pass' | 'review' | 'watch';
+  readonly evaluationSignals?: readonly string[];
+  readonly evaluationSummary?: string;
+  readonly meshReadiness?: 'ready' | 'needs-review' | 'blocked';
+  readonly meshPrimaryRoleId?: string;
+  readonly meshSignals?: readonly string[];
+  readonly meshSummary?: string;
 }
 
 export interface ConversationReceipt {

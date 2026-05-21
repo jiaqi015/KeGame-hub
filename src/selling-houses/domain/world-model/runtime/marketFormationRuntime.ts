@@ -254,7 +254,7 @@ export function generateMarketFormationSourceRecords(
         subtype: action,
         summary: `${store.name}${action}: 活跃度${store.activityHeat}`,
         rivalBrokerId: `shadow-broker-${store.id}`,
-        rivalAcnId: `acn-${store.type}`,
+        rivalAcnId: store.acnId ?? `acn-${store.type}`,
         listingId: targetListing?.id,
         priceBefore: targetListing?.askPrice,
         priceAfter: targetListing ? Math.max(100, targetListing.askPrice + seededInt(`${rivalSalt}-delta`, -10, 5)) : undefined,
@@ -277,7 +277,7 @@ export function generateMarketFormationSourceRecords(
     } as InformationSourceRecord<'rival_action'>);
 
     // ACN network signal
-    const acnId = `acn-${store.type}`;
+    const acnId = store.acnId ?? `acn-${store.type}`;
     records.push({
       sourceId: `isr-mf-acn-${day}-${store.id}-${i}`,
       sourceKind: 'acn_network_signal',
@@ -432,7 +432,7 @@ export function generateMarketFormationSourceRecords(
         subtype: seededChoice(`${bcSalt}-sub`, ['workload_balanced', 'energy_depleted', 'organizational_pressure'] as const),
         summary: `${store.name}经纪人能力: 活跃度${store.activityHeat}`,
         brokerId: `shadow-broker-${store.id}`,
-        acnId: `acn-${store.type}`,
+        acnId: store.acnId ?? `acn-${store.type}`,
         energyLevel: seededInt(`${bcSalt}-energy`, 20, 90),
         scheduleUtilization: seededInt(`${bcSalt}-util`, 30, 95),
         activeCaseCount: seededInt(`${bcSalt}-cases`, 1, 8),

@@ -49,7 +49,6 @@ const DailySummaryOverlay = lazy(() => import('./ui/features/DailySummaryOverlay
 const WeeklySummaryOverlay = lazy(() => import('./ui/features/WeeklySummaryOverlay').then((module) => ({ default: module.WeeklySummaryOverlay })));
 const LeaderboardOverlay = lazy(() => import('./ui/features/LeaderboardOverlay').then((module) => ({ default: module.LeaderboardOverlay })));
 const ScenarioSetup = lazy(() => import('./ui/features/ScenarioSetup').then((module) => ({ default: module.ScenarioSetup })));
-
 const ADVANCE_LOCK_RELEASE_DELAY_MS = 650;
 
 export function preloadSellingHousesPrimaryViews() {
@@ -118,6 +117,7 @@ export function SellingHousesWorkspace({
   const {
     phase,
     state,
+    worldGraphSummary,
     difficultyOptions,
     featuredScenarios,
     lastDifficulty,
@@ -643,6 +643,7 @@ export function SellingHousesWorkspace({
         return (
           <Dashboard
             state={state}
+            worldGraphSummary={worldGraphSummary}
             wechatReadIds={wechatReadIds}
             onSelectCase={handleSelectCase}
             onExecuteAction={executeActionByCaseId}
@@ -693,6 +694,7 @@ export function SellingHousesWorkspace({
         return (
           <Dashboard
             state={state}
+            worldGraphSummary={worldGraphSummary}
             wechatReadIds={wechatReadIds}
             onSelectCase={handleSelectCase}
             onExecuteAction={executeActionByCaseId}

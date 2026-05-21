@@ -441,6 +441,10 @@ export function normalizeRuntimeState(
   const actionResourceReceipts = Array.isArray(raw['actionResourceReceipts'])
     ? raw['actionResourceReceipts'] as import('./types.js').ActionResourceReceipt[]
     : [];
+  const worldGraphSummary = raw['worldGraphSummary'] && typeof raw['worldGraphSummary'] === 'object'
+    ? raw['worldGraphSummary'] as import('./types.js').WorldGraphSummary
+    : undefined;
+
   return Object.freeze({
     compactionPolicy,
     lastTickDay: Math.max(0, Number(raw['lastTickDay']) || 0),
@@ -449,6 +453,7 @@ export function normalizeRuntimeState(
     coldLedgerSummaries: Array.isArray(raw['coldLedgerSummaries']) ? raw['coldLedgerSummaries'] as ColdLedgerSummary[] : [],
     economicResourceLedger,
     actionResourceReceipts,
+    worldGraphSummary,
     totalEventsEmitted: Math.max(0, Number(raw['totalEventsEmitted']) || 0),
     totalMutationsEmitted: Math.max(0, Number(raw['totalMutationsEmitted']) || 0),
     tickCount: Math.max(0, Number(raw['tickCount']) || 0),

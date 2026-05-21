@@ -94,6 +94,7 @@ function testDayZeroProjectionHasAllDimensions() {
 
   // Broker action pressure
   assert.equal(typeof summary.brokerActionPressure.activeRivalStoreCount, 'number');
+  assert.equal(typeof summary.brokerActionPressure.internalPressure, 'number');
   assert.ok(Array.isArray(summary.brokerActionPressure.topSignals));
 
   // Because big proof

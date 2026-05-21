@@ -165,6 +165,7 @@ const DUMMY_BIG_WORLD_POV: BigWorldPOVSummary = {
     topSignals: [],
     activeRivalStoreCount: 2,
     recentRepriceCount: 1,
+    internalPressure: 0,
     refs: [],
   },
   becauseBigProof: {

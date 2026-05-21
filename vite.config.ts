@@ -92,6 +92,9 @@ export default defineConfig(({mode}) => {
         },
       },
     },
+    test: {
+      exclude: ['**/.claude/worktrees/**', '**/node_modules/**', '**/e2e/**'],
+    },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.

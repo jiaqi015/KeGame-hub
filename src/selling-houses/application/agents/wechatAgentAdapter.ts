@@ -16,6 +16,9 @@ import {
   CUSTOMER_INTENT_DECISIVE,
   CUSTOMER_CONFIDENCE_UNCERTAIN,
 } from '../../core/world-state/agents/thresholds.js';
+import {
+  buildWechatAgentPromptSections,
+} from './wechatPromptPresets.js';
 
 export type WechatAgentPresetId =
   | 'owner-pragmatic'
@@ -131,26 +134,16 @@ const wechatAgentAdapter: AgentHarnessAdapter<ConversationSceneInputPack> = {
   },
 
   compilePrompt(profile, perception) {
+    const sections = buildWechatAgentPromptSections({
+      profile,
+      scene: perception.context,
+      caseContextPack: perception.context.caseContextPack,
+      perception,
+    });
     return {
-      systemLines: [
-        `对话角色：${profile.roleLabel}`,
-        `角色 soul：${profile.soul}`,
-        `目标：${profile.goals.join('；')}`,
-        `性格和偏好：${profile.traits.join('；')}`,
-        `边界：${profile.boundaries.join('；')}`,
-        `说话方式：${profile.speakingStyle.join('；')}`,
-      ],
-      contextLines: [
-        `当前压力：${perception.pressure.join('；') || '暂无明显压力'}`,
-        `不确定点：${perception.uncertainty.join('；') || '暂无'}`,
-        `记忆：${perception.memory.map((fact) => fact.summary).join('；') || '暂无记忆'}`,
-      ],
-      outputContractLines: [
-        'recipientReply 必须像这个角色本人回的一条微信，不是系统评语。',
-        '不要偷看隐藏真相，不要编造已成交、已报价、已调价、已带看。',
-        '不要说系统、AI、模型、评分、内部变量。',
-        '不要每次都用“收到/好/可以”开头。',
-      ],
+      systemLines: [...sections.rootLines, ...sections.roleLines],
+      contextLines: [...sections.contextLines, ...sections.memoryLines, ...sections.validationLines],
+      outputContractLines: sections.outputContractLines,
     };
   },
 };

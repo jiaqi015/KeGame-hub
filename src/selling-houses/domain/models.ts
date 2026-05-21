@@ -601,6 +601,10 @@ export interface RivalStoreArchetype {
   leadCapturePower: number;
   sellerInfluencePower: number;
   pricingPressurePower: number;
+  /** ACN network this store belongs to (same_company only). */
+  acnId?: string;
+  /** Brand identifier for same-brand-different-ACN detection. */
+  brandId?: string;
 }
 
 export interface RivalListingArchetype {
@@ -657,6 +661,10 @@ export interface RivalStore {
   sellerInfluencePower: number;
   pricingPressurePower: number;
   activityHeat: number;
+  /** ACN network this store belongs to (same_company only). */
+  acnId?: string;
+  /** Brand identifier for same-brand-different-ACN detection. */
+  brandId?: string;
 }
 
 export interface RivalListing {
