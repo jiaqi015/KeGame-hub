@@ -195,4 +195,44 @@ describe('attributePressure', () => {
     expect(result.coSalePressure).toBe(0);
     expect(result.internalPressure).toBe(0);
   });
+
+  it('same brand different ACN store contributes to internalPressure when playerBrandId matches', () => {
+    const stores: RivalStore[] = [
+      makeStore({ id: 's1', type: 'same_company', acnId: 'acn-aggressive', brandId: 'brand-alpha', activityHeat: 60 }),
+    ];
+    const listings: RivalListing[] = [];
+
+    const result = attributePressure(stores, listings, cellId, playerAcnId, 'brand-alpha');
+
+    expect(result.internalPressure).toBeGreaterThan(0);
+    expect(result.coSalePressure).toBe(0);
+    expect(result.rivalPressure).toBe(0);
+  });
+
+  it('same company different brand different ACN still goes to internal (same_company fallback)', () => {
+    const stores: RivalStore[] = [
+      makeStore({ id: 's1', type: 'same_company', acnId: 'acn-other-brand', brandId: 'brand-beta', activityHeat: 60 }),
+    ];
+    const listings: RivalListing[] = [];
+
+    const result = attributePressure(stores, listings, cellId, playerAcnId, 'brand-alpha');
+
+    // Different brand, different ACN, but same_company type → internal (affiliation)
+    expect(result.internalPressure).toBeGreaterThan(0);
+    expect(result.coSalePressure).toBe(0);
+  });
+
+  it('same brand different ACN with no playerAcnId still routes to internal via brandId', () => {
+    const stores: RivalStore[] = [
+      makeStore({ id: 's1', type: 'same_company', acnId: 'acn-aggressive', brandId: 'brand-alpha', activityHeat: 55 }),
+    ];
+    const listings: RivalListing[] = [];
+
+    // No playerAcnId provided — brandId match alone should route to internal
+    const result = attributePressure(stores, listings, cellId, undefined, 'brand-alpha');
+
+    expect(result.internalPressure).toBeGreaterThan(0);
+    expect(result.coSalePressure).toBe(0);
+    expect(result.rivalPressure).toBe(0);
+  });
 });

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import type { GameState, TodayArrangementSlot } from '../../domain/models';
 import { formatDate, getRoutine } from '../../domain/utils';
 import { WEEKLY_ROUTINE } from '../../domain/constants';
@@ -18,7 +18,6 @@ import { buildMyWechatProjection } from '../../application/projections/myWechatP
 import type { WechatMessage } from '../../application/projections/myWechatTypes.js';
 import { buildMarketIntelProjection, type IntelLayerTab } from './marketIntel';
 import { MyWechatPanel } from './MyWechatPanel';
-import { WorldGraphSummaryPanel } from './WorldGraphSummaryPanel';
 import type { WorldGraphSummary } from '../../domain/world-model/runtime/types';
 import {
   ArrowRight,
@@ -86,6 +85,10 @@ const CALENDAR_PAST_CONTEXT_DAYS: Record<CalendarWindowDays, number> = {
   7: 0,
   14: 3,
 };
+
+const WorldGraphSummaryPanel = lazy(() =>
+  import('./WorldGraphSummaryPanel').then((module) => ({ default: module.WorldGraphSummaryPanel })),
+);
 
 export function resolveDashboardSelectedDayAfterStateDayChange(
   selectedDay: number,
@@ -332,10 +335,12 @@ export function Dashboard({
 
             <div className="space-y-3">
               {worldGraphSummary && (
-                <WorldGraphSummaryPanel
-                  worldGraphSummary={worldGraphSummary}
-                  onOpenMarket={(layer) => onOpenMarket(layer || 'district')}
-                />
+                <Suspense fallback={null}>
+                  <WorldGraphSummaryPanel
+                    worldGraphSummary={worldGraphSummary}
+                    onOpenMarket={(layer) => onOpenMarket(layer || 'district')}
+                  />
+                </Suspense>
               )}
               {/* 旧右栏"机会 / 今日新闻摘要 / 推荐跟进房源"已由"我的微信"替代，旧组件保留便于回滚。 */}
               <MyWechatPanel

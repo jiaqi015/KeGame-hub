@@ -125,4 +125,16 @@ describe('WorldGraph as runtime product of daily tick', () => {
     expect(summary.coSaleEdgeCount).toBeGreaterThanOrEqual(0);
     expect(summary.rivalEdgeCount).toBeGreaterThanOrEqual(0);
   });
+
+  it('marketCellSummaries include internalPressure field', () => {
+    const state = createTestState();
+    const result = advanceGameDaysWithSummary(state, 1);
+    const summary = result.nextState.bigWorldRuntime?.worldGraphSummary;
+    expect(summary).toBeDefined();
+
+    for (const cell of summary!.marketCellSummaries) {
+      expect(cell.internalPressure).toBeGreaterThanOrEqual(0);
+      expect(cell.internalPressure).toBeLessThanOrEqual(100);
+    }
+  });
 });

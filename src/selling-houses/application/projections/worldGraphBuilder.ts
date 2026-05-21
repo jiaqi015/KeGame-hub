@@ -708,6 +708,7 @@ export function buildWorldGraphSummary(graph: WorldGraph, state: GameState): Wor
       shadowListingCount: shadowCount,
       activeCustomerCount: activeCustomerIds.size,
       coSalePressure: cellPressure.coSalePressure,
+      internalPressure: cellPressure.internalPressure,
       rivalPressure: cellPressure.rivalPressure,
     });
   }

@@ -489,7 +489,7 @@ export interface BigWorldClockInput {
   /** Run seed for deterministic operations. */
   readonly runSeed: number;
   /** Structured time context derived from settledDay — replaces scattered day % 7. */
-  readonly timeContext: TimeContext;
+  readonly timeContext?: TimeContext;
   /** Market cells (from GameState.markets). */
   readonly marketCells: readonly { readonly id: string; readonly name: string; readonly demandHeat: number; readonly supplyPressure: number; readonly competitivePressure: number; readonly sentiment: number }[];
   /** Active cases (from GameState.cases, filtered to status === 'active'). */

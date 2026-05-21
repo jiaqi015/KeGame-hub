@@ -16,6 +16,11 @@
  *   - All node/edge IDs are deterministic (seed + kind + index)
  */
 
+import type {
+  WorldGraphSummary as WorldGraphSummaryBase,
+  MarketCellGraphSummary as MarketCellGraphSummaryBase,
+} from '../../domain/world-model/runtime/types.js';
+
 // ════════════════════════════════════════════════════════════════════════════
 // Node kinds — what entities exist in the world graph
 // ════════════════════════════════════════════════════════════════════════════
@@ -77,35 +82,11 @@ export interface WorldGraph {
 // Graph summary — answers key business questions
 // ════════════════════════════════════════════════════════════════════════════
 
-export interface WorldGraphSummary {
-  readonly acnCount: number;
-  readonly brokerCount: number;
-  readonly listingCount: number;
-  readonly shadowListingCount: number;
-  readonly rivalListingCount: number;
-  readonly customerCount: number;
-  readonly marketCellCount: number;
-  readonly microCellCount: number;
-  readonly storeCount: number;
-  readonly ownerCount: number;
-  readonly coSaleEdgeCount: number;
-  readonly rivalEdgeCount: number;
-  readonly marketCellSummaries: readonly MarketCellGraphSummary[];
-}
-
-export interface MarketCellGraphSummary {
-  readonly cellId: string;
-  readonly cellName: string;
-  readonly heat: number;
-  readonly supplyPressure: number;
-  readonly competitivePressure: number;
-  readonly listingCount: number;
-  readonly rivalListingCount: number;
-  readonly shadowListingCount: number;
-  readonly activeCustomerCount: number;
-  readonly coSalePressure: number;
-  readonly rivalPressure: number;
-}
+// Re-export summary types from runtime/types.ts — single source of truth.
+// runtime/ owns the shape because WorldGraphSummary is cached on
+// BigWorldRuntimeState after each daily tick.
+export type WorldGraphSummary = WorldGraphSummaryBase;
+export type MarketCellGraphSummary = MarketCellGraphSummaryBase;
 
 // ════════════════════════════════════════════════════════════════════════════
 // Player-visible projection — filtered, no hidden truth leakage

@@ -55,6 +55,7 @@ const MarketCellRow = React.memo(function MarketCellRow({ cell }: { cell: Market
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
           <PressureMiniBar label="竞对" value={cell.rivalPressure} />
+          <PressureMiniBar label="内部" value={cell.internalPressure} />
           <PressureMiniBar label="联动" value={cell.coSalePressure} />
         </div>
       </div>

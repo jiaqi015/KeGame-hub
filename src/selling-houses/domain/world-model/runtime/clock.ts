@@ -34,10 +34,9 @@ import type {
   BigWorldTickPhaseResult,
   ColdLedgerSummary,
   WorldRuntimeCompactionPolicy,
-  DEFAULT_COMPACTION_POLICY,
 } from './types.js';
 
-import { DEFAULT_COMPACTION_POLICY as DEFAULT_POLICY } from './types.js';
+import { DEFAULT_COMPACTION_POLICY as DEFAULT_POLICY, buildTimeContext } from './types.js';
 
 import { runAllPhases } from './phases.js';
 import {
@@ -281,7 +280,7 @@ function generateAdditionalSourceRecords(
         subtype,
         summary: `${store.name}经纪人能力: ${subtype}, 精力${energy}`,
         brokerId: `shadow-broker-${store.id}`,
-        acnId: `acn-${store.type}`,
+        acnId: store.acnId ?? `fallback-acn-${store.id}`,
         energyLevel: energy,
         scheduleUtilization: seededInt(`${salt}-bc-util-${i}`, 30, 95),
         activeCaseCount: seededInt(`${salt}-bc-cases-${i}`, 1, 8),
@@ -347,7 +346,7 @@ function generateAdditionalSourceRecords(
 
     const subtypes: readonly string[] = ['competition_escalation', 'info_share_received', 'cooperation_opportunity', 'cross_district_competition'];
     const subtype = seededChoice(`${salt}-an-sub-${i}`, subtypes);
-    const acnId = `acn-${store.type}`;
+    const acnId = store.acnId ?? `fallback-acn-${store.id}`;
 
     records.push({
       sourceId: `isr-an-${day}-${store.id}-${i}`,
@@ -1141,6 +1140,7 @@ export function buildClockInputFromGameState(
 
   // Extract ACN profiles from bootstrap
   const acnProfiles = bootstrap?.hiddenTruth?.acnProfiles;
+  const timeContext = buildTimeContext(state.day);
 
   // Build shadow cases from owner priors + market cells
   // These allow the runtime to process 50+ owners per day
@@ -1156,6 +1156,7 @@ export function buildClockInputFromGameState(
   return {
     settledDay: state.day,
     runSeed: state.runContext.runSeed,
+    timeContext,
     marketCells,
     activeCases: state.cases.filter((c) => c.status === 'active'),
     activeOpportunities: state.opportunities.filter((o) => o.status === 'active'),
@@ -1369,6 +1370,8 @@ function mapBootstrapRivalStores(
       sellerInfluencePower: Math.max(0, Math.min(100, (broker.listingPoolSize ?? 3) * 10)),
       pricingPressurePower: Math.max(0, Math.min(100, 50 + (broker.actionBias ?? 0))),
       activityHeat: Math.max(0, Math.min(100, broker.energyBudget ?? 50)),
+      acnId: broker.acnId,
+      brandId: broker.acnId ? broker.acnId.replace(/-[^-]+$/, '') : undefined,
     }));
   return mapped.length > fallback.length ? mapped : fallback;
 }

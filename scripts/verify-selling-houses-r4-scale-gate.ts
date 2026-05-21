@@ -226,6 +226,11 @@ try {
   );
   graphBuilderAvailable = true;
 
+  if (!graphBuilderAvailable) {
+    console.log('  FAIL: worldGraphBuilder import succeeded but availability flag not set');
+    process.exit(1);
+  }
+
   // Build a minimal GameState-like object that buildWorldGraph can read from.
   // buildWorldGraph reads:
   //   - state.runContext.runSeed

@@ -53,17 +53,24 @@ export function attributePressure(
       continue;
     }
 
-    // same_company store — determine channel based on acnId
+    // same_company store — determine channel based on acnId and brandId
     if (playerAcnId !== undefined && store.acnId !== undefined) {
       if (store.acnId === playerAcnId) {
         // Same ACN: true co-sale partner
         coSaleStores.push(store);
+      } else if (playerBrandId !== undefined && store.brandId !== undefined && store.brandId === playerBrandId) {
+        // Same brand, different ACN: internal pressure
+        internalStores.push(store);
       } else {
-        // Same company, different ACN: internal pressure (semi-competitive)
+        // Same company, different ACN and different brand: treat as internal
+        // (fallback — without brand info we can't distinguish, same_company implies some affiliation)
         internalStores.push(store);
       }
+    } else if (playerBrandId !== undefined && store.brandId !== undefined && store.brandId === playerBrandId) {
+      // No acnId match but brandId matches: internal pressure
+      internalStores.push(store);
     } else {
-      // No acnId available — backward compatible: same_company → coSalePressure
+      // No acnId/brandId available — backward compatible: same_company → coSalePressure
       coSaleStores.push(store);
     }
   }

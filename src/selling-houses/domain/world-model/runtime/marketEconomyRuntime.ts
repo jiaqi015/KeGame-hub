@@ -131,14 +131,14 @@ export function computeDailyResourceSnapshot(
       realBudgetConsumed -= amount;
     }
   }
-  // Weekly allocation fallback
-  const weeklyAlloc = day % 7 === 1 ? seededInt(`${salt}-budget-alloc`, 50, 150) : 0;
+  // Weekly allocation fallback — uses TimeContext instead of bare day % 7
+  const weeklyAlloc = input.timeContext.isWeeklyBudgetDay ? seededInt(`${salt}-budget-alloc`, 50, 150) : 0;
   const fallbackBudget = seededInt(`${salt}-budget-cons`, 5, Math.min(40, activeCaseCount * 5));
   const budgetConsumed = realBudgetConsumed > 0 ? realBudgetConsumed : fallbackBudget;
   const budgetAllocated = weeklyAlloc;
 
   // ── Org credit: from focus meeting / manager messages ─────────
-  const orgCreditEarned = day % 7 === 4 ? seededInt(`${salt}-org-earn`, 20, 60) : 0;
+  const orgCreditEarned = input.timeContext.isOrgCreditDay ? seededInt(`${salt}-org-earn`, 20, 60) : 0;
   const orgCreditSpent = seededInt(`${salt}-org-spend`, 5, Math.min(30, activeCaseCount * 3));
 
   // ── Customer attention: from process receipts + seeded fallback ──
@@ -225,7 +225,7 @@ export function generateEconomySourceRecords(
         subtype: snapshot.playerEnergyConsumed > 50 ? 'energy_depleted' : 'workload_balanced',
         summary: `经纪人日耗精力${snapshot.playerEnergyConsumed}，补充${snapshot.playerEnergyReplenished}`,
         brokerId: 'player-broker',
-        acnId: 'player-acn',
+        acnId: input.existingRuntime?.playerBrokerAcnId ?? 'player-broker-acn',
         energyLevel: Math.max(0, snapshot.playerEnergyReplenished - snapshot.playerEnergyConsumed),
         scheduleUtilization: Math.min(100, Math.round(snapshot.playerEnergyConsumed * 1.2)),
         activeCaseCount: input.activeCases.length,

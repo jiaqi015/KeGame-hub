@@ -254,7 +254,7 @@ export function generateMarketFormationSourceRecords(
         subtype: action,
         summary: `${store.name}${action}: 活跃度${store.activityHeat}`,
         rivalBrokerId: `shadow-broker-${store.id}`,
-        rivalAcnId: store.acnId ?? `acn-${store.type}`,
+        rivalAcnId: store.acnId ?? `fallback-acn-${store.id}`,
         listingId: targetListing?.id,
         priceBefore: targetListing?.askPrice,
         priceAfter: targetListing ? Math.max(100, targetListing.askPrice + seededInt(`${rivalSalt}-delta`, -10, 5)) : undefined,
@@ -277,7 +277,7 @@ export function generateMarketFormationSourceRecords(
     } as InformationSourceRecord<'rival_action'>);
 
     // ACN network signal
-    const acnId = store.acnId ?? `acn-${store.type}`;
+    const acnId = store.acnId ?? `fallback-acn-${store.id}`;
     records.push({
       sourceId: `isr-mf-acn-${day}-${store.id}-${i}`,
       sourceKind: 'acn_network_signal',
