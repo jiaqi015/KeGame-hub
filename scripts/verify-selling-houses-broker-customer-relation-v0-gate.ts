@@ -477,27 +477,40 @@ const hasCheckTrue = /check\s*\(\s*true\s*[,\)]/.test(stripped);
 const hasAssertTrue = /assert\s*\(\s*true\s*\)/.test(stripped);
 const hasOrTrue = stripped.includes('|| true');
 
+function findPatternLines(source: string, pattern: RegExp): string {
+  const lines = source.split('\n');
+  const hits: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (pattern.test(lines[i])) hits.push(`L${i + 1}`);
+  }
+  return hits.length > 0 ? ` at ${hits.join(', ')}` : '';
+}
+
 if (hasCheckTrue) {
-  fail('no-check-true', 'gate source contains check(true)');
+  const loc = findPatternLines(stripped, /check\s*\(\s*true\s*[,\)]/);
+  fail('no-check-true', `gate source contains check(true)${loc}`);
 } else {
   pass('no-check-true');
 }
 
 if (hasAssertTrue) {
-  fail('no-assert-true', 'gate source contains assert(true)');
+  const loc = findPatternLines(stripped, /assert\s*\(\s*true\s*\)/);
+  fail('no-assert-true', `gate source contains assert(true)${loc}`);
 } else {
   pass('no-assert-true');
 }
 
 if (hasOrTrue) {
-  fail('no-or-true', 'gate source contains || true');
+  const loc = findPatternLines(stripped, /\|\|\s*true/);
+  fail('no-or-true', `gate source contains || true${loc}`);
 } else {
   pass('no-or-true');
 }
 
 const hasWarnOnly = /console\.log\s*\(\s*['"`]\s*WARN/.test(businessLogicSrc);
 if (hasWarnOnly) {
-  fail('no-warn-soft-pass', 'gate source has WARN-only pattern');
+  const loc = findPatternLines(businessLogicSrc, /console\.log\s*\(\s*['"`]\s*WARN/);
+  fail('no-warn-soft-pass', `gate source has WARN-only pattern${loc}`);
 } else {
   pass('no-warn-soft-pass');
 }

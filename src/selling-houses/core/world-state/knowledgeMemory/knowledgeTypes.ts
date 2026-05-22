@@ -10,7 +10,7 @@
  *   reference   — ACN references, case IDs, broker IDs (permanent, never compacted)
  */
 
-import type { SourceKind } from '../../../../domain/world-model/informationSourceTypes.js';
+import type { SourceKind } from '../sourceKinds.js';
 
 // ══════════════════════════════════════════════════════════════════
 // KnowledgeType — the four knowledge categories

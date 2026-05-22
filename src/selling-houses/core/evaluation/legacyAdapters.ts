@@ -1,5 +1,9 @@
-import { BALANCE } from '../../domain/config/balance.js';
-import type { Case, GameState, Opportunity } from '../../domain/models.js';
+import { SCORING_BALANCE } from '../business-rules/scoring/scoringBalance.js';
+import type {
+  LegacyEvaluationCaseLike,
+  LegacyEvaluationOpportunityLike,
+  LegacyEvaluationStateLike,
+} from './legacyEvaluationContracts.js';
 import type {
   CompetitionPressureSnapshot,
   PressureReceiptBundle,
@@ -90,7 +94,7 @@ function dimension(
   };
 }
 
-function caseSubjectRef(caseItem: Case): EvaluationSubjectRef {
+function caseSubjectRef(caseItem: LegacyEvaluationCaseLike): EvaluationSubjectRef {
   return {
     kind: 'case',
     id: caseItem.id,
@@ -100,7 +104,7 @@ function caseSubjectRef(caseItem: Case): EvaluationSubjectRef {
   };
 }
 
-function opportunitySubjectRef(opportunity: Opportunity): EvaluationSubjectRef {
+function opportunitySubjectRef(opportunity: LegacyEvaluationOpportunityLike): EvaluationSubjectRef {
   return {
     kind: 'opportunity',
     id: opportunity.id,
@@ -116,13 +120,13 @@ function ownerGapDays(day: number, lastOwnerTouchedDay: number) {
   return Math.max(0, day - lastOwnerTouchedDay);
 }
 
-function priceFlexScore(caseItem: Case) {
+function priceFlexScore(caseItem: LegacyEvaluationCaseLike) {
   const priceFlex = (caseItem.askPrice - caseItem.bottomPrice) / Math.max(1, caseItem.askPrice);
-  return clampScore(priceFlex * BALANCE.scoring.d3Normalization.priceFlexFullScale * 100);
+  return clampScore(priceFlex * SCORING_BALANCE.d3Normalization.priceFlexFullScale * 100);
 }
 
 function buildAssetBlockers(
-  caseItem: Case,
+  caseItem: LegacyEvaluationCaseLike,
   activeOppCount: number,
   lateStageOppCount: number,
 ): readonly string[] {
@@ -154,7 +158,7 @@ function buildAssetBlockers(
 
 function buildAssetTopDrivers(
   dimensions: { d1: EvaluationDimensionSnapshot; d2: EvaluationDimensionSnapshot; d3: EvaluationDimensionSnapshot },
-  caseItem: Case,
+  caseItem: LegacyEvaluationCaseLike,
 ): readonly AssetScoreDimensionDriver[] {
   const drivers: AssetScoreDimensionDriver[] = [];
 
@@ -191,7 +195,7 @@ function buildAssetTopDrivers(
 }
 
 function buildAssetDecisionMoments(
-  caseItem: Case,
+  caseItem: LegacyEvaluationCaseLike,
   activeOppCount: number,
 ): readonly AssetScoreDecisionMoment[] {
   const moments: AssetScoreDecisionMoment[] = [];
@@ -240,14 +244,14 @@ function buildAssetDecisionMoments(
   return Object.freeze(moments);
 }
 
-function willingnessToAdjustScore(caseItem: Case) {
+function willingnessToAdjustScore(caseItem: LegacyEvaluationCaseLike) {
   const gapPressure = Number.isFinite(caseItem.priceGapPct)
     ? caseItem.priceGapPct
     : ((caseItem.askPrice - caseItem.marketPrice) / Math.max(1, caseItem.marketPrice)) * 100;
   return clampScore(priceFlexScore(caseItem) * 0.65 + clampScore(100 - gapPressure * 8) * 0.35);
 }
 
-function decisionLoadScore(caseItem: Case, day: number) {
+function decisionLoadScore(caseItem: LegacyEvaluationCaseLike, day: number) {
   const gapPenalty = ownerGapDays(day, caseItem.lastOwnerTouchedDay) * 8;
   const windowPenalty = Math.max(0, 7 - caseItem.windowDays) * 7;
   const riskPenalty = caseItem.storylineState === 'critical'
@@ -261,8 +265,8 @@ function decisionLoadScore(caseItem: Case, day: number) {
 }
 
 export function buildAssetScoreSnapshotFromLegacyCase(
-  state: Pick<GameState, 'day' | 'opportunities'>,
-  caseItem: Case,
+  state: Pick<LegacyEvaluationStateLike, 'day' | 'opportunities'>,
+  caseItem: LegacyEvaluationCaseLike,
   relation?: TrustRelationShape | null,
   ownerRelation?: OwnerRelationShape | null,
 ): AssetScoreSnapshot {
@@ -273,7 +277,7 @@ export function buildAssetScoreSnapshotFromLegacyCase(
     (entry) => entry.caseId === caseItem.id && entry.status === 'active',
   );
   const lateStageOpportunityCount = activeOpportunities.filter((entry) => entry.stageIndex >= 3).length;
-  const weights = BALANCE.scoring.competitivenessWeights;
+  const weights = SCORING_BALANCE.competitivenessWeights;
   const axisScores = { ...caseItem.axisScores };
 
   const dimensions = {
@@ -353,8 +357,8 @@ export function buildAssetScoreSnapshotFromLegacyCase(
 }
 
 export function buildOwnerDecisionReadinessSnapshotFromLegacyCase(
-  state: Pick<GameState, 'day'>,
-  caseItem: Case,
+  state: Pick<LegacyEvaluationStateLike, 'day'>,
+  caseItem: LegacyEvaluationCaseLike,
   relation?: TrustRelationShape | null,
   ownerRelation?: OwnerRelationShape | null,
 ): OwnerDecisionReadinessSnapshot {
@@ -432,8 +436,8 @@ export function buildOwnerDecisionReadinessSnapshotFromLegacyCase(
 }
 
 export function buildOpportunityScoreSnapshotFromLegacyOpportunity(
-  state: Pick<GameState, 'day' | 'cases'> & Partial<ReadableStateLike>,
-  opportunity: Opportunity,
+  state: Pick<LegacyEvaluationStateLike, 'day' | 'cases'> & Partial<ReadableStateLike>,
+  opportunity: LegacyEvaluationOpportunityLike,
 ): OpportunityScoreSnapshot {
   const caseItem = state.cases.find((entry) => entry.id === opportunity.caseId) || null;
 
@@ -512,7 +516,7 @@ export function buildOpportunityScoreSnapshotFromLegacyOpportunity(
 }
 
 export function buildRegionOpenDayFitSnapshotFromLegacyState(
-  state: Pick<GameState, 'day' | 'cases' | 'opportunities'>,
+  state: Pick<LegacyEvaluationStateLike, 'day' | 'cases' | 'opportunities'>,
   scope: { district: string; community?: string },
 ): RegionOpenDayFitSnapshot {
   const matchingCases = state.cases.filter((entry) => (
@@ -596,8 +600,8 @@ export function buildRegionOpenDayFitSnapshotFromLegacyState(
 }
 
 export function buildCaseEvaluationSnapshotsFromLegacyState(
-  state: Pick<GameState, 'day' | 'opportunities'>,
-  caseItem: Case,
+  state: Pick<LegacyEvaluationStateLike, 'day' | 'opportunities'>,
+  caseItem: LegacyEvaluationCaseLike,
 ) {
   return {
     assetScore: buildAssetScoreSnapshotFromLegacyCase(state, caseItem),
@@ -613,8 +617,8 @@ export function buildCaseEvaluationSnapshotsFromLegacyState(
  * Pure function. No mutation.
  */
 export function buildCaseEvaluationSnapshotsFromLegacyStateWithRelations(
-  state: Pick<GameState, 'day' | 'opportunities'> & StateWithRelations & StateWithOwnerCaseRelations,
-  caseItem: Case,
+  state: Pick<LegacyEvaluationStateLike, 'day' | 'opportunities'> & StateWithRelations & StateWithOwnerCaseRelations,
+  caseItem: LegacyEvaluationCaseLike,
 ) {
   const trustRelation = findRelationTrustForCase(state, caseItem.id, caseItem.maintainerName);
   const ownerRelation = findOwnerCaseRelationForCase(state, caseItem.id);
@@ -625,8 +629,8 @@ export function buildCaseEvaluationSnapshotsFromLegacyStateWithRelations(
 }
 
 export function buildOpportunityEvaluationSnapshotsFromLegacyState(
-  state: Pick<GameState, 'day' | 'cases'>,
-  opportunity: Opportunity,
+  state: Pick<LegacyEvaluationStateLike, 'day' | 'cases'>,
+  opportunity: LegacyEvaluationOpportunityLike,
 ) {
   return {
     opportunityScore: buildOpportunityScoreSnapshotFromLegacyOpportunity(state, opportunity),
@@ -706,8 +710,8 @@ export function buildD4CompetitionServicePathDimension(
  * Blockers and topDrivers are updated to reflect D4 signals when present.
  */
 export function buildAssetScoreSnapshotFromLegacyCaseWithCompetition(
-  state: Pick<GameState, 'day' | 'opportunities'>,
-  caseItem: Case,
+  state: Pick<LegacyEvaluationStateLike, 'day' | 'opportunities'>,
+  caseItem: LegacyEvaluationCaseLike,
   pressure: CompetitionPressureSnapshot,
 ): AssetScoreSnapshot {
   const baseSnapshot = buildAssetScoreSnapshotFromLegacyCase(state, caseItem);
@@ -775,8 +779,8 @@ export function findCompetitionPressureSnapshotForCase(
  * Pure function. Does not mutate state, caseItem, or receipts.
  */
 export function buildAssetScoreSnapshotFromLegacyCaseWithPressureReceipts(
-  state: Pick<GameState, 'day' | 'opportunities'>,
-  caseItem: Case,
+  state: Pick<LegacyEvaluationStateLike, 'day' | 'opportunities'>,
+  caseItem: LegacyEvaluationCaseLike,
   receipts: PressureReceiptBundle | null | undefined,
 ): AssetScoreSnapshot {
   const pressure = findCompetitionPressureSnapshotForCase(receipts, caseItem.id);

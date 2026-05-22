@@ -21,7 +21,7 @@
 
 import type { AgentMemoryFact } from '../agents/models.js';
 import type { KnowledgeEntry, KnowledgeType } from './knowledgeTypes.js';
-import type { SourceKind } from '../../../../domain/world-model/informationSourceTypes.js';
+import { isSourceKind, type SourceKind } from '../sourceKinds.js';
 
 import { classifyKnowledge } from './knowledgeClassifier.js';
 import { compactKnowledgeByType } from './knowledgeCompaction.js';
@@ -106,7 +106,7 @@ export function fromAgentMemoryFact(
     entryId: fact.factId,
     type,
     source: {
-      sourceKind: sourceKind ?? 'market_signal',
+      sourceKind: isSourceKind(sourceKind) ? sourceKind : 'market_signal',
       subtype: fact.kind,
     },
     content: fact.summary,

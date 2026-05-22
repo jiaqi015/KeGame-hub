@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type {
-  Case,
-  CompetitionGroup,
-  CustomerProfile,
-  GameState,
-  MarketCell,
-  Opportunity,
-  ProductRun,
-} from '../../../domain/models.js';
+  LegacyWorldCaseLike,
+  LegacyWorldGameStateLike,
+  LegacyWorldOpportunityLike,
+} from '../legacyWorldAdapterContracts.js';
+import type { MarketCell } from '../marketTypes.js';
+import type { CompetitionGroup } from '../competitionTypes.js';
+import type { ProductRun } from '../productRunTypes.js';
+import type { CustomerProfile } from '../../business-rules/archetypes/archetypeTaxonomy.js';
 import {
   deriveWorldStateFromLegacyGameState,
   mapLegacyCaseToAssetCase,
@@ -15,7 +15,7 @@ import {
   mapLegacyOpportunityToCustomerCaseOpportunity,
 } from '../adapters.js';
 
-function buildLegacyCase(overrides: Partial<Case> = {}): Case {
+function buildLegacyCase(overrides: Partial<LegacyWorldCaseLike> = {}): LegacyWorldCaseLike {
   return {
     id: 'case-1',
     housePrototypeId: 'house-1',
@@ -75,7 +75,7 @@ function buildLegacyCase(overrides: Partial<Case> = {}): Case {
   };
 }
 
-function buildOpportunity(overrides: Partial<Opportunity> = {}): Opportunity {
+function buildOpportunity(overrides: Partial<LegacyWorldOpportunityLike> = {}): LegacyWorldOpportunityLike {
   return {
     id: 'opp-1',
     caseId: 'case-1',
@@ -185,7 +185,7 @@ describe('legacy GameState world-state adapter', () => {
       competitionGroups: [competitionGroup],
       productRuns: [productRun],
       eventStore: [],
-    } as unknown as GameState;
+    } as unknown as LegacyWorldGameStateLike;
 
     const before = structuredClone(state);
     const snapshot = deriveWorldStateFromLegacyGameState(state);

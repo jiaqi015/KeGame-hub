@@ -30,7 +30,7 @@
  *                for all other knowledge entries.
  */
 
-import type { SourceKind } from '../../../../domain/world-model/informationSourceTypes.js';
+import type { SourceKind } from '../sourceKinds.js';
 import type { KnowledgeType } from './knowledgeTypes.js';
 
 /**

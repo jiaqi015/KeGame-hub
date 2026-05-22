@@ -1,6 +1,10 @@
-import type { Case } from '../../domain/models.js';
+// LegacyCaseField is derived from LegacyWorldCaseLike (the core contract for the
+// legacy Case shape) instead of the domain Case aggregate, so core does not
+// depend on domain. When Case gains a new field, LegacyWorldCaseLike must be
+// updated to match — the compiler will then flag any missing ownership entry.
+import type { LegacyWorldCaseLike } from './legacyWorldAdapterContracts.js';
 
-export type LegacyCaseField = keyof Case;
+export type LegacyCaseField = keyof LegacyWorldCaseLike;
 
 export type LegacyCaseCanonicalOwner =
   | 'asset-case'

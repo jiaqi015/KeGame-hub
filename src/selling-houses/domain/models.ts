@@ -1,38 +1,32 @@
 import type { OwnerProfilingMemorySummary } from './ownerProfilingMemoryTypes.js';
-export type Tone = 'accent' | 'danger' | 'success';
-export type LeadSourceType = 'direct' | 'broker';
-export type ActionCategoryId = 'feedback' | 'marketing' | 'pricing' | 'negotiation';
-export type ActionFamily =
-  | 'owner'
-  | 'merchandising'
-  | 'pricing'
-  | 'promotion'
-  | 'showing'
-  | 'negotiation'
-  | 'broker';
+export type { ActionCategoryId, ActionMetricKey } from '../core/business-rules/action-specs/actionTaxonomy.js';
+import type { ActionCategoryId, ActionMetricKey } from '../core/business-rules/action-specs/actionTaxonomy.js';
+export type {
+  ChannelProfile,
+  CustomerDecisionStyle,
+  CustomerProfile,
+  LeadSourceType,
+  OwnerArchetype,
+  RivalListingArchetype,
+  RivalStoreArchetype,
+} from '../core/business-rules/archetypes/archetypeTaxonomy.js';
+import type {
+  ChannelProfile,
+  CustomerDecisionStyle,
+  CustomerProfile,
+  LeadSourceType,
+  OwnerArchetype,
+  RivalListingArchetype,
+  RivalStoreArchetype,
+} from '../core/business-rules/archetypes/archetypeTaxonomy.js';
+export type { Tone } from '../core/world-state/caseNarrativeTypes.js';
+import type { Tone } from '../core/world-state/caseNarrativeTypes.js';
+export type { ActionFamily } from '../core/business-rules/action-specs/actionDefinitions.js';
+import type { ActionFamily } from '../core/business-rules/action-specs/actionDefinitions.js';
 export type BattleActor = 'owner' | 'market' | 'customer';
-export type ActionMetricKey =
-  | 'trust'
-  | 'patience'
-  | 'urgency'
-  | 'heat'
-  | 'competitiveness'
-  | 'd1'
-  | 'd2'
-  | 'd3'
-  | 'windowDays'
-  | 'askPrice'
-  | 'intent'
-  | 'confidence'
-  | 'promotionBudget'
-  | 'wordOfMouth'
-  | 'commission';
 
-export interface ActionCategoryDefinition {
-  id: ActionCategoryId;
-  name: string;
-  summary: string;
-}
+export type { ActionCategoryDefinition } from '../core/business-rules/action-specs/actionDefinitions.js';
+import type { ActionCategoryDefinition } from '../core/business-rules/action-specs/actionDefinitions.js';
 
 export interface ActionStrategyDefinition {
   id: string;
@@ -50,40 +44,23 @@ export interface ActionBattleTemplate {
   getStrategies: (state: GameState, caseItem: Case, action: ActionDefinition) => ActionStrategyDefinition[];
 }
 
-export interface ActionDefinition {
-  id: string;
-  categoryId?: ActionCategoryId;
-  family?: ActionFamily;
-  name: string;
-  summary?: string;
-  /** 时间占用（小时），用于上午/下午时段容量，不影响精力扣减。 */
-  durationHours?: number;
-  costEnergy: number;
-  costPromotionBudget: number;
-  description: string;
-  type?: 'direct' | 'scenario';
-  templateId?: string;
-  executorId?: string;
-  metricFocus?: ActionMetricKey[];
-}
+export type { ActionDefinition } from '../core/business-rules/action-specs/actionDefinitions.js';
+import type { ActionDefinition } from '../core/business-rules/action-specs/actionDefinitions.js';
 
 export type DifficultyId = 'warmup' | 'easy' | 'standard' | 'advanced' | 'hard' | 'extreme';
 export type GoalContextId = 'ability' | 'defense' | 'satisfaction';
-export type GoalTier = 'core' | 'important' | 'normal';
+export type { GoalTier } from '../core/world-state/caseNarrativeTypes.js';
+import type { GoalTier } from '../core/world-state/caseNarrativeTypes.js';
 export type ListingRelativeOutcome = 'outrun' | 'flat' | 'lose';
-export type OwnerSatisfactionState = 'happy' | 'neutral' | 'no_regret' | 'regret' | 'unhappy';
+export type { OwnerSatisfactionState } from '../core/world-state/caseOutcomeTypes.js';
+import type { OwnerSatisfactionState } from '../core/world-state/caseOutcomeTypes.js';
 export type DefenseOutcome = 'held' | 'at_risk' | 'lost_to_rival' | 'withdrawn';
-export type StorylineState = 'healthy' | 'fragile' | 'sliding' | 'critical';
-export type ListingEndingBucket = 'good' | 'neutral' | 'bad';
-export type ListingEndingType =
-  | 'sold_by_you_happy'
-  | 'sold_by_you_neutral'
-  | 'sold_by_you_regret'
-  | 'sold_by_other'
-  | 'not_sold_no_regret'
-  | 'not_sold_regret'
-  | 'switch_to_rent_no_regret'
-  | 'withdrawn_unhappy';
+export type { StorylineState } from '../core/world-state/caseNarrativeTypes.js';
+import type { StorylineState } from '../core/world-state/caseNarrativeTypes.js';
+export type { ListingEndingBucket } from '../core/world-state/caseOutcomeTypes.js';
+import type { ListingEndingBucket } from '../core/world-state/caseOutcomeTypes.js';
+export type { ListingEndingType } from '../core/world-state/caseOutcomeTypes.js';
+import type { ListingEndingType } from '../core/world-state/caseOutcomeTypes.js';
 
 export interface DifficultyPreviewMetric {
   label: string;
@@ -462,29 +439,8 @@ export function claimPlayerMarketDealSlot(state: GameState): boolean {
   return true;
 }
 
-export interface MarketCell {
-  id: string;
-  name: string;
-  demandHeat: number;
-  supplyPressure: number;
-  competitivePressure: number;
-  sentiment: number;
-  monthlyFactors?: number[];
-}
-
-export interface CustomerProfile {
-  id: string;
-  name: string;
-  profile: string;
-  budgetMin: number;
-  budgetMax: number;
-  targetDistrict: string;
-  layouts: string[];
-  activity: number;
-  urgency: number;
-  priceSensitivity: number;
-  preferences: string[];
-}
+export type { MarketCell } from '../core/world-state/marketTypes.js';
+import type { MarketCell } from '../core/world-state/marketTypes.js';
 
 export type CustomerRuntimeStatus =
   | 'idle'
@@ -494,8 +450,6 @@ export type CustomerRuntimeStatus =
   | 'negotiating'
   | 'lost'
   | 'converted';
-
-export type CustomerDecisionStyle = 'decisive' | 'balanced' | 'hesitant';
 
 export interface CustomerCaseRuntime {
   caseId: string;
@@ -522,26 +476,6 @@ export interface CustomerRuntimeState {
   caseStates: Record<string, CustomerCaseRuntime>;
   lastTouchDay: number;
   lastActionNote?: string;
-}
-
-export interface ChannelProfile {
-  id: string;
-  name: string;
-  quality: number;
-  controllability: number;
-  leadSource?: LeadSourceType;
-}
-
-export interface OwnerArchetype {
-  id: string;
-  label: string;
-  description: string;
-  trustDecayMultiplier: number;
-  priceElasticity: number;
-  urgencyGrowthBonus: number;
-  heatSensitivity: number;
-  patienceDelta: number;
-  preferredTactic: 'hold-story' | 'small-cut' | 'deep-cut';
 }
 
 export interface HousePrototype {
@@ -577,46 +511,14 @@ export interface ScenarioCase {
   goalTier?: GoalTier;
 }
 
-export interface CompetitionGroup {
-  id: string;
-  name: string;
-  members: string[];
-  priceElasticity: number;
-  customerSpillover: number;
-}
+export type { CompetitionGroup } from '../core/world-state/competitionTypes.js';
+import type { CompetitionGroup } from '../core/world-state/competitionTypes.js';
 
 export interface RandomEventTemplate {
   id: string;
   title: string;
   tone: Tone;
   actor: string;
-}
-
-export interface RivalStoreArchetype {
-  id: string;
-  name: string;
-  type: 'same_company' | 'external_company';
-  style: 'aggressive' | 'steady' | 'relationship' | 'traffic';
-  districtFocus: string[];
-  leadCapturePower: number;
-  sellerInfluencePower: number;
-  pricingPressurePower: number;
-  /** ACN network this store belongs to (same_company only). */
-  acnId?: string;
-  /** Brand identifier for same-brand-different-ACN detection. */
-  brandId?: string;
-}
-
-export interface RivalListingArchetype {
-  id: string;
-  titlePrefix: string;
-  segment: string;
-  sourceBias: 'same_company' | 'external_company' | 'mixed';
-  baseHeat: number;
-  freshness: number;
-  storyStrength: number;
-  leadSiphonPower: number;
-  ownerAnchorPower: number;
 }
 
 export interface SignalTemplate {
@@ -1382,19 +1284,8 @@ export interface EventLogEntry {
   date: string;
 }
 
-export type DomainEventKind =
-  | 'journal'
-  | 'action_executed'
-  | 'budget_changed'
-  | 'opportunity_advanced'
-  | 'opportunity_closed'
-  | 'case_sold'
-  | 'case_withdrawn'
-  | 'case_lost_to_rival'
-  | 'window_extended'
-  | 'market_event'
-  | 'decision_moment_triggered'
-  | 'business_flow_step_advanced';
+export type { DomainEventKind } from '../core/world-state/eventTypes.js';
+import type { DomainEventKind } from '../core/world-state/eventTypes.js';
 
 export interface FlowProgressState {
   flowId: string;
@@ -1403,20 +1294,8 @@ export interface FlowProgressState {
   currentStepId: string | null;
 }
 
-export interface DomainEventEntry {
-  id: string;
-  day: number;
-  date: string;
-  kind: DomainEventKind;
-  actor: string;
-  title: string;
-  detail: string;
-  tone: Tone;
-  caseId?: string;
-  opportunityId?: string;
-  customerId?: string;
-  payload: Record<string, unknown>;
-}
+export type { DomainEventEntry } from '../core/world-state/eventTypes.js';
+import type { DomainEventEntry } from '../core/world-state/eventTypes.js';
 
 export interface WeeklyReview {
   id: string;
@@ -1490,32 +1369,17 @@ export type TodayArrangementStatus = 'planned' | 'completed';
 export type TodayArrangementExecutionMode = 'direct' | 'scenario';
 export type TodayArrangementSlot = 'am' | 'pm';
 
-export type ProductType = 'open-day' | 'sincere-sale';
-export type ProductRunScope = 'community' | 'listing';
-export type ProductRunStatus = 'running' | 'completed' | 'cancelled';
-export type ProductRunMilestoneKind = 'event' | 'light_scene' | 'heavy_scene';
+export type { ProductType } from '../core/world-state/productTypes.js';
+import type { ProductType } from '../core/world-state/productTypes.js';
+export type { ProductRunScope, ProductRunStatus, ProductRunMilestoneKind } from '../core/world-state/productRunTypes.js';
+import type { ProductRunScope, ProductRunStatus, ProductRunMilestoneKind } from '../core/world-state/productRunTypes.js';
 
-export interface ProductRunMilestone {
-  id: string;
-  title: string;
-  summary: string;
-  day: number;
-  kind: ProductRunMilestoneKind;
-  settlementHint: string;
-}
+export type { ProductRunMilestone } from '../core/world-state/productRunTypes.js';
+import type { ProductRunMilestone } from '../core/world-state/productRunTypes.js';
 
-export interface ProductRun {
-  id: string;
-  productType: ProductType;
-  scope: ProductRunScope;
-  status: ProductRunStatus;
-  startDay: number;
-  endDay?: number;
-  targetIds: string[];
-  nextMilestone: string;
-  linkedEventIds?: string[];
-  milestones?: ProductRunMilestone[];
-}
+
+export type { ProductRun } from '../core/world-state/productRunTypes.js';
+import type { ProductRun } from '../core/world-state/productRunTypes.js';
 
 export interface TodayArrangementItem {
   id: string;

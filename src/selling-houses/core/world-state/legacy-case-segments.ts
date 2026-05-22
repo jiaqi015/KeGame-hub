@@ -1,4 +1,4 @@
-import type { Case } from '../../domain/models.js';
+import type { LegacyCaseLike } from './legacyCaseContracts.js';
 import {
   LEGACY_CASE_FIELD_OWNERSHIP_ENTRIES,
   type LegacyCaseCanonicalOwner,
@@ -38,7 +38,7 @@ export interface LegacyCaseSegmentMetadata {
 
 export interface LegacyCaseSegmentField<Field extends LegacyCaseField = LegacyCaseField> {
   field: Field;
-  value: LegacyCaseReadonlyDeep<Case[Field]>;
+  value: unknown;
   metadata: Readonly<LegacyCaseSegmentMetadata>;
 }
 
@@ -133,12 +133,12 @@ function cloneReadonlyValue<T>(value: T): LegacyCaseReadonlyDeep<T> {
 }
 
 function buildSegmentField<Field extends LegacyCaseField>(
-  caseItem: Case,
+  caseItem: LegacyCaseLike,
   entry: LegacyCaseFieldOwnershipEntry & { field: Field },
 ): LegacyCaseSegmentField<Field> {
   return Object.freeze({
     field: entry.field,
-    value: cloneReadonlyValue(caseItem[entry.field]),
+    value: cloneReadonlyValue((caseItem as Record<string, unknown>)[entry.field]),
     metadata: Object.freeze({
       canonicalOwner: entry.canonicalOwner,
       legacyRole: entry.legacyRole,
@@ -169,7 +169,7 @@ export function getLegacyCaseSegmentKeyForCanonicalOwner(
   return LEGACY_CASE_OWNER_TO_SEGMENT_KEY[owner];
 }
 
-export function deriveLegacyCaseSegments(caseItem: Case): Readonly<LegacyCaseSegments> {
+export function deriveLegacyCaseSegments(caseItem: LegacyCaseLike): Readonly<LegacyCaseSegments> {
   const mutableSegments = createEmptySegments();
 
   for (const entry of LEGACY_CASE_FIELD_OWNERSHIP_ENTRIES) {
@@ -192,7 +192,7 @@ export function deriveLegacyCaseSegments(caseItem: Case): Readonly<LegacyCaseSeg
   return Object.freeze(segments);
 }
 
-export function deriveLegacyCaseSegmentSummary(caseItem: Case): LegacyCaseSegmentSummary {
+export function deriveLegacyCaseSegmentSummary(caseItem: LegacyCaseLike): LegacyCaseSegmentSummary {
   const segments = deriveLegacyCaseSegments(caseItem);
   const summaryEntries = Object.fromEntries(
     LEGACY_CASE_SEGMENT_KEYS.map((segmentKey) => [segmentKey, summarizeSegment(segments[segmentKey])]),

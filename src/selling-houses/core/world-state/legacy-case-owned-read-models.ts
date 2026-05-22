@@ -1,4 +1,4 @@
-import type { Case } from '../../domain/models.js';
+import type { LegacyCaseLike } from './legacyCaseContracts.js';
 import type { LegacyCaseCanonicalOwner } from './legacy-case-field-ownership.js';
 import {
   deriveLegacyCaseSegments,
@@ -127,7 +127,7 @@ function summarizeReadModel(readModel: LegacyCaseOwnedReadModel): LegacyCaseOwne
   });
 }
 
-export function deriveLegacyCaseOwnedReadModels(caseItem: Case): LegacyCaseOwnedReadModels {
+export function deriveLegacyCaseOwnedReadModels(caseItem: LegacyCaseLike): LegacyCaseOwnedReadModels {
   const segments = deriveLegacyCaseSegments(caseItem);
   const assetCase = buildReadModel(caseItem.id, 'asset-case', segments.assetCaseFields);
   const owner = buildReadModel(caseItem.id, 'owner', segments.ownerFields);
@@ -155,7 +155,7 @@ export function deriveLegacyCaseOwnedReadModels(caseItem: Case): LegacyCaseOwned
 }
 
 export function deriveLegacyCaseOwnedReadModelSummary(
-  caseItem: Case,
+  caseItem: LegacyCaseLike,
 ): LegacyCaseOwnedReadModelSummary {
   const readModels = deriveLegacyCaseOwnedReadModels(caseItem);
   const summaryEntries = {

@@ -32,98 +32,19 @@ const allLayers: SellingHousesLayer[] = ['core', 'domain', 'runtime', 'interface
 
 const legacyAllowedLayerImports = new Map<LayerImportKey, readonly string[]>([
   // Core compatibility adapters still read legacy domain shapes until canonical core types are fully authored.
-  [
-    'src/selling-houses/core/business-rules/action-specs/legacyAdapter.ts -> ../../../domain/actions/definitions.js',
-    ['ACTIONS'],
-  ],
-  [
-    'src/selling-houses/core/business-rules/action-specs/types.ts -> ../../../domain/models.js',
-    ['ActionCategoryId', 'ActionMetricKey'],
-  ],
-  [
-    'src/selling-houses/core/business-rules/archetypes/definitions.ts -> ../../../domain/worlds/builtinWorld.js',
-    ['BUILT_IN_WORLD'],
-  ],
-  [
-    'src/selling-houses/core/business-rules/archetypes/types.ts -> ../../../domain/models.js',
-    [
-      'ChannelProfile',
-      'CustomerDecisionStyle',
-      'CustomerProfile',
-      'LeadSourceType',
-      'OwnerArchetype',
-      'RivalListingArchetype',
-      'RivalStoreArchetype',
-    ],
-  ],
-  [
-    'src/selling-houses/core/business-rules/business-flows/types.ts -> ../../../domain/models.js',
-    ['ProductType'],
-  ],
-  [
-    'src/selling-houses/core/business-rules/decision-moments/types.ts -> ../../../domain/models.js',
-    ['ActionMetricKey'],
-  ],
-  [
-    'src/selling-houses/core/evaluation/legacyAdapters.ts -> ../../domain/config/balance.js',
-    ['BALANCE'],
-  ],
-  [
-    'src/selling-houses/core/evaluation/legacyAdapters.ts -> ../../domain/models.js',
-    ['Case', 'GameState', 'Opportunity'],
-  ],
-  [
-    'src/selling-houses/core/evaluation/score-separation/legacyAdapter.ts -> ../../../domain/config/balance.js',
-    ['BALANCE'],
-  ],
-  [
-    'src/selling-houses/core/evaluation/score-separation/legacyAdapter.ts -> ../../../domain/models.js',
-    ['Case', 'GameState', 'Opportunity'],
-  ],
-  [
-    'src/selling-houses/core/world-state/__tests__/legacyAdapter.test.ts -> ../../../domain/models.js',
-    ['Case', 'CompetitionGroup', 'CustomerProfile', 'GameState', 'MarketCell', 'Opportunity', 'ProductRun'],
-  ],
-  [
-    'src/selling-houses/core/world-state/__tests__/legacyCaseOwnedReadModels.test.ts -> ../../../domain/models.js',
-    ['Case'],
-  ],
-  [
-    'src/selling-houses/core/world-state/adapters.ts -> ../../domain/models.js',
-    ['Case', 'CompetitionGroup', 'CustomerProfile', 'DomainEventEntry', 'GameState', 'MarketCell', 'Opportunity', 'ProductRun'],
-  ],
-  [
-    'src/selling-houses/core/world-state/legacy-case-field-ownership.ts -> ../../domain/models.js',
-    ['Case'],
-  ],
-  [
-    'src/selling-houses/core/world-state/legacy-case-owned-read-models.ts -> ../../domain/models.js',
-    ['Case'],
-  ],
-  [
-    'src/selling-houses/core/world-state/legacy-case-segments.ts -> ../../domain/models.js',
-    ['Case'],
-  ],
-  [
-    'src/selling-houses/core/world-state/models.ts -> ../../domain/models.js',
-    [
-      'Case',
-      'CompetitionGroup',
-      'CustomerProfile',
-      'DomainEventKind',
-      'GoalTier',
-      'LeadSourceType',
-      'ListingEndingBucket',
-      'ListingEndingType',
-      'Opportunity',
-      'OwnerSatisfactionState',
-      'ProductRunMilestone',
-      'ProductRunScope',
-      'ProductRunStatus',
-      'StorylineState',
-      'Tone',
-    ],
-  ],
+  // (removed action-specs/types.ts -> domain/models.js — ActionCategoryId/ActionMetricKey now in core actionTaxonomy.ts)
+  // (removed decision-moments/types.ts -> domain/models.js — ActionMetricKey now in core actionTaxonomy.ts)
+  // (removed archetypes/types.ts -> domain/models.js — 7 archetype types now in core archetypeTaxonomy.ts)
+  // (removed evaluation/legacyAdapters.ts -> domain/config/balance.js — SCORING_BALANCE now in core scoringBalance.ts)
+  // (removed evaluation/score-separation/legacyAdapter.ts -> domain/config/balance.js — SCORING_BALANCE now in core scoringBalance.ts)
+  // (removed action-specs/legacyAdapter.ts -> domain/actions/definitions.js — ACTIONS now in core actionDefinitions.ts)
+  // (removed archetypes/definitions.ts -> domain/worlds/builtinWorld.js — BUILT_IN_WORLD archetypes now in core archetypeSeeds.ts)
+  // (removed evaluation/legacyAdapters.ts -> domain/models.js — Case/GameState/Opportunity replaced by LegacyEvaluation* contracts)
+  // (removed evaluation/score-separation/legacyAdapter.ts -> domain/models.js — Case/GameState/Opportunity replaced by LegacyScoreSeparation* contracts)
+  // (removed world-state/__tests__/legacyAdapter.test.ts -> domain/models.js — Case/GameState/Opportunity replaced by LegacyWorld* contracts)
+  // (removed world-state/__tests__/legacyCaseOwnedReadModels.test.ts -> domain/models.js — Case replaced by LegacyWorldCaseLike contract)
+  // (removed world-state/adapters.ts -> domain/models.js — Case/GameState/Opportunity replaced by LegacyWorld* contracts)
+  // (removed world-state/legacy-case-field-ownership.ts -> domain/models.js — keyof Case replaced by keyof LegacyWorldCaseLike)
   // readModel.ts and types.ts no longer import domain — plain shapes used instead.
   // Domain debts are transitional shims while runtime/application facades are being introduced.
   // domain -> core/world-state/semantic-receipt is normal direction, no allowlist needed
@@ -134,9 +55,6 @@ const legacyAllowedLayerImports = new Map<LayerImportKey, readonly string[]>([
 ]);
 
 const allowedCoreRuntimeDomainImports = new Set([
-  'ACTIONS',
-  'BALANCE',
-  'BUILT_IN_WORLD',
   'OPPORTUNITY_STAGES',
   'clamp',
 ]);
@@ -426,6 +344,55 @@ if (violations.length > 0) {
     );
   }
   process.exit(1);
+}
+
+// Freeze check: the allowlist must not grow without explicit review.
+// If you need to add a new entry, update this count and document the reason in the allowlist comments.
+const CURRENT_ALLOWLIST_ENTRY_COUNT = 0;
+if (legacyAllowedLayerImports.size !== CURRENT_ALLOWLIST_ENTRY_COUNT) {
+  console.error(
+    `selling-houses core→domain allowlist size changed: expected ${CURRENT_ALLOWLIST_ENTRY_COUNT}, got ${legacyAllowedLayerImports.size}. ` +
+    'Update CURRENT_ALLOWLIST_ENTRY_COUNT in verify-selling-houses-layer-imports.ts and document the reason.',
+  );
+  process.exit(1);
+}
+
+// Deleted-key re-appearance guard: these allowlist entries were intentionally removed
+// during constitutional migration. If they re-appear, it means a regression.
+const DELETED_ALLOWLIST_KEYS: readonly LayerImportKey[] = [
+  'src/selling-houses/core/business-rules/action-specs/types.ts -> ../../../domain/models.js',
+  'src/selling-houses/core/business-rules/decision-moments/types.ts -> ../../../domain/models.js',
+  'src/selling-houses/core/business-rules/archetypes/types.ts -> ../../../domain/models.js',
+  'src/selling-houses/core/evaluation/legacyAdapters.ts -> ../../domain/config/balance.js',
+  'src/selling-houses/core/evaluation/score-separation/legacyAdapter.ts -> ../../../domain/config/balance.js',
+  'src/selling-houses/core/business-rules/business-flows/types.ts -> ../../../domain/models.js',
+  'src/selling-houses/core/business-rules/action-specs/legacyAdapter.ts -> ../../../domain/actions/definitions.js',
+  'src/selling-houses/core/business-rules/archetypes/definitions.ts -> ../../../domain/worlds/builtinWorld.js',
+  'src/selling-houses/core/world-state/models.ts -> ../../domain/models.js',
+  'src/selling-houses/core/world-state/legacy-case-segments.ts -> ../../domain/models.js',
+  'src/selling-houses/core/world-state/legacy-case-owned-read-models.ts -> ../../domain/models.js',
+  'src/selling-houses/core/evaluation/legacyAdapters.ts -> ../../domain/models.js',
+  'src/selling-houses/core/evaluation/score-separation/legacyAdapter.ts -> ../../../domain/models.js',
+  'src/selling-houses/core/world-state/adapters.ts -> ../../domain/models.js',
+  'src/selling-houses/core/world-state/__tests__/legacyAdapter.test.ts -> ../../../domain/models.js',
+  'src/selling-houses/core/world-state/__tests__/legacyCaseOwnedReadModels.test.ts -> ../../../domain/models.js',
+  'src/selling-houses/core/world-state/legacy-case-field-ownership.ts -> ../../domain/models.js',
+];
+
+for (const deletedKey of DELETED_ALLOWLIST_KEYS) {
+  const { relativeFilePath, specifier } = parseLayerImportKey(deletedKey);
+  const filePath = path.join(repoRoot, relativeFilePath);
+  if (!fs.existsSync(filePath)) continue;
+
+  const references = collectImportReferences(filePath);
+  const match = references.find((ref) => ref.specifier === specifier);
+  if (match) {
+    console.error(
+      `selling-houses deleted allowlist key re-appeared: ${deletedKey} (line ${match.line}). ` +
+      'This is a regression — update the canonical core file instead.',
+    );
+    process.exit(1);
+  }
 }
 
 console.log('selling-houses layer import verification passed');

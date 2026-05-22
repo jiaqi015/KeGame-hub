@@ -1,0 +1,294 @@
+/**
+ * actionDefinitions.ts — canonical definition of action families, categories, and actions.
+ *
+ * Architecture position:
+ *   This is the single authority for ActionFamily, ActionCategoryDefinition,
+ *   ActionDefinition, ACTION_CATEGORIES, ACTIONS, ACTION_BY_ID, and ACTION_CATEGORY_BY_ID.
+ *   Domain re-exports from here; core imports from here.
+ *   This prevents core→domain layer boundary violations.
+ */
+
+import type { ActionCategoryId, ActionMetricKey } from './actionTaxonomy.js';
+import { deepFreeze } from '../../util/deepFreeze.js';
+
+// ---------------------------------------------------------------------------
+// ActionFamily
+// ---------------------------------------------------------------------------
+
+export const ACTION_FAMILIES = ['owner', 'merchandising', 'pricing', 'promotion', 'showing', 'negotiation', 'broker'] as const;
+export type ActionFamily = (typeof ACTION_FAMILIES)[number];
+
+// ---------------------------------------------------------------------------
+// ActionCategoryDefinition
+// ---------------------------------------------------------------------------
+
+export interface ActionCategoryDefinition {
+  id: ActionCategoryId;
+  name: string;
+  summary: string;
+}
+
+// ---------------------------------------------------------------------------
+// ActionDefinition
+// ---------------------------------------------------------------------------
+
+export interface ActionDefinition {
+  id: string;
+  categoryId?: ActionCategoryId;
+  family?: ActionFamily;
+  name: string;
+  summary?: string;
+  durationHours?: number;
+  costEnergy: number;
+  costPromotionBudget: number;
+  description: string;
+  type?: 'direct' | 'scenario';
+  templateId?: string;
+  executorId?: string;
+  metricFocus?: readonly ActionMetricKey[];
+}
+
+// ---------------------------------------------------------------------------
+// ACTION_CATEGORIES
+// ---------------------------------------------------------------------------
+
+export const ACTION_CATEGORIES: readonly ActionCategoryDefinition[] = deepFreeze([
+  {
+    id: 'feedback',
+    name: '面访反馈',
+    summary: '把市场、客户和经营节奏反馈给业主，让业主更理解你在怎么推进这套房。',
+  },
+  {
+    id: 'marketing',
+    name: '营销推广',
+    summary: '通过卖点、渠道和活动把房源推向更匹配的客群，并承接带看推进。',
+  },
+  {
+    id: 'pricing',
+    name: '价格沟通',
+    summary: '拿竞争、客户和成交进程说话，协助业主理解价格站位和调整方向。',
+  },
+  {
+    id: 'negotiation',
+    name: '斡旋谈判',
+    summary: '把快成交客户和业主一起推进到更明确的谈价阶段，争取尽快成交。',
+  },
+]);
+
+// ---------------------------------------------------------------------------
+// ACTIONS
+// ---------------------------------------------------------------------------
+
+export const ACTIONS: readonly ActionDefinition[] = deepFreeze([
+  {
+    id: 'first-visit',
+    categoryId: 'feedback',
+    name: '首次面访',
+    summary: '建立第一轮经营共识，让业主知道你准备怎么卖。',
+    durationHours: 1,
+    costEnergy: 1,
+    costPromotionBudget: 0,
+    description: '刚接手、关系未稳时，用来把经营路径讲清。',
+    templateId: 'feedback-visit',
+    executorId: 'first-visit',
+    metricFocus: ['trust', 'patience', 'd3', 'windowDays'],
+  },
+  {
+    id: 'weekly-feedback',
+    categoryId: 'feedback',
+    name: '周度反馈',
+    summary: '把本周进展、问题和下周安排反馈给业主。',
+    durationHours: 1,
+    costEnergy: 1,
+    costPromotionBudget: 0,
+    description: '关系维护时，用来保授权、稳推进，不让业主觉得你在空转。',
+    templateId: 'feedback-weekly',
+    executorId: 'weekly-feedback',
+    metricFocus: ['trust', 'patience', 'd3', 'urgency'],
+  },
+  {
+    id: 'deep-diagnosis',
+    categoryId: 'feedback',
+    name: '深度诊断',
+    summary: '把同类房、客户和带看反馈整合成一次更深入的诊断。',
+    durationHours: 1,
+    costEnergy: 1,
+    costPromotionBudget: 0,
+    description: '适合情况卡住时重新讲清问题到底出在哪一层。',
+    templateId: 'feedback-diagnosis',
+    executorId: 'deep-diagnosis',
+    metricFocus: ['trust', 'd3', 'competitiveness', 'intent'],
+  },
+  {
+    id: 'story',
+    categoryId: 'marketing',
+    name: '精修卖点',
+    summary: '重新组织卖点、讲法和看房路径。',
+    durationHours: 1,
+    costEnergy: 1,
+    costPromotionBudget: 0,
+    description: '适合好房分不够强，或带看反馈说明讲法还不够顺的时候。',
+    templateId: 'marketing-story',
+    executorId: 'story',
+    metricFocus: ['competitiveness', 'heat', 'd2', 'trust'],
+  },
+  {
+    id: 'xiaohongshu-boost',
+    categoryId: 'marketing',
+    name: '小红书推广',
+    summary: '通过公开内容补一轮新客进入。',
+    durationHours: 1,
+    costEnergy: 1,
+    costPromotionBudget: 2,
+    description: '适合客群偏薄时补量，但后续需要继续筛客。',
+    templateId: 'marketing-xiaohongshu',
+    executorId: 'xiaohongshu-boost',
+    metricFocus: ['heat', 'd1', 'competitiveness'],
+  },
+  {
+    id: 'broker-broadcast',
+    categoryId: 'marketing',
+    name: '经纪人投放',
+    summary: '把房源扩给合作经纪人网络，补一批待确认客户。',
+    durationHours: 1,
+    costEnergy: 1,
+    costPromotionBudget: 3,
+    description: '适合想更快补厚池子，但后续要及时确认真实需求。',
+    templateId: 'marketing-broker',
+    executorId: 'broker-broadcast',
+    metricFocus: ['heat', 'd1', 'competitiveness'],
+  },
+  {
+    id: 'private-referral',
+    categoryId: 'marketing',
+    name: '私域转介绍',
+    summary: '唤醒熟人关系链，争取更稳、更准的客户。',
+    durationHours: 1,
+    costEnergy: 1,
+    costPromotionBudget: 2,
+    description: '量不一定大，但质量更整齐，适合关系基础较好的盘。',
+    templateId: 'marketing-private',
+    executorId: 'private-referral',
+    metricFocus: ['trust', 'heat', 'd1'],
+  },
+  {
+    id: 'focus-meeting-submit',
+    categoryId: 'marketing',
+    name: '提报周四聚焦会',
+    summary: '把这套房提报到周四上午聚焦会，争取获得重点资源。',
+    durationHours: 1,
+    costEnergy: 1,
+    costPromotionBudget: 0,
+    description: '周四专用动作，每天最多提报 3 套，优先推进更接近成交的盘。',
+    templateId: 'marketing-focus-meeting-submit',
+    executorId: 'focus-meeting-submit',
+    metricFocus: ['heat', 'trust', 'competitiveness'],
+  },
+  {
+    id: 'open-day',
+    categoryId: 'marketing',
+    name: '开放日',
+    summary: '集中拉热度，争取一波更高质量的看房。',
+    durationHours: 2,
+    costEnergy: 2,
+    costPromotionBudget: 5,
+    description: '高成本动作，但做对了能快速拉高关注度和客户质量。',
+    type: 'scenario',
+    templateId: 'marketing-open-day',
+    executorId: 'open-day',
+    metricFocus: ['heat', 'd1', 'trust', 'windowDays'],
+  },
+  {
+    id: 'showing',
+    categoryId: 'marketing',
+    name: '安排带看',
+    summary: '把已接洽客户推进到实地看房和更深一层反馈。',
+    durationHours: 1,
+    costEnergy: 1,
+    costPromotionBudget: 0,
+    description: '既是营销承接，也是把客户推向快成交阶段的关键节点。',
+    type: 'scenario',
+    templateId: 'marketing-showing',
+    executorId: 'showing',
+    metricFocus: ['intent', 'confidence', 'heat', 'd1'],
+  },
+  {
+    id: 'pricing-advice',
+    categoryId: 'pricing',
+    name: '价格沟通',
+    summary: '先帮业主理解当前价格站位和为什么现在该谈价格。',
+    durationHours: 1,
+    costEnergy: 1,
+    costPromotionBudget: 0,
+    description: '先讲竞争、客户和当前进程，再决定后面要不要往调价继续推。',
+    templateId: 'pricing-advice',
+    executorId: 'pricing-advice',
+    metricFocus: ['trust', 'd3', 'competitiveness', 'askPrice'],
+  },
+  {
+    id: 'ask-psychological-price',
+    categoryId: 'pricing',
+    name: '询问心理价',
+    summary: '摸清业主真实预期，为后续挂牌价讨论做准备。',
+    durationHours: 1,
+    costEnergy: 1,
+    costPromotionBudget: 0,
+    description: '不是立刻调价，而是把业主心里的价格边界问出来。',
+    templateId: 'pricing-anchor',
+    executorId: 'ask-psychological-price',
+    metricFocus: ['trust', 'd3', 'askPrice'],
+  },
+  {
+    id: 'adjust-listing-price',
+    categoryId: 'pricing',
+    name: '商讨挂牌价调整',
+    summary: '真正进入挂牌价调整讨论，在关系、价格和速度之间做取舍。',
+    durationHours: 1,
+    costEnergy: 1,
+    costPromotionBudget: 0,
+    description: '适合价格站位已经成为主矛盾时，明确讨论下一步价格方案。',
+    templateId: 'pricing-adjust',
+    executorId: 'adjust-listing-price',
+    metricFocus: ['askPrice', 'trust', 'heat', 'competitiveness'],
+  },
+  {
+    id: 'sincerity-sale',
+    categoryId: 'negotiation',
+    name: '推进诚意卖',
+    summary: '把成熟客户推进到更明确的诚意阶段，提前换取确定性。',
+    durationHours: 1,
+    costEnergy: 1,
+    costPromotionBudget: 0,
+    description: '适合已经有一定意向基础、想把快成交阶段推进顺的时候。',
+    templateId: 'negotiation-sincerity',
+    executorId: 'sincerity-sale',
+    metricFocus: ['intent', 'confidence', 'askPrice', 'trust'],
+  },
+  {
+    id: 'invite-customer-negotiation',
+    categoryId: 'negotiation',
+    name: '邀请和客户谈判',
+    summary: '把快成交客户真正拉上谈判桌，争取把单子做成。',
+    durationHours: 1,
+    costEnergy: 1,
+    costPromotionBudget: 0,
+    description: '适合已经接近报价和议价桌的客户，做最后一轮博弈。',
+    templateId: 'negotiation-invite',
+    executorId: 'invite-customer-negotiation',
+    metricFocus: ['intent', 'confidence', 'askPrice', 'trust'],
+  },
+]);
+
+// ---------------------------------------------------------------------------
+// Lookup maps
+// ---------------------------------------------------------------------------
+
+export const ACTION_BY_ID: Readonly<Record<string, ActionDefinition>> = deepFreeze(
+  Object.fromEntries(ACTIONS.map((action) => [action.id, action])) as Record<string, ActionDefinition>,
+);
+
+export const ACTION_CATEGORY_BY_ID: Readonly<Record<string, ActionCategoryDefinition>> = deepFreeze(
+  Object.fromEntries(
+    ACTION_CATEGORIES.map((category) => [category.id, category]),
+  ) as Record<string, ActionCategoryDefinition>,
+);

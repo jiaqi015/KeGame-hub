@@ -16,7 +16,7 @@
  *  9. npm run lint passes
  */
 
-import { execSync } from 'node:child_process';
+import { execSync, spawnSync } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -260,42 +260,161 @@ function checkNoDeceptivePatterns() {
 
 function checkLint() {
   console.log('\n=== Check 9: npm run lint ===');
-  try {
-    execSync('npm run lint -- --pretty false', {
-      cwd: join(import.meta.dirname!, '..'),
-      encoding: 'utf-8',
-      timeout: 120_000,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-    check(true, 'npm run lint passes');
-  } catch (err: any) {
-    const output = (err.stderr || err.stdout || '').slice(-500);
+  const result = spawnSync('npm', ['run', 'lint', '--', '--pretty', 'false'], {
+    cwd: join(import.meta.dirname!, '..'),
+    encoding: 'utf-8',
+    timeout: 120_000,
+    shell: process.platform === 'win32',
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  const lintPassed = result.status === 0;
+  if (!lintPassed) {
+    const output = (result.stderr || result.stdout || '').slice(0, 2000);
     check(false, `npm run lint failed:\n${output}`);
+  } else {
+    check(lintPassed, 'npm run lint passes');
   }
+}
+
+// ---------------------------------------------------------------------------
+// 10. Behavioral: createContractFactOnState produces real ContractFact
+// ---------------------------------------------------------------------------
+
+async function checkContractFactBehavior() {
+  console.log('\n=== Check 10: ContractFact behavioral assertion ===');
+  try {
+    const { createContractFactOnState } = await import(
+      '../src/selling-houses/domain/consensusFormationHelper.js'
+    );
+    const { ensureConsensusRuntime } = await import(
+      '../src/selling-houses/domain/consensusFormationHelper.js'
+    );
+
+    // Minimal GameState-like object — only the consensus runtime surface
+    const state: any = { consensusRuntime: undefined };
+    const result = createContractFactOnState(
+      state,
+      'consensus-test-1',
+      'opp-test-1',
+      'case-test-1',
+      'customer-test-1',
+      950,
+      'broker_mediated',
+      12,
+      'deal-test-1',
+      0.85,
+      0.9,
+      ['price_gap_closed'],
+      ['strong_broker_relation'],
+      ['ptraj:test-1', 'pready:test-1'],
+    );
+
+    check(result !== undefined, 'createContractFactOnState returns a ContractFact');
+    if (!result) return;
+
+    check(result.contractId === 'contract:case-test-1:customer-test-1:12', `contractId format: ${result.contractId}`);
+    check(result.consensusId === 'consensus-test-1', `consensusId: ${result.consensusId}`);
+    check(result.dealPrice === 950, `dealPrice: ${result.dealPrice}`);
+    check(result.sourceEventRefs.length === 2, `sourceEventRefs count: ${result.sourceEventRefs.length}`);
+    check(result.sourceEventRefs.includes('ptraj:test-1'), 'sourceEventRefs includes trajectory ref');
+    check(result.sourceEventRefs.includes('pready:test-1'), 'sourceEventRefs includes readiness ref');
+
+    // Duplicate guard: second call for same case returns undefined
+    const duplicate = createContractFactOnState(
+      state,
+      'consensus-test-2',
+      'opp-test-2',
+      'case-test-1', // same caseId
+      'customer-test-2',
+      900,
+      'self_closed',
+      13,
+      'deal-test-2',
+      0.7,
+      0.8,
+      [],
+      [],
+    );
+    check(duplicate === undefined, 'duplicate contract for same caseId rejected');
+  } catch (err: any) {
+    check(false, `ContractFact behavioral test failed: ${err.message}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 11. Self-audit: no check(true)/||true in this gate
+// ---------------------------------------------------------------------------
+
+function checkSelfAudit() {
+  console.log('\n=== Check 11: gate self-audit ===');
+  const selfSrc = readFileSync(import.meta.filename!, 'utf-8');
+  // Strip comments and string literals to avoid false positives.
+  // Process line-by-line to avoid regex literals in the source confusing the stripper.
+  const checkTrueCount = selfSrc.split('\n').reduce((count, line) => {
+    const trimmed = line.trimStart();
+    // Skip comment-only lines
+    if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) return count;
+    // Strip inline comments, then string literals
+    const stripped = line
+      .replace(/\/\/.*$/, '')
+      .replace(/'[^']*'/g, '""')
+      .replace(/"[^"]*"/g, '""')
+      .replace(/`[^`]*`/g, '""');
+    return count + (/\bcheck\s*\(\s*true\s*,/.test(stripped) ? 1 : 0);
+  }, 0);
+
+  check(checkTrueCount === 0, `gate self-audit: found ${checkTrueCount} check-true invocations (expected 0)`);
+
+  // Check || true and .claude/worktrees using same line-by-line approach
+  let hasOrTrue = false;
+  let hasWorktrees = false;
+  for (const line of selfSrc.split('\n')) {
+    const trimmed = line.trimStart();
+    if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) continue;
+    const stripped = line
+      .replace(/\/\/.*$/, '')
+      .replace(/'[^']*'/g, '""')
+      .replace(/"[^"]*"/g, '""')
+      .replace(/`[^`]*`/g, '""');
+    if (stripped.includes('|| true')) hasOrTrue = true;
+    if (stripped.includes('.claude/worktrees')) hasWorktrees = true;
+  }
+  check(!hasOrTrue, 'no || true in gate code');
+  check(!hasWorktrees, 'no .claude/worktrees in gate code');
+
+  // Check that catch blocks in core paths don't just warn — they must fail
+  const warnOnlyPattern = /catch\s*\([^)]*\)\s*\{[^}]*console\.log\(\s*['"]WARN[^}]*\}/g;
+  const warnOnlyMatches = selfSrc.match(warnOnlyPattern);
+  check(!warnOnlyMatches || warnOnlyMatches.length === 0, 'no catch-warn-without-fail in gate');
 }
 
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
-console.log('=== ContractFact Terminal Fact Gate ===');
-console.log(`Date: ${new Date().toISOString()}`);
+(async () => {
+  console.log('=== ContractFact Terminal Fact Gate ===');
+  console.log(`Date: ${new Date().toISOString()}`);
 
-checkContractFactExists();
-checkDealClosingUsesContractFact();
-checkSyncFunctionExists();
-checkDirectStatusSoldWrites();
-checkDirectSoldPriceWrites();
-checkClosedDealsWrites();
-checkContractFactReferencesConsensus();
-checkNoDeceptivePatterns();
-checkLint();
+  checkContractFactExists();
+  checkDealClosingUsesContractFact();
+  checkSyncFunctionExists();
+  checkDirectStatusSoldWrites();
+  checkDirectSoldPriceWrites();
+  checkClosedDealsWrites();
+  checkContractFactReferencesConsensus();
+  checkNoDeceptivePatterns();
+  checkLint();
+  await checkContractFactBehavior();
+  checkSelfAudit();
 
-console.log(`\n=== Summary: ${passed} passed, ${failed} failed ===`);
-if (failed > 0) {
-  console.log('\nFailed checks:');
-  for (const err of errors) {
-    console.log(`  - ${err}`);
+  console.log(`\n=== Summary: ${passed} passed, ${failed} failed ===`);
+  if (failed > 0) {
+    console.log('\nFailed checks:');
+    for (const err of errors) {
+      console.log(`  - ${err}`);
+    }
+    process.exit(1);
   }
-  process.exit(1);
-}
+  process.exit(0);
+})();

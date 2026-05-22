@@ -1,4 +1,4 @@
-import type { ActionCategoryId, ActionMetricKey } from '../../../domain/models.js';
+import type { ActionCategoryId, ActionMetricKey } from './actionTaxonomy.js';
 import type { BusinessFlowId } from '../business-flows/types.js';
 import type { DecisionMomentId } from '../decision-moments/types.js';
 

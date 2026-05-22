@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import type { Case } from '../../../domain/models.js';
+import type { LegacyWorldCaseLike } from '../legacyWorldAdapterContracts.js';
 import { deriveLegacyCaseSegments } from '../legacy-case-segments.js';
 import {
   deriveLegacyCaseOwnedReadModels,
   deriveLegacyCaseOwnedReadModelSummary,
 } from '../legacy-case-owned-read-models.js';
 
-function buildLegacyCase(overrides: Partial<Case> = {}): Case {
+function buildLegacyCase(overrides: Partial<LegacyWorldCaseLike> = {}): LegacyWorldCaseLike {
   return {
     id: 'case-1',
     housePrototypeId: 'house-1',

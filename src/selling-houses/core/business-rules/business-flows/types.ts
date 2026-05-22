@@ -1,4 +1,4 @@
-import type { ProductType } from '../../../domain/models.js';
+import type { ProductType } from '../../world-state/productTypes.js';
 import type { DecisionMomentId } from '../decision-moments/types.js';
 
 export type BusinessFlowId =

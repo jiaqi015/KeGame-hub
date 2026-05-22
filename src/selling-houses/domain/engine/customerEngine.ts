@@ -51,7 +51,7 @@ function computeFit(caseItem: Case, customer: CustomerProfile) {
     fitBalance.budgetMin,
     fitBalance.budgetMax,
   );
-  const preferenceScore = intersections(caseItem.tags, customer.preferences) * fitBalance.preferenceIntersectionWeight;
+  const preferenceScore = intersections(caseItem.tags, [...customer.preferences]) * fitBalance.preferenceIntersectionWeight;
   return clamp(
     layoutScore + districtScore + budgetScore + preferenceScore + caseItem.competitiveness * fitBalance.competitivenessWeight,
     0,

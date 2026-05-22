@@ -6,7 +6,7 @@ import type {
   OwnerArchetype,
   RivalListingArchetype,
   RivalStoreArchetype,
-} from '../../../domain/models.js';
+} from './archetypeTaxonomy.js';
 
 export type BusinessArchetypeKind = 'owner' | 'customer' | 'channel' | 'broker-network' | 'rival-listing';
 

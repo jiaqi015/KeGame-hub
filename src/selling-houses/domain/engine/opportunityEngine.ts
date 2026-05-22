@@ -298,7 +298,7 @@ export function computeCustomerFit(caseItem: Case, customer: CustomerProfile) {
     fitBalance.budgetMin,
     fitBalance.budgetMax,
   );
-  const preferenceScore = intersections(caseItem.tags, customer.preferences) * fitBalance.preferenceIntersectionWeight;
+  const preferenceScore = intersections(caseItem.tags, [...customer.preferences]) * fitBalance.preferenceIntersectionWeight;
   return layoutScore + districtScore + budgetScore + preferenceScore + caseItem.competitiveness * fitBalance.competitivenessWeight;
 }
 

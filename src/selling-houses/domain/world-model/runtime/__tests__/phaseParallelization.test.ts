@@ -4,6 +4,7 @@ import {
   type PhaseGroup,
 } from '../phaseGroups.js';
 import { TICK_PHASE_ORDER } from '../phases.js';
+import type { BigWorldTickPhaseId } from '../types.js';
 
 describe('phaseGroups — parallelizable phase execution', () => {
   it('defines 6 groups that cover all 8 phases', () => {
@@ -38,7 +39,7 @@ describe('phaseGroups — parallelizable phase execution', () => {
     const flatPhases = groups.flat();
 
     // Dependency pairs: [depends_on, dependent]
-    const dependencies: [string, string][] = [
+    const dependencies: [BigWorldTickPhaseId, BigWorldTickPhaseId][] = [
       ['EnvironmentPhase', 'ListingSupplyPhase'],     // Supply reads Env heat events
       ['RivalBrokerPhase', 'CustomerDemandPhase'],     // Customer reads rival events
       ['ListingSupplyPhase', 'CustomerDemandPhase'],   // Customer reads reprice events
@@ -57,7 +58,7 @@ describe('phaseGroups — parallelizable phase execution', () => {
     const groups = getDefaultPhaseGroups();
 
     // Known dependency edges
-    const dependsOn = new Map<string, Set<string>>([
+    const dependsOn = new Map<BigWorldTickPhaseId, Set<BigWorldTickPhaseId>>([
       ['ListingSupplyPhase', new Set(['EnvironmentPhase'])],
       ['CustomerDemandPhase', new Set(['RivalBrokerPhase', 'ListingSupplyPhase'])],
       ['OwnerPerceptionPhase', new Set(['CustomerDemandPhase'])],

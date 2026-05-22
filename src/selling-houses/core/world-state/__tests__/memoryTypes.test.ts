@@ -754,7 +754,7 @@ describe('KnowledgeMemoryAdapter', () => {
         },
       ];
 
-      const sourceKindMap = new Map<string, import('../../../domain/world-model/informationSourceTypes.js').SourceKind>();
+      const sourceKindMap = new Map<string, import('../sourceKinds.js').SourceKind>();
       sourceKindMap.set('fact-market', 'market_signal');
 
       // currentTickAge = 9 → age = 1 → keep (perception maxTickAge = 1)

@@ -6,7 +6,7 @@ import {
 } from '../knowledgeMemory/knowledgeTypes.js';
 import { classifyKnowledge } from '../knowledgeMemory/knowledgeClassifier.js';
 import { compactKnowledgeByType, COMPACTION_POLICIES } from '../knowledgeMemory/knowledgeCompaction.js';
-import type { SourceKind } from '../../../domain/world-model/informationSourceTypes.js';
+import type { SourceKind } from '../sourceKinds.js';
 
 describe('knowledgeTypes — Perception/Feedback/Decision/Reference classification', () => {
   // ── Classification by source kind ──────────────────────────────────────
@@ -123,7 +123,7 @@ describe('knowledgeTypes — Perception/Feedback/Decision/Reference classificati
   ): KnowledgeEntry => Object.freeze({
     entryId,
     type,
-    source: { sourceKind: 'market_signal', subtype: 'heat_shift' },
+    source: { sourceKind: 'market_signal' as SourceKind, subtype: 'heat_shift' },
     content: `entry-${entryId}`,
     detail: `detail-${entryId}`,
     tickAge,
@@ -213,5 +213,20 @@ describe('knowledgeTypes — Perception/Feedback/Decision/Reference classificati
     ];
     const result = compactKnowledgeByType(entries, 5);
     expect(result.map((e) => e.entryId)).toEqual(['f1', 'd1', 'r1']);
+  });
+
+  // ── Structural: SourceKind stays in core, never re-imported from domain ──
+
+  it('knowledgeTypes imports SourceKind from core (not domain)', async () => {
+    // If this test fails, someone re-introduced a core→domain import for SourceKind.
+    // The canonical SourceKind lives in core/world-state/sourceKinds.ts.
+    const fs = await import('fs');
+    const path = await import('path');
+    const knowledgeTypesSource = fs.readFileSync(
+      path.resolve(process.cwd(), 'src/selling-houses/core/world-state/knowledgeMemory/knowledgeTypes.ts'),
+      'utf-8',
+    );
+    expect(knowledgeTypesSource).not.toContain('domain/world-model/informationSourceTypes');
+    expect(knowledgeTypesSource).toContain('sourceKinds');
   });
 });

@@ -404,24 +404,21 @@ try {
 console.log('\n=== Constitutional Migration Gate: 8. Contract terminal fact ===\n');
 
 try {
-  const contractMod = await import(
-    '../src/selling-houses/core/world-state/consensus/writeSource.js'
+  const contractGateResult = spawnSync(
+    'npx',
+    ['tsx', 'scripts/verify-selling-houses-contract-terminal-fact-gate.ts'],
+    { stdio: 'inherit', shell: process.platform === 'win32' },
   );
 
-  // Verify ContractFactState type exists and has required fields
-  const testFact = contractMod.createContractFactState
-    ? null // function exists, we'll test via real state
-    : undefined;
-
-  if (typeof contractMod.createContractFactState !== 'function') {
-    fail('contract-terminal-fact', 'createContractFactState not found');
-  } else if (typeof contractMod.buildContractFactId !== 'function') {
-    fail('contract-terminal-fact', 'buildContractFactId not found');
+  if (contractGateResult.error) {
+    fail('contract-terminal-fact-gate', contractGateResult.error.message);
+  } else if (contractGateResult.status !== 0) {
+    fail('contract-terminal-fact-gate', `exit ${contractGateResult.status}`);
   } else {
-    pass('contract-terminal-fact', 'ContractFact write functions exist');
+    pass('contract-terminal-fact-gate');
   }
 } catch (err: any) {
-  fail('contract-terminal-fact', err.message);
+  fail('contract-terminal-fact-gate', err.message);
 }
 
 // ---------------------------------------------------------------------------
@@ -441,6 +438,14 @@ try {
     warn('price-trajectory-gate', 'price trajectory gate has no process.exit — may be soft');
   } else {
     pass('price-trajectory-gate', 'price trajectory gate exists and has hard exit');
+  }
+  // Anti-false-green: check for check(true, ...) pattern in the gate itself
+  const checkTruePattern = /check\s*\(\s*true\s*,/g;
+  const checkTrueMatches = priceTrajectorySrc.match(checkTruePattern);
+  if (checkTrueMatches && checkTrueMatches.length > 0) {
+    fail('price-trajectory-no-check-true', `price trajectory gate contains check(true, ...) — ${checkTrueMatches.length} instances`);
+  } else {
+    pass('price-trajectory-no-check-true');
   }
 } catch (err: any) {
   if (err.code === 'ENOENT') {
@@ -544,6 +549,28 @@ if (hasOrTrue) {
   pass('no-or-true');
 }
 
+// Also scan contract-terminal-fact-gate for check(true)
+try {
+  const contractGateSrc = readFileSync(
+    resolve('scripts/verify-selling-houses-contract-terminal-fact-gate.ts'),
+    'utf-8',
+  );
+  const contractGateStripped = contractGateSrc
+    .replace(/\/\/.*$/gm, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/'[^']*'/g, '""')
+    .replace(/"[^"]*"/g, '""')
+    .replace(/`[^`]*`/g, '``');
+  const contractCheckTrue = /check\s*\(\s*true\s*[,\)]/.test(contractGateStripped);
+  if (contractCheckTrue) {
+    fail('contract-gate-no-check-true', 'contract-terminal-fact-gate contains check(true)');
+  } else {
+    pass('contract-gate-no-check-true');
+  }
+} catch (err: any) {
+  fail('contract-gate-no-check-true', err.message);
+}
+
 // Must NOT reference .claude/worktrees
 const importLines = businessLogicSrc.split('\n').filter((line) => line.trimStart().startsWith('import '));
 const hasWorktreeImport = importLines.some((line) => line.includes('.claude/worktrees'));
@@ -567,6 +594,30 @@ if (!hasWarnHelper) {
   fail('warn-is-not-pass', 'gate does not have warn() that sets pass=false');
 } else {
   pass('warn-is-not-pass');
+}
+
+// ---------------------------------------------------------------------------
+// Gate 13: Gate hygiene — unified soft-pass scan via verify-selling-houses-gate-hygiene.ts
+// ---------------------------------------------------------------------------
+
+console.log('\n=== Constitutional Migration Gate: 13. Gate hygiene ===\n');
+
+try {
+  const hygieneResult = spawnSync(
+    'npx',
+    ['tsx', 'scripts/verify-selling-houses-gate-hygiene.ts'],
+    { stdio: 'inherit', shell: process.platform === 'win32' },
+  );
+
+  if (hygieneResult.error) {
+    fail('gate-hygiene', hygieneResult.error.message);
+  } else if (hygieneResult.status !== 0) {
+    fail('gate-hygiene', `exit ${hygieneResult.status}`);
+  } else {
+    pass('gate-hygiene');
+  }
+} catch (err: any) {
+  fail('gate-hygiene', err.message);
 }
 
 // ---------------------------------------------------------------------------

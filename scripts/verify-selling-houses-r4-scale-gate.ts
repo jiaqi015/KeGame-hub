@@ -325,11 +325,13 @@ try {
   const acnMatch = summary.acnCount === bootstrap.hiddenTruth.acnNetworks.length;
   if (!acnMatch) {
     console.log(`  WARN: graph acnCount (${summary.acnCount}) != bootstrap acnNetworks (${bootstrap.hiddenTruth.acnNetworks.length})`);
+    results.push({ dimension: 'worldGraphAcnCount', actual: summary.acnCount, threshold: bootstrap.hiddenTruth.acnNetworks.length, pass: false });
   }
 
   const brokerMatch = summary.brokerCount === bootstrap.materializedEntities.brokers.length;
   if (!brokerMatch) {
     console.log(`  WARN: graph brokerCount (${summary.brokerCount}) != bootstrap brokers (${bootstrap.materializedEntities.brokers.length})`);
+    results.push({ dimension: 'worldGraphBrokerCount', actual: summary.brokerCount, threshold: bootstrap.materializedEntities.brokers.length, pass: false });
   }
 } catch (importError: any) {
   console.log(`  FAIL: worldGraphBuilder import failed (${importError.message})`);
@@ -506,8 +508,8 @@ try {
     }
   }
 } catch (err: any) {
-  // Non-critical check — just log
   console.log(`  WARN: could not verify playerBrokerAcnId in runtime: ${err.message}`);
+  results.push({ dimension: 'playerBrokerAcnIdRuntime', actual: 0, threshold: 1, pass: false });
 }
 
 // 7.5c: No forbidden ACN patterns in source/runtime records
@@ -567,6 +569,7 @@ try {
     }
   } else {
     console.log(`  WARN: receipt.sourceRecordAudit is missing — using manual collection only`);
+    results.push({ dimension: 'sourceRecordAuditPresent', actual: 0, threshold: 1, pass: false });
   }
 
   const allAcnIds = allSourceRecords
@@ -622,22 +625,34 @@ const hasOrTrue = stripped.includes('|| true');
 const hasAssertTrue = /assert\s*\(\s*true\s*\)/.test(stripped);
 const hasCheckTrue = /check\s*\(\s*true\s*[,\)]/.test(stripped);
 
+function findPatternLines(source: string, pattern: RegExp): string {
+  const lines = source.split('\n');
+  const hits: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (pattern.test(lines[i])) hits.push(`L${i + 1}`);
+  }
+  return hits.length > 0 ? ` at ${hits.join(', ')}` : '';
+}
+
 if (hasOrTrue) {
-  console.log('  FAIL: gate assertion logic contains "|| true"');
+  const loc = findPatternLines(stripped, /\|\|\s*true/);
+  console.log(`  FAIL: gate assertion logic contains "|| true"${loc}`);
   results.push({ dimension: 'noOrTrue', actual: 0, threshold: 1, pass: false });
 } else {
   console.log('  PASS: no "|| true" in gate assertion logic');
 }
 
 if (hasAssertTrue) {
-  console.log('  FAIL: gate assertion logic contains "assert(true)"');
+  const loc = findPatternLines(stripped, /assert\s*\(\s*true\s*\)/);
+  console.log(`  FAIL: gate assertion logic contains "assert(true)"${loc}`);
   results.push({ dimension: 'noAssertTrue', actual: 0, threshold: 1, pass: false });
 } else {
   console.log('  PASS: no "assert(true)" in gate assertion logic');
 }
 
 if (hasCheckTrue) {
-  console.log('  FAIL: gate assertion logic contains "check(true, ...)"');
+  const loc = findPatternLines(stripped, /check\s*\(\s*true\s*[,\)]/);
+  console.log(`  FAIL: gate assertion logic contains "check(true, ...)"${loc}`);
   results.push({ dimension: 'noCheckTrue', actual: 0, threshold: 1, pass: false });
 } else {
   console.log('  PASS: no "check(true, ...)" in gate assertion logic');

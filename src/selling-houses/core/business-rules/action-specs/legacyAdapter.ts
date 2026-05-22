@@ -1,4 +1,4 @@
-import { ACTIONS } from '../../../domain/actions/definitions.js';
+import { ACTIONS } from './actionDefinitions.js';
 import type { ActionSpecDefinition } from './types.js';
 
 const ACTION_SPEC_RELATIONSHIPS: Record<string, Pick<ActionSpecDefinition, 'decisionMomentIds' | 'businessFlowIds'>> = {
@@ -82,7 +82,7 @@ export const ACTION_SPECS: ActionSpecDefinition[] = ACTIONS.map((action) => {
     durationHours: action.durationHours,
     costEnergy: action.costEnergy,
     costPromotionBudget: action.costPromotionBudget,
-    metricFocus: action.metricFocus || [],
+    metricFocus: action.metricFocus ? [...action.metricFocus] : [],
     decisionMomentIds: relationships.decisionMomentIds,
     businessFlowIds: relationships.businessFlowIds,
   };

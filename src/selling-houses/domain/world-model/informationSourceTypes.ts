@@ -26,38 +26,16 @@
 // ---------------------------------------------------------------------------
 
 // ════════════════════════════════════════════════════════════════════════════
-// SourceKind — discriminated union of information source categories
+// SourceKind — re-exported from core (canonical location)
 // ════════════════════════════════════════════════════════════════════════════
 
 /**
- * The 15 information source categories in the selling-houses world.
- *
- * Each kind maps to a specific canonical payload and a set of
- * possible causal event outputs.
- *
- * Round 8 additions (11-15):
- *   11. supporting_facility_signal — 学校/地铁/商业/小区环境/政策/噪音/楼栋等配套信息变化
- *   12. broker_capacity_signal — 经纪人精力、排期、协作、组织压力
- *   13. owner_life_event_signal — 业主家庭变化、资金需求、搬迁节奏
- *   14. buyer_financing_signal — 客户贷款、首付、资格、家庭决策
- *   15. micro_market_signal — 微板块供需变化
+ * SourceKind is defined in core/world-state/sourceKinds.ts to avoid
+ * core→domain layer boundary violations. Domain re-exports it here
+ * for backward compatibility with all existing domain consumers.
  */
-export type SourceKind =
-  | 'market_signal'
-  | 'rival_action'
-  | 'customer_interaction'
-  | 'owner_interview'
-  | 'manager_message'
-  | 'player_action_receipt'
-  | 'process_receipt'
-  | 'comparable_transaction'
-  | 'platform_traffic'
-  | 'acn_network_signal'
-  | 'supporting_facility_signal'
-  | 'broker_capacity_signal'
-  | 'owner_life_event_signal'
-  | 'buyer_financing_signal'
-  | 'micro_market_signal';
+import type { SourceKind } from '../../core/world-state/sourceKinds.js';
+export type { SourceKind };
 
 // ════════════════════════════════════════════════════════════════════════════
 // VisibilityPolicy — who can see this record

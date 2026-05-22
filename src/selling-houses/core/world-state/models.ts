@@ -1,25 +1,23 @@
 import type {
-  Case,
-  CompetitionGroup,
-  CustomerProfile,
-  DomainEventKind,
-  GoalTier,
-  LeadSourceType,
-  ListingEndingBucket,
-  ListingEndingType,
-  Opportunity,
-  OwnerSatisfactionState,
-  ProductRunMilestone,
-  ProductRunScope,
-  ProductRunStatus,
-  StorylineState,
-  Tone,
-} from '../../domain/models.js';
+  AssetCaseStatus,
+  OwnerPersonality,
+  OpportunityStatus,
+  OpportunityLifecycleStatus,
+  OpportunityVisibility,
+  OpportunityHistoryEntry,
+} from './caseTypeFragments.js';
+import type { CustomerProfile, LeadSourceType } from '../business-rules/archetypes/archetypeTaxonomy.js';
+import type { CompetitionGroup } from './competitionTypes.js';
+import type { Tone, StorylineState, GoalTier } from './caseNarrativeTypes.js';
+import type { ListingEndingType, ListingEndingBucket, OwnerSatisfactionState } from './caseOutcomeTypes.js';
+import type { ProductRunMilestone, ProductRunScope, ProductRunStatus } from './productRunTypes.js';
+import type { DomainEventKind } from './eventTypes.js';
+
+export type { AssetCaseStatus, OwnerPersonality } from './caseTypeFragments.js';
+export type { OpportunityStatus, OpportunityLifecycleStatus, OpportunityVisibility, OpportunityHistoryEntry } from './caseTypeFragments.js';
 
 export type WorldEntityId = string;
 export type LegacyEntityId = string;
-
-export type AssetCaseStatus = Case['status'];
 
 export interface AssetCase {
   id: WorldEntityId;
@@ -61,7 +59,7 @@ export interface Owner {
   archetypeId: string;
   name: string;
   mood: string;
-  personality: Case['personality'];
+  personality: OwnerPersonality;
   trust: number;
   patience: number;
   urgency: number;
@@ -148,17 +146,17 @@ export interface CustomerCaseOpportunity {
   confidence: number;
   stageIndex: number;
   stageLabel: string;
-  status: Opportunity['status'];
-  lifecycleStatus: Opportunity['lifecycleStatus'];
+  status: OpportunityStatus;
+  lifecycleStatus: OpportunityLifecycleStatus;
   leadSource: LeadSourceType;
-  visibility: Opportunity['visibility'];
+  visibility: OpportunityVisibility;
   createdDay: number;
   daysLeft: number;
   touchedToday: boolean;
   budgetMax: number;
   priceSensitivity: number;
   stagnationTicks: number;
-  history: ReadonlyArray<Opportunity['history'][number]>;
+  history: ReadonlyArray<OpportunityHistoryEntry>;
 }
 
 export interface CaseCompetitionRelation {
@@ -266,8 +264,3 @@ export interface WorldStateSnapshot {
   negotiationProcesses: readonly NegotiationProcess[];
   events: readonly WorldDomainEvent[];
 }
-
-export type LegacyCaseMapper<T> = (caseItem: Case) => T;
-export type LegacyOpportunityMapper<T> = (opportunity: Opportunity) => T;
-export type LegacyCustomerMapper<T> = (customer: CustomerProfile) => T;
-export type LegacyCompetitionMapper<T> = (group: CompetitionGroup) => T;

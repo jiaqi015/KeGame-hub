@@ -1,15 +1,16 @@
 import type {
-  Case,
-  CompetitionGroup,
-  CustomerProfile,
-  DomainEventEntry,
-  GameState,
-  MarketCell,
-  Opportunity,
-  ProductRun,
-} from '../../domain/models.js';
+  LegacyWorldCaseLike,
+  LegacyWorldGameStateLike,
+  LegacyWorldOpportunityLike,
+} from './legacyWorldAdapterContracts.js';
+import type { CustomerProfile } from '../business-rules/archetypes/archetypeTaxonomy.js';
+import type { MarketCell } from './marketTypes.js';
+import type { CompetitionGroup } from './competitionTypes.js';
+import type { DomainEventEntry } from './eventTypes.js';
+import type { ProductRun } from './productRunTypes.js';
 import type {
   AssetCase,
+  AssetCaseStatus,
   Broker,
   BrokerOwnerRelation,
   CaseCompetitionRelation,
@@ -17,6 +18,9 @@ import type {
   CustomerCaseOpportunity,
   NegotiationProcess,
   OpenDayRun,
+  OpportunityLifecycleStatus,
+  OpportunityStatus,
+  OpportunityVisibility,
   Owner,
   OwnerCaseRelation,
   Region,
@@ -26,6 +30,10 @@ import type {
   WorldEntityId,
   WorldStateSnapshot,
 } from './models.js';
+import type { GoalTier, StorylineState } from './caseNarrativeTypes.js';
+import type { ListingEndingBucket, ListingEndingType, OwnerSatisfactionState } from './caseOutcomeTypes.js';
+import type { OwnerPersonality } from './caseTypeFragments.js';
+import type { LeadSourceType } from '../business-rules/archetypes/archetypeTaxonomy.js';
 
 export function toAssetCaseId(legacyCaseId: string): WorldEntityId {
   return `asset-case:${legacyCaseId}`;
@@ -55,7 +63,7 @@ export function toRegionId(legacyMarketCellId: string): WorldEntityId {
   return `region:${legacyMarketCellId}`;
 }
 
-export function mapLegacyCaseToAssetCase(caseItem: Case): AssetCase {
+export function mapLegacyCaseToAssetCase(caseItem: LegacyWorldCaseLike): AssetCase {
   return {
     id: toAssetCaseId(caseItem.id),
     legacyCaseId: caseItem.id,
@@ -76,38 +84,38 @@ export function mapLegacyCaseToAssetCase(caseItem: Case): AssetCase {
     lastAskPrice: caseItem.lastAskPrice,
     priceGapPct: caseItem.priceGapPct,
     heat: caseItem.heat,
-    status: caseItem.status,
+    status: caseItem.status as AssetCaseStatus,
     stageIndex: caseItem.stageIndex,
     stageLabel: caseItem.stageLabel,
     riskFlags: [...caseItem.riskFlags],
-    goalTier: caseItem.goalTier,
-    storylineState: caseItem.storylineState,
+    goalTier: caseItem.goalTier as GoalTier,
+    storylineState: caseItem.storylineState as StorylineState,
     viewings: caseItem.viewings,
     offers: caseItem.offers,
     soldPrice: caseItem.soldPrice,
-    endingType: caseItem.endingType,
-    endingBucket: caseItem.endingBucket,
+    endingType: caseItem.endingType as ListingEndingType | undefined,
+    endingBucket: caseItem.endingBucket as ListingEndingBucket | undefined,
     endingSummary: caseItem.endingSummary,
   };
 }
 
-export function mapLegacyCaseToOwner(caseItem: Case): Owner {
+export function mapLegacyCaseToOwner(caseItem: LegacyWorldCaseLike): Owner {
   return {
     id: toOwnerId(caseItem.id),
     legacyCaseId: caseItem.id,
     archetypeId: caseItem.ownerArchetypeId,
     name: caseItem.ownerName,
     mood: caseItem.ownerMood,
-    personality: caseItem.personality,
+    personality: caseItem.personality as OwnerPersonality,
     trust: caseItem.trust,
     patience: caseItem.patience,
     urgency: caseItem.urgency,
     windowDays: caseItem.windowDays,
-    satisfaction: caseItem.ownerSatisfaction,
+    satisfaction: caseItem.ownerSatisfaction as OwnerSatisfactionState | undefined,
   };
 }
 
-export function mapLegacyCaseToMaintainerBroker(caseItem: Case): Broker {
+export function mapLegacyCaseToMaintainerBroker(caseItem: LegacyWorldCaseLike): Broker {
   return {
     id: toMaintainerBrokerId(caseItem.maintainerName),
     name: caseItem.maintainerName,
@@ -132,7 +140,7 @@ export function mapLegacyCustomerToCustomer(customer: CustomerProfile): Customer
   };
 }
 
-export function mapLegacyOpportunityToCustomer(opportunity: Opportunity): Customer {
+export function mapLegacyOpportunityToCustomer(opportunity: LegacyWorldOpportunityLike): Customer {
   return {
     id: opportunity.customerId ? toCustomerId(opportunity.customerId) : toCustomerFromOpportunityId(opportunity.id),
     legacyCustomerId: opportunity.customerId || undefined,
@@ -159,7 +167,7 @@ export function mapLegacyMarketToRegion(market: MarketCell): Region {
   };
 }
 
-export function mapLegacyCaseToBrokerOwnerRelation(caseItem: Case): BrokerOwnerRelation {
+export function mapLegacyCaseToBrokerOwnerRelation(caseItem: LegacyWorldCaseLike): BrokerOwnerRelation {
   const brokerId = toMaintainerBrokerId(caseItem.maintainerName);
   const ownerId = toOwnerId(caseItem.id);
   return {
@@ -173,7 +181,7 @@ export function mapLegacyCaseToBrokerOwnerRelation(caseItem: Case): BrokerOwnerR
   };
 }
 
-export function mapLegacyCaseToOwnerCaseRelation(caseItem: Case): OwnerCaseRelation {
+export function mapLegacyCaseToOwnerCaseRelation(caseItem: LegacyWorldCaseLike): OwnerCaseRelation {
   const ownerId = toOwnerId(caseItem.id);
   const assetCaseId = toAssetCaseId(caseItem.id);
   return {
@@ -185,13 +193,13 @@ export function mapLegacyCaseToOwnerCaseRelation(caseItem: Case): OwnerCaseRelat
     askPrice: caseItem.askPrice,
     bottomPrice: caseItem.bottomPrice,
     windowDays: caseItem.windowDays,
-    status: caseItem.status,
+    status: caseItem.status as AssetCaseStatus,
     patience: caseItem.patience,
     urgency: caseItem.urgency,
   };
 }
 
-export function mapLegacyOpportunityToCustomerCaseOpportunity(opportunity: Opportunity): CustomerCaseOpportunity {
+export function mapLegacyOpportunityToCustomerCaseOpportunity(opportunity: LegacyWorldOpportunityLike): CustomerCaseOpportunity {
   const customerId = opportunity.customerId
     ? toCustomerId(opportunity.customerId)
     : toCustomerFromOpportunityId(opportunity.id);
@@ -208,10 +216,10 @@ export function mapLegacyOpportunityToCustomerCaseOpportunity(opportunity: Oppor
     confidence: opportunity.confidence,
     stageIndex: opportunity.stageIndex,
     stageLabel: opportunity.stageLabel,
-    status: opportunity.status,
-    lifecycleStatus: opportunity.lifecycleStatus,
-    leadSource: opportunity.leadSource,
-    visibility: opportunity.visibility,
+    status: opportunity.status as OpportunityStatus,
+    lifecycleStatus: opportunity.lifecycleStatus as OpportunityLifecycleStatus,
+    leadSource: opportunity.leadSource as LeadSourceType,
+    visibility: opportunity.visibility as OpportunityVisibility,
     createdDay: opportunity.createdDay,
     daysLeft: opportunity.daysLeft,
     touchedToday: opportunity.touchedToday,
@@ -257,7 +265,7 @@ export function mapLegacyProductRunToSinceritySaleRun(run: ProductRun): Sincerit
   };
 }
 
-export function mapLegacyOpportunityToNegotiationProcess(opportunity: Opportunity): NegotiationProcess | null {
+export function mapLegacyOpportunityToNegotiationProcess(opportunity: LegacyWorldOpportunityLike): NegotiationProcess | null {
   if (!opportunity.pendingClosingEvaluation) {
     return null;
   }
@@ -268,7 +276,7 @@ export function mapLegacyOpportunityToNegotiationProcess(opportunity: Opportunit
     assetCaseId: toAssetCaseId(opportunity.caseId),
     customerId: opportunity.customerId ? toCustomerId(opportunity.customerId) : toCustomerFromOpportunityId(opportunity.id),
     brokerId: opportunity.brokerName ? toLeadBrokerId(opportunity.brokerName) : undefined,
-    status: opportunity.status,
+    status: opportunity.status as NegotiationProcess['status'],
     stageIndex: opportunity.stageIndex,
     stageLabel: opportunity.stageLabel,
     intent: opportunity.intent,
@@ -300,7 +308,7 @@ export function mapLegacyDomainEventToWorldDomainEvent(event: DomainEventEntry):
   };
 }
 
-export function deriveWorldStateFromLegacyGameState(state: GameState): WorldStateSnapshot {
+export function deriveWorldStateFromLegacyGameState(state: LegacyWorldGameStateLike): WorldStateSnapshot {
   const assets = state.cases.map(mapLegacyCaseToAssetCase);
   const owners = state.cases.map(mapLegacyCaseToOwner);
   const opportunities = state.opportunities || [];

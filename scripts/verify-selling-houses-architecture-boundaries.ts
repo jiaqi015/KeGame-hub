@@ -429,3 +429,5 @@ const durationMs = Date.now() - startedAt;
 console.log(
   `\n[architecture-boundaries] Passed ${contractScripts.length} architecture boundary contracts in ${durationMs}ms`,
 );
+
+process.exit(0);

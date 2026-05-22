@@ -1,4 +1,4 @@
-import type { ActionMetricKey } from '../../../domain/models.js';
+import type { ActionMetricKey } from '../action-specs/actionTaxonomy.js';
 
 export type DecisionMomentId =
   | 'first-visit-owner-discovery'

@@ -470,6 +470,7 @@ function buildShadowMarketConfig(
     .slice(0, storeCount)
     .map((entry, index) => ({
       ...entry,
+      districtFocus: [...entry.districtFocus],
       id: `${entry.id}-${profile.id}-${index + 1}`,
       activityHeat: clamp(24 + pressureLevel * 9 + randomInt(-4, 6, source), 12, 92),
     }));

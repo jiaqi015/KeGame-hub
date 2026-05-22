@@ -1,5 +1,9 @@
-import { BALANCE } from '../../../domain/config/balance.js';
-import type { Case, GameState, Opportunity } from '../../../domain/models.js';
+import { SCORING_BALANCE } from '../../business-rules/scoring/scoringBalance.js';
+import type {
+  LegacyScoreSeparationCaseLike,
+  LegacyScoreSeparationStateLike,
+  LegacyScoreSeparationOpportunityLike,
+} from '../legacyEvaluationContracts.js';
 import type {
   AssetScoreInputDraft,
   LegacyAssetScoreDecomposition,
@@ -34,43 +38,43 @@ function signal(
   };
 }
 
-function priceFlexPct(caseItem: Case) {
+function priceFlexPct(caseItem: LegacyScoreSeparationCaseLike) {
   return ((caseItem.askPrice - caseItem.bottomPrice) / Math.max(1, caseItem.askPrice)) * 100;
 }
 
-function priceFlexScore(caseItem: Case) {
-  return clampScore((priceFlexPct(caseItem) / 100) * BALANCE.scoring.d3Normalization.priceFlexFullScale * 100);
+function priceFlexScore(caseItem: LegacyScoreSeparationCaseLike) {
+  return clampScore((priceFlexPct(caseItem) / 100) * SCORING_BALANCE.d3Normalization.priceFlexFullScale * 100);
 }
 
-function priceGapPct(caseItem: Case) {
+function priceGapPct(caseItem: LegacyScoreSeparationCaseLike) {
   if (Number.isFinite(caseItem.priceGapPct)) {
     return caseItem.priceGapPct;
   }
   return ((caseItem.askPrice - caseItem.marketPrice) / Math.max(1, caseItem.marketPrice)) * 100;
 }
 
-function axisCompositeScore(caseItem: Case) {
-  return Object.entries(BALANCE.scoring.d2AxisWeights).reduce((sum, [axis, weight]) => {
+function axisCompositeScore(caseItem: LegacyScoreSeparationCaseLike) {
+  return Object.entries(SCORING_BALANCE.d2AxisWeights).reduce((sum, [axis, weight]) => {
     return sum + (caseItem.axisScores[axis] ?? 50) * weight;
   }, 0);
 }
 
-function activeOpportunitiesForCase(state: Pick<GameState, 'opportunities'>, caseId: string) {
+function activeOpportunitiesForCase(state: Pick<LegacyScoreSeparationStateLike, 'opportunities'>, caseId: string) {
   return state.opportunities.filter((entry) => entry.caseId === caseId && entry.status === 'active');
 }
 
-function lateStageOpportunityCount(opportunities: Opportunity[]) {
+function lateStageOpportunityCount(opportunities: readonly LegacyScoreSeparationOpportunityLike[]) {
   return opportunities.filter((entry) => entry.stageIndex >= 3).length;
 }
 
 export function decomposeLegacyAssetScore(
-  state: Pick<GameState, 'day' | 'opportunities'>,
-  caseItem: Case,
+  state: Pick<LegacyScoreSeparationStateLike, 'day' | 'opportunities'>,
+  caseItem: LegacyScoreSeparationCaseLike,
 ): LegacyAssetScoreDecomposition {
   const flexPct = priceFlexPct(caseItem);
   const flexScore = priceFlexScore(caseItem);
   const axisScore = axisCompositeScore(caseItem);
-  const d3Weights = BALANCE.scoring.d3SignalWeights;
+  const d3Weights = SCORING_BALANCE.d3SignalWeights;
 
   const priceFlexSignal = signal(
     'priceFlexScore',
@@ -119,7 +123,7 @@ export function decomposeLegacyAssetScore(
         consistencyBaseline: signal(
           'consistencyBaseline',
           '一致性基线',
-          BALANCE.scoring.d3Normalization.consistencyBaseline,
+          SCORING_BALANCE.d3Normalization.consistencyBaseline,
           'legacy-d3',
           true,
           'Static legacy baseline, retained only for compatibility decomposition.',
@@ -192,8 +196,8 @@ export function decomposeLegacyAssetScore(
 }
 
 export function buildAssetScoreInputDraftFromLegacyCase(
-  state: Pick<GameState, 'day' | 'opportunities'>,
-  caseItem: Case,
+  state: Pick<LegacyScoreSeparationStateLike, 'day' | 'opportunities'>,
+  caseItem: LegacyScoreSeparationCaseLike,
 ): AssetScoreInputDraft {
   const activeOpportunities = activeOpportunitiesForCase(state, caseItem.id);
 
