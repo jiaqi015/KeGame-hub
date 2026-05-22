@@ -18,6 +18,7 @@
  */
 
 import type { DailyProcessResultSummary, GameState } from '../models.js';
+import { settlePendingDealClosings } from '../dealClosing.js';
 
 // ---------------------------------------------------------------------------
 // Callback types — return DailyProcessResultSummary only.
@@ -82,13 +83,35 @@ function buildEmptyProcessResultSummary(
 
 /**
  * Call settleNegotiationProcessesForDay through the facade.
- * When unregistered, returns empty summary (no negotiation settlement).
+ * When unregistered, falls back to legacy settlePendingDealClosings directly
+ * so that domain-layer callers (tests, save hydration) still close deals.
  */
 export function callSettleNegotiationProcesses(state: GameState): DailyProcessResultSummary {
   if (_settleNegotiation) {
     return _settleNegotiation(state);
   }
-  return buildEmptyProcessResultSummary('negotiation-process-manager', 'settled-day', state.day);
+  const before = state.closedDeals.length;
+  const eventsBefore = state.eventStore.length;
+  settlePendingDealClosings(state);
+  const closedDealIds = state.closedDeals
+    .slice(0, Math.max(0, state.closedDeals.length - before))
+    .map((d) => d.dealId);
+  const emittedEventIds = state.eventStore
+    .slice(eventsBefore)
+    .map((e) => e.id);
+  return {
+    managerId: 'negotiation-process-manager',
+    owner: 'runtime-process-manager-facade',
+    outcomeOwner: 'legacy-deal-closing-engine',
+    day: state.day,
+    phase: 'settled-day',
+    processedCount: 0,
+    resolvedCount: closedDealIds.length,
+    emittedEventIds,
+    closedDealIds,
+    opportunityIds: [],
+    productRunIds: [],
+  };
 }
 
 /**

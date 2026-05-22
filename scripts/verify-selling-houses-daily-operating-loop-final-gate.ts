@@ -114,9 +114,9 @@ check(runtime.tickCount === 3, `After 3 ticks: tickCount = ${runtime.tickCount}`
 check(runtime.totalEventsEmitted > 0, `After 3 ticks: totalEventsEmitted = ${runtime.totalEventsEmitted}`);
 check(runtime.lastTickDay === 3, `After 3 ticks: lastTickDay = ${runtime.lastTickDay}`);
 
-// Each receipt should have 8 phases
+// Each receipt should have 9 phases (8 base + SourceIngestionPhase)
 for (const receipt of receipts) {
-  check(receipt.phaseResults.length === 8, `Receipt day ${receipt.day}: ${receipt.phaseResults.length} phases`);
+  check(receipt.phaseResults.length === 9, `Receipt day ${receipt.day}: ${receipt.phaseResults.length} phases`);
 }
 
 // ---------------------------------------------------------------------------

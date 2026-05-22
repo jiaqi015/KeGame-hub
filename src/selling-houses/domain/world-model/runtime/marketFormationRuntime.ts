@@ -34,6 +34,8 @@ import type {
   BigWorldClockInput,
 } from './types.js';
 
+import { resolveStoreAcnId } from './brandIdHelper.js';
+
 // ── Deterministic RNG (same algorithm as phases.ts / clock.ts) ─────────
 
 function stableHash(input: string): number {
@@ -83,6 +85,8 @@ export function generateMarketFormationSourceRecords(
 ): readonly InformationSourceRecord[] {
   const records: InformationSourceRecord[] = [];
   const salt = `mf-${runSeed}-${day}`;
+
+  const getSnap = (caseId: string) => input.caseRelationSnapshots?.find((s) => s.caseId === caseId);
 
   // ── 1. Supply Dynamics: new listings / price adjustments / withdrawals ──
   //    Market cell heat drives supply behavior
@@ -254,7 +258,7 @@ export function generateMarketFormationSourceRecords(
         subtype: action,
         summary: `${store.name}${action}: 活跃度${store.activityHeat}`,
         rivalBrokerId: `shadow-broker-${store.id}`,
-        rivalAcnId: store.acnId ?? `fallback-acn-${store.id}`,
+        rivalAcnId: resolveStoreAcnId(store),
         listingId: targetListing?.id,
         priceBefore: targetListing?.askPrice,
         priceAfter: targetListing ? Math.max(100, targetListing.askPrice + seededInt(`${rivalSalt}-delta`, -10, 5)) : undefined,
@@ -277,7 +281,7 @@ export function generateMarketFormationSourceRecords(
     } as InformationSourceRecord<'rival_action'>);
 
     // ACN network signal
-    const acnId = store.acnId ?? `fallback-acn-${store.id}`;
+    const acnId = resolveStoreAcnId(store);
     records.push({
       sourceId: `isr-mf-acn-${day}-${store.id}-${i}`,
       sourceKind: 'acn_network_signal',
@@ -311,6 +315,10 @@ export function generateMarketFormationSourceRecords(
     if (!caseItem) continue;
 
     const ownerSalt = `${salt}-owner-${caseItem.id}-${i}`;
+    const snap = getSnap(caseItem.id);
+    const trust = snap?.trustValue ?? caseItem.trust;
+    const patience = snap?.patienceValue ?? caseItem.patience;
+    const urgency = snap?.urgencyValue ?? caseItem.urgency;
 
     // Owner life event (financial, family, relocation)
     const lifeEvent = seededChoice(`${ownerSalt}-life`, [
@@ -322,7 +330,7 @@ export function generateMarketFormationSourceRecords(
       sourceKind: 'owner_life_event_signal',
       payload: {
         subtype: lifeEvent,
-        summary: `${caseItem.ownerName}生活事件: ${lifeEvent}, 紧急度${caseItem.urgency}`,
+        summary: `${caseItem.ownerName}生活事件: ${lifeEvent}, 紧急度${urgency}`,
         ownerId: caseItem.ownerName,
         caseId: caseItem.id,
         urgencyImpact: seededInt(`${ownerSalt}-urg`, -10, 20),
@@ -356,13 +364,13 @@ export function generateMarketFormationSourceRecords(
       sourceKind: 'owner_interview',
       payload: {
         subtype: interviewSubtype,
-        summary: `${caseItem.ownerName}沟通: ${interviewSubtype}, 信任${caseItem.trust}`,
+        summary: `${caseItem.ownerName}沟通: ${interviewSubtype}, 信任${trust}`,
         ownerId: caseItem.ownerName,
         caseId: caseItem.id,
         brokerId: 'player-broker',
-        trustLevel: caseItem.trust,
+        trustLevel: trust,
         tone,
-        ownerStatement: `${interviewSubtype}: 信任${caseItem.trust}, 耐心${caseItem.patience}`,
+        ownerStatement: `${interviewSubtype}: 信任${trust}, 耐心${patience}`,
         interactionMode: seededChoice(`${ownerSalt}-mode`, ['scheduled_call', 'ad_hoc', 'meeting'] as const),
       },
       day,
@@ -386,21 +394,26 @@ export function generateMarketFormationSourceRecords(
   // ── 5. Broker/Org Dynamics: capacity / manager / platform signals ──────
   //    Manager message (focus case selection)
   if (input.activeCases.length > 0) {
-    const sorted = [...input.activeCases].sort((a, b) => b.urgency - a.urgency);
+    const sorted = [...input.activeCases].sort((a, b) => {
+      const urgB = getSnap(b.id)?.urgencyValue ?? b.urgency;
+      const urgA = getSnap(a.id)?.urgencyValue ?? a.urgency;
+      return urgB - urgA;
+    });
     const focusCase = sorted[0];
-    const priority = Math.round(focusCase.urgency * 0.8 + focusCase.competitiveness * 0.2);
+    const focusUrgency = getSnap(focusCase.id)?.urgencyValue ?? focusCase.urgency;
+    const priority = Math.round(focusUrgency * 0.8 + focusCase.competitiveness * 0.2);
 
     records.push({
       sourceId: `isr-mf-mm-${day}-focus`,
       sourceKind: 'manager_message',
       payload: {
         subtype: seededChoice(`${salt}-mm-sub`, ['focus_case_selected', 'resource_allocated', 'strategic_direction'] as const),
-        summary: `经理聚焦: ${focusCase.title} 紧急度${focusCase.urgency}`,
+        summary: `经理聚焦: ${focusCase.title} 紧急度${focusUrgency}`,
         managerId: 'system-manager',
         targetBrokerId: 'player-broker',
         caseIds: [focusCase.id],
         priority,
-        instruction: `重点关注 ${focusCase.title}，当前紧急度 ${focusCase.urgency}`,
+        instruction: `重点关注 ${focusCase.title}，当前紧急度 ${focusUrgency}`,
       },
       day,
       phase: 'morning',
@@ -432,7 +445,7 @@ export function generateMarketFormationSourceRecords(
         subtype: seededChoice(`${bcSalt}-sub`, ['workload_balanced', 'energy_depleted', 'organizational_pressure'] as const),
         summary: `${store.name}经纪人能力: 活跃度${store.activityHeat}`,
         brokerId: `shadow-broker-${store.id}`,
-        acnId: store.acnId ?? `acn-${store.type}`,
+        acnId: resolveStoreAcnId(store),
         energyLevel: seededInt(`${bcSalt}-energy`, 20, 90),
         scheduleUtilization: seededInt(`${bcSalt}-util`, 30, 95),
         activeCaseCount: seededInt(`${bcSalt}-cases`, 1, 8),

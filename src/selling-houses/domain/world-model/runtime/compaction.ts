@@ -23,7 +23,6 @@ import type {
   WorldRuntimeCompactionPolicy,
   DEFAULT_COMPACTION_POLICY,
 } from './types.js';
-
 import type { WorldCausalEvent } from '../causalEvents.js';
 import type { SourceKind } from '../informationSourceTypes.js';
 
@@ -458,6 +457,9 @@ export function normalizeRuntimeState(
     totalMutationsEmitted: Math.max(0, Number(raw['totalMutationsEmitted']) || 0),
     tickCount: Math.max(0, Number(raw['tickCount']) || 0),
     recentErrors: Array.isArray(raw['recentErrors']) ? raw['recentErrors'] as string[] : [],
+    playerBrokerAcnId: typeof raw['playerBrokerAcnId'] === 'string' && raw['playerBrokerAcnId']
+      ? raw['playerBrokerAcnId']
+      : 'acn-cooperative',
   });
 }
 
@@ -479,5 +481,6 @@ export function createDefaultRuntimeState(
     totalMutationsEmitted: 0,
     tickCount: 0,
     recentErrors: [],
+    playerBrokerAcnId: 'acn-cooperative',
   };
 }

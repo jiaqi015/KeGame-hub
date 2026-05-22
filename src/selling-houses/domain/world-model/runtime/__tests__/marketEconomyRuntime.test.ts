@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { computeDailyResourceSnapshot } from '../marketEconomyRuntime.js';
+import { runBigWorldDayTick } from '../clock.js';
 import { buildTimeContext } from '../types.js';
 import type { BigWorldClockInput } from '../types.js';
 import type { InformationSourceRecord } from '../../informationSourceTypes.js';
@@ -115,5 +116,95 @@ describe('computeDailyResourceSnapshot — trust/patience fallback behavior', ()
     const tc8 = buildTimeContext(8); // Next Monday
     expect(tc8.weekdayIndex).toBe(1);
     expect(tc8.isWeeklyBudgetDay).toBe(true);
+  });
+});
+
+describe('runBigWorldDayTick — old-style input without timeContext or existingRuntime', () => {
+  /** Build a minimal BigWorldClockInput WITHOUT timeContext or existingRuntime. */
+  function makeOldStyleInput(day: number, runSeed: number = 42): BigWorldClockInput {
+    return {
+      settledDay: day,
+      runSeed,
+      // Intentionally omit timeContext — old scripts don't provide it
+      marketCells: [{ id: 'mc-1', name: 'Test Cell', demandHeat: 50, supplyPressure: 40, competitivePressure: 30, sentiment: 60 }],
+      activeCases: [{
+        id: 'case-1', title: 'Test Case', district: 'Test District', marketCellId: 'mc-1',
+        trust: 50, patience: 60, urgency: 70, heat: 55, competitiveness: 45,
+        d1: 30, d3: 40, ownerName: 'Test Owner', windowDays: 14, personality: 'steady',
+      }],
+      activeOpportunities: [],
+      rivalListings: [{
+        id: 'rl-1', storeId: 'store-1', title: 'Rival Listing', district: 'Test District',
+        marketCellId: 'mc-1', segment: '3BR', askPrice: 300, heat: 50, freshness: 80,
+        status: 'active', daysLeft: 20,
+      }],
+      rivalStores: [{
+        id: 'store-1', name: 'Rival Store', type: 'external_company', style: 'steady',
+        districtFocus: ['Test District'], leadCapturePower: 40, sellerInfluencePower: 35,
+        pricingPressurePower: 30, activityHeat: 50, acnId: 'acn-rival-1',
+      }],
+      customerStates: [{
+        customerId: 'cust-1', status: 'active', fatigue: 20, churnRisk: 15,
+        activeCaseIds: ['case-1'],
+      }],
+      // Intentionally omit existingRuntime
+    };
+  }
+
+  it('does not crash when timeContext is missing', () => {
+    const input = makeOldStyleInput(1);
+    const receipt = runBigWorldDayTick(input);
+    expect(receipt).toBeDefined();
+    expect(receipt.day).toBe(1);
+  });
+
+  it('does not crash when both timeContext and existingRuntime are missing', () => {
+    const input = makeOldStyleInput(1);
+    const receipt = runBigWorldDayTick(input);
+    expect(receipt).toBeDefined();
+    expect(receipt.economyReceipt).toBeDefined();
+  });
+
+  it('produces correct weekly budget allocation on day 1 (Monday) without explicit timeContext', () => {
+    const input = makeOldStyleInput(1);
+    const receipt = runBigWorldDayTick(input);
+
+    expect(receipt.economyReceipt).toBeDefined();
+    expect(receipt.economyReceipt!.snapshot.promotionBudgetAllocated).toBeGreaterThan(0);
+    expect(receipt.economyReceipt!.snapshot.orgCreditEarned).toBe(0);
+  });
+
+  it('produces correct org credit on day 4 (Thursday) without explicit timeContext', () => {
+    const input = makeOldStyleInput(4);
+    const receipt = runBigWorldDayTick(input);
+
+    expect(receipt.economyReceipt).toBeDefined();
+    expect(receipt.economyReceipt!.snapshot.promotionBudgetAllocated).toBe(0);
+    expect(receipt.economyReceipt!.snapshot.orgCreditEarned).toBeGreaterThan(0);
+  });
+
+  it('neither weekly budget nor org credit on day 0 (Sunday) without explicit timeContext', () => {
+    const input = makeOldStyleInput(0);
+    const receipt = runBigWorldDayTick(input);
+
+    expect(receipt.economyReceipt).toBeDefined();
+    expect(receipt.economyReceipt!.snapshot.promotionBudgetAllocated).toBe(0);
+    expect(receipt.economyReceipt!.snapshot.orgCreditEarned).toBe(0);
+  });
+
+  it('fallback matches explicit timeContext for same day', () => {
+    const inputNoTc = makeOldStyleInput(1);
+    const receiptNoTc = runBigWorldDayTick(inputNoTc);
+
+    const inputWithTc: BigWorldClockInput = {
+      ...makeOldStyleInput(1),
+      timeContext: buildTimeContext(1),
+    };
+    const receiptWithTc = runBigWorldDayTick(inputWithTc);
+
+    expect(receiptNoTc.economyReceipt!.snapshot.promotionBudgetAllocated)
+      .toBe(receiptWithTc.economyReceipt!.snapshot.promotionBudgetAllocated);
+    expect(receiptNoTc.economyReceipt!.snapshot.orgCreditEarned)
+      .toBe(receiptWithTc.economyReceipt!.snapshot.orgCreditEarned);
   });
 });

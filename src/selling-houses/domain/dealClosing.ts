@@ -27,6 +27,139 @@ import { ensureConsensusFormation, setConsensusEvaluationOnState, setConsensusSt
 import { buildConsensusFormationId } from '../core/world-state/consensus/writeSource.js';
 import { readOwnerDecisionProfile, type OwnerDecisionProfile } from './ownerDecisionProfileHelper.js';
 import { getMarketCell } from './engine/opportunityEngine.js';
+import {
+  buildLegacyPriceTrajectoryFromOpportunity,
+  buildPriceConsensusReadiness,
+  buildPriceTrajectoryFromDealClosingEvaluation,
+  type PriceTrajectory,
+  type PriceConsensusReadiness,
+} from '../core/world-state/consensus/priceTrajectory.js';
+// ---------------------------------------------------------------------------
+// BrokerCustomerRelation trust read helper
+// ---------------------------------------------------------------------------
+
+interface BrokerCustomerTrustResult {
+  readonly trust: number;
+  readonly familiarity: number;
+  readonly influence: number;
+  readonly relationSource: 'relation' | 'legacy-customer-runtime-fallback';
+  readonly relationId: string;
+}
+
+function readBrokerCustomerTrust(
+  state: GameState,
+  brokerId: string,
+  customerId: string,
+): BrokerCustomerTrustResult {
+  const relations = state.runtimeBrokerCustomerRelations;
+  if (relations) {
+    const match = relations.find(
+      (r) => r.brokerId === brokerId && r.customerId === customerId,
+    );
+    if (match) {
+      return {
+        trust: match.trust,
+        familiarity: match.familiarity,
+        influence: match.influence,
+        relationSource: match.source === 'canonical' ? 'relation' : 'legacy-customer-runtime-fallback',
+        relationId: match.relationId,
+      };
+    }
+  }
+
+  const customerState = state.customerStates.find(
+    (cs) => cs.customerId === customerId,
+  );
+  const fallbackTrust = customerState?.advisorTrust ?? 48;
+  return {
+    trust: fallbackTrust,
+    familiarity: 20,
+    influence: 30,
+    relationSource: 'legacy-customer-runtime-fallback',
+    relationId: `fallback:${brokerId}::${customerId}`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// PriceTrajectory runtime helpers
+// ---------------------------------------------------------------------------
+
+function ensurePriceTrajectoryRuntime(state: GameState): {
+  trajectories: PriceTrajectory[];
+  readinesses: PriceConsensusReadiness[];
+} {
+  if (!state.runtimePriceTrajectories) state.runtimePriceTrajectories = [];
+  if (!state.runtimePriceConsensusReadinesses) state.runtimePriceConsensusReadinesses = [];
+  return {
+    trajectories: state.runtimePriceTrajectories,
+    readinesses: state.runtimePriceConsensusReadinesses,
+  };
+}
+
+function storePriceTrajectoryAndReadiness(
+  state: GameState,
+  trajectory: PriceTrajectory,
+  readiness: PriceConsensusReadiness,
+): void {
+  const { trajectories, readinesses } = ensurePriceTrajectoryRuntime(state);
+  const existingTrajIdx = trajectories.findIndex(t => t.trajectoryId === trajectory.trajectoryId);
+  if (existingTrajIdx >= 0) {
+    trajectories[existingTrajIdx] = trajectory;
+  } else {
+    trajectories.push(trajectory);
+  }
+  const existingReadyIdx = readinesses.findIndex(r => r.readinessId === readiness.readinessId);
+  if (existingReadyIdx >= 0) {
+    readinesses[existingReadyIdx] = readiness;
+  } else {
+    readinesses.push(readiness);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ContractFact → legacy mirror sync (controlled terminal writes)
+// ---------------------------------------------------------------------------
+
+/**
+ * Syncs legacy Case/ClosedDealRecord mirrors from a canonical ContractFact.
+ *
+ * This is the ONLY allowed write path for terminal case status → 'sold',
+ * soldPrice, and closedDeals.unshift. All direct mutations are encapsulated
+ * here so the gate can allowlist a single location.
+ */
+export function syncLegacyCaseDealMirrorsFromContractFact(
+  state: GameState,
+  input: {
+    contractFactId: string;
+    consensusFormationId: string;
+    opportunityClosureSetId?: string;
+    caseId: string;
+    soldPrice: number;
+    opportunity: Opportunity;
+    evaluation: DealClosingEvaluation;
+  },
+): void {
+  const caseItem = state.cases.find((c) => c.id === input.caseId);
+  if (!caseItem) return;
+
+  // Terminal status write
+  caseItem.status = 'sold';
+  caseItem.soldPrice = input.soldPrice;
+  caseItem.stageLabel = '已成交';
+
+  // Derive ending fields from Case state
+  markCaseSold(caseItem, input.soldPrice);
+
+  // Build legacy ClosedDealRecord mirror via single authority constructor
+  const closedDeal: ClosedDealRecord = buildClosedDealRecord(
+    state, caseItem, input.opportunity, input.soldPrice, input.evaluation,
+  );
+
+  if (input.consensusFormationId) closedDeal.consensusId = input.consensusFormationId;
+  closedDeal.contractId = input.contractFactId;
+  if (input.opportunityClosureSetId) closedDeal.closureSetId = input.opportunityClosureSetId;
+  state.closedDeals.unshift(closedDeal);
+}
 
 function resolveNegotiationStrategy(strategyId?: string | null) {
   const strategies = BALANCE.actions.negotiation.strategies;
@@ -133,6 +266,30 @@ function finalizeClosedDeal(
     markConsensusSignedOnState(state, signedBrokered.brokeredOpportunityId, state.day, 'deal closed');
   }
 
+  const canonicalTrajectory = buildPriceTrajectoryFromDealClosingEvaluation({
+    caseId: caseItem.id,
+    customerId: opportunity.customerId,
+    ownerId: caseItem.ownerName || `owner:${caseItem.id}`,
+    opportunityId: opportunity.id,
+    day: state.day,
+    soldPrice,
+    closeReadiness: evaluation.closeReadiness,
+    closeProbability: evaluation.closeProbability,
+    buyerBudgetMax: opportunity.budgetMax,
+    buyerIntent: opportunity.intent,
+    buyerConfidence: opportunity.confidence,
+    caseAskPrice: caseItem.askPrice,
+    caseMarketPrice: caseItem.marketPrice,
+    caseBottomPrice: caseItem.bottomPrice,
+    blockers: evaluation.blockingReasons,
+    supportingFactors: evaluation.supportingReasons,
+    strategyId: opportunity.pendingClosingStrategyId || 'balanced',
+  });
+  const canonicalReadiness = buildPriceConsensusReadiness(canonicalTrajectory);
+  storePriceTrajectoryAndReadiness(state, canonicalTrajectory, canonicalReadiness);
+
+  const contractSourceEventRefs = [canonicalTrajectory.trajectoryId, canonicalReadiness.readinessId];
+
   // Create ContractFact (canonical terminal fact — guarded against duplicates)
   const contractFact = consensusId
     ? createContractFactOnState(
@@ -149,6 +306,7 @@ function finalizeClosedDeal(
         evaluation.closeProbability,
         evaluation.blockingReasons,
         evaluation.supportingReasons,
+        contractSourceEventRefs,
       )
     : undefined;
 
@@ -170,13 +328,20 @@ function finalizeClosedDeal(
     : undefined;
 
   const saleBalance = BALANCE.actions.sale;
-  caseItem.status = 'sold';
-  caseItem.soldPrice = soldPrice;
-  caseItem.stageLabel = '已成交';
+
+  // Sync all legacy terminal mirrors from ContractFact (single controlled write path)
+  syncLegacyCaseDealMirrorsFromContractFact(state, {
+    contractFactId: contractFact?.contractId ?? `deal-${caseItem.id}-${opportunity.customerId}-${state.day}`,
+    consensusFormationId: consensusId ?? '',
+    opportunityClosureSetId: closureSet?.closureSetId,
+    caseId: caseItem.id,
+    soldPrice,
+    opportunity,
+    evaluation,
+  });
+
   applyBrokerOwnerTrustDelta(state, caseItem, saleBalance.soldTrustBonus, '成交信任奖励', 0, 100);
   caseItem.heat = clamp(caseItem.heat + saleBalance.soldHeatBonus, 0, 100);
-
-  markCaseSold(caseItem, soldPrice);
 
   const commission = Math.round(
     soldPrice
@@ -209,13 +374,6 @@ function finalizeClosedDeal(
     refreshOpportunityLabel(state, entry);
   });
 
-  const closedDeal = buildClosedDealRecord(state, caseItem, opportunity, soldPrice, evaluation);
-  // Attach canonical traceability bridge IDs (optional, non-breaking)
-  if (consensusId) closedDeal.consensusId = consensusId;
-  if (contractFact) closedDeal.contractId = contractFact.contractId;
-  if (closureSet) closedDeal.closureSetId = closureSet.closureSetId;
-  state.closedDeals.unshift(closedDeal);
-
   state.customerStates.forEach((customerState) => {
     const runtime = customerState.caseStates[caseItem.id];
     if (!runtime) return;
@@ -246,7 +404,7 @@ function finalizeClosedDeal(
     opportunityId: opportunity.id,
     customerId: opportunity.customerId,
     payload: {
-      dealId: closedDeal.dealId,
+      dealId: contractFact?.contractId ?? `deal-${caseItem.id}-${opportunity.customerId}-${state.day}`,
       soldPrice,
       commission,
       budgetReturn,
@@ -399,6 +557,22 @@ export function settlePendingDealClosings(state: GameState) {
     const soldPrice = Math.round(caseItem.askPrice * strategy.priceFactor);
     const evaluation = buildDealClosingEvaluation(state, caseItem, opportunity, soldPrice, strategyId);
 
+    const legacyTrajectory = buildLegacyPriceTrajectoryFromOpportunity({
+      caseId: caseItem.id,
+      customerId: opportunity.customerId,
+      ownerId: caseItem.ownerName || `owner:${caseItem.id}`,
+      day: state.day,
+      buyerBudgetMax: opportunity.budgetMax,
+      buyerIntent: opportunity.intent,
+      buyerConfidence: opportunity.confidence,
+      caseAskPrice: caseItem.askPrice,
+      caseMarketPrice: caseItem.marketPrice,
+      caseBottomPrice: caseItem.bottomPrice,
+      opportunityId: opportunity.id,
+    });
+    const legacyReadiness = buildPriceConsensusReadiness(legacyTrajectory);
+    storePriceTrajectoryAndReadiness(state, legacyTrajectory, legacyReadiness);
+
     // Write evaluation into ConsensusFormation (canonical)
     const match = findMatchStateForPair(state, opportunity.customerId, opportunity.caseId);
     const brokered = match ? findBrokeredStateForOpportunity(state, opportunity.id) : undefined;
@@ -466,6 +640,8 @@ export function buildDealClosingEvaluation(
   soldPrice: number,
   strategyId?: string | null,
 ): DealClosingEvaluation {
+  const brokerId = state.bigWorldRuntime?.playerBrokerAcnId ?? 'player-broker';
+
   // Read trust from relation layer (canonical), fallback to Case
   const trust = readRelationTrustForCase(state, caseItem);
   const trustSource: EvaluationSourceTrace['trustSource'] =
@@ -473,6 +649,9 @@ export function buildDealClosingEvaluation(
       ? 'relation' : 'case-fallback';
   const readiness = readRelationReadinessForCase(state, caseItem);
   const ownerProfile = readOwnerDecisionProfile(caseItem);
+
+  // Read broker-customer trust from relation layer, fallback to CustomerRuntimeState
+  const bcrResult = readBrokerCustomerTrust(state, brokerId, opportunity.customerId);
 
   // Read competition-derived evidence (read-only, does not change outcome directly)
   const cell = getMarketCell(state, caseItem.marketCellId);
@@ -517,10 +696,26 @@ export function buildDealClosingEvaluation(
   }
   const closeProbability = blockingReasons.length === 0 ? rawCloseProbability : 0;
 
+  const legacyTrajectory = buildLegacyPriceTrajectoryFromOpportunity({
+    caseId: caseItem.id,
+    customerId: opportunity.customerId,
+    ownerId: caseItem.ownerName || `owner:${caseItem.id}`,
+    day: state.day,
+    buyerBudgetMax: opportunity.budgetMax,
+    buyerIntent: opportunity.intent,
+    buyerConfidence: opportunity.confidence,
+    caseAskPrice: caseItem.askPrice,
+    caseMarketPrice: caseItem.marketPrice,
+    caseBottomPrice: caseItem.bottomPrice,
+    opportunityId: opportunity.id,
+  });
+  const legacyReadiness = buildPriceConsensusReadiness(legacyTrajectory);
+
   const sourceTrace: EvaluationSourceTrace = {
     trustSource,
     readinessSource: readiness.source,
     profileSource: ownerProfile.source,
+    customerTrustSource: bcrResult.relationSource,
   };
 
   // Determine weakest link in the evidence chain for failure attribution
@@ -547,6 +742,15 @@ export function buildDealClosingEvaluation(
     ownerUrgency: readiness.urgency,
     consensusStage: 'evaluated',
     weakestLink,
+    brokerCustomerTrust: bcrResult.trust,
+    brokerCustomerFamiliarity: bcrResult.familiarity,
+    brokerCustomerInfluence: bcrResult.influence,
+    brokerCustomerRelationSource: bcrResult.relationSource,
+    brokerCustomerRelationId: bcrResult.relationId,
+    trajectoryId: legacyTrajectory.trajectoryId,
+    readinessId: legacyReadiness.readinessId,
+    priceGap: legacyReadiness.currentGap,
+    priceBlockers: legacyReadiness.blockers,
   };
 
   return {
@@ -562,6 +766,10 @@ export function buildDealClosingEvaluation(
       `${opportunity.customerName} 已经坐到了桌前，进入 ${opportunity.stageLabel}`,
       `客户两眼放光，意向 ${Math.round(opportunity.intent)}，但对房子信心 ${Math.round(opportunity.confidence)}`,
       `业主跟你交了底（信任 ${Math.round(trust)}），而且房子确实能打（竞争力 ${Math.round(caseItem.competitiveness)}）`,
+      `客户对你信任 ${Math.round(bcrResult.trust)}（${bcrResult.relationSource === 'relation' ? '关系记录' : '历史数据推导'}），愿意继续谈`,
+      legacyReadiness.ready
+        ? `价格共识已达成（差距 ${legacyReadiness.currentGap}，得分 ${legacyReadiness.score}）`
+        : `价格共识暂未达成（差距 ${legacyReadiness.currentGap}，还需降到 ${legacyReadiness.requiredGap} 以内，阻塞：${legacyReadiness.blockers.join(', ')}）`,
     ],
     sourceTrace,
     blockingCategories,

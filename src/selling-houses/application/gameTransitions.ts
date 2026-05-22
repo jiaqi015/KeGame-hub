@@ -194,6 +194,11 @@ export function executeGameAction(
         console.warn(`[ActionReceipt building failed] action=${actionId}: ${msg}`);
       }
       if (success) {
+        // Emit decision-moment and flow-progress signals after successful action.
+        // Moved from domain layer to preserve domain→runtime boundary.
+        emitDecisionMomentTriggers(next, actionId, currentCase, optionId ?? undefined);
+        advanceFlowProgress(next, actionId, caseId);
+
         if (todayPlanItemId) {
           markTodayPlanItemCompletedMutable(next, todayPlanItemId);
         } else {

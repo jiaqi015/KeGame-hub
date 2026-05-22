@@ -157,7 +157,13 @@ function getNewEntriesAfterUnshift<T>(items: T[], startLength: number): T[] {
   return items.slice(0, Math.max(0, items.length - startLength));
 }
 
-function buildDirtyScopes(state: GameState, settledDay: number, eventStoreStart: number, closedDealStart: number): DirtyScopeSet {
+function buildDirtyScopes(
+  state: GameState,
+  settledDay: number,
+  eventStoreStart: number,
+  closedDealStart: number,
+  capturedMatterIds?: Set<string>,
+): DirtyScopeSet {
   const emittedEvents = getNewEntriesAfterUnshift(state.eventStore, eventStoreStart);
   const closedDeals = getNewEntriesAfterUnshift(state.closedDeals, closedDealStart);
   const caseIds = new Set<string>();
@@ -198,15 +204,29 @@ function buildDirtyScopes(state: GameState, settledDay: number, eventStoreStart:
     if (entry.customerId) customerIds.add(entry.customerId);
     if (entry.ownerName) ownerRefs.add(entry.ownerName);
   });
+
+  const processMatter = (entry: { id: string; caseId?: string; kind?: string; sourceKey?: string }) => {
+    matterIds.add(entry.id);
+    if (entry.caseId) markCase(entry.caseId);
+    if (entry.kind === 'opportunity' && entry.sourceKey) {
+      markOpportunity(entry.sourceKey);
+    }
+  };
+
   state.matters.forEach((entry) => {
     if (entry.updatedAtDay === settledDay || entry.resolvedAtDay === settledDay) {
-      matterIds.add(entry.id);
-      markCase(entry.caseId);
-      if (entry.kind === 'opportunity') {
-        markOpportunity(entry.sourceKey);
-      }
+      processMatter(entry);
     }
   });
+
+  if (capturedMatterIds) {
+    for (const capturedId of capturedMatterIds) {
+      if (!matterIds.has(capturedId)) {
+        const entry = state.matters.find((e) => e.id === capturedId);
+        if (entry) processMatter(entry);
+      }
+    }
+  }
 
   return {
     cases: [...caseIds],
@@ -443,6 +463,11 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
   tickBigWorldRuntime(state);
 
   updateDerivedState(state);
+  const capturedMatterIds = new Set(
+    state.matters
+      .filter((entry) => entry.updatedAtDay === settledDay || entry.resolvedAtDay === settledDay)
+      .map((entry) => entry.id),
+  );
   const afterScore = average(state.cases.map((entry) => entry.competitiveness));
   const afterD1 = average(state.cases.filter((entry) => entry.status === 'active').map((entry) => entry.d1));
   const afterD3 = average(state.cases.filter((entry) => entry.status === 'active').map((entry) => entry.d3));
@@ -502,7 +527,7 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
       processResults,
       settledDayProcessResults: processResultGroups.settledDayProcessResults,
       nextDaySetupProcessResults: processResultGroups.nextDaySetupProcessResults,
-      dirtyScopes: buildDirtyScopes(state, settledDay, eventStoreStart, closedDealStart),
+      dirtyScopes: buildDirtyScopes(state, settledDay, eventStoreStart, closedDealStart, capturedMatterIds),
       invariantAlerts: collectInvariantAlerts(state),
       pressureReceipts,
       semanticReceipts,

@@ -5,7 +5,7 @@ import {
   normalizeLoadedState,
   updateDerivedState,
 } from '../../../application/gameState';
-import { executeScenarioAction } from '../../../application/gameTransitions';
+import { executeGameAction, executeScenarioAction } from '../../../application/gameTransitions';
 import {
   createOpportunity,
   executeAction,
@@ -83,6 +83,23 @@ function buildSettlement(): Settlement {
   };
 }
 
+describe('domain path boundary', () => {
+  it('executeAction (domain) does not emit decision_moment_triggered events', () => {
+    const state = buildWorld();
+    const caseItem = getActiveCases(state)[0];
+    const ok = executeAction(state, 'first-visit', caseItem);
+    expect(ok).toBe(true);
+    expect(findMomentEvents(state)).toHaveLength(0);
+  });
+
+  it('executeAction (domain) does not advance flowProgress', () => {
+    const state = buildWorld();
+    const caseItem = getActiveCases(state)[0];
+    executeAction(state, 'first-visit', caseItem);
+    expect(state.flowProgress['standard-selling']).toBeUndefined();
+  });
+});
+
 describe('decision moment emission', () => {
   it('emits first-visit-owner-discovery on first-visit', () => {
     const state = buildWorld();
@@ -90,10 +107,10 @@ describe('decision moment emission', () => {
     expect(cases.length).toBeGreaterThan(0);
 
     const caseItem = cases[0];
-    const ok = executeAction(state, 'first-visit', caseItem);
-    expect(ok).toBe(true);
+    const { nextState, success } = executeGameAction(state, 'first-visit', caseItem.id);
+    expect(success).toBe(true);
 
-    const momentEvents = findMomentEvents(state);
+    const momentEvents = findMomentEvents(nextState);
     const ids = momentEvents.map((e) => (e.payload as any).momentId);
     expect(ids).toContain('first-visit-owner-discovery');
   });
@@ -107,10 +124,10 @@ describe('decision moment emission', () => {
     caseItem.touchedOwnerToday = false;
     caseItem.actionsToday = 0;
 
-    const ok = executeAction(state, 'ask-psychological-price', caseItem);
-    expect(ok).toBe(true);
+    const { nextState, success } = executeGameAction(state, 'ask-psychological-price', caseItem.id);
+    expect(success).toBe(true);
 
-    const momentEvents = findMomentEvents(state);
+    const momentEvents = findMomentEvents(nextState);
     const ids = momentEvents.map((e) => (e.payload as any).momentId);
     expect(ids).toContain('pricing-strategy-adjustment');
   });
@@ -119,10 +136,10 @@ describe('decision moment emission', () => {
     const state = buildWorld();
     const caseItem = prepareOpenDayCase(state);
 
-    const ok = executeAction(state, 'open-day', caseItem);
-    expect(ok).toBe(true);
+    const { nextState, success } = executeGameAction(state, 'open-day', caseItem.id);
+    expect(success).toBe(true);
 
-    const momentEvents = findMomentEvents(state);
+    const momentEvents = findMomentEvents(nextState);
     const ids = momentEvents.map((e) => (e.payload as any).momentId);
     expect(ids).toContain('open-day-participation');
   });
@@ -140,10 +157,10 @@ describe('decision moment emission', () => {
     caseItem.offers = Math.max(caseItem.offers, 1);
     updateDerivedState(state);
 
-    const ok = executeAction(state, 'sincerity-sale', caseItem);
-    expect(ok).toBe(true);
+    const { nextState, success } = executeGameAction(state, 'sincerity-sale', caseItem.id);
+    expect(success).toBe(true);
 
-    const momentEvents = findMomentEvents(state);
+    const momentEvents = findMomentEvents(nextState);
     const ids = momentEvents.map((e) => (e.payload as any).momentId);
     expect(ids).toContain('sincerity-sale-entry');
   });
@@ -160,10 +177,10 @@ describe('decision moment emission', () => {
     caseItem.offers = Math.max(caseItem.offers, 1);
     updateDerivedState(state);
 
-    const ok = executeAction(state, 'invite-customer-negotiation', caseItem);
-    expect(ok).toBe(true);
+    const { nextState, success } = executeGameAction(state, 'invite-customer-negotiation', caseItem.id);
+    expect(success).toBe(true);
 
-    const momentEvents = findMomentEvents(state);
+    const momentEvents = findMomentEvents(nextState);
     const ids = momentEvents.map((e) => (e.payload as any).momentId);
     expect(ids).toContain('offer-acceptance-negotiation');
   });
@@ -173,19 +190,22 @@ describe('decision moment emission', () => {
     const cases = getActiveCases(state);
     const caseItem = cases[0];
 
-    executeAction(state, 'first-visit', caseItem);
+    const result1 = executeGameAction(state, 'first-visit', caseItem.id);
+    expect(result1.success).toBe(true);
 
-    caseItem.touchedOwnerToday = false;
-    caseItem.actionsToday = 0;
+    const caseItem2 = getActiveCases(result1.nextState).find((c) => c.id === caseItem.id)!;
+    caseItem2.touchedOwnerToday = false;
+    caseItem2.actionsToday = 0;
 
-    executeAction(state, 'ask-psychological-price', caseItem);
+    const result2 = executeGameAction(result1.nextState, 'ask-psychological-price', caseItem2.id);
+    expect(result2.success).toBe(true);
 
-    const pricingEvents = findMomentEvents(state).filter(
+    const pricingEvents = findMomentEvents(result2.nextState).filter(
       (e) => (e.payload as any).momentId === 'pricing-strategy-adjustment',
     );
     expect(pricingEvents).toHaveLength(1);
 
-    const firstVisitEvents = findMomentEvents(state).filter(
+    const firstVisitEvents = findMomentEvents(result2.nextState).filter(
       (e) => (e.payload as any).momentId === 'first-visit-owner-discovery',
     );
     expect(firstVisitEvents).toHaveLength(1);
@@ -199,12 +219,10 @@ describe('decision moment emission', () => {
     caseItem.hasCompletedFirstVisit = true;
     caseItem.touchedOwnerToday = false;
 
-    const beforeCount = findMomentEvents(state).length;
+    const { nextState, success } = executeGameAction(state, 'weekly-feedback', caseItem.id);
+    expect(success).toBe(true);
 
-    const ok = executeAction(state, 'weekly-feedback', caseItem);
-    expect(ok).toBe(true);
-
-    expect(findMomentEvents(state).length).toBe(beforeCount);
+    expect(findMomentEvents(nextState)).toHaveLength(0);
   });
 });
 
@@ -214,10 +232,11 @@ describe('flow progress advancement', () => {
     const cases = getActiveCases(state);
     const caseItem = cases[0];
 
-    executeAction(state, 'first-visit', caseItem);
+    const { nextState, success } = executeGameAction(state, 'first-visit', caseItem.id);
+    expect(success).toBe(true);
 
-    expect(state.flowProgress).toBeDefined();
-    const progress = state.flowProgress!['standard-selling'];
+    expect(nextState.flowProgress).toBeDefined();
+    const progress = nextState.flowProgress!['standard-selling'];
     expect(progress).toBeDefined();
     expect(progress.currentStepId).toBe('owner-alignment');
   });
@@ -227,32 +246,35 @@ describe('flow progress advancement', () => {
     const cases = getActiveCases(state);
     const caseItem = cases[0];
 
-    executeAction(state, 'first-visit', caseItem);
+    const r1 = executeGameAction(state, 'first-visit', caseItem.id);
+    expect(r1.success).toBe(true);
 
-    const p1 = state.flowProgress!['standard-selling'];
+    const p1 = r1.nextState.flowProgress!['standard-selling'];
     expect(p1.currentStepId).toBe('owner-alignment');
 
-    caseItem.touchedOwnerToday = false;
-    caseItem.actionsToday = 0;
-    caseItem.stageIndex = Math.max(caseItem.stageIndex, 1);
-    const ok2 = executeAction(state, 'story', caseItem);
-    expect(ok2).toBe(true);
+    const c2 = getActiveCases(r1.nextState).find((c) => c.id === caseItem.id)!;
+    c2.touchedOwnerToday = false;
+    c2.actionsToday = 0;
+    c2.stageIndex = Math.max(c2.stageIndex, 1);
+    const r2 = executeGameAction(r1.nextState, 'story', c2.id);
+    expect(r2.success).toBe(true);
 
-    const p2 = state.flowProgress!['standard-selling'];
+    const p2 = r2.nextState.flowProgress!['standard-selling'];
     expect(p2.completedStepIds).toContain('owner-alignment');
     expect(p2.currentStepId).toBe('demand-generation');
 
-    caseItem.touchedOwnerToday = false;
-    caseItem.actionsToday = 0;
-    advanceOppsForCase(state, caseItem.id, 5);
-    caseItem.stageIndex = Math.max(caseItem.stageIndex, 5);
-    caseItem.offers = Math.max(caseItem.offers, 1);
-    updateDerivedState(state);
+    const c3 = getActiveCases(r2.nextState).find((c) => c.id === caseItem.id)!;
+    c3.touchedOwnerToday = false;
+    c3.actionsToday = 0;
+    advanceOppsForCase(r2.nextState, c3.id, 5);
+    c3.stageIndex = Math.max(c3.stageIndex, 5);
+    c3.offers = Math.max(c3.offers, 1);
+    updateDerivedState(r2.nextState);
 
-    const ok3 = executeAction(state, 'invite-customer-negotiation', caseItem);
-    expect(ok3).toBe(true);
+    const r3 = executeGameAction(r2.nextState, 'invite-customer-negotiation', c3.id);
+    expect(r3.success).toBe(true);
 
-    const p3 = state.flowProgress!['standard-selling'];
+    const p3 = r3.nextState.flowProgress!['standard-selling'];
     expect(p3.completedStepIds).toContain('demand-generation');
     expect(p3.currentStepId).toBe('price-and-close');
   });
@@ -261,11 +283,11 @@ describe('flow progress advancement', () => {
     const state = buildWorld();
     const caseItem = prepareOpenDayCase(state);
 
-    const ok = executeAction(state, 'open-day', caseItem);
-    expect(ok).toBe(true);
+    const { nextState, success } = executeGameAction(state, 'open-day', caseItem.id);
+    expect(success).toBe(true);
 
-    expect(state.flowProgress).toBeDefined();
-    const openDayProgress = state.flowProgress!['open-day'];
+    expect(nextState.flowProgress).toBeDefined();
+    const openDayProgress = nextState.flowProgress!['open-day'];
     expect(openDayProgress).toBeDefined();
     expect(openDayProgress.currentStepId).toBe('owner-signup');
   });
@@ -276,10 +298,10 @@ describe('dual path consistency', () => {
     const stateA = buildWorld();
     const caseA = prepareOpenDayCase(stateA);
 
-    const okA = executeAction(stateA, 'open-day', caseA);
-    expect(okA).toBe(true);
+    const { nextState: nextStateA, success: successA } = executeGameAction(stateA, 'open-day', caseA.id);
+    expect(successA).toBe(true);
 
-    const evA = stateA.eventStore.find((e) => e.kind === 'decision_moment_triggered');
+    const evA = nextStateA.eventStore.find((e) => e.kind === 'decision_moment_triggered');
     expect(evA).toBeDefined();
 
     const stateB = buildWorld();
@@ -295,10 +317,10 @@ describe('dual path consistency', () => {
       ],
     };
 
-    const { nextState, success } = executeScenarioAction(stateB, 'open-day', caseB.id, settlement, scenarioContext);
-    expect(success).toBe(true);
+    const { nextState: nextStateB, success: successB } = executeScenarioAction(stateB, 'open-day', caseB.id, settlement, scenarioContext);
+    expect(successB).toBe(true);
 
-    const evB = nextState.eventStore.find((e) => e.kind === 'decision_moment_triggered');
+    const evB = nextStateB.eventStore.find((e) => e.kind === 'decision_moment_triggered');
     expect(evB).toBeDefined();
 
     expect((evA!.payload as any).momentId).toBe('open-day-participation');
@@ -347,11 +369,11 @@ describe('legacy save compatibility', () => {
     expect(restored!.flowProgress).toEqual({});
 
     const caseItem = getActiveCases(restored!)[0];
-    const ok = executeAction(restored!, 'first-visit', caseItem);
-    expect(ok).toBe(true);
+    const { nextState, success } = executeGameAction(restored!, 'first-visit', caseItem.id);
+    expect(success).toBe(true);
 
-    expect(restored!.flowProgress['standard-selling']).toBeDefined();
-    expect(restored!.flowProgress['standard-selling'].currentStepId).toBe('owner-alignment');
+    expect(nextState.flowProgress['standard-selling']).toBeDefined();
+    expect(nextState.flowProgress['standard-selling'].currentStepId).toBe('owner-alignment');
   });
 
   it('normalizeLoadedState handles legacy snapshot with null flowProgress', () => {
@@ -369,9 +391,9 @@ describe('legacy save compatibility', () => {
     expect(restored!.flowProgress).toEqual({});
 
     const caseItem = getActiveCases(restored!)[0];
-    const ok = executeAction(restored!, 'first-visit', caseItem);
-    expect(ok).toBe(true);
-    expect(restored!.flowProgress['standard-selling']).toBeDefined();
+    const { nextState, success } = executeGameAction(restored!, 'first-visit', caseItem.id);
+    expect(success).toBe(true);
+    expect(nextState.flowProgress['standard-selling']).toBeDefined();
   });
 
   it('normalizeLoadedState preserves existing flowProgress from save', () => {
@@ -382,10 +404,10 @@ describe('legacy save compatibility', () => {
     updateDerivedState(freshState);
 
     const caseItem = getActiveCases(freshState)[0];
-    executeAction(freshState, 'first-visit', caseItem);
-    expect(freshState.flowProgress!['standard-selling']).toBeDefined();
+    const r1 = executeGameAction(freshState, 'first-visit', caseItem.id);
+    expect(r1.nextState.flowProgress!['standard-selling']).toBeDefined();
 
-    const serialized = JSON.parse(JSON.stringify(freshState));
+    const serialized = JSON.parse(JSON.stringify(r1.nextState));
     expect(serialized.flowProgress).toBeDefined();
     expect(serialized.flowProgress['standard-selling']).toBeDefined();
 

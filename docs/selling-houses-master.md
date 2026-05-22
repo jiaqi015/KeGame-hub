@@ -134,6 +134,8 @@ UI 可以表达：
    - [`selling-houses-entity-canonical-map.md`](selling-houses-entity-canonical-map.md) — 每个业务概念在 legacy / 母模型视图 / 大世界种群中的 canonical / derived / shadow 声明。
    - [`selling-houses-entity-relation-map-2026-05-21.md`](selling-houses-entity-relation-map-2026-05-21.md) — 80+ 实体的六层全景 ER 图。
    - [`selling-houses-field-ownership-matrix.md`](selling-houses-field-ownership-matrix.md) — Case 字段归属表，**脚本生成**，SOT 是 [`legacy-case-field-ownership.ts`](../src/selling-houses/core/world-state/legacy-case-field-ownership.ts)。改字段归属请改 TS registry，然后跑 `npm run generate:field-ownership`。
+5. 宪法审计（2026-05-22 起新增）：
+   - [`selling-houses-constitutional-audit-2026-05-22.md`](selling-houses-constitutional-audit-2026-05-22.md) — 7 条核心世界观的形式化语义、代码现状对账、并轨路线。回答"为什么这条 fact 合法"。
 
 历史过程文、一次性报告、旧图、阶段迁移说明不再放在主文档体系中。
 

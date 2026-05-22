@@ -323,7 +323,8 @@ const oldSaveInput: BigWorldClockInput = {
   customerStates: [],
 };
 const oldSaveReceipt = runBigWorldDayTick(oldSaveInput, undefined, []);
-check(oldSaveReceipt.sourceIngestionReceipt === undefined, 'Old save → no sourceIngestionReceipt');
+check(oldSaveReceipt.sourceIngestionReceipt !== undefined, 'Old save → sourceIngestionReceipt exists (runtime generates its own source records)');
+check(oldSaveReceipt.sourceIngestionReceipt!.sourcesProcessed >= 0, 'Old save → sourcesProcessed is non-negative');
 check(oldSaveReceipt.durationUs > 0, 'Old save tick still tracks durationUs');
 
 // ===========================================================================

@@ -37,6 +37,7 @@ import type {
 } from './types.js';
 
 import { DEFAULT_COMPACTION_POLICY as DEFAULT_POLICY, buildTimeContext } from './types.js';
+import { deriveBrandId, resolveStoreAcnId } from './brandIdHelper.js';
 
 import { runAllPhases } from './phases.js';
 import {
@@ -134,6 +135,9 @@ function generateAdditionalSourceRecords(
   const records: InformationSourceRecord[] = [];
   const salt = `${runSeed}-${day}`;
 
+  // Build store lookup for listing→store ACN resolution
+  const storeById = new Map(input.rivalStores.map((s) => [s.id, s]));
+
   // ── 1. RIVAL ACTION: reprice / new_listing / withdraw / open_day ──────
   //    Each day, 1-3 rival listings get acted on, with varying actions.
   const activeListings = input.rivalListings.filter((l) => l.status === 'active');
@@ -156,7 +160,7 @@ function generateAdditionalSourceRecords(
         subtype,
         summary: `${listing.district}竞品${subtype}: ${listing.title}`,
         rivalBrokerId: `shadow-broker-${listing.storeId}`,
-        rivalAcnId: `acn-${listing.segment}`,
+        rivalAcnId: resolveStoreAcnId(storeById.get(listing.storeId) ?? { id: listing.storeId }),
         listingId: listing.id,
         priceBefore,
         priceAfter,
@@ -280,7 +284,7 @@ function generateAdditionalSourceRecords(
         subtype,
         summary: `${store.name}经纪人能力: ${subtype}, 精力${energy}`,
         brokerId: `shadow-broker-${store.id}`,
-        acnId: store.acnId ?? `fallback-acn-${store.id}`,
+        acnId: resolveStoreAcnId(store),
         energyLevel: energy,
         scheduleUtilization: seededInt(`${salt}-bc-util-${i}`, 30, 95),
         activeCaseCount: seededInt(`${salt}-bc-cases-${i}`, 1, 8),
@@ -346,7 +350,7 @@ function generateAdditionalSourceRecords(
 
     const subtypes: readonly string[] = ['competition_escalation', 'info_share_received', 'cooperation_opportunity', 'cross_district_competition'];
     const subtype = seededChoice(`${salt}-an-sub-${i}`, subtypes);
-    const acnId = store.acnId ?? `fallback-acn-${store.id}`;
+    const acnId = resolveStoreAcnId(store);
 
     records.push({
       sourceId: `isr-an-${day}-${store.id}-${i}`,
@@ -841,7 +845,6 @@ export function runBigWorldDayTick(
   existingCausalEvents?: readonly WorldCausalEvent[],
 ): BigWorldTickReceipt {
   const tickStartMs = performance.now();
-  const day = input.settledDay;
   const policy = existingRuntime?.compactionPolicy ?? DEFAULT_POLICY;
 
   // Normalize runtime state (handles old saves)
@@ -849,39 +852,52 @@ export function runBigWorldDayTick(
     ? normalizeRuntimeState(existingRuntime, policy)
     : createDefaultRuntimeState(policy);
 
+  // Build effective input with fallbacks for timeContext and existingRuntime.
+  // Old scripts and old saves may omit these fields; the tick must not crash.
+  // timeContext fallback: derive from settledDay deterministically.
+  // existingRuntime fallback: use the normalized runtime (from function param or default).
+  const effectiveInput: BigWorldClockInput = {
+    ...input,
+    timeContext: input.timeContext ?? buildTimeContext(input.settledDay),
+    existingRuntime: input.existingRuntime ?? runtime,
+  };
+
+  const day = effectiveInput.settledDay;
+
   // Run all 8 phases
-  const { phaseResults: basePhaseResults, allDailyEvents, allCausalEvents, totalMutations } = runAllPhases(input);
+  const { phaseResults: basePhaseResults, allDailyEvents, allCausalEvents, totalMutations } = runAllPhases(effectiveInput);
 
   // Convert phase-generated causal events into source records for traceability.
   // This ensures every causal event carries sourceRecordId/sourceReplayKey/sourceKind.
-  const phaseSourceRecords = buildSourceRecordsFromPhaseOutput(allCausalEvents, input.runSeed, day);
+  const phaseSourceRecords = buildSourceRecordsFromPhaseOutput(allCausalEvents, effectiveInput.runSeed, day);
 
   // Generate additional source records for 5 new source kinds derived from phase data.
   // These don't have dedicated phases but represent real-world information that
   // should flow through the ingestion pipeline for full 15-kind coverage.
-  const additionalSourceRecords = generateAdditionalSourceRecords(input, day, input.runSeed);
+  const additionalSourceRecords = generateAdditionalSourceRecords(effectiveInput, day, effectiveInput.runSeed);
 
   // Generate market formation source records — time-dependent market dynamics.
   // These represent real daily market activity: new listings, price adjustments,
   // customer attention shifts, rival actions, owner life events, broker capacity,
   // platform traffic, facility changes, micro-market signals.
   // Key: uses day-dependent hashing → genuinely different dynamics each day.
-  const marketFormationRecords = generateMarketFormationSourceRecords(input, day, input.runSeed);
+  const marketFormationRecords = generateMarketFormationSourceRecords(effectiveInput, day, effectiveInput.runSeed);
 
   // Generate daily settlement records for player_action_receipt and process_receipt.
   // These represent "the day's settlement" — what the player's daily activity produced
   // and what processes settled. Completes the 15-kind source coverage.
   const settlementRecords = generateDailySettlementSourceRecords(
-    input, day, input.runSeed, allCausalEvents,
+    effectiveInput, day, effectiveInput.runSeed, allCausalEvents,
   );
 
   // Generate economy source records — resource scarcity and competition dynamics.
   // These model how player energy, promotion budget, org credit, customer attention,
   // owner trust, and rival competition drive market behavior. Not random noise.
-  const economyReceipt = generateEconomyReceipt(input, day, input.runSeed);
+  const economyReceipt = generateEconomyReceipt(effectiveInput, day, effectiveInput.runSeed);
   const economyRecords = economyReceipt.sourceRecords;
 
   // Merge phase-derived source records with additional, market formation, settlement, economy, and external source records
+  // Note: sourceRecords reads from original input — that's external player/manager data, not runtime-derived.
   const externalSourceRecords = input.sourceRecords ?? [];
   const allSourceRecords: readonly import('../informationSourceTypes.js').InformationSourceRecord[] = [
     ...phaseSourceRecords,
@@ -895,7 +911,7 @@ export function runBigWorldDayTick(
   // Ingest all source records through the adapter
   let sourceIngestionReceipt: SourceIngestionReceipt | undefined;
   if (allSourceRecords.length > 0) {
-    sourceIngestionReceipt = ingestSourceRecords(allSourceRecords, day, input.runSeed);
+    sourceIngestionReceipt = ingestSourceRecords(allSourceRecords, day, effectiveInput.runSeed);
   }
 
   // Add SourceIngestionPhase result to phase results
@@ -945,6 +961,17 @@ export function runBigWorldDayTick(
 
   const tickDurationUs = Math.round((performance.now() - tickStartMs) * 1000);
 
+  // Compute sourceRecordAudit from ALL merged source records
+  const auditByKind: Record<string, number> = {};
+  for (const record of allSourceRecords) {
+    auditByKind[record.sourceKind] = (auditByKind[record.sourceKind] ?? 0) + 1;
+  }
+  const sourceRecordAudit = {
+    totalCount: allSourceRecords.length,
+    bySourceKind: auditByKind,
+    sourceKinds: Object.keys(auditByKind).sort(),
+  };
+
   return Object.freeze({
     day,
     nextDay: day + 1,
@@ -955,6 +982,7 @@ export function runBigWorldDayTick(
     sourceIngestionReceipt,
     economyReceipt,
     externalSourceRecords: Object.freeze([...externalSourceRecords]),
+    sourceRecordAudit,
     durationUs: tickDurationUs,
   });
 }
@@ -1127,6 +1155,9 @@ export function buildClockInputFromGameState(
     readonly marketShadow: { readonly rivalListings: readonly { readonly id: string; readonly storeId: string; readonly title: string; readonly district: string; readonly marketCellId: string; readonly segment: string; readonly askPrice: number; readonly heat: number; readonly freshness: number; readonly status: string; readonly daysLeft: number }[]; readonly rivalStores: readonly { readonly id: string; readonly name: string; readonly type: string; readonly style: string; readonly districtFocus: readonly string[]; readonly leadCapturePower: number; readonly sellerInfluencePower: number; readonly pricingPressurePower: number; readonly activityHeat: number }[] };
     readonly customerStates: readonly { readonly customerId: string; readonly status: string; readonly fatigue: number; readonly churnRisk: number; readonly activeCaseIds: readonly string[] }[];
     readonly pendingSourceRecords?: readonly InformationSourceRecord[];
+    readonly bigWorldRuntime?: BigWorldRuntimeState;
+    readonly runtimeBrokerOwnerRelations?: readonly { readonly relationId: string; readonly brokerId: string; readonly ownerId: string; readonly trust: number }[];
+    readonly runtimeOwnerCaseReadinessStates?: readonly { readonly relationId: string; readonly ownerId: string; readonly assetCaseId: string; readonly patience: number; readonly urgency: number }[];
   },
 ): BigWorldClockInput {
   const bootstrap = state.runContext.bigWorldBootstrap;
@@ -1153,6 +1184,27 @@ export function buildClockInputFromGameState(
     shadowOwnerPriors,
   );
 
+  // Build case relation snapshots from canonical runtime sources
+  const relations = state.runtimeBrokerOwnerRelations;
+  const readinessStates = state.runtimeOwnerCaseReadinessStates;
+  const activeCases = state.cases.filter((c) => c.status === 'active');
+  const caseRelationSnapshots = (relations?.length || readinessStates?.length)
+    ? activeCases.map((c) => {
+        const ownerId = `owner:${c.id}`;
+        const assetCaseId = `case:${c.id}`;
+        const trustRel = relations?.find((r) => r.ownerId === ownerId);
+        const readiness = readinessStates?.find((r) => r.assetCaseId === assetCaseId);
+        return {
+          caseId: c.id,
+          trustValue: trustRel?.trust ?? c.trust,
+          trustSource: (trustRel ? 'canonical_relation' : 'legacy_case_mirror') as 'canonical_relation' | 'legacy_case_mirror',
+          patienceValue: readiness?.patience ?? c.patience,
+          urgencyValue: readiness?.urgency ?? c.urgency,
+          readinessSource: (readiness ? 'canonical_relation' : 'legacy_case_mirror') as 'canonical_relation' | 'legacy_case_mirror',
+        };
+      })
+    : undefined;
+
   return {
     settledDay: state.day,
     runSeed: state.runContext.runSeed,
@@ -1172,7 +1224,9 @@ export function buildClockInputFromGameState(
     shadowOwnerPriors,
     shadowCases,
     acnProfiles,
+    existingRuntime: state.bigWorldRuntime,
     sourceRecords: (state.pendingSourceRecords ?? []).slice(0, 200),
+    caseRelationSnapshots,
   };
 }
 
@@ -1371,7 +1425,7 @@ function mapBootstrapRivalStores(
       pricingPressurePower: Math.max(0, Math.min(100, 50 + (broker.actionBias ?? 0))),
       activityHeat: Math.max(0, Math.min(100, broker.energyBudget ?? 50)),
       acnId: broker.acnId,
-      brandId: broker.acnId ? broker.acnId.replace(/-[^-]+$/, '') : undefined,
+      brandId: deriveBrandId(broker.acnId),
     }));
   return mapped.length > fallback.length ? mapped : fallback;
 }

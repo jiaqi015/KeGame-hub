@@ -137,13 +137,14 @@ export function setConsensusEvaluationOnState(
   },
   day: number,
   reason: string,
+  sourceEventRefs: readonly string[] = [],
 ): ConsensusFormationRecord | undefined {
   const existing = findConsensusForOpportunity(state, brokeredOpportunityId);
   if (!existing) return undefined;
 
   const { formations } = ensureConsensusRuntime(state);
   const idx = formations.indexOf(existing);
-  const { state: newState, record } = setEvalCore(existing, evaluation, day, reason);
+  const { state: newState, record } = setEvalCore(existing, evaluation, day, reason, sourceEventRefs);
   formations[idx] = newState;
   return record;
 }
@@ -210,6 +211,7 @@ export function createContractFactOnState(
   closeProbability: number,
   resolvedBlockers: readonly string[],
   supportingFactors: readonly string[],
+  sourceEventRefs: readonly string[] = [],
 ): ContractFactState | undefined {
   // Duplicate guard: one contract per case (same case can't be sold twice)
   const existing = findContractForCase(state, caseId);
@@ -220,6 +222,7 @@ export function createContractFactOnState(
     consensusId, brokeredOpportunityId, caseId, customerId,
     dealPrice, dealType, signedDay, sourceClosedDealId,
     closeReadiness, closeProbability, resolvedBlockers, supportingFactors,
+    sourceEventRefs,
   );
   contracts.push(created);
   return created;

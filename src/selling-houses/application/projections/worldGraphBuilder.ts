@@ -48,6 +48,7 @@ import type {
 } from './worldGraphTypes.js';
 
 import { attributePressure } from './acnAttribution.js';
+import { deriveBrandId } from '../../domain/world-model/runtime/brandIdHelper.js';
 
 // ════════════════════════════════════════════════════════════════════════════
 // Deterministic ID generation
@@ -684,7 +685,7 @@ export function buildWorldGraphSummary(graph: WorldGraph, state: GameState): Wor
 
     // Use attributePressure for consistent pressure decomposition across all consumers
     const playerAcnId = state.bigWorldRuntime?.playerBrokerAcnId;
-    const playerBrandId = playerAcnId ? playerAcnId.replace(/-[^-]+$/, '') : undefined;
+    const playerBrandId = deriveBrandId(playerAcnId);
     const cellPressure = attributePressure(
       state.marketShadow.rivalStores,
       state.marketShadow.rivalListings,

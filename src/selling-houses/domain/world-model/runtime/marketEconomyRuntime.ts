@@ -27,6 +27,8 @@ import type {
   BigWorldClockInput,
 } from './types.js';
 
+import { resolveStoreAcnId, resolvePlayerBrokerAcnId } from './brandIdHelper.js';
+
 // ── Deterministic RNG ────────────────────────────────────────────
 
 function stableHash(input: string): number {
@@ -225,7 +227,7 @@ export function generateEconomySourceRecords(
         subtype: snapshot.playerEnergyConsumed > 50 ? 'energy_depleted' : 'workload_balanced',
         summary: `经纪人日耗精力${snapshot.playerEnergyConsumed}，补充${snapshot.playerEnergyReplenished}`,
         brokerId: 'player-broker',
-        acnId: input.existingRuntime?.playerBrokerAcnId ?? 'player-broker-acn',
+        acnId: resolvePlayerBrokerAcnId(input.existingRuntime),
         energyLevel: Math.max(0, snapshot.playerEnergyReplenished - snapshot.playerEnergyConsumed),
         scheduleUtilization: Math.min(100, Math.round(snapshot.playerEnergyConsumed * 1.2)),
         activeCaseCount: input.activeCases.length,
@@ -420,7 +422,7 @@ export function generateEconomySourceRecords(
           subtype: seededChoice(`${salt}-rival-sub`, ['reprice', 'customer_followed', 'push_listing', 'owner_pitched'] as const),
           summary: `${store.name}资源竞争: ${snapshot.rivalActionsToday}个动作，争夺${snapshot.rivalResourceCompeted}单位资源`,
           rivalBrokerId: `shadow-broker-${store.id}`,
-          rivalAcnId: store.acnId ?? `acn-${store.type}`,
+          rivalAcnId: resolveStoreAcnId(store),
           listingId: targetListing?.id,
           priceBefore: targetListing?.askPrice,
           priceAfter: targetListing ? Math.max(100, targetListing.askPrice + seededInt(`${salt}-rival-delta`, -10, 5)) : undefined,

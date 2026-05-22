@@ -3,7 +3,9 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { createInitialState, updateDerivedState } from '../src/selling-houses/application/gameState.js';
-import { advanceDays, advanceOneDay, executeAction, seedInitialOpportunities } from '../src/selling-houses/domain/engine.js';
+import { advanceGameDays, advanceGameDaysWithSummary, executeGameAction } from '../src/selling-houses/application/gameTransitions.js';
+import { seedInitialOpportunities } from '../src/selling-houses/domain/engine.js';
+import { setBrokerOwnerTrust } from '../src/selling-houses/domain/trustWriteHelper.js';
 import { getScenarioSnapshotById } from '../src/selling-houses/domain/scenarioCatalog.js';
 import { addDays } from '../src/selling-houses/domain/utils.js';
 
@@ -23,7 +25,7 @@ if (!negotiationOpportunity) {
 }
 
 negotiationCase.askPrice = negotiationCase.marketPrice;
-negotiationCase.trust = 100;
+setBrokerOwnerTrust(world, negotiationCase, 100, 'test setup: high confidence negotiation');
 negotiationCase.competitiveness = 100;
 negotiationCase.hasCompletedFirstVisit = true;
 negotiationCase.stageIndex = 5;
@@ -34,17 +36,22 @@ negotiationOpportunity.stageIndex = 5;
 negotiationOpportunity.daysLeft = 3;
 updateDerivedState(world);
 
+const actionResult = executeGameAction(world, 'invite-customer-negotiation', negotiationCase.id, 'close');
 assert.equal(
-  executeAction(world, 'invite-customer-negotiation', negotiationCase, 'close'),
+  actionResult.success,
   true,
   'Expected negotiation action to create a pending negotiation matter before daily settlement',
 );
 
-const pendingNegotiationMatter = world.matters.find((entry) => entry.scene === 'negotiation' && entry.caseId === negotiationCase.id);
+const afterAction = actionResult.nextState;
+const pendingNegotiationMatter = afterAction.matters.find((entry) => entry.scene === 'negotiation' && entry.caseId === negotiationCase.id);
 assert.ok(pendingNegotiationMatter, 'Expected pending negotiation matter before daily settlement');
 
-const startingDay = world.day;
-const result = advanceOneDay(world);
+const startingDay = afterAction.day;
+const summary = advanceGameDaysWithSummary(afterAction, 1);
+
+assert.ok(summary.settledResults.length >= 1, 'Expected at least one settled result from single-day advance');
+const result = summary.settledResults[0];
 
 assert.ok(result, 'Expected advanceOneDay to return a structured daily tick result');
 assert.equal(result.day, startingDay, 'Expected daily tick result to describe the day that was just settled');
@@ -112,15 +119,15 @@ assert.deepEqual(
   [{ managerId: 'product-run-process-manager', day: result.nextDay, phase: 'next-day-setup' }],
   'Expected next-day setup grouped process results to contain only the product-run setup row',
 );
-assert.equal(world.currentReport?.day, startingDay, 'Expected world current report to stay aligned with settled day');
-assert.equal(world.lastDailyTickResult?.day, startingDay, 'Expected world to retain the latest structured daily tick result');
+assert.equal(summary.nextState.currentReport?.day, startingDay, 'Expected world current report to stay aligned with settled day');
+assert.equal(summary.nextState.lastDailyTickResult?.day, startingDay, 'Expected world to retain the latest structured daily tick result');
 
 const world2 = createInitialState(snapshot, 20260422);
 seedInitialOpportunities(world2);
 updateDerivedState(world2);
 
-advanceDays(world2, 1);
-assert.equal(world2.lastDailyTickResult?.day, 1, 'Expected legacy advanceDays to keep latest daily tick result in state');
+const advanced2 = advanceGameDays(world2, 1);
+assert.equal(advanced2.lastDailyTickResult?.day, 1, 'Expected legacy advanceDays to keep latest daily tick result in state');
 
 {
   const singleDayWorld = createInitialState(snapshot, 20260423);
@@ -129,18 +136,17 @@ assert.equal(world2.lastDailyTickResult?.day, 1, 'Expected legacy advanceDays to
 
   const beforeDay = singleDayWorld.day;
   const beforeDate = singleDayWorld.currentDate;
-  const results = advanceDays(singleDayWorld, 1);
+  const advanced = advanceGameDays(singleDayWorld, 1);
 
-  assert.equal(results.length, 1, 'Expected single-day advance to return exactly one tick result');
-  if (!singleDayWorld.gameOver) {
-    assert.equal(singleDayWorld.day, beforeDay + 1, 'Expected single-day advance to move to the next day');
+  if (!advanced.gameOver) {
+    assert.equal(advanced.day, beforeDay + 1, 'Expected single-day advance to move to the next day');
   }
-  assert.equal(singleDayWorld.currentDate, addDays(beforeDate, 1), 'Expected currentDate to advance by one calendar day');
-  assert.equal(singleDayWorld.todayPlan.day, singleDayWorld.day, 'Expected todayPlan to switch to the new day');
-  assert.equal(singleDayWorld.energy, singleDayWorld.maxEnergy, 'Expected energy to refill for the new day');
-  assert.ok(singleDayWorld.currentReport, 'Expected currentReport after single-day settlement');
-  assert.equal(singleDayWorld.lastDailyTickResult?.day, beforeDay, 'Expected lastDailyTickResult to describe the settled day');
-  assert.equal(singleDayWorld.lastDailyTickResult?.nextDay, singleDayWorld.day, 'Expected lastDailyTickResult nextDay to match state.day');
+  assert.equal(advanced.currentDate, addDays(beforeDate, 1), 'Expected currentDate to advance by one calendar day');
+  assert.equal(advanced.todayPlan.day, advanced.day, 'Expected todayPlan to switch to the new day');
+  assert.equal(advanced.energy, advanced.maxEnergy, 'Expected energy to refill for the new day');
+  assert.ok(advanced.currentReport, 'Expected currentReport after single-day settlement');
+  assert.equal(advanced.lastDailyTickResult?.day, beforeDay, 'Expected lastDailyTickResult to describe the settled day');
+  assert.equal(advanced.lastDailyTickResult?.nextDay, advanced.day, 'Expected lastDailyTickResult nextDay to match state.day');
 }
 
 {
@@ -149,19 +155,26 @@ assert.equal(world2.lastDailyTickResult?.day, 1, 'Expected legacy advanceDays to
   updateDerivedState(weekWorld);
 
   const beforeDay = weekWorld.day;
-  const results = advanceDays(weekWorld, 7);
+  const advanced = advanceGameDays(weekWorld, 7);
 
-  if (!weekWorld.gameOver) {
-    assert.equal(results.length, 7, 'Expected week advance to settle seven days when game is still running');
-    assert.equal(weekWorld.day, beforeDay + 7, 'Expected week advance to move seven days forward');
+  if (!advanced.gameOver) {
+    assert.equal(advanced.day, beforeDay + 7, 'Expected week advance to move seven days forward');
   } else {
-    assert.ok(results.length <= 7, 'Expected game-over week advance to settle no more than seven days');
-    assert.ok(weekWorld.day <= weekWorld.maxDay, 'Expected game-over week advance to stop no later than maxDay');
-    assert.ok(weekWorld.finalResult, 'Expected game-over week advance to produce a final result');
+    assert.ok(advanced.day <= advanced.maxDay, 'Expected game-over week advance to stop no later than maxDay');
+    assert.ok(advanced.finalResult, 'Expected game-over week advance to produce a final result');
   }
-  assert.equal(weekWorld.todayPlan.day, weekWorld.day, 'Expected week advance todayPlan to match current day');
-  assert.ok(weekWorld.currentReport || weekWorld.finalResult, 'Expected week advance to leave a report or final result');
-  assert.equal(weekWorld.lastDailyTickResult?.nextDay, weekWorld.day, 'Expected week advance tick nextDay to match state.day');
+  assert.equal(advanced.todayPlan.day, advanced.day, 'Expected week advance todayPlan to match current day');
+  assert.ok(advanced.currentReport || advanced.finalResult, 'Expected week advance to leave a report or final result');
+  assert.equal(advanced.lastDailyTickResult?.nextDay, advanced.day, 'Expected week advance tick nextDay to match state.day');
+}
+
+// Domain boundary assertion: engine.ts must not directly import runtime process managers
+{
+  const engineSource = readFileSync(join(process.cwd(), 'src/selling-houses/domain/engine.ts'), 'utf8');
+  const hasRuntimeProcessImport = /from\s+['"].*runtime\/simulation\/processes/.test(engineSource);
+  assert.equal(hasRuntimeProcessImport, false, 'Expected engine.ts not to directly import runtime process managers');
+  const hasFacadeImport = /from\s+['"].*processManagerFacade/.test(engineSource);
+  assert.equal(hasFacadeImport, true, 'Expected engine.ts to import processManagerFacade as the sole bridge');
 }
 
 {

@@ -1106,6 +1106,19 @@ export interface EvidenceChainTrace {
   readonly consensusStage: string;
   /** Which causal link was weakest (for failure attribution). */
   readonly weakestLink: 'competition_pressure' | 'case_heat' | 'opportunity_evidence' | 'relation_trust' | 'price_fit' | 'capacity' | 'none';
+  /** PriceTrajectory ID generated during evaluation. */
+  readonly trajectoryId?: string;
+  /** PriceConsensusReadiness ID generated during evaluation. */
+  readonly readinessId?: string;
+  /** Current price gap from PriceConsensusReadiness. */
+  readonly priceGap?: number;
+  /** Price consensus blockers from PriceConsensusReadiness. */
+  readonly priceBlockers?: readonly string[];
+  readonly brokerCustomerTrust: number;
+  readonly brokerCustomerFamiliarity: number;
+  readonly brokerCustomerInfluence: number;
+  readonly brokerCustomerRelationSource: 'relation' | 'legacy-customer-runtime-fallback';
+  readonly brokerCustomerRelationId: string;
 }
 
 /** Provenance of inputs used in deal closing evaluation. */
@@ -1116,6 +1129,8 @@ export interface EvaluationSourceTrace {
   readinessSource: string;
   /** Where owner profile came from: 'profiling' or 'legacy-personality-fallback'. */
   profileSource: string;
+  /** Where broker-customer trust came from: 'relation' or 'legacy-customer-runtime-fallback'. */
+  customerTrustSource: 'relation' | 'legacy-customer-runtime-fallback';
 }
 
 export interface ClosedDealMarketSnapshot {
@@ -1854,6 +1869,8 @@ export interface GameState {
   lastDailyTickResult?: DailyTickResult | null;
   /** Optional runtime BrokerOwnerRelation trust states. Canonical trust write source. */
   runtimeBrokerOwnerRelations?: import('../core/world-state/trustWriteSource.js').BrokerOwnerRelationTrustState[];
+  /** Optional runtime BrokerCustomerRelation states. Canonical broker-customer relation source. */
+  runtimeBrokerCustomerRelations?: import('../core/world-state/customer/brokerCustomerRelation.js').BrokerCustomerRelation[];
   /** Optional runtime OwnerCaseRelation readiness states. Canonical patience/urgency write source. */
   runtimeOwnerCaseReadinessStates?: import('../core/world-state/ownerCaseReadinessWriteSource.js').OwnerCaseReadinessState[];
   /** Optional runtime CustomerCaseMatch states. Canonical match write source. */
@@ -1866,6 +1883,10 @@ export interface GameState {
   runtimeContractFacts?: import('../core/world-state/consensus/writeSource.js').ContractFactState[];
   /** Optional runtime OpportunityClosureSet states. Canonical closure write source. */
   runtimeOpportunityClosureSets?: import('../core/world-state/consensus/writeSource.js').OpportunityClosureSetState[];
+  /** Optional runtime PriceTrajectory states. Canonical price trajectory write source. */
+  runtimePriceTrajectories?: import('../core/world-state/consensus/priceTrajectory.js').PriceTrajectory[];
+  /** Optional runtime PriceConsensusReadiness states. Canonical price readiness write source. */
+  runtimePriceConsensusReadinesses?: import('../core/world-state/consensus/priceTrajectory.js').PriceConsensusReadiness[];
   /**
    * Optional daily operating ledger — one entry per settled day.
    * Lightweight per-day operating summaries for historical replay and review.

@@ -5,7 +5,6 @@ import { applyAuxiliaryStats, getPromotionBudget } from '../runtimeStats.js';
 import { clamp, getDayOfWeek } from '../utils.js';
 import { setOpportunityStatusOnState } from '../opportunitySplitHelper.js';
 import { applyActionStageRelation, deriveCaseProgression, getActionStageRelation } from '../actionStageRelations.js';
-import { emitDecisionMomentTriggers, advanceFlowProgress } from '../../runtime/simulation/decisionMomentEmission.js';
 import type { Case, GameState } from '../models.js';
 import {
   findBestOpportunity,
@@ -157,11 +156,6 @@ export function executeAction(
     },
   });
   updateDerivedState(state);
-
-  // Emit decision-moment and flow-progress signals from the action itself so
-  // both direct domain execution and application-layer wrappers stay in sync.
-  emitDecisionMomentTriggers(state, action.id, caseItem, optionId ?? undefined);
-  advanceFlowProgress(state, action.id, caseItem.id);
 
   // Capture success snapshot for post-action receipt building.
   // Receipt is built by the application layer via runtime adapter.

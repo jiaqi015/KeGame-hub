@@ -110,6 +110,17 @@ function makeDailyEvent(
   });
 }
 
+// ── Snapshot helper ────────────────────────────────────────────────────
+
+type CaseRelationSnapshot = NonNullable<BigWorldClockInput['caseRelationSnapshots']>[number];
+
+function getSnapshot(
+  snapshots: BigWorldClockInput['caseRelationSnapshots'],
+  caseId: string,
+): CaseRelationSnapshot | undefined {
+  return snapshots?.find((s) => s.caseId === caseId);
+}
+
 // ── Phase 1: EnvironmentPhase ──────────────────────────────────────────
 
 interface PhaseInput {
@@ -488,11 +499,14 @@ function runOwnerPerceptionPhase(ctx: PhaseInput): BigWorldTickPhaseResult {
   // Owner perception has a lag: high-trust owners perceive faster
   for (const caseItem of input.activeCases) {
     const salt = `owner-${day}-${caseItem.id}`;
+    const snap = getSnapshot(input.caseRelationSnapshots, caseItem.id);
+    const trust = snap?.trustValue ?? caseItem.trust;
+    const patience = snap?.patienceValue ?? caseItem.patience;
 
     // Probability of perceiving pressure depends on heat, trust, and patience
     const heatPressure = caseItem.heat > 70 ? 0.2 : caseItem.heat < 30 ? 0.05 : 0.1;
-    const trustFactor = caseItem.trust < 50 ? 0.15 : 0; // Low trust = faster perception
-    const patienceFactor = caseItem.patience < 40 ? 0.12 : 0; // Low patience = more reactive
+    const trustFactor = trust < 50 ? 0.15 : 0; // Low trust = faster perception
+    const patienceFactor = patience < 40 ? 0.12 : 0; // Low patience = more reactive
     const perceptionChance = heatPressure + trustFactor + patienceFactor;
 
     if (!seededChance(`${salt}-perceive`, perceptionChance)) continue;
@@ -502,7 +516,7 @@ function runOwnerPerceptionPhase(ctx: PhaseInput): BigWorldTickPhaseResult {
     // Pressure delta: based on environment heat and case's own heat
     const pressureDelta = seededInt(`${salt}-pressure`, 5, 25);
     // Confidence: lower if owner has high trust (less likely to believe negative signals)
-    const confidence = Math.max(0.3, Math.min(0.9, 0.7 - (caseItem.trust - 50) * 0.004));
+    const confidence = Math.max(0.3, Math.min(0.9, 0.7 - (trust - 50) * 0.004));
 
     // Reference upstream customer events as causes for owner perception
     const relevantCustomerCauses = upstreamCustomerCauseIds.slice(0, 2);
@@ -532,8 +546,8 @@ function runOwnerPerceptionPhase(ctx: PhaseInput): BigWorldTickPhaseResult {
         ownerName: caseItem.ownerName,
         pressureDelta,
         lagDays,
-        trust: caseItem.trust,
-        patience: caseItem.patience,
+        trust,
+        patience,
       },
     );
     phaseEvents.push(dailyEvent);
@@ -653,10 +667,12 @@ function runRecommendationPressurePhase(ctx: PhaseInput): BigWorldTickPhaseResul
   // For each active case, evaluate if recommendation direction should change
   for (const caseItem of input.activeCases) {
     const salt = `rec-${day}-${caseItem.id}`;
+    const snap = getSnapshot(input.caseRelationSnapshots, caseItem.id);
+    const trust = snap?.trustValue ?? caseItem.trust;
 
     // Recommendation changes when: heat is low, trust is dropping, window is closing
     const heatPressure = caseItem.heat < 40;
-    const trustPressure = caseItem.trust < 55;
+    const trustPressure = trust < 55;
     const windowPressure = caseItem.windowDays < 7;
     const d1Pressure = caseItem.d1 < 40;
 
@@ -700,7 +716,7 @@ function runRecommendationPressurePhase(ctx: PhaseInput): BigWorldTickPhaseResul
               .slice(0, 4),
         explanationFacts: [
           heatPressure ? `热度 ${caseItem.heat} 偏低` : '',
-          trustPressure ? `信任 ${caseItem.trust} 偏低` : '',
+          trustPressure ? `信任 ${trust} 偏低` : '',
           windowPressure ? `窗口 ${caseItem.windowDays} 天` : '',
           d1Pressure ? `客户线 ${caseItem.d1} 偏低` : '',
         ].filter(Boolean),
@@ -717,7 +733,7 @@ function runRecommendationPressurePhase(ctx: PhaseInput): BigWorldTickPhaseResul
         caseTitle: caseItem.title,
         recommendationKind: recKind,
         heat: caseItem.heat,
-        trust: caseItem.trust,
+        trust,
         windowDays: caseItem.windowDays,
       },
     );

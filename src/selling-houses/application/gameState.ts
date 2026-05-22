@@ -4,6 +4,7 @@ import {
 import { initializeTrustRelations } from '../domain/trustWriteHelper.js';
 import { initializeReadinessStates } from '../domain/ownerCaseReadinessHelper.js';
 import { initializeOpportunityRelations } from '../domain/opportunitySplitHelper.js';
+import { buildBrokerCustomerRelationsFromGameState } from '../domain/brokerCustomerRelationAdapter.js';
 import { buildScopedStorageKey } from './storageScope.js';
 import {
   clamp,
@@ -67,6 +68,7 @@ import { createMarketOpeningSnapshot } from '../domain/world-model/seededMarketW
 import { createBigWorldBootstrap } from '../domain/world-model/bigWorldBootstrap.js';
 import { buildBigWorldBootstrapSummary } from '../domain/world-model/bigWorldBootstrapSummary.js';
 import { createDefaultRuntimeState, DEFAULT_COMPACTION_POLICY, normalizeRuntimeState } from '../domain/world-model/runtime/index.js';
+import { resolvePlayerBrokerAcnId, resolveInitialPlayerBrokerAcnId } from '../domain/world-model/runtime/brandIdHelper.js';
 import {
   createEmptyAgentMemoryStore,
   normalizeAgentMemoryStore,
@@ -586,6 +588,8 @@ export function createInitialState(snapshot: ScenarioSnapshot, seedInput: RunSee
     worldCausalEvents: [],
   };
 
+  state.bigWorldRuntime!.playerBrokerAcnId = resolveInitialPlayerBrokerAcnId(state.runContext?.bigWorldBootstrap);
+
   // Initialize runtimeBrokerOwnerRelations from generated cases
   initializeTrustRelations(state);
 
@@ -597,6 +601,9 @@ export function createInitialState(snapshot: ScenarioSnapshot, seedInput: RunSee
   // Initialize runtimeCustomerCaseMatches and runtimeBrokeredOpportunities
   // from opportunities + customerStates (after customerStates are initialized)
   initializeOpportunityRelations(state);
+
+  // Initialize runtimeBrokerCustomerRelations from customerStates + opportunities
+  state.runtimeBrokerCustomerRelations = [...buildBrokerCustomerRelationsFromGameState(state)];
 
   // Initialize consensus runtime arrays (empty at start, populated during play)
   state.runtimeConsensusFormations = [];

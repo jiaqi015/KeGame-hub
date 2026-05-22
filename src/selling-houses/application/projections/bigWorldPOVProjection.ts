@@ -52,6 +52,7 @@ import {
   buildSharedCausalRefs,
   type SharedCausalRefs,
 } from './perfectProjectionAdapters.js';
+import { deriveBrandId } from '../../domain/world-model/runtime/brandIdHelper.js';
 
 // ── POV signal source ────────────────────────────────────────
 
@@ -1090,7 +1091,7 @@ export function buildBrokerActionPressurePOV(
   // ── Attribute pressure into three channels via acnAttribution ──
   // Derive player's ACN from the player broker in bootstrap or from state
   const playerAcnId = state.bigWorldRuntime?.playerBrokerAcnId ?? undefined;
-  const playerBrandId = playerAcnId ? playerAcnId.replace(/-[^-]+$/, '') : undefined;
+  const playerBrandId = deriveBrandId(playerAcnId);
   const pressureAttribution = attributePressure(
     visibleRivalStores,
     state.marketShadow.rivalListings,

@@ -232,6 +232,12 @@ export interface BigWorldTickReceipt {
   readonly economyReceipt?: import('./economicReceiptWiring.js').EconomyReceipt;
   /** External source records that were ingested this tick (player_action_receipt, manager_message, etc.). */
   readonly externalSourceRecords?: readonly import('../informationSourceTypes.js').InformationSourceRecord[];
+  /** Audit surface covering ALL source records merged for this tick. */
+  readonly sourceRecordAudit?: {
+    readonly totalCount: number;
+    readonly bySourceKind: Record<string, number>;
+    readonly sourceKinds: readonly string[];
+  };
   /** Total tick duration in microseconds (for performance tracking). */
   readonly durationUs: number;
 }
@@ -515,4 +521,17 @@ export interface BigWorldClockInput {
   readonly existingCausalEvents?: readonly WorldCausalEvent[];
   /** Information source records for this day's ingestion (may be empty for old saves). */
   readonly sourceRecords?: readonly InformationSourceRecord[];
+  /**
+   * Relation snapshots — pre-resolved trust/patience/urgency from canonical runtime sources.
+   * When present, runtime phases prefer these over bare Case field reads.
+   * When absent (old saves), runtime falls back to Case fields.
+   */
+  readonly caseRelationSnapshots?: readonly {
+    readonly caseId: string;
+    readonly trustValue: number;
+    readonly trustSource: 'canonical_relation' | 'legacy_case_mirror';
+    readonly patienceValue: number;
+    readonly urgencyValue: number;
+    readonly readinessSource: 'canonical_relation' | 'legacy_case_mirror';
+  }[];
 }

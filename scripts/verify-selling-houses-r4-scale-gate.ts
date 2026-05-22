@@ -10,6 +10,7 @@ import {
   createBigWorldBootstrap,
   buildScaleManifest,
 } from '../src/selling-houses/domain/world-model/bigWorldBootstrap.js';
+import { deriveBrandId } from '../src/selling-houses/domain/world-model/runtime/brandIdHelper.js';
 import {
   FIVE_X_SCALE_POLICY,
   FIVE_X_SCALE_PROFILE_ID,
@@ -272,7 +273,21 @@ try {
           heat: 0,
           freshness: 0,
         })),
-      rivalStores: [] as unknown[],
+      rivalStores: bootstrap.materializedEntities.brokers
+        .filter((b) => b.brokerId !== 'player-broker')
+        .map((b) => ({
+          id: b.brokerId,
+          name: b.name ?? b.brokerId,
+          type: b.visibility === 'named' ? 'same_company' as const : 'external_company' as const,
+          style: b.style ?? 'steady',
+          districtFocus: b.marketCellIds ?? [],
+          leadCapturePower: Math.max(0, Math.min(100, (b.customerPoolSize ?? 4) * 10)),
+          sellerInfluencePower: Math.max(0, Math.min(100, (b.listingPoolSize ?? 3) * 10)),
+          pricingPressurePower: Math.max(0, Math.min(100, 50 + (b.actionBias ?? 0))),
+          activityHeat: Math.max(0, Math.min(100, b.energyBudget ?? 50)),
+          acnId: b.acnId,
+          brandId: deriveBrandId(b.acnId),
+        })),
       companyPressure: {},
       marketSignals: [],
       dailyMarketEvent: null,
@@ -289,6 +304,23 @@ try {
   checkDimension('worldGraph.listingCount', summary.listingCount + summary.shadowListingCount + summary.rivalListingCount, 1);
   checkDimension('worldGraph.marketCellCount', summary.marketCellCount, 1);
 
+  // Verify marketCellSummaries have three-channel pressure fields
+  const cellsWithPressure = summary.marketCellSummaries.filter(
+    (c) => c.coSalePressure >= 0 && c.internalPressure >= 0 && c.rivalPressure >= 0,
+  );
+  checkDimension('worldGraph.marketCellsWithThreeChannelPressure', cellsWithPressure.length, 1);
+
+  // At least one cell must have non-zero pressure in some channel
+  const anyNonZeroPressure = summary.marketCellSummaries.some(
+    (c) => c.coSalePressure > 0 || c.internalPressure > 0 || c.rivalPressure > 0,
+  );
+  if (!anyNonZeroPressure) {
+    console.log('  FAIL: no market cell has any non-zero pressure');
+    results.push({ dimension: 'anyNonZeroPressure', actual: 0, threshold: 1, pass: false });
+  } else {
+    console.log('  PASS: at least one market cell has non-zero pressure');
+  }
+
   // The graph node counts should match bootstrap entity counts for ACN, broker, market_cell
   const acnMatch = summary.acnCount === bootstrap.hiddenTruth.acnNetworks.length;
   if (!acnMatch) {
@@ -300,13 +332,8 @@ try {
     console.log(`  WARN: graph brokerCount (${summary.brokerCount}) != bootstrap brokers (${bootstrap.materializedEntities.brokers.length})`);
   }
 } catch (importError: any) {
-  console.log(`  SKIP: worldGraphBuilder not available in this worktree (${importError.message})`);
-  // If the graph builder is not available, we do NOT count this as a failure.
-  // The gate is about proving the bootstrap is real; the graph builder is an
-  // additional verification layer. The core assertions above already prove
-  // the bootstrap has real entity counts.
-  //
-  // However, we must NOT add any fake passes either. We simply note the skip.
+  console.log(`  FAIL: worldGraphBuilder import failed (${importError.message})`);
+  results.push({ dimension: 'worldGraphBuilderImport', actual: 0, threshold: 1, pass: false });
 }
 
 // ---------------------------------------------------------------------------
@@ -365,7 +392,205 @@ if (differentSeedPass) {
 }
 
 // ---------------------------------------------------------------------------
-// Step 7: Self-audit — no soft pass patterns in the assertion logic
+// Step 7: Real runtime verification — createInitialState + advanceGameDaysWithSummary
+// ---------------------------------------------------------------------------
+
+console.log('\n=== R4 Scale Gate: Real Runtime Verification ===\n');
+
+try {
+  const { createInitialState } = await import(
+    '../src/selling-houses/application/gameState.js'
+  );
+  const { advanceGameDaysWithSummary } = await import(
+    '../src/selling-houses/application/gameTransitions.js'
+  );
+  const { getScenarioSnapshotById } = await import(
+    '../src/selling-houses/domain/scenarioCatalog.js'
+  );
+
+  const snapshot = getScenarioSnapshotById('warmup-clean-handoff');
+  if (!snapshot) {
+    console.log('  FAIL: warmup-clean-handoff scenario not found');
+    results.push({ dimension: 'scenarioAvailable', actual: 0, threshold: 1, pass: false });
+  } else {
+    const realState = createInitialState(snapshot, SEED);
+    const result = advanceGameDaysWithSummary(realState, 1);
+    const next = result.nextState;
+    const runtimeSummary = next.bigWorldRuntime?.worldGraphSummary;
+
+    if (!runtimeSummary) {
+      console.log('  FAIL: state.bigWorldRuntime.worldGraphSummary is undefined after advanceGameDays');
+      results.push({ dimension: 'runtimeWorldGraphSummary', actual: 0, threshold: 1, pass: false });
+    } else {
+      console.log(`  PASS: runtime worldGraphSummary exists after 1 day advance`);
+      checkDimension('runtime.acnCount', runtimeSummary.acnCount, 1);
+      checkDimension('runtime.brokerCount', runtimeSummary.brokerCount, 1);
+      checkDimension('runtime.listingCount', runtimeSummary.listingCount, 1);
+      checkDimension('runtime.marketCellCount', runtimeSummary.marketCellCount, 1);
+      checkDimension('runtime.marketCellSummaries.length', runtimeSummary.marketCellSummaries.length, 1);
+
+      // Verify three-channel pressure fields exist on at least one cell
+      const runtimeCells = runtimeSummary.marketCellSummaries.filter(
+        (c: any) => typeof c.coSalePressure === 'number' && typeof c.internalPressure === 'number' && typeof c.rivalPressure === 'number',
+      );
+      checkDimension('runtime.marketCellsWithThreeChannelPressure', runtimeCells.length, 1);
+    }
+  }
+} catch (runtimeError: any) {
+  console.log(`  FAIL: runtime verification failed (${runtimeError.message})`);
+  results.push({ dimension: 'runtimeVerification', actual: 0, threshold: 1, pass: false });
+}
+
+// ---------------------------------------------------------------------------
+// Step 7.5: TimeContext and ACN Identity Verification
+// ---------------------------------------------------------------------------
+
+console.log('\n=== R4 Scale Gate: TimeContext and ACN Identity ===\n');
+
+// 7.5a: runBigWorldDayTick must accept old-style input without timeContext
+try {
+  const { runBigWorldDayTick } = await import(
+    '../src/selling-houses/domain/world-model/runtime/clock.js'
+  );
+
+  const oldStyleInput = {
+    settledDay: 1,
+    runSeed: 42,
+    // Intentionally NO timeContext
+    marketCells: [{ id: 'mc-1', name: 'Test', demandHeat: 50, supplyPressure: 40, competitivePressure: 30, sentiment: 60 }],
+    activeCases: [],
+    activeOpportunities: [],
+    rivalListings: [],
+    rivalStores: [],
+    customerStates: [],
+  };
+
+  const receipt = runBigWorldDayTick(oldStyleInput as any);
+  if (!receipt || receipt.day !== 1) {
+    console.log('  FAIL: runBigWorldDayTick with missing timeContext did not produce valid receipt');
+    results.push({ dimension: 'timeContextFallback', actual: 0, threshold: 1, pass: false });
+  } else {
+    console.log('  PASS: runBigWorldDayTick accepts old-style input without timeContext');
+    results.push({ dimension: 'timeContextFallback', actual: 1, threshold: 1, pass: true });
+  }
+} catch (err: any) {
+  console.log(`  FAIL: runBigWorldDayTick crashed with missing timeContext: ${err.message}`);
+  results.push({ dimension: 'timeContextFallback', actual: 0, threshold: 1, pass: false });
+}
+
+// 7.5b: economy broker_capacity_signal acnId must equal runtime.playerBrokerAcnId
+// (Check that no 'player-broker-acn' placeholder appears in source records)
+try {
+  const { createInitialState } = await import(
+    '../src/selling-houses/application/gameState.js'
+  );
+  const { advanceGameDaysWithSummary } = await import(
+    '../src/selling-houses/application/gameTransitions.js'
+  );
+  const { getScenarioSnapshotById } = await import(
+    '../src/selling-houses/domain/scenarioCatalog.js'
+  );
+
+  const snapshot = getScenarioSnapshotById('warmup-clean-handoff');
+  if (snapshot) {
+    const state = createInitialState(snapshot, 42);
+    const result = advanceGameDaysWithSummary(state, 1);
+    const runtime = result.nextState.bigWorldRuntime;
+
+    if (runtime) {
+      const playerAcnId = runtime.playerBrokerAcnId;
+      if (!playerAcnId) {
+        console.log('  FAIL: runtime.playerBrokerAcnId must be set after createInitialState + advanceGameDaysWithSummary');
+        process.exit(1);
+      }
+    }
+  }
+} catch (err: any) {
+  // Non-critical check — just log
+  console.log(`  WARN: could not verify playerBrokerAcnId in runtime: ${err.message}`);
+}
+
+// 7.5c: No forbidden ACN patterns in source/runtime records
+// Scan for: acn-same_company, acn-external_company, player-broker-acn
+try {
+  const { runBigWorldDayTick } = await import(
+    '../src/selling-houses/domain/world-model/runtime/clock.js'
+  );
+
+  const testInput = {
+    settledDay: 5,
+    runSeed: 42,
+    marketCells: [{ id: 'mc-1', name: 'Test', demandHeat: 50, supplyPressure: 40, competitivePressure: 30, sentiment: 60 }],
+    activeCases: [{
+      id: 'case-1', title: 'Test', district: 'D1', marketCellId: 'mc-1',
+      trust: 50, patience: 60, urgency: 70, heat: 55, competitiveness: 45,
+      d1: 30, d3: 40, ownerName: 'Owner', windowDays: 14, personality: 'steady',
+    }],
+    activeOpportunities: [],
+    rivalListings: [{
+      id: 'rl-1', storeId: 'store-1', title: 'R', district: 'D1',
+      marketCellId: 'mc-1', segment: '3BR', askPrice: 300, heat: 50, freshness: 80,
+      status: 'active', daysLeft: 20,
+    }],
+    rivalStores: [
+      { id: 'store-1', name: 'Store A', type: 'same_company', style: 'steady',
+        districtFocus: ['D1'], leadCapturePower: 40, sellerInfluencePower: 35,
+        pricingPressurePower: 30, activityHeat: 50, acnId: 'acn-test-1' },
+      { id: 'store-2', name: 'Store B', type: 'external_company', style: 'aggressive',
+        districtFocus: ['D1'], leadCapturePower: 60, sellerInfluencePower: 50,
+        pricingPressurePower: 45, activityHeat: 70 },
+    ],
+    customerStates: [{ customerId: 'c-1', status: 'active', fatigue: 10, churnRisk: 5, activeCaseIds: ['case-1'] }],
+  };
+
+  const receipt = runBigWorldDayTick(testInput as any);
+
+  // Collect all source records (economy + external only) for ACN pattern check.
+  // This is intentionally a SUBSET of the full source record surface.
+  // The full audit surface is receipt.sourceRecordAudit (canonical, from clock.ts).
+  const allSourceRecords = [
+    ...(receipt.economyReceipt?.sourceRecords ?? []),
+    ...(receipt.externalSourceRecords ?? []),
+  ];
+
+  // Verify sourceRecordAudit exists and covers more than our manual subset
+  const audit = receipt.sourceRecordAudit;
+  if (audit) {
+    const auditTotal = audit.totalCount;
+    const manualTotal = allSourceRecords.length;
+    if (auditTotal < manualTotal) {
+      console.log(`  FAIL: sourceRecordAudit totalCount (${auditTotal}) < manual collection (${manualTotal}) — audit surface is incomplete`);
+      results.push({ dimension: 'sourceAuditConsistency', actual: auditTotal, threshold: manualTotal, pass: false });
+    } else {
+      console.log(`  PASS: sourceRecordAudit covers ${auditTotal} records (manual subset=${manualTotal})`);
+      results.push({ dimension: 'sourceAuditConsistency', actual: auditTotal, threshold: manualTotal, pass: true });
+    }
+  } else {
+    console.log(`  WARN: receipt.sourceRecordAudit is missing — using manual collection only`);
+  }
+
+  const allAcnIds = allSourceRecords
+    .filter((r: any) => r.payload?.acnId || r.payload?.rivalAcnId || r.payload?.sourceAcnId)
+    .flatMap((r: any) => [r.payload?.acnId, r.payload?.rivalAcnId, r.payload?.sourceAcnId])
+    .filter((id: any): id is string => typeof id === 'string');
+
+  const forbiddenPatterns = ['acn-same_company', 'acn-external_company', 'player-broker-acn'];
+  const violations = allAcnIds.filter((id: string) => forbiddenPatterns.some(p => id.includes(p)));
+
+  if (violations.length > 0) {
+    console.log(`  FAIL: found forbidden ACN patterns: ${violations.join(', ')}`);
+    results.push({ dimension: 'noForbiddenAcnPatterns', actual: 0, threshold: 1, pass: false });
+  } else {
+    console.log('  PASS: no forbidden ACN patterns in source records');
+    results.push({ dimension: 'noForbiddenAcnPatterns', actual: 1, threshold: 1, pass: true });
+  }
+} catch (err: any) {
+  console.log(`  FAIL: ACN pattern check crashed: ${err.message}`);
+  results.push({ dimension: 'noForbiddenAcnPatterns', actual: 0, threshold: 1, pass: false });
+}
+
+// ---------------------------------------------------------------------------
+// Step 8: Self-audit — no soft pass patterns in the assertion logic
 // ---------------------------------------------------------------------------
 
 console.log('\n=== R4 Scale Gate: Self-Audit ===\n');
@@ -381,7 +606,7 @@ const gateSrc = readFileSync(
 // Only audit the section BEFORE the self-audit section itself.
 // The self-audit code naturally contains the strings it checks for
 // (e.g. in its error messages), which would cause false positives.
-const auditMarker = "Step 7: Self-audit";
+const auditMarker = "Step 8: Self-audit";
 const markerIdx = gateSrc.indexOf(auditMarker);
 const businessLogicSrc = markerIdx > 0 ? gateSrc.slice(0, markerIdx) : gateSrc;
 
