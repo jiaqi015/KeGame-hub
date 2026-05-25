@@ -7,6 +7,7 @@ import { createProductRun } from '../src/selling-houses/domain/productRuns.js';
 import { getScenarioSnapshotById } from '../src/selling-houses/domain/scenarioCatalog.js';
 import { setBrokerOwnerTrust } from '../src/selling-houses/domain/trustWriteHelper.js';
 import { normalizeDailyProcessResultReadModel } from '../src/selling-houses/runtime/simulation/dailyProcessResult.js';
+import { asWritableOpportunity } from '../src/selling-houses/domain/models.js';
 
 const snapshot = getScenarioSnapshotById('standard-window-chain');
 assert.ok(snapshot, 'Expected standard-window-chain scenario to exist');
@@ -31,7 +32,7 @@ caseItem.stageIndex = 5;
 caseItem.offers = Math.max(1, caseItem.offers || 0);
 opportunity.intent = 100;
 opportunity.confidence = 100;
-opportunity.stageIndex = 5;
+asWritableOpportunity(opportunity).stageIndex = 5;
 opportunity.daysLeft = 3;
 
 const productRun = createProductRun(world, 'open-day', [caseItem.id]);

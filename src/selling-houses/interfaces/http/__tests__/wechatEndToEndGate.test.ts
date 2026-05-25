@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeAll } from 'vitest';
 import type { GameState, Case, Opportunity } from '../../../domain/models.js';
+import { asWritableCase } from '../../../domain/models.js';
 import type { WechatMessage } from '../../../application/projections/myWechatTypes.js';
 import type { ConversationEffectProposal } from '../../../core/world-state/conversation/models.js';
 import {
@@ -62,8 +63,8 @@ describe('WeChat End-to-End Gate Tests', () => {
     it('full chain: contextPack → dual runtime → settle → receipt with positive trustDelta', () => {
       const state = buildTestState();
       const caseItem = state.cases.find((c) => c.status === 'active')!;
-      caseItem.urgency = 78;
-      caseItem.patience = 35;
+      asWritableCase(caseItem).urgency = 78;
+      asWritableCase(caseItem).patience = 35;
 
       const msg = makeOwnerMessage(caseItem);
       const conversationKey = `owner:${caseItem.ownerName}`;

@@ -385,7 +385,8 @@ function tickBigWorldRuntime(state: GameState): void {
   const receipt = runBigWorldDayTick(clockInput, existingRuntime, existingCausalEvents);
 
   // Apply receipt to runtime state (mutates in place)
-  state.bigWorldRuntime = applyTickReceiptToRuntime(state.bigWorldRuntime, receipt);
+  // Pass existing causal events for policy-aware source retention during compaction
+  state.bigWorldRuntime = applyTickReceiptToRuntime(state.bigWorldRuntime, receipt, existingCausalEvents);
 
   // Append causal events to the world causal ledger
   if (receipt.causalEventsToAppend.length > 0) {

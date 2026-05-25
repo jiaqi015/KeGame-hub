@@ -1,5 +1,5 @@
 import { ACTIONS } from '../constants.js';
-import { markCaseWithdrawn } from '../caseOutcome.js';
+import { markCaseWithdrawn, createCaseTerminalOutcomeOnState, syncLegacyCaseTerminalMirrorFromOutcome, findCaseTerminalOutcome } from '../caseOutcome.js';
 import { updateDerivedState, logEvent, recordDomainEvent } from '../runtimeState.js';
 import { applyAuxiliaryStats, getPromotionBudget } from '../runtimeStats.js';
 import { clamp, getDayOfWeek } from '../utils.js';
@@ -27,6 +27,7 @@ import { SINCERITY_SALE_ACTION_EXECUTORS } from './sinceritySaleActionExecutors.
 import { SHOWING_ACTION_EXECUTORS } from './showingActionExecutors.js';
 import { captureActionReceiptSnapshot, type ActionReceiptSnapshot } from './actionReceiptSnapshot.js';
 import type { InformationSourceRecord } from '../world-model/informationSourceTypes.js';
+import { buildPlayerActionSourceIds, buildBlockedPlayerActionSourceIds } from '../world-model/playerActionSourceIds.js';
 
 // Module-level pending receipt snapshots for post-action enrichment.
 // The caller reads and clears this after executeAction returns.
@@ -179,10 +180,54 @@ export function executeAction(
 }
 
 export function withdrawCase(world: GameState, caseItem: Case, reason: string) {
-  caseItem.status = 'withdrawn';
-  caseItem.stageLabel = '已核销';
+  // Compute terminal outcome fields before canonical creation
+  const defenseOutcome = 'withdrawn';
+  const ownerSatisfaction = caseItem.trust <= 50 ? 'unhappy' as const : 'regret' as const;
+  const endingType = 'withdrawn_unhappy' as const;
+  const endingBucket = 'bad' as const;
 
-  markCaseWithdrawn(caseItem);
+  // Create canonical CaseTerminalOutcome (structural truth)
+  const terminalOutcome = createCaseTerminalOutcomeOnState(
+    world,
+    caseItem.id,
+    'withdrawn',
+    world.day,
+    defenseOutcome,
+    ownerSatisfaction,
+    endingType,
+    endingBucket,
+    [`case:${caseItem.id}:withdrawn:${world.day}`],
+  );
+
+  // Sync legacy Case mirrors from canonical outcome (single controlled write path)
+  if (terminalOutcome) {
+    syncLegacyCaseTerminalMirrorFromOutcome(world, {
+      terminalOutcomeId: terminalOutcome.terminalOutcomeId,
+      caseId: caseItem.id,
+      kind: 'withdrawn',
+      stageLabel: '已核销',
+      defenseOutcome,
+      ownerSatisfaction,
+      endingType,
+      endingBucket,
+      provenance: 'canonical-outcome',
+      sourceEventRefs: [`case:${caseItem.id}:withdrawn:${world.day}`],
+    });
+  } else {
+    // Fallback: terminal outcome already exists (duplicate guard), sync mirrors via boundary
+    const existingOutcome = findCaseTerminalOutcome(world, caseItem.id);
+    syncLegacyCaseTerminalMirrorFromOutcome(world, {
+      terminalOutcomeId: existingOutcome?.terminalOutcomeId ?? `fallback-withdrawn-${caseItem.id}`,
+      caseId: caseItem.id,
+      kind: 'withdrawn',
+      stageLabel: '已核销',
+      defenseOutcome,
+      ownerSatisfaction,
+      endingType,
+      endingBucket,
+      provenance: 'fallback-guard',
+    });
+  }
 
   applyAuxiliaryStats(world, {
     withdrawnCount: world.auxiliaryStats.withdrawnCount + 1,
@@ -340,8 +385,12 @@ function buildPlayerActionReceiptSourceRecord(
     }
   }
 
+  const ids = outcome === 'blocked'
+    ? buildBlockedPlayerActionSourceIds(day, actionId, caseItem.id, runSeed)
+    : buildPlayerActionSourceIds(day, actionId, caseItem.id, runSeed);
+
   return {
-    sourceId: `isr-par-${day}-${actionId}-${caseItem.id}`,
+    sourceId: ids.sourceId,
     sourceKind: 'player_action_receipt',
     payload: {
       subtype,
@@ -366,7 +415,7 @@ function buildPlayerActionReceiptSourceRecord(
     visibility: { scope: 'player_only', baseDelayDays: 0 },
     confidence: outcome === 'success' ? 1.0 : 0.9,
     delayDays: 0,
-    replayKey: `rk-par-${runSeed}-${day}-${actionId}-${caseItem.id}`,
+    replayKey: ids.replayKey,
     origin: 'player_action',
   } as InformationSourceRecord<'player_action_receipt'>;
 }

@@ -238,6 +238,8 @@ export interface BigWorldTickReceipt {
     readonly bySourceKind: Record<string, number>;
     readonly sourceKinds: readonly string[];
   };
+  /** All source records ingested this tick — for persisted source ledger. */
+  readonly allIngestedSourceRecords?: readonly InformationSourceRecord[];
   /** Total tick duration in microseconds (for performance tracking). */
   readonly durationUs: number;
 }
@@ -291,6 +293,8 @@ export interface WorldRuntimeCompactionPolicy {
   readonly compactAfterDays: number;
   /** Maximum total events in worldCausalEvents before trimming oldest root causes. */
   readonly maxTotalCausalEvents: number;
+  /** Maximum source records persisted across ticks (for registry rebuild). */
+  readonly maxPersistedSourceRecords: number;
 }
 
 /** Default compaction policy — conservative bounds. */
@@ -300,6 +304,7 @@ export const DEFAULT_COMPACTION_POLICY: WorldRuntimeCompactionPolicy = Object.fr
   maxCausalRefsPerEvent: 8,
   compactAfterDays: 30,
   maxTotalCausalEvents: 2000,
+  maxPersistedSourceRecords: 500,
 });
 
 // ---------------------------------------------------------------------------
@@ -455,6 +460,16 @@ export interface BigWorldRuntimeState {
    * Used by acnAttribution to decompose pressure into coSale/internal/rival channels.
    */
   playerBrokerAcnId?: string;
+  /**
+   * Persisted source records — bounded append-only ledger of source records
+   * ingested by runtime ticks. Survives save/load. Used to rebuild
+   * InformationSourceRegistry for actor knowledge without manually appending
+   * pending source records.
+   *
+   * Bounded by maxPersistedSourceRecords in compaction policy.
+   * Old saves without this field default to empty array.
+   */
+  persistedSourceRecords: InformationSourceRecord[];
 }
 
 // ---------------------------------------------------------------------------

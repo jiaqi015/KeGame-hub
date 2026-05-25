@@ -1,13 +1,13 @@
 import type {
-  LegacyWorldCaseLike,
-  LegacyWorldGameStateLike,
-  LegacyWorldOpportunityLike,
-} from './legacyWorldAdapterContracts.js';
-import type { CustomerProfile } from '../business-rules/archetypes/archetypeTaxonomy.js';
-import type { MarketCell } from './marketTypes.js';
-import type { CompetitionGroup } from './competitionTypes.js';
-import type { DomainEventEntry } from './eventTypes.js';
-import type { ProductRun } from './productRunTypes.js';
+  LegacyCanonicalCaseLike,
+  LegacyCanonicalCompetitionGroupLike,
+  LegacyCanonicalCustomerLike,
+  LegacyCanonicalDomainEventLike,
+  LegacyCanonicalGameStateLike,
+  LegacyCanonicalMarketCellLike,
+  LegacyCanonicalOpportunityLike,
+  LegacyCanonicalProductRunLike,
+} from './legacyCompatibilityContracts.js';
 import type {
   AssetCase,
   AssetCaseStatus,
@@ -34,6 +34,34 @@ import type { GoalTier, StorylineState } from './caseNarrativeTypes.js';
 import type { ListingEndingBucket, ListingEndingType, OwnerSatisfactionState } from './caseOutcomeTypes.js';
 import type { OwnerPersonality } from './caseTypeFragments.js';
 import type { LeadSourceType } from '../business-rules/archetypes/archetypeTaxonomy.js';
+import {
+  isAssetCaseStatus,
+  isOwnerPersonality,
+  isOpportunityStatus,
+  isOpportunityLifecycleStatus,
+  isOpportunityVisibility,
+} from './caseTypeFragments.js';
+import { isGoalTier, isStorylineState, isTone } from './caseNarrativeTypes.js';
+import type { Tone } from './caseNarrativeTypes.js';
+import { isListingEndingType, isListingEndingBucket, isOwnerSatisfactionState } from './caseOutcomeTypes.js';
+import { isLeadSourceType } from '../business-rules/archetypes/archetypeTaxonomy.js';
+import { isProductRunMilestoneKind, isProductRunScope, isProductRunStatus } from './productRunTypes.js';
+import type { ProductRunMilestone, ProductRunScope, ProductRunStatus } from './productRunTypes.js';
+import { validateLegacyCanonicalGameStateLike, type CompatibilityValidationResult } from './legacyCompatibilityValidation.js';
+
+// Legacy compatibility fallbacks — these are NOT simulation truth;
+// they prevent illegal legacy strings from entering canonical projections.
+const FALLBACK_CASE_STATUS: AssetCaseStatus = 'active';
+const FALLBACK_GOAL_TIER: GoalTier = 'normal';
+const FALLBACK_STORYLINE_STATE: StorylineState = 'healthy';
+const FALLBACK_OWNER_PERSONALITY: OwnerPersonality = 'pragmatic';
+const FALLBACK_OPP_STATUS: OpportunityStatus = 'active';
+const FALLBACK_OPP_LIFECYCLE: OpportunityLifecycleStatus = 'active';
+const FALLBACK_OPP_VISIBILITY: OpportunityVisibility = 'shadow';
+const FALLBACK_LEAD_SOURCE: LeadSourceType = 'direct';
+const FALLBACK_PRODUCT_RUN_SCOPE: ProductRunScope = 'listing';
+const FALLBACK_PRODUCT_RUN_STATUS: ProductRunStatus = 'running';
+const FALLBACK_NEG_STATUS: NegotiationProcess['status'] = 'active';
 
 export function toAssetCaseId(legacyCaseId: string): WorldEntityId {
   return `asset-case:${legacyCaseId}`;
@@ -63,7 +91,7 @@ export function toRegionId(legacyMarketCellId: string): WorldEntityId {
   return `region:${legacyMarketCellId}`;
 }
 
-export function mapLegacyCaseToAssetCase(caseItem: LegacyWorldCaseLike): AssetCase {
+export function mapLegacyCaseToAssetCase(caseItem: LegacyCanonicalCaseLike): AssetCase {
   return {
     id: toAssetCaseId(caseItem.id),
     legacyCaseId: caseItem.id,
@@ -84,38 +112,38 @@ export function mapLegacyCaseToAssetCase(caseItem: LegacyWorldCaseLike): AssetCa
     lastAskPrice: caseItem.lastAskPrice,
     priceGapPct: caseItem.priceGapPct,
     heat: caseItem.heat,
-    status: caseItem.status as AssetCaseStatus,
+    status: isAssetCaseStatus(caseItem.status) ? caseItem.status : FALLBACK_CASE_STATUS,
     stageIndex: caseItem.stageIndex,
     stageLabel: caseItem.stageLabel,
     riskFlags: [...caseItem.riskFlags],
-    goalTier: caseItem.goalTier as GoalTier,
-    storylineState: caseItem.storylineState as StorylineState,
+    goalTier: isGoalTier(caseItem.goalTier) ? caseItem.goalTier : FALLBACK_GOAL_TIER,
+    storylineState: isStorylineState(caseItem.storylineState) ? caseItem.storylineState : FALLBACK_STORYLINE_STATE,
     viewings: caseItem.viewings,
     offers: caseItem.offers,
     soldPrice: caseItem.soldPrice,
-    endingType: caseItem.endingType as ListingEndingType | undefined,
-    endingBucket: caseItem.endingBucket as ListingEndingBucket | undefined,
+    endingType: isListingEndingType(caseItem.endingType) ? caseItem.endingType : undefined,
+    endingBucket: isListingEndingBucket(caseItem.endingBucket) ? caseItem.endingBucket : undefined,
     endingSummary: caseItem.endingSummary,
   };
 }
 
-export function mapLegacyCaseToOwner(caseItem: LegacyWorldCaseLike): Owner {
+export function mapLegacyCaseToOwner(caseItem: LegacyCanonicalCaseLike): Owner {
   return {
     id: toOwnerId(caseItem.id),
     legacyCaseId: caseItem.id,
     archetypeId: caseItem.ownerArchetypeId,
     name: caseItem.ownerName,
     mood: caseItem.ownerMood,
-    personality: caseItem.personality as OwnerPersonality,
+    personality: isOwnerPersonality(caseItem.personality) ? caseItem.personality : FALLBACK_OWNER_PERSONALITY,
     trust: caseItem.trust,
     patience: caseItem.patience,
     urgency: caseItem.urgency,
     windowDays: caseItem.windowDays,
-    satisfaction: caseItem.ownerSatisfaction as OwnerSatisfactionState | undefined,
+    satisfaction: isOwnerSatisfactionState(caseItem.ownerSatisfaction) ? caseItem.ownerSatisfaction : undefined,
   };
 }
 
-export function mapLegacyCaseToMaintainerBroker(caseItem: LegacyWorldCaseLike): Broker {
+export function mapLegacyCaseToMaintainerBroker(caseItem: LegacyCanonicalCaseLike): Broker {
   return {
     id: toMaintainerBrokerId(caseItem.maintainerName),
     name: caseItem.maintainerName,
@@ -123,7 +151,7 @@ export function mapLegacyCaseToMaintainerBroker(caseItem: LegacyWorldCaseLike): 
   };
 }
 
-export function mapLegacyCustomerToCustomer(customer: CustomerProfile): Customer {
+export function mapLegacyCustomerToCustomer(customer: LegacyCanonicalCustomerLike): Customer {
   return {
     id: toCustomerId(customer.id),
     legacyCustomerId: customer.id,
@@ -140,7 +168,7 @@ export function mapLegacyCustomerToCustomer(customer: CustomerProfile): Customer
   };
 }
 
-export function mapLegacyOpportunityToCustomer(opportunity: LegacyWorldOpportunityLike): Customer {
+export function mapLegacyOpportunityToCustomer(opportunity: LegacyCanonicalOpportunityLike): Customer {
   return {
     id: opportunity.customerId ? toCustomerId(opportunity.customerId) : toCustomerFromOpportunityId(opportunity.id),
     legacyCustomerId: opportunity.customerId || undefined,
@@ -154,7 +182,7 @@ export function mapLegacyOpportunityToCustomer(opportunity: LegacyWorldOpportuni
   };
 }
 
-export function mapLegacyMarketToRegion(market: MarketCell): Region {
+export function mapLegacyMarketToRegion(market: LegacyCanonicalMarketCellLike): Region {
   return {
     id: toRegionId(market.id),
     legacyMarketCellId: market.id,
@@ -167,7 +195,7 @@ export function mapLegacyMarketToRegion(market: MarketCell): Region {
   };
 }
 
-export function mapLegacyCaseToBrokerOwnerRelation(caseItem: LegacyWorldCaseLike): BrokerOwnerRelation {
+export function mapLegacyCaseToBrokerOwnerRelation(caseItem: LegacyCanonicalCaseLike): BrokerOwnerRelation {
   const brokerId = toMaintainerBrokerId(caseItem.maintainerName);
   const ownerId = toOwnerId(caseItem.id);
   return {
@@ -181,7 +209,7 @@ export function mapLegacyCaseToBrokerOwnerRelation(caseItem: LegacyWorldCaseLike
   };
 }
 
-export function mapLegacyCaseToOwnerCaseRelation(caseItem: LegacyWorldCaseLike): OwnerCaseRelation {
+export function mapLegacyCaseToOwnerCaseRelation(caseItem: LegacyCanonicalCaseLike): OwnerCaseRelation {
   const ownerId = toOwnerId(caseItem.id);
   const assetCaseId = toAssetCaseId(caseItem.id);
   return {
@@ -193,13 +221,13 @@ export function mapLegacyCaseToOwnerCaseRelation(caseItem: LegacyWorldCaseLike):
     askPrice: caseItem.askPrice,
     bottomPrice: caseItem.bottomPrice,
     windowDays: caseItem.windowDays,
-    status: caseItem.status as AssetCaseStatus,
+    status: isAssetCaseStatus(caseItem.status) ? caseItem.status : FALLBACK_CASE_STATUS,
     patience: caseItem.patience,
     urgency: caseItem.urgency,
   };
 }
 
-export function mapLegacyOpportunityToCustomerCaseOpportunity(opportunity: LegacyWorldOpportunityLike): CustomerCaseOpportunity {
+export function mapLegacyOpportunityToCustomerCaseOpportunity(opportunity: LegacyCanonicalOpportunityLike): CustomerCaseOpportunity {
   const customerId = opportunity.customerId
     ? toCustomerId(opportunity.customerId)
     : toCustomerFromOpportunityId(opportunity.id);
@@ -216,10 +244,10 @@ export function mapLegacyOpportunityToCustomerCaseOpportunity(opportunity: Legac
     confidence: opportunity.confidence,
     stageIndex: opportunity.stageIndex,
     stageLabel: opportunity.stageLabel,
-    status: opportunity.status as OpportunityStatus,
-    lifecycleStatus: opportunity.lifecycleStatus as OpportunityLifecycleStatus,
-    leadSource: opportunity.leadSource as LeadSourceType,
-    visibility: opportunity.visibility as OpportunityVisibility,
+    status: isOpportunityStatus(opportunity.status) ? opportunity.status : FALLBACK_OPP_STATUS,
+    lifecycleStatus: isOpportunityLifecycleStatus(opportunity.lifecycleStatus) ? opportunity.lifecycleStatus : FALLBACK_OPP_LIFECYCLE,
+    leadSource: isLeadSourceType(opportunity.leadSource) ? opportunity.leadSource : FALLBACK_LEAD_SOURCE,
+    visibility: isOpportunityVisibility(opportunity.visibility) ? opportunity.visibility : FALLBACK_OPP_VISIBILITY,
     createdDay: opportunity.createdDay,
     daysLeft: opportunity.daysLeft,
     touchedToday: opportunity.touchedToday,
@@ -231,7 +259,7 @@ export function mapLegacyOpportunityToCustomerCaseOpportunity(opportunity: Legac
 }
 
 export function mapLegacyCompetitionToCaseCompetitionRelations(
-  group: CompetitionGroup,
+  group: LegacyCanonicalCompetitionGroupLike,
 ): CaseCompetitionRelation[] {
   return group.members.map((caseId) => {
     const assetCaseId = toAssetCaseId(caseId);
@@ -249,7 +277,7 @@ export function mapLegacyCompetitionToCaseCompetitionRelations(
   });
 }
 
-export function mapLegacyProductRunToOpenDayRun(run: ProductRun): OpenDayRun {
+export function mapLegacyProductRunToOpenDayRun(run: LegacyCanonicalProductRunLike): OpenDayRun {
   return {
     ...mapProductRunBase(run),
     id: `open-day-run:${run.id}`,
@@ -257,7 +285,7 @@ export function mapLegacyProductRunToOpenDayRun(run: ProductRun): OpenDayRun {
   };
 }
 
-export function mapLegacyProductRunToSinceritySaleRun(run: ProductRun): SinceritySaleRun {
+export function mapLegacyProductRunToSinceritySaleRun(run: LegacyCanonicalProductRunLike): SinceritySaleRun {
   return {
     ...mapProductRunBase(run),
     id: `sincerity-sale-run:${run.id}`,
@@ -265,10 +293,15 @@ export function mapLegacyProductRunToSinceritySaleRun(run: ProductRun): Sincerit
   };
 }
 
-export function mapLegacyOpportunityToNegotiationProcess(opportunity: LegacyWorldOpportunityLike): NegotiationProcess | null {
+export function mapLegacyOpportunityToNegotiationProcess(opportunity: LegacyCanonicalOpportunityLike): NegotiationProcess | null {
   if (!opportunity.pendingClosingEvaluation) {
     return null;
   }
+
+  // NegotiationProcess status uses the same values as OpportunityStatus
+  const negStatus: NegotiationProcess['status'] = isOpportunityStatus(opportunity.status)
+    ? opportunity.status
+    : FALLBACK_NEG_STATUS;
 
   return {
     id: `negotiation:${opportunity.id}`,
@@ -276,7 +309,7 @@ export function mapLegacyOpportunityToNegotiationProcess(opportunity: LegacyWorl
     assetCaseId: toAssetCaseId(opportunity.caseId),
     customerId: opportunity.customerId ? toCustomerId(opportunity.customerId) : toCustomerFromOpportunityId(opportunity.id),
     brokerId: opportunity.brokerName ? toLeadBrokerId(opportunity.brokerName) : undefined,
-    status: opportunity.status as NegotiationProcess['status'],
+    status: negStatus,
     stageIndex: opportunity.stageIndex,
     stageLabel: opportunity.stageLabel,
     intent: opportunity.intent,
@@ -288,7 +321,7 @@ export function mapLegacyOpportunityToNegotiationProcess(opportunity: LegacyWorl
   };
 }
 
-export function mapLegacyDomainEventToWorldDomainEvent(event: DomainEventEntry): WorldDomainEvent {
+export function mapLegacyDomainEventToWorldDomainEvent(event: LegacyCanonicalDomainEventLike): WorldDomainEvent {
   return {
     id: `legacy-domain-event:${event.id}`,
     legacyEventId: event.id,
@@ -302,22 +335,24 @@ export function mapLegacyDomainEventToWorldDomainEvent(event: DomainEventEntry):
     },
     title: event.title,
     detail: event.detail,
-    tone: event.tone,
+    tone: isTone(event.tone) ? event.tone : undefined,
     payload: { ...event.payload },
     schemaVersion: 1,
   };
 }
 
-export function deriveWorldStateFromLegacyGameState(state: LegacyWorldGameStateLike): WorldStateSnapshot {
-  const assets = state.cases.map(mapLegacyCaseToAssetCase);
-  const owners = state.cases.map(mapLegacyCaseToOwner);
-  const opportunities = state.opportunities || [];
+export function deriveWorldStateFromLegacyGameState(state: LegacyCanonicalGameStateLike): WorldStateSnapshot & { validationReport?: CompatibilityValidationResult } {
+  const validationReport = validateLegacyCanonicalGameStateLike(state);
+  const cases = Array.isArray(state.cases) ? state.cases : [];
+  const opportunities = Array.isArray(state.opportunities) ? state.opportunities : [];
+  const assets = cases.map(mapLegacyCaseToAssetCase);
+  const owners = cases.map(mapLegacyCaseToOwner);
   const customers = mergeCustomers([
     ...(state.customers || []).map(mapLegacyCustomerToCustomer),
     ...opportunities.map(mapLegacyOpportunityToCustomer),
   ]);
   const brokers = mergeBrokers([
-    ...state.cases.map(mapLegacyCaseToMaintainerBroker),
+    ...cases.map(mapLegacyCaseToMaintainerBroker),
     ...opportunities
       .filter((opportunity) => Boolean(opportunity.brokerName))
       .map((opportunity) => ({
@@ -342,8 +377,8 @@ export function deriveWorldStateFromLegacyGameState(state: LegacyWorldGameStateL
     customers,
     regions: (state.markets || []).map(mapLegacyMarketToRegion),
     stores: [buildPlayerStore(brokers)],
-    brokerOwnerRelations: state.cases.map(mapLegacyCaseToBrokerOwnerRelation),
-    ownerCaseRelations: state.cases.map(mapLegacyCaseToOwnerCaseRelation),
+    brokerOwnerRelations: cases.map(mapLegacyCaseToBrokerOwnerRelation),
+    ownerCaseRelations: cases.map(mapLegacyCaseToOwnerCaseRelation),
     customerCaseOpportunities: opportunities.map(mapLegacyOpportunityToCustomerCaseOpportunity),
     caseCompetitionRelations: (state.competitionGroups || []).flatMap(mapLegacyCompetitionToCaseCompetitionRelations),
     openDayRuns: (state.productRuns || [])
@@ -354,20 +389,54 @@ export function deriveWorldStateFromLegacyGameState(state: LegacyWorldGameStateL
       .map(mapLegacyProductRunToSinceritySaleRun),
     negotiationProcesses,
     events: (state.eventStore || []).map(mapLegacyDomainEventToWorldDomainEvent),
+    validationReport,
   };
 }
 
-function mapProductRunBase(run: ProductRun) {
+function mapProductRunBase(run: LegacyCanonicalProductRunLike) {
   return {
     legacyProductRunId: run.id,
-    scope: run.scope,
-    status: run.status,
-    startDay: run.startDay,
+    scope: isProductRunScope(run.scope) ? run.scope : FALLBACK_PRODUCT_RUN_SCOPE,
+    status: isProductRunStatus(run.status) ? run.status : FALLBACK_PRODUCT_RUN_STATUS,
+    startDay: run.startDay ?? 0,
     endDay: run.endDay,
     targetAssetCaseIds: run.targetIds.map(toAssetCaseId),
-    nextMilestone: run.nextMilestone,
+    nextMilestone: run.nextMilestone ?? '',
     linkedEventIds: [...(run.linkedEventIds || [])],
-    milestones: (run.milestones || []).map((milestone) => ({ ...milestone })),
+    milestones: normalizeProductRunMilestones(run.milestones),
+  };
+}
+
+function normalizeProductRunMilestones(milestones: readonly unknown[] | undefined): ProductRunMilestone[] {
+  if (!milestones) return [];
+  return milestones
+    .map(normalizeProductRunMilestone)
+    .filter((milestone): milestone is ProductRunMilestone => Boolean(milestone));
+}
+
+function normalizeProductRunMilestone(value: unknown): ProductRunMilestone | null {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Record<string, unknown>;
+  const { id, title, summary, day, kind, settlementHint } = record;
+  if (
+    typeof id !== 'string'
+    || typeof title !== 'string'
+    || typeof summary !== 'string'
+    || typeof settlementHint !== 'string'
+    || typeof day !== 'number'
+    || !Number.isFinite(day)
+    || !isProductRunMilestoneKind(kind)
+  ) {
+    return null;
+  }
+
+  return {
+    id,
+    title,
+    summary,
+    day,
+    kind,
+    settlementHint,
   };
 }
 
@@ -401,7 +470,7 @@ function buildPlayerStore(brokers: Broker[]): Store {
   };
 }
 
-function resolveEventAggregate(event: DomainEventEntry): WorldDomainEvent['aggregate'] {
+function resolveEventAggregate(event: LegacyCanonicalDomainEventLike): WorldDomainEvent['aggregate'] {
   if (event.caseId) {
     return { type: 'asset-case', id: toAssetCaseId(event.caseId) };
   }

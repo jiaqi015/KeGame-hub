@@ -23,6 +23,7 @@ import {
   setOpportunityStageIndexOnState,
   setOpportunityTouchedTodayOnState,
   setOpportunityVisibilityOnState,
+  syncCustomerRuntimeStageMirrorFromOpportunityOnState,
 } from '../domain/opportunitySplitHelper.js';
 import { applyPatienceDelta, applyUrgencyDelta } from '../domain/ownerCaseReadinessWriteHelper.js';
 import {
@@ -185,6 +186,22 @@ export function executeGameAction(
           if (sourceReceipt.causalEvents.length > 0) {
             const prev = Array.isArray(next.worldCausalEvents) ? next.worldCausalEvents : [];
             next.worldCausalEvents = [...prev, ...sourceReceipt.causalEvents];
+          }
+
+          // Persist source records from immediate receipt to runtime ledger
+          // so they survive save/load and are available for registry rebuild.
+          if (buildResult.sourceRecords.length > 0 && next.bigWorldRuntime) {
+            const existingIds = new Set(
+              next.bigWorldRuntime.persistedSourceRecords.map((r: { sourceId: string }) => r.sourceId),
+            );
+            const newRecords = buildResult.sourceRecords.filter((r) => !existingIds.has(r.sourceId));
+            if (newRecords.length > 0) {
+              const maxPersisted = next.bigWorldRuntime.compactionPolicy?.maxPersistedSourceRecords ?? 500;
+              next.bigWorldRuntime.persistedSourceRecords = [
+                ...newRecords,
+                ...next.bigWorldRuntime.persistedSourceRecords,
+              ].slice(0, maxPersisted);
+            }
           }
         }
       } catch (err: unknown) {
@@ -767,7 +784,7 @@ function applyScenarioDelta(
       if (runtime) {
         runtime.viewed = true;
         runtime.interactions += 1;
-        runtime.stageIndex = Math.max(runtime.stageIndex, Math.min(4, targetOpportunity.stageIndex));
+        syncCustomerRuntimeStageMirrorFromOpportunityOnState(state, targetOpportunity, runtime, '带看同步阶段');
         runtime.lastActiveDay = state.day;
         runtime.selected = true;
         customerState.lastTouchDay = state.day;

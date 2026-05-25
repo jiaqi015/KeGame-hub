@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { asWritableCase } from '../src/selling-houses/domain/models.js';
 import { createInitialState, updateDerivedState } from '../src/selling-houses/application/gameState.js';
 import { advanceDays, executeAction } from '../src/selling-houses/domain/engine.js';
 import { evaluateFinalResult } from '../src/selling-houses/domain/resultEvaluation.js';

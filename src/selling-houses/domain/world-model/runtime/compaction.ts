@@ -143,14 +143,110 @@ export function compactWorldCausalEvents<T extends { readonly id: string; readon
   return Object.freeze(surviving);
 }
 
+// ── Compaction: policy-aware persisted source record retention ─────────
+
+/**
+ * Decision-critical source kinds that should survive compaction
+ * over lower-priority kinds when the ledger exceeds its bound.
+ */
+const DECISION_CRITICAL_KINDS: ReadonlySet<string> = new Set([
+  'player_action_receipt',
+  'manager_message',
+  'process_receipt',
+]);
+
+/**
+ * Priority ranking for source kind retention during compaction.
+ * Lower number = higher priority (survives longer).
+ */
+function sourceKindRetentionPriority(kind: string): number {
+  if (kind === 'player_action_receipt') return 0;
+  if (kind === 'manager_message') return 1;
+  if (kind === 'process_receipt') return 2;
+  if (kind === 'owner_interview') return 3;
+  if (kind === 'customer_interaction') return 4;
+  if (kind === 'comparable_transaction') return 5;
+  return 9;
+}
+
+/**
+ * Compact persisted source records with policy-aware retention.
+ *
+ * Instead of naive FIFO, this function:
+ * 1. Always keeps records referenced by causal events (causally important)
+ * 2. Prefers decision-critical source kinds (player_action_receipt, manager_message, process_receipt)
+ * 3. Prefers more recent records
+ * 4. Produces deterministic output for same input
+ *
+ * @param records - Current persisted source records (newest first)
+ * @param maxRecords - Maximum records to retain
+ * @param causallyReferencedSourceIds - Source IDs referenced by worldCausalEvents
+ * @returns Compact set of records within the bound
+ */
+export function compactPersistedSourceRecords(
+  records: readonly import('../informationSourceTypes.js').InformationSourceRecord[],
+  maxRecords: number,
+  causallyReferencedSourceIds?: ReadonlySet<string>,
+): readonly import('../informationSourceTypes.js').InformationSourceRecord[] {
+  if (records.length <= maxRecords) return records;
+
+  // Build the set of causally-referenced source IDs if not provided
+  const causalRefs = causallyReferencedSourceIds ?? new Set<string>();
+
+  // Score each record for retention priority (lower = keep first)
+  // Priority tiers:
+  //   0: causally referenced AND decision-critical
+  //   1: causally referenced
+  //   2: decision-critical
+  //   3: other (lowest priority, FIFO by position)
+  const scored = records.map((record, index) => {
+    const isCausallyReferenced = causalRefs.has(record.sourceId);
+    const isDecisionCritical = DECISION_CRITICAL_KINDS.has(record.sourceKind);
+    const kindPriority = sourceKindRetentionPriority(record.sourceKind);
+
+    let tier: number;
+    if (isCausallyReferenced && isDecisionCritical) {
+      tier = 0;
+    } else if (isCausallyReferenced) {
+      tier = 1;
+    } else if (isDecisionCritical) {
+      tier = 2;
+    } else {
+      tier = 3;
+    }
+
+    // Within same tier: prefer lower kind priority, then recency (lower index = newer)
+    return { record, tier, kindPriority, index };
+  });
+
+  // Sort by tier (ascending), then kind priority (ascending), then index (ascending = newer first)
+  scored.sort((a, b) => {
+    if (a.tier !== b.tier) return a.tier - b.tier;
+    if (a.kindPriority !== b.kindPriority) return a.kindPriority - b.kindPriority;
+    return a.index - b.index;
+  });
+
+  // Take the top maxRecords by priority
+  const retained = scored.slice(0, maxRecords);
+
+  // Restore original order (newest first) for deterministic replay
+  const retainedIndices = new Set(retained.map((s) => s.index));
+  return records.filter((_, i) => retainedIndices.has(i));
+}
+
 // ── Full compaction pass ───────────────────────────────────────────────
 
 /**
  * Run a full compaction pass on BigWorldRuntimeState.
  * Returns a new state with compacted arrays (does not mutate input).
+ *
+ * @param state - Current runtime state
+ * @param causallyReferencedSourceIds - Source IDs referenced by worldCausalEvents
+ *   (used for policy-aware persisted source record retention)
  */
 export function runCompactionPass(
   state: BigWorldRuntimeState,
+  causallyReferencedSourceIds?: ReadonlySet<string>,
 ): BigWorldRuntimeState {
   const policy = state.compactionPolicy;
 
@@ -173,12 +269,20 @@ export function runCompactionPass(
     ? Object.freeze(state.recentErrors.slice(0, 20))
     : state.recentErrors;
 
+  const maxPersisted = policy.maxPersistedSourceRecords ?? 500;
+  const compactedSourceRecords = compactPersistedSourceRecords(
+    state.persistedSourceRecords,
+    maxPersisted,
+    causallyReferencedSourceIds,
+  );
+
   return {
     ...state,
     dailyEvents: [...compactedEvents] as BigWorldDailyEvent[],
     dailySummaries: [...compactedSummaries] as BigWorldRuntimeSummary[],
     coldLedgerSummaries: [...compactedColdSummaries] as ColdLedgerSummary[],
     recentErrors: [...compactedErrors] as string[],
+    persistedSourceRecords: [...compactedSourceRecords] as import('../informationSourceTypes.js').InformationSourceRecord[],
   };
 }
 
@@ -460,6 +564,9 @@ export function normalizeRuntimeState(
     playerBrokerAcnId: typeof raw['playerBrokerAcnId'] === 'string' && raw['playerBrokerAcnId']
       ? raw['playerBrokerAcnId']
       : 'acn-cooperative',
+    persistedSourceRecords: Array.isArray(raw['persistedSourceRecords'])
+      ? raw['persistedSourceRecords'] as import('../informationSourceTypes.js').InformationSourceRecord[]
+      : [],
   });
 }
 
@@ -482,5 +589,6 @@ export function createDefaultRuntimeState(
     tickCount: 0,
     recentErrors: [],
     playerBrokerAcnId: 'acn-cooperative',
+    persistedSourceRecords: [],
   };
 }

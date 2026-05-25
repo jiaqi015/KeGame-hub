@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 
+import { asWritableCase } from '../src/selling-houses/domain/models.js';
 import { createInitialState, updateDerivedState } from '../src/selling-houses/application/gameState.js';
 import { buildArchitectureParityProjection } from '../src/selling-houses/application/projections/architectureParityProjection.js';
 import { seedInitialOpportunities } from '../src/selling-houses/domain/engine.js';

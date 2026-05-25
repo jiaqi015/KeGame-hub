@@ -10,6 +10,7 @@ import {
 import { seedInitialOpportunities } from '../src/selling-houses/domain/engine.js';
 import { getScenarioSnapshotById } from '../src/selling-houses/domain/scenarioCatalog.js';
 import { Dashboard } from '../src/selling-houses/ui/features/Dashboard.js';
+import { asWritableOpportunity } from '../src/selling-houses/domain/models.js';
 
 const snapshot = getScenarioSnapshotById('standard-window-chain');
 assert.ok(snapshot, 'Expected standard-window-chain scenario to exist');
@@ -29,7 +30,7 @@ leadCase.windowDays = 8;
 const leadOpportunity = world.opportunities.find((entry) => entry.caseId === leadCase.id);
 assert.ok(leadOpportunity, 'Expected a lead opportunity');
 leadOpportunity.daysLeft = 0.5;
-leadOpportunity.stageIndex = 1;
+asWritableOpportunity(leadOpportunity).stageIndex = 1;
 leadOpportunity.status = 'active';
 leadOpportunity.visibility = 'revealed';
 leadOpportunity.intent = 80;

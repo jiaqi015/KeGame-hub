@@ -70,10 +70,12 @@ const ALLOWLISTED_STATUS_SOLD = [
   DEAL_CLOSING,  // syncLegacyCaseDealMirrorsFromContractFact
 ];
 const ALLOWLISTED_STATUS_LOST = [
-  CASE_LIFECYCLE,  // loseCaseToRival
+  CASE_OUTCOME,  // syncLegacyCaseTerminalMirrorFromOutcome
+  CASE_LIFECYCLE,  // fallback path in loseCaseToRival (duplicate guard)
 ];
 const ALLOWLISTED_STATUS_WITHDRAWN = [
-  ACTION_RESOLVERS,  // withdrawCase
+  CASE_OUTCOME,  // syncLegacyCaseTerminalMirrorFromOutcome
+  ACTION_RESOLVERS,  // fallback path in withdrawCase (duplicate guard)
 ];
 const ALLOWLISTED_SOLD_PRICE = [
   DEAL_CLOSING,  // syncLegacyCaseDealMirrorsFromContractFact
@@ -104,7 +106,7 @@ function checkDealClosingUsesContractFact() {
   const src = readFileSafe(DEAL_CLOSING);
   check(src !== null, `${DEAL_CLOSING} exists`);
   if (!src) return;
-  check(src.includes('createContractFactOnState'), 'dealClosing calls createContractFactOnState');
+  check(src.includes('createContractFactFromPriceConsensusOnState'), 'dealClosing calls createContractFactFromPriceConsensusOnState (proof-based)');
   check(src.includes('import.*consensusFormationHelper') || src.includes("from './consensusFormationHelper"), 'dealClosing imports from consensusFormationHelper');
 }
 
@@ -128,7 +130,7 @@ function checkSyncFunctionExists() {
 }
 
 // ---------------------------------------------------------------------------
-// 4. Direct caseItem.status = 'sold' only in allowlisted locations
+// 4. Direct caseItem.status = 'sold' only in allowlisted locations + asWritableCase
 // ---------------------------------------------------------------------------
 
 function checkDirectStatusSoldWrites() {
@@ -153,13 +155,17 @@ function checkDirectStatusSoldWrites() {
       if (/caseItem\.status\s*=\s*'sold'/.test(line) || /case\.status\s*=\s*'sold'/.test(line)) {
         const isAllowlisted = ALLOWLISTED_STATUS_SOLD.some((f) => file === f);
         check(isAllowlisted, `status='sold' at ${file}:${i + 1} is allowlisted`);
+        // R25: readonly enforcement — status='sold' must use asWritableCase
+        if (isAllowlisted) {
+          check(line.includes('asWritableCase'), `status='sold' at ${file}:${i + 1} uses asWritableCase`);
+        }
       }
     }
   }
 }
 
 // ---------------------------------------------------------------------------
-// 5. Direct caseItem.soldPrice = only in allowlisted locations
+// 5. Direct caseItem.soldPrice = only in allowlisted locations + asWritableCase
 // ---------------------------------------------------------------------------
 
 function checkDirectSoldPriceWrites() {
@@ -179,8 +185,21 @@ function checkDirectSoldPriceWrites() {
       const line = lines[i];
       if (/caseItem\.soldPrice\s*=/.test(line) || /case\.soldPrice\s*=/.test(line)) {
         const isAllowlisted = ALLOWLISTED_SOLD_PRICE.some((f) => file === f);
-        check(isAllowlisted, `soldPrice write at ${file}:${i + 1} is allowlisted`);
+        check(isAllowlisted, `soldPrice write at ${file}:${i + 1} is in boundary file`);
+        // R25: readonly enforcement — soldPrice must use asWritableCase
+        if (isAllowlisted) {
+          check(line.includes('asWritableCase'), `soldPrice write at ${file}:${i + 1} uses asWritableCase`);
+        }
       }
+    }
+  }
+
+  // R25: Case.soldPrice is readonly in the public type
+  const modelsSrc = readFileSafe('src/selling-houses/domain/models.ts');
+  if (modelsSrc) {
+    const caseMatch = modelsSrc.match(/export interface Case[\s\S]*?^}/m);
+    if (caseMatch) {
+      check(/^\s+readonly soldPrice:/m.test(caseMatch[0]), 'Case.soldPrice is readonly in public type');
     }
   }
 }

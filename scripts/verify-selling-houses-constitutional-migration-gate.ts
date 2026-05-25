@@ -621,6 +621,408 @@ try {
 }
 
 // ---------------------------------------------------------------------------
+// Gate 14: R13 live causal decision spine
+// ---------------------------------------------------------------------------
+
+console.log('\n=== Constitutional Migration Gate: 14. Live causal decision spine ===\n');
+
+try {
+  const liveSpineResult = spawnSync(
+    'npx',
+    ['tsx', 'scripts/verify-selling-houses-live-causal-decision-spine-gate.ts'],
+    { stdio: 'inherit', shell: process.platform === 'win32' },
+  );
+
+  if (liveSpineResult.error) {
+    fail('live-causal-decision-spine-gate', liveSpineResult.error.message);
+  } else if (liveSpineResult.status !== 0) {
+    fail('live-causal-decision-spine-gate', `exit ${liveSpineResult.status}`);
+  } else {
+    pass('live-causal-decision-spine-gate');
+  }
+} catch (err: any) {
+  fail('live-causal-decision-spine-gate', err.message);
+}
+
+// ---------------------------------------------------------------------------
+// Gate 15: R14 persisted source ledger + unified receipt trace + decision spine
+// ---------------------------------------------------------------------------
+
+console.log('\n=== Constitutional Migration Gate: 15. Persisted source + decision spine ===\n');
+
+try {
+  const r14Result = spawnSync(
+    'npx',
+    ['tsx', 'scripts/verify-selling-houses-r14-persisted-source-decision-spine-gate.ts'],
+    { stdio: 'inherit', shell: process.platform === 'win32' },
+  );
+
+  if (r14Result.error) {
+    fail('r14-persisted-source-decision-spine-gate', r14Result.error.message);
+  } else if (r14Result.status !== 0) {
+    fail('r14-persisted-source-decision-spine-gate', `exit ${r14Result.status}`);
+  } else {
+    pass('r14-persisted-source-decision-spine-gate');
+  }
+} catch (err: any) {
+  fail('r14-persisted-source-decision-spine-gate', err.message);
+}
+
+// ---------------------------------------------------------------------------
+// Gate 16: R15 source ledger retention + rich decision spine + trace observability
+// ---------------------------------------------------------------------------
+
+console.log('\n=== Constitutional Migration Gate: 16. Source ledger retention + decision trace ===\n');
+
+try {
+  const r15Result = spawnSync(
+    'npx',
+    ['tsx', 'scripts/verify-selling-houses-r15-source-ledger-retention-decision-trace-gate.ts'],
+    { stdio: 'inherit', shell: process.platform === 'win32' },
+  );
+
+  if (r15Result.error) {
+    fail('r15-source-ledger-retention-decision-trace-gate', r15Result.error.message);
+  } else if (r15Result.status !== 0) {
+    fail('r15-source-ledger-retention-decision-trace-gate', `exit ${r15Result.status}`);
+  } else {
+    pass('r15-source-ledger-retention-decision-trace-gate');
+  }
+} catch (err: any) {
+  fail('r15-source-ledger-retention-decision-trace-gate', err.message);
+}
+
+// ---------------------------------------------------------------------------
+// Gate 17: R16 runtime rich receipts + customer POV belief
+// ---------------------------------------------------------------------------
+
+console.log('\n=== Constitutional Migration Gate: 17. Runtime rich receipts + customer POV ===\n');
+
+try {
+  const r16Result = spawnSync(
+    'npx',
+    ['tsx', 'scripts/verify-selling-houses-r16-runtime-rich-receipts-customer-pov-gate.ts'],
+    { stdio: 'inherit', shell: process.platform === 'win32' },
+  );
+
+  if (r16Result.error) {
+    fail('r16-runtime-rich-receipts-customer-pov-gate', r16Result.error.message);
+  } else if (r16Result.status !== 0) {
+    fail('r16-runtime-rich-receipts-customer-pov-gate', `exit ${r16Result.status}`);
+  } else {
+    pass('r16-runtime-rich-receipts-customer-pov-gate');
+  }
+} catch (err: any) {
+  fail('r16-runtime-rich-receipts-customer-pov-gate', err.message);
+}
+
+// ---------------------------------------------------------------------------
+// Gate 18: R17 customer-visible process evidence + dynamic metrics
+// ---------------------------------------------------------------------------
+
+console.log('\n=== Constitutional Migration Gate: 18. Customer-visible process evidence + dynamic metrics ===\n');
+
+try {
+  const r17Result = spawnSync(
+    'npx',
+    ['tsx', 'scripts/verify-selling-houses-r17-customer-visible-process-dynamic-evidence-gate.ts'],
+    { stdio: 'inherit', shell: process.platform === 'win32' },
+  );
+
+  if (r17Result.error) {
+    fail('r17-customer-visible-process-dynamic-evidence-gate', r17Result.error.message);
+  } else if (r17Result.status !== 0) {
+    fail('r17-customer-visible-process-dynamic-evidence-gate', `exit ${r17Result.status}`);
+  } else {
+    pass('r17-customer-visible-process-dynamic-evidence-gate');
+  }
+} catch (err: any) {
+  fail('r17-customer-visible-process-dynamic-evidence-gate', err.message);
+}
+
+// ---------------------------------------------------------------------------
+// Gate 19: R18 visibility-safe specific actors + metric-weighted beliefs + customer-safe manager
+// ---------------------------------------------------------------------------
+
+console.log('\n=== Constitutional Migration Gate: 19. Visibility-metric-belief-manager ===\n');
+
+try {
+  const r18Result = spawnSync(
+    'npx',
+    ['tsx', 'scripts/verify-selling-houses-r18-visibility-metric-belief-manager-message-gate.ts'],
+    { stdio: 'inherit', shell: process.platform === 'win32' },
+  );
+
+  if (r18Result.error) {
+    fail('r18-visibility-metric-belief-manager-message-gate', r18Result.error.message);
+  } else if (r18Result.status !== 0) {
+    fail('r18-visibility-metric-belief-manager-message-gate', `exit ${r18Result.status}`);
+  } else {
+    pass('r18-visibility-metric-belief-manager-message-gate');
+  }
+} catch (err: any) {
+  fail('r18-visibility-metric-belief-manager-message-gate', err.message);
+}
+
+// ---------------------------------------------------------------------------
+// Gate 20: R19 structural truth lock — outcome projection + readiness source + trajectory derivation
+// ---------------------------------------------------------------------------
+
+console.log('\n=== Constitutional Migration Gate: 20. Structural-truth-lock ===\n');
+
+try {
+  const r19Result = spawnSync(
+    'npx',
+    ['tsx', 'scripts/verify-selling-houses-r19-structural-truth-lock-gate.ts'],
+    { stdio: 'inherit', shell: process.platform === 'win32' },
+  );
+
+  if (r19Result.error) {
+    fail('r19-structural-truth-lock-gate', r19Result.error.message);
+  } else if (r19Result.status !== 0) {
+    fail('r19-structural-truth-lock-gate', `exit ${r19Result.status}`);
+  } else {
+    pass('r19-structural-truth-lock-gate');
+  }
+} catch (err: any) {
+  fail('r19-structural-truth-lock-gate', err.message);
+}
+
+// ---------------------------------------------------------------------------
+// Gate 21: R20 trajectory stage mirror + close probability truth kernel
+// ---------------------------------------------------------------------------
+
+console.log('\n=== Constitutional Migration Gate: 21. Trajectory-stage-probability-truth-kernel ===\n');
+
+try {
+  const r20Result = spawnSync(
+    'npx',
+    ['tsx', 'scripts/verify-selling-houses-r20-trajectory-stage-probability-truth-kernel-gate.ts'],
+    { stdio: 'inherit', shell: process.platform === 'win32', timeout: 300_000 },
+  );
+
+  if (r20Result.error) {
+    fail('r20-trajectory-stage-probability-truth-kernel-gate', r20Result.error.message);
+  } else if (r20Result.status !== 0) {
+    fail('r20-trajectory-stage-probability-truth-kernel-gate', `exit ${r20Result.status}`);
+  } else {
+    pass('r20-trajectory-stage-probability-truth-kernel-gate');
+  }
+} catch (err: any) {
+  fail('r20-trajectory-stage-probability-truth-kernel-gate', err.message);
+}
+
+// ---------------------------------------------------------------------------
+// Gate 22: R21 runtime contract validation + owner belief coverage + dead code burial
+// ---------------------------------------------------------------------------
+
+console.log('\n=== Constitutional Migration Gate: 22. Runtime-contract-owner-belief-cleanup ===\n');
+
+try {
+  const r21Result = spawnSync(
+    'npx',
+    ['tsx', 'scripts/verify-selling-houses-r21-runtime-contract-owner-belief-cleanup-gate.ts'],
+    { stdio: 'inherit', shell: process.platform === 'win32', timeout: 600_000 },
+  );
+
+  if (r21Result.error) {
+    fail('r21-runtime-contract-owner-belief-cleanup-gate', r21Result.error.message);
+  } else if (r21Result.status !== 0) {
+    fail('r21-runtime-contract-owner-belief-cleanup-gate', `exit ${r21Result.status}`);
+  } else {
+    pass('r21-runtime-contract-owner-belief-cleanup-gate');
+  }
+} catch (err: any) {
+  fail('r21-runtime-contract-owner-belief-cleanup-gate', err.message);
+}
+
+// ---------------------------------------------------------------------------
+// Gate 23: R22 behavioral evidence closure + customer/owner metric parity + validation tightening
+// ---------------------------------------------------------------------------
+
+console.log('\n=== Constitutional Migration Gate: 23. Behavioral-evidence-parity ===\n');
+
+try {
+  const r22Result = spawnSync(
+    'npx',
+    ['tsx', 'scripts/verify-selling-houses-r22-behavioral-evidence-parity-gate.ts'],
+    { stdio: 'inherit', shell: process.platform === 'win32', timeout: 600_000 },
+  );
+
+  if (r22Result.error) {
+    fail('r22-behavioral-evidence-parity-gate', r22Result.error.message);
+  } else if (r22Result.status !== 0) {
+    fail('r22-behavioral-evidence-parity-gate', `exit ${r22Result.status}`);
+  } else {
+    pass('r22-behavioral-evidence-parity-gate');
+  }
+} catch (err: any) {
+  fail('r22-behavioral-evidence-parity-gate', err.message);
+}
+
+// ---------------------------------------------------------------------------
+// Gate 24: R23 truth field write firewall + terminal/readiness mirror quarantine
+// ---------------------------------------------------------------------------
+
+console.log('\n=== Constitutional Migration Gate: 24. Truth-field-write-firewall ===\n');
+
+try {
+  const r23Result = spawnSync(
+    'npx',
+    ['tsx', 'scripts/verify-selling-houses-r23-truth-field-write-firewall-gate.ts'],
+    { stdio: 'inherit', shell: process.platform === 'win32', timeout: 600_000 },
+  );
+
+  if (r23Result.error) {
+    fail('r23-truth-field-write-firewall-gate', r23Result.error.message);
+  } else if (r23Result.status !== 0) {
+    fail('r23-truth-field-write-firewall-gate', `exit ${r23Result.status}`);
+  } else {
+    pass('r23-truth-field-write-firewall-gate');
+  }
+} catch (err: any) {
+  fail('r23-truth-field-write-firewall-gate', err.message);
+}
+
+// ---------------------------------------------------------------------------
+// Gate 25: R24 readonly truth fields + canonical builder boundary
+// ---------------------------------------------------------------------------
+
+console.log('\n=== Constitutional Migration Gate: 25. Readonly-truth-fields ===\n');
+
+try {
+  const r24Result = spawnSync(
+    'npx',
+    ['tsx', 'scripts/verify-selling-houses-r24-readonly-truth-fields-gate.ts'],
+    { stdio: 'inherit', shell: process.platform === 'win32', timeout: 600_000 },
+  );
+
+  if (r24Result.error) {
+    fail('r24-readonly-truth-fields-gate', r24Result.error.message);
+  } else if (r24Result.status !== 0) {
+    fail('r24-readonly-truth-fields-gate', `exit ${r24Result.status}`);
+  } else {
+    pass('r24-readonly-truth-fields-gate');
+  }
+} catch (err: any) {
+  fail('r24-readonly-truth-fields-gate', err.message);
+}
+
+// ---------------------------------------------------------------------------
+// Gate 26: R25 terminal fact readonly soldPrice + contract-derived mirrors
+// ---------------------------------------------------------------------------
+
+console.log('\n=== Constitutional Migration Gate: 26. Terminal-fact-readonly-sold-price ===\n');
+
+try {
+  const r25Result = spawnSync(
+    'npx',
+    ['tsx', 'scripts/verify-selling-houses-r25-terminal-fact-readonly-sold-price-gate.ts'],
+    { stdio: 'inherit', shell: process.platform === 'win32', timeout: 600_000 },
+  );
+
+  if (r25Result.error) {
+    fail('r25-terminal-fact-readonly-sold-price-gate', r25Result.error.message);
+  } else if (r25Result.status !== 0) {
+    fail('r25-terminal-fact-readonly-sold-price-gate', `exit ${r25Result.status}`);
+  } else {
+    pass('r25-terminal-fact-readonly-sold-price-gate');
+  }
+} catch (err: any) {
+  fail('r25-terminal-fact-readonly-sold-price-gate', err.message);
+}
+
+// ---------------------------------------------------------------------------
+// Gate 27: R26 consensus trajectory final battle + proof-derived contracts
+// ---------------------------------------------------------------------------
+
+console.log('\n=== Constitutional Migration Gate: 27. Consensus-trajectory-final ===\n');
+
+try {
+  const r26Result = spawnSync(
+    'npx',
+    ['tsx', 'scripts/verify-selling-houses-r26-consensus-trajectory-final-gate.ts'],
+    { stdio: 'inherit', shell: process.platform === 'win32', timeout: 600_000 },
+  );
+
+  if (r26Result.error) {
+    fail('r26-consensus-trajectory-final-gate', r26Result.error.message);
+  } else if (r26Result.status !== 0) {
+    fail('r26-consensus-trajectory-final-gate', `exit ${r26Result.status}`);
+  } else {
+    pass('r26-consensus-trajectory-final-gate');
+  }
+} catch (err: any) {
+  fail('r26-consensus-trajectory-final-gate', err.message);
+}
+
+// ---------------------------------------------------------------------------
+// Gate 28: R27 no fallback, full constitutional green
+// ---------------------------------------------------------------------------
+
+console.log('\n=== Constitutional Migration Gate: 28. No-fallback-full-constitutional-green ===\n');
+
+try {
+  const r27Result = spawnSync(
+    'npx',
+    ['tsx', 'scripts/verify-selling-houses-r27-no-fallback-full-constitutional-green-gate.ts'],
+    { stdio: 'inherit', shell: process.platform === 'win32', timeout: 600_000 },
+  );
+
+  if (r27Result.error) {
+    fail('r27-no-fallback-full-constitutional-green-gate', r27Result.error.message);
+  } else if (r27Result.status !== 0) {
+    fail('r27-no-fallback-full-constitutional-green-gate', `exit ${r27Result.status}`);
+  } else {
+    pass('r27-no-fallback-full-constitutional-green-gate');
+  }
+} catch (err: any) {
+  fail('r27-no-fallback-full-constitutional-green-gate', err.message);
+}
+
+// ---------------------------------------------------------------------------
+// R12/R13: Canonical contract drift guard — no duplicated field bodies
+// ---------------------------------------------------------------------------
+
+console.log('\n=== Constitutional Migration Gate: R12 Contract Drift Guard ===\n');
+
+const canonicalContractsPath = resolve('src/selling-houses/core/world-state/legacyCompatibilityContracts.ts');
+const evaluationContractsPath = resolve('src/selling-houses/core/evaluation/legacyEvaluationContracts.ts');
+const worldContractsPath = resolve('src/selling-houses/core/world-state/legacyWorldAdapterContracts.ts');
+
+if (canonicalContractsPath && evaluationContractsPath && worldContractsPath) {
+  const evalSrc = readFileSync(evaluationContractsPath, 'utf-8');
+  const worldSrc = readFileSync(worldContractsPath, 'utf-8');
+
+  // Count field lines (lines like `  fieldName: Type;` or `  fieldName?: Type;`)
+  const evalFieldLines = evalSrc.split('\n').filter(l => l.trim().match(/^\w+(\?)?: [A-Za-z]/)).length;
+  const worldFieldLines = worldSrc.split('\n').filter(l => l.trim().match(/^\w+(\?)?: [A-Za-z]/)).length;
+
+  if (evalFieldLines < 20) {
+    pass('contract-drift: evaluation contract has no duplicated field body', `${evalFieldLines} field lines (canonical kernel derived)`);
+  } else {
+    fail('contract-drift: evaluation contract still has duplicated field body', `${evalFieldLines} field lines — should derive from canonical kernel`);
+  }
+
+  if (worldFieldLines < 20) {
+    pass('contract-drift: world-state contract has no duplicated field body', `${worldFieldLines} field lines (canonical kernel derived)`);
+  } else {
+    fail('contract-drift: world-state contract still has duplicated field body', `${worldFieldLines} field lines — should derive from canonical kernel`);
+  }
+
+  // Check that canonical kernel exists and has the right exports
+  const canonicalSrc = readFileSync(canonicalContractsPath, 'utf-8');
+  const requiredExports = ['LegacyCanonicalCaseLike', 'LegacyCanonicalOpportunityLike', 'LegacyCanonicalGameStateLike'];
+  for (const name of requiredExports) {
+    if (canonicalSrc.includes(name)) {
+      pass(`contract-drift: canonical kernel exports ${name}`);
+    } else {
+      fail(`contract-drift: canonical kernel missing ${name}`);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Final verdict
 // ---------------------------------------------------------------------------
 

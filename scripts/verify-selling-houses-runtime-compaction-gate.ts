@@ -346,6 +346,7 @@ const bigRuntime: BigWorldRuntimeState = {
   coldLedgerSummaries: makeBulkColdSummaries(80),
   economicResourceLedger: [],
   actionResourceReceipts: [],
+  persistedSourceRecords: [],
   totalEventsEmitted: 6000,
   totalMutationsEmitted: 3000,
   tickCount: 100,
@@ -374,6 +375,7 @@ const runtimeA: BigWorldRuntimeState = {
   coldLedgerSummaries: makeBulkColdSummaries(80),
   economicResourceLedger: [],
   actionResourceReceipts: [],
+  persistedSourceRecords: [],
   totalEventsEmitted: 3000,
   totalMutationsEmitted: 1500,
   tickCount: 50,
@@ -388,6 +390,7 @@ const runtimeB: BigWorldRuntimeState = {
   coldLedgerSummaries: makeBulkColdSummaries(80),
   economicResourceLedger: [],
   actionResourceReceipts: [],
+  persistedSourceRecords: [],
   totalEventsEmitted: 3000,
   totalMutationsEmitted: 1500,
   tickCount: 50,
@@ -418,6 +421,7 @@ const perfRuntime: BigWorldRuntimeState = {
   coldLedgerSummaries: makeBulkColdSummaries(120),
   economicResourceLedger: [],
   actionResourceReceipts: [],
+  persistedSourceRecords: [],
   totalEventsEmitted: 10000,
   totalMutationsEmitted: 5000,
   tickCount: 200,
@@ -478,6 +482,7 @@ const customPolicy: WorldRuntimeCompactionPolicy = {
   maxCausalRefsPerEvent: 4,
   compactAfterDays: 7,
   maxTotalCausalEvents: 200,
+  maxPersistedSourceRecords: 500,
 };
 
 const customRuntime: BigWorldRuntimeState = {
@@ -488,6 +493,7 @@ const customRuntime: BigWorldRuntimeState = {
   coldLedgerSummaries: makeBulkColdSummaries(30),
   economicResourceLedger: [],
   actionResourceReceipts: [],
+  persistedSourceRecords: [],
   totalEventsEmitted: 2000,
   totalMutationsEmitted: 1000,
   tickCount: 30,

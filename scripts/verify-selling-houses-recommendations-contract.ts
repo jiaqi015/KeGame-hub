@@ -10,6 +10,7 @@ import {
 import { getActionAvailability } from '../src/selling-houses/domain/engine.js';
 import { getScenarioSnapshotById } from '../src/selling-houses/domain/scenarioCatalog.js';
 import { REC_BALANCE, deriveCaseRecommendations } from '../src/selling-houses/domain/recommendationEngine.js';
+import { asWritableCase } from '../src/selling-houses/domain/models.js';
 import type { GameState, Opportunity } from '../src/selling-houses/domain/models.js';
 
 const snapshot = getScenarioSnapshotById('standard-window-chain');
@@ -33,16 +34,16 @@ function createRecommendationWorld(seed = 20260428): GameState {
   world.opportunities = [];
   world.productRuns = [];
   world.cases.forEach((caseItem) => {
-    caseItem.status = 'active';
+    asWritableCase(caseItem).status = 'active';
     caseItem.hasCompletedFirstVisit = true;
     caseItem.lastOwnerTouchedDay = world.day - 1;
     caseItem.lastTouchedDay = world.day - 1;
     caseItem.touchedToday = false;
     caseItem.touchedOwnerToday = false;
     caseItem.windowDays = 10;
-    caseItem.trust = 72;
-    caseItem.patience = 72;
-    caseItem.urgency = 55;
+    asWritableCase(caseItem).trust = 72;
+    asWritableCase(caseItem).patience = 72;
+    asWritableCase(caseItem).urgency = 55;
     caseItem.heat = 62;
     caseItem.qualityStory = 1;
     caseItem.viewings = 0;
@@ -353,8 +354,8 @@ function assertArrangementCandidatesExecutable(
   matureCase.viewings = 2;
   matureCase.offers = 0;
   matureCase.lastOwnerTouchedDay = world.day - 3;
-  matureCase.trust = 74;
-  matureCase.patience = 72;
+  asWritableCase(matureCase).trust = 74;
+  asWritableCase(matureCase).patience = 72;
   matureCase.windowDays = 10;
   world.opportunities = [
     buildOpportunity(world, matureCase.id, {
@@ -383,9 +384,9 @@ function assertArrangementCandidatesExecutable(
   assert.ok(slidingCase, 'Expected a sliding-label opportunity case');
   slidingCase.viewings = 2;
   slidingCase.lastOwnerTouchedDay = world.day - 3;
-  slidingCase.trust = 74;
-  slidingCase.patience = 72;
-  slidingCase.urgency = 55;
+  asWritableCase(slidingCase).trust = 74;
+  asWritableCase(slidingCase).patience = 72;
+  asWritableCase(slidingCase).urgency = 55;
   slidingCase.windowDays = 10;
   world.opportunities = [
     buildOpportunity(world, slidingCase.id, {

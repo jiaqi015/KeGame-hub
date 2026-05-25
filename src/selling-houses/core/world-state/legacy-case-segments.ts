@@ -6,15 +6,10 @@ import {
   type LegacyCaseFieldOwnershipEntry,
   type LegacyCaseFieldRole,
 } from './legacy-case-field-ownership.js';
+import { deepFreeze, type DeepReadonly } from '../util/deepFreeze.js';
 
-type Primitive = string | number | boolean | bigint | symbol | null | undefined;
-
-export type LegacyCaseReadonlyDeep<T> =
-  T extends Primitive ? T
-    : T extends (...args: any[]) => unknown ? T
-      : T extends readonly (infer Item)[] ? readonly LegacyCaseReadonlyDeep<Item>[]
-        : T extends object ? { readonly [Key in keyof T]: LegacyCaseReadonlyDeep<T[Key]> }
-          : T;
+/** @deprecated Use DeepReadonly<T> from core/util/deepFreeze.js instead */
+export type LegacyCaseReadonlyDeep<T> = DeepReadonly<T>;
 
 export const LEGACY_CASE_SEGMENT_KEYS = [
   'assetCaseFields',
@@ -116,20 +111,8 @@ function clonePlainValue<T>(value: T): T {
   ) as T;
 }
 
-function freezeDeep<T>(value: T): LegacyCaseReadonlyDeep<T> {
-  if (!value || typeof value !== 'object') {
-    return value as LegacyCaseReadonlyDeep<T>;
-  }
-
-  for (const nested of Object.values(value as Record<string, unknown>)) {
-    freezeDeep(nested);
-  }
-
-  return Object.freeze(value) as LegacyCaseReadonlyDeep<T>;
-}
-
-function cloneReadonlyValue<T>(value: T): LegacyCaseReadonlyDeep<T> {
-  return freezeDeep(clonePlainValue(value));
+function cloneReadonlyValue<T>(value: T): DeepReadonly<T> {
+  return deepFreeze(clonePlainValue(value));
 }
 
 function buildSegmentField<Field extends LegacyCaseField>(

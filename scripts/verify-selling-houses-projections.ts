@@ -24,6 +24,7 @@ import { getSlotRemainingCapacity, hasTodayPlanDuplicate, markTodayPlanItemCompl
 import { getActionTemplate, isScenarioAction } from '../src/selling-houses/domain/actions/templates';
 import { ACTION_BY_ID } from '../src/selling-houses/domain/actions/definitions';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { asWritableCase, asWritableOpportunity } from '../src/selling-houses/domain/models';
 
 function buildWorld() {
   const snapshot = getScenarioSnapshotById('standard-window-chain');
@@ -665,7 +666,7 @@ function assertWeeklySummaryStageChangesAreCausal(world: ReturnType<typeof build
   world.cases
     .filter((entry) => entry.id !== caseItem.id)
     .forEach((entry) => {
-      entry.status = 'withdrawn';
+      asWritableCase(entry).status = 'withdrawn';
     });
   const baseOpportunity = world.opportunities.find((entry) => entry.caseId === caseItem.id && entry.status === 'active')
     || world.opportunities[0];
@@ -728,7 +729,7 @@ function assertWeeklySummaryStageChangesAreCausal(world: ReturnType<typeof build
   if (opportunity) {
     opportunity.visibility = 'revealed';
     opportunity.daysLeft = 0.2;
-    opportunity.stageIndex = 4;
+    asWritableOpportunity(opportunity).stageIndex = 4;
     opportunity.stageLabel = '确认客户需求';
   }
   updateDerivedState(world);
@@ -849,13 +850,13 @@ function assertWeeklySummaryStageChangesAreCausal(world: ReturnType<typeof build
     throw new Error('Expected revealed opportunity for MyWechat projection verification');
   }
 
-  targetCase.urgency = 92;
+  asWritableCase(targetCase).urgency = 92;
   targetCase.heat = 36;
   targetCase.askPrice = Math.round(targetCase.marketPrice * 1.12);
   targetCase.priceGapPct = Math.round(((targetCase.askPrice - targetCase.marketPrice) / targetCase.marketPrice) * 1000) / 10;
   targetCase.lastOwnerTouchedDay = Math.max(0, world.day - 4);
   targetOpportunity.visibility = 'revealed';
-  targetOpportunity.stageIndex = 2;
+  asWritableOpportunity(targetOpportunity).stageIndex = 2;
   targetOpportunity.intent = 86;
   targetOpportunity.priceSensitivity = 82;
   targetOpportunity.daysLeft = 1;
@@ -974,7 +975,7 @@ function assertWeeklySummaryStageChangesAreCausal(world: ReturnType<typeof build
     throw new Error('Expected opportunity for weekend interrupt verification');
   }
   targetOpportunity.visibility = 'revealed';
-  targetOpportunity.stageIndex = Math.max(targetOpportunity.stageIndex, 2);
+  asWritableOpportunity(targetOpportunity).stageIndex = Math.max(targetOpportunity.stageIndex, 2);
   targetOpportunity.intent = Math.max(targetOpportunity.intent, 76);
   updateDerivedState(world);
 
@@ -1032,11 +1033,11 @@ function assertWeeklySummaryStageChangesAreCausal(world: ReturnType<typeof build
 
   caseItem.askPrice = caseItem.marketPrice;
   caseItem.hasCompletedFirstVisit = true;
-  caseItem.trust = 100;
+  asWritableCase(caseItem).trust = 100;
   caseItem.competitiveness = 100;
   opportunity.intent = 100;
   opportunity.confidence = 100;
-  opportunity.stageIndex = 4;
+  asWritableOpportunity(opportunity).stageIndex = 4;
   opportunity.daysLeft = 3;
   updateDerivedState(world);
 

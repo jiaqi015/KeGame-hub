@@ -1,7 +1,7 @@
 import { CASE_STAGES, OPPORTUNITY_STAGES } from './constants.js';
 import type { Case, GameState, Opportunity } from './models.js';
 import { clamp, getOpportunityPriority } from './utils.js';
-import { setOpportunityStageIndexOnState, setOpportunityTouchedTodayOnState } from './opportunitySplitHelper.js';
+import { setOpportunityStageIndexOnState, setOpportunityTouchedTodayOnState, syncCaseStageMirrorFromCaseProgressionOnState } from './opportunitySplitHelper.js';
 
 export type CaseProgressPhase =
   | 'pre_visit'
@@ -329,7 +329,7 @@ export function applyActionStageRelation(
   }
 
   if (Number.isFinite(relation.caseStageFloor)) {
-    caseItem.stageIndex = Math.max(caseItem.stageIndex, relation.caseStageFloor || 0);
+    syncCaseStageMirrorFromCaseProgressionOnState(caseItem, { legacyStageIndex: Math.max(caseItem.stageIndex, relation.caseStageFloor || 0) }, 6);
   }
   if (Number.isFinite(relation.caseOffersFloor)) {
     caseItem.offers = Math.max(caseItem.offers, relation.caseOffersFloor || 0);

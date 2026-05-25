@@ -31,6 +31,30 @@ import {
 } from '../core/world-state/trustWriteSource.js';
 
 import type { GameState, Case } from './models.js';
+import { asWritableCase } from './models.js';
+
+// ---------------------------------------------------------------------------
+// R23: Named mirror-sync boundary for Case.trust
+// ---------------------------------------------------------------------------
+
+/**
+ * Sync legacy Case.trust mirror from canonical BrokerOwnerRelationTrustState.
+ *
+ * R23: This is the ONLY allowed write path for Case.trust mirror field.
+ * All trust mutation helpers must call this function instead of writing
+ * `caseItem.trust =` directly.
+ *
+ * @param caseItem - the legacy Case object to sync
+ * @param canonicalState - the canonical trust state (source of truth)
+ * @param provenance - 'canonical-delta' for normal mutations, 'clamp' for boundary clamps
+ */
+export function syncLegacyCaseTrustMirror(
+  caseItem: Case,
+  canonicalState: BrokerOwnerRelationTrustState,
+  provenance: 'canonical-delta' | 'clamp',
+): void {
+  asWritableCase(caseItem).trust = deriveCaseTrustMirror(canonicalState);
+}
 
 // ---------------------------------------------------------------------------
 // TrustWriteResult: returned by all trust mutation helpers
@@ -144,8 +168,8 @@ export function setBrokerOwnerTrust(
   // Persist to GameState
   persistTrustState(state, clampedState);
 
-  // Sync Case.trust mirror
-  caseItem.trust = deriveCaseTrustMirror(clampedState);
+  // Sync Case.trust mirror via named boundary (R23)
+  syncLegacyCaseTrustMirror(caseItem, clampedState, 'canonical-delta');
 
   return {
     mirrorTrust: caseItem.trust,
@@ -192,8 +216,8 @@ export function applyBrokerOwnerTrustDelta(
   // Persist to GameState
   persistTrustState(state, clampedState);
 
-  // Sync Case.trust mirror
-  caseItem.trust = deriveCaseTrustMirror(clampedState);
+  // Sync Case.trust mirror via named boundary (R23)
+  syncLegacyCaseTrustMirror(caseItem, clampedState, 'canonical-delta');
 
   return {
     mirrorTrust: caseItem.trust,
@@ -249,8 +273,8 @@ export function clampBrokerOwnerTrust(
   // Persist to GameState
   persistTrustState(state, newState);
 
-  // Sync Case.trust mirror
-  caseItem.trust = deriveCaseTrustMirror(newState);
+  // Sync Case.trust mirror via named boundary (R23)
+  syncLegacyCaseTrustMirror(caseItem, newState, 'canonical-delta');
 
   return {
     mirrorTrust: caseItem.trust,

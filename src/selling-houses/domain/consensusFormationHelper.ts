@@ -33,9 +33,11 @@ import {
   markConsensusSigned as markSignedCore,
   markConsensusCollapsed as markCollapsedCore,
   createContractFactState as createContractCore,
+  createContractFactFromProof as createContractFromProofCore,
   createOpportunityClosureSetState as createClosureCore,
   deriveLegacyClosedDealMirror,
 } from '../core/world-state/consensus/writeSource.js';
+import type { PriceConsensusProof } from '../core/world-state/consensus/priceTrajectory.js';
 
 // Re-export types for domain consumers
 export type {
@@ -134,6 +136,7 @@ export function setConsensusEvaluationOnState(
     blockers: readonly string[];
     supportingFactors: readonly string[];
     strategyId?: string;
+    weightExplanations?: readonly import('../core/world-state/consensus/priceTrajectory.js').WeightExplanation[];
   },
   day: number,
   reason: string,
@@ -212,6 +215,7 @@ export function createContractFactOnState(
   resolvedBlockers: readonly string[],
   supportingFactors: readonly string[],
   sourceEventRefs: readonly string[] = [],
+  weightExplanations: readonly import('../core/world-state/consensus/priceTrajectory.js').WeightExplanation[] = [],
 ): ContractFactState | undefined {
   // Duplicate guard: one contract per case (same case can't be sold twice)
   const existing = findContractForCase(state, caseId);
@@ -222,14 +226,64 @@ export function createContractFactOnState(
     consensusId, brokeredOpportunityId, caseId, customerId,
     dealPrice, dealType, signedDay, sourceClosedDealId,
     closeReadiness, closeProbability, resolvedBlockers, supportingFactors,
-    sourceEventRefs,
+    sourceEventRefs, weightExplanations,
   );
   contracts.push(created);
   return created;
 }
 
-// ---------------------------------------------------------------------------
-// Closure set helpers (with GameState persistence)
+/**
+ * R26: Create a ContractFact from a validated PriceConsensusProof.
+ * Production deal closing must use this — not the scalar API.
+ * The proof's agreedPrice becomes the contract's dealPrice.
+ */
+export function createContractFactFromPriceConsensusOnState(
+  state: GameState,
+  consensusId: string,
+  brokeredOpportunityId: string,
+  caseId: string,
+  customerId: string,
+  dealType: string,
+  signedDay: number,
+  sourceClosedDealId: string,
+  closeReadiness: number,
+  closeProbability: number,
+  resolvedBlockers: readonly string[],
+  supportingFactors: readonly string[],
+  proof: PriceConsensusProof,
+): ContractFactState | undefined {
+  const existing = findContractForCase(state, caseId);
+  if (existing) return undefined;
+
+  const { contracts } = ensureConsensusRuntime(state);
+  const created = createContractFromProofCore(
+    consensusId, brokeredOpportunityId, caseId, customerId,
+    dealType, signedDay, sourceClosedDealId,
+    closeReadiness, closeProbability,
+    resolvedBlockers, supportingFactors,
+    proof,
+  );
+  contracts.push(created);
+  return created;
+}
+
+/**
+ * R26: Mark consensus signed with price proof evidence.
+ * The proof's source refs become the consensus signing evidence.
+ */
+export function markConsensusSignedFromPriceConsensusOnState(
+  state: GameState,
+  brokeredOpportunityId: string,
+  day: number,
+  proof: PriceConsensusProof,
+): ConsensusFormationRecord | undefined {
+  return markConsensusSignedOnState(
+    state,
+    brokeredOpportunityId,
+    day,
+    `price consensus proof: ${proof.proofId}`,
+  );
+}
 // ---------------------------------------------------------------------------
 
 export function createOpportunityClosureOnState(

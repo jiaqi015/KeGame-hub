@@ -356,3 +356,198 @@ export function buildPriceTrajectoryFromDealClosingEvaluation(params: {
     ]),
   });
 }
+
+// ---------------------------------------------------------------------------
+// Stage derivation from PriceTrajectory
+// ---------------------------------------------------------------------------
+
+export type TrajectoryDerivedStage = 'formal_offer' | 'tentative_alignment' | 'negotiable_zone' | 'price_gap_visible' | 'no_evidence';
+
+/**
+ * Derive a consensus-stage-like label from PriceTrajectory evidence.
+ * Uses offer/concession presence and gap convergence — not stageIndex.
+ */
+export function deriveStageIndexFromPriceTrajectory(trajectory: PriceTrajectory): TrajectoryDerivedStage {
+  const hasOffers = trajectory.offers.length >= 1;
+  const hasConcessions = trajectory.concessions.length >= 1;
+
+  if (!hasOffers && !hasConcessions) return 'no_evidence';
+
+  const lastGap = trajectory.convergenceCurve[trajectory.convergenceCurve.length - 1]?.gap ?? Infinity;
+
+  if (hasOffers && hasConcessions) {
+    if (lastGap <= 5) return 'formal_offer';
+    if (lastGap <= 20) return 'tentative_alignment';
+    return 'negotiable_zone';
+  }
+
+  if (hasOffers || hasConcessions) {
+    return 'price_gap_visible';
+  }
+
+  return 'no_evidence';
+}
+
+/**
+ * Assert that a PriceTrajectory has at least one BuyerOffer and one OwnerConcession.
+ * Required for signed/contract paths — a consensus cannot form without both parties
+ * having made a price move.
+ */
+export function assertTrajectoryHasOfferAndConcession(trajectory: PriceTrajectory): {
+  valid: boolean;
+  hasBuyerOffer: boolean;
+  hasOwnerConcession: boolean;
+  missing: readonly string[];
+} {
+  const hasBuyerOffer = trajectory.offers.length >= 1;
+  const hasOwnerConcession = trajectory.concessions.length >= 1;
+  const missing: string[] = [];
+  if (!hasBuyerOffer) missing.push('no buyer offer');
+  if (!hasOwnerConcession) missing.push('no owner concession');
+  return {
+    valid: hasBuyerOffer && hasOwnerConcession,
+    hasBuyerOffer,
+    hasOwnerConcession,
+    missing: Object.freeze(missing),
+  };
+}
+
+/**
+ * Derive ConsensusStage from PriceTrajectory for critical closing paths.
+ * Returns fallback for non-trajectory evidence paths (marked as legacy).
+ */
+export function deriveConsensusStatusFromTrajectory(
+  trajectory: PriceTrajectory | undefined,
+  fallbackStatus?: string,
+): { status: string; source: 'trajectory' | 'legacy_fallback' } {
+  if (trajectory) {
+    const validation = assertTrajectoryHasOfferAndConcession(trajectory);
+    if (validation.valid) {
+      const stage = deriveStageIndexFromPriceTrajectory(trajectory);
+      return { status: stage, source: 'trajectory' };
+    }
+  }
+  return { status: fallbackStatus ?? 'price_gap_visible', source: 'legacy_fallback' };
+}
+
+// ---------------------------------------------------------------------------
+// PriceConsensusProof: the bridge from trajectory + readiness to contract
+// ---------------------------------------------------------------------------
+
+export interface PriceConsensusProof {
+  readonly proofId: string;
+  readonly trajectory: PriceTrajectory;
+  readonly readiness: PriceConsensusReadiness;
+  readonly buyerOffer: BuyerOffer;
+  readonly ownerConcession: OwnerConcession;
+  readonly agreedPrice: number;
+  readonly sourceEventRefs: readonly string[];
+  readonly weightExplanations: readonly WeightExplanation[];
+  readonly proofKind: 'canonical' | 'legacy_compatibility_projection';
+}
+
+// ---------------------------------------------------------------------------
+// buildPriceConsensusProof
+// ---------------------------------------------------------------------------
+// Creates a proof object from trajectory + readiness. The proof is frozen.
+// Validated: offer/concession present, readiness ready, prices converge.
+
+export function buildPriceConsensusProof(input: {
+  readonly trajectory: PriceTrajectory;
+  readonly readiness: PriceConsensusReadiness;
+  readonly requiredProofKind?: 'canonical' | 'legacy_compatibility_projection';
+}): PriceConsensusProof {
+  const { trajectory, readiness, requiredProofKind } = input;
+  const proofKind = requiredProofKind ?? trajectory.source;
+
+  const lastOffer = trajectory.offers[trajectory.offers.length - 1];
+  const lastConcession = trajectory.concessions[trajectory.concessions.length - 1];
+
+  if (!lastOffer) throw new Error('PriceConsensusProof: trajectory has no buyer offers');
+  if (!lastConcession) throw new Error('PriceConsensusProof: trajectory has no owner concessions');
+
+  // Agreed price: the last offer price (both converge to same in deal closing)
+  const agreedPrice = readiness.buyerAcceptedPrice ?? lastOffer.price;
+
+  const sourceEventRefs = Object.freeze([
+    trajectory.trajectoryId,
+    readiness.readinessId,
+    lastOffer.offerId,
+    lastConcession.concessionId,
+    ...trajectory.evidenceRefs,
+    ...readiness.weightExplanations.map(w => w.factor),
+  ]);
+
+  const proofId = `proof:${trajectory.trajectoryId}:${readiness.readinessId}`;
+
+  return Object.freeze({
+    proofId,
+    trajectory,
+    readiness,
+    buyerOffer: lastOffer,
+    ownerConcession: lastConcession,
+    agreedPrice,
+    sourceEventRefs,
+    weightExplanations: readiness.weightExplanations,
+    proofKind,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// validatePriceConsensusProof
+// ---------------------------------------------------------------------------
+// Pure validation — no runtime imports. Returns valid + reasons.
+
+export function validatePriceConsensusProof(proof: PriceConsensusProof): {
+  readonly valid: boolean;
+  readonly reasons: readonly string[];
+} {
+  const reasons: string[] = [];
+
+  // Trajectory must have at least one offer
+  if (proof.trajectory.offers.length < 1) {
+    reasons.push('trajectory has no buyer offers');
+  }
+
+  // Trajectory must have at least one concession
+  if (proof.trajectory.concessions.length < 1) {
+    reasons.push('trajectory has no owner concessions');
+  }
+
+  // Readiness must be ready
+  if (!proof.readiness.ready) {
+    reasons.push(`readiness not ready (score ${proof.readiness.score}, blockers: ${proof.readiness.blockers.join(', ')})`);
+  }
+
+  // Readiness must point to same trajectory
+  if (proof.readiness.trajectoryId !== proof.trajectory.trajectoryId) {
+    reasons.push(`readiness trajectory ${proof.readiness.trajectoryId} != proof trajectory ${proof.trajectory.trajectoryId}`);
+  }
+
+  // Agreed price must be finite and positive
+  if (!Number.isFinite(proof.agreedPrice) || proof.agreedPrice <= 0) {
+    reasons.push(`agreed price ${proof.agreedPrice} is not finite positive`);
+  }
+
+  // Buyer offer price and owner concession price must converge within tolerance
+  if (proof.buyerOffer && proof.ownerConcession) {
+    const gap = Math.abs(proof.buyerOffer.price - proof.ownerConcession.price);
+    if (gap > proof.readiness.requiredGap) {
+      reasons.push(`offer/concession gap ${gap} exceeds required ${proof.readiness.requiredGap}`);
+    }
+  }
+
+  // Source refs must include trajectory and readiness refs
+  const refs = proof.sourceEventRefs;
+  if (!refs.some(r => r.startsWith('ptraj:'))) {
+    reasons.push('source refs missing trajectory ref');
+  }
+  if (!refs.some(r => r.startsWith('pready:'))) {
+    reasons.push('source refs missing readiness ref');
+  }
+
+  return Object.freeze({
+    valid: reasons.length === 0,
+    reasons: Object.freeze(reasons),
+  });
+}

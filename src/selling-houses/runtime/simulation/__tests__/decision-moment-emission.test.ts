@@ -13,6 +13,7 @@ import {
 } from '../../../domain/engine';
 import { getScenarioSnapshotById } from '../../../domain/scenarioCatalog';
 import type { GameState, Case } from '../../../domain/models';
+import { asWritableCase, asWritableOpportunity } from '../../../domain/models';
 import type { Settlement } from '../../../domain/actions/templates';
 
 function buildWorld(): GameState {
@@ -42,7 +43,7 @@ function advanceOppsForCase(state: GameState, caseId: string, targetStage: numbe
   for (const opp of state.opportunities) {
     if (opp.caseId === caseId && opp.status === 'active') {
       hasActiveOpportunity = true;
-      opp.stageIndex = Math.max(opp.stageIndex, targetStage);
+      asWritableOpportunity(opp).stageIndex = Math.max(opp.stageIndex, targetStage);
       refreshOpportunityLabel(state, opp);
     }
   }
@@ -52,7 +53,7 @@ function advanceOppsForCase(state: GameState, caseId: string, targetStage: numbe
     if (!opportunity) {
       throw new Error(`Could not create opportunity for ${caseId}`);
     }
-    opportunity.stageIndex = Math.max(opportunity.stageIndex, targetStage);
+    asWritableOpportunity(opportunity).stageIndex = Math.max(opportunity.stageIndex, targetStage);
     refreshOpportunityLabel(state, opportunity);
   }
 }

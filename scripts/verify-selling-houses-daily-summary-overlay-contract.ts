@@ -6,6 +6,7 @@ import { createInitialState, updateDerivedState } from '../src/selling-houses/ap
 import { advanceOneDay, executeAction, seedInitialOpportunities } from '../src/selling-houses/domain/engine.js';
 import { getScenarioSnapshotById } from '../src/selling-houses/domain/scenarioCatalog.js';
 import { DailySummaryOverlay } from '../src/selling-houses/ui/features/DailySummaryOverlay.js';
+import { asWritableCase, asWritableOpportunity } from '../src/selling-houses/domain/models.js';
 
 const snapshot = getScenarioSnapshotById('standard-window-chain');
 assert.ok(snapshot, 'Expected standard-window-chain scenario to exist');
@@ -23,12 +24,12 @@ if (!opportunity) {
 }
 
 caseItem.askPrice = caseItem.marketPrice;
-caseItem.trust = 100;
+asWritableCase(caseItem).trust = 100;
 caseItem.competitiveness = 100;
 caseItem.hasCompletedFirstVisit = true;
 opportunity.intent = 100;
 opportunity.confidence = 100;
-opportunity.stageIndex = 4;
+asWritableOpportunity(opportunity).stageIndex = 4;
 opportunity.daysLeft = 3;
 updateDerivedState(world);
 

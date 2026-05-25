@@ -28,6 +28,7 @@ import {
 } from '../src/selling-houses/domain/world-model/bigWorldBootstrap.js';
 import { FIVE_X_SCALE_POLICY } from '../src/selling-houses/domain/world-model/bigWorldSpecFactory.js';
 import { buildMarketFormationSummary } from '../src/selling-houses/domain/world-model/marketFormationBootstrap.js';
+import { asWritableCase } from '../src/selling-houses/domain/models.js';
 import type { GameState } from '../src/selling-houses/domain/models.js';
 import type {
   BigWorldBootstrap,
@@ -92,11 +93,11 @@ function buildLongHorizonFiveXWorld(seed: number = FIVE_X_SEED): GameState {
   state.rules.outcomeControl.rivalCaseLossScale = 0;
   state.rules.rivalLossProbabilityScale = 0;
   for (const caseItem of state.cases) {
-    caseItem.status = 'active';
+    asWritableCase(caseItem).status = 'active';
     caseItem.windowDays = 120;
-    caseItem.trust = Math.max(caseItem.trust, 88);
-    caseItem.patience = Math.max(caseItem.patience, 88);
-    caseItem.urgency = Math.min(caseItem.urgency, 35);
+    asWritableCase(caseItem).trust = Math.max(caseItem.trust, 88);
+    asWritableCase(caseItem).patience = Math.max(caseItem.patience, 88);
+    asWritableCase(caseItem).urgency = Math.min(caseItem.urgency, 35);
     caseItem.heat = Math.max(caseItem.heat, 55);
     caseItem.competitiveness = Math.max(caseItem.competitiveness, 65);
   }

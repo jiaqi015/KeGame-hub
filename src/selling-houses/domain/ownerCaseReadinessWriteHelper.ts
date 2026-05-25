@@ -32,6 +32,31 @@ import {
 } from '../core/world-state/ownerCaseReadinessWriteSource.js';
 
 import type { GameState, Case } from './models.js';
+import { asWritableCase } from './models.js';
+
+// ---------------------------------------------------------------------------
+// R23: Named mirror-sync boundary for Case.patience / Case.urgency
+// ---------------------------------------------------------------------------
+
+/**
+ * Sync legacy Case patience/urgency mirrors from canonical OwnerCaseReadinessState.
+ *
+ * R23: This is the ONLY allowed write path for Case.patience and Case.urgency
+ * mirror fields. All readiness mutation helpers must call this function instead
+ * of writing `caseItem.patience =` or `caseItem.urgency =` directly.
+ *
+ * @param caseItem - the legacy Case object to sync
+ * @param canonicalState - the canonical readiness state (source of truth)
+ * @param provenance - 'canonical-delta' for normal mutations, 'clamp' for boundary clamps
+ */
+export function syncLegacyCaseReadinessMirrors(
+  caseItem: Case,
+  canonicalState: OwnerCaseReadinessState,
+  provenance: 'canonical-delta' | 'clamp',
+): void {
+  asWritableCase(caseItem).patience = deriveCasePatienceMirror(canonicalState);
+  asWritableCase(caseItem).urgency = deriveCaseUrgencyMirror(canonicalState);
+}
 
 // ---------------------------------------------------------------------------
 // OwnerCaseReadinessWriteResult: returned by all readiness mutation helpers
@@ -105,9 +130,9 @@ export function applyPatienceDelta(
     state.runtimeOwnerCaseReadinessStates![idx] = newState;
   }
 
-  // Sync Case mirror
+  // Sync Case mirror via named boundary (R23)
+  syncLegacyCaseReadinessMirrors(caseItem, newState, 'canonical-delta');
   const mirrorPatience = deriveCasePatienceMirror(newState);
-  caseItem.patience = mirrorPatience;
 
   return {
     mirrorPatience,
@@ -143,9 +168,9 @@ export function applyUrgencyDelta(
     state.runtimeOwnerCaseReadinessStates![idx] = newState;
   }
 
-  // Sync Case mirror
+  // Sync Case mirror via named boundary (R23)
+  syncLegacyCaseReadinessMirrors(caseItem, newState, 'canonical-delta');
   const mirrorUrgency = deriveCaseUrgencyMirror(newState);
-  caseItem.urgency = mirrorUrgency;
 
   return {
     mirrorPatience: caseItem.patience,

@@ -31,7 +31,7 @@ import { seedInitialOpportunities } from '../src/selling-houses/domain/engine/op
 import { queueDealClosingEvaluation, settlePendingDealClosings, buildClosedDealRecord } from '../src/selling-houses/domain/dealClosing.js';
 import { ensureConsensusRuntime, findConsensusForOpportunity } from '../src/selling-houses/domain/consensusFormationHelper.js';
 import { findBrokeredStateForOpportunity, initializeOpportunityRelations } from '../src/selling-houses/domain/opportunitySplitHelper.js';
-import { ensureMarketOutcomeState } from '../src/selling-houses/domain/models.js';
+import { asWritableCase, ensureMarketOutcomeState } from '../src/selling-houses/domain/models.js';
 import type { GameState, Opportunity } from '../src/selling-houses/domain/models.js';
 import type { ContractFactState, OpportunityClosureSetState } from '../src/selling-houses/core/world-state/consensus/writeSource.js';
 
@@ -42,6 +42,11 @@ import type { ContractFactState, OpportunityClosureSetState } from '../src/selli
 let passed = 0;
 let failed = 0;
 const errors: string[] = [];
+
+function pass(message: string) {
+  passed += 1;
+  console.log(`  [PASS] ${message}`);
+}
 
 function check(condition: boolean, message: string) {
   if (condition) {
@@ -85,10 +90,10 @@ function buildClosableState(seed: number): GameState {
     // Make its case closable: high trust, high competitiveness, askPrice ≤ marketPrice
     const caseItem = world.cases.find((c) => c.id === opp.caseId);
     if (caseItem) {
-      caseItem.trust = 80;
+      asWritableCase(caseItem).trust = 80;
       caseItem.competitiveness = 70;
       caseItem.askPrice = Math.min(caseItem.askPrice, caseItem.marketPrice);
-      caseItem.status = 'active';
+      asWritableCase(caseItem).status = 'active';
     }
   }
 
@@ -317,7 +322,8 @@ if (targetCase) {
               `ClosureSet.closedOpportunityIds includes all ${losingOpps.length} losing opportunities`,
             );
           } else {
-            check(true, 'no losing opportunities to verify in ClosureSet (single-buyer case)');
+            // No losing opportunities is valid for single-buyer cases
+            pass('no losing opportunities to verify in ClosureSet (single-buyer case)');
           }
         } else {
           check(false, 'OpportunityClosureSet created on success path');

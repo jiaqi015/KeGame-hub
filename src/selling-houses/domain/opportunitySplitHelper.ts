@@ -37,6 +37,7 @@ import {
 } from '../core/world-state/opportunity-relations/writeSource.js';
 
 import type { GameState, Opportunity, CustomerRuntimeState } from './models.js';
+import { asWritableOpportunity } from './models.js';
 import { OPPORTUNITY_STAGES } from './constants.js';
 import { clamp } from './utils.js';
 
@@ -215,7 +216,7 @@ function replaceBrokeredState(
     (o) => o.id === newBrokered.legacyOpportunityId,
   );
   if (legacyOpp) {
-    legacyOpp.stageIndex = mirror.stageIndex;
+    asWritableOpportunity(legacyOpp).stageIndex = mirror.stageIndex;
     legacyOpp.stageLabel = mirror.stageLabel;
     legacyOpp.status = mirror.status as Opportunity['status'];
     legacyOpp.lifecycleStatus = mirror.lifecycleStatus as Opportunity['lifecycleStatus'];
@@ -675,7 +676,7 @@ export function deprecatedUnsafeLegacyMirrorOnly_setOpportunityStageIndex(
   clampMin: number = 0,
   clampMax: number = 4,
 ): void {
-  opportunity.stageIndex = clamp(newStageIndex, clampMin, clampMax);
+  asWritableOpportunity(opportunity).stageIndex = clamp(newStageIndex, clampMin, clampMax);
   opportunity.stageLabel = OPPORTUNITY_STAGES[opportunity.stageIndex] || opportunity.stageLabel;
 }
 
@@ -1084,3 +1085,79 @@ export function setOpportunityPendingClosingOnState(
   const brokered = ensureBrokeredOpportunityState(state, opportunity, match.matchId);
   setOpportunityPendingClosingViaSplit(state, brokered, evaluation, strategyId, requestedDay, state.day, reason);
 }
+
+// ---------------------------------------------------------------------------
+// R20 Compatibility Stage Mirror Sync Helpers
+// ---------------------------------------------------------------------------
+// These are the ONLY allowed production write paths for late-stage (>= 4)
+// Opportunity/Customer/Case stage mirrors.
+// Late-stage mirrors must be backed by PriceTrajectory evidence.
+// ---------------------------------------------------------------------------
+
+import {
+  deriveOpportunityStageMirrorFromPriceTrajectory,
+  deriveLateStageFromPriceTrajectory,
+  assertLateStageHasTrajectoryEvidence,
+} from '../core/world-state/consensus/stageMirror.js';
+import type { PriceTrajectory } from '../core/world-state/consensus/priceTrajectory.js';
+
+/**
+ * Sync Opportunity stageIndex mirror from PriceTrajectory evidence.
+ * This is the canonical write path for negotiation/closing stage (>= 4).
+ * Lower stages may use setOpportunityStageIndexOnState directly.
+ *
+ * If trajectory provides no offer+concession evidence, stageIndex is capped at 3.
+ */
+export function syncOpportunityStageMirrorFromTrajectoryOnState(
+  state: GameState,
+  opportunity: Opportunity,
+  trajectory: PriceTrajectory | undefined,
+  lowerStageFallback: number,
+  reason: string,
+): number {
+  const derivedStage = deriveOpportunityStageMirrorFromPriceTrajectory(trajectory, lowerStageFallback);
+  setOpportunityStageIndexOnState(state, opportunity, derivedStage, reason);
+  return derivedStage;
+}
+
+/**
+ * Sync customer runtime stageIndex mirror from Opportunity stage.
+ * This is the canonical write path for customer runtime stage mirror.
+ * Caps runtime stage at opportunity's stage (bidirectional max sync).
+ */
+export function syncCustomerRuntimeStageMirrorFromOpportunityOnState(
+  state: GameState,
+  opportunity: Opportunity,
+  runtime: { stageIndex: number },
+  reason: string,
+): void {
+  const synced = Math.max(runtime.stageIndex, Math.min(5, opportunity.stageIndex));
+  runtime.stageIndex = synced;
+  // Also sync opportunity up if runtime was higher
+  if (synced > opportunity.stageIndex) {
+    setOpportunityStageIndexOnState(state, opportunity, synced, reason);
+  }
+}
+
+/**
+ * Sync Case stageIndex mirror from case progression / outcome state.
+ * This is the canonical write path for Case.stageIndex mirror.
+ * Sold/lost/withdrawn cases get terminal stage from outcome.
+ */
+export function syncCaseStageMirrorFromCaseProgressionOnState(
+  caseItem: { stageIndex: number; status: string },
+  progression: { legacyStageIndex: number },
+  maxStage: number,
+): void {
+  if (caseItem.status === 'sold' || caseItem.status === 'lost_to_rival' || caseItem.status === 'withdrawn') {
+    caseItem.stageIndex = progression.legacyStageIndex;
+  } else {
+    caseItem.stageIndex = Math.max(Math.min(caseItem.stageIndex, maxStage), progression.legacyStageIndex);
+  }
+}
+
+/**
+ * Validate that a late-stage write is backed by trajectory evidence.
+ * Use in gates and assertions — not in production hot paths.
+ */
+export { assertLateStageHasTrajectoryEvidence, deriveLateStageFromPriceTrajectory };

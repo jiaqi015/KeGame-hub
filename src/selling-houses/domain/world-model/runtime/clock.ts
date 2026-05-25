@@ -138,6 +138,14 @@ function generateAdditionalSourceRecords(
   // Build store lookup for listing→store ACN resolution
   const storeById = new Map(input.rivalStores.map((s) => [s.id, s]));
 
+  // Build case → customer IDs lookup (used for customer-visible manager signal)
+  const customersByCase = new Map<string, string[]>();
+  for (const opp of input.activeOpportunities) {
+    const existing = customersByCase.get(opp.caseId) ?? [];
+    if (!existing.includes(opp.customerId)) existing.push(opp.customerId);
+    customersByCase.set(opp.caseId, existing);
+  }
+
   // ── 1. RIVAL ACTION: reprice / new_listing / withdraw / open_day ──────
   //    Each day, 1-3 rival listings get acted on, with varying actions.
   const activeListings = input.rivalListings.filter((l) => l.status === 'active');
@@ -310,8 +318,9 @@ function generateAdditionalSourceRecords(
     const focusCase = sorted[0];
     const priority = Math.round(focusCase.urgency * 0.8 + focusCase.competitiveness * 0.2);
 
-    const subtypes: readonly string[] = ['focus_case_selected', 'resource_allocated', 'strategic_direction'];
-    const subtype = seededChoice(`${salt}-mm-sub`, subtypes);
+    // Primary message: focus_case_selected, resource_allocated, or strategic_direction
+    const baseSubtypes: readonly string[] = ['focus_case_selected', 'resource_allocated', 'strategic_direction'];
+    const subtype = seededChoice(`${salt}-mm-sub`, baseSubtypes);
 
     records.push({
       sourceId: `isr-mm-${day}-focus`,
@@ -338,6 +347,111 @@ function generateAdditionalSourceRecords(
       replayKey: `rk-mm-${runSeed}-${day}-focus`,
       origin: 'ecosystem_tick',
     } as InformationSourceRecord<'manager_message'>);
+
+    // ── 5b. coaching_delivered: broker needs guidance ──────────────────
+    //    Emitted when cases have low trust or high fatigue indicating broker friction.
+    const lowTrustCases = input.activeCases.filter((c) => c.trust < 40);
+    if (lowTrustCases.length > 0) {
+      const coachingCase = lowTrustCases[0];
+      records.push({
+        sourceId: `isr-mm-${day}-coaching`,
+        sourceKind: 'manager_message',
+        payload: {
+          subtype: 'coaching_delivered',
+          summary: `经理辅导: ${coachingCase.title} 信任${coachingCase.trust}偏低，建议加强关系维护`,
+          managerId: 'system-manager',
+          targetBrokerId: 'player-broker',
+          caseIds: [coachingCase.id],
+          priority: Math.round(40 + (50 - coachingCase.trust)),
+          instruction: `加强 ${coachingCase.title} 的业主关系维护，提升信任后再推进价格沟通`,
+        },
+        day,
+        phase: 'morning',
+        entityRefs: [{ id: coachingCase.id, kind: 'case' }],
+        actorRefs: [
+          { id: 'system-manager', role: 'manager' },
+          { id: 'player-broker', role: 'player_broker' },
+        ],
+        visibility: { scope: 'specific_actors', actorIds: ['player-broker', 'system-manager'], baseDelayDays: 0 },
+        confidence: 0.9,
+        delayDays: 0,
+        replayKey: `rk-mm-${runSeed}-${day}-coaching`,
+        origin: 'ecosystem_tick',
+      } as InformationSourceRecord<'manager_message'>);
+    }
+
+    // ── 5c. escalation_requested: urgent case needs manager attention ──
+    //    Emitted when urgency is very high or consensus is at risk.
+    const escalationCases = input.activeCases.filter(
+      (c) => c.urgency >= 80 && c.trust < 60,
+    );
+    if (escalationCases.length > 0) {
+      const escCase = escalationCases[0];
+      records.push({
+        sourceId: `isr-mm-${day}-escalation`,
+        sourceKind: 'manager_message',
+        payload: {
+          subtype: 'escalation_requested',
+          summary: `升级请求: ${escCase.title} 紧急度${escCase.urgency} 信任${escCase.trust}，需要经理协调`,
+          managerId: 'system-manager',
+          targetBrokerId: 'player-broker',
+          caseIds: [escCase.id],
+          priority: Math.round(escCase.urgency * 0.9),
+          instruction: `紧急关注 ${escCase.title}，业主信任不足但出售意愿强，建议经理介入协调`,
+        },
+        day,
+        phase: 'morning',
+        entityRefs: [{ id: escCase.id, kind: 'case' }],
+        actorRefs: [
+          { id: 'system-manager', role: 'manager' },
+          { id: 'player-broker', role: 'player_broker' },
+        ],
+        visibility: { scope: 'specific_actors', actorIds: ['player-broker', 'system-manager', escCase.ownerName], baseDelayDays: 0 },
+        confidence: 0.9,
+        delayDays: 0,
+        replayKey: `rk-mm-${runSeed}-${day}-escalation`,
+        origin: 'ecosystem_tick',
+      } as InformationSourceRecord<'manager_message'>);
+    }
+
+    // ── 5d. customer_strategy_alignment: customer-safe manager signal ────
+    //    Emitted when a case has active opportunities/customers.
+    //    This is a sanitized signal that customers can safely see.
+    //    It does NOT expose: owner trust/urgency, coaching, escalation,
+    //    resource allocation, or internal focus-case wording.
+    const casesWithCustomers = input.activeCases.filter(
+      (c) => customersByCase.has(c.id) && (customersByCase.get(c.id) ?? []).length > 0,
+    );
+    if (casesWithCustomers.length > 0) {
+      const alignCase = casesWithCustomers[0];
+      const alignCustomerIds = (customersByCase.get(alignCase.id) ?? []).slice(0, 3);
+      records.push({
+        sourceId: `isr-mm-${day}-customer_alignment`,
+        sourceKind: 'manager_message',
+        payload: {
+          subtype: 'customer_strategy_alignment',
+          summary: `服务协调: ${alignCase.title} 团队正在推进下一步支持`,
+          managerId: 'system-manager',
+          targetBrokerId: 'player-broker',
+          caseIds: [alignCase.id],
+          priority: Math.round(alignCase.competitiveness * 0.5 + 25),
+          instruction: '团队正在为您的购房流程协调下一步服务支持',
+        },
+        day,
+        phase: 'morning',
+        entityRefs: [{ id: alignCase.id, kind: 'case' }],
+        actorRefs: [
+          { id: 'system-manager', role: 'manager' },
+          { id: 'player-broker', role: 'player_broker' },
+          ...alignCustomerIds.map((cid) => ({ id: cid, role: 'customer' as const })),
+        ],
+        visibility: { scope: 'specific_actors', actorIds: ['player-broker', 'system-manager', ...alignCustomerIds], baseDelayDays: 0 },
+        confidence: 0.8,
+        delayDays: 0,
+        replayKey: `rk-mm-${runSeed}-${day}-customer_alignment`,
+        origin: 'ecosystem_tick',
+      } as InformationSourceRecord<'manager_message'>);
+    }
   }
 
   // ── 6. ACN NETWORK SIGNAL: competition / cooperation / info share ────
@@ -628,51 +742,407 @@ function generateDailySettlementSourceRecords(
   day: number,
   runSeed: number,
   allCausalEvents: readonly WorldCausalEvent[],
+  existingCausalEvents?: readonly WorldCausalEvent[],
 ): readonly InformationSourceRecord[] {
   const records: InformationSourceRecord[] = [];
+  const salt = `${runSeed}-${day}`;
 
-  // process_receipt: derived from compaction/closure signals this day.
-  // Represents "the day's processes settled."
+  // ── Cumulative evidence counters (R17: Agent C) ────────────────────────
+  //    Build from existing (prior tick) + same-day causal events.
+  //    Used to gate terminal-like process receipts on accumulated evidence.
+  const cumulativeEvents = [...(existingCausalEvents ?? []), ...allCausalEvents];
+  const recentEvents = cumulativeEvents.filter((e) => e.day >= day - 7 && e.day <= day);
+
+  function countEvidenceForCase(caseId: string) {
+    const caseEvents = recentEvents.filter((e) =>
+      e.entityIds?.includes(caseId),
+    );
+    return {
+      processEvidenceCount: caseEvents.filter((e) =>
+        e.kind === 'BrokerRecommendationChanged' || e.kind === 'MatterPriorityChanged',
+      ).length,
+      negotiationEvidenceCount: caseEvents.filter((e) =>
+        e.kind === 'RivalListingRepriced' || e.kind === 'BrokerRecommendationChanged',
+      ).length,
+      ownerPressureCount: caseEvents.filter((e) =>
+        e.kind === 'OwnerMarketPressurePerceived',
+      ).length,
+      managerInterventionCount: caseEvents.filter((e) =>
+        e.kind === 'MatterPriorityChanged',
+      ).length,
+      sourceEvidenceCount: caseEvents.filter((e) => e.sourceRecordId != null).length,
+    };
+  }
+
+  // Build case → customer IDs lookup for customer visibility
+  const customersByCase = new Map<string, string[]>();
+  for (const opp of input.activeOpportunities) {
+    const existing = customersByCase.get(opp.caseId) ?? [];
+    if (!existing.includes(opp.customerId)) existing.push(opp.customerId);
+    customersByCase.set(opp.caseId, existing);
+  }
+
+  // ── 1. open_day_completed: market/open-day activity settled ───────────
+  //    Emitted when there are owner pressure events or market activity this day.
+  //    R17: customer-visible (involved customers), rich metrics.
   const ownerPressureEvents = allCausalEvents.filter(
     (e) => e.kind === 'OwnerMarketPressurePerceived' && e.day === day,
   );
-  const repriceEvents = allCausalEvents.filter(
-    (e) => e.kind === 'RivalListingRepriced' && e.day === day,
+  const heatEvents = allCausalEvents.filter(
+    (e) => e.kind === 'MarketHeatShifted' && e.day === day,
   );
-  const totalActivity = ownerPressureEvents.length + repriceEvents.length;
+  const openDayActivity = ownerPressureEvents.length + heatEvents.length;
 
-  if (totalActivity > 0) {
-    const processType = repriceEvents.length > ownerPressureEvents.length
-      ? 'negotiation'
-      : 'open_day';
+  if (openDayActivity > 0) {
+    const visitorCount = seededInt(`${salt}-pr-od-visitors`, 3, 25);
+    const inquiryCount = seededInt(`${salt}-pr-od-inquiries`, 0, 5);
+    const activeCustomerCount = seededInt(`${salt}-pr-od-active-cust`, 1, 8);
+    const openDayCaseIds = ownerPressureEvents.slice(0, 5).map((e) => e.entityIds[0] ?? 'unknown');
+    const openDayOwnerNames = openDayCaseIds
+      .map((cid) => input.activeCases.find((c) => c.id === cid)?.ownerName)
+      .filter((n): n is string => typeof n === 'string' && n.length > 0);
+
+    // Collect involved customer IDs from cases referenced by this open day
+    const openDayCustomerIds: string[] = [];
+    for (const cid of openDayCaseIds) {
+      for (const custId of customersByCase.get(cid) ?? []) {
+        if (!openDayCustomerIds.includes(custId)) openDayCustomerIds.push(custId);
+      }
+    }
+    const sourceEvidenceCount = ownerPressureEvents.filter((e) => e.sourceRecordId != null).length
+      + heatEvents.filter((e) => e.sourceRecordId != null).length;
+
     records.push({
-      sourceId: `isr-pr-${day}-settlement`,
+      sourceId: `isr-pr-${day}-open_day`,
       sourceKind: 'process_receipt',
       payload: {
-        subtype: repriceEvents.length > 0 ? 'negotiation_progressed' : 'open_day_completed',
-        summary: `日结: ${totalActivity}项活动 (${ownerPressureEvents.length}业主压力, ${repriceEvents.length}竞品调价)`,
-        processType,
-        processId: `settlement-${day}`,
-        caseIds: ownerPressureEvents.slice(0, 5).map((e) => e.entityIds[0] ?? 'unknown'),
-        customerIds: [],
+        subtype: 'open_day_completed',
+        summary: `开放日完成: ${visitorCount}组到访, ${inquiryCount}条意向, ${ownerPressureEvents.length}业主压力事件`,
+        processType: 'open_day',
+        processId: `settlement-od-${day}`,
+        caseIds: openDayCaseIds,
+        customerIds: openDayCustomerIds,
         brokerIds: ['player-broker'],
         outcome: 'day_completed',
         metrics: {
           ownerPressureCount: ownerPressureEvents.length,
-          repriceCount: repriceEvents.length,
-          totalActivity,
+          heatShiftCount: heatEvents.length,
+          visitorCount,
+          inquiryCount,
+          activeCustomerCount,
+          sourceEvidenceCount,
         },
       },
       day,
       phase: 'tick_close',
       entityRefs: ownerPressureEvents.slice(0, 3).map((e) => ({ id: e.entityIds[0] ?? 'unknown', kind: 'case' as const })),
-      actorRefs: [{ id: 'player-broker', role: 'player_broker' }],
-      visibility: { scope: 'player_only', baseDelayDays: 0 },
+      actorRefs: [
+        { id: 'player-broker', role: 'player_broker' },
+        { id: 'system-manager', role: 'manager' },
+        ...openDayOwnerNames.slice(0, 3).map((n) => ({ id: n, role: 'owner' as const })),
+        ...openDayCustomerIds.slice(0, 3).map((cid) => ({ id: cid, role: 'customer' as const })),
+      ],
+      visibility: { scope: 'specific_actors', actorIds: ['player-broker', 'system-manager', ...openDayOwnerNames.slice(0, 3), ...openDayCustomerIds.slice(0, 5)], baseDelayDays: 0 },
       confidence: 0.85,
       delayDays: 0,
-      replayKey: `rk-pr-${runSeed}-${day}-settlement`,
+      replayKey: `rk-pr-${runSeed}-${day}-open_day`,
       origin: 'daily_settlement',
     } as InformationSourceRecord<'process_receipt'>);
+  }
+
+  // ── 2. negotiation_progressed: price/timing discussion advanced ────────
+  //    Emitted when rival repricing or broker recommendation changes exist.
+  //    R17: customer-visible (involved customers), rich metrics.
+  const repriceEvents = allCausalEvents.filter(
+    (e) => e.kind === 'RivalListingRepriced' && e.day === day,
+  );
+  const recChangeEvents = allCausalEvents.filter(
+    (e) => e.kind === 'BrokerRecommendationChanged' && e.day === day,
+  );
+
+  if (repriceEvents.length > 0 || recChangeEvents.length > 0) {
+    const priceDelta = seededInt(`${salt}-pr-np-delta`, -8, 5);
+    const negCaseIds = input.activeCases.slice(0, 3).map((c) => c.id);
+    const negOwnerNames = input.activeCases.slice(0, 3).map((c) => c.ownerName).filter((n): n is string => typeof n === 'string' && n.length > 0);
+    const negCustomerIds: string[] = [];
+    for (const cid of negCaseIds) {
+      for (const custId of customersByCase.get(cid) ?? []) {
+        if (!negCustomerIds.includes(custId)) negCustomerIds.push(custId);
+      }
+    }
+    const priceAnchor = seededInt(`${salt}-pr-np-anchor`, 150, 500);
+    const buyerOfferProxy = seededInt(`${salt}-pr-np-buyer`, Math.max(100, priceAnchor - 30), priceAnchor);
+    const ownerConcessionProxy = seededInt(`${salt}-pr-np-concession`, 0, 15);
+    const sourceEvidenceCount = repriceEvents.filter((e) => e.sourceRecordId != null).length
+      + recChangeEvents.filter((e) => e.sourceRecordId != null).length;
+
+    records.push({
+      sourceId: `isr-pr-${day}-negotiation`,
+      sourceKind: 'process_receipt',
+      payload: {
+        subtype: 'negotiation_progressed',
+        summary: `谈判推进: ${repriceEvents.length}竞品调价, ${recChangeEvents.length}建议变更, 价格偏移${priceDelta}万`,
+        processType: 'negotiation',
+        processId: `settlement-neg-${day}`,
+        caseIds: negCaseIds,
+        customerIds: negCustomerIds,
+        brokerIds: ['player-broker'],
+        outcome: 'day_completed',
+        metrics: {
+          repriceCount: repriceEvents.length,
+          recommendationChangeCount: recChangeEvents.length,
+          priceDelta,
+          priceAnchor,
+          buyerOfferProxy,
+          ownerConcessionProxy,
+          sourceEvidenceCount,
+        },
+      },
+      day,
+      phase: 'tick_close',
+      entityRefs: input.activeCases.slice(0, 3).map((c) => ({ id: c.id, kind: 'case' as const })),
+      actorRefs: [
+        { id: 'player-broker', role: 'player_broker' },
+        { id: 'system-manager', role: 'manager' },
+        ...negOwnerNames.slice(0, 3).map((n) => ({ id: n, role: 'owner' as const })),
+        ...negCustomerIds.slice(0, 3).map((cid) => ({ id: cid, role: 'customer' as const })),
+      ],
+      visibility: { scope: 'specific_actors', actorIds: ['player-broker', 'system-manager', ...negOwnerNames.slice(0, 3), ...negCustomerIds.slice(0, 5)], baseDelayDays: 0 },
+      confidence: 0.85,
+      delayDays: 0,
+      replayKey: `rk-pr-${runSeed}-${day}-negotiation`,
+      origin: 'daily_settlement',
+    } as InformationSourceRecord<'process_receipt'>);
+  }
+
+  // ── 3. sincerity_sale_completed: high-intent opportunity reached sale stage ──
+  //    Emitted for active opportunities with high fit+intent scores.
+  //    R17: customer-visible (with customer actor ref), rich metrics.
+  const sincerityOpportunities = input.activeOpportunities.filter(
+    (o) => o.fit >= 60 && o.intent >= 60 && o.confidence >= 50,
+  );
+  if (sincerityOpportunities.length > 0) {
+    const idx = seededInt(`${salt}-pr-ss-idx`, 0, sincerityOpportunities.length - 1);
+    const opp = sincerityOpportunities[idx];
+    if (opp) {
+      const caseEvidence = countEvidenceForCase(opp.caseId);
+      const customerSeriousnessScore = Math.min(100, Math.round((opp.fit + opp.intent) / 2));
+      const sincerityCaseOwnerName = input.activeCases.find((c) => c.id === opp.caseId)?.ownerName;
+      const sincerityActorIds = ['player-broker', 'system-manager', opp.customerId];
+      if (sincerityCaseOwnerName) sincerityActorIds.push(sincerityCaseOwnerName);
+      records.push({
+        sourceId: `isr-pr-${day}-sincerity_sale`,
+        sourceKind: 'process_receipt',
+        payload: {
+          subtype: 'sincerity_sale_completed',
+          summary: `诚售完成: ${opp.customerName} 匹配度${opp.fit} 意向度${opp.intent} 信心${opp.confidence}`,
+          processType: 'sincerity_sale',
+          processId: `settlement-ss-${day}`,
+          caseIds: [opp.caseId],
+          customerIds: [opp.customerId],
+          brokerIds: ['player-broker'],
+          outcome: 'day_completed',
+          metrics: {
+            fitScore: opp.fit,
+            intentScore: opp.intent,
+            confidenceScore: opp.confidence,
+            customerSeriousnessScore,
+            sourceEvidenceCount: caseEvidence.sourceEvidenceCount,
+          },
+        },
+        day,
+        phase: 'tick_close',
+        entityRefs: [
+          { id: opp.caseId, kind: 'case' as const },
+          { id: opp.customerId, kind: 'customer' as const },
+        ],
+        actorRefs: [
+          { id: 'player-broker', role: 'player_broker' },
+          { id: 'system-manager', role: 'manager' },
+          ...(sincerityCaseOwnerName ? [{ id: sincerityCaseOwnerName, role: 'owner' as const }] : []),
+          { id: opp.customerId, role: 'customer' },
+        ],
+        visibility: { scope: 'specific_actors', actorIds: sincerityActorIds, baseDelayDays: 0 },
+        confidence: 0.9,
+        delayDays: 0,
+        replayKey: `rk-pr-${runSeed}-${day}-sincerity_sale`,
+        origin: 'daily_settlement',
+      } as InformationSourceRecord<'process_receipt'>);
+    }
+  }
+
+  // ── 4. consensus_reached / deal_signed: high-trust, high-urgency case ──
+  //    R17: requires cumulative evidence, customer-visible, rich metrics.
+  //    consensus_reached: trust >= 75 AND urgency >= 60 AND negotiation evidence >= 2.
+  //    deal_signed: trust >= 90 AND urgency >= 80 AND windowDays <= 7 AND source evidence >= 3.
+  const consensusCases = input.activeCases.filter((c) => {
+    if (c.trust < 75 || c.urgency < 60) return false;
+    const ev = countEvidenceForCase(c.id);
+    return ev.negotiationEvidenceCount >= 2;
+  });
+  const dealCases = input.activeCases.filter((c) => {
+    if (c.trust < 90 || c.urgency < 80 || c.windowDays > 7) return false;
+    const ev = countEvidenceForCase(c.id);
+    return ev.sourceEvidenceCount >= 3 && ev.ownerPressureCount >= 1;
+  });
+
+  if (dealCases.length > 0) {
+    const idx = seededInt(`${salt}-pr-ds-idx`, 0, dealCases.length - 1);
+    const caseItem = dealCases[idx];
+    if (caseItem) {
+      const caseEvidence = countEvidenceForCase(caseItem.id);
+      const caseCustomerIds = customersByCase.get(caseItem.id) ?? [];
+      const contractReadinessScore = Math.min(100, Math.round(caseItem.trust * 0.4 + caseItem.urgency * 0.3 + (100 - caseItem.windowDays * 3) * 0.3));
+      const ownerReadinessScore = Math.min(100, Math.round(caseItem.trust * 0.6 + caseItem.urgency * 0.4));
+      const customerSeriousnessScore = seededInt(`${salt}-pr-ds-cust-ser`, 60, 95);
+      const priceAnchor = seededInt(`${salt}-pr-ds-anchor`, 200, 450);
+      const allActorIds = ['player-broker', 'system-manager', caseItem.ownerName, ...caseCustomerIds];
+
+      records.push({
+        sourceId: `isr-pr-${day}-deal_signed`,
+        sourceKind: 'process_receipt',
+        payload: {
+          subtype: 'deal_signed',
+          summary: `签约: ${caseItem.title} 信任${caseItem.trust} 紧急度${caseItem.urgency}`,
+          processType: 'closure',
+          processId: `settlement-ds-${day}`,
+          caseIds: [caseItem.id],
+          customerIds: caseCustomerIds,
+          brokerIds: ['player-broker'],
+          outcome: 'deal_signed',
+          metrics: {
+            contractReadinessScore,
+            ownerReadinessScore,
+            customerSeriousnessScore,
+            priceAnchor,
+            sourceEvidenceCount: caseEvidence.sourceEvidenceCount,
+          },
+        },
+        day,
+        phase: 'tick_close',
+        entityRefs: [{ id: caseItem.id, kind: 'case' as const }],
+        actorRefs: [
+          { id: 'player-broker', role: 'player_broker' },
+          { id: 'system-manager', role: 'manager' },
+          { id: caseItem.ownerName, role: 'owner' },
+          ...caseCustomerIds.slice(0, 3).map((cid) => ({ id: cid, role: 'customer' as const })),
+        ],
+        visibility: { scope: 'specific_actors', actorIds: allActorIds, baseDelayDays: 0 },
+        confidence: 0.95,
+        delayDays: 0,
+        replayKey: `rk-pr-${runSeed}-${day}-deal_signed`,
+        origin: 'daily_settlement',
+      } as InformationSourceRecord<'process_receipt'>);
+    }
+  } else if (consensusCases.length > 0) {
+    const idx = seededInt(`${salt}-pr-cr-idx`, 0, consensusCases.length - 1);
+    const caseItem = consensusCases[idx];
+    if (caseItem) {
+      const caseEvidence = countEvidenceForCase(caseItem.id);
+      const caseCustomerIds = customersByCase.get(caseItem.id) ?? [];
+      const consensusStrength = Math.min(100, Math.round(caseItem.trust * 0.5 + caseItem.urgency * 0.3 + caseEvidence.negotiationEvidenceCount * 5));
+      const ownerReadinessScore = Math.min(100, Math.round(caseItem.trust * 0.5 + caseItem.urgency * 0.3 + caseEvidence.ownerPressureCount * 5));
+      const customerSeriousnessScore = seededInt(`${salt}-pr-cr-cust-ser`, 50, 85);
+      const priceGapProxy = seededInt(`${salt}-pr-cr-gap`, 0, 30);
+      const allActorIds = ['player-broker', 'system-manager', caseItem.ownerName, ...caseCustomerIds];
+
+      records.push({
+        sourceId: `isr-pr-${day}-consensus_reached`,
+        sourceKind: 'process_receipt',
+        payload: {
+          subtype: 'consensus_reached',
+          summary: `共识达成: ${caseItem.title} 信任${caseItem.trust} 紧急度${caseItem.urgency}`,
+          processType: 'consensus',
+          processId: `settlement-cr-${day}`,
+          caseIds: [caseItem.id],
+          customerIds: caseCustomerIds,
+          brokerIds: ['player-broker'],
+          outcome: 'consensus',
+          metrics: {
+            consensusStrength,
+            ownerReadinessScore,
+            customerSeriousnessScore,
+            priceGapProxy,
+            sourceEvidenceCount: caseEvidence.sourceEvidenceCount,
+          },
+        },
+        day,
+        phase: 'tick_close',
+        entityRefs: [{ id: caseItem.id, kind: 'case' as const }],
+        actorRefs: [
+          { id: 'player-broker', role: 'player_broker' },
+          { id: 'system-manager', role: 'manager' },
+          { id: caseItem.ownerName, role: 'owner' },
+          ...caseCustomerIds.slice(0, 3).map((cid) => ({ id: cid, role: 'customer' as const })),
+        ],
+        visibility: { scope: 'specific_actors', actorIds: allActorIds, baseDelayDays: 0 },
+        confidence: 0.9,
+        delayDays: 0,
+        replayKey: `rk-pr-${runSeed}-${day}-consensus_reached`,
+        origin: 'daily_settlement',
+      } as InformationSourceRecord<'process_receipt'>);
+    }
+  }
+
+  // ── 5. consensus_collapsed: low-trust, low-patience, high-stagnation ──
+  //    R17: requires cumulative negative/pressure evidence, customer-visible (involved only).
+  //    Emitted when patience < 25 or trust < 30 with urgency > 70,
+  //    AND some negative/pressure/manager evidence exists for this case.
+  const collapsedCases = input.activeCases.filter((c) => {
+    if (c.patience >= 25 && !(c.trust < 30 && c.urgency > 70)) return false;
+    const ev = countEvidenceForCase(c.id);
+    return ev.ownerPressureCount >= 1 || ev.managerInterventionCount >= 1;
+  });
+  if (collapsedCases.length > 0) {
+    const idx = seededInt(`${salt}-pr-cc-idx`, 0, collapsedCases.length - 1);
+    const caseItem = collapsedCases[idx];
+    if (caseItem) {
+      const caseEvidence = countEvidenceForCase(caseItem.id);
+      const caseCustomerIds = customersByCase.get(caseItem.id) ?? [];
+      const collapseRiskScore = Math.min(100, Math.round(
+        (100 - caseItem.trust) * 0.4 + (100 - caseItem.patience) * 0.3 + caseEvidence.ownerPressureCount * 5,
+      ));
+      const ownerReadinessScore = Math.min(100, Math.round(caseItem.trust * 0.5 + caseItem.patience * 0.3));
+      const customerSeriousnessScore = seededInt(`${salt}-pr-cc-cust-ser`, 10, 50);
+      const trustScore = caseItem.trust;
+      // Conservative: customer-visible but don't expose owner/internal reasons
+      const collapseActorIds = ['player-broker', 'system-manager', caseItem.ownerName, ...caseCustomerIds];
+
+      records.push({
+        sourceId: `isr-pr-${day}-consensus_collapsed`,
+        sourceKind: 'process_receipt',
+        payload: {
+          subtype: 'consensus_collapsed',
+          summary: `共识破裂: ${caseItem.title} 信任${caseItem.trust} 耐心${caseItem.patience}`,
+          processType: 'consensus',
+          processId: `settlement-cc-${day}`,
+          caseIds: [caseItem.id],
+          customerIds: caseCustomerIds,
+          brokerIds: ['player-broker'],
+          outcome: 'collapsed',
+          metrics: {
+            collapseRiskScore,
+            ownerReadinessScore,
+            customerSeriousnessScore,
+            trustScore,
+            sourceEvidenceCount: caseEvidence.sourceEvidenceCount,
+          },
+        },
+        day,
+        phase: 'tick_close',
+        entityRefs: [{ id: caseItem.id, kind: 'case' as const }],
+        actorRefs: [
+          { id: 'player-broker', role: 'player_broker' },
+          { id: 'system-manager', role: 'manager' },
+          ...caseCustomerIds.slice(0, 3).map((cid) => ({ id: cid, role: 'customer' as const })),
+        ],
+        visibility: { scope: 'specific_actors', actorIds: collapseActorIds, baseDelayDays: 0 },
+        confidence: 0.85,
+        delayDays: 0,
+        replayKey: `rk-pr-${runSeed}-${day}-consensus_collapsed`,
+        origin: 'daily_settlement',
+      } as InformationSourceRecord<'process_receipt'>);
+    }
   }
 
   return records;
@@ -887,7 +1357,7 @@ export function runBigWorldDayTick(
   // These represent "the day's settlement" — what the player's daily activity produced
   // and what processes settled. Completes the 15-kind source coverage.
   const settlementRecords = generateDailySettlementSourceRecords(
-    effectiveInput, day, effectiveInput.runSeed, allCausalEvents,
+    effectiveInput, day, effectiveInput.runSeed, allCausalEvents, existingCausalEvents,
   );
 
   // Generate economy source records — resource scarcity and competition dynamics.
@@ -908,10 +1378,32 @@ export function runBigWorldDayTick(
     ...externalSourceRecords,
   ];
 
-  // Ingest all source records through the adapter
+  // For ingestion, skip player_action_receipt external records whose sourceId
+  // already appears in existingCausalEvents — the immediate receipt path in
+  // executeGameAction already produced causal events for these. Without this
+  // filter, the same action would produce duplicate causal events.
+  const existingSourceIds = new Set<string>();
+  for (const evt of (existingCausalEvents ?? [])) {
+    if (evt.sourceRecordId) existingSourceIds.add(evt.sourceRecordId);
+  }
+  const alreadyIngestedExternalIds = new Set(
+    externalSourceRecords
+      .filter((r) => r.sourceKind === 'player_action_receipt' && existingSourceIds.has(r.sourceId))
+      .map((r) => r.sourceId),
+  );
+  const sourceRecordsToIngest: readonly import('../informationSourceTypes.js').InformationSourceRecord[] = [
+    ...phaseSourceRecords,
+    ...additionalSourceRecords,
+    ...marketFormationRecords,
+    ...settlementRecords,
+    ...economyRecords,
+    ...externalSourceRecords.filter((r) => !alreadyIngestedExternalIds.has(r.sourceId)),
+  ];
+
+  // Ingest source records through the adapter (filtered to avoid duplicates)
   let sourceIngestionReceipt: SourceIngestionReceipt | undefined;
-  if (allSourceRecords.length > 0) {
-    sourceIngestionReceipt = ingestSourceRecords(allSourceRecords, day, effectiveInput.runSeed);
+  if (sourceRecordsToIngest.length > 0) {
+    sourceIngestionReceipt = ingestSourceRecords(sourceRecordsToIngest, day, effectiveInput.runSeed);
   }
 
   // Add SourceIngestionPhase result to phase results
@@ -983,6 +1475,7 @@ export function runBigWorldDayTick(
     economyReceipt,
     externalSourceRecords: Object.freeze([...externalSourceRecords]),
     sourceRecordAudit,
+    allIngestedSourceRecords: Object.freeze(allSourceRecords),
     durationUs: tickDurationUs,
   });
 }
@@ -1006,7 +1499,8 @@ function extractActionResourceReceipts(
   const sourceRecords = receipt.externalSourceRecords ?? [];
   for (const record of sourceRecords) {
     if (record.sourceKind !== 'player_action_receipt') continue;
-    if (!record.sourceId.startsWith('isr-par-')) continue;
+    // Match both old-format (isr-par-*) and unified (isr-player_action_receipt-*) source IDs
+    if (!record.sourceId.startsWith('isr-par-') && !record.sourceId.startsWith('isr-player_action_receipt-')) continue;
 
     const payload = record.payload as unknown as Record<string, unknown>;
     const actionId = String(payload['actionId'] ?? 'unknown');
@@ -1045,13 +1539,35 @@ function extractActionResourceReceipts(
 }
 
 /**
+ * Extract source IDs referenced by causal events (for policy-aware retention).
+ * Scans both sourceRecordId and sourceRecordIds arrays.
+ */
+function extractCausallyReferencedSourceIds(
+  causalEvents: readonly WorldCausalEvent[],
+): ReadonlySet<string> {
+  const ids = new Set<string>();
+  for (const event of causalEvents) {
+    if (event.sourceRecordId) ids.add(event.sourceRecordId);
+    for (const sid of event.sourceRecordIds ?? []) {
+      ids.add(sid);
+    }
+  }
+  return ids;
+}
+
+/**
  * Apply a BigWorldTickReceipt to BigWorldRuntimeState.
  * Mutates runtime state in place (caller owns the state).
  * Returns the updated runtime state.
+ *
+ * @param runtime - Current runtime state
+ * @param receipt - Tick receipt to apply
+ * @param existingCausalEvents - Full causal event history (for policy-aware source retention)
  */
 export function applyTickReceiptToRuntime(
   runtime: BigWorldRuntimeState,
   receipt: BigWorldTickReceipt,
+  existingCausalEvents?: readonly WorldCausalEvent[],
 ): BigWorldRuntimeState {
   const target = Object.isFrozen(runtime)
     ? {
@@ -1110,6 +1626,20 @@ export function applyTickReceiptToRuntime(
     ? [...actionReceipts, ...target.actionResourceReceipts].slice(0, 500)
     : target.actionResourceReceipts;
 
+  // Persist source records from this tick — skip records already in the
+  // persisted ledger (e.g., immediate receipt path records from executeGameAction).
+  // Do NOT slice here — let runCompactionPass handle policy-aware retention.
+  const existingPersistedIds = new Set<string>();
+  for (const existing of target.persistedSourceRecords) {
+    existingPersistedIds.add(existing.sourceId);
+  }
+  const newSourceRecords = (receipt.allIngestedSourceRecords ?? []).filter(
+    (r) => !existingPersistedIds.has(r.sourceId),
+  );
+  const mergedPersistedSourceRecords = newSourceRecords.length > 0
+    ? [...newSourceRecords, ...target.persistedSourceRecords]
+    : target.persistedSourceRecords;
+
   // Update mutable fields
   target.lastTickDay = receipt.day;
   target.dailyEvents = mergedEvents;
@@ -1117,6 +1647,7 @@ export function applyTickReceiptToRuntime(
   target.coldLedgerSummaries = mergedColdSummaries;
   target.economicResourceLedger = mergedLedger;
   target.actionResourceReceipts = mergedActionReceipts;
+  target.persistedSourceRecords = mergedPersistedSourceRecords;
   target.totalEventsEmitted += receipt.allEvents.length;
   target.totalMutationsEmitted += receipt.summary.totalMutations;
   target.tickCount += 1;
@@ -1128,8 +1659,15 @@ export function applyTickReceiptToRuntime(
     ].slice(0, 20);
   }
 
-  // Run compaction pass to enforce bounds
-  const compacted = runCompactionPass(target);
+  // Run compaction pass to enforce bounds with policy-aware source retention.
+  // Build the set of causally-referenced source IDs from existing + new causal events
+  // so that compaction protects records still linked to active causal chains.
+  const allCausalForRetention: WorldCausalEvent[] = [
+    ...(existingCausalEvents ?? []),
+    ...(receipt.causalEventsToAppend ?? []),
+  ];
+  const causallyReferencedSourceIds = extractCausallyReferencedSourceIds(allCausalForRetention);
+  const compacted = runCompactionPass(target, causallyReferencedSourceIds);
 
   // Copy compacted arrays back (runtime is mutable)
   target.dailyEvents = compacted.dailyEvents as BigWorldDailyEvent[];

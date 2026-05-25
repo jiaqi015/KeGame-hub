@@ -552,6 +552,7 @@ const runtimeState: BigWorldRuntimeState = {
   coldLedgerSummaries: [],
   economicResourceLedger: [],
   actionResourceReceipts: [],
+  persistedSourceRecords: [],
   totalEventsEmitted: 0,
   totalMutationsEmitted: 0,
   tickCount: 0,

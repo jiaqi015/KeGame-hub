@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createInitialState, updateDerivedState } from '../src/selling-houses/application/gameState.js';
 import { getScenarioSnapshotById } from '../src/selling-houses/domain/scenarioCatalog.js';
 import { buildDecisionSupportWorkspaceProjection } from '../src/selling-houses/interface/interaction-workspace/decisionSupportBoundary.js';
+import { asWritableCase } from '../src/selling-houses/domain/models.js';
 import type { GameState } from '../src/selling-houses/domain/models.js';
 
 function stableStateJson(world: GameState) {
@@ -15,7 +16,7 @@ assert.ok(snapshot, 'Expected standard-window-chain scenario to exist');
 const world = createInitialState(snapshot, 20260429);
 world.day = 3;
 world.cases.forEach((caseItem, index) => {
-  caseItem.status = 'active';
+  asWritableCase(caseItem).status = 'active';
   caseItem.hasCompletedFirstVisit = index !== 0;
   caseItem.lastOwnerTouchedDay = index === 0 ? 0 : Math.max(1, world.day - 2);
   caseItem.touchedOwnerToday = false;

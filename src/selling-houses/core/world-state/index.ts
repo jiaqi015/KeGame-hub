@@ -16,6 +16,10 @@ export * from './legacy-customer-runtime-field-ownership.js';
 export * from './legacy-gamestate-field-ownership.js';
 export * from './legacy-opportunity-field-ownership.js';
 export * from './models.js';
+export * from './legacyCompatibilityContracts.js';
+export * from './legacyCompatibilityValidation.js';
+export * from './caseOutcomeTypes.js';
+export * from './caseOutcomeProjection.js';
 export { buildCustomerCaseOpportunityRelationView } from './opportunity-relations/readModel.js';
 export { buildCustomerCaseOpportunityRelationV0View } from './opportunity-relations/v0ReadModel.js';
 export type {

@@ -36,7 +36,7 @@ import type {
   InformationSourceRegistry,
 } from '../../domain/world-model/informationSourceRegistry.js';
 
-import { queryVisibleSourceRecords } from '../../domain/world-model/informationSourceRegistry.js';
+import { queryVisibleSourceRecords, appendSourceRecords, createEmptyRegistry } from '../../domain/world-model/informationSourceRegistry.js';
 
 import type {
   ActorKnowledgeSnapshot,
@@ -71,6 +71,15 @@ import type {
   BigWorldPOVSummary,
   POVCausalRef,
 } from './bigWorldPOVProjection.js';
+
+type CausalEventRef = {
+  readonly id: string;
+  readonly day: number;
+  readonly kind: string;
+  readonly affectedIds: readonly string[];
+  readonly sourceRecordId?: string;
+  readonly sourceRecordIds?: readonly string[];
+};
 
 // ════════════════════════════════════════════════════════════════════════════
 // Deterministic ID generation
@@ -263,8 +272,31 @@ export function computeSourceCredibility(
  */
 function deriveBeliefFromSource(
   record: InformationSourceRecord,
-): { domain: BeliefDomain; claim: BeliefClaim; value: BeliefValue } | null {
+): { domain: BeliefDomain; claim: BeliefClaim; value: BeliefValue; metrics?: Readonly<Record<string, number>> } | null {
   switch (record.sourceKind) {
+    case 'player_action_receipt': {
+      const payload = record.payload as { outcome?: string; fieldDeltas?: readonly { field: string }[] };
+      const outcome = payload.outcome ?? 'success';
+      if (outcome !== 'success') {
+        return {
+          domain: 'service_path',
+          claim: { type: 'categorical', category: outcome, confidence: 0.7 },
+          value: { type: 'categorical', value: outcome },
+        };
+      }
+
+      const touchedFields = new Set((payload.fieldDeltas ?? []).map((delta) => delta.field));
+      const domain: BeliefDomain = touchedFields.has('trust')
+        ? 'broker_trust'
+        : touchedFields.has('urgency') || touchedFields.has('patience')
+          ? 'owner_readiness'
+          : 'service_path';
+      return {
+        domain,
+        claim: { type: 'categorical', category: 'action_executed', confidence: 0.85 },
+        value: { type: 'categorical', value: 'action_executed' },
+      };
+    }
     case 'market_signal': {
       const payload = record.payload as { before: number; after: number; subtype: string };
       const direction = payload.after > payload.before ? 'rising' : payload.after < payload.before ? 'falling' : 'stable';
@@ -339,6 +371,133 @@ function deriveBeliefFromSource(
         value: { type: 'numeric', value: payload.price },
       };
     }
+    case 'manager_message': {
+      const payload = record.payload as { subtype?: string; priority?: number; instruction?: string; resourceType?: string };
+      const priority = payload.priority ?? 50;
+      if (payload.subtype === 'focus_case_selected') {
+        return {
+          domain: 'service_path',
+          claim: { type: 'categorical', category: 'focus_directed', confidence: 0.85 },
+          value: { type: 'categorical', value: 'focus_directed' },
+        };
+      }
+      if (payload.subtype === 'resource_allocated') {
+        return {
+          domain: 'deal_closeability',
+          claim: { type: 'threshold', value: priority, threshold: 60, above: priority >= 60 },
+          value: { type: 'numeric', value: priority },
+        };
+      }
+      if (payload.subtype === 'coaching_delivered' || payload.subtype === 'strategic_direction') {
+        return {
+          domain: 'broker_trust',
+          claim: { type: 'categorical', category: payload.subtype, confidence: 0.85 },
+          value: { type: 'categorical', value: payload.subtype },
+        };
+      }
+      if (payload.subtype === 'escalation_requested') {
+        return {
+          domain: 'deal_closeability',
+          claim: { type: 'direction', direction: 'rising', magnitude: 1 },
+          value: { type: 'categorical', value: 'escalation_pressure' },
+        };
+      }
+      if (payload.subtype === 'customer_strategy_alignment') {
+        return {
+          domain: 'service_path',
+          claim: { type: 'threshold', value: priority, threshold: 30, above: priority >= 30 },
+          value: { type: 'numeric', value: priority },
+        };
+      }
+      return {
+        domain: 'broker_trust',
+        claim: { type: 'categorical', category: payload.subtype ?? 'strategic_direction', confidence: 0.8 },
+        value: { type: 'categorical', value: payload.subtype ?? 'strategic_direction' },
+      };
+    }
+    case 'process_receipt': {
+      const payload = record.payload as { subtype?: string; processType?: string; outcome?: string; metrics?: Record<string, number> };
+      const outcome = payload.outcome ?? 'day_completed';
+      const subtype = payload.subtype ?? '';
+      const m = payload.metrics ?? {};
+      const safeMetric = (key: string, fallback: number): number => {
+        const v = m[key];
+        return typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+      };
+
+      if (subtype === 'open_day_completed') {
+        const visitorCount = safeMetric('visitorCount', 10);
+        const activeCustomerCount = safeMetric('activeCustomerCount', 5);
+        const customerSeriousnessScore = safeMetric('customerSeriousnessScore', 50);
+        return {
+          domain: 'market_heat',
+          claim: { type: 'threshold', value: visitorCount, threshold: 10, above: visitorCount >= 10 },
+          value: { type: 'numeric', value: activeCustomerCount },
+          metrics: { visitorCount, activeCustomerCount, customerSeriousnessScore },
+        };
+      }
+      if (subtype === 'sincerity_sale_completed') {
+        const customerSeriousness = safeMetric('customerSeriousnessScore', 50);
+        const trustScore = safeMetric('trustScore', 50);
+        return {
+          domain: 'customer_seriousness',
+          claim: { type: 'threshold', value: customerSeriousness, threshold: 50, above: customerSeriousness >= 50 },
+          value: { type: 'numeric', value: customerSeriousness },
+          metrics: { customerSeriousnessScore: customerSeriousness, trustScore },
+        };
+      }
+      if (subtype === 'negotiation_progressed') {
+        const priceAnchor = safeMetric('priceAnchor', 300);
+        const priceDelta = safeMetric('priceDelta', 0);
+        const direction = priceDelta > 0 ? 'rising' : priceDelta < 0 ? 'falling' : 'stable';
+        return {
+          domain: 'price_anchor',
+          claim: { type: 'direction', direction, magnitude: Math.abs(priceDelta) },
+          value: { type: 'numeric', value: priceAnchor },
+          metrics: { priceAnchor, priceDelta },
+        };
+      }
+      if (subtype === 'consensus_reached' || outcome === 'consensus') {
+        const consensusStrength = safeMetric('consensusStrength', 75);
+        return {
+          domain: 'deal_closeability',
+          claim: { type: 'threshold', value: consensusStrength, threshold: 50, above: consensusStrength >= 50 },
+          value: { type: 'numeric', value: consensusStrength },
+          metrics: { consensusStrength },
+        };
+      }
+      if (subtype === 'deal_signed' || outcome === 'deal_signed') {
+        const contractReadiness = safeMetric('contractReadinessScore', 90);
+        return {
+          domain: 'deal_closeability',
+          claim: { type: 'threshold', value: contractReadiness, threshold: 50, above: true },
+          value: { type: 'numeric', value: contractReadiness },
+          metrics: { contractReadinessScore: contractReadiness },
+        };
+      }
+      if (subtype === 'consensus_collapsed' || outcome === 'collapsed') {
+        const collapseRisk = safeMetric('collapseRiskScore', 50);
+        const trustScore = safeMetric('trustScore', 50);
+        return {
+          domain: 'deal_closeability',
+          claim: { type: 'direction', direction: 'falling', magnitude: Math.max(1, Math.round(collapseRisk / 10)) },
+          value: { type: 'numeric', value: collapseRisk },
+          metrics: { collapseRiskScore: collapseRisk, trustScore },
+        };
+      }
+      if (outcome === 'completed') {
+        return {
+          domain: 'deal_closeability',
+          claim: { type: 'categorical', category: `${payload.processType ?? 'unknown'}_progressed`, confidence: 0.8 },
+          value: { type: 'categorical', value: `${payload.processType ?? 'unknown'}_progressed` },
+        };
+      }
+      return {
+        domain: 'service_path',
+        claim: { type: 'categorical', category: outcome, confidence: 0.7 },
+        value: { type: 'categorical', value: outcome },
+      };
+    }
     default:
       return null;
   }
@@ -364,7 +523,7 @@ function deriveBeliefFromSource(
 function deriveBeliefForRole(
   record: InformationSourceRecord,
   actorRole: ActorRole,
-): { domain: BeliefDomain; claim: BeliefClaim; value: BeliefValue } | null {
+): { domain: BeliefDomain; claim: BeliefClaim; value: BeliefValue; metrics?: Readonly<Record<string, number>> } | null {
   // First, get the base belief from the source
   const baseBelief = deriveBeliefFromSource(record);
   if (!baseBelief) return null;
@@ -559,6 +718,453 @@ function deriveBeliefForRole(
       }
     }
 
+    case 'player_action_receipt': {
+      const payload = record.payload as { outcome?: string; fieldDeltas?: readonly { field: string }[] };
+      const outcome = payload.outcome ?? 'success';
+
+      if (actorRole === 'player_broker') {
+        if (outcome !== 'success') {
+          return {
+            domain: 'service_path',
+            claim: { type: 'categorical', category: outcome, confidence: 0.75 },
+            value: { type: 'categorical', value: outcome },
+          };
+        }
+
+        const touchedFields = new Set((payload.fieldDeltas ?? []).map((delta) => delta.field));
+        if (touchedFields.has('trust')) {
+          return {
+            domain: 'broker_trust',
+            claim: { type: 'categorical', category: 'relationship_action_executed', confidence: 0.85 },
+            value: { type: 'categorical', value: 'relationship_action_executed' },
+          };
+        }
+        if (touchedFields.has('urgency') || touchedFields.has('patience')) {
+          return {
+            domain: 'owner_readiness',
+            claim: { type: 'categorical', category: 'owner_state_action_executed', confidence: 0.8 },
+            value: { type: 'categorical', value: 'owner_state_action_executed' },
+          };
+        }
+      }
+
+      return baseBelief;
+    }
+
+    case 'manager_message': {
+      const payload = record.payload as { subtype?: string; priority?: number; instruction?: string; resourceType?: string };
+      const priority = payload.priority ?? 50;
+
+      switch (actorRole) {
+        case 'player_broker':
+          if (payload.subtype === 'focus_case_selected') {
+            return {
+              domain: 'service_path',
+              claim: { type: 'categorical', category: 'manager_focus_directed', confidence: 0.9 },
+              value: { type: 'categorical', value: 'manager_focus_directed' },
+            };
+          }
+          if (payload.subtype === 'resource_allocated') {
+            return {
+              domain: 'deal_closeability',
+              claim: { type: 'threshold', value: priority, threshold: 60, above: priority >= 60 },
+              value: { type: 'numeric', value: priority },
+            };
+          }
+          if (payload.subtype === 'coaching_delivered') {
+            return {
+              domain: 'broker_trust',
+              claim: { type: 'categorical', category: 'coaching_received', confidence: 0.9 },
+              value: { type: 'categorical', value: 'coaching_received' },
+            };
+          }
+          if (payload.subtype === 'strategic_direction') {
+            return {
+              domain: 'service_path',
+              claim: { type: 'categorical', category: 'manager_strategic_direction', confidence: 0.85 },
+              value: { type: 'categorical', value: 'manager_strategic_direction' },
+            };
+          }
+          if (payload.subtype === 'escalation_requested') {
+            return {
+              domain: 'deal_closeability',
+              claim: { type: 'direction', direction: 'rising', magnitude: 1 },
+              value: { type: 'categorical', value: 'escalation_pressure' },
+            };
+          }
+          return {
+            domain: 'broker_trust',
+            claim: { type: 'categorical', category: 'manager_strategy_guidance', confidence: 0.85 },
+            value: { type: 'categorical', value: 'manager_strategy_guidance' },
+          };
+        case 'manager':
+          if (payload.subtype === 'focus_case_selected') {
+            return {
+              domain: 'service_path',
+              claim: { type: 'categorical', category: 'focus_case_selected', confidence: 0.9 },
+              value: { type: 'categorical', value: 'focus_case_selected' },
+            };
+          }
+          if (payload.subtype === 'resource_allocated') {
+            return {
+              domain: 'deal_closeability',
+              claim: { type: 'threshold', value: priority, threshold: 50, above: priority >= 50 },
+              value: { type: 'numeric', value: priority },
+            };
+          }
+          if (payload.subtype === 'escalation_requested') {
+            return {
+              domain: 'owner_readiness',
+              claim: { type: 'direction', direction: 'rising', magnitude: 1 },
+              value: { type: 'categorical', value: 'escalation_pressure' },
+            };
+          }
+          return {
+            domain: 'deal_closeability',
+            claim: { type: 'threshold', value: priority, threshold: 50, above: priority >= 50 },
+            value: { type: 'numeric', value: priority },
+          };
+        case 'owner':
+          if (payload.subtype === 'escalation_requested') {
+            return {
+              domain: 'owner_readiness',
+              claim: { type: 'direction', direction: 'rising', magnitude: 1 },
+              value: { type: 'categorical', value: 'manager_attention' },
+            };
+          }
+          return {
+            domain: 'broker_trust',
+            claim: { type: 'categorical', category: 'organizational_attention', confidence: 0.7 },
+            value: { type: 'categorical', value: 'organizational_attention' },
+          };
+        case 'customer':
+          if (payload.subtype === 'customer_strategy_alignment') {
+            const priority = payload.priority ?? 50;
+            return {
+              domain: 'service_path',
+              claim: { type: 'threshold', value: priority, threshold: 30, above: priority >= 30 },
+              value: { type: 'numeric', value: priority },
+            };
+          }
+          if (payload.subtype === 'strategic_direction' || payload.subtype === 'coaching_delivered') {
+            return {
+              domain: 'service_path',
+              claim: { type: 'categorical', category: `manager_${payload.subtype}`, confidence: 0.7 },
+              value: { type: 'categorical', value: `manager_${payload.subtype}` },
+            };
+          }
+          if (payload.subtype === 'escalation_requested') {
+            return {
+              domain: 'deal_closeability',
+              claim: { type: 'direction', direction: 'rising', magnitude: 1 },
+              value: { type: 'categorical', value: 'escalation_pressure' },
+            };
+          }
+          return {
+            domain: 'broker_trust',
+            claim: { type: 'categorical', category: 'organizational_attention', confidence: 0.6 },
+            value: { type: 'categorical', value: 'organizational_attention' },
+          };
+        default:
+          return baseBelief;
+      }
+    }
+
+    case 'process_receipt': {
+      const payload = record.payload as { subtype?: string; processType?: string; outcome?: string; metrics?: Record<string, number> };
+      const outcome = payload.outcome ?? 'day_completed';
+      const subtype = payload.subtype ?? '';
+      const m = payload.metrics ?? {};
+      const safeMetric = (key: string, fallback: number): number => {
+        const v = m[key];
+        return typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+      };
+
+      switch (actorRole) {
+        case 'player_broker':
+          if (subtype === 'open_day_completed') {
+            const visitorCount = safeMetric('visitorCount', 10);
+            const activeCustomerCount = safeMetric('activeCustomerCount', 5);
+            return {
+              domain: 'service_path',
+              claim: { type: 'categorical', category: 'open_day_advanced', confidence: 0.9 },
+              value: { type: 'numeric', value: visitorCount },
+              metrics: { visitorCount, activeCustomerCount },
+            };
+          }
+          if (subtype === 'sincerity_sale_completed') {
+            const customerSeriousness = safeMetric('customerSeriousnessScore', 50);
+            const trustScore = safeMetric('trustScore', 50);
+            return {
+              domain: 'customer_seriousness',
+              claim: { type: 'threshold', value: customerSeriousness, threshold: 50, above: customerSeriousness >= 50 },
+              value: { type: 'numeric', value: customerSeriousness },
+              metrics: { customerSeriousnessScore: customerSeriousness, trustScore },
+            };
+          }
+          if (subtype === 'negotiation_progressed') {
+            const priceAnchor = safeMetric('priceAnchor', 300);
+            const priceDelta = safeMetric('priceDelta', 0);
+            const direction = priceDelta > 0 ? 'rising' : priceDelta < 0 ? 'falling' : 'stable';
+            return {
+              domain: 'price_anchor',
+              claim: { type: 'direction', direction, magnitude: Math.abs(priceDelta) },
+              value: { type: 'numeric', value: priceAnchor },
+              metrics: { priceAnchor, priceDelta },
+            };
+          }
+          if (subtype === 'consensus_reached') {
+            const consensusStrength = safeMetric('consensusStrength', 75);
+            return {
+              domain: 'deal_closeability',
+              claim: { type: 'threshold', value: consensusStrength, threshold: 50, above: consensusStrength >= 50 },
+              value: { type: 'numeric', value: consensusStrength },
+              metrics: { consensusStrength },
+            };
+          }
+          if (subtype === 'deal_signed') {
+            const contractReadiness = safeMetric('contractReadinessScore', 90);
+            return {
+              domain: 'deal_closeability',
+              claim: { type: 'threshold', value: contractReadiness, threshold: 50, above: true },
+              value: { type: 'numeric', value: contractReadiness },
+              metrics: { contractReadinessScore: contractReadiness },
+            };
+          }
+          if (subtype === 'consensus_collapsed') {
+            const collapseRisk = safeMetric('collapseRiskScore', 50);
+            const trustScore = safeMetric('trustScore', 30);
+            return {
+              domain: 'deal_closeability',
+              claim: { type: 'direction', direction: 'falling', magnitude: Math.max(1, Math.round(collapseRisk / 10)) },
+              value: { type: 'numeric', value: collapseRisk },
+              metrics: { collapseRiskScore: collapseRisk, trustScore },
+            };
+          }
+          if (outcome === 'completed') {
+            return {
+              domain: 'service_path',
+              claim: { type: 'categorical', category: `${payload.processType ?? 'unknown'}_advanced`, confidence: 0.85 },
+              value: { type: 'categorical', value: `${payload.processType ?? 'unknown'}_advanced` },
+            };
+          }
+          return {
+            domain: 'deal_closeability',
+            claim: { type: 'categorical', category: outcome, confidence: 0.7 },
+            value: { type: 'categorical', value: outcome },
+          };
+        case 'manager':
+          if (subtype === 'open_day_completed') {
+            const visitorCount = safeMetric('visitorCount', 10);
+            return {
+              domain: 'customer_seriousness',
+              claim: { type: 'threshold', value: visitorCount, threshold: 10, above: visitorCount >= 10 },
+              value: { type: 'numeric', value: visitorCount },
+              metrics: { visitorCount },
+            };
+          }
+          if (subtype === 'sincerity_sale_completed') {
+            const customerSeriousness = safeMetric('customerSeriousnessScore', 50);
+            return {
+              domain: 'deal_closeability',
+              claim: { type: 'threshold', value: customerSeriousness, threshold: 50, above: customerSeriousness >= 50 },
+              value: { type: 'numeric', value: customerSeriousness },
+              metrics: { customerSeriousnessScore: customerSeriousness },
+            };
+          }
+          if (subtype === 'negotiation_progressed') {
+            const priceAnchor = safeMetric('priceAnchor', 300);
+            const priceDelta = safeMetric('priceDelta', 0);
+            return {
+              domain: 'deal_closeability',
+              claim: { type: 'threshold', value: priceAnchor, threshold: 100, above: priceAnchor >= 100 },
+              value: { type: 'numeric', value: priceAnchor },
+              metrics: { priceAnchor, priceDelta },
+            };
+          }
+          if (subtype === 'consensus_reached') {
+            const consensusStrength = safeMetric('consensusStrength', 75);
+            return {
+              domain: 'deal_closeability',
+              claim: { type: 'threshold', value: consensusStrength, threshold: 50, above: consensusStrength >= 50 },
+              value: { type: 'numeric', value: consensusStrength },
+              metrics: { consensusStrength },
+            };
+          }
+          if (subtype === 'deal_signed') {
+            const contractReadiness = safeMetric('contractReadinessScore', 90);
+            return {
+              domain: 'deal_closeability',
+              claim: { type: 'threshold', value: contractReadiness, threshold: 50, above: true },
+              value: { type: 'numeric', value: contractReadiness },
+              metrics: { contractReadinessScore: contractReadiness },
+            };
+          }
+          if (subtype === 'consensus_collapsed') {
+            const collapseRisk = safeMetric('collapseRiskScore', 50);
+            return {
+              domain: 'deal_closeability',
+              claim: { type: 'direction', direction: 'falling', magnitude: Math.max(1, Math.round(collapseRisk / 10)) },
+              value: { type: 'numeric', value: collapseRisk },
+              metrics: { collapseRiskScore: collapseRisk },
+            };
+          }
+          return {
+            domain: 'deal_closeability',
+            claim: { type: 'categorical', category: `${payload.processType ?? 'unknown'}_${outcome}`, confidence: 0.75 },
+            value: { type: 'categorical', value: `${payload.processType ?? 'unknown'}_${outcome}` },
+          };
+        case 'owner':
+          if (subtype === 'open_day_completed') {
+            const visitorCount = safeMetric('visitorCount', 10);
+            const activeCustomerCount = safeMetric('activeCustomerCount', 5);
+            const customerSeriousness = safeMetric('customerSeriousnessScore', 50);
+            return {
+              domain: 'market_heat',
+              claim: { type: 'threshold', value: visitorCount, threshold: 10, above: visitorCount >= 10 },
+              value: { type: 'numeric', value: activeCustomerCount },
+              metrics: { visitorCount, activeCustomerCount, customerSeriousnessScore: customerSeriousness },
+            };
+          }
+          if (subtype === 'sincerity_sale_completed') {
+            const customerSeriousness = safeMetric('customerSeriousnessScore', 50);
+            const trustScore = safeMetric('trustScore', 50);
+            return {
+              domain: 'customer_seriousness',
+              claim: { type: 'threshold', value: customerSeriousness, threshold: 50, above: customerSeriousness >= 50 },
+              value: { type: 'numeric', value: customerSeriousness },
+              metrics: { customerSeriousnessScore: customerSeriousness, trustScore },
+            };
+          }
+          if (subtype === 'negotiation_progressed') {
+            const priceAnchor = safeMetric('priceAnchor', 300);
+            const priceDelta = safeMetric('priceDelta', 0);
+            const ownerReadiness = safeMetric('ownerReadinessScore', 50);
+            const direction = priceDelta > 0 ? 'rising' : priceDelta < 0 ? 'falling' : 'stable';
+            return {
+              domain: 'price_anchor',
+              claim: { type: 'direction', direction, magnitude: Math.abs(priceDelta) },
+              value: { type: 'numeric', value: priceAnchor },
+              metrics: { priceAnchor, priceDelta, ownerReadinessScore: ownerReadiness },
+            };
+          }
+          if (subtype === 'focus_meeting_completed') {
+            const ownerReadiness = safeMetric('ownerReadinessScore', 60);
+            const trustScore = safeMetric('trustScore', 50);
+            return {
+              domain: 'owner_readiness',
+              claim: { type: 'threshold', value: ownerReadiness, threshold: 50, above: ownerReadiness >= 50 },
+              value: { type: 'numeric', value: ownerReadiness },
+              metrics: { ownerReadinessScore: ownerReadiness, trustScore },
+            };
+          }
+          if (subtype === 'consensus_reached') {
+            const ownerReadiness = safeMetric('ownerReadinessScore', 70);
+            const consensusStrength = safeMetric('consensusStrength', 60);
+            return {
+              domain: 'owner_readiness',
+              claim: { type: 'threshold', value: ownerReadiness, threshold: 50, above: ownerReadiness >= 50 },
+              value: { type: 'numeric', value: ownerReadiness },
+              metrics: { ownerReadinessScore: ownerReadiness, consensusStrength },
+            };
+          }
+          if (subtype === 'deal_signed') {
+            const ownerReadiness = safeMetric('ownerReadinessScore', 85);
+            const contractReadiness = safeMetric('contractReadinessScore', 80);
+            return {
+              domain: 'owner_readiness',
+              claim: { type: 'threshold', value: ownerReadiness, threshold: 50, above: true },
+              value: { type: 'numeric', value: ownerReadiness },
+              metrics: { ownerReadinessScore: ownerReadiness, contractReadinessScore: contractReadiness },
+            };
+          }
+          if (subtype === 'consensus_collapsed') {
+            const collapseRisk = safeMetric('collapseRiskScore', 50);
+            const trustScore = safeMetric('trustScore', 30);
+            return {
+              domain: 'deal_closeability',
+              claim: { type: 'direction', direction: 'falling', magnitude: Math.max(1, Math.round(collapseRisk / 10)) },
+              value: { type: 'numeric', value: collapseRisk },
+              metrics: { collapseRiskScore: collapseRisk, trustScore },
+            };
+          }
+          if (subtype === 'case_withdrawn') {
+            const collapseRisk = safeMetric('collapseRiskScore', 80);
+            return {
+              domain: 'deal_closeability',
+              claim: { type: 'direction', direction: 'falling', magnitude: Math.max(1, Math.round(collapseRisk / 10)) },
+              value: { type: 'numeric', value: collapseRisk },
+              metrics: { collapseRiskScore: collapseRisk },
+            };
+          }
+          return baseBelief;
+        case 'customer':
+          if (subtype === 'open_day_completed') {
+            const visitorCount = safeMetric('visitorCount', 10);
+            const activeCustomerCount = safeMetric('activeCustomerCount', 5);
+            return {
+              domain: 'market_heat',
+              claim: { type: 'threshold', value: visitorCount, threshold: 10, above: visitorCount >= 10 },
+              value: { type: 'numeric', value: activeCustomerCount },
+              metrics: { visitorCount, activeCustomerCount },
+            };
+          }
+          if (subtype === 'sincerity_sale_completed') {
+            const customerSeriousness = safeMetric('customerSeriousnessScore', 50);
+            const fitScore = safeMetric('fitScore', 50);
+            return {
+              domain: 'service_path',
+              claim: { type: 'threshold', value: customerSeriousness, threshold: 50, above: customerSeriousness >= 50 },
+              value: { type: 'numeric', value: fitScore },
+              metrics: { customerSeriousnessScore: customerSeriousness, fitScore },
+            };
+          }
+          if (subtype === 'negotiation_progressed') {
+            const priceAnchor = safeMetric('priceAnchor', 300);
+            const priceDelta = safeMetric('priceDelta', 0);
+            const direction = priceDelta > 0 ? 'rising' : priceDelta < 0 ? 'falling' : 'stable';
+            return {
+              domain: 'price_anchor',
+              claim: { type: 'direction', direction, magnitude: Math.abs(priceDelta) },
+              value: { type: 'numeric', value: priceAnchor },
+              metrics: { priceAnchor, priceDelta },
+            };
+          }
+          if (subtype === 'consensus_reached') {
+            const consensusStrength = safeMetric('consensusStrength', 75);
+            const trustScore = safeMetric('trustScore', 50);
+            return {
+              domain: 'deal_closeability',
+              claim: { type: 'threshold', value: consensusStrength, threshold: 50, above: consensusStrength >= 50 },
+              value: { type: 'numeric', value: consensusStrength },
+              metrics: { consensusStrength, trustScore },
+            };
+          }
+          if (subtype === 'deal_signed') {
+            const contractReadiness = safeMetric('contractReadinessScore', 90);
+            return {
+              domain: 'deal_closeability',
+              claim: { type: 'threshold', value: contractReadiness, threshold: 50, above: true },
+              value: { type: 'numeric', value: contractReadiness },
+              metrics: { contractReadinessScore: contractReadiness },
+            };
+          }
+          if (subtype === 'consensus_collapsed') {
+            const collapseRisk = safeMetric('collapseRiskScore', 50);
+            const trustScore = safeMetric('trustScore', 30);
+            return {
+              domain: 'deal_closeability',
+              claim: { type: 'direction', direction: 'falling', magnitude: Math.max(1, Math.round(collapseRisk / 10)) },
+              value: { type: 'numeric', value: trustScore },
+              metrics: { collapseRiskScore: collapseRisk, trustScore },
+            };
+          }
+          return baseBelief;
+        default:
+          return baseBelief;
+      }
+    }
+
     default:
       return baseBelief;
   }
@@ -577,6 +1183,7 @@ function buildVisibleSourceRef(
   actorRole: ActorRole,
   queryDay: number,
   roleRule: RoleVisibilityRule,
+  causalEventIds: readonly string[] = [],
 ): VisibleSourceRef {
   const delay = computeInformationDelay(record, roleRule, queryDay);
   const credibility = computeSourceCredibility(record, actorRole);
@@ -598,7 +1205,30 @@ function buildVisibleSourceRef(
     credibility,
     delay,
     entityRefIds,
+    causalEventIds: causalEventIds.slice(0, 5),
   };
+}
+
+function buildSourceToCausalEventIds(
+  causalEvents: readonly CausalEventRef[] | undefined,
+): ReadonlyMap<string, readonly string[]> {
+  const bySource = new Map<string, string[]>();
+  if (!causalEvents) return bySource;
+
+  for (const event of causalEvents) {
+    const sourceIds = [
+      event.sourceRecordId,
+      ...(event.sourceRecordIds ?? []),
+    ].filter((id): id is string => typeof id === 'string' && id.length > 0);
+
+    for (const sourceId of sourceIds) {
+      const ids = bySource.get(sourceId) ?? [];
+      if (!ids.includes(event.id)) ids.push(event.id);
+      bySource.set(sourceId, ids);
+    }
+  }
+
+  return bySource;
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -623,7 +1253,7 @@ export function buildActorKnowledgeSnapshot(
   role: ActorRole,
   day: number,
   registry: InformationSourceRegistry,
-  causalEvents?: readonly { readonly id: string; readonly day: number; readonly kind: string; readonly affectedIds: readonly string[] }[],
+  causalEvents?: readonly CausalEventRef[],
 ): ActorKnowledgeSnapshot {
   const roleRule = DEFAULT_ROLE_VISIBILITY.find((r) => r.role === role)
     ?? DEFAULT_ROLE_VISIBILITY[0];
@@ -640,10 +1270,44 @@ export function buildActorKnowledgeSnapshot(
 
   const totalBeforeBound = actorDelayedRecords.length;
 
-  // Bounded source refs: max 10 per role
+  // Sort by source kind priority before applying bound.
+  // Player-initiated and organizational sources take precedence over
+  // environment-generated sources.
+  const sourceKindPriority: Record<string, number> = {
+    player_action_receipt: 0,
+    manager_message: 1,
+    process_receipt: 2,
+    owner_interview: 3,
+    customer_interaction: 4,
+    comparable_transaction: 5,
+    rival_action: 6,
+    market_signal: 7,
+  };
+  const prioritizedRecords = [...actorDelayedRecords].sort((a, b) => {
+    const pa = sourceKindPriority[a.sourceKind] ?? 99;
+    const pb = sourceKindPriority[b.sourceKind] ?? 99;
+    if (pa !== pb) return pa - pb;
+    return a.day - b.day;
+  });
+
+  // Bounded source refs: max per role, with diversity per source kind.
+  // Take at most 3 records per source kind, then apply overall bound.
+  const maxPerKind = 3;
   const maxSources = roleRule.maxVisibleSources;
-  const boundedRecords = actorDelayedRecords.slice(0, maxSources);
-  const visibleSourceRefs = boundedRecords.map((r) => buildVisibleSourceRef(r, role, day, roleRule));
+  const kindCounts = new Map<string, number>();
+  const diverseRecords: InformationSourceRecord[] = [];
+  for (const record of prioritizedRecords) {
+    const count = kindCounts.get(record.sourceKind) ?? 0;
+    if (count >= maxPerKind) continue;
+    kindCounts.set(record.sourceKind, count + 1);
+    diverseRecords.push(record);
+    if (diverseRecords.length >= maxSources) break;
+  }
+  const boundedRecords = diverseRecords;
+  const sourceToCausalEventIds = buildSourceToCausalEventIds(causalEvents);
+  const visibleSourceRefs = boundedRecords.map((r) =>
+    buildVisibleSourceRef(r, role, day, roleRule, sourceToCausalEventIds.get(r.sourceId) ?? []),
+  );
 
   // Generate belief updates from visible sources
   const beliefUpdates = generateBeliefUpdates(
@@ -723,7 +1387,7 @@ function generateBeliefUpdates(
       actorId,
       actorRole: role,
       day,
-      belief: { domain: belief.domain, claim: belief.claim },
+      belief: { domain: belief.domain, claim: belief.claim, metrics: belief.metrics },
       confidence,
       sourceRefs: [sourceRef],
       replayKey: deterministicId('abu-rk', [actorId, day, index]),
@@ -834,13 +1498,15 @@ function mapSourceKindToBlindSpotCategory(kind: string): string {
  *
  * Rules:
  *   1. Refs whose sourceRecordId maps to a no_one scope → REMOVED
- *   2. Refs whose sourceRecordId maps to owner_only scope → only visible to owner
- *   3. Refs whose sourceRecordId maps to player_only scope → only visible to player_broker
- *   4. Refs whose sourceRecordId maps to broker_chain scope → only visible to brokers
- *   5. Refs with no matching sourceRecordId in the registry → kept (legacy/system refs)
+ *   2. Refs whose sourceRecordId maps to specific_actors scope → kept only if source is in knowledge.visibleSources
+ *   3. Refs whose sourceRecordId maps to owner_only scope → only visible to owner
+ *   4. Refs whose sourceRecordId maps to player_only scope → only visible to player_broker
+ *   5. Refs whose sourceRecordId maps to broker_chain scope → only visible to brokers
+ *   6. Refs with no matching sourceRecordId in the registry → kept (legacy/system refs)
  *
  * This ensures:
  *   - no_one sources never appear in any projection
+ *   - specific_actors uses actual actor visibility, not just role allowedScopes
  *   - owner_only / player_only / broker_chain are enforced at projection level
  *   - Same source produces different ref sets for different actors
  */
@@ -872,17 +1538,22 @@ export function filterCausalRefsByVisibility(
     if (seen.has(key)) continue;
     seen.add(key);
 
-    // Find the source record that produced this ref's causal event
-    // The refId may be a sourceRecordId or an entity ID — check both
     const scope = sourceScopeMap.get(ref.refId);
 
     if (scope === 'no_one') {
-      // Hidden source: never show in projection
+      continue;
+    }
+
+    if (scope === 'specific_actors') {
+      // specific_actors: keep only if the source is in the actor's visible sources.
+      // This uses actor-level visibility, not just role allowedScopes.
+      if (visibleSourceIds.has(ref.refId)) {
+        filtered.push(ref);
+      }
       continue;
     }
 
     if (scope !== undefined && !allowedScopes.has(scope)) {
-      // Actor doesn't have permission for this scope
       continue;
     }
 
@@ -1039,6 +1710,17 @@ function extractCausalRefs(knowledge: ActorKnowledgeSnapshot): POVCausalRef[] {
   const seen = new Set<string>();
 
   for (const source of knowledge.visibleSources) {
+    for (const eventId of source.causalEventIds ?? []) {
+      if (seen.has(eventId)) continue;
+      seen.add(eventId);
+
+      refs.push({
+        refType: 'market-signal',
+        refId: eventId,
+        refLabel: source.summary.slice(0, 50),
+      });
+    }
+
     for (const entityId of source.entityRefIds) {
       if (seen.has(entityId)) continue;
       seen.add(entityId);
@@ -1489,6 +2171,17 @@ export function buildDecisionEvidenceEnvelope(
   const causalRefs: { refType: string; refId: string; refLabel: string }[] = [];
   const seen = new Set<string>();
   for (const source of knowledge.visibleSources) {
+    for (const eventId of source.causalEventIds ?? []) {
+      const key = `causal_event:${eventId}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      causalRefs.push({
+        refType: 'causal_event',
+        refId: eventId,
+        refLabel: source.summary.slice(0, 50),
+      });
+    }
+
     for (const entityId of source.entityRefIds) {
       const key = `${source.sourceKind}:${entityId}`;
       if (seen.has(key)) continue;
@@ -1515,4 +2208,188 @@ export function buildDecisionEvidenceEnvelope(
     explanation,
     replayKey: deterministicId('dee', [knowledge.actorId, knowledge.actorRole, knowledge.day]),
   };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Decision Spine Trace — reconstructs full chain from persisted evidence
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * A single step in the decision spine trace.
+ * Each step carries bounded, actor-safe references — never raw payloads.
+ */
+export interface DecisionSpineTraceStep {
+  readonly step: 'source' | 'causal_event' | 'visible_source' | 'belief' | 'pressure' | 'command';
+  readonly refId: string;
+  readonly kind?: string;
+  readonly domain?: string;
+  readonly day?: number;
+}
+
+/**
+ * Full decision spine trace: reconstructs the chain
+ *   source → causal event → visible source → belief → pressure → command
+ * from persisted runtime evidence.
+ *
+ * This is an internal projection/debug helper — NOT UI.
+ * Uses existing buildActorKnowledgeSnapshot and buildDecisionEvidenceEnvelope.
+ * Output is bounded and actor-safe: source refs, not raw payloads;
+ * causal event ids/kinds only; belief ids/domains/claims; pressure ids/domains;
+ * recommended command id/name.
+ *
+ * Must not read UI state or call LLM/network.
+ */
+export interface DecisionSpineTrace {
+  readonly actorId: string;
+  readonly actorRole: ActorRole;
+  readonly day: number;
+  readonly steps: readonly DecisionSpineTraceStep[];
+  /** Explanation chain as ordered step labels joined by '>' */
+  readonly chainLabel: string;
+  /** Whether the trace includes all 6 step types */
+  readonly isComplete: boolean;
+  /** Deterministic replay key */
+  readonly replayKey: string;
+}
+
+/**
+ * Build a decision spine trace from persisted runtime evidence.
+ *
+ * Reconstructs the full chain:
+ *   source → causal event → visible source → belief → pressure → command
+ *
+ * Uses existing `buildActorKnowledgeSnapshot` and `buildDecisionEvidenceEnvelope`
+ * rather than duplicating their logic.
+ *
+ * @param actorId - Actor identifier
+ * @param actorRole - Actor role (determines visibility)
+ * @param day - Simulation day
+ * @param registry - Information source registry (from buildInformationSourceRegistryFromRuntime)
+ * @param causalEvents - World causal events (for source → causal event linkage)
+ * @returns Bounded, actor-safe decision spine trace
+ */
+export function buildActorDecisionSpineTrace(
+  actorId: string,
+  actorRole: ActorRole,
+  day: number,
+  registry: InformationSourceRegistry,
+  causalEvents?: readonly CausalEventRef[],
+): DecisionSpineTrace {
+  const steps: DecisionSpineTraceStep[] = [];
+
+  // Build knowledge snapshot and decision evidence envelope
+  const knowledge = buildActorKnowledgeSnapshot(actorId, actorRole, day, registry, causalEvents);
+  const envelope = buildDecisionEvidenceEnvelope(knowledge);
+
+  // Step 1: Source records (from visible sources)
+  for (const source of knowledge.visibleSources.slice(0, 5)) {
+    steps.push({
+      step: 'source',
+      refId: source.sourceId,
+      kind: source.sourceKind,
+      day: source.day,
+    });
+  }
+
+  // Step 2: Causal events (from visible source causalEventIds)
+  const seenEventIds = new Set<string>();
+  for (const source of knowledge.visibleSources.slice(0, 5)) {
+    for (const eventId of source.causalEventIds ?? []) {
+      if (seenEventIds.has(eventId)) continue;
+      seenEventIds.add(eventId);
+      const evt = causalEvents?.find((e) => e.id === eventId);
+      steps.push({
+        step: 'causal_event',
+        refId: eventId,
+        kind: evt?.kind,
+        day: evt?.day,
+      });
+    }
+  }
+
+  // Step 3: Visible source (actor's perception layer)
+  for (const source of knowledge.visibleSources.slice(0, 5)) {
+    steps.push({
+      step: 'visible_source',
+      refId: source.sourceId,
+      kind: source.sourceKind,
+      day: source.day,
+    });
+  }
+
+  // Step 4: Beliefs
+  for (const belief of knowledge.beliefs.slice(0, 5)) {
+    steps.push({
+      step: 'belief',
+      refId: belief.updateId,
+      domain: belief.belief.domain,
+      day: belief.day,
+    });
+  }
+
+  // Step 5: Pressure signals
+  for (const pressure of envelope.pressureSignals.slice(0, 3)) {
+    steps.push({
+      step: 'pressure',
+      refId: pressure.signalId,
+      domain: pressure.domain,
+    });
+  }
+
+  // Step 6: Recommended command
+  if (envelope.recommendedCommand) {
+    steps.push({
+      step: 'command',
+      refId: envelope.recommendedCommand.command.commandId,
+      kind: envelope.recommendedCommand.command.name,
+    });
+  }
+
+  const stepLabels = steps.map((s) => s.step);
+  const chainLabel = stepLabels.join('>');
+  const stepTypes = new Set(steps.map((s) => s.step));
+  const isComplete = stepTypes.has('source') && stepTypes.has('causal_event')
+    && stepTypes.has('visible_source') && stepTypes.has('belief')
+    && stepTypes.has('pressure') && stepTypes.has('command');
+
+  return {
+    actorId,
+    actorRole,
+    day,
+    steps,
+    chainLabel,
+    isComplete,
+    replayKey: deterministicId('dst', [actorId, actorRole, day]),
+  };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Persisted source ledger helpers
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Extract persisted source records from BigWorldRuntimeState.
+ * Returns empty array for old saves without the field.
+ */
+export function extractPersistedSourceRecords(
+  runtime: { persistedSourceRecords?: readonly InformationSourceRecord[] } | undefined,
+): readonly InformationSourceRecord[] {
+  if (!runtime?.persistedSourceRecords) return [];
+  return runtime.persistedSourceRecords;
+}
+
+/**
+ * Build an InformationSourceRegistry from persisted source records.
+ * Uses appendSourceRecords which respects duplicate replay-key semantics.
+ */
+export function buildInformationSourceRegistryFromRuntime(
+  runtime: { persistedSourceRecords?: readonly InformationSourceRecord[] } | undefined,
+): InformationSourceRegistry {
+  const records = extractPersistedSourceRecords(runtime);
+  let registry = createEmptyRegistry();
+  if (records.length > 0) {
+    const result = appendSourceRecords(registry, records as readonly InformationSourceRecord[]);
+    registry = result.registry;
+  }
+  return registry;
 }

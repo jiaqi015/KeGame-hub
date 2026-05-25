@@ -1,12 +1,30 @@
 import type { Case, CustomerProfile, CustomerRuntimeState, GameState, Opportunity, RivalListing } from '../models.js';
 import { BALANCE } from '../config/balance.js';
+import { CASE_STAGES } from '../constants.js';
 import { logEvent } from '../runtimeState.js';
 import { chance, clamp, intersections, randomInt } from '../utils.js';
 import { applyBrokerOwnerTrustDelta } from '../trustWriteHelper.js';
 import { getActiveOpportunities, MAX_ACTIVE_OPPORTUNITIES_PER_CASE, refreshOpportunityLabel } from './opportunityEngine.js';
 import { getRivalOutcomeControl, scaleProbability } from './outcomeControlRuntime.js';
-import { applyOpportunityIntentDeltaOnState, applyOpportunityConfidenceDeltaOnState, setOpportunityDaysLeftOnState, setOpportunityTouchedTodayOnState, setOpportunityVisibilityOnState, setOpportunityStatusOnState, setOpportunityLifecycleStatusOnState, setOpportunityStageIndexOnState, setOpportunityFit, findMatchStateForPair, ensureCustomerCaseMatchState } from '../opportunitySplitHelper.js';
+import { applyOpportunityIntentDeltaOnState, applyOpportunityConfidenceDeltaOnState, setOpportunityDaysLeftOnState, setOpportunityTouchedTodayOnState, setOpportunityVisibilityOnState, setOpportunityStatusOnState, setOpportunityLifecycleStatusOnState, setOpportunityStageIndexOnState, setOpportunityFit, findMatchStateForPair, ensureCustomerCaseMatchState, syncCustomerRuntimeStageMirrorFromOpportunityOnState, syncCaseStageMirrorFromCaseProgressionOnState } from '../opportunitySplitHelper.js';
 import type { PressureReceiptSink } from '../../core/world-state/competition/models.js';
+
+// ---------------------------------------------------------------------------
+// R20 Customer-journey stage mirror helper
+// ---------------------------------------------------------------------------
+// This is the canonical write path for customer runtime.stageIndex mirrors.
+// Lower stages (0-3) are customer-journey mirrors that advance with interest/confidence.
+// Late stages (4+) are also permitted here as customer-journey mirrors — the
+// structural truth check for negotiation/closing is on Opportunity.stageIndex,
+// not runtime.stageIndex. Opportunity.stageIndex >= 4 requires trajectory evidence.
+// ---------------------------------------------------------------------------
+
+function syncCustomerJourneyStageMirror(
+  runtime: { stageIndex: number },
+  newStage: number,
+): void {
+  runtime.stageIndex = newStage;
+}
 
 function buildDecisionStyle(customer: CustomerProfile): CustomerRuntimeState['decisionStyle'] {
   if (customer.urgency >= 76 && customer.activity >= 72) {
@@ -217,7 +235,7 @@ function applyCustomerDay(state: GameState, customer: CustomerProfile, customerS
         ? 78
         : 70;
     if (runtime.stageIndex < 5 && runtime.interest >= advanceThreshold && runtime.confidence >= advanceThreshold - 6 && chance(clamp(0.28 * funnelProgressionScale, 0, 0.95), state)) {
-      runtime.stageIndex += 1;
+      syncCustomerJourneyStageMirror(runtime, runtime.stageIndex + 1);
       runtime.lastActiveDay = state.day;
       if (runtime.stageIndex >= 2) {
         runtime.viewed = true;
@@ -226,7 +244,7 @@ function applyCustomerDay(state: GameState, customer: CustomerProfile, customerS
         runtime.offered = true;
       }
     } else if (runtime.interest < 24 || runtime.confidence < 20) {
-      runtime.stageIndex = Math.max(0, runtime.stageIndex - 1);
+      syncCustomerJourneyStageMirror(runtime, Math.max(0, runtime.stageIndex - 1));
     }
   });
 
@@ -346,7 +364,7 @@ function syncOpportunityFromCustomer(
   applyOpportunityIntentDeltaOnState(state, opportunity, Math.round(runtime.interest) - opportunity.intent, '客户运行时同步意向', 0, 100);
   applyOpportunityConfidenceDeltaOnState(state, opportunity, Math.round(runtime.confidence) - opportunity.confidence, '客户运行时同步置信度', 0, 100);
   setOpportunityStageIndexOnState(state, opportunity, Math.max(opportunity.stageIndex, runtime.stageIndex), '客户运行时同步阶段');
-  runtime.stageIndex = Math.max(runtime.stageIndex, Math.min(5, opportunity.stageIndex));
+  syncCustomerRuntimeStageMirrorFromOpportunityOnState(state, opportunity, runtime, '客户运行时同步阶段');
   setOpportunityLifecycleStatusOnState(state, opportunity, runtime.interactions > 0 ? 'active' : opportunity.lifecycleStatus, '客户运行时同步生命周期');
   if (previousStageIndex === opportunity.stageIndex) {
     setOpportunityDaysLeftOnState(state, opportunity, previousDaysLeft, '客户运行时同步剩余天数');
@@ -625,13 +643,13 @@ export function applyCustomerFeedbackToCases(state: GameState, sink?: PressureRe
     caseItem.offers = Math.max(caseItem.offers, summary.negotiatingCustomers > 0 ? 1 : 0);
 
     if (summary.negotiatingCustomers >= 1) {
-      caseItem.stageIndex = Math.max(caseItem.stageIndex, 4);
+      syncCaseStageMirrorFromCaseProgressionOnState(caseItem, { legacyStageIndex: Math.max(caseItem.stageIndex, 4) }, CASE_STAGES.length - 2);
     } else if (summary.highIntentCustomers >= 1) {
-      caseItem.stageIndex = Math.max(caseItem.stageIndex, 3);
+      syncCaseStageMirrorFromCaseProgressionOnState(caseItem, { legacyStageIndex: Math.max(caseItem.stageIndex, 3) }, CASE_STAGES.length - 2);
     } else if (summary.activeCustomers >= 2) {
-      caseItem.stageIndex = Math.max(caseItem.stageIndex, 2);
+      syncCaseStageMirrorFromCaseProgressionOnState(caseItem, { legacyStageIndex: Math.max(caseItem.stageIndex, 2) }, CASE_STAGES.length - 2);
     } else if (summary.activeCustomers >= 1) {
-      caseItem.stageIndex = Math.max(caseItem.stageIndex, 1);
+      syncCaseStageMirrorFromCaseProgressionOnState(caseItem, { legacyStageIndex: Math.max(caseItem.stageIndex, 1) }, CASE_STAGES.length - 2);
     }
 
     if (summary.comparingCustomers >= 2 && chance(0.1, state)) {
@@ -659,7 +677,7 @@ export function touchCustomersForCase(
     if (!runtime) return;
     runtime.interest = clamp(runtime.interest + (effect.interestDelta || 0), 0, 100);
     runtime.confidence = clamp(runtime.confidence + (effect.confidenceDelta || 0), 0, 100);
-    runtime.stageIndex = clamp(runtime.stageIndex + (effect.stageAdvance || 0), 0, 5);
+    syncCustomerJourneyStageMirror(runtime, clamp(runtime.stageIndex + (effect.stageAdvance || 0), 0, 5));
     runtime.interactions += 1;
     runtime.lastActiveDay = state.day;
     customerState.advisorTrust = clamp(customerState.advisorTrust + (effect.advisorTrustDelta || 0), 0, 100);
@@ -681,7 +699,7 @@ export function touchCustomersForCase(
       applyOpportunityIntentDeltaOnState(state, opportunity, Math.round(runtime.interest) - opportunity.intent, '客户触达同步意向', 0, 100);
       applyOpportunityConfidenceDeltaOnState(state, opportunity, Math.round(runtime.confidence) - opportunity.confidence, '客户触达同步置信度', 0, 100);
       setOpportunityStageIndexOnState(state, opportunity, Math.max(opportunity.stageIndex, runtime.stageIndex), '客户触达同步阶段');
-      runtime.stageIndex = Math.max(runtime.stageIndex, Math.min(5, opportunity.stageIndex));
+      syncCustomerRuntimeStageMirrorFromOpportunityOnState(state, opportunity, runtime, '客户触达同步阶段');
       refreshOpportunityLabel(state, opportunity);
     }
   });

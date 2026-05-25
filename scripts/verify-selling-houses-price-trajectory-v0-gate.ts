@@ -24,7 +24,7 @@ import { seedInitialOpportunities } from '../src/selling-houses/domain/engine.js
 import { queueDealClosingEvaluation, settlePendingDealClosings } from '../src/selling-houses/domain/dealClosing.js';
 import { initializeOpportunityRelations, findBrokeredStateForOpportunity, findMatchStateForPair } from '../src/selling-houses/domain/opportunitySplitHelper.js';
 import { ensureConsensusRuntime, findConsensusForOpportunity } from '../src/selling-houses/domain/consensusFormationHelper.js';
-import { ensureMarketOutcomeState } from '../src/selling-houses/domain/models.js';
+import { asWritableCase, ensureMarketOutcomeState } from '../src/selling-houses/domain/models.js';
 import {
   buildLegacyPriceTrajectoryFromOpportunity,
   buildPriceConsensusReadiness,
@@ -342,10 +342,10 @@ function checkMainPathConsumption() {
     opp.confidence = 90;
     opp.daysLeft = 10;
     opp.budgetMax = 999999;
-    caseItem.trust = 80;
+    asWritableCase(caseItem).trust = 80;
     caseItem.competitiveness = 70;
     caseItem.askPrice = Math.min(caseItem.askPrice, caseItem.marketPrice);
-    caseItem.status = 'active';
+    asWritableCase(caseItem).status = 'active';
 
     const marketOutcome = ensureMarketOutcomeState(world);
     marketOutcome.releasedSlots = Math.max(marketOutcome.releasedSlots, 10);
@@ -475,11 +475,11 @@ function checkMainPathConsumption() {
         opp2.confidence = 20;
         opp2.daysLeft = 10;
         opp2.budgetMax = 100;
-        case2.trust = 30;
+        asWritableCase(case2).trust = 30;
         case2.askPrice = 500;
         case2.marketPrice = 300;
         case2.competitiveness = 20;
-        case2.status = 'active';
+        asWritableCase(case2).status = 'active';
 
         const marketOutcome2 = ensureMarketOutcomeState(world2);
         marketOutcome2.releasedSlots = Math.max(marketOutcome2.releasedSlots, 10);

@@ -21,6 +21,7 @@
 
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { asWritableCase } from '../src/selling-houses/domain/models.js';
 import { createInitialState, updateDerivedState } from '../src/selling-houses/application/gameState.js';
 import { getScenarioSnapshotById } from '../src/selling-houses/domain/scenarioCatalog.js';
 import { advanceOneDay, seedInitialOpportunities } from '../src/selling-houses/domain/engine.js';

@@ -7,6 +7,7 @@ import { deriveCaseRecommendations } from '../src/selling-houses/domain/recommen
 import { getScenarioSnapshotById } from '../src/selling-houses/domain/scenarioCatalog.js';
 import { DECISION_MOMENTS } from '../src/selling-houses/core/business-rules/index.js';
 import { refreshOpportunityLabel } from '../src/selling-houses/domain/engine/opportunityEngine.js';
+import { asWritableOpportunity } from '../src/selling-houses/domain/models.js';
 import type { GameState } from '../src/selling-houses/domain/models.js';
 
 const EXPECTED_MOMENT_IDS = [
@@ -94,7 +95,7 @@ function forceUnlockAction(state: GameState, actionId: string): boolean {
       caseItem.offers = Math.max(caseItem.offers, 1);
       for (const opp of state.opportunities) {
         if (opp.caseId === caseItem.id && opp.status === 'active') {
-          opp.stageIndex = Math.max(opp.stageIndex, 4);
+          asWritableOpportunity(opp).stageIndex = Math.max(opp.stageIndex, 4);
           refreshOpportunityLabel(state, opp);
         }
       }
@@ -105,7 +106,7 @@ function forceUnlockAction(state: GameState, actionId: string): boolean {
       caseItem.offers = Math.max(caseItem.offers, 1);
       for (const opp of state.opportunities) {
         if (opp.caseId === caseItem.id && opp.status === 'active') {
-          opp.stageIndex = Math.max(opp.stageIndex, 5);
+          asWritableOpportunity(opp).stageIndex = Math.max(opp.stageIndex, 5);
           refreshOpportunityLabel(state, opp);
         }
       }

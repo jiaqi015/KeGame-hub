@@ -10,6 +10,7 @@ import { seedInitialOpportunities } from '../src/selling-houses/domain/engine.js
 import { setBrokerOwnerTrust } from '../src/selling-houses/domain/trustWriteHelper.js';
 import { evaluateFinalResult } from '../src/selling-houses/domain/resultEvaluation.js';
 import { getScenarioSnapshotById } from '../src/selling-houses/domain/scenarioCatalog.js';
+import { asWritableOpportunity } from '../src/selling-houses/domain/models.js';
 
 const snapshot = getScenarioSnapshotById('standard-window-chain');
 assert.ok(snapshot, 'Expected standard-window-chain scenario to exist');
@@ -30,7 +31,7 @@ caseItem.competitiveness = 100;
 caseItem.hasCompletedFirstVisit = true;
 opportunity.intent = 100;
 opportunity.confidence = 100;
-opportunity.stageIndex = 4;
+asWritableOpportunity(opportunity).stageIndex = 4;
 opportunity.daysLeft = 3;
 updateDerivedState(world);
 

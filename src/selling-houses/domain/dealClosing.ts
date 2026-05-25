@@ -14,6 +14,7 @@ import type {
   GameState,
   Opportunity,
 } from './models.js';
+import { asWritableCase } from './models.js';
 import { BALANCE } from './config/balance.js';
 import { recordBudgetChange } from './budget.js';
 import { applyAuxiliaryStats } from './runtimeStats.js';
@@ -21,9 +22,9 @@ import { logEvent, recordDomainEvent } from './runtimeState.js';
 import { closeOpportunity, refreshOpportunityLabel } from './engine/opportunityEngine.js';
 import { clamp } from './utils.js';
 import { applyBrokerOwnerTrustDelta } from './trustWriteHelper.js';
-import { markCaseSold } from './caseOutcome.js';
-import { applyOpportunityIntentDeltaOnState, applyOpportunityConfidenceDeltaOnState, setOpportunityDaysLeftOnState, setOpportunityTouchedTodayOnState, setOpportunityPendingClosingOnState, setOpportunityStatusOnState, findBrokeredStateForOpportunity, findMatchStateForPair, ensureCustomerCaseMatchState, ensureBrokeredOpportunityState } from './opportunitySplitHelper.js';
-import { ensureConsensusFormation, setConsensusEvaluationOnState, setConsensusStageOnState, markConsensusSignedOnState, markConsensusCollapsedOnState, ensureConsensusRuntime, createContractFactOnState, createOpportunityClosureOnState, findContractForCase } from './consensusFormationHelper.js';
+import { markCaseSoldFromContract } from './caseOutcome.js';
+import { applyOpportunityIntentDeltaOnState, applyOpportunityConfidenceDeltaOnState, setOpportunityDaysLeftOnState, setOpportunityTouchedTodayOnState, setOpportunityPendingClosingOnState, setOpportunityStatusOnState, findBrokeredStateForOpportunity, findMatchStateForPair, ensureCustomerCaseMatchState, ensureBrokeredOpportunityState, syncCustomerRuntimeStageMirrorFromOpportunityOnState, syncOpportunityStageMirrorFromTrajectoryOnState } from './opportunitySplitHelper.js';
+import { ensureConsensusFormation, setConsensusEvaluationOnState, setConsensusStageOnState, markConsensusSignedOnState, markConsensusCollapsedOnState, ensureConsensusRuntime, createOpportunityClosureOnState, findContractForCase, createContractFactFromPriceConsensusOnState, markConsensusSignedFromPriceConsensusOnState, type ContractFactState } from './consensusFormationHelper.js';
 import { buildConsensusFormationId } from '../core/world-state/consensus/writeSource.js';
 import { readOwnerDecisionProfile, type OwnerDecisionProfile } from './ownerDecisionProfileHelper.js';
 import { getMarketCell } from './engine/opportunityEngine.js';
@@ -31,9 +32,31 @@ import {
   buildLegacyPriceTrajectoryFromOpportunity,
   buildPriceConsensusReadiness,
   buildPriceTrajectoryFromDealClosingEvaluation,
+  buildPriceConsensusProof,
+  validatePriceConsensusProof,
+  assertTrajectoryHasOfferAndConcession,
+  deriveConsensusStatusFromTrajectory,
   type PriceTrajectory,
   type PriceConsensusReadiness,
+  type PriceConsensusProof,
+  type WeightExplanation,
 } from '../core/world-state/consensus/priceTrajectory.js';
+import {
+  computeCloseProbability,
+  buildDefaultCloseProbabilityWeights,
+  type CloseProbabilityInputs,
+  type CloseProbabilityResult,
+  type CloseProbabilityBlockCategory,
+} from '../core/world-state/consensus/closeProbability.js';
+
+// R20 compatibility mirror helper for deal-close stage write
+function syncCustomerJourneyStageMirrorFromDealClose(
+  runtime: { stageIndex: number },
+  convertedStageIndex: number,
+): void {
+  runtime.stageIndex = convertedStageIndex;
+}
+
 // ---------------------------------------------------------------------------
 // BrokerCustomerRelation trust read helper
 // ---------------------------------------------------------------------------
@@ -126,15 +149,17 @@ function storePriceTrajectoryAndReadiness(
  * This is the ONLY allowed write path for terminal case status → 'sold',
  * soldPrice, and closedDeals.unshift. All direct mutations are encapsulated
  * here so the gate can allowlist a single location.
+ *
+ * R23: contractFactId + consensusFormationId are mandatory provenance.
+ * The gate verifies these are present and non-empty before allowing the write.
  */
 export function syncLegacyCaseDealMirrorsFromContractFact(
   state: GameState,
   input: {
-    contractFactId: string;
+    contractFact: ContractFactState;
     consensusFormationId: string;
     opportunityClosureSetId?: string;
     caseId: string;
-    soldPrice: number;
     opportunity: Opportunity;
     evaluation: DealClosingEvaluation;
   },
@@ -142,21 +167,23 @@ export function syncLegacyCaseDealMirrorsFromContractFact(
   const caseItem = state.cases.find((c) => c.id === input.caseId);
   if (!caseItem) return;
 
+  const contract = input.contractFact;
+
   // Terminal status write
-  caseItem.status = 'sold';
-  caseItem.soldPrice = input.soldPrice;
+  asWritableCase(caseItem).status = 'sold';
+  asWritableCase(caseItem).soldPrice = contract.dealPrice;
   caseItem.stageLabel = '已成交';
 
-  // Derive ending fields from Case state
-  markCaseSold(caseItem, input.soldPrice);
+  // R27: Always use markCaseSoldFromContract — no loose markCaseSold in production
+  markCaseSoldFromContract(caseItem, contract.dealPrice, contract.priceConsensusProofId ?? contract.contractId);
 
   // Build legacy ClosedDealRecord mirror via single authority constructor
   const closedDeal: ClosedDealRecord = buildClosedDealRecord(
-    state, caseItem, input.opportunity, input.soldPrice, input.evaluation,
+    state, caseItem, input.opportunity, contract.dealPrice, input.evaluation,
   );
 
   if (input.consensusFormationId) closedDeal.consensusId = input.consensusFormationId;
-  closedDeal.contractId = input.contractFactId;
+  closedDeal.contractId = contract.contractId;
   if (input.opportunityClosureSetId) closedDeal.closureSetId = input.opportunityClosureSetId;
   state.closedDeals.unshift(closedDeal);
 }
@@ -211,39 +238,6 @@ function readRelationReadinessForCase(state: GameState, caseItem: Case): Relatio
   return { patience: caseItem.patience, urgency: caseItem.urgency, source: 'case-fallback' };
 }
 
-function calculateNegotiationSuccessScore(
-  caseItem: Case,
-  opportunity: Opportunity,
-  strategyId: string | null | undefined,
-  trust: number,
-  ownerProfile: OwnerDecisionProfile,
-) {
-  const negotiationBalance = BALANCE.actions.negotiation;
-  const strategy = resolveNegotiationStrategy(strategyId);
-
-  return opportunity.intent * negotiationBalance.intentWeight
-    + opportunity.confidence * negotiationBalance.confidenceWeight
-    + trust * (ownerProfile.isUrgent ? negotiationBalance.urgentTrustWeight : negotiationBalance.defaultTrustWeight)
-    + caseItem.competitiveness * negotiationBalance.competitivenessWeight
-    - Math.max(0, caseItem.askPrice - caseItem.marketPrice) * negotiationBalance.askPricePenaltyWeight
-    + strategy.shift;
-}
-
-function calculateScaledCloseProbability(
-  state: GameState,
-  caseItem: Case,
-  opportunity: Opportunity,
-  strategyId: string | null | undefined,
-  trust: number,
-  ownerProfile: OwnerDecisionProfile,
-) {
-  return clamp(
-    Math.round(calculateNegotiationSuccessScore(caseItem, opportunity, strategyId, trust, ownerProfile) * state.rules.outcomeControl.playerDealClosingScale),
-    0,
-    95,
-  );
-}
-
 function finalizeClosedDeal(
   state: GameState,
   caseItem: Case,
@@ -262,9 +256,8 @@ function finalizeClosedDeal(
   const consensusId = signedBrokered
     ? buildConsensusFormationId(signedBrokered.brokeredOpportunityId)
     : undefined;
-  if (signedBrokered) {
-    markConsensusSignedOnState(state, signedBrokered.brokeredOpportunityId, state.day, 'deal closed');
-  }
+  // R26: consensus signing is now done from PriceConsensusProof when proof is available
+  // (moved below after proof construction)
 
   const canonicalTrajectory = buildPriceTrajectoryFromDealClosingEvaluation({
     caseId: caseItem.id,
@@ -288,27 +281,49 @@ function finalizeClosedDeal(
   const canonicalReadiness = buildPriceConsensusReadiness(canonicalTrajectory);
   storePriceTrajectoryAndReadiness(state, canonicalTrajectory, canonicalReadiness);
 
-  const contractSourceEventRefs = [canonicalTrajectory.trajectoryId, canonicalReadiness.readinessId];
+  // Validate trajectory has both BuyerOffer and OwnerConcession (R19 structural invariant)
+  const trajectoryValidation = assertTrajectoryHasOfferAndConcession(canonicalTrajectory);
 
-  // Create ContractFact (canonical terminal fact — guarded against duplicates)
-  const contractFact = consensusId
-    ? createContractFactOnState(
-        state,
-        consensusId,
-        signedBrokered!.brokeredOpportunityId,
-        caseItem.id,
-        opportunity.customerId,
-        soldPrice,
-        'self_closed',
-        state.day,
-        `deal-${caseItem.id}-${opportunity.customerId}-${state.day}`,
-        evaluation.closeReadiness,
-        evaluation.closeProbability,
-        evaluation.blockingReasons,
-        evaluation.supportingReasons,
-        contractSourceEventRefs,
-      )
-    : undefined;
+  // R27: Build PriceConsensusProof and validate — no scalar fallback
+  let proof: PriceConsensusProof | undefined;
+  if (canonicalReadiness.ready && trajectoryValidation.valid) {
+    proof = buildPriceConsensusProof({
+      trajectory: canonicalTrajectory,
+      readiness: canonicalReadiness,
+    });
+    const proofValidation = validatePriceConsensusProof(proof);
+    if (!proofValidation.valid) {
+      proof = undefined;
+    }
+  }
+
+  // R20: Derive opportunity stage from trajectory for the closing path
+  syncOpportunityStageMirrorFromTrajectoryOnState(state, opportunity, canonicalTrajectory, opportunity.stageIndex, 'deal close trajectory-derived stage');
+
+  // R27: No scalar fallback — contract only from proof
+  let contractFact: ContractFactState | undefined;
+  if (consensusId && proof) {
+    markConsensusSignedFromPriceConsensusOnState(state, signedBrokered!.brokeredOpportunityId, state.day, proof);
+    contractFact = createContractFactFromPriceConsensusOnState(
+      state,
+      consensusId,
+      signedBrokered!.brokeredOpportunityId,
+      caseItem.id,
+      opportunity.customerId,
+      'self_closed',
+      state.day,
+      `deal-${caseItem.id}-${opportunity.customerId}-${state.day}`,
+      evaluation.closeReadiness,
+      evaluation.closeProbability,
+      evaluation.blockingReasons,
+      evaluation.supportingReasons,
+      proof,
+    );
+  } else if (consensusId) {
+    // R27: No proof = no contract. Collapse consensus as evidence failure.
+    markConsensusCollapsedOnState(state, signedBrokered!.brokeredOpportunityId, state.day,
+      `proof invalid or readiness not ready (readiness.ready=${canonicalReadiness.ready}, trajectoryValid=${trajectoryValidation.valid})`);
+  }
 
   // Create OpportunityClosureSet (one contract closes many opportunities)
   const closureSet = contractFact
@@ -329,16 +344,17 @@ function finalizeClosedDeal(
 
   const saleBalance = BALANCE.actions.sale;
 
-  // Sync all legacy terminal mirrors from ContractFact (single controlled write path)
-  syncLegacyCaseDealMirrorsFromContractFact(state, {
-    contractFactId: contractFact?.contractId ?? `deal-${caseItem.id}-${opportunity.customerId}-${state.day}`,
-    consensusFormationId: consensusId ?? '',
-    opportunityClosureSetId: closureSet?.closureSetId,
-    caseId: caseItem.id,
-    soldPrice,
-    opportunity,
-    evaluation,
-  });
+  // R27: Sync legacy mirrors only when proof-backed contract exists
+  if (contractFact) {
+    syncLegacyCaseDealMirrorsFromContractFact(state, {
+      contractFact,
+      consensusFormationId: consensusId ?? '',
+      opportunityClosureSetId: closureSet?.closureSetId,
+      caseId: caseItem.id,
+      opportunity,
+      evaluation,
+    });
+  }
 
   applyBrokerOwnerTrustDelta(state, caseItem, saleBalance.soldTrustBonus, '成交信任奖励', 0, 100);
   caseItem.heat = clamp(caseItem.heat + saleBalance.soldHeatBonus, 0, 100);
@@ -381,7 +397,7 @@ function finalizeClosedDeal(
       customerState.status = 'converted';
       runtime.selected = true;
       runtime.offered = true;
-      runtime.stageIndex = saleBalance.convertedStageIndex;
+      syncCustomerJourneyStageMirrorFromDealClose(runtime, saleBalance.convertedStageIndex);
       runtime.interest = 100;
       runtime.confidence = 100;
       customerState.lastActionNote = '成交完成';
@@ -574,38 +590,41 @@ export function settlePendingDealClosings(state: GameState) {
     storePriceTrajectoryAndReadiness(state, legacyTrajectory, legacyReadiness);
 
     // Write evaluation into ConsensusFormation (canonical)
-    const match = findMatchStateForPair(state, opportunity.customerId, opportunity.caseId);
-    const brokered = match ? findBrokeredStateForOpportunity(state, opportunity.id) : undefined;
-    if (match && brokered) {
-      // Ensure consensus exists and write evaluation
-      const consensus = ensureConsensusFormation(
-        state,
-        brokered.brokeredOpportunityId,
-        match.matchId,
-        caseItem.id,
-        opportunity.customerId,
-        strategyId,
-        state.day,
-      );
-      setConsensusEvaluationOnState(state, brokered.brokeredOpportunityId, {
-        closeReadiness: evaluation.closeReadiness,
-        closeProbability: evaluation.closeProbability,
-        blockers: evaluation.blockingReasons,
-        supportingFactors: evaluation.supportingReasons,
-        strategyId,
-      }, state.day, 'settle evaluation');
+    // Ensure match and brokered state exist (they may not if settlePendingDealClosings
+    // was called without going through queueDealClosingEvaluation first)
+    const match = ensureCustomerCaseMatchState(
+      state, opportunity.customerId, opportunity.caseId,
+      opportunity.fit, opportunity.intent, opportunity.confidence,
+      opportunity.budgetMax, opportunity.priceSensitivity,
+    );
+    const brokered = ensureBrokeredOpportunityState(state, opportunity, match.matchId);
+    // Ensure consensus exists and write evaluation
+    ensureConsensusFormation(
+      state,
+      brokered.brokeredOpportunityId,
+      match.matchId,
+      caseItem.id,
+      opportunity.customerId,
+      strategyId,
+      state.day,
+    );
+    setConsensusEvaluationOnState(state, brokered.brokeredOpportunityId, {
+      closeReadiness: evaluation.closeReadiness,
+      closeProbability: evaluation.closeProbability,
+      blockers: evaluation.blockingReasons,
+      supportingFactors: evaluation.supportingReasons,
+      strategyId,
+      weightExplanations: evaluation.weightExplanations,
+    }, state.day, 'settle evaluation');
 
-      // Advance stage based on evaluation
-      const hasBlockers = evaluation.blockingReasons.length > 0;
-      const nextStage = hasBlockers ? 'negotiable_zone' : 'contract_ready';
-      setConsensusStageOnState(state, brokered.brokeredOpportunityId, nextStage, state.day, 'evaluation stage advance');
-    }
+    // Advance stage based on evaluation
+    const hasBlockers = evaluation.blockingReasons.length > 0;
+    const nextStage = hasBlockers ? 'negotiable_zone' : 'contract_ready';
+    setConsensusStageOnState(state, brokered.brokeredOpportunityId, nextStage, state.day, 'evaluation stage advance');
 
     if (isClosingBlockedByMarketCapacity(state, evaluation)) {
       // Mark consensus as collapsed on capacity block
-      if (brokered) {
-        markConsensusCollapsedOnState(state, brokered.brokeredOpportunityId, state.day, 'market capacity blocked');
-      }
+      markConsensusCollapsedOnState(state, brokered.brokeredOpportunityId, state.day, 'market capacity blocked');
       resolveCapacityBlockedPendingClosing(state, caseItem, opportunity);
       return;
     }
@@ -617,10 +636,7 @@ export function settlePendingDealClosings(state: GameState) {
 
     if (canClose) {
       if (claimPlayerMarketDealSlot(state)) {
-        // Mark consensus as signed before finalizing (canonical write)
-        if (brokered) {
-          markConsensusSignedOnState(state, brokered.brokeredOpportunityId, state.day, 'deal closed');
-        }
+        // R26: consensus signing now happens inside finalizeClosedDeal via proof path
         finalizeClosedDeal(state, caseItem, opportunity, soldPrice, evaluation, strategy.wordOfMouthBonus);
       } else {
         resolveCapacityBlockedPendingClosing(state, caseItem, opportunity);
@@ -657,18 +673,33 @@ export function buildDealClosingEvaluation(
   const cell = getMarketCell(state, caseItem.marketCellId);
   const competitionPressure = cell?.competitivePressure ?? 0;
 
-  const closeReadiness = clamp(
-    Math.round(
-      opportunity.intent * 0.34
-      + opportunity.confidence * 0.26
-      + trust * 0.2
-      + caseItem.competitiveness * 0.12
-      + Math.max(0, 100 - Math.max(0, soldPrice - opportunity.budgetMax) * 0.25) * 0.08,
-    ),
-    0,
-    100,
+  // R20: Compute close probability via pure kernel
+  const strategy = resolveNegotiationStrategy(strategyId);
+  const probResult = computeCloseProbability(
+    {
+      customerIntent: opportunity.intent,
+      customerConfidence: opportunity.confidence,
+      ownerTrust: trust,
+      ownerIsUrgent: ownerProfile.isUrgent,
+      caseCompetitiveness: caseItem.competitiveness,
+      askPricePenalty: Math.max(0, caseItem.askPrice - caseItem.marketPrice),
+      strategyShift: strategy.shift,
+      scalingFactor: state.rules.outcomeControl.playerDealClosingScale,
+      trustGate: BALANCE.actions.negotiation.trustGate,
+      priceExceedsBudget: soldPrice > opportunity.budgetMax,
+      marketCapacityBlocked: getAvailableMarketDealSlots(state) <= 0,
+      playerCapacityBlocked: ensureMarketOutcomeState(state).playerClaimedDeals >= getPlayerAllowedMarketDeals(state),
+      brokerCustomerTrust: bcrResult.trust,
+      brokerCustomerFamiliarity: bcrResult.familiarity,
+      brokerCustomerInfluence: bcrResult.influence,
+      brokerCustomerRelationSource: bcrResult.relationSource === 'relation' ? 'relation' : 'legacy-customer-runtime-fallback',
+      brokerCustomerRelationId: bcrResult.relationId,
+    },
+    buildDefaultCloseProbabilityWeights(),
   );
-  const rawCloseProbability = calculateScaledCloseProbability(state, caseItem, opportunity, strategyId, trust, ownerProfile);
+
+  const closeReadiness = probResult.closeReadiness;
+  const rawCloseProbability = probResult.rawProbability;
 
   const blockingReasons: string[] = [];
   const blockingCategories: BlockingReasonCategory[] = [];
@@ -774,6 +805,7 @@ export function buildDealClosingEvaluation(
     sourceTrace,
     blockingCategories,
     evidenceChain,
+    weightExplanations: probResult.weightExplanations,
   };
 }
 

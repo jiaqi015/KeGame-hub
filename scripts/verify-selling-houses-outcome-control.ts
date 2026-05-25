@@ -13,6 +13,8 @@ import { BASE_RULES, mergeRules } from '../src/selling-houses/domain/config/base
 import { settlePendingDealClosings } from '../src/selling-houses/domain/dealClosing.js';
 import { generateScenarioSnapshot, listDifficultyProfiles } from '../src/selling-houses/domain/scenarioCatalog.js';
 import {
+  asWritableCase,
+  asWritableOpportunity,
   ensureMarketOutcomeState,
   getAvailableMarketDealSlots,
   releaseMarketDealSlotsForDay,
@@ -635,7 +637,7 @@ verify('scenario deltas prefer linked opportunity target', () => {
   state.opportunities.unshift(fallbackOpportunity);
 
   caseItem.hasCompletedFirstVisit = true;
-  targetOpportunity.stageIndex = 0;
+  asWritableOpportunity(targetOpportunity).stageIndex = 0;
   targetOpportunity.intent = 20;
   targetOpportunity.confidence = 30;
   fallbackOpportunity.stageIndex = 5;
@@ -687,7 +689,7 @@ verify('customer runtime sync preserves opportunity funnel authority', () => {
   const caseItem = getActiveCase(state, 'customerFunnelAuthorityState');
   state.cases.forEach((entry) => {
     if (entry.id !== caseItem.id) {
-      entry.status = 'withdrawn';
+      asWritableCase(entry).status = 'withdrawn';
     }
   });
   const opportunity = getActiveOpportunityForCase(state, caseItem.id, 'customerFunnelAuthorityState');
@@ -697,7 +699,7 @@ verify('customer runtime sync preserves opportunity funnel authority', () => {
   const customerState = state.customerStates.find((entry) => entry.customerId === opportunity.customerId);
   assert.ok(customerState, 'target customer runtime should exist');
 
-  opportunity.stageIndex = 6;
+  asWritableOpportunity(opportunity).stageIndex = 6;
   opportunity.daysLeft = 2;
   opportunity.intent = 88;
   opportunity.confidence = 82;
@@ -744,7 +746,7 @@ verify('pending closing capacity block preserves customer and owner state', () =
   const state = createGeneratedState('standard', 2026042409);
   const caseItem = getActiveCase(state, 'pendingCapacityState');
   const opportunity = getActiveOpportunityForCase(state, caseItem.id, 'pendingCapacityState');
-  caseItem.trust = 88;
+  asWritableCase(caseItem).trust = 88;
   caseItem.askPrice = caseItem.marketPrice;
   caseItem.competitiveness = 90;
   opportunity.intent = 94;

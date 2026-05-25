@@ -158,6 +158,8 @@ export interface VisibleSourceRef {
   readonly delay: InformationDelay;
   /** Entity IDs this source references (bounded to max 3). */
   readonly entityRefIds: readonly string[];
+  /** Causal event IDs generated from this source record (bounded). */
+  readonly causalEventIds?: readonly string[];
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -209,6 +211,8 @@ export interface BeliefContent {
   readonly domain: BeliefDomain;
   /** Belief claim (structured, not narrative). */
   readonly claim: BeliefClaim;
+  /** Metric-derived values backing this belief (internal evidence, not UI-exposed). */
+  readonly metrics?: Readonly<Record<string, number>>;
 }
 
 /**
@@ -668,7 +672,7 @@ export interface RoleVisibilityRule {
 export const DEFAULT_ROLE_VISIBILITY: readonly RoleVisibilityRule[] = [
   {
     role: 'player_broker',
-    allowedScopes: ['all_actors', 'player_only', 'broker_chain'],
+    allowedScopes: ['all_actors', 'player_only', 'broker_chain', 'specific_actors'],
     delayModifier: 0,
     maxVisibleSources: 10,
     maxBeliefsPerDomain: 5,
@@ -684,7 +688,7 @@ export const DEFAULT_ROLE_VISIBILITY: readonly RoleVisibilityRule[] = [
   },
   {
     role: 'owner',
-    allowedScopes: ['all_actors', 'owner_only'],
+    allowedScopes: ['all_actors', 'owner_only', 'specific_actors'],
     delayModifier: 2,
     maxVisibleSources: 6,
     maxBeliefsPerDomain: 3,
@@ -692,7 +696,7 @@ export const DEFAULT_ROLE_VISIBILITY: readonly RoleVisibilityRule[] = [
   },
   {
     role: 'customer',
-    allowedScopes: ['all_actors'],
+    allowedScopes: ['all_actors', 'specific_actors'],
     delayModifier: 0,
     maxVisibleSources: 5,
     maxBeliefsPerDomain: 3,
@@ -700,7 +704,7 @@ export const DEFAULT_ROLE_VISIBILITY: readonly RoleVisibilityRule[] = [
   },
   {
     role: 'manager',
-    allowedScopes: ['all_actors'],
+    allowedScopes: ['all_actors', 'specific_actors'],
     delayModifier: 1,
     maxVisibleSources: 12,
     maxBeliefsPerDomain: 5,

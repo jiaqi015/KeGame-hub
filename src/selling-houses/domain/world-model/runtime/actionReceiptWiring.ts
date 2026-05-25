@@ -43,6 +43,7 @@ import type { SourceIngestionReceipt } from './sourceIngestionAdapter.js';
 
 import type { WorldCausalEvent } from '../causalEvents.js';
 import type { InformationSourceRecord } from '../informationSourceTypes.js';
+import { buildPlayerActionSourceIds, buildBlockedPlayerActionSourceIds } from '../playerActionSourceIds.js';
 
 // ════════════════════════════════════════════════════════════════════════════
 // Deterministic ID generation
@@ -140,6 +141,8 @@ export interface ReceiptBuildResult {
   readonly receipt: ActionReceipt;
   /** The source ingestion receipt containing causal events. */
   readonly sourceIngestionReceipt: SourceIngestionReceipt;
+  /** Source records built from this receipt — for persisted source ledger. */
+  readonly sourceRecords: readonly InformationSourceRecord[];
 }
 
 /**
@@ -221,6 +224,7 @@ export function buildReceiptFromSnapshot(
   return {
     receipt,
     sourceIngestionReceipt,
+    sourceRecords,
   };
 }
 
@@ -255,7 +259,7 @@ function buildSuccessfulPlayerActionSourceRecord(
   command: ActionCommand,
   seed: number,
 ): readonly InformationSourceRecord[] {
-  const recordId = deterministicId('isr', ['player_action_receipt', snapshot.actionId, snapshot.caseId, snapshot.day, seed]);
+  const ids = buildPlayerActionSourceIds(snapshot.day, snapshot.actionId, snapshot.caseId, seed);
 
   // Compute fieldDeltas from before/after values in snapshot
   const fieldDeltas: { field: string; from: string | number | boolean; to: string | number | boolean }[] = [];
@@ -271,7 +275,7 @@ function buildSuccessfulPlayerActionSourceRecord(
   if (competitivenessDelta !== 0) fieldDeltas.push({ field: 'competitiveness', from: snapshot.beforeCompetitiveness, to: snapshot.afterCompetitiveness });
 
   return [{
-    sourceId: recordId,
+    sourceId: ids.sourceId,
     sourceKind: 'player_action_receipt',
     day: snapshot.day,
     phase: 'afternoon',
@@ -280,7 +284,7 @@ function buildSuccessfulPlayerActionSourceRecord(
     visibility: { scope: 'player_only', baseDelayDays: 0 },
     confidence: 0.95,
     delayDays: 0,
-    replayKey: deterministicId('isr-rk', ['player_action_receipt', snapshot.actionId, snapshot.caseId, snapshot.day, seed]),
+    replayKey: ids.replayKey,
     origin: 'player_action',
     payload: {
       summary: snapshot.outcomeSummary,
@@ -301,9 +305,9 @@ function buildBlockedPlayerActionSourceRecord(
   command: ActionCommand,
   seed: number,
 ): readonly InformationSourceRecord[] {
-  const recordId = deterministicId('isr', ['player_action_receipt', snapshot.actionId, snapshot.caseId, snapshot.day, seed]);
+  const ids = buildBlockedPlayerActionSourceIds(snapshot.day, snapshot.actionId, snapshot.caseId, seed);
   return [{
-    sourceId: recordId,
+    sourceId: ids.sourceId,
     sourceKind: 'player_action_receipt',
     day: snapshot.day,
     phase: 'afternoon',
@@ -312,7 +316,7 @@ function buildBlockedPlayerActionSourceRecord(
     visibility: { scope: 'player_only', baseDelayDays: 0 },
     confidence: 0.9,
     delayDays: 0,
-    replayKey: deterministicId('isr-rk', ['player_action_receipt_blocked', snapshot.actionId, snapshot.caseId, snapshot.day, seed]),
+    replayKey: ids.replayKey,
     origin: 'player_action',
     payload: {
       summary: snapshot.outcomeSummary,

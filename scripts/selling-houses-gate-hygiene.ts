@@ -16,6 +16,10 @@ const SOFT_PASS_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
   { pattern: /\bassert\s*\(\s*true\s*\)/, label: 'assert(true)' },
   { pattern: /\|\|\s*true/, label: '|| true' },
   { pattern: /\.claude\/worktrees/, label: '.claude/worktrees' },
+  { pattern: /\bpass\s*\([^)]*acceptable/, label: 'pass(...acceptable...)' },
+  { pattern: /\bpass\s*\([^)]*no\b.*\bto test\b/, label: 'pass(...no...to test...)' },
+  { pattern: /\bpass\s*\([^)]*skipped?\b/i, label: 'pass(...skip...)' },
+  { pattern: /\bpass\s*\([^)]*not required for gate PASS/i, label: 'pass(...not required for gate PASS...)' },
 ];
 
 /**
@@ -106,9 +110,8 @@ export function stripNonCodeRegions(source: string): string[] {
       continue;
     }
 
-    // Line comment
+    // Line comment — skip only the comment portion, preserve code before it
     if (remaining.startsWith('//')) {
-      result[lineIndex] = '';
       const newlineIdx = source.indexOf('\n', i);
       i = newlineIdx === -1 ? source.length : newlineIdx + 1;
       continue;
@@ -255,4 +258,19 @@ export const CONSTITUTIONAL_CHAIN_GATES = [
   'scripts/verify-selling-houses-price-trajectory-v0-gate.ts',
   'scripts/verify-selling-houses-broker-customer-relation-v0-gate.ts',
   'scripts/verify-selling-houses-r4-scale-gate.ts',
+  'scripts/verify-selling-houses-live-causal-decision-spine-gate.ts',
+  'scripts/verify-selling-houses-r14-persisted-source-decision-spine-gate.ts',
+  'scripts/verify-selling-houses-r15-source-ledger-retention-decision-trace-gate.ts',
+  'scripts/verify-selling-houses-r16-runtime-rich-receipts-customer-pov-gate.ts',
+  'scripts/verify-selling-houses-r17-customer-visible-process-dynamic-evidence-gate.ts',
+  'scripts/verify-selling-houses-r18-visibility-metric-belief-manager-message-gate.ts',
+  'scripts/verify-selling-houses-r19-structural-truth-lock-gate.ts',
+  'scripts/verify-selling-houses-r20-trajectory-stage-probability-truth-kernel-gate.ts',
+  'scripts/verify-selling-houses-r21-runtime-contract-owner-belief-cleanup-gate.ts',
+  'scripts/verify-selling-houses-r22-behavioral-evidence-parity-gate.ts',
+  'scripts/verify-selling-houses-r23-truth-field-write-firewall-gate.ts',
+  'scripts/verify-selling-houses-r24-readonly-truth-fields-gate.ts',
+  'scripts/verify-selling-houses-r25-terminal-fact-readonly-sold-price-gate.ts',
+  'scripts/verify-selling-houses-r26-consensus-trajectory-final-gate.ts',
+  'scripts/verify-selling-houses-r27-no-fallback-full-constitutional-green-gate.ts',
 ];

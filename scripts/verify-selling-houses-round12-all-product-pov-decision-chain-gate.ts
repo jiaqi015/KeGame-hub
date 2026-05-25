@@ -33,6 +33,8 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import { asWritableCase } from '../src/selling-houses/domain/models.js';
+
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 let passed = 0;

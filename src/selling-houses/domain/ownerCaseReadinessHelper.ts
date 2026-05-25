@@ -33,6 +33,7 @@ import {
 } from '../core/world-state/ownerCaseReadinessWriteSource.js';
 
 import type { GameState, Case } from './models.js';
+import { asWritableCase } from './models.js';
 
 // ---------------------------------------------------------------------------
 // ReadinessWriteResult: returned by all readiness mutation helpers
@@ -135,8 +136,8 @@ export function setOwnerCasePatience(
   persistReadinessState(state, clampedState);
 
   // Sync Case mirrors
-  caseItem.patience = deriveCasePatienceMirror(clampedState);
-  caseItem.urgency = deriveCaseUrgencyMirror(clampedState);
+  asWritableCase(caseItem).patience = deriveCasePatienceMirror(clampedState);
+  asWritableCase(caseItem).urgency = deriveCaseUrgencyMirror(clampedState);
 
   return {
     mirrorPatience: caseItem.patience,
@@ -184,8 +185,8 @@ export function applyOwnerCasePatienceDelta(
   persistReadinessState(state, clampedState);
 
   // Sync Case mirrors
-  caseItem.patience = deriveCasePatienceMirror(clampedState);
-  caseItem.urgency = deriveCaseUrgencyMirror(clampedState);
+  asWritableCase(caseItem).patience = deriveCasePatienceMirror(clampedState);
+  asWritableCase(caseItem).urgency = deriveCaseUrgencyMirror(clampedState);
 
   return {
     mirrorPatience: caseItem.patience,
@@ -233,8 +234,8 @@ export function setOwnerCaseUrgency(
   persistReadinessState(state, clampedState);
 
   // Sync Case mirrors
-  caseItem.patience = deriveCasePatienceMirror(clampedState);
-  caseItem.urgency = deriveCaseUrgencyMirror(clampedState);
+  asWritableCase(caseItem).patience = deriveCasePatienceMirror(clampedState);
+  asWritableCase(caseItem).urgency = deriveCaseUrgencyMirror(clampedState);
 
   return {
     mirrorPatience: caseItem.patience,
@@ -282,8 +283,8 @@ export function applyOwnerCaseUrgencyDelta(
   persistReadinessState(state, clampedState);
 
   // Sync Case mirrors
-  caseItem.patience = deriveCasePatienceMirror(clampedState);
-  caseItem.urgency = deriveCaseUrgencyMirror(clampedState);
+  asWritableCase(caseItem).patience = deriveCasePatienceMirror(clampedState);
+  asWritableCase(caseItem).urgency = deriveCaseUrgencyMirror(clampedState);
 
   return {
     mirrorPatience: caseItem.patience,
@@ -360,8 +361,8 @@ export function applyOwnerCaseReadinessDelta(
   persistReadinessState(state, clampedState);
 
   // Sync Case mirrors
-  caseItem.patience = deriveCasePatienceMirror(clampedState);
-  caseItem.urgency = deriveCaseUrgencyMirror(clampedState);
+  asWritableCase(caseItem).patience = deriveCasePatienceMirror(clampedState);
+  asWritableCase(caseItem).urgency = deriveCaseUrgencyMirror(clampedState);
 
   // Build a synthetic record if no dimension was changed
   const record = lastRecord ?? Object.freeze({
@@ -451,8 +452,8 @@ export function setOwnerCaseReadiness(
   persistReadinessState(state, clampedState);
 
   // Sync Case mirrors
-  caseItem.patience = deriveCasePatienceMirror(clampedState);
-  caseItem.urgency = deriveCaseUrgencyMirror(clampedState);
+  asWritableCase(caseItem).patience = deriveCasePatienceMirror(clampedState);
+  asWritableCase(caseItem).urgency = deriveCaseUrgencyMirror(clampedState);
 
   // Build a synthetic record if no dimension was changed
   const record = lastRecord ?? Object.freeze({
@@ -525,8 +526,8 @@ export function clampOwnerCaseReadiness(
   persistReadinessState(state, newState);
 
   // Sync Case mirrors
-  caseItem.patience = deriveCasePatienceMirror(newState);
-  caseItem.urgency = deriveCaseUrgencyMirror(newState);
+  asWritableCase(caseItem).patience = deriveCasePatienceMirror(newState);
+  asWritableCase(caseItem).urgency = deriveCaseUrgencyMirror(newState);
 
   return {
     mirrorPatience: caseItem.patience,

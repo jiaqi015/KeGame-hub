@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { mkdirSync, writeFileSync } from 'node:fs';
 
+import { asWritableCase } from '../src/selling-houses/domain/models.js';
 import { createInitialState, updateDerivedState } from '../src/selling-houses/application/gameState.js';
 import { advanceDays, executeAction } from '../src/selling-houses/domain/engine.js';
 import { deriveCaseRecommendations } from '../src/selling-houses/domain/recommendationEngine.js';

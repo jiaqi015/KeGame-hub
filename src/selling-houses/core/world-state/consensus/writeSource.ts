@@ -68,6 +68,8 @@ export interface ConsensusFormationState {
   readonly lastUpdatedDay: number;
   /** Source event refs */
   readonly sourceEventRefs: readonly string[];
+  /** R20: Weight explanations for close probability computation */
+  readonly weightExplanations: readonly import('./priceTrajectory.js').WeightExplanation[];
 }
 
 // ---------------------------------------------------------------------------
@@ -117,6 +119,18 @@ export interface ContractFactState {
   readonly supportingFactors: readonly string[];
   /** Source event refs */
   readonly sourceEventRefs: readonly string[];
+  /** R20: Weight explanations for close probability at contract time */
+  readonly weightExplanations: readonly import('./priceTrajectory.js').WeightExplanation[];
+  /** R26: Price consensus proof id */
+  readonly priceConsensusProofId?: string;
+  /** R26: Price trajectory id */
+  readonly priceTrajectoryId?: string;
+  /** R26: Buyer offer id */
+  readonly buyerOfferId?: string;
+  /** R26: Owner concession id */
+  readonly ownerConcessionId?: string;
+  /** R26: Agreed price from proof */
+  readonly agreedPrice?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -185,6 +199,7 @@ export function createConsensusFormationState(
     requestedDay: day,
     lastUpdatedDay: day,
     sourceEventRefs: Object.freeze([]),
+    weightExplanations: Object.freeze([]),
   });
 }
 
@@ -223,6 +238,7 @@ export function setConsensusEvaluation(
     blockers: readonly string[];
     supportingFactors: readonly string[];
     strategyId?: string;
+    weightExplanations?: readonly import('./priceTrajectory.js').WeightExplanation[];
   },
   day: number,
   reason: string,
@@ -237,6 +253,7 @@ export function setConsensusEvaluation(
     strategyId: evaluation.strategyId ?? state.strategyId,
     lastUpdatedDay: day,
     sourceEventRefs: Object.freeze([...sourceEventRefs]),
+    weightExplanations: Object.freeze([...(evaluation.weightExplanations ?? state.weightExplanations)]),
   });
 
   const record: ConsensusFormationRecord = Object.freeze({
@@ -322,6 +339,7 @@ export function createContractFactState(
   resolvedBlockers: readonly string[],
   supportingFactors: readonly string[],
   sourceEventRefs: readonly string[] = [],
+  weightExplanations: readonly import('./priceTrajectory.js').WeightExplanation[] = [],
 ): ContractFactState {
   return Object.freeze({
     contractId: buildContractFactId(caseId, customerId, signedDay),
@@ -338,6 +356,49 @@ export function createContractFactState(
     resolvedBlockers: Object.freeze([...resolvedBlockers]),
     supportingFactors: Object.freeze([...supportingFactors]),
     sourceEventRefs: Object.freeze([...sourceEventRefs]),
+    weightExplanations: Object.freeze([...weightExplanations]),
+  });
+}
+
+/**
+ * R26: Create a ContractFact from a validated PriceConsensusProof.
+ * This is the strict production path — proof must be validated before calling.
+ */
+export function createContractFactFromProof(
+  consensusId: string,
+  brokeredOpportunityId: string,
+  caseId: string,
+  customerId: string,
+  dealType: string,
+  signedDay: number,
+  sourceClosedDealId: string,
+  closeReadiness: number,
+  closeProbability: number,
+  resolvedBlockers: readonly string[],
+  supportingFactors: readonly string[],
+  proof: import('./priceTrajectory.js').PriceConsensusProof,
+): ContractFactState {
+  return Object.freeze({
+    contractId: buildContractFactId(caseId, customerId, signedDay),
+    consensusId,
+    brokeredOpportunityId,
+    caseId,
+    customerId,
+    dealPrice: proof.agreedPrice,
+    dealType,
+    signedDay,
+    sourceClosedDealId,
+    closeReadiness,
+    closeProbability,
+    resolvedBlockers: Object.freeze([...resolvedBlockers]),
+    supportingFactors: Object.freeze([...supportingFactors]),
+    sourceEventRefs: Object.freeze([...proof.sourceEventRefs]),
+    weightExplanations: Object.freeze([...proof.weightExplanations]),
+    priceConsensusProofId: proof.proofId,
+    priceTrajectoryId: proof.trajectory.trajectoryId,
+    buyerOfferId: proof.buyerOffer.offerId,
+    ownerConcessionId: proof.ownerConcession.concessionId,
+    agreedPrice: proof.agreedPrice,
   });
 }
 

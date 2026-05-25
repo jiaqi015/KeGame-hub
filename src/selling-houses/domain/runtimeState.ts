@@ -3,6 +3,7 @@ import { deriveMatters as derivePersistentMatters } from './matterEngine.js';
 import { normalizeOwnerPriceAnchors } from './priceAnchors.js';
 import { calculateUrgency, updateCompetitiveness } from './scoring.js';
 import { deriveCaseProgression } from './actionStageRelations.js';
+import { syncCaseStageMirrorFromCaseProgressionOnState } from './opportunitySplitHelper.js';
 import type { Case, DomainEventEntry, DomainEventKind, GameState, GoalTier, MatterEntry, Opportunity, Tone } from './models.js';
 import { getDayOfWeek, getOpportunityPriority, getRoutine, average, clamp } from './utils.js';
 import { syncAuxiliaryMirrors } from './runtimeStats.js';
@@ -136,14 +137,14 @@ export function updateDerivedState(world: GameState) {
     const progression = deriveCaseProgression(world, caseItem);
 
     if (caseItem.status === 'sold') {
-      caseItem.stageIndex = progression.legacyStageIndex;
+      syncCaseStageMirrorFromCaseProgressionOnState(caseItem, progression, CASE_STAGES.length - 2);
       caseItem.stageLabel = '已成交';
     } else if (caseItem.status === 'lost_to_rival') {
       caseItem.stageLabel = '他处成交';
     } else if (caseItem.status === 'withdrawn') {
       caseItem.stageLabel = '已核销';
     } else {
-      caseItem.stageIndex = Math.max(Math.min(caseItem.stageIndex, CASE_STAGES.length - 2), progression.legacyStageIndex);
+      syncCaseStageMirrorFromCaseProgressionOnState(caseItem, progression, CASE_STAGES.length - 2);
       caseItem.stageLabel = CASE_STAGES[clamp(caseItem.stageIndex, 0, CASE_STAGES.length - 1)];
     }
 

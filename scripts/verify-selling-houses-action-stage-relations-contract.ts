@@ -11,6 +11,7 @@ import type { Settlement } from '../src/selling-houses/domain/actions/templates.
 import { ACTIONS, OPPORTUNITY_STAGES } from '../src/selling-houses/domain/constants.js';
 import { ACTION_EXECUTOR_CONTRACTS } from '../src/selling-houses/domain/engine/actionExecutorContract.js';
 import { executeAction, getActionAvailability, seedInitialOpportunities } from '../src/selling-houses/domain/engine.js';
+import { asWritableOpportunity } from '../src/selling-houses/domain/models.js';
 import type { Case, GameState, Opportunity } from '../src/selling-houses/domain/models.js';
 import { getScenarioSnapshotById } from '../src/selling-houses/domain/scenarioCatalog.js';
 
@@ -127,7 +128,7 @@ function buildOpportunity(world: GameState, caseItem: Case, overrides: Partial<O
   caseItem.stageIndex = 0;
   caseItem.viewings = 1;
   caseItem.offers = 0;
-  opportunity.stageIndex = 2;
+  asWritableOpportunity(opportunity).stageIndex = 2;
   opportunity.stageLabel = OPPORTUNITY_STAGES[2];
   opportunity.intent = 88;
   opportunity.confidence = 82;
@@ -313,7 +314,7 @@ function buildOpportunity(world: GameState, caseItem: Case, overrides: Partial<O
   caseItem.hasCompletedFirstVisit = true;
   caseItem.stageIndex = 0;
   caseItem.offers = 0;
-  opportunity.stageIndex = 3;
+  asWritableOpportunity(opportunity).stageIndex = 3;
   opportunity.stageLabel = OPPORTUNITY_STAGES[3];
   opportunity.intent = 94;
   opportunity.confidence = 88;

@@ -794,15 +794,15 @@ export interface Case {
   askPrice: number;
   marketPrice: number;
   bottomPrice: number;
-  patience: number;
-  trust: number;
+  readonly patience: number;
+  readonly trust: number;
   heat: number;
   competitiveness: number;
   d1: number;
   d2: number;
   d3: number;
   axisScores: Record<string, number>;
-  urgency: number;
+  readonly urgency: number;
   windowDays: number;
   ownerName: string;
   ownerMood: string;
@@ -811,7 +811,7 @@ export interface Case {
   story: string;
   tags: string[];
   defects: string[];
-  status: 'active' | 'sold' | 'withdrawn' | 'lost_to_rival';
+  readonly status: 'active' | 'sold' | 'withdrawn' | 'lost_to_rival';
   stageIndex: number;
   stageLabel: string;
   riskFlags: string[];
@@ -830,7 +830,7 @@ export interface Case {
   negotiationBonus: number;
   viewings: number;
   offers: number;
-  soldPrice: number | null;
+  readonly soldPrice: number | null;
   priceGapPct: number;
   competitivenessSnapshots: CompetitivenessSnapshot[];
   competitionGroupIds: string[];
@@ -977,6 +977,8 @@ export interface DealClosingEvaluation {
   blockingCategories: BlockingReasonCategory[];
   /** Evidence chain trace — traces how competition/market/relation flow into the evaluation. */
   evidenceChain: EvidenceChainTrace;
+  /** R20: Weight explanations from close probability kernel. */
+  weightExplanations?: readonly import('../core/world-state/consensus/priceTrajectory.js').WeightExplanation[];
 }
 
 /**
@@ -1099,7 +1101,7 @@ export interface Opportunity {
   fit: number;
   intent: number;
   confidence: number;
-  stageIndex: number;
+  readonly stageIndex: number;
   stageLabel: string;
   status: 'active' | 'won' | 'lost' | 'closed';
   lifecycleStatus: 'active' | 'stagnated' | 'lost' | 'closed_by_deal' | 'closed_by_case';
@@ -1751,6 +1753,8 @@ export interface GameState {
   runtimePriceTrajectories?: import('../core/world-state/consensus/priceTrajectory.js').PriceTrajectory[];
   /** Optional runtime PriceConsensusReadiness states. Canonical price readiness write source. */
   runtimePriceConsensusReadinesses?: import('../core/world-state/consensus/priceTrajectory.js').PriceConsensusReadiness[];
+  /** Optional runtime CaseTerminalOutcome states. Canonical terminal outcome for non-sold cases. */
+  runtimeCaseTerminalOutcomes?: import('../core/world-state/caseOutcomeTypes.js').CaseTerminalOutcomeState[];
   /**
    * Optional daily operating ledger — one entry per settled day.
    * Lightweight per-day operating summaries for historical replay and review.
@@ -1844,4 +1848,44 @@ export interface GameState {
    * Consumed by tickBigWorldRuntime, then cleared. Not persisted across save/load.
    */
   pendingSourceRecords?: import('./world-model/informationSourceTypes.js').InformationSourceRecord[];
+}
+
+// ---------------------------------------------------------------------------
+// R24: Writable truth-field types for canonical builders only
+// ---------------------------------------------------------------------------
+
+/**
+ * Case with truth fields writable — for canonical mirror helpers only.
+ * Not for general use. The public Case interface has these fields as readonly.
+ */
+export type WritableCase = Omit<Case, 'status' | 'trust' | 'patience' | 'urgency' | 'soldPrice'> & {
+  status: Case['status'];
+  trust: number;
+  patience: number;
+  urgency: number;
+  soldPrice: Case['soldPrice'];
+};
+
+/**
+ * Opportunity with truth fields writable — for canonical stage helpers only.
+ * Not for general use. The public Opportunity interface has stageIndex as readonly.
+ */
+export type WritableOpportunity = Omit<Opportunity, 'stageIndex'> & {
+  stageIndex: number;
+};
+
+/**
+ * Cast Case to WritableCase for canonical truth-field mutation.
+ * Only canonical mirror helpers should call this.
+ */
+export function asWritableCase(c: Case): WritableCase {
+  return c as WritableCase;
+}
+
+/**
+ * Cast Opportunity to WritableOpportunity for canonical stage-field mutation.
+ * Only canonical stage helpers should call this.
+ */
+export function asWritableOpportunity(o: Opportunity): WritableOpportunity {
+  return o as WritableOpportunity;
 }

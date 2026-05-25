@@ -19,7 +19,7 @@ import {
   resolveScenarioOpening,
 } from '../src/selling-houses/application/scenarioOpening';
 import { advanceDays, executeAction, seedInitialOpportunities } from '../src/selling-houses/domain/engine';
-import { ensureMarketOutcomeState } from '../src/selling-houses/domain/models';
+import { asWritableCase, asWritableOpportunity, ensureMarketOutcomeState } from '../src/selling-houses/domain/models';
 import { sellVisibleRivalForCase } from '../src/selling-houses/domain/rivals/rivalListingEngine';
 import { getScenarioSnapshotById, listBuiltInScenarioSummaries } from '../src/selling-houses/domain/scenarioCatalog';
 
@@ -70,12 +70,12 @@ function buildWorld() {
   const urgent = world.cases[1];
 
   emotional.personality = 'emotional';
-  emotional.trust = 70;
+  asWritableCase(emotional).trust = 70;
   emotional.heat = 35;
   emotional.windowDays = 9;
 
   urgent.personality = 'urgent';
-  urgent.urgency = 40;
+  asWritableCase(urgent).urgency = 40;
   urgent.windowDays = 9;
 
   advanceDays(world, 1);
@@ -116,7 +116,7 @@ function buildWorld() {
   }
 
   targetCase.hasCompletedFirstVisit = true;
-  opportunity.stageIndex = 0;
+  asWritableOpportunity(opportunity).stageIndex = 0;
   opportunity.stageLabel = '了解';
 
   const success = executeAction(world, 'showing', targetCase, null);
@@ -165,7 +165,7 @@ function buildWorld() {
   }
 
   targetCase.hasCompletedFirstVisit = true;
-  opportunity.stageIndex = 3;
+  asWritableOpportunity(opportunity).stageIndex = 3;
   opportunity.stageLabel = '再看';
   opportunity.intent = 92;
   opportunity.confidence = 88;

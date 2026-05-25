@@ -254,7 +254,8 @@ export type ManagerMessageSubtype =
   | 'escalation_requested'
   | 'coaching_delivered'
   | 'performance_review'
-  | 'strategic_direction';
+  | 'strategic_direction'
+  | 'customer_strategy_alignment';
 
 export interface ManagerMessagePayload extends SourcePayloadBase {
   readonly subtype: ManagerMessageSubtype;

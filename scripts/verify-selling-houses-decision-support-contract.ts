@@ -8,6 +8,7 @@ import {
   ACTION_SPEC_BY_ID,
   DECISION_MOMENTS,
 } from '../src/selling-houses/core/business-rules/index.js';
+import { asWritableCase } from '../src/selling-houses/domain/models.js';
 import type { GameState } from '../src/selling-houses/domain/models.js';
 
 const snapshot = getScenarioSnapshotById('standard-window-chain');
@@ -28,7 +29,7 @@ function attemptMutation(mutate: () => void) {
 const world = createInitialState(snapshot, 20260429);
 world.day = 3;
 world.cases.forEach((caseItem, index) => {
-  caseItem.status = 'active';
+  asWritableCase(caseItem).status = 'active';
   caseItem.hasCompletedFirstVisit = index !== 0;
   caseItem.lastOwnerTouchedDay = index === 0 ? 0 : Math.max(1, world.day - 2);
   caseItem.touchedOwnerToday = false;

@@ -48,6 +48,7 @@ import { FIVE_X_SCALE_POLICY } from '../src/selling-houses/domain/world-model/bi
 import { buildProductSurfaceCensus, buildProductCensusSummary } from '../src/selling-houses/application/projections/noDeadCornerProductCensus.js';
 import { buildStrategicMarketDecisionProjection } from '../src/selling-houses/application/projections/strategicMarketDecisionProjection.js';
 import { buildPlayableMarketProjection } from '../src/selling-houses/application/projections/playableMarketProjection.js';
+import { asWritableCase } from '../src/selling-houses/domain/models.js';
 import type { GameState } from '../src/selling-houses/domain/models.js';
 import type { SourceKind } from '../src/selling-houses/domain/world-model/informationSourceTypes.js';
 import type { WorldCausalEvent } from '../src/selling-houses/domain/world-model/causalEvents.js';
@@ -111,11 +112,11 @@ function buildFiveXLongHorizon(seed: number): GameState {
   state.rules.outcomeControl.rivalCaseLossScale = 0;
   state.rules.rivalLossProbabilityScale = 0;
   for (const caseItem of state.cases) {
-    caseItem.status = 'active';
+    asWritableCase(caseItem).status = 'active';
     caseItem.windowDays = 120;
-    caseItem.trust = Math.max(caseItem.trust, 88);
-    caseItem.patience = Math.max(caseItem.patience, 88);
-    caseItem.urgency = Math.min(caseItem.urgency, 35);
+    asWritableCase(caseItem).trust = Math.max(caseItem.trust, 88);
+    asWritableCase(caseItem).patience = Math.max(caseItem.patience, 88);
+    asWritableCase(caseItem).urgency = Math.min(caseItem.urgency, 35);
     caseItem.heat = Math.max(caseItem.heat, 55);
     caseItem.competitiveness = Math.max(caseItem.competitiveness, 65);
   }

@@ -61,6 +61,7 @@ import {
   compactWorldCausalEvents,
 } from '../src/selling-houses/domain/world-model/runtime/compaction.js';
 import { OUTCOME_RECEIPT_COVERAGE } from '../src/selling-houses/domain/world-model/runtime/outcomeReceiptCoverage.js';
+import { asWritableCase } from '../src/selling-houses/domain/models.js';
 import type { GameState } from '../src/selling-houses/domain/models.js';
 import type {
   BigWorldBootstrap,
@@ -162,11 +163,11 @@ function buildLongHorizonMarketFormationWorld(seed: number): GameState {
   state.rules.rivalLossProbabilityScale = 0;
 
   for (const caseItem of state.cases) {
-    caseItem.status = 'active';
+    asWritableCase(caseItem).status = 'active';
     caseItem.windowDays = 120;
-    caseItem.trust = Math.max(caseItem.trust, 88);
-    caseItem.patience = Math.max(caseItem.patience, 88);
-    caseItem.urgency = Math.min(caseItem.urgency, 35);
+    asWritableCase(caseItem).trust = Math.max(caseItem.trust, 88);
+    asWritableCase(caseItem).patience = Math.max(caseItem.patience, 88);
+    asWritableCase(caseItem).urgency = Math.min(caseItem.urgency, 35);
     caseItem.heat = Math.max(caseItem.heat, 55);
     caseItem.competitiveness = Math.max(caseItem.competitiveness, 65);
   }

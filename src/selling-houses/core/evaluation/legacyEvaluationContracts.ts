@@ -1,134 +1,44 @@
 /**
- * Minimal contracts for the legacy Case/GameState/Opportunity shapes that
- * core evaluation adapters actually need. This avoids importing the full
- * domain aggregates.
+ * Evaluation-layer legacy contracts, derived from the canonical kernel.
  *
- * Consumers that have full domain types can pass them directly since
- * Case/GameState/Opportunity satisfy these contracts. The contracts exist
- * so core does not depend on the domain aggregate at the type level.
+ * These contracts express only what evaluation adapters need from the legacy
+ * Case/Opportunity/GameState shapes. They use Pick/extends from the single
+ * canonical source in legacyCompatibilityContracts.ts so field drift is impossible.
  *
- * Array fields use mutable types so domain types (which have mutable arrays)
- * satisfy the contract without casting.
+ * Array fields use mutable types so domain types satisfy the contract without
+ * casting.
  */
 
-export interface LegacyEvaluationCaseLike {
-  id: string;
-  title: string;
-  community: string;
-  district: string;
-  askPrice: number;
-  bottomPrice: number;
-  marketPrice: number;
-  priceGapPct: number;
-  heat: number;
-  competitiveness: number;
-  d1: number;
-  d2: number;
-  d3: number;
-  axisScores: Record<string, number>;
-  patience: number;
-  urgency: number;
-  trust: number;
-  windowDays: number;
-  touchedOwnerToday: boolean;
-  lastOwnerTouchedDay: number;
-  ownerArchetypeId: string;
-  storylineState: string;
-  status: string;
-  stageIndex: number;
-  stageLabel: string;
-  riskFlags: string[];
-  openDayCooldown: number;
-  tags: string[];
-  defects: string[];
-  story: string;
-  qualityStory: number;
-  maintainerName: string;
-  lastAskPrice: number;
-  viewings: number;
-  offers: number;
-  soldPrice: number | null;
-  competitivenessSnapshots: unknown[];
-  competitionGroupIds: string[];
-  lastPriceActionDay: number;
-  goalTier?: string;
-  isFocused?: boolean;
-  personality: string;
-  ownerName: string;
-  ownerMood: string;
-  ownerProfilingMemory?: unknown;
-}
+import type {
+  LegacyCanonicalCaseLike,
+  LegacyCanonicalOpportunityLike,
+  LegacyCanonicalGameStateLike,
+} from '../world-state/legacyCompatibilityContracts.js';
 
-export interface LegacyEvaluationOpportunityLike {
-  id: string;
-  caseId: string;
-  customerId: string;
-  customerName: string;
-  profile: string;
-  channelId: string;
-  channelName: string;
-  fit: number;
-  intent: number;
-  confidence: number;
-  stageIndex: number;
-  stageLabel: string;
-  status: string;
-  lifecycleStatus: string;
-  leadSource: string;
-  visibility: string;
-  brokerName?: string;
-  createdDay: number;
-  daysLeft: number;
-  touchedToday: boolean;
-  budgetMax: number;
-  priceSensitivity: number;
-  stagnationTicks: number;
-  history: { day: number; stage: string }[];
-  pendingClosingEvaluation?: boolean;
-  pendingClosingStrategyId?: string;
-  pendingClosingRequestedDay?: number;
-  priceGapPct?: number;
-}
+// Evaluation needs most Case fields plus evaluation-specific derived access
+export type LegacyEvaluationCaseLike = LegacyCanonicalCaseLike;
 
-export interface LegacyEvaluationStateLike {
-  day: number;
-  opportunities: LegacyEvaluationOpportunityLike[];
-  cases?: LegacyEvaluationCaseLike[];
-}
+export type LegacyEvaluationOpportunityLike = LegacyCanonicalOpportunityLike;
 
-export interface LegacyScoreSeparationCaseLike {
-  id: string;
-  askPrice: number;
-  bottomPrice: number;
-  marketPrice: number;
-  priceGapPct: number;
-  competitiveness: number;
-  d1: number;
-  d2: number;
-  d3: number;
-  axisScores: Record<string, number>;
-  patience: number;
-  urgency: number;
-  trust: number;
-  windowDays: number;
-  touchedOwnerToday: boolean;
-  lastOwnerTouchedDay: number;
-  ownerArchetypeId: string;
-  storylineState: string;
-  tags: string[];
-  defects: string[];
-  story: string;
-  qualityStory: number;
-  heat: number;
-}
+export type LegacyEvaluationStateLike = Pick<LegacyCanonicalGameStateLike,
+  'day' | 'opportunities'
+> & {
+  cases?: LegacyCanonicalCaseLike[];
+};
 
-export interface LegacyScoreSeparationStateLike {
-  day: number;
+// Score-separation needs a focused subset of Case fields
+export type LegacyScoreSeparationCaseLike = Pick<LegacyCanonicalCaseLike,
+  | 'id' | 'askPrice' | 'bottomPrice' | 'marketPrice' | 'priceGapPct'
+  | 'competitiveness' | 'd1' | 'd2' | 'd3' | 'axisScores'
+  | 'patience' | 'urgency' | 'trust' | 'windowDays'
+  | 'touchedOwnerToday' | 'lastOwnerTouchedDay' | 'ownerArchetypeId'
+  | 'storylineState' | 'tags' | 'defects' | 'story' | 'qualityStory' | 'heat'
+>;
+
+export type LegacyScoreSeparationStateLike = Pick<LegacyCanonicalGameStateLike, 'day'> & {
   opportunities: LegacyScoreSeparationOpportunityLike[];
-}
+};
 
-export interface LegacyScoreSeparationOpportunityLike {
-  caseId: string;
-  status: string;
-  stageIndex: number;
-}
+export type LegacyScoreSeparationOpportunityLike = Pick<LegacyCanonicalOpportunityLike,
+  'caseId' | 'status' | 'stageIndex'
+>;

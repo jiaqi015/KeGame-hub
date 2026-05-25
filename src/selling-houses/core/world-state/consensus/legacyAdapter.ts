@@ -76,6 +76,9 @@ export interface LegacyClosedDealShape {
 function mapStageToConsensusStatus(stageIndex: number, status: string): ConsensusFormationStatus {
   if (status === 'won') return 'signed';
   if (status === 'lost' || status === 'closed') return 'collapsed';
+  // Legacy fallback: stageIndex-based mapping. For signed/contract paths,
+  // ConsensusFormation must reference a PriceTrajectory with at least one
+  // BuyerOffer and one OwnerConcession (enforced by R19 gate).
   if (stageIndex >= 5) return 'contract_ready';
   if (stageIndex >= 4) return 'formal_offer';
   if (stageIndex >= 3) return 'verbal_acceptance';

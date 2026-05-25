@@ -12,6 +12,7 @@ import {
 import { createEmptyRegistry, appendSourceRecord } from '../src/selling-houses/domain/world-model/informationSourceRegistry.js';
 import { buildActorKnowledgeSnapshot } from '../src/selling-houses/application/projections/actorKnowledgeProjection.js';
 import { buildStrategicMarketDecisionProjection } from '../src/selling-houses/application/projections/strategicMarketDecisionProjection.js';
+import { asWritableCase } from '../src/selling-houses/domain/models.js';
 import type { GameState } from '../src/selling-houses/domain/models.js';
 import type { ActorKnowledgeSnapshot } from '../src/selling-houses/domain/world-model/actorKnowledgeTypes.js';
 import type {
@@ -67,11 +68,11 @@ export function buildLongHorizonMarketEconomyWorld(seed: number = ROUND17_SEED):
   state.rules.rivalLossProbabilityScale = 0;
 
   for (const caseItem of state.cases) {
-    caseItem.status = 'active';
+    asWritableCase(caseItem).status = 'active';
     caseItem.windowDays = 120;
-    caseItem.trust = Math.max(caseItem.trust, 88);
-    caseItem.patience = Math.max(caseItem.patience, 88);
-    caseItem.urgency = Math.min(caseItem.urgency, 35);
+    asWritableCase(caseItem).trust = Math.max(caseItem.trust, 88);
+    asWritableCase(caseItem).patience = Math.max(caseItem.patience, 88);
+    asWritableCase(caseItem).urgency = Math.min(caseItem.urgency, 35);
     caseItem.heat = Math.max(caseItem.heat, 55);
     caseItem.competitiveness = Math.max(caseItem.competitiveness, 65);
   }

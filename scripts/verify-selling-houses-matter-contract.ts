@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createInitialState, updateDerivedState } from '../src/selling-houses/application/gameState.js';
 import { getScenarioSnapshotById } from '../src/selling-houses/domain/scenarioCatalog.js';
 import { advanceDays, executeAction, seedInitialOpportunities } from '../src/selling-houses/domain/engine.js';
+import { asWritableCase, asWritableOpportunity } from '../src/selling-houses/domain/models.js';
 
 const snapshot = getScenarioSnapshotById('standard-window-chain');
 assert.ok(snapshot, 'Expected standard-window-chain scenario to exist');
@@ -48,7 +49,7 @@ assert.equal(reopenedMatter.resolvedAtDay, undefined, 'Expected reopened matter 
 
 const linkedCase = world.cases.find((entry) => entry.id === firstMatter.caseId);
 assert.ok(linkedCase, 'Expected case-linked matter for lifecycle verification');
-linkedCase.status = 'withdrawn';
+asWritableCase(linkedCase).status = 'withdrawn';
 updateDerivedState(world);
 
 const resolvedMatter = world.matters.find((entry) => entry.id === firstMatterId);
@@ -78,11 +79,11 @@ if (!opportunity) {
 
 caseItem.askPrice = caseItem.marketPrice;
 caseItem.hasCompletedFirstVisit = true;
-caseItem.trust = 100;
+asWritableCase(caseItem).trust = 100;
 caseItem.competitiveness = 100;
 opportunity.intent = 100;
 opportunity.confidence = 100;
-opportunity.stageIndex = 4;
+asWritableOpportunity(opportunity).stageIndex = 4;
 opportunity.daysLeft = 3;
 updateDerivedState(worldForNegotiation);
 
