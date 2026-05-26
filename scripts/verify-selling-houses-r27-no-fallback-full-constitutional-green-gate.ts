@@ -139,9 +139,13 @@ console.log('\n=== R27-4: markCaseSoldFromContract terminal mirror helper ===\n'
     check(caseOutcomeSrc.includes('export function markCaseSoldFromContract'),
       'markCaseSoldFromContract exported');
 
-    // markCaseSold is still exported (for fixture compatibility) but production shouldn't use it
-    check(caseOutcomeSrc.includes('export function markCaseSold'),
-      'markCaseSold still exported (fixture compatibility)');
+    // R28: bare markCaseSold is renamed to markCaseSoldForFixtureOnly (fixture escape hatch)
+    // No production-looking bare markCaseSold should be exported
+    const bareExportMatch = caseOutcomeSrc.match(/export\s+function\s+markCaseSold\s*\(/);
+    check(bareExportMatch === null,
+      'no bare export function markCaseSold( in caseOutcome (R28 sealed)');
+    check(caseOutcomeSrc.includes('markCaseSoldForFixtureOnly'),
+      'markCaseSoldForFixtureOnly exists as fixture escape hatch (R28)');
   }
 }
 
@@ -153,10 +157,13 @@ console.log('\n=== R27-5: No scalar contract creation in production domain ===\n
   const helperSrc = readFileSafe('src/selling-houses/domain/consensusFormationHelper.ts');
   check(helperSrc !== null, 'consensusFormationHelper.ts exists');
   if (helperSrc) {
-    // createContractFactOnState may still exist for fixture/compat, but is not imported by dealClosing
-    check(helperSrc.includes('export function createContractFactOnState'),
-      'createContractFactOnState still exported (fixture compatibility)');
-    check(helperSrc.includes('export function createContractFactFromPriceConsensusOnState'),
+    // R28: production-looking scalar exports are sealed
+    const scalarExportMatch = helperSrc.match(/export\s+function\s+createContractFactOnState\s*\(/);
+    check(scalarExportMatch === null,
+      'no bare export function createContractFactOnState( in consensusFormationHelper (R28 sealed)');
+    check(helperSrc.includes('createContractFactForFixtureOnlyOnState'),
+      'createContractFactForFixtureOnlyOnState exists as fixture escape hatch (R28)');
+    check(helperSrc.includes('createContractFactFromPriceConsensusOnState'),
       'createContractFactFromPriceConsensusOnState exported');
   }
 }

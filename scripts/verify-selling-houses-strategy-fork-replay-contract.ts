@@ -20,6 +20,7 @@ import {
   buildStrategyForksFromState,
   enrichStateWithStrategyForks,
 } from '../src/selling-houses/runtime/simulation/strategyForkAdapter.js';
+import { asWritableGameState } from '../src/selling-houses/domain/models.js';
 import type { GameState } from '../src/selling-houses/domain/models.js';
 
 let passed = 0;
@@ -91,7 +92,7 @@ console.log('=== Check 6: upsert ===');
 const world6 = buildWorld(42);
 advanceDays(world6, 3);
 // advanceDays already enriches via hooks, so clear for clean test
-world6.strategyForkHistory = [];
+asWritableGameState(world6).strategyForkHistory = [];
 enrichStateWithStrategyForks(world6, forks2);
 enrichStateWithStrategyForks(world6, forks2);
 check(world6.strategyForkHistory!.length === forks2.length, 'upsert: no duplicates');

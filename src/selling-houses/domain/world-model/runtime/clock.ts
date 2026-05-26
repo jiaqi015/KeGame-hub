@@ -64,6 +64,8 @@ import type {
   ActorRef,
   RivalActionSubtype,
 } from '../informationSourceTypes.js';
+import { isCaseActiveByCanonicalStatus } from '../../caseLifecycleStatusRead.js';
+import { isOpportunityActiveByCanonicalState } from '../../opportunityLifecycleStatusRead.js';
 
 // ── Source record builders for new source kinds ────────────────────────
 
@@ -1696,6 +1698,10 @@ export function buildClockInputFromGameState(
     readonly bigWorldRuntime?: BigWorldRuntimeState;
     readonly runtimeBrokerOwnerRelations?: readonly { readonly relationId: string; readonly brokerId: string; readonly ownerId: string; readonly trust: number }[];
     readonly runtimeOwnerCaseReadinessStates?: readonly { readonly relationId: string; readonly ownerId: string; readonly assetCaseId: string; readonly patience: number; readonly urgency: number }[];
+    // Canonical status sources (for lifecycle status reads)
+    readonly runtimeContractFacts?: readonly { readonly contractId: string; readonly caseId: string }[];
+    readonly runtimeCaseTerminalOutcomes?: readonly { readonly terminalOutcomeId: string; readonly caseId: string; readonly kind: string }[];
+    readonly runtimeBrokeredOpportunities?: readonly { readonly brokeredOpportunityId: string; readonly status: string }[];
   },
 ): BigWorldClockInput {
   const bootstrap = state.runContext.bigWorldBootstrap;
@@ -1725,7 +1731,8 @@ export function buildClockInputFromGameState(
   // Build case relation snapshots from canonical runtime sources
   const relations = state.runtimeBrokerOwnerRelations;
   const readinessStates = state.runtimeOwnerCaseReadinessStates;
-  const activeCases = state.cases.filter((c) => c.status === 'active');
+  // R35/R34: Use canonical status readers for active filtering
+  const activeCases = state.cases.filter((c) => isCaseActiveByCanonicalStatus(state as any, c as any));
   const caseRelationSnapshots = (relations?.length || readinessStates?.length)
     ? activeCases.map((c) => {
         const ownerId = `owner:${c.id}`;
@@ -1748,13 +1755,13 @@ export function buildClockInputFromGameState(
     runSeed: state.runContext.runSeed,
     timeContext,
     marketCells,
-    activeCases: state.cases.filter((c) => c.status === 'active'),
-    activeOpportunities: state.opportunities.filter((o) => o.status === 'active'),
+    activeCases: state.cases.filter((c) => isCaseActiveByCanonicalStatus(state as any, c as any)),
+    activeOpportunities: state.opportunities.filter((o) => isOpportunityActiveByCanonicalState(state as any, o as any)),
     rivalListings,
     rivalStores,
     customerStates: sampleActiveCohort(
       customerStates,
-      state.cases.filter((c) => c.status === 'active'),
+      state.cases.filter((c) => isCaseActiveByCanonicalStatus(state as any, c as any)),
       marketCells,
       state.day,
       state.runContext.runSeed,

@@ -255,7 +255,7 @@ console.log('  Structured consensus collapse reasons: PASS');
 
 console.log('=== Check 9: ContractFact integrity ===');
 
-// ContractFact is created only through createContractFactOnState in consensusFormationHelper
+// ContractFact is created only through createContractFactForFixtureOnlyOnState in consensusFormationHelper
 // ActionReceipt has no contract creation capability
 const receiptSrc = readFileSync(
   '/Users/jiaqi/Documents/开放日测算/src/selling-houses/core/world-state/semantic-receipt/actionReceipt.ts',
@@ -268,7 +268,7 @@ check(!receiptCode.includes('caseItem.status'), 'ActionReceipt: no case.status m
 check(!receiptCode.includes('case.status = '), 'ActionReceipt: no case.status assignment');
 
 // ContractFact is created only in dealClosing.ts → finalizeClosedDeal
-check(evalCode.includes('createContractFactOnState'), 'dealClosing: creates ContractFact through canonical path');
+check(evalCode.includes('createContractFactFromPriceConsensusOnState'), 'dealClosing: creates ContractFact through canonical path');
 check(evalCode.includes('markConsensusSignedOnState'), 'dealClosing: marks consensus signed before ContractFact');
 
 // ContractFact has duplicate guard
@@ -470,8 +470,8 @@ console.log('  Competition indirection: PASS');
 console.log('=== Check 15: Relation trust fallback marking ===');
 
 // When runtimeBrokerOwnerRelations is not populated, trust falls back to Case.trust
-// and the sourceTrace records 'case-fallback'
-check(evalCode.includes("'case-fallback'"), 'dealClosing: marks trust source as case-fallback');
+// and the sourceTrace records 'old_save_compatibility'
+check(evalCode.includes("'old_save_compatibility'") || evalCode.includes("'case-fallback'"), 'dealClosing: marks trust source as old_save_compatibility or case-fallback');
 check(evalCode.includes("'relation'"), 'dealClosing: marks trust source as relation when available');
 check(evalCode.includes('trustFromRelation'), 'dealClosing: evidenceChain records trustFromRelation');
 
@@ -492,9 +492,9 @@ if (noRelationCases.length > 0) {
     confidence: 60,
   });
   const evalFallback = buildDealClosingEvaluation(worldNoRelation, testCase3, mockOppFallback, testCase3.askPrice * 0.99, 'balanced');
-  // When no relation state exists, trustSource should be 'case-fallback'
-  check(evalFallback.sourceTrace.trustSource === 'case-fallback' || evalFallback.sourceTrace.trustSource === 'relation',
-    `trust source is either case-fallback or relation (got: ${evalFallback.sourceTrace.trustSource})`);
+  // When no relation state exists, trustSource should be 'old_save_compatibility'
+  check(evalFallback.sourceTrace.trustSource === 'old_save_compatibility' || evalFallback.sourceTrace.trustSource === 'case-fallback' || evalFallback.sourceTrace.trustSource === 'relation',
+    `trust source is old_save_compatibility/case-fallback/relation (got: ${evalFallback.sourceTrace.trustSource})`);
   check(typeof evalFallback.evidenceChain.trustFromRelation === 'boolean',
     'evidenceChain.trustFromRelation is boolean');
 }
@@ -507,7 +507,7 @@ console.log('  Relation trust fallback marking: PASS');
 
 console.log('=== Check 16: ContractFact is sole terminal truth ===');
 
-// ContractFact is created ONLY through consensusFormationHelper.createContractFactOnState
+// ContractFact is created ONLY through consensusFormationHelper.createContractFactForFixtureOnlyOnState
 // which has a duplicate guard (one contract per case)
 check(helperSrc.includes('Duplicate guard'), 'consensusFormationHelper: duplicate guard exists');
 check(helperSrc.includes('findContractForCase'), 'consensusFormationHelper: findContractForCase exists');

@@ -20,6 +20,12 @@ import { buildMarketIntelProjection, type IntelLayerTab } from './marketIntel';
 import { MyWechatPanel } from './MyWechatPanel';
 import type { WorldGraphSummary } from '../../domain/world-model/runtime/types';
 import {
+  isCaseActiveByCanonicalStatus,
+} from '../../domain/caseLifecycleStatusRead';
+import {
+  isOpportunityActiveByCanonicalState,
+} from '../../domain/opportunityLifecycleStatusRead';
+import {
   ArrowRight,
   Calendar,
   Clock3,
@@ -199,7 +205,7 @@ export function Dashboard({
     const opportunity = message.targetOpportunityId
       ? state.opportunities.find((entry) => entry.id === message.targetOpportunityId) || null
       : message.targetCustomerId
-        ? state.opportunities.find((entry) => entry.customerId === message.targetCustomerId && entry.caseId === caseItem.id && entry.status === 'active') || null
+        ? state.opportunities.find((entry) => entry.customerId === message.targetCustomerId && entry.caseId === caseItem.id && isOpportunityActiveByCanonicalState(state, entry)) || null
         : null;
     const slot = candidateItem?.slot || getDefaultAgendaSlot();
     const arrangementItem: ArrangementItemProjection = candidateItem || {
@@ -475,7 +481,7 @@ function buildFollowListingRows(
       continue;
     }
     const caseItem = state.cases.find((entry) => entry.id === item.caseId);
-    if (!caseItem || caseItem.status !== 'active') {
+    if (!caseItem || !isCaseActiveByCanonicalStatus(state, caseItem)) {
       continue;
     }
     seen.add(item.caseId);
@@ -1682,8 +1688,8 @@ function deriveEventsTone(events: JournalItem[]): ProjectionTone {
   return 'neutral';
 }
 
-function scoreCaseWeight(caseItem: GameState['cases'][number]) {
-  if (caseItem.status !== 'active') return -1;
+function scoreCaseWeight(state: GameState, caseItem: GameState['cases'][number]) {
+  if (!isCaseActiveByCanonicalStatus(state, caseItem)) return -1;
 
   let score = 0;
   if (caseItem.storylineState === 'critical') score += 120;

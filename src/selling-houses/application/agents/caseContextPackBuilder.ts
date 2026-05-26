@@ -1,4 +1,5 @@
 import type { GameState } from '../../domain/models.js';
+import { isOpportunityActiveByCanonicalState } from '../../domain/opportunityLifecycleStatusRead.js';
 import type {
   CaseAgentCompetitor,
   CaseAgentConversationHistoryEntry,
@@ -295,7 +296,7 @@ function buildRecentCaseActions(state: GameState, caseId: string): CaseAgentRece
 
 function buildActiveCustomers(state: GameState, caseId: string): CaseAgentCustomer[] {
   return state.opportunities
-    .filter((opportunity) => opportunity.caseId === caseId && opportunity.status === 'active')
+    .filter((opportunity) => opportunity.caseId === caseId && isOpportunityActiveByCanonicalState(state, opportunity))
     .map((opportunity) => ({
       opportunityId: opportunity.id,
       customerId: opportunity.customerId,

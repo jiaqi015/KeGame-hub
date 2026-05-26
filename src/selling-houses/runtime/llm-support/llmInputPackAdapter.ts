@@ -249,6 +249,7 @@ export function buildSimulatedReasoningInputPack(
       ),
     }),
     commitmentSummary: Object.freeze({
+      // commitment-status-read: not case/opportunity lifecycle
       activeCount: casePOV.commitmentStates.filter((c) => c.status === 'active').length,
       staleCount: casePOV.commitmentStates.filter((c) => c.status === 'stale').length,
       strongestCommitmentLabel: casePOV.commitmentStates

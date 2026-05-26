@@ -27,6 +27,8 @@ import type {
   RivalListing,
 } from '../../domain/models.js';
 
+import { isOpportunityActiveByCanonicalState } from '../../domain/opportunityLifecycleStatusRead.js';
+
 import {
   attributePressure,
 } from './acnAttribution.js';
@@ -755,7 +757,7 @@ export function buildDemandMovementPOV(
 
   // Layer 2: customers who have a revealed opportunity touching this case's market cell
   const cellOpportunities = state.opportunities.filter(
-    (o) => o.status === 'active'
+    (o) => isOpportunityActiveByCanonicalState(state, o)
       && o.visibility === 'revealed'
       && o.caseId !== caseId
       && state.cases.find((c) => c.id === o.caseId)?.marketCellId === cellId,
@@ -798,7 +800,7 @@ export function buildDemandMovementPOV(
 
   // Build opportunity refs from the case's direct opportunities
   const directOpps = state.opportunities.filter(
-    (o) => o.caseId === caseId && o.status === 'active',
+    (o) => o.caseId === caseId && isOpportunityActiveByCanonicalState(state, o),
   );
   const oppRefs: POVCausalRef[] = directOpps.slice(0, 3).map((o) => ({
     refType: 'opportunity' as const,
@@ -1377,7 +1379,7 @@ export function buildBecauseBigProof(
       }
       if (demandEventRefs.length === 0) {
         const opps = state.opportunities.filter(
-          (o) => o.caseId === caseId && o.status === 'active',
+          (o) => o.caseId === caseId && isOpportunityActiveByCanonicalState(state, o),
         );
         for (const o of opps.slice(0, 2)) {
           demandEventRefs.push({

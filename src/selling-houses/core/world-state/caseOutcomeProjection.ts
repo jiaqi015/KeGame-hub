@@ -14,6 +14,15 @@ import type { CaseTerminalOutcomeState } from './caseOutcomeTypes.js';
 
 export type CaseTerminalStatus = 'sold' | 'lost_to_rival' | 'withdrawn' | 'active';
 
+export type CaseLifecycleSource = 'contract_fact' | 'terminal_outcome' | 'old_save_compatibility';
+
+export interface CaseLifecycleStatus {
+  readonly status: CaseTerminalStatus;
+  readonly source: CaseLifecycleSource;
+  readonly contractFactId?: string;
+  readonly terminalOutcomeId?: string;
+}
+
 export interface CaseOutcomeProjection {
   readonly caseId: string;
   readonly status: CaseTerminalStatus;
@@ -29,6 +38,51 @@ export interface ClosedDealProjection {
   readonly dealType: string;
   readonly signedDay: number;
   readonly sourceContractId: string;
+}
+
+/**
+ * R33: Read case lifecycle status from canonical state.
+ * Priority: ContractFactState (sold) > CaseTerminalOutcomeState (lost/withdrawn) > old_save_compatibility.
+ */
+export function readCaseLifecycleStatusFromCanonicalState(
+  input: {
+    readonly contractFacts: readonly ContractFactState[];
+    readonly terminalOutcomes: readonly CaseTerminalOutcomeState[];
+    readonly caseId: string;
+    readonly legacyStatus?: string;
+  },
+): CaseLifecycleStatus {
+  const contract = input.contractFacts.find(c => c.caseId === input.caseId);
+  if (contract) {
+    return {
+      status: 'sold',
+      source: 'contract_fact',
+      contractFactId: contract.contractId,
+    };
+  }
+
+  const terminal = input.terminalOutcomes.find(t => t.caseId === input.caseId);
+  if (terminal) {
+    return {
+      status: terminal.kind,
+      source: 'terminal_outcome',
+      terminalOutcomeId: terminal.terminalOutcomeId,
+    };
+  }
+
+  // Old-save compatibility: derive from legacy status mirror
+  const legacy = input.legacyStatus;
+  if (legacy === 'sold' || legacy === 'lost_to_rival' || legacy === 'withdrawn') {
+    return {
+      status: legacy,
+      source: 'old_save_compatibility',
+    };
+  }
+
+  return {
+    status: 'active',
+    source: 'old_save_compatibility',
+  };
 }
 
 /**

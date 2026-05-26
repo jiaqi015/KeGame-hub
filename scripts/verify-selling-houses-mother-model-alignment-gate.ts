@@ -88,11 +88,10 @@ const CRITICAL_ENGINE_FILES: Array<{ rel: string; root: string }> = [
 // - Write helpers manage the mirror
 // - relationReadProjection IS the projection
 // - ownerDecisionProfileHelper IS the centralized fallback
-// - ownerCaseReadinessHelper is a write helper
+// - ownerCaseReadinessWriteHelper is the canonical write helper (old helper deleted R30)
 const BARE_READ_ALLOWED_FILES = new Set([
   'trustWriteHelper.ts',
   'ownerCaseReadinessWriteHelper.ts',
-  'ownerCaseReadinessHelper.ts',
   'relationReadProjection.ts',
   'ownerDecisionProfileHelper.ts',
   'models.ts',
@@ -124,7 +123,8 @@ const SNAPSHOT_PATTERNS = [
   /caseItem\.trust\s*[-+]\s*\w+/,             // delta calc: caseItem.trust - 55 or caseItem.trust - oldTrust
   /caseItem\.patience\s*[-+]\s*\w+/,
   /caseItem\.urgency\s*[-+]\s*\w+/,
-  /case-fallback/,                            // relation helper fallback path
+  /case-fallback/,                            // relation helper fallback path (legacy)
+  /old_save_compatibility/,                   // canonical fallback provenance (R30)
   /return\s+caseItem\.(trust|patience|urgency)\b/, // readRelation* helper return fallback
   /return\s*\{[^}]*caseItem\.(trust|patience|urgency)/, // return { patience: caseItem.patience, ... }
 ];

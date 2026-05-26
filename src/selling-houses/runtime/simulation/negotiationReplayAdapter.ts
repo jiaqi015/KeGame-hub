@@ -23,6 +23,8 @@ import type {
   NegotiationReplayPhase,
   NegotiationReplayTurnPoint,
 } from '../../domain/models.js';
+import { asWritableGameState } from '../../domain/models.js';
+import { isOpportunityActiveByCanonicalState } from '../../domain/opportunityLifecycleStatusRead.js';
 
 import type {
   ProcessRun,
@@ -60,7 +62,7 @@ export function buildNegotiationReplayFromRun(
 
   // Find customer ID from opportunities
   const opp = state.opportunities.find(
-    (o) => o.caseId === caseId && o.status === 'active',
+    (o) => o.caseId === caseId && isOpportunityActiveByCanonicalState(state, o),
   );
   const customerId = opp?.customerId ?? '';
 
@@ -221,7 +223,7 @@ export function enrichStateWithNegotiationReplays(
   replays: readonly NegotiationReplaySummary[],
 ): void {
   if (!state.negotiationReplayHistory) {
-    state.negotiationReplayHistory = [];
+    asWritableGameState(state).negotiationReplayHistory = [];
   }
 
   for (const replay of replays) {
@@ -229,9 +231,9 @@ export function enrichStateWithNegotiationReplays(
       (entry) => entry.replayId === replay.replayId,
     );
     if (existingIndex >= 0) {
-      state.negotiationReplayHistory[existingIndex] = replay;
+      asWritableGameState(state).negotiationReplayHistory[existingIndex] = replay;
     } else {
-      state.negotiationReplayHistory.push(replay);
+      asWritableGameState(state).negotiationReplayHistory.push(replay);
     }
   }
 }

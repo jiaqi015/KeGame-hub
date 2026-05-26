@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import { getRuntimeTempDir } from '../lib/runtimeTemp.js';
 import { createInitialState } from '../src/selling-houses/application/gameState.js';
+import { asWritableGameState } from '../src/selling-houses/domain/models.js';
 import { MaintainerSyncConflictError } from '../src/selling-houses/application/maintainerSyncConflictError.js';
 import { applyAuxiliaryStats } from '../src/selling-houses/domain/runtimeStats.js';
 import { getScenarioSnapshotById } from '../src/selling-houses/domain/scenarioCatalog.js';
@@ -44,7 +45,7 @@ applyAuxiliaryStats(updatedState, {
   soldCount: 0,
 });
 updatedState.energy = Math.max(0, updatedState.energy - 2);
-updatedState.closedDeals = [{
+asWritableGameState(updatedState).closedDeals = [{
   dealId: 'deal-file-repo-1',
   caseId: updatedState.cases[0]?.id || 'case-1',
   customerId: 'customer-file-repo-1',

@@ -24,6 +24,7 @@ import {
   enrichStateWithNegotiationReplays,
   normalizeNegotiationReplayHistory,
 } from '../src/selling-houses/runtime/simulation/negotiationReplayAdapter.js';
+import { asWritableGameState } from '../src/selling-houses/domain/models.js';
 import type { GameState } from '../src/selling-houses/domain/models.js';
 
 let passed = 0;
@@ -83,7 +84,7 @@ console.log('=== Check 3: upsert by replayId ===');
 const world3 = buildWorld(42);
 advanceDays(world3, 3);
 // advanceDays already enriches via hooks, so clear for clean test
-world3.negotiationReplayHistory = [];
+asWritableGameState(world3).negotiationReplayHistory = [];
 enrichStateWithNegotiationReplays(world3, replays1);
 check(world3.negotiationReplayHistory!.length === replays1.length, 'replays added');
 enrichStateWithNegotiationReplays(world3, replays1);

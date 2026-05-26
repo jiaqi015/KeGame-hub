@@ -1,5 +1,6 @@
 import { recordBudgetChange } from '../budget.js';
 import type { ActionDefinition, GameState } from '../models.js';
+import { asWritableGameState } from '../models.js';
 import { clamp } from '../utils.js';
 import type { InformationSourceRecord } from '../world-model/informationSourceTypes.js';
 
@@ -59,8 +60,8 @@ export function spendResources(state: GameState, action: ActionDefinition) {
       detail: `${action.name} 消耗推广金 ${action.costPromotionBudget} 点。`,
     });
     // Emit source record for budget spend → economy pipeline
-    if (!state.pendingSourceRecords) state.pendingSourceRecords = [];
-    state.pendingSourceRecords.push(buildActionResourceSourceRecord(state, action, 'spend'));
+    if (!state.pendingSourceRecords) asWritableGameState(state).pendingSourceRecords = [];
+    asWritableGameState(state).pendingSourceRecords.push(buildActionResourceSourceRecord(state, action, 'spend'));
   }
 }
 
@@ -74,7 +75,7 @@ export function refundResources(state: GameState, action: ActionDefinition, reas
       detail: `${reason}，退回推广金 ${action.costPromotionBudget} 点。`,
     });
     // Emit source record for budget refund → economy pipeline
-    if (!state.pendingSourceRecords) state.pendingSourceRecords = [];
-    state.pendingSourceRecords.push(buildActionResourceSourceRecord(state, action, 'refund', reason));
+    if (!state.pendingSourceRecords) asWritableGameState(state).pendingSourceRecords = [];
+    asWritableGameState(state).pendingSourceRecords.push(buildActionResourceSourceRecord(state, action, 'refund', reason));
   }
 }

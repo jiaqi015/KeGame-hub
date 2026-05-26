@@ -8,6 +8,8 @@ import {
   type SellingHousesEvaluationSnapshot,
 } from '../../core/evaluation/index.js';
 import type { GameState } from '../../domain/models.js';
+import { isCaseActiveByCanonicalStatus } from '../../domain/caseLifecycleStatusRead.js';
+import { isOpportunityActiveByCanonicalState } from '../../domain/opportunityLifecycleStatusRead.js';
 
 export type DecisionSupportEvaluationBoundaryReadiness = 'ready' | 'watch' | 'blocked';
 
@@ -28,7 +30,7 @@ function freezeList<T>(items: readonly T[]): readonly T[] {
 function buildRegionOpenDayFitSnapshots(state: GameState): SellingHousesEvaluationSnapshot[] {
   const scopes = new Map<string, { district: string; community?: string }>();
   state.cases
-    .filter((caseItem) => caseItem.status === 'active')
+    .filter((caseItem) => isCaseActiveByCanonicalStatus(state, caseItem))
     .forEach((caseItem) => {
       scopes.set(`district:${caseItem.district}`, { district: caseItem.district });
       scopes.set(`community:${caseItem.district}:${caseItem.community}`, {
@@ -44,13 +46,13 @@ function buildDecisionSupportEvaluationSnapshots(state: GameState): readonly Sel
   const snapshots: SellingHousesEvaluationSnapshot[] = [];
 
   state.cases
-    .filter((caseItem) => caseItem.status === 'active')
+    .filter((caseItem) => isCaseActiveByCanonicalStatus(state, caseItem))
     .forEach((caseItem) => {
       const caseSnapshots = buildCaseEvaluationSnapshotsFromLegacyState(state, caseItem);
       snapshots.push(caseSnapshots.assetScore, caseSnapshots.ownerDecisionReadiness);
 
       state.opportunities
-        .filter((opportunity) => opportunity.caseId === caseItem.id && opportunity.status === 'active')
+        .filter((opportunity) => opportunity.caseId === caseItem.id && isOpportunityActiveByCanonicalState(state, opportunity))
         .forEach((opportunity) => {
           snapshots.push(buildOpportunityEvaluationSnapshotsFromLegacyState(state, opportunity).opportunityScore);
         });

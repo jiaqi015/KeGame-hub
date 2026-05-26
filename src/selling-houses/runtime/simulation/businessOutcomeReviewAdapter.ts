@@ -20,6 +20,7 @@ import type {
   GameState,
   BusinessOutcomeReview,
 } from '../../domain/models.js';
+import { asWritableGameState } from '../../domain/models.js';
 
 import type {
   ProcessRun,
@@ -379,7 +380,7 @@ export function enrichStateWithBusinessOutcomeReviews(
   reviews: readonly BusinessOutcomeReview[],
 ): void {
   if (!state.businessOutcomeReviewHistory) {
-    state.businessOutcomeReviewHistory = [];
+    asWritableGameState(state).businessOutcomeReviewHistory = [];
   }
 
   for (const review of reviews) {
@@ -387,9 +388,9 @@ export function enrichStateWithBusinessOutcomeReviews(
       (entry) => entry.reviewId === review.reviewId,
     );
     if (existingIndex >= 0) {
-      state.businessOutcomeReviewHistory[existingIndex] = review;
+      asWritableGameState(state).businessOutcomeReviewHistory[existingIndex] = review;
     } else {
-      state.businessOutcomeReviewHistory.push(review);
+      asWritableGameState(state).businessOutcomeReviewHistory.push(review);
     }
   }
 }

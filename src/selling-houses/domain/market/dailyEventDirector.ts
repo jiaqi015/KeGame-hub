@@ -3,6 +3,7 @@ import type { DailyEventTemplate, DailyMarketEvent, GameState, InboundOpportunit
 import { chance, clamp, pickWeighted, randomInt } from '../utils.js';
 import { applyInboundOpportunity } from './inboundOpportunityEngine.js';
 import { createRivalListing } from '../rivals/rivalListingEngine.js';
+import { isCaseActiveByCanonicalStatus } from '../caseLifecycleStatusRead.js';
 
 function defaultDailyEventPool(templates: DailyEventTemplate[]): WeightedDailyEventRef[] {
   return templates.map((entry) => ({
@@ -12,7 +13,7 @@ function defaultDailyEventPool(templates: DailyEventTemplate[]): WeightedDailyEv
 }
 
 function pickTargetMarketCellId(state: GameState) {
-  const activeCases = state.cases.filter((entry) => entry.status === 'active');
+  const activeCases = state.cases.filter((entry) => isCaseActiveByCanonicalStatus(state, entry));
   if (activeCases.length) {
     return activeCases[randomInt(0, activeCases.length - 1, state)].marketCellId;
   }

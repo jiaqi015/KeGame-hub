@@ -23,6 +23,8 @@ import type {
   RivalListing,
   RivalStore,
 } from '../../domain/models.js';
+import { isCaseActiveByCanonicalStatus } from '../../domain/caseLifecycleStatusRead.js';
+import { isOpportunityActiveByCanonicalState } from '../../domain/opportunityLifecycleStatusRead.js';
 
 import type { ActorKnowledgeSnapshot } from '../../domain/world-model/actorKnowledgeTypes.js';
 import { buildDecisionEvidenceEnvelope } from './actorKnowledgeProjection.js';
@@ -351,7 +353,7 @@ function buildTopMarketSignals(
       (r) => r.status === 'active' && group.members.some((m) => r.linkedCaseId === m || r.marketCellId === m),
     );
     if (rivalMembers.length > 0) {
-      const playerMembers = state.cases.filter((c) => group.members.includes(c.id) && c.status === 'active');
+      const playerMembers = state.cases.filter((c) => group.members.includes(c.id) && isCaseActiveByCanonicalStatus(state, c));
       if (playerMembers.length > 0) {
         const strongestRival = [...rivalMembers].sort((a, b) => b.heat - a.heat)[0];
         const rivalRepricings = rivalMembers.filter((r) => r.freshness > 60);
@@ -391,7 +393,7 @@ function buildTopMarketSignals(
   // Signal 3: 市场热度/竞争压力信号 (from market cells)
   for (const cell of marketCells) {
     if (cell.competitivePressure > 55 || cell.demandHeat > 60) {
-      const playerCasesInCell = state.cases.filter((c) => c.marketCellId === cell.id && c.status === 'active');
+      const playerCasesInCell = state.cases.filter((c) => c.marketCellId === cell.id && isCaseActiveByCanonicalStatus(state, c));
       if (playerCasesInCell.length > 0) {
         signals.push({
           rank: 0,
@@ -415,7 +417,7 @@ function buildTopMarketSignals(
   // Signal 3b: 市场环境感知信号（相邻商圈，玩家暂无房源但大世界在运转）
   // 玩家没有在这些 market cell 经营，但它们仍然对客户池和竞品有溢出影响
   for (const cell of marketCells) {
-    const playerCasesInCell = state.cases.filter((c) => c.marketCellId === cell.id && c.status === 'active');
+    const playerCasesInCell = state.cases.filter((c) => c.marketCellId === cell.id && isCaseActiveByCanonicalStatus(state, c));
     if (playerCasesInCell.length === 0 && (cell.demandHeat > 65 || cell.competitivePressure > 50)) {
       const cellRivalListings = rivalListings.filter((l) => l.marketCellId === cell.id && l.status === 'active');
       signals.push({
@@ -541,7 +543,7 @@ function buildCustomerLeakageRisks(state: GameState): POVCustomerLeakageRisk[] {
     if (cs.churnRisk > 55 || cs.fatigue > 65) {
       const customer = state.customers.find((c) => c.id === cs.customerId);
       const activeOpps = state.opportunities.filter(
-        (o) => o.customerId === cs.customerId && o.status === 'active',
+        (o) => o.customerId === cs.customerId && isOpportunityActiveByCanonicalState(state, o),
       );
       const bestOpp = [...activeOpps].sort((a, b) => b.intent - a.intent)[0];
 
@@ -564,7 +566,7 @@ function buildCustomerLeakageRisks(state: GameState): POVCustomerLeakageRisk[] {
 
   // 从 opportunities 找 daysLeft 低的
   const urgentOpps = state.opportunities
-    .filter((o) => o.status === 'active' && o.daysLeft <= 5 && o.intent > 40)
+    .filter((o) => isOpportunityActiveByCanonicalState(state, o) && o.daysLeft <= 5 && o.intent > 40)
     .sort((a, b) => a.daysLeft - b.daysLeft)
     .slice(0, 2);
 
@@ -595,7 +597,7 @@ function buildOwnerExpectationIssues(
   const issues: POVOwnerExpectationIssue[] = [];
 
   for (const caseItem of state.cases) {
-    if (caseItem.status !== 'active') continue;
+    if (!isCaseActiveByCanonicalStatus(state, caseItem)) continue;
 
     // When actorKnowledgeMap is available, derive from belief domains
     const knowledge = actorKnowledgeMap?.get(caseItem.id);
@@ -761,7 +763,7 @@ function buildRecommendedCuts(
 
   // 确保至少有 1 个推荐
   if (cuts.length === 0) {
-    const activeCases = state.cases.filter((c) => c.status === 'active');
+    const activeCases = state.cases.filter((c) => isCaseActiveByCanonicalStatus(state, c));
     if (activeCases.length > 0) {
       // When knowledge available, use belief-backed recommendation
       if (actorKnowledgeMap && actorKnowledgeMap.size > 0) {

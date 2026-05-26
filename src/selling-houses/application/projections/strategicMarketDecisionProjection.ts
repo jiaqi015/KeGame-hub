@@ -39,6 +39,7 @@ import type {
   Case,
   GameState,
 } from '../../domain/models.js';
+import { isCaseActiveByCanonicalStatus } from '../../domain/caseLifecycleStatusRead.js';
 
 import type {
   ActorKnowledgeSnapshot,
@@ -554,7 +555,7 @@ function buildActorVisibleCellWindow(
 
   // Layer 1: cells where the actor has active cases
   for (const caseItem of state.cases) {
-    if (caseItem.status === 'active' && caseItem.marketCellId) {
+    if (isCaseActiveByCanonicalStatus(state, caseItem) && caseItem.marketCellId) {
       visibleCells.add(caseItem.marketCellId);
     }
   }
@@ -664,7 +665,7 @@ function buildActorVisibleCustomerWindow(
   // Layer 1: customers in visible cells (from their active cases)
   const visibleCaseIds = new Set<string>();
   for (const caseItem of state.cases) {
-    if (caseItem.status === 'active' && visibleCellIds.has(caseItem.marketCellId)) {
+    if (isCaseActiveByCanonicalStatus(state, caseItem) && visibleCellIds.has(caseItem.marketCellId)) {
       visibleCaseIds.add(caseItem.id);
     }
   }
@@ -788,8 +789,8 @@ function buildStrategicOwnerPool(
   // Actor-visible window: only cases the actor has knowledge for (five-x safe)
   const visibleCaseIds = actorKnowledgeMap
     ? new Set(actorKnowledgeMap.keys())
-    : new Set(state.cases.filter((c) => c.status === 'active').slice(0, 10).map((c) => c.id));
-  const activeCases = state.cases.filter((c) => c.status === 'active' && visibleCaseIds.has(c.id));
+    : new Set(state.cases.filter((c) => isCaseActiveByCanonicalStatus(state, c)).slice(0, 10).map((c) => c.id));
+  const activeCases = state.cases.filter((c) => isCaseActiveByCanonicalStatus(state, c) && visibleCaseIds.has(c.id));
   const totalActive = activeCases.length;
 
   // Derive highPressureCount from pressure signals when knowledge available
@@ -908,7 +909,7 @@ function buildStrategicTopActions(
   actorKnowledgeMap?: Map<string, ActorKnowledgeSnapshot>,
 ): StrategicTopAction[] {
   const actions: StrategicTopAction[] = [];
-  const activeCases = state.cases.filter((c) => c.status === 'active');
+  const activeCases = state.cases.filter((c) => isCaseActiveByCanonicalStatus(state, c));
 
   if (!actorKnowledgeMap || actorKnowledgeMap.size === 0) return actions;
 

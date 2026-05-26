@@ -19,7 +19,7 @@ import {
   resolveScenarioOpening,
 } from '../src/selling-houses/application/scenarioOpening';
 import { advanceDays, executeAction, seedInitialOpportunities } from '../src/selling-houses/domain/engine';
-import { asWritableCase, asWritableOpportunity, ensureMarketOutcomeState } from '../src/selling-houses/domain/models';
+import { asWritableCase, asWritableOpportunity, asWritableGameState, ensureMarketOutcomeState } from '../src/selling-houses/domain/models';
 import { sellVisibleRivalForCase } from '../src/selling-houses/domain/rivals/rivalListingEngine';
 import { getScenarioSnapshotById, listBuiltInScenarioSummaries } from '../src/selling-houses/domain/scenarioCatalog';
 
@@ -261,7 +261,7 @@ function buildWorld() {
     throw new Error('Expected seeded opportunity for aggregate sold-count verification');
   }
 
-  world.closedDeals = [{
+  asWritableGameState(world).closedDeals = [{
     dealId: 'deal-aggregate-1',
     caseId: targetCase.id,
     customerId: targetOpportunity.customerId,
@@ -295,7 +295,7 @@ function buildWorld() {
     throw new Error('Expected seeded opportunity for compatibility verification');
   }
 
-  world.closedDeals = [{
+  asWritableGameState(world).closedDeals = [{
     dealId: 'deal-compat-1',
     caseId: targetCase.id,
     customerId: targetOpportunity.customerId,
@@ -355,7 +355,7 @@ function buildWorld() {
       throw new Error('Expected seeded opportunity for save/load compatibility verification');
     }
 
-    world.closedDeals = [{
+    asWritableGameState(world).closedDeals = [{
       dealId: 'deal-browser-compat-1',
       caseId: targetCase.id,
       customerId: targetOpportunity.customerId,

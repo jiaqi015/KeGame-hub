@@ -8,6 +8,8 @@ import { getPromotionBudget, resolveFormalSoldCount } from '../domain/runtimeSta
 import { readCaseRelationBusinessContextFromRuntime } from '../core/world-state/relationReadProjection.js';
 import { readOwnerBehaviorDimensions } from '../domain/ownerDecisionProfileHelper.js';
 import type { WorldGraphSummary } from '../domain/world-model/runtime/types.js';
+import { isCaseActiveByCanonicalStatus } from '../domain/caseLifecycleStatusRead.js';
+import { isOpportunityActiveByCanonicalState } from '../domain/opportunityLifecycleStatusRead.js';
 
 type Severity = 'critical' | 'major' | 'minor';
 
@@ -144,8 +146,8 @@ export class LocalAdversarialSelfPlayArena {
       withdrawnCount: state.auxiliaryStats.withdrawnCount,
       commission: state.auxiliaryStats.commission,
       wordOfMouth: state.auxiliaryStats.wordOfMouth,
-      remainingActiveCases: state.cases.filter((entry) => entry.status === 'active').length,
-      remainingActiveOpportunities: state.opportunities.filter((entry) => entry.status === 'active').length,
+      remainingActiveCases: state.cases.filter((entry) => isCaseActiveByCanonicalStatus(state, entry)).length,
+      remainingActiveOpportunities: state.opportunities.filter((entry) => isOpportunityActiveByCanonicalState(state, entry)).length,
       shadowStats: buildShadowStats(state),
       decisions: this.decisions,
       findings: this.dedupeFindings(),
@@ -199,7 +201,7 @@ export class LocalAdversarialSelfPlayArena {
   }
 
   private scoreCase(caseItem: Case, state: GameState) {
-    const activeOpps = state.opportunities.filter((entry) => entry.caseId === caseItem.id && entry.status === 'active');
+    const activeOpps = state.opportunities.filter((entry) => entry.caseId === caseItem.id && isOpportunityActiveByCanonicalState(state, entry));
     const shadowCount = activeOpps.filter((entry) => entry.visibility === 'shadow').length;
     const lateStageCount = activeOpps.filter((entry) => entry.stageIndex >= 3).length;
     const pricePressure = Math.max(0, caseItem.askPrice - caseItem.marketPrice) / 2;
@@ -215,7 +217,7 @@ export class LocalAdversarialSelfPlayArena {
 
   private pickPlannedMove(state: GameState) {
     const activeCases = state.cases
-      .filter((entry) => entry.status === 'active')
+      .filter((entry) => isCaseActiveByCanonicalStatus(state, entry))
       .sort((left, right) => this.scoreCase(right, state) - this.scoreCase(left, state));
 
     let bestMove: PlannedMove | null = null;
@@ -237,7 +239,7 @@ export class LocalAdversarialSelfPlayArena {
 
   private pickDecision(state: GameState, caseItem: Case) {
     const candidates: CandidateDecision[] = [];
-    const shadowLead = state.opportunities.find((entry) => entry.caseId === caseItem.id && entry.status === 'active' && entry.visibility === 'shadow');
+    const shadowLead = state.opportunities.find((entry) => entry.caseId === caseItem.id && isOpportunityActiveByCanonicalState(state, entry) && entry.visibility === 'shadow');
     const lateOpportunity = findBestOpportunity(state, caseItem.id, 3);
     const showingOpportunity = findBestOpportunity(state, caseItem.id, 0, 2);
 
@@ -323,7 +325,7 @@ export class LocalAdversarialSelfPlayArena {
       });
     }
 
-    if (getPromotionBudget(state) >= 3 && !state.opportunities.some((entry) => entry.caseId === caseItem.id && entry.status === 'active' && entry.visibility === 'shadow')) {
+    if (getPromotionBudget(state) >= 3 && !state.opportunities.some((entry) => entry.caseId === caseItem.id && isOpportunityActiveByCanonicalState(state, entry) && entry.visibility === 'shadow')) {
       candidates.push({
         actionId: 'broker-broadcast',
         optionId: null,
@@ -341,7 +343,7 @@ export class LocalAdversarialSelfPlayArena {
       });
     }
 
-    if (state.opportunities.some((entry) => entry.caseId === caseItem.id && entry.status === 'active' && entry.stageIndex >= 2 && entry.visibility !== 'shadow')) {
+    if (state.opportunities.some((entry) => entry.caseId === caseItem.id && isOpportunityActiveByCanonicalState(state, entry) && entry.stageIndex >= 2 && entry.visibility !== 'shadow')) {
       candidates.push({
         actionId: 'sincerity-sale',
         optionId: null,
@@ -391,7 +393,7 @@ export class LocalAdversarialSelfPlayArena {
 
   private collectInvariantFindings(state: GameState) {
     state.opportunities
-      .filter((entry) => entry.status === 'active')
+      .filter((entry) => isOpportunityActiveByCanonicalState(state, entry))
       .forEach((entry) => {
         if (entry.daysLeft <= 0) {
           this.findings.push({
@@ -413,9 +415,9 @@ export class LocalAdversarialSelfPlayArena {
       });
 
     state.cases
-      .filter((entry) => entry.status === 'active')
+      .filter((entry) => isCaseActiveByCanonicalStatus(state, entry))
       .forEach((entry) => {
-        if (entry.windowDays <= 0 && entry.status === 'active') {
+        if (entry.windowDays <= 0 && isCaseActiveByCanonicalStatus(state, entry)) {
           this.findings.push({
             severity: 'critical',
             title: '房源推进未正确收口',

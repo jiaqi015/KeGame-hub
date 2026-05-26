@@ -1,4 +1,5 @@
 import type { GameState, Expectation } from '../models.js';
+import { isCaseActiveByCanonicalStatus } from '../caseLifecycleStatusRead.js';
 
 export function buildExpectations(state: GameState): Expectation[] {
   if (!state.expectationStore) {
@@ -40,7 +41,7 @@ export function buildExpectations(state: GameState): Expectation[] {
 
   // 3. 连续沉默对象（连续3天未互动的高优房源）
   state.cases.forEach(c => {
-    if (c.status === 'active' && (state.day - c.lastOwnerTouchedDay) >= 3) {
+    if (isCaseActiveByCanonicalStatus(state, c) && (state.day - c.lastOwnerTouchedDay) >= 3) {
       expectations.push({
         id: `exp_silence_${c.id}_${state.day}`,
         targetEntityId: c.ownerName,

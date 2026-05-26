@@ -23,6 +23,9 @@ import type {
   StrategyForkSummary,
   StrategyForkBranch,
 } from '../../domain/models.js';
+import { asWritableGameState } from '../../domain/models.js';
+import { isCaseActiveByCanonicalStatus } from '../../domain/caseLifecycleStatusRead.js';
+import { isOpportunityActiveByCanonicalState } from '../../domain/opportunityLifecycleStatusRead.js';
 
 import type {
   ProcessRun,
@@ -121,7 +124,7 @@ export function buildStrategyForkSummary(
   // Determine which strategies are applicable based on case state
   const caseObj = state.cases.find((c) => c.id === caseId);
   const activeOppCount = state.opportunities.filter(
-    (o) => o.caseId === caseId && o.status === 'active',
+    (o) => o.caseId === caseId && isOpportunityActiveByCanonicalState(state, o),
   ).length;
 
   const branches: StrategyForkBranch[] = [];
@@ -188,7 +191,7 @@ export function buildStrategyForkSummary(
 export function buildStrategyForksFromState(
   state: GameState,
 ): readonly StrategyForkSummary[] {
-  const activeCases = state.cases.filter((c) => c.status === 'active');
+  const activeCases = state.cases.filter((c) => isCaseActiveByCanonicalStatus(state, c));
   const forks: StrategyForkSummary[] = [];
 
   for (const caseItem of activeCases) {
@@ -213,7 +216,7 @@ export function enrichStateWithStrategyForks(
   forks: readonly StrategyForkSummary[],
 ): void {
   if (!state.strategyForkHistory) {
-    state.strategyForkHistory = [];
+    asWritableGameState(state).strategyForkHistory = [];
   }
 
   for (const fork of forks) {
@@ -221,9 +224,9 @@ export function enrichStateWithStrategyForks(
       (entry) => entry.forkId === fork.forkId,
     );
     if (existingIndex >= 0) {
-      state.strategyForkHistory[existingIndex] = fork;
+      asWritableGameState(state).strategyForkHistory[existingIndex] = fork;
     } else {
-      state.strategyForkHistory.push(fork);
+      asWritableGameState(state).strategyForkHistory.push(fork);
     }
   }
 }

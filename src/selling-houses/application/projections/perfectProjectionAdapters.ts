@@ -33,6 +33,8 @@ import type {
 } from '../../domain/world-model/actorKnowledgeTypes.js';
 
 import type { Case, GameState, Opportunity } from '../../domain/models.js';
+import { isCaseActiveByCanonicalStatus } from '../../domain/caseLifecycleStatusRead.js';
+import { isOpportunityActiveByCanonicalState } from '../../domain/opportunityLifecycleStatusRead.js';
 
 // ════════════════════════════════════════════════════════════════════════════
 // Shared types for evidence-backed view models
@@ -591,7 +593,7 @@ export function buildPerfectDashboardRiskReminders(
 
   for (const detail of caseDetails) {
     const caseItem = state.cases.find((c) => c.id === detail.caseId);
-    if (!caseItem || caseItem.status !== 'active') continue;
+    if (!caseItem || !isCaseActiveByCanonicalStatus(state, caseItem)) continue;
 
     const caseReminders = buildRiskRemindersFromPressure(
       detail.envelope.pressureSignals,
@@ -725,7 +727,7 @@ export function buildEvidenceBackedMarketRadar(
     if (signal.domain !== 'rival_threat' && signal.domain !== 'market_heat') continue;
 
     const affectedCases = state.cases
-      .filter((c) => c.status === 'active')
+      .filter((c) => isCaseActiveByCanonicalStatus(state, c))
       .filter((c) => c.marketCellId || c.competitionGroupIds.length > 0)
       .slice(0, 3)
       .map((c) => c.id);
@@ -779,7 +781,7 @@ export function buildEvidenceBackedCustomerInsights(
   for (const signal of envelope.pressureSignals) {
     if (signal.domain !== 'customer_seriousness' && signal.domain !== 'deal_closeability') continue;
 
-    const opps = state.opportunities.filter((o) => o.caseId === caseId && o.status === 'active');
+    const opps = state.opportunities.filter((o) => o.caseId === caseId && isOpportunityActiveByCanonicalState(state, o));
     const opp = opps[0];
     if (!opp) continue;
 
@@ -801,7 +803,7 @@ export function buildEvidenceBackedCustomerInsights(
 
   // If no signals, produce an "insufficient" item
   if (insights.length === 0) {
-    const opp = state.opportunities.find((o) => o.caseId === caseId && o.status === 'active');
+    const opp = state.opportunities.find((o) => o.caseId === caseId && isOpportunityActiveByCanonicalState(state, o));
     if (opp) {
       insights.push({
         customerId: opp.customerId,
@@ -840,7 +842,7 @@ export function buildEvidenceBackedTodayItems(
 
   for (const detail of caseDetails) {
     const caseItem = state.cases.find((c) => c.id === detail.caseId);
-    if (!caseItem || caseItem.status !== 'active') continue;
+    if (!caseItem || !isCaseActiveByCanonicalStatus(state, caseItem)) continue;
 
     const sharedRefs = buildSharedCausalRefs(detail.envelope);
     const envelope = detail.envelope;

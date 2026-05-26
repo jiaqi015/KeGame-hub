@@ -1,4 +1,7 @@
 import type { DailyTickResult, GameState, Opportunity } from '../domain/models.js';
+import { asWritableGameState } from '../domain/models.js';
+import { isCaseActiveByCanonicalStatus } from '../domain/caseLifecycleStatusRead.js';
+import { isOpportunityActiveByCanonicalState } from '../domain/opportunityLifecycleStatusRead.js';
 import type { Settlement } from '../domain/actions/templates.js';
 import type { TodayPlanDraft } from './todayPlan.js';
 import type { WorldCausalEvent } from '../domain/world-model/causalEvents.js';
@@ -25,7 +28,7 @@ import {
   setOpportunityVisibilityOnState,
   syncCustomerRuntimeStageMirrorFromOpportunityOnState,
 } from '../domain/opportunitySplitHelper.js';
-import { applyPatienceDelta, applyUrgencyDelta } from '../domain/ownerCaseReadinessWriteHelper.js';
+import { applyOwnerCasePatienceDelta, applyOwnerCaseUrgencyDelta } from '../domain/ownerCaseReadinessWriteHelper.js';
 import {
   createProductRun,
   describeRunMilestone,
@@ -115,7 +118,7 @@ export function advanceGameDaysWithSummary(
         state: tickState,
         tickResult,
         activeCaseIdsAtEnd: tickState.cases
-          .filter((c) => c.status === 'active')
+          .filter((c) => isCaseActiveByCanonicalStatus(tickState, c))
           .map((c) => c.id)
           .sort(),
         settledDayClosedDeals: tickResult.closedDeals,
@@ -185,7 +188,7 @@ export function executeGameAction(
           const sourceReceipt = buildResult.sourceIngestionReceipt;
           if (sourceReceipt.causalEvents.length > 0) {
             const prev = Array.isArray(next.worldCausalEvents) ? next.worldCausalEvents : [];
-            next.worldCausalEvents = [...prev, ...sourceReceipt.causalEvents];
+            asWritableGameState(next).worldCausalEvents = [...prev, ...sourceReceipt.causalEvents];
           }
 
           // Persist source records from immediate receipt to runtime ledger
@@ -271,7 +274,7 @@ export function executeScenarioAction(
   let success = false;
   const nextState = transitionGameState(state, (next) => {
     const currentCase = next.cases.find((entry) => entry.id === caseId);
-    if (!currentCase || currentCase.status !== 'active') {
+    if (!currentCase || !isCaseActiveByCanonicalStatus(next, currentCase)) {
       return;
     }
 
@@ -299,7 +302,7 @@ export function executeScenarioAction(
       const selectedOpportunity = next.opportunities.find((entry) =>
         entry.id === selectedShowingOpportunityId
         && entry.caseId === currentCase.id
-        && entry.status === 'active',
+        && isOpportunityActiveByCanonicalState(next, entry),
       ) || null;
       if (selectedOpportunity) {
         deltaTarget.linkedOpportunityId = selectedOpportunity.id;
@@ -386,7 +389,7 @@ export function executeScenarioAction(
 
     if (action.id === 'open-day') {
       const targetIds = next.cases
-        .filter((entry) => entry.status === 'active' && entry.community === currentCase.community)
+        .filter((entry) => isCaseActiveByCanonicalStatus(next, entry) && entry.community === currentCase.community)
         .map((entry) => entry.id);
       const normalizedTargets = targetIds.length > 0 ? targetIds : [currentCase.id];
       if (!hasActiveProductRunForTargets(next, 'open-day', normalizedTargets)) {
@@ -456,7 +459,7 @@ export function addTodayPlanItem(
     const caseItem = draft.linkedCaseId
       ? next.cases.find((entry) => entry.id === draft.linkedCaseId)
       : null;
-    if (!caseItem || caseItem.status !== 'active') {
+    if (!caseItem || !isCaseActiveByCanonicalStatus(next, caseItem)) {
       reason = '这套房当前不在场，先刷新一下再试。';
       onMessage?.(reason);
       return;
@@ -668,7 +671,7 @@ function resolveScenarioActionOpportunity(
   }
 
   const activeOpportunities = state.opportunities
-    .filter((entry) => entry.caseId === currentCase.id && entry.status === 'active');
+    .filter((entry) => entry.caseId === currentCase.id && isOpportunityActiveByCanonicalState(state, entry));
   const withinRelationWindow = (opportunity: Opportunity) => {
     const window = relation.opportunityStageWindow;
     return !window || (opportunity.stageIndex >= window.min && opportunity.stageIndex <= window.max);
@@ -743,7 +746,7 @@ function applyScenarioDelta(
   }
   if (delta.field === 'patience') {
     // Write to canonical OwnerCaseRelation, sync to Case mirror
-    applyPatienceDelta(state, currentCase, delta.value, `scenario:${actionId}`, 0, 100);
+    applyOwnerCasePatienceDelta(state, currentCase, delta.value, `scenario:${actionId}`, 0, 100);
     return;
   }
   if (delta.field === 'd1') {
@@ -764,7 +767,7 @@ function applyScenarioDelta(
   }
   if (delta.field === 'urgency') {
     // Write to canonical OwnerCaseRelation, sync to Case mirror
-    applyUrgencyDelta(state, currentCase, delta.value, `scenario:${actionId}`, 0, 100);
+    applyOwnerCaseUrgencyDelta(state, currentCase, delta.value, `scenario:${actionId}`, 0, 100);
     return;
   }
   if (delta.field === 'askPrice') {
@@ -801,7 +804,7 @@ function applyScenarioDelta(
   if (delta.field === 'intent' || delta.field === 'confidence') {
     const fallbackOpportunity = allowOpportunityFallback
       ? [...state.opportunities]
-        .filter((entry) => entry.caseId === currentCase.id && entry.status === 'active')
+        .filter((entry) => entry.caseId === currentCase.id && isOpportunityActiveByCanonicalState(state, entry))
         .sort((left, right) => (right.stageIndex + right.intent / 100) - (left.stageIndex + left.intent / 100))[0]
       : null;
     const writableOpportunity = targetOpportunity || fallbackOpportunity;

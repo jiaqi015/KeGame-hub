@@ -8,6 +8,7 @@ import {
 } from '../../application/projections/perfectProjectionAdapters.js';
 import type { ActorKnowledgeSnapshot } from '../../domain/world-model/actorKnowledgeTypes.js';
 import { buildDecisionEvidenceEnvelope } from '../../application/projections/actorKnowledgeProjection.js';
+import { isCaseActiveByCanonicalStatus } from '../../domain/caseLifecycleStatusRead';
 
 export type FollowUpPriorityType = 'owner-risk' | 'competition-risk' | 'closing-opportunity';
 export type FollowUpPriorityGroupId = 'ownerRisk' | 'competitionRisk' | 'closingOpportunity';
@@ -76,7 +77,7 @@ export function buildFollowUpPriorityProjection(
   state: GameState,
   actorKnowledgeMap?: Map<string, import('../../domain/world-model/actorKnowledgeTypes.js').ActorKnowledgeSnapshot>,
 ): FollowUpPriorityProjection {
-  const activeCases = state.cases.filter((entry) => entry.status === 'active');
+  const activeCases = state.cases.filter((entry) => isCaseActiveByCanonicalStatus(state, entry));
   const items = activeCases.map((caseItem) => {
     const priority = deriveCaseFollowUpPriority(state, caseItem);
 
@@ -127,7 +128,7 @@ export function deriveGroupedPriorities(state: GameState) {
   const projection = buildFollowUpPriorityProjection(state);
   const activeCaseById = new Map(
     state.cases
-      .filter((entry) => entry.status === 'active')
+      .filter((entry) => isCaseActiveByCanonicalStatus(state, entry))
       .map((caseItem) => [caseItem.id, caseItem]),
   );
 

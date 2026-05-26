@@ -981,6 +981,174 @@ try {
 }
 
 // ---------------------------------------------------------------------------
+// Gate 29: R28 seal production API backdoors
+// ---------------------------------------------------------------------------
+
+console.log('\n=== Constitutional Migration Gate: 29. Seal-production-API-backdoors ===\n');
+
+try {
+  const r28Result = spawnSync(
+    'npx',
+    ['tsx', 'scripts/verify-selling-houses-r28-seal-production-api-backdoors-gate.ts'],
+    { stdio: 'inherit', shell: process.platform === 'win32', timeout: 600_000 },
+  );
+
+  if (r28Result.error) {
+    fail('r28-seal-production-api-backdoors-gate', r28Result.error.message);
+  } else if (r28Result.status !== 0) {
+    fail('r28-seal-production-api-backdoors-gate', `exit ${r28Result.status}`);
+  } else {
+    pass('r28-seal-production-api-backdoors-gate');
+  }
+} catch (err: any) {
+  fail('r28-seal-production-api-backdoors-gate', err.message);
+}
+
+// ---------------------------------------------------------------------------
+// Gate 30: R29 terminal outcome readonly + readiness WriteHelper collapse
+// ---------------------------------------------------------------------------
+
+console.log('\n=== Constitutional Migration Gate: 30. Terminal-outcome-readonly-readiness-writehelper ===\n');
+
+try {
+  const r29Result = spawnSync(
+    'npx',
+    ['tsx', 'scripts/verify-selling-houses-r29-terminal-outcome-readonly-readiness-writehelper-gate.ts'],
+    { stdio: 'inherit', shell: process.platform === 'win32', timeout: 600_000 },
+  );
+
+  if (r29Result.error) {
+    fail('r29-terminal-outcome-readonly-readiness-writehelper-gate', r29Result.error.message);
+  } else if (r29Result.status !== 0) {
+    fail('r29-terminal-outcome-readonly-readiness-writehelper-gate', `exit ${r29Result.status}`);
+  } else {
+    pass('r29-terminal-outcome-readonly-readiness-writehelper-gate');
+  }
+} catch (err: any) {
+  fail('r29-terminal-outcome-readonly-readiness-writehelper-gate', err.message);
+}
+
+// ---------------------------------------------------------------------------
+// Gate 31: R30 canonical read semantics final
+// ---------------------------------------------------------------------------
+
+console.log('\n=== Constitutional Migration Gate: 31. Canonical-read-semantics-final ===\n');
+
+try {
+  const r30Result = spawnSync(
+    'npx',
+    ['tsx', 'scripts/verify-selling-houses-r30-canonical-read-semantics-final-gate.ts'],
+    { stdio: 'inherit', shell: process.platform === 'win32', timeout: 600_000 },
+  );
+
+  if (r30Result.error) {
+    fail('r30-canonical-read-semantics-final-gate', r30Result.error.message);
+  } else if (r30Result.status !== 0) {
+    fail('r30-canonical-read-semantics-final-gate', `exit ${r30Result.status}`);
+  } else {
+    pass('r30-canonical-read-semantics-final-gate');
+  }
+} catch (err: any) {
+  fail('r30-canonical-read-semantics-final-gate', err.message);
+}
+
+// ---------------------------------------------------------------------------
+// Gate 32: R31 canonical store kernel
+// ---------------------------------------------------------------------------
+
+console.log('\n=== Constitutional Migration Gate: 32. Canonical-store-kernel ===\n');
+
+try {
+  const r31Result = spawnSync(
+    'npx',
+    ['tsx', 'scripts/verify-selling-houses-r31-canonical-store-kernel-gate.ts'],
+    { stdio: 'inherit', shell: process.platform === 'win32', timeout: 600_000 },
+  );
+
+  if (r31Result.error) {
+    fail('r31-canonical-store-kernel-gate', r31Result.error.message);
+  } else if (r31Result.status !== 0) {
+    fail('r31-canonical-store-kernel-gate', `exit ${r31Result.status}`);
+  } else {
+    pass('r31-canonical-store-kernel-gate');
+  }
+} catch (err: any) {
+  fail('r31-canonical-store-kernel-gate', err.message);
+}
+
+// ---------------------------------------------------------------------------
+// Gate 33: R32 constitutional closure final
+// ---------------------------------------------------------------------------
+
+console.log('\n=== Constitutional Migration Gate: 33. Constitutional-closure-final ===\n');
+
+try {
+  const r32Result = spawnSync(
+    'npx',
+    ['tsx', 'scripts/verify-selling-houses-r32-constitutional-closure-final-gate.ts'],
+    { stdio: 'inherit', shell: process.platform === 'win32', timeout: 600_000 },
+  );
+
+  if (r32Result.error) {
+    fail('r32-constitutional-closure-final-gate', r32Result.error.message);
+  } else if (r32Result.status !== 0) {
+    fail('r32-constitutional-closure-final-gate', `exit ${r32Result.status}`);
+  } else {
+    pass('r32-constitutional-closure-final-gate');
+  }
+} catch (err: any) {
+  fail('r32-constitutional-closure-final-gate', err.message);
+}
+
+// ---------------------------------------------------------------------------
+// Gate 34: R33 final truth debt elimination
+// ---------------------------------------------------------------------------
+
+console.log('\n=== Constitutional Migration Gate: 34. Truth-debt-elimination ===\n');
+
+try {
+  const r33Result = spawnSync(
+    'npx',
+    ['tsx', 'scripts/verify-selling-houses-r33-final-truth-debt-elimination-gate.ts'],
+    { stdio: 'inherit', shell: process.platform === 'win32', timeout: 600_000 },
+  );
+
+  if (r33Result.error) {
+    fail('r33-truth-debt-elimination-gate', r33Result.error.message);
+  } else if (r33Result.status !== 0) {
+    fail('r33-truth-debt-elimination-gate', `exit ${r33Result.status}`);
+  } else {
+    pass('r33-truth-debt-elimination-gate');
+  }
+} catch (err: any) {
+  fail('r33-truth-debt-elimination-gate', err.message);
+}
+
+// ---------------------------------------------------------------------------
+// Gate 35: R34 status mirror truth seal
+// ---------------------------------------------------------------------------
+
+console.log('\n=== Constitutional Migration Gate: 35. Status-mirror-truth-seal ===\n');
+
+try {
+  const r34Result = spawnSync(
+    'npx',
+    ['tsx', 'scripts/verify-selling-houses-r34-status-mirror-truth-seal-gate.ts'],
+    { stdio: 'inherit', shell: process.platform === 'win32', timeout: 600_000 },
+  );
+
+  if (r34Result.error) {
+    fail('r34-status-mirror-truth-seal-gate', r34Result.error.message);
+  } else if (r34Result.status !== 0) {
+    fail('r34-status-mirror-truth-seal-gate', `exit ${r34Result.status}`);
+  } else {
+    pass('r34-status-mirror-truth-seal-gate');
+  }
+} catch (err: any) {
+  fail('r34-status-mirror-truth-seal-gate', err.message);
+}
+
+// ---------------------------------------------------------------------------
 // R12/R13: Canonical contract drift guard — no duplicated field bodies
 // ---------------------------------------------------------------------------
 

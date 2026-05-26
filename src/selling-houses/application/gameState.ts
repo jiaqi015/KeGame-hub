@@ -2,9 +2,15 @@ import {
   STORAGE_KEY,
 } from '../domain/constants.js';
 import { initializeTrustRelations } from '../domain/trustWriteHelper.js';
-import { initializeReadinessStates } from '../domain/ownerCaseReadinessHelper.js';
+import { initializeReadinessStates } from '../domain/ownerCaseReadinessWriteHelper.js';
 import { initializeOpportunityRelations } from '../domain/opportunitySplitHelper.js';
+import { ensureRuntimeConsensusFormations, ensureRuntimeContractFacts, ensureRuntimeOpportunityClosureSets } from '../domain/consensusFormationHelper.js';
 import { buildBrokerCustomerRelationsFromGameState } from '../domain/brokerCustomerRelationAdapter.js';
+import {
+  type CanonicalStoreWriteProvenance,
+  type CanonicalStoreWriteReceipt,
+  makeStoreWriteReceipt,
+} from '../core/world-state/canonicalStoreKernel.js';
 import { buildScopedStorageKey } from './storageScope.js';
 import {
   clamp,
@@ -37,6 +43,7 @@ import {
   type FlowProgressState,
   type DailyTickResult,
   type DailyProcessResultSummary,
+  asWritableGameState,
 } from '../domain/models.js';
 import { normalizeDailyProcessResultReadModel } from '../runtime/simulation/dailyProcessResult.js';
 import { createInitialBudgetLedger, normalizeBudgetLedger } from '../domain/budget.js';
@@ -366,6 +373,7 @@ function ensureBaselineRivalListings(
   shadow: ShadowMarketState,
   cases: Pick<Case, 'id' | 'title' | 'district' | 'marketCellId' | 'marketPrice' | 'askPrice' | 'area' | 'layout' | 'status'>[],
 ) {
+  // legacy_status_mirror_read: initialization context, cases are freshly created with no canonical records
   const activeCases = cases.filter((entry) => entry.status === 'active');
   if (!activeCases.length) return shadow;
 
@@ -563,6 +571,7 @@ export function createInitialState(snapshot: ScenarioSnapshot, seedInput: RunSee
     closedDeals: [],
     marketOutcome: buildInitialMarketOutcomeState(rules, runSeed),
     metrics: {
+      // legacy_status_mirror_read: initialization context, cases are freshly created
       activeCaseCount: generatedCases.filter((entry) => entry.status === 'active').length,
       activeOpportunityCount: 0,
       averageTrust: 0,
@@ -603,15 +612,42 @@ export function createInitialState(snapshot: ScenarioSnapshot, seedInput: RunSee
   initializeOpportunityRelations(state);
 
   // Initialize runtimeBrokerCustomerRelations from customerStates + opportunities
-  state.runtimeBrokerCustomerRelations = [...buildBrokerCustomerRelationsFromGameState(state)];
+  ensureRuntimeBrokerCustomerRelations(state, 'canonical-bootstrap');
 
   // Initialize consensus runtime arrays (empty at start, populated during play)
-  state.runtimeConsensusFormations = [];
-  state.runtimeContractFacts = [];
-  state.runtimeOpportunityClosureSets = [];
+  initializeCanonicalRuntimeStores(state);
 
   syncAuxiliaryStats(state);
   return state;
+}
+
+/**
+ * Store-level ensure helper for broker-customer relation store.
+ * Returns a CanonicalStoreWriteReceipt for audit.
+ */
+export function ensureRuntimeBrokerCustomerRelations(
+  state: GameState,
+  provenance: CanonicalStoreWriteProvenance = 'canonical-bootstrap',
+): CanonicalStoreWriteReceipt {
+  if (!state.runtimeBrokerCustomerRelations) {
+    asWritableGameState(state).runtimeBrokerCustomerRelations = [...buildBrokerCustomerRelationsFromGameState(state)];
+  }
+  return makeStoreWriteReceipt('runtimeBrokerCustomerRelations', 'ensure', provenance, {
+    nextCount: state.runtimeBrokerCustomerRelations.length,
+  });
+}
+
+/**
+ * Initialize all canonical runtime stores for a new game.
+ * Uses 'canonical-bootstrap' provenance.
+ */
+export function initializeCanonicalRuntimeStores(
+  state: GameState,
+  provenance: CanonicalStoreWriteProvenance = 'canonical-bootstrap',
+): void {
+  ensureRuntimeConsensusFormations(state, provenance);
+  ensureRuntimeContractFacts(state, provenance);
+  ensureRuntimeOpportunityClosureSets(state, provenance);
 }
 
 function buildLegacySnapshot(parsed: any): ScenarioSnapshot {
@@ -1455,58 +1491,56 @@ export function normalizeLoadedState(parsed: any): GameState | null {
   } as GameState;
 
   // Ensure consensus runtime arrays exist for old saves
-  if (!state.runtimeConsensusFormations) state.runtimeConsensusFormations = [];
-  if (!state.runtimeContractFacts) state.runtimeContractFacts = [];
-  if (!state.runtimeOpportunityClosureSets) state.runtimeOpportunityClosureSets = [];
+  initializeCanonicalRuntimeStores(state, 'old_save_compatibility');
 
   // Ensure operating ledger exists for old saves (optional field, empty fallback)
   if (!Array.isArray(state.operatingLedgerDays)) {
-    state.operatingLedgerDays = [];
+    asWritableGameState(state).operatingLedgerDays = [];
   }
 
   // Ensure action receipt history exists for old saves (optional field, empty fallback)
   if (!Array.isArray(state.actionReceiptHistory)) {
-    state.actionReceiptHistory = [];
+    asWritableGameState(state).actionReceiptHistory = [];
   }
 
   // Ensure commitment settlement history exists for old saves (optional field, empty fallback)
   if (!Array.isArray(state.commitmentSettlementHistory)) {
-    state.commitmentSettlementHistory = [];
+    asWritableGameState(state).commitmentSettlementHistory = [];
   }
 
   // Ensure process run history exists for old saves (optional field, empty fallback)
   if (!Array.isArray(state.processRunHistory)) {
-    state.processRunHistory = [];
+    asWritableGameState(state).processRunHistory = [];
   }
 
   // Ensure owner decision moment history exists for old saves (optional field, empty fallback)
   if (!Array.isArray(state.ownerDecisionMomentHistory)) {
-    state.ownerDecisionMomentHistory = [];
+    asWritableGameState(state).ownerDecisionMomentHistory = [];
   }
 
   // Ensure strategy fork history exists for old saves (optional field, empty fallback)
   if (!Array.isArray(state.strategyForkHistory)) {
-    state.strategyForkHistory = [];
+    asWritableGameState(state).strategyForkHistory = [];
   }
 
   // Ensure manager intervention receipt history exists for old saves (optional field, empty fallback)
   if (!Array.isArray(state.managerInterventionReceiptHistory)) {
-    state.managerInterventionReceiptHistory = [];
+    asWritableGameState(state).managerInterventionReceiptHistory = [];
   }
 
   // Ensure negotiation replay history exists for old saves (optional field, empty fallback)
   if (!Array.isArray(state.negotiationReplayHistory)) {
-    state.negotiationReplayHistory = [];
+    asWritableGameState(state).negotiationReplayHistory = [];
   }
 
   // Ensure business outcome review history exists for old saves (optional field, empty fallback)
   if (!Array.isArray(state.businessOutcomeReviewHistory)) {
-    state.businessOutcomeReviewHistory = [];
+    asWritableGameState(state).businessOutcomeReviewHistory = [];
   }
 
   // Ensure WeChat conversation receipt history exists for old saves.
   if (!Array.isArray(state.wechatConversationHistory)) {
-    state.wechatConversationHistory = [];
+    asWritableGameState(state).wechatConversationHistory = [];
   }
 
   state.agentMemoryStore = normalizeAgentMemoryStore(state.agentMemoryStore);

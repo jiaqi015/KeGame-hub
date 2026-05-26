@@ -1,4 +1,6 @@
 import type { BudgetTransaction, Case, GameState, MatterEntry } from '../../domain/models.js';
+import { isCaseActiveByCanonicalStatus, isCaseSoldByCanonicalStatus } from '../../domain/caseLifecycleStatusRead.js';
+import { isOpportunityActiveByCanonicalState } from '../../domain/opportunityLifecycleStatusRead.js';
 import { WEEKLY_ROUTINE } from '../../domain/constants.js';
 import { getRoutine } from '../../domain/utils.js';
 import { getPromotionBudget, resolveFormalSoldCount } from '../../domain/runtimeStats.js';
@@ -168,7 +170,7 @@ export function buildWorkspaceShellProjection(
   const saleBudgetIncome = sumBudgetByKind(state.budgetLedger, 'sale-rebate');
   const budgetSpend = Math.abs(state.budgetLedger.filter((entry) => entry.amount < 0).reduce((sum, entry) => sum + entry.amount, 0));
   const soldCases = [...state.cases]
-    .filter((entry) => entry.status === 'sold')
+    .filter((entry) => isCaseSoldByCanonicalStatus(state, entry))
     .sort((left, right) => (right.soldPrice || 0) - (left.soldPrice || 0))
     .slice(0, 6);
   const soldCount = getClosedDealCount(state);
@@ -176,8 +178,8 @@ export function buildWorkspaceShellProjection(
     ? state.auxiliaryStats.commission / soldCount
     : 0;
   const spentEnergy = Math.max(state.maxEnergy - state.energy, 0);
-  const activeCaseCount = state.cases.filter((entry) => entry.status === 'active').length;
-  const activeOpportunityCount = state.opportunities.filter((entry) => entry.status === 'active').length;
+  const activeCaseCount = state.cases.filter((entry) => isCaseActiveByCanonicalStatus(state, entry)).length;
+  const activeOpportunityCount = state.opportunities.filter((entry) => isOpportunityActiveByCanonicalState(state, entry)).length;
   const selectedCase = state.selectedCaseId
     ? state.cases.find((entry) => entry.id === state.selectedCaseId) || null
     : null;
@@ -256,7 +258,7 @@ export function buildWorkspaceShellProjection(
       ],
       rules: [
         { label: '计佣规则', value: '成交价 1% x 25%' },
-        { label: '在场房源', value: `${state.cases.filter((entry) => entry.status === 'active').length} 套` },
+        { label: '在场房源', value: `${state.cases.filter((entry) => isCaseActiveByCanonicalStatus(state, entry)).length} 套` },
         { label: '成交状态', value: soldCount > 0 ? '已有成交回款' : '仍在累积首单' },
       ],
       note: '佣金只看成交回款。',
@@ -418,7 +420,7 @@ function trimJournalTitle(message: string) {
   return `${trimmed.slice(0, 24)}...`;
 }
 
-function sumBudgetByKind(ledger: BudgetTransaction[], kind: BudgetTransaction['kind']) {
+function sumBudgetByKind(ledger: readonly BudgetTransaction[], kind: BudgetTransaction['kind']) {
   return ledger
     .filter((entry) => entry.kind === kind)
     .reduce((sum, entry) => sum + entry.amount, 0);

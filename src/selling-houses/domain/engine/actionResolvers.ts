@@ -1,11 +1,14 @@
 import { ACTIONS } from '../constants.js';
-import { markCaseWithdrawn, createCaseTerminalOutcomeOnState, syncLegacyCaseTerminalMirrorFromOutcome, findCaseTerminalOutcome } from '../caseOutcome.js';
+import { markCaseWithdrawn, createCaseTerminalOutcomeOnState, syncLegacyCaseTerminalMirrorFromOutcome, findCaseTerminalOutcome, readCaseTerminalOutcomeForCase } from '../caseOutcome.js';
 import { updateDerivedState, logEvent, recordDomainEvent } from '../runtimeState.js';
 import { applyAuxiliaryStats, getPromotionBudget } from '../runtimeStats.js';
 import { clamp, getDayOfWeek } from '../utils.js';
 import { setOpportunityStatusOnState } from '../opportunitySplitHelper.js';
 import { applyActionStageRelation, deriveCaseProgression, getActionStageRelation } from '../actionStageRelations.js';
 import type { Case, GameState } from '../models.js';
+import { asWritableGameState } from '../models.js';
+import { isCaseActiveByCanonicalStatus } from '../caseLifecycleStatusRead.js';
+import { isOpportunityActiveByCanonicalState } from '../opportunityLifecycleStatusRead.js';
 import {
   findBestOpportunity,
   refreshOpportunityLabel,
@@ -86,7 +89,7 @@ export function executeAction(
   meta?: unknown,
 ) {
   const action = resolveActionDefinition(actionId);
-  if (!action || !caseItem || caseItem.status !== 'active') return false;
+  if (!action || !caseItem || !isCaseActiveByCanonicalStatus(state, caseItem)) return false;
 
   const availability = getActionAvailability(state, caseItem, actionId);
   if (!availability.enabled) {
@@ -95,12 +98,12 @@ export function executeAction(
       captureActionReceiptSnapshot(
         state, caseItem, actionId, actionId, optionId,
         'blocked', 0, 0, availability.reason, state.eventStore.length,
-        state.opportunities.filter((o) => o.caseId === caseItem.id && o.status === 'active').length,
+        state.opportunities.filter((o) => o.caseId === caseItem.id && isOpportunityActiveByCanonicalState(state, o)).length,
       ),
     );
     // Emit player_action_receipt source record for blocked action
-    if (!state.pendingSourceRecords) state.pendingSourceRecords = [];
-    state.pendingSourceRecords.push(buildPlayerActionReceiptSourceRecord(
+    if (!state.pendingSourceRecords) asWritableGameState(state).pendingSourceRecords = [];
+    asWritableGameState(state).pendingSourceRecords.push(buildPlayerActionReceiptSourceRecord(
       state, caseItem, actionId, optionId, 'blocked', 0, 0,
     ));
     onMessage?.(availability.reason);
@@ -123,7 +126,7 @@ export function executeAction(
   const beforeWindowDays = caseItem.windowDays;
   const beforeEventStoreLength = state.eventStore.length;
   const beforeOpportunityCount = state.opportunities.filter(
-    (o) => o.caseId === caseItem.id && o.status === 'active',
+    (o) => o.caseId === caseItem.id && isOpportunityActiveByCanonicalState(state, o),
   ).length;
 
   const transactionResult = executeActionTransaction(state, action, () => {
@@ -170,8 +173,8 @@ export function executeAction(
   );
   // Emit player_action_receipt source record for successful action
   // Include fieldDeltas for trust/patience changes so economy pipeline can consume them
-  if (!state.pendingSourceRecords) state.pendingSourceRecords = [];
-  state.pendingSourceRecords.push(buildPlayerActionReceiptSourceRecord(
+  if (!state.pendingSourceRecords) asWritableGameState(state).pendingSourceRecords = [];
+  asWritableGameState(state).pendingSourceRecords.push(buildPlayerActionReceiptSourceRecord(
     state, caseItem, action.id, optionId, 'success', action.costEnergy, action.costPromotionBudget,
     beforeTrust, beforePatience, beforeUrgency,
   ));
@@ -234,7 +237,7 @@ export function withdrawCase(world: GameState, caseItem: Case, reason: string) {
     wordOfMouth: clamp(world.auxiliaryStats.wordOfMouth - 3, 0, 100),
   });
   world.opportunities.forEach((entry) => {
-    if (entry.caseId === caseItem.id && entry.status === 'active') {
+    if (entry.caseId === caseItem.id && isOpportunityActiveByCanonicalState(world, entry)) {
       setOpportunityStatusOnState(world, entry, 'closed', '房源撤回关闭机会');
       refreshOpportunityLabel(world, entry);
     }
@@ -259,8 +262,8 @@ export function withdrawCase(world: GameState, caseItem: Case, reason: string) {
     tone: 'danger',
     caseId: caseItem.id,
     payload: {
-      endingType: caseItem.endingType,
-      endingBucket: caseItem.endingBucket,
+      endingType: readCaseTerminalOutcomeForCase(world, caseItem, caseItem.trust).endingType,
+      endingBucket: readCaseTerminalOutcomeForCase(world, caseItem, caseItem.trust).endingBucket,
     },
   });
   logEvent(world, caseItem.ownerName, `${caseItem.title} ${reason}`, 'danger');
@@ -274,7 +277,7 @@ export function getActionAvailability(
   if (state.gameOver) {
     return { enabled: false, reason: '本局已经结束。' };
   }
-  if (!caseItem || caseItem.status !== 'active') {
+  if (!caseItem || !isCaseActiveByCanonicalStatus(state, caseItem)) {
     return { enabled: false, reason: '这个盘已经不能再操作。' };
   }
 

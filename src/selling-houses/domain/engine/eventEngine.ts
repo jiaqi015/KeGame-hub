@@ -3,9 +3,11 @@ import { MARKET_EVENT_LABELS, MARKET_EVENT_PROBABILITY } from '../constants.js';
 import type { GameState } from '../models.js';
 import { chance, clamp, pickWeighted, randomInt } from '../utils.js';
 import { applyBrokerOwnerTrustDelta } from '../trustWriteHelper.js';
-import { applyOwnerCaseUrgencyDelta } from '../ownerCaseReadinessHelper.js';
+import { applyOwnerCaseUrgencyDelta } from '../ownerCaseReadinessWriteHelper.js';
 import { applyOpportunityConfidenceDeltaOnState } from '../opportunitySplitHelper.js';
 import type { PressureReceiptSink } from '../../core/world-state/competition/models.js';
+import { isCaseActiveByCanonicalStatus } from '../caseLifecycleStatusRead.js';
+import { isOpportunityActiveByCanonicalState } from '../opportunityLifecycleStatusRead.js';
 
 export function triggerRandomEvent(world: GameState, sink?: PressureReceiptSink) {
   if (!chance(world.rules.randomEventProbability || MARKET_EVENT_PROBABILITY, world)) {
@@ -29,7 +31,7 @@ export function triggerRandomEvent(world: GameState, sink?: PressureReceiptSink)
 
   if (selected.templateId === 'policy-shift') {
     world.opportunities.forEach((opportunity) => {
-      if (opportunity.status === 'active') {
+      if (isOpportunityActiveByCanonicalState(world, opportunity)) {
         const delta = -10;
         applyOpportunityConfidenceDeltaOnState(world, opportunity, delta, '政策利空降低置信度', 10, 100);
 
@@ -118,7 +120,7 @@ export function triggerRandomEvent(world: GameState, sink?: PressureReceiptSink)
     market.competitivePressure = clamp(market.competitivePressure + 18, 0, 100);
   });
   world.cases
-    .filter((caseItem) => caseItem.status === 'active')
+    .filter((caseItem) => isCaseActiveByCanonicalStatus(world, caseItem))
     .forEach((caseItem) => {
       const heatDelta = -4;
       caseItem.heat = clamp(caseItem.heat + heatDelta, 10, 100);
@@ -228,7 +230,7 @@ export function fireScheduledEvents(world: GameState, sink?: PressureReceiptSink
     if (event.confidenceDelta) {
       const confDelta = event.confidenceDelta * scale;
       world.opportunities
-        .filter((entry) => entry.status === 'active')
+        .filter((entry) => isOpportunityActiveByCanonicalState(world, entry))
         .forEach((entry) => {
           applyOpportunityConfidenceDeltaOnState(world, entry, confDelta, `脚本事件影响置信度:${event.title}`, 0, 100);
 

@@ -273,4 +273,11 @@ export const CONSTITUTIONAL_CHAIN_GATES = [
   'scripts/verify-selling-houses-r25-terminal-fact-readonly-sold-price-gate.ts',
   'scripts/verify-selling-houses-r26-consensus-trajectory-final-gate.ts',
   'scripts/verify-selling-houses-r27-no-fallback-full-constitutional-green-gate.ts',
+  'scripts/verify-selling-houses-r28-seal-production-api-backdoors-gate.ts',
+  'scripts/verify-selling-houses-r29-terminal-outcome-readonly-readiness-writehelper-gate.ts',
+  'scripts/verify-selling-houses-r30-canonical-read-semantics-final-gate.ts',
+  'scripts/verify-selling-houses-r31-canonical-store-kernel-gate.ts',
+  'scripts/verify-selling-houses-r32-constitutional-closure-final-gate.ts',
+  'scripts/verify-selling-houses-r33-final-truth-debt-elimination-gate.ts',
+  'scripts/verify-selling-houses-r34-status-mirror-truth-seal-gate.ts',
 ];

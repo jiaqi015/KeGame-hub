@@ -24,7 +24,7 @@ import { getSlotRemainingCapacity, hasTodayPlanDuplicate, markTodayPlanItemCompl
 import { getActionTemplate, isScenarioAction } from '../src/selling-houses/domain/actions/templates';
 import { ACTION_BY_ID } from '../src/selling-houses/domain/actions/definitions';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { asWritableCase, asWritableOpportunity } from '../src/selling-houses/domain/models';
+import { asWritableCase, asWritableOpportunity, asWritableGameState } from '../src/selling-houses/domain/models';
 
 function buildWorld() {
   const snapshot = getScenarioSnapshotById('standard-window-chain');
@@ -360,7 +360,7 @@ function assertWeeklySummaryStageChangesAreCausal(world: ReturnType<typeof build
   const caseItem = world.cases.find((entry) => entry.status === 'active');
   assert.ok(caseItem, 'Expected active case for weekly summary contract');
   if (!caseItem) return;
-  world.eventStore.unshift({
+  asWritableGameState(world).eventStore.unshift({
     id: 'verify-weekly-summary-action',
     day: world.day,
     date: world.currentDate,
@@ -375,7 +375,7 @@ function assertWeeklySummaryStageChangesAreCausal(world: ReturnType<typeof build
       settlementTitle: `${caseItem.title} 客户带看已安排`,
     },
   });
-  world.eventStore.unshift({
+  asWritableGameState(world).eventStore.unshift({
     id: 'verify-weekly-summary-market',
     day: world.day,
     date: world.currentDate,
@@ -1080,7 +1080,7 @@ function assertWeeklySummaryStageChangesAreCausal(world: ReturnType<typeof build
     throw new Error('Expected target opportunity for shell projection verification');
   }
 
-  world.closedDeals = [{
+  asWritableGameState(world).closedDeals = [{
     dealId: 'deal-shell-1',
     caseId: targetCase.id,
     customerId: targetOpportunity.customerId,

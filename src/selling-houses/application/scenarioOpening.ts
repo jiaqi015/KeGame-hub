@@ -8,6 +8,7 @@ import type {
   ScenarioSnapshot,
   ScenarioSummary,
 } from '../domain/models.js';
+import { isOpportunityActiveByCanonicalState } from '../domain/opportunityLifecycleStatusRead.js';
 import {
   generateScenarioSnapshot,
   getScenarioSnapshotById,
@@ -327,7 +328,7 @@ export function buildScenarioOpeningBriefing(opening: ScenarioOpening): Scenario
       ? `${fragileOwners.length} 位业主信任或耐心偏低`
       : '业主关系暂时稳住',
     cases: state.cases.map((caseItem) => {
-      const opportunities = state.opportunities.filter((entry) => entry.caseId === caseItem.id && entry.status === 'active');
+      const opportunities = state.opportunities.filter((entry) => entry.caseId === caseItem.id && isOpportunityActiveByCanonicalState(state, entry));
       const bestOpportunity = [...opportunities].sort((left, right) =>
         (right.stageIndex * 100 + right.intent) - (left.stageIndex * 100 + left.intent),
       )[0];

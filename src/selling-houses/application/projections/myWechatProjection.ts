@@ -1,4 +1,5 @@
 import type { GameState } from '../../domain/models.js';
+import { isCaseActiveByCanonicalStatus } from '../../domain/caseLifecycleStatusRead.js';
 import type { MarketIntelProjection } from '../../ui/features/marketIntel.js';
 import { buildMarketIntelProjection } from '../../ui/features/marketIntel.js';
 import type { DashboardProjection, OperatingProjection } from './operatingProjection.js';
@@ -27,7 +28,7 @@ export function buildMyWechatProjection({
 }): MyWechatProjection {
   const resolvedDashboard = resolveDashboardProjection(state, dashboard);
   const resolvedMarketIntel = marketIntel || buildMarketIntelProjection(state);
-  const activeCaseIds = new Set(state.cases.filter((caseItem) => caseItem.status === 'active').map((caseItem) => caseItem.id));
+  const activeCaseIds = new Set(state.cases.filter((caseItem) => isCaseActiveByCanonicalStatus(state, caseItem)).map((caseItem) => caseItem.id));
 
   if (activeCaseIds.size === 0) {
     return {
@@ -107,7 +108,7 @@ function scoreFactForSort(fact: WechatFact, state: GameState, dashboard: Dashboa
   const leadCaseId = resolveLeadCaseId(state, dashboard);
   const todayPriorityCaseIds = new Set(dashboard.todayPriority.map((entry) => entry.caseId).filter(Boolean));
   const caseItem = fact.caseId ? state.cases.find((entry) => entry.id === fact.caseId) : undefined;
-  const closedPenalty = caseItem && caseItem.status !== 'active' ? -80 : 0;
+  const closedPenalty = caseItem && !isCaseActiveByCanonicalStatus(state, caseItem) ? -80 : 0;
   const targetPenalty = !fact.caseId && !fact.opportunityId && !fact.matterId && fact.source !== 'market_intel' ? -40 : 0;
   const roleBalance = fact.type.startsWith('owner_') ? 9
     : fact.type === 'manager_push_priority' ? 7
@@ -248,7 +249,7 @@ function isValidArticleTarget(article: OfficialAccountArticle, state: GameState)
 
 function resolveLeadCaseId(state: GameState, dashboard: DashboardProjection) {
   return dashboard.todayPriority.find((entry) => entry.caseId)?.caseId
-    || state.cases.find((caseItem) => caseItem.status === 'active' && caseItem.isFocused)?.id
-    || state.cases.filter((caseItem) => caseItem.status === 'active')[0]?.id
+    || state.cases.find((caseItem) => isCaseActiveByCanonicalStatus(state, caseItem) && caseItem.isFocused)?.id
+    || state.cases.filter((caseItem) => isCaseActiveByCanonicalStatus(state, caseItem))[0]?.id
     || null;
 }

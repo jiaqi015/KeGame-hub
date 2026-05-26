@@ -172,7 +172,7 @@ function checkExports() {
     'setConsensusEvaluation',
     'markConsensusSigned',
     'markConsensusCollapsed',
-    'createContractFactState',
+    'createContractFactForFixtureOnlyState',
     'createOpportunityClosureSetState',
   ];
 
@@ -232,7 +232,7 @@ function checkHelperPersistence() {
   check(src.includes('ensureConsensusRuntime'), 'has ensureConsensusRuntime');
   check(src.includes('findConsensusForOpportunity'), 'has findConsensusForOpportunity');
   check(src.includes('ensureConsensusFormation'), 'has ensureConsensusFormation');
-  check(src.includes('createContractFactOnState'), 'has createContractFactOnState');
+  check(src.includes('createContractFactForFixtureOnlyOnState'), 'has createContractFactForFixtureOnlyOnState');
   check(src.includes('createOpportunityClosureOnState'), 'has createOpportunityClosureOnState');
 }
 

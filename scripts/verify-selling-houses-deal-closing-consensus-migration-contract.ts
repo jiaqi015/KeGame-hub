@@ -18,11 +18,11 @@
  *    - randomInt allowed as v0 (warning), ConsensusFormation evaluation REQUIRED
  *    - body must call setConsensusEvaluationOnState
  *    - body must call markConsensusSignedOnState on success path
- *    - body must call createContractFactOnState on success path
+ *    - body must call createContractFactFromPriceConsensusOnState on success path
  *    - body must call createOpportunityClosureOnState on success path
  *    - failure path must call markConsensusCollapsedOnState
  * 6. finalizeClosedDeal body: markConsensusSignedOnState (behavioral)
- * 7. finalizeClosedDeal body: createContractFactOnState (behavioral)
+ * 7. finalizeClosedDeal body: createContractFactFromPriceConsensusOnState (behavioral)
  * 8. finalizeClosedDeal body: createOpportunityClosureOnState (behavioral)
  * 9. buildClosedDealRecord has no Date.now (replay safety)
  * 10. dealClosing does NOT use deprecated mirror-only helpers
@@ -146,7 +146,7 @@ if (wsSrc) {
   check(wsSrc.includes('export function setConsensusStage'), 'exports setConsensusStage');
   check(wsSrc.includes('export function markConsensusSigned'), 'exports markConsensusSigned');
   check(wsSrc.includes('export function markConsensusCollapsed'), 'exports markConsensusCollapsed');
-  check(wsSrc.includes('export function createContractFactState'), 'exports createContractFactState');
+  check(wsSrc.includes('export function createContractFactForFixtureOnlyState'), 'exports createContractFactForFixtureOnlyState');
   check(wsSrc.includes('export function createOpportunityClosureSetState'), 'exports createOpportunityClosureSetState');
 }
 
@@ -166,7 +166,7 @@ if (helperSrc) {
   check(helperSrc.includes('export function setConsensusStageOnState'), 'exports setConsensusStageOnState');
   check(helperSrc.includes('export function markConsensusSignedOnState'), 'exports markConsensusSignedOnState');
   check(helperSrc.includes('export function markConsensusCollapsedOnState'), 'exports markConsensusCollapsedOnState');
-  check(helperSrc.includes('export function createContractFactOnState'), 'exports createContractFactOnState');
+  check(helperSrc.includes('export function createContractFactForFixtureOnlyOnState'), 'exports createContractFactForFixtureOnlyOnState');
   check(helperSrc.includes('export function createOpportunityClosureOnState'), 'exports createOpportunityClosureOnState');
 }
 
@@ -182,7 +182,7 @@ check(dealSrc !== null, `${DEAL_CLOSING} exists`);
 if (dealSrc) {
   const usesConsensus = dealSrc.includes('consensusFormationHelper')
     || dealSrc.includes('ensureConsensusFormation')
-    || dealSrc.includes('createContractFactOnState')
+    || dealSrc.includes('createContractFactFromPriceConsensusOnState')
     || dealSrc.includes('createOpportunityClosureOnState')
     || dealSrc.includes('markConsensusSignedOnState');
   check(usesConsensus, 'dealClosing imports/uses consensus formation functions');
@@ -266,7 +266,7 @@ if (dealSrc) {
     // Round 4 BEHAVIORAL: success path must create ContractFact
     // settlePendingDealClosings delegates to finalizeClosedDeal which creates them
     const callsFinalize = noComment.includes('finalizeClosedDeal');
-    const directlyCreatesContract = noComment.includes('createContractFactOnState');
+    const directlyCreatesContract = noComment.includes('createContractFactFromPriceConsensusOnState');
     check(
       directlyCreatesContract || callsFinalize,
       `settlePendingDealClosings success path creates ContractFact (direct=${directlyCreatesContract} via-finalize=${callsFinalize})`,
@@ -309,18 +309,18 @@ if (dealSrc) {
 }
 
 // ---------------------------------------------------------------------------
-// 7. finalizeClosedDeal body: createContractFactOnState (behavioral)
+// 7. finalizeClosedDeal body: createContractFactFromPriceConsensusOnState (behavioral)
 // ---------------------------------------------------------------------------
 
-console.log('\n=== Check 7: finalizeClosedDeal calls createContractFactOnState ===');
+console.log('\n=== Check 7: finalizeClosedDeal calls createContractFactFromPriceConsensusOnState ===');
 
 if (dealSrc) {
   const finalizeBody = extractFunctionBodyByBraces(dealSrc, 'finalizeClosedDeal');
   if (finalizeBody) {
     const noComment = stripComments(finalizeBody);
     check(
-      noComment.includes('createContractFactOnState'),
-      'finalizeClosedDeal body CALLS createContractFactOnState (behavioral proof)',
+      noComment.includes('createContractFactFromPriceConsensusOnState'),
+      'finalizeClosedDeal body CALLS createContractFactFromPriceConsensusOnState (behavioral proof)',
     );
   } else {
     check(false, 'finalizeClosedDeal function found');

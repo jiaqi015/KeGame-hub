@@ -2,6 +2,7 @@ import { settlePendingDealClosings } from '../../../domain/dealClosing.js';
 import type { ClosedDealRecord, DomainEventEntry, GameState } from '../../../domain/models.js';
 import type { ConsensusTickReceiptBundle } from '../../../core/world-state/consensus/runtimeReceiptBuilder.js';
 import { buildConsensusTickReceiptBundle } from '../../../core/world-state/consensus/runtimeReceiptBuilder.js';
+import { isOpportunityActiveByCanonicalState } from '../../../domain/opportunityLifecycleStatusRead.js';
 
 export interface NegotiationProcessManagerResult {
   readonly managerId: 'negotiation-process-manager';
@@ -17,7 +18,7 @@ export interface NegotiationProcessManagerResult {
 
 function pendingClosingOpportunityIds(state: GameState) {
   return state.opportunities
-    .filter((entry) => entry.status === 'active' && entry.pendingClosingEvaluation)
+    .filter((entry) => isOpportunityActiveByCanonicalState(state, entry) && entry.pendingClosingEvaluation)
     .map((entry) => entry.id);
 }
 

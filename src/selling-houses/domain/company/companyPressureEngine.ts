@@ -4,6 +4,7 @@ import { chance, clamp, randomInt } from '../utils.js';
 import { applyInboundOpportunity } from '../market/inboundOpportunityEngine.js';
 import { applyOpportunityIntentDeltaOnState, applyOpportunityConfidenceDeltaOnState } from '../opportunitySplitHelper.js';
 import type { PressureReceiptSink } from '../../core/world-state/competition/models.js';
+import { isOpportunityActiveByCanonicalState } from '../opportunityLifecycleStatusRead.js';
 
 export function tickCompanyPressure(state: GameState) {
   const pressure = state.marketShadow.companyPressure;
@@ -25,7 +26,7 @@ export function tickCompanyPressure(state: GameState) {
 
 export function applyCompanyPressure(state: GameState, sink?: PressureReceiptSink) {
   const pressure = state.marketShadow.companyPressure;
-  const activeOpps = state.opportunities.filter((entry) => entry.status === 'active');
+  const activeOpps = state.opportunities.filter((entry) => isOpportunityActiveByCanonicalState(state, entry));
 
   if (pressure.sharedLeadPressure >= 58) {
     activeOpps

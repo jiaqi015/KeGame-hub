@@ -32,6 +32,7 @@ import {
   buildProcessRunsFromState,
   enrichStateWithProcessRuns,
 } from '../src/selling-houses/runtime/simulation/processRunAdapter.js';
+import { asWritableGameState } from '../src/selling-houses/domain/models.js';
 import type { GameState } from '../src/selling-houses/domain/models.js';
 
 let passed = 0;
@@ -284,7 +285,7 @@ console.log('  No re-settlement / no ContractFact: PASS');
 console.log('=== Check 10: Enrichment upsert ===');
 
 const world10 = buildWorldWithRealReceipts(SEED);
-world10.strategyForkHistory = [];
+asWritableGameState(world10).strategyForkHistory = [];
 const forks10 = buildStrategyForksFromState(world10);
 
 enrichStateWithStrategyForks(world10, forks10);

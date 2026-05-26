@@ -10,6 +10,7 @@
  */
 
 import type { Case, GameState } from '../models.js';
+import { isOpportunityActiveByCanonicalState } from '../opportunityLifecycleStatusRead.js';
 
 export interface ActionReceiptSnapshot {
   readonly day: number;
@@ -83,7 +84,7 @@ export function captureActionReceiptSnapshot(
     beforeOpportunityCount,
     afterEventStoreLength: state.eventStore.length,
     afterOpportunityCount: state.opportunities.filter(
-      (o) => o.caseId === caseItem.id && o.status === 'active',
+      (o) => o.caseId === caseItem.id && isOpportunityActiveByCanonicalState(state, o),
     ).length,
     afterTrust: caseItem.trust,
     afterPatience: caseItem.patience,

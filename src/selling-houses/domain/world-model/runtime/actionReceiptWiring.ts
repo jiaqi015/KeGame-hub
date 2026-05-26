@@ -35,6 +35,7 @@ import type {
 } from '../actorKnowledgeTypes.js';
 
 import type { ActionReceiptSnapshot } from '../../engine/actionReceiptSnapshot.js';
+import { asWritableGameState } from '../../models.js';
 
 import { buildActionCommand, buildActionReceipt } from './actionCommandReceipt.js';
 
@@ -378,7 +379,10 @@ export function applyReceiptToGameState(
   const prevHistory = Array.isArray(state.actionReceiptHistory)
     ? state.actionReceiptHistory
     : [];
-  state.actionReceiptHistory = [...prevHistory, receipt] as typeof state.actionReceiptHistory;
+  // Use asWritableGameState if the state is a full GameState; otherwise write directly
+  // (the parameter type is a subset for testability)
+  const writable = 'cases' in state ? asWritableGameState(state as any) : state as any;
+  writable.actionReceiptHistory = [...prevHistory, receipt];
 }
 
 // ════════════════════════════════════════════════════════════════════════════

@@ -5,6 +5,7 @@ import type {
   GoalTier,
   ScoreBreakdownEntry,
 } from '../../domain/models.js';
+import { isCaseActiveByCanonicalStatus } from '../../domain/caseLifecycleStatusRead.js';
 import { resolveFormalSoldCount } from '../../domain/runtimeStats.js';
 import type { ProjectionTone } from './operatingProjection.js';
 import type { WorldCausalEvent } from '../../domain/world-model/causalEvents.js';
@@ -165,7 +166,7 @@ export function buildResultProjection(state: GameState): ResultProjection {
   const soldCount = getClosedDealCount(state);
   const withdrawnCount = state.auxiliaryStats.withdrawnCount;
   const lostCount = caseResults.filter((entry) => entry.defenseOutcome === 'lost_to_rival').length;
-  const activeCount = state.cases.filter((entry) => entry.status === 'active').length;
+  const activeCount = state.cases.filter((entry) => isCaseActiveByCanonicalStatus(state, entry)).length;
   const endingStats = finalResult?.endingStats;
 
   const causalTrace = buildCausalTrace(state, caseResults);

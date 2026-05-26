@@ -1,4 +1,5 @@
 import { Case, GameState } from '../../domain/models.js';
+import { isCaseActiveByCanonicalStatus } from '../../domain/caseLifecycleStatusRead';
 
 export type IntelLayerTab = 'macro' | 'district' | 'competition' | 'listing';
 export type IntelTone = 'risk' | 'chance' | 'neutral';
@@ -78,7 +79,7 @@ export function deriveImpactedCases(state: GameState, intel: IntelItem[]): Impac
 
 function collectIntelFeed(state: GameState): IntelItem[] {
   const items: IntelItem[] = [];
-  const activeCases = state.cases.filter((item) => item.status === 'active');
+  const activeCases = state.cases.filter((item) => isCaseActiveByCanonicalStatus(state, item));
   const dailyEvent = state.marketShadow?.dailyMarketEvent;
   const marketSignals = state.marketShadow?.marketSignals || [];
   const rivalListings = state.marketShadow?.rivalListings?.filter((entry) => entry.status === 'active') || [];
@@ -264,7 +265,7 @@ function weightTone(tone: IntelTone) {
 
 function collectImpactedCases(state: GameState, intel: IntelItem[]): ImpactedCaseIntel[] {
   return state.cases
-    .filter((item) => item.status === 'active')
+    .filter((item) => isCaseActiveByCanonicalStatus(state, item))
     .map((item) => {
       const related = intel
         .filter((entry) => entry.affectedCaseIds.includes(item.id))

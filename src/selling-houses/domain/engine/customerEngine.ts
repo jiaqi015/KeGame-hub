@@ -8,6 +8,8 @@ import { getActiveOpportunities, MAX_ACTIVE_OPPORTUNITIES_PER_CASE, refreshOppor
 import { getRivalOutcomeControl, scaleProbability } from './outcomeControlRuntime.js';
 import { applyOpportunityIntentDeltaOnState, applyOpportunityConfidenceDeltaOnState, setOpportunityDaysLeftOnState, setOpportunityTouchedTodayOnState, setOpportunityVisibilityOnState, setOpportunityStatusOnState, setOpportunityLifecycleStatusOnState, setOpportunityStageIndexOnState, setOpportunityFit, findMatchStateForPair, ensureCustomerCaseMatchState, syncCustomerRuntimeStageMirrorFromOpportunityOnState, syncCaseStageMirrorFromCaseProgressionOnState } from '../opportunitySplitHelper.js';
 import type { PressureReceiptSink } from '../../core/world-state/competition/models.js';
+import { isCaseActiveByCanonicalStatus } from '../caseLifecycleStatusRead.js';
+import { isOpportunityActiveByCanonicalState } from '../opportunityLifecycleStatusRead.js';
 
 // ---------------------------------------------------------------------------
 // R20 Customer-journey stage mirror helper
@@ -177,7 +179,7 @@ function applyCustomerDay(state: GameState, customer: CustomerProfile, customerS
   const funnelProgressionScale = Math.max(0, state.rules.outcomeControl.playerFunnelProgressionScale);
   const stagnationScale = Math.max(0, state.rules.outcomeControl.customerStagnationScale);
   const candidateCases = state.cases.filter((entry) =>
-    entry.status === 'active' && entry.district === customer.targetDistrict,
+    isCaseActiveByCanonicalStatus(state, entry) && entry.district === customer.targetDistrict,
   );
   if (!candidateCases.length) {
     customerState.status = 'idle';
@@ -293,7 +295,7 @@ function syncOpportunityFromCustomer(
   runtime: CustomerRuntimeState['caseStates'][string],
 ) {
   let opportunity = state.opportunities.find((entry) =>
-    entry.customerId === customer.id && entry.caseId === caseItem.id && entry.status === 'active',
+    entry.customerId === customer.id && entry.caseId === caseItem.id && isOpportunityActiveByCanonicalState(state, entry),
   );
 
   const shouldBeVisible = runtime.interest >= 30 && runtime.confidence >= 24 && runtime.stageIndex >= 0;
@@ -399,7 +401,7 @@ export function progressCustomerDemand(state: GameState) {
     const customer = customersById.get(customerState.customerId);
     if (!customer) return;
     customerState.activeCaseIds.forEach((caseId, index) => {
-      const caseItem = state.cases.find((entry) => entry.id === caseId && entry.status === 'active');
+      const caseItem = state.cases.find((entry) => entry.id === caseId && isCaseActiveByCanonicalStatus(state, entry));
       const runtime = customerState.caseStates[caseId];
       if (!caseItem || !runtime) return;
       runtime.selected = index === 0;
@@ -417,7 +419,7 @@ export function applyRivalPullOnCustomers(state: GameState, sink?: PressureRecei
     const leadCaseId = customerState.activeCaseIds[0];
     if (!leadCaseId) return;
     const leadRuntime = customerState.caseStates[leadCaseId];
-    const leadCase = state.cases.find((entry) => entry.id === leadCaseId && entry.status === 'active');
+    const leadCase = state.cases.find((entry) => entry.id === leadCaseId && isCaseActiveByCanonicalStatus(state, entry));
     if (!leadRuntime || !leadCase) return;
 
     const rival = activeRivals
@@ -466,7 +468,7 @@ export function deriveCustomerPressureSummary(state: GameState) {
   const comparing = state.customerStates.filter((entry) => entry.status === 'comparing').length;
   const atRisk = state.customerStates.filter((entry) => entry.churnRisk >= 60).length;
   const strongestCaseEntries = [...state.cases]
-    .filter((entry) => entry.status === 'active')
+    .filter((entry) => isCaseActiveByCanonicalStatus(state, entry))
     .map((entry) => ({
       caseId: entry.id,
       title: entry.title,
@@ -548,7 +550,7 @@ export function applyCustomerFeedbackToCases(state: GameState, sink?: PressureRe
   });
 
   state.cases.forEach((caseItem) => {
-    if (caseItem.status !== 'active') return;
+    if (!isCaseActiveByCanonicalStatus(state, caseItem)) return;
     const summary = caseSummaries.get(caseItem.id);
     if (!summary) {
       const oldHeat = caseItem.heat;
@@ -689,7 +691,7 @@ export function touchCustomersForCase(
     }
 
     const opportunity = state.opportunities.find((entry) =>
-      entry.caseId === caseId && entry.customerId === customerState.customerId && entry.status === 'active',
+      entry.caseId === caseId && entry.customerId === customerState.customerId && isOpportunityActiveByCanonicalState(state, entry),
     );
     if (opportunity) {
       if (effect.revealShadow) {

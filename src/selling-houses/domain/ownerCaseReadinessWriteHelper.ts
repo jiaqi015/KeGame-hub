@@ -1,8 +1,8 @@
 /**
- * Owner Case Readiness Write Helper v1 — GameState relation persistence facade.
+ * Owner Case Readiness Write Helper — single write boundary.
  *
- * Bridges domain engine with core owner-case readiness write source, persisting
- * canonical patience/urgency state in GameState.runtimeOwnerCaseReadinessStates.
+ * All readiness write operations live here. The legacy ownerCaseReadinessHelper
+ * is a read-only/re-export facade with no local write implementation.
  *
  * Mother model alignment:
  * - Agent A field ownership: Case.patience → Owner.patience (canonical)
@@ -24,6 +24,8 @@ import {
   createReadinessState,
   addPatienceDelta,
   addUrgencyDelta,
+  setPatience,
+  setUrgency,
   deriveCasePatienceMirror,
   deriveCaseUrgencyMirror,
   buildOwnerCaseRelationId,
@@ -32,7 +34,12 @@ import {
 } from '../core/world-state/ownerCaseReadinessWriteSource.js';
 
 import type { GameState, Case } from './models.js';
-import { asWritableCase } from './models.js';
+import { asWritableCase, asWritableGameState } from './models.js';
+import {
+  type CanonicalStoreWriteProvenance,
+  type CanonicalStoreWriteReceipt,
+  makeStoreWriteReceipt,
+} from '../core/world-state/canonicalStoreKernel.js';
 
 // ---------------------------------------------------------------------------
 // R23: Named mirror-sync boundary for Case.patience / Case.urgency
@@ -59,35 +66,52 @@ export function syncLegacyCaseReadinessMirrors(
 }
 
 // ---------------------------------------------------------------------------
-// OwnerCaseReadinessWriteResult: returned by all readiness mutation helpers
+// ReadinessWriteResult: returned by all readiness mutation helpers
 // ---------------------------------------------------------------------------
 
-export interface OwnerCaseReadinessWriteResult {
+export interface ReadinessWriteResult {
   /** New patience value for Case.patience mirror sync */
   readonly mirrorPatience: number;
   /** New urgency value for Case.urgency mirror sync */
   readonly mirrorUrgency: number;
-  /** Canonical OwnerCaseRelation readiness state */
+  /** Canonical OwnerCaseReadinessState */
   readonly canonicalState: OwnerCaseReadinessState;
-  /** Immutable record of this change (if patience or urgency changed) */
-  readonly record?: OwnerCaseReadinessRecord;
+  /** Immutable record of this change */
+  readonly record: OwnerCaseReadinessRecord;
+}
+
+// ---------------------------------------------------------------------------
+// Store-level ensure helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Store-level ensure helper for readiness store.
+ * Returns a CanonicalStoreWriteReceipt for audit.
+ */
+export function ensureOwnerCaseReadinessStore(
+  state: GameState,
+  provenance: CanonicalStoreWriteProvenance = 'canonical-bootstrap',
+): CanonicalStoreWriteReceipt {
+  if (!state.runtimeOwnerCaseReadinessStates) {
+    asWritableGameState(state).runtimeOwnerCaseReadinessStates = [];
+  }
+  return makeStoreWriteReceipt('runtimeOwnerCaseReadinessStates', 'ensure', provenance, {
+    nextCount: state.runtimeOwnerCaseReadinessStates.length,
+  });
 }
 
 // ---------------------------------------------------------------------------
 // ensureOwnerCaseReadinessState: get or create readiness state for a case
 // ---------------------------------------------------------------------------
 
-/**
- * Ensures an OwnerCaseReadinessState exists for the given case.
- * If not found in runtimeOwnerCaseReadinessStates, hydrates from Case values.
- * If found, returns the existing state (does NOT overwrite).
- */
 export function ensureOwnerCaseReadinessState(
   state: GameState,
   caseItem: Case,
+  /** R30: hydration provenance — 'old_save_compatibility' when hydrating from Case mirrors */
+  _hydrationProvenance: 'canonical-bootstrap' | 'old_save_compatibility' = 'old_save_compatibility',
 ): OwnerCaseReadinessState {
   if (!state.runtimeOwnerCaseReadinessStates) {
-    state.runtimeOwnerCaseReadinessStates = [];
+    asWritableGameState(state).runtimeOwnerCaseReadinessStates = [];
   }
 
   const relationId = buildOwnerCaseRelationId(caseItem.id);
@@ -97,85 +121,409 @@ export function ensureOwnerCaseReadinessState(
     return existing;
   }
 
-  // Hydrate from Case values
   const hydrated = createReadinessState(caseItem.id, caseItem.patience, caseItem.urgency, state.day);
-  state.runtimeOwnerCaseReadinessStates.push(hydrated);
+  asWritableGameState(state).runtimeOwnerCaseReadinessStates.push(hydrated);
   return hydrated;
 }
 
 // ---------------------------------------------------------------------------
-// applyPatienceDelta: apply a patience delta with canonical persistence
+// readOwnerCaseReadinessState: read canonical readiness for a case
 // ---------------------------------------------------------------------------
 
-/**
- * Applies a patience delta to a case, persisting to GameState.
- * Updates both the canonical relation and Case.patience mirror.
- * Returns the write result.
- */
-export function applyPatienceDelta(
+export function readOwnerCaseReadinessState(
   state: GameState,
   caseItem: Case,
-  delta: number,
+): OwnerCaseReadinessState | undefined {
+  if (!state.runtimeOwnerCaseReadinessStates) return undefined;
+
+  const relationId = buildOwnerCaseRelationId(caseItem.id);
+  return state.runtimeOwnerCaseReadinessStates.find((r) => r.relationId === relationId);
+}
+
+// ---------------------------------------------------------------------------
+// setOwnerCasePatience: set absolute patience value
+// ---------------------------------------------------------------------------
+
+export function setOwnerCasePatience(
+  state: GameState,
+  caseItem: Case,
+  newPatience: number,
   reason: string,
   clampMin: number = 0,
   clampMax: number = 100,
-): OwnerCaseReadinessWriteResult {
+  sourceEventRefs: readonly string[] = [],
+  sourcePressureRefs: readonly string[] = [],
+): ReadinessWriteResult {
   const current = ensureOwnerCaseReadinessState(state, caseItem);
-  // addPatienceDelta doesn't take clampMin/clampMax — clamping is done by setPatience internally
-  const { state: newState, record } = addPatienceDelta(current, delta, state.day, reason);
+  const { state: newState, record } = setPatience(
+    current,
+    newPatience,
+    state.day,
+    reason,
+    sourceEventRefs,
+    sourcePressureRefs,
+  );
 
-  // Update canonical state in-place
-  const idx = state.runtimeOwnerCaseReadinessStates!.indexOf(current);
-  if (idx >= 0) {
-    state.runtimeOwnerCaseReadinessStates![idx] = newState;
-  }
+  const clampedPatience = Math.max(clampMin, Math.min(clampMax, Math.round(newState.patience)));
+  const clampedState = clampedPatience === newState.patience
+    ? newState
+    : setPatience(newState, clampedPatience, state.day, reason, sourceEventRefs, sourcePressureRefs).state;
 
-  // Sync Case mirror via named boundary (R23)
-  syncLegacyCaseReadinessMirrors(caseItem, newState, 'canonical-delta');
-  const mirrorPatience = deriveCasePatienceMirror(newState);
+  persistReadinessState(state, clampedState);
+  syncLegacyCaseReadinessMirrors(caseItem, clampedState, 'canonical-delta');
 
   return {
-    mirrorPatience,
+    mirrorPatience: caseItem.patience,
     mirrorUrgency: caseItem.urgency,
-    canonicalState: newState,
+    canonicalState: clampedState,
     record,
   };
 }
 
 // ---------------------------------------------------------------------------
-// applyUrgencyDelta: apply an urgency delta with canonical persistence
+// applyOwnerCasePatienceDelta: apply delta to patience
 // ---------------------------------------------------------------------------
 
-/**
- * Applies an urgency delta to a case, persisting to GameState.
- * Updates both the canonical relation and Case.urgency mirror.
- * Returns the write result.
- */
-export function applyUrgencyDelta(
+export function applyOwnerCasePatienceDelta(
   state: GameState,
   caseItem: Case,
   delta: number,
   reason: string,
   clampMin: number = 0,
   clampMax: number = 100,
-): OwnerCaseReadinessWriteResult {
+  sourceEventRefs: readonly string[] = [],
+  sourcePressureRefs: readonly string[] = [],
+): ReadinessWriteResult {
   const current = ensureOwnerCaseReadinessState(state, caseItem);
-  const { state: newState, record } = addUrgencyDelta(current, delta, state.day, reason);
+  const { state: newState, record } = addPatienceDelta(
+    current,
+    delta,
+    state.day,
+    reason,
+    sourceEventRefs,
+    sourcePressureRefs,
+  );
 
-  // Update canonical state in-place
-  const idx = state.runtimeOwnerCaseReadinessStates!.indexOf(current);
-  if (idx >= 0) {
-    state.runtimeOwnerCaseReadinessStates![idx] = newState;
-  }
+  const clampedPatience = Math.max(clampMin, Math.min(clampMax, Math.round(newState.patience)));
+  const clampedState = clampedPatience === newState.patience
+    ? newState
+    : setPatience(newState, clampedPatience, state.day, reason, sourceEventRefs, sourcePressureRefs).state;
 
-  // Sync Case mirror via named boundary (R23)
-  syncLegacyCaseReadinessMirrors(caseItem, newState, 'canonical-delta');
-  const mirrorUrgency = deriveCaseUrgencyMirror(newState);
+  persistReadinessState(state, clampedState);
+  syncLegacyCaseReadinessMirrors(caseItem, clampedState, 'canonical-delta');
 
   return {
     mirrorPatience: caseItem.patience,
-    mirrorUrgency,
-    canonicalState: newState,
+    mirrorUrgency: caseItem.urgency,
+    canonicalState: clampedState,
     record,
   };
+}
+
+// ---------------------------------------------------------------------------
+// setOwnerCaseUrgency: set absolute urgency value
+// ---------------------------------------------------------------------------
+
+export function setOwnerCaseUrgency(
+  state: GameState,
+  caseItem: Case,
+  newUrgency: number,
+  reason: string,
+  clampMin: number = 0,
+  clampMax: number = 100,
+  sourceEventRefs: readonly string[] = [],
+  sourcePressureRefs: readonly string[] = [],
+): ReadinessWriteResult {
+  const current = ensureOwnerCaseReadinessState(state, caseItem);
+  const { state: newState, record } = setUrgency(
+    current,
+    newUrgency,
+    state.day,
+    reason,
+    sourceEventRefs,
+    sourcePressureRefs,
+  );
+
+  const clampedUrgency = Math.max(clampMin, Math.min(clampMax, Math.round(newState.urgency)));
+  const clampedState = clampedUrgency === newState.urgency
+    ? newState
+    : setUrgency(newState, clampedUrgency, state.day, reason, sourceEventRefs, sourcePressureRefs).state;
+
+  persistReadinessState(state, clampedState);
+  syncLegacyCaseReadinessMirrors(caseItem, clampedState, 'canonical-delta');
+
+  return {
+    mirrorPatience: caseItem.patience,
+    mirrorUrgency: caseItem.urgency,
+    canonicalState: clampedState,
+    record,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// applyOwnerCaseUrgencyDelta: apply delta to urgency
+// ---------------------------------------------------------------------------
+
+export function applyOwnerCaseUrgencyDelta(
+  state: GameState,
+  caseItem: Case,
+  delta: number,
+  reason: string,
+  clampMin: number = 0,
+  clampMax: number = 100,
+  sourceEventRefs: readonly string[] = [],
+  sourcePressureRefs: readonly string[] = [],
+): ReadinessWriteResult {
+  const current = ensureOwnerCaseReadinessState(state, caseItem);
+  const { state: newState, record } = addUrgencyDelta(
+    current,
+    delta,
+    state.day,
+    reason,
+    sourceEventRefs,
+    sourcePressureRefs,
+  );
+
+  const clampedUrgency = Math.max(clampMin, Math.min(clampMax, Math.round(newState.urgency)));
+  const clampedState = clampedUrgency === newState.urgency
+    ? newState
+    : setUrgency(newState, clampedUrgency, state.day, reason, sourceEventRefs, sourcePressureRefs).state;
+
+  persistReadinessState(state, clampedState);
+  syncLegacyCaseReadinessMirrors(caseItem, clampedState, 'canonical-delta');
+
+  return {
+    mirrorPatience: caseItem.patience,
+    mirrorUrgency: caseItem.urgency,
+    canonicalState: clampedState,
+    record,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// applyOwnerCaseReadinessDelta: apply deltas to both patience and urgency
+// ---------------------------------------------------------------------------
+
+export function applyOwnerCaseReadinessDelta(
+  state: GameState,
+  caseItem: Case,
+  deltas: { patienceDelta?: number; urgencyDelta?: number },
+  reason: string,
+  clampMin: number = 0,
+  clampMax: number = 100,
+  sourceEventRefs: readonly string[] = [],
+  sourcePressureRefs: readonly string[] = [],
+): ReadinessWriteResult {
+  const current = ensureOwnerCaseReadinessState(state, caseItem);
+  let workingState = current;
+  let lastRecord: OwnerCaseReadinessRecord | undefined;
+
+  if (deltas.patienceDelta !== undefined) {
+    const result = addPatienceDelta(workingState, deltas.patienceDelta, state.day, reason, sourceEventRefs, sourcePressureRefs);
+    workingState = result.state;
+    lastRecord = result.record;
+  }
+
+  if (deltas.urgencyDelta !== undefined) {
+    const result = addUrgencyDelta(workingState, deltas.urgencyDelta, state.day, reason, sourceEventRefs, sourcePressureRefs);
+    workingState = result.state;
+    lastRecord = result.record;
+  }
+
+  const clampedPatience = Math.max(clampMin, Math.min(clampMax, Math.round(workingState.patience)));
+  const clampedUrgency = Math.max(clampMin, Math.min(clampMax, Math.round(workingState.urgency)));
+  let clampedState = workingState;
+
+  if (clampedPatience !== workingState.patience) {
+    clampedState = setPatience(clampedState, clampedPatience, state.day, reason, sourceEventRefs, sourcePressureRefs).state;
+  }
+  if (clampedUrgency !== workingState.urgency) {
+    clampedState = setUrgency(clampedState, clampedUrgency, state.day, reason, sourceEventRefs, sourcePressureRefs).state;
+  }
+
+  persistReadinessState(state, clampedState);
+  syncLegacyCaseReadinessMirrors(caseItem, clampedState, 'canonical-delta');
+
+  const record = lastRecord ?? Object.freeze({
+    relationId: current.relationId,
+    day: state.day,
+    dimension: 'patience' as const,
+    previousValue: current.patience,
+    newValue: current.patience,
+    delta: 0,
+    reason,
+    sourceEventRefs: Object.freeze([...sourceEventRefs]),
+    sourcePressureRefs: Object.freeze([...sourcePressureRefs]),
+  });
+
+  return {
+    mirrorPatience: caseItem.patience,
+    mirrorUrgency: caseItem.urgency,
+    canonicalState: clampedState,
+    record,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// setOwnerCaseReadiness: set absolute patience and/or urgency values
+// ---------------------------------------------------------------------------
+
+export function setOwnerCaseReadiness(
+  state: GameState,
+  caseItem: Case,
+  values: { patience?: number; urgency?: number },
+  reason: string,
+  clampMin: number = 0,
+  clampMax: number = 100,
+  sourceEventRefs: readonly string[] = [],
+  sourcePressureRefs: readonly string[] = [],
+): ReadinessWriteResult {
+  const current = ensureOwnerCaseReadinessState(state, caseItem);
+  let workingState = current;
+  let lastRecord: OwnerCaseReadinessRecord | undefined;
+
+  if (values.patience !== undefined) {
+    const result = setPatience(workingState, values.patience, state.day, reason, sourceEventRefs, sourcePressureRefs);
+    workingState = result.state;
+    lastRecord = result.record;
+  }
+
+  if (values.urgency !== undefined) {
+    const result = setUrgency(workingState, values.urgency, state.day, reason, sourceEventRefs, sourcePressureRefs);
+    workingState = result.state;
+    lastRecord = result.record;
+  }
+
+  const clampedPatience = Math.max(clampMin, Math.min(clampMax, Math.round(workingState.patience)));
+  const clampedUrgency = Math.max(clampMin, Math.min(clampMax, Math.round(workingState.urgency)));
+  let clampedState = workingState;
+
+  if (clampedPatience !== workingState.patience) {
+    clampedState = setPatience(clampedState, clampedPatience, state.day, reason, sourceEventRefs, sourcePressureRefs).state;
+  }
+  if (clampedUrgency !== workingState.urgency) {
+    clampedState = setUrgency(clampedState, clampedUrgency, state.day, reason, sourceEventRefs, sourcePressureRefs).state;
+  }
+
+  persistReadinessState(state, clampedState);
+  syncLegacyCaseReadinessMirrors(caseItem, clampedState, 'canonical-delta');
+
+  const record = lastRecord ?? Object.freeze({
+    relationId: current.relationId,
+    day: state.day,
+    dimension: 'patience' as const,
+    previousValue: current.patience,
+    newValue: current.patience,
+    delta: 0,
+    reason,
+    sourceEventRefs: Object.freeze([...sourceEventRefs]),
+    sourcePressureRefs: Object.freeze([...sourcePressureRefs]),
+  });
+
+  return {
+    mirrorPatience: caseItem.patience,
+    mirrorUrgency: caseItem.urgency,
+    canonicalState: clampedState,
+    record,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// clampOwnerCaseReadiness: clamp patience and urgency to a range
+// ---------------------------------------------------------------------------
+
+export function clampOwnerCaseReadiness(
+  state: GameState,
+  caseItem: Case,
+  reason: string,
+  clampMin: number = 0,
+  clampMax: number = 100,
+): ReadinessWriteResult {
+  const current = ensureOwnerCaseReadinessState(state, caseItem);
+  const clampedPatience = Math.max(clampMin, Math.min(clampMax, Math.round(current.patience)));
+  const clampedUrgency = Math.max(clampMin, Math.min(clampMax, Math.round(current.urgency)));
+
+  if (clampedPatience === current.patience && clampedUrgency === current.urgency) {
+    return {
+      mirrorPatience: deriveCasePatienceMirror(current),
+      mirrorUrgency: deriveCaseUrgencyMirror(current),
+      canonicalState: current,
+      record: Object.freeze({
+        relationId: current.relationId,
+        day: state.day,
+        dimension: 'patience' as const,
+        previousValue: current.patience,
+        newValue: current.patience,
+        delta: 0,
+        reason,
+        sourceEventRefs: Object.freeze([]),
+        sourcePressureRefs: Object.freeze([]),
+      }),
+    };
+  }
+
+  let newState = current;
+  if (clampedPatience !== current.patience) {
+    newState = setPatience(newState, clampedPatience, state.day, reason).state;
+  }
+  if (clampedUrgency !== current.urgency) {
+    newState = setUrgency(newState, clampedUrgency, state.day, reason).state;
+  }
+
+  persistReadinessState(state, newState);
+  syncLegacyCaseReadinessMirrors(caseItem, newState, 'clamp');
+
+  return {
+    mirrorPatience: caseItem.patience,
+    mirrorUrgency: caseItem.urgency,
+    canonicalState: newState,
+    record: Object.freeze({
+      relationId: current.relationId,
+      day: state.day,
+      dimension: 'patience' as const,
+      previousValue: current.patience,
+      newValue: clampedPatience,
+      delta: clampedPatience - current.patience,
+      reason,
+      sourceEventRefs: Object.freeze([]),
+      sourcePressureRefs: Object.freeze([]),
+    }),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// initializeReadinessStates: populate runtimeOwnerCaseReadinessStates from cases
+// ---------------------------------------------------------------------------
+
+export function initializeReadinessStates(state: GameState): void {
+  if (!state.runtimeOwnerCaseReadinessStates) {
+    asWritableGameState(state).runtimeOwnerCaseReadinessStates = [];
+  }
+
+  for (const caseItem of state.cases) {
+    ensureOwnerCaseReadinessState(state, caseItem);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Internal: persist readiness state to GameState
+// ---------------------------------------------------------------------------
+
+function persistReadinessState(
+  state: GameState,
+  readinessState: OwnerCaseReadinessState,
+): void {
+  if (!state.runtimeOwnerCaseReadinessStates) {
+    asWritableGameState(state).runtimeOwnerCaseReadinessStates = [];
+  }
+
+  const index = state.runtimeOwnerCaseReadinessStates.findIndex(
+    (r) => r.relationId === readinessState.relationId,
+  );
+
+  if (index >= 0) {
+    asWritableGameState(state).runtimeOwnerCaseReadinessStates[index] = readinessState;
+  } else {
+    asWritableGameState(state).runtimeOwnerCaseReadinessStates.push(readinessState);
+  }
 }

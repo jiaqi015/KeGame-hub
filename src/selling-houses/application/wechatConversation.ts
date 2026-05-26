@@ -1,4 +1,6 @@
 import type { GameState, Opportunity } from '../domain/models.js';
+import { asWritableGameState } from '../domain/models.js';
+import { isCaseActiveByCanonicalStatus } from '../domain/caseLifecycleStatusRead.js';
 import type { WechatMessage } from './projections/myWechatTypes.js';
 import { clamp } from '../domain/utils.js';
 import { recordDomainEvent, updateDerivedState } from '../domain/runtimeState.js';
@@ -6,7 +8,7 @@ import { applyBrokerOwnerTrustDelta } from '../domain/trustWriteHelper.js';
 import {
   applyOwnerCasePatienceDelta,
   applyOwnerCaseUrgencyDelta,
-} from '../domain/ownerCaseReadinessHelper.js';
+} from '../domain/ownerCaseReadinessWriteHelper.js';
 import {
   applyOpportunityConfidenceDeltaOnState,
   applyOpportunityIntentDeltaOnState,
@@ -441,7 +443,7 @@ export function settleWechatConversationTurn(
   });
 
   applyConversationSettlement(state, caseItem, opportunity, settlement, receipt);
-  state.wechatConversationHistory = [...(state.wechatConversationHistory || []), receipt].slice(-80);
+  asWritableGameState(state).wechatConversationHistory = [...(state.wechatConversationHistory || []), receipt].slice(-80);
   state.agentMemoryStore = mergeAgentMemoryFacts(
     state.agentMemoryStore,
     buildWechatAgentMemoryFactsFromReceipt(scene, receipt),
@@ -701,7 +703,7 @@ function applyConversationSettlement(
   settlement: ConversationEffectSettlement,
   receipt: ConversationReceipt,
 ) {
-  if (caseItem && caseItem.status === 'active') {
+  if (caseItem && isCaseActiveByCanonicalStatus(state, caseItem)) {
     if (settlement.trustDelta !== 0) {
       applyBrokerOwnerTrustDelta(state, caseItem, settlement.trustDelta, '微信对话影响关系', 0, 100);
     }

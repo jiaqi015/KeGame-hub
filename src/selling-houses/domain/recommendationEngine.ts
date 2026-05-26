@@ -9,6 +9,8 @@ import type { Case, GameState, Opportunity } from './models.js';
 import { readCaseRelationBundleFromRuntime } from '../core/world-state/relationReadProjection.js';
 import type { OwnerProfilingMemorySummary } from './ownerProfilingMemoryTypes.js';
 import { readOwnerBehaviorDimensions } from './ownerDecisionProfileHelper.js';
+import { isCaseActiveByCanonicalStatus } from './caseLifecycleStatusRead.js';
+import { isOpportunityActiveByCanonicalState } from './opportunityLifecycleStatusRead.js';
 
 export type CaseRecommendationTier = 'DEFEND' | 'PROGRESS' | 'ACCELERATE';
 
@@ -253,7 +255,7 @@ function hasOwnerDefensePressure(caseItem: Case, facts: CaseRecommendationFacts)
 }
 
 function getCaseFacts(world: GameState, caseItem: Case): CaseRecommendationFacts {
-  const opportunities = world.opportunities.filter((entry) => entry.caseId === caseItem.id && entry.status === 'active');
+  const opportunities = world.opportunities.filter((entry) => entry.caseId === caseItem.id && isOpportunityActiveByCanonicalState(world, entry));
   const revealedOpportunities = opportunities.filter((entry) => entry.visibility !== 'shadow');
   const hottestOpportunity = revealedOpportunities
     .slice()
@@ -670,7 +672,7 @@ function deriveRecommendationTier(signals: RecommendationSignal[], primary: Cand
 }
 
 function buildRecommendation(world: GameState, caseItem: Case): CaseRecommendation | null {
-  if (caseItem.status !== 'active') {
+  if (!isCaseActiveByCanonicalStatus(world, caseItem)) {
     return null;
   }
 

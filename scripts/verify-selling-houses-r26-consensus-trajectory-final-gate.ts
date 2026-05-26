@@ -179,10 +179,10 @@ console.log('\n=== R26-5: markCaseSoldFromContract terminal helper ===\n');
   if (caseOutcomeSrc) {
     check(caseOutcomeSrc.includes('export function markCaseSoldFromContract'),
       'markCaseSoldFromContract exported');
-    check(caseOutcomeSrc.includes('contractDealPrice'),
-      'markCaseSoldFromContract accepts contractDealPrice');
-    check(caseOutcomeSrc.includes('proofId') || caseOutcomeSrc.includes('_proofId'),
-      'markCaseSoldFromContract accepts proofId parameter');
+    check(caseOutcomeSrc.includes('contractFact: ContractFactState'),
+      'markCaseSoldFromContract accepts ContractFactState (R29)');
+    check(!caseOutcomeSrc.includes('contractDealPrice'),
+      'markCaseSoldFromContract does NOT accept scalar contractDealPrice (R29)');
   }
 }
 
@@ -232,8 +232,8 @@ console.log('\n=== R26-7: Scalar contract API not in production bypass ===\n');
   if (dealClosingSrc) {
     const stripped = stripCommentsAndStrings(dealClosingSrc);
 
-    // Scalar createContractFactOnState may exist as fallback but must be guarded
-    const scalarCreateMatch = stripped.match(/createContractFactOnState\(/g);
+    // Scalar createContractFactForFixtureOnlyOnState may exist as fallback but must be guarded
+    const scalarCreateMatch = stripped.match(/createContractFactForFixtureOnlyOnState\(/g);
     const proofCreateMatch = stripped.match(/createContractFactFromPriceConsensusOnState\(/g);
 
     if (scalarCreateMatch && scalarCreateMatch.length > 0) {
@@ -588,7 +588,7 @@ console.log('\n=== R26-12: R25/R24/R23 semantics preserved ===\n');
   const modelsSrc = readFileSafe('src/selling-houses/domain/models.ts');
   if (modelsSrc) {
     // R24: Case readonly fields
-    check(modelsSrc.includes("Omit<Case, 'status' | 'trust' | 'patience' | 'urgency' | 'soldPrice'>"),
+    check(modelsSrc.includes("Omit<Case, 'status' | 'trust' | 'patience' | 'urgency' | 'soldPrice' | 'ownerSatisfaction' | 'defenseOutcome' | 'endingType' | 'endingBucket' | 'relativeOutcome'>"),
       'R24: WritableCase still omits readonly fields');
     check(modelsSrc.includes('asWritableCase'), 'R24: asWritableCase still exists');
 

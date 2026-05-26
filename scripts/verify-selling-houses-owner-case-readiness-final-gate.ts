@@ -172,20 +172,20 @@ function checkEngineMutations() {
   let bareUrgencyWrites = 0;
   const bareLocations: string[] = [];
 
-  // Check if bridge helper exists
-  const helperSrc = readFileSafe('src/selling-houses/domain/ownerCaseReadinessHelper.ts');
+  // Check if bridge helper exists (R30: old helper deleted, WriteHelper is canonical)
+  const helperSrc = readFileSafe('src/selling-houses/domain/ownerCaseReadinessWriteHelper.ts');
   const hasHelper = helperSrc !== null && (
     helperSrc.includes('applyOwnerCasePatienceDelta')
     || helperSrc.includes('applyOwnerCaseUrgencyDelta')
   );
-  check(hasHelper, 'domain/ownerCaseReadinessHelper.ts bridge exists');
+  check(hasHelper, 'domain/ownerCaseReadinessWriteHelper.ts exists with readiness functions');
 
   // Check helper imports in engine files
   let filesWithHelperImport = 0;
   for (const filePath of engineFiles) {
     const src = readFileSafe(filePath);
     if (!src) continue;
-    if (src.includes('ownerCaseReadinessHelper') || helperPatterns.some((p) => src.includes(p))) {
+    if (src.includes('ownerCaseReadinessWriteHelper') || helperPatterns.some((p) => src.includes(p))) {
       filesWithHelperImport++;
     }
   }

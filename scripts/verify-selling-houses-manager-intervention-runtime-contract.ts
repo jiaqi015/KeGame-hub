@@ -25,6 +25,7 @@ import {
   enrichStateWithManagerInterventions,
   normalizeManagerInterventionReceiptHistory,
 } from '../src/selling-houses/runtime/simulation/managerInterventionAdapter.js';
+import { asWritableGameState } from '../src/selling-houses/domain/models.js';
 import type { GameState } from '../src/selling-houses/domain/models.js';
 
 let passed = 0;
@@ -69,7 +70,7 @@ console.log('=== Check 3: upsert by receiptId ===');
 const world3 = buildWorld(42);
 advanceDays(world3, 3);
 // advanceDays already enriches via hooks, so clear for clean test
-world3.managerInterventionReceiptHistory = [];
+asWritableGameState(world3).managerInterventionReceiptHistory = [];
 enrichStateWithManagerInterventions(world3, [receipt2]);
 check(world3.managerInterventionReceiptHistory!.length === 1, 'receipt added');
 enrichStateWithManagerInterventions(world3, [receipt2]);

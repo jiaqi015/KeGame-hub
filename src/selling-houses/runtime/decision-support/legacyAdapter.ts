@@ -16,6 +16,8 @@ import {
 } from '../../core/evaluation/index.js';
 import { getActionAvailability } from '../../domain/engine/actionResolvers.js';
 import type { Case, GameState } from '../../domain/models.js';
+import { isCaseActiveByCanonicalStatus } from '../../domain/caseLifecycleStatusRead.js';
+import { isOpportunityActiveByCanonicalState } from '../../domain/opportunityLifecycleStatusRead.js';
 import type {
   CaseDecisionSupportContext,
   DecisionSupportActionSpec,
@@ -303,7 +305,7 @@ function buildCaseDecisionSupportContext(
 ): CaseDecisionSupportContext {
   const caseSnapshots = buildCaseEvaluationSnapshotsFromLegacyState(state, caseItem);
   const opportunityScores = state.opportunities
-    .filter((entry) => entry.caseId === caseItem.id && entry.status === 'active')
+    .filter((entry) => entry.caseId === caseItem.id && isOpportunityActiveByCanonicalState(state, entry))
     .map((entry) => buildOpportunityEvaluationSnapshotsFromLegacyState(state, entry).opportunityScore);
   const signals = buildSignals(
     state,
@@ -330,7 +332,7 @@ function buildCaseDecisionSupportContext(
 function buildRegionOpenDayFit(state: GameState) {
   const scopes = new Map<string, { district: string; community?: string }>();
   state.cases
-    .filter((entry) => entry.status === 'active')
+    .filter((entry) => isCaseActiveByCanonicalStatus(state, entry))
     .forEach((caseItem) => {
       scopes.set(`district:${caseItem.district}`, { district: caseItem.district });
       scopes.set(`community:${caseItem.district}:${caseItem.community}`, {
@@ -353,7 +355,7 @@ export function buildDecisionSupportContextFromLegacyState(state: GameState): De
     generatedAtDay: state.day,
     readOnly: true,
     cases: state.cases
-      .filter((caseItem) => caseItem.status === 'active')
+      .filter((caseItem) => isCaseActiveByCanonicalStatus(state, caseItem))
       .map((caseItem) => buildCaseDecisionSupportContext(state, caseItem)),
     regionOpenDayFit: buildRegionOpenDayFit(state),
     actionSpecs: buildActionSpecReadModels(),

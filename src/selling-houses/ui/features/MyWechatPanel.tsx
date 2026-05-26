@@ -18,6 +18,7 @@ import type {
 } from '../../application/projections/myWechatTypes.js';
 import { fetchMyWechatBrokerReplyDrafts } from '../../infrastructure/myWechatAiClient.js';
 import type { IntelLayerTab } from './marketIntel.js';
+import { isOpportunityActiveByCanonicalState } from '../../domain/opportunityLifecycleStatusRead';
 
 interface MyWechatPanelProps {
   state: GameState;
@@ -465,7 +466,7 @@ function buildConversationWorldContext(
   const opportunity = anchorMessage?.targetOpportunityId
     ? state.opportunities.find((entry) => entry.id === anchorMessage.targetOpportunityId) || null
     : caseItem
-      ? state.opportunities.find((entry) => entry.caseId === caseItem.id && entry.status === 'active') || null
+      ? state.opportunities.find((entry) => entry.caseId === caseItem.id && isOpportunityActiveByCanonicalState(state, entry)) || null
       : null;
 
   if (!caseItem && !opportunity && !anchorMessage) {

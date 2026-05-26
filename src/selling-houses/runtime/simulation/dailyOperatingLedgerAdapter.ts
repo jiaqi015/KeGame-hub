@@ -24,6 +24,7 @@ import type {
   ActionReceipt,
   CommitmentSettlement,
 } from '../../domain/models.js';
+import { asWritableGameState } from '../../domain/models.js';
 
 import type {
   DailyOperatingLedgerDaySummary,
@@ -280,15 +281,15 @@ export function enrichStateWithDailyOperatingLedger(
   ledgerDay: DailyOperatingLedgerDaySummary,
 ): void {
   if (!state.operatingLedgerDays) {
-    state.operatingLedgerDays = [];
+    asWritableGameState(state).operatingLedgerDays = [];
   }
 
   // Upsert: replace existing entry for same day, or append
   const existingIndex = state.operatingLedgerDays.findIndex((entry) => entry.day === ledgerDay.day);
   if (existingIndex >= 0) {
-    state.operatingLedgerDays[existingIndex] = ledgerDay;
+    asWritableGameState(state).operatingLedgerDays[existingIndex] = ledgerDay;
   } else {
-    state.operatingLedgerDays.push(ledgerDay);
+    asWritableGameState(state).operatingLedgerDays.push(ledgerDay);
   }
 }
 

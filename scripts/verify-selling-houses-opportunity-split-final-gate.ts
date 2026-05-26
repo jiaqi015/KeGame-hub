@@ -768,7 +768,7 @@ function checkConsensusWriteSource() {
   check(wsSrc.includes('export function setConsensusStage'), 'exports setConsensusStage');
   check(wsSrc.includes('export function markConsensusSigned'), 'exports markConsensusSigned');
   check(wsSrc.includes('export function markConsensusCollapsed'), 'exports markConsensusCollapsed');
-  check(wsSrc.includes('export function createContractFactState'), 'exports createContractFactState');
+  check(wsSrc.includes('export function createContractFactForFixtureOnlyState'), 'exports createContractFactForFixtureOnlyState');
   check(wsSrc.includes('export function createOpportunityClosureSetState'), 'exports createOpportunityClosureSetState');
 
   // Legacy mirror
@@ -887,7 +887,7 @@ function checkConsensusRuntimeWiring() {
   // dealClosing.ts must import consensusFormationHelper
   const usesConsensusHelper = dealSrc.includes('consensusFormationHelper')
     || dealSrc.includes('ConsensusFormation')
-    || dealSrc.includes('createContractFactOnState')
+    || dealSrc.includes('createContractFactFromPriceConsensusOnState')
     || dealSrc.includes('createOpportunityClosureOnState')
     || dealSrc.includes('markConsensusSignedOnState');
   check(
@@ -906,7 +906,7 @@ function checkConsensusRuntimeWiring() {
   );
 
   // If consensus is wired, ContractFact and ClosureSet should be created
-  const createsContractFact = dealSrc.includes('createContractFactOnState')
+  const createsContractFact = dealSrc.includes('createContractFactFromPriceConsensusOnState')
     || dealSrc.includes('ContractFact');
   const createsClosureSet = dealSrc.includes('createOpportunityClosureOnState')
     || dealSrc.includes('OpportunityClosureSet');

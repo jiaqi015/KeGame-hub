@@ -1,6 +1,10 @@
 import React from 'react';
 import type { ClosedDealRecord, DomainEventEntry, GameState } from '../../domain/models';
 import { resolveFormalSoldCount } from '../../domain/runtimeStats';
+import {
+  isCaseActiveByCanonicalStatus,
+  readCaseLifecycleStatus,
+} from '../../domain/caseLifecycleStatusRead';
 
 interface ProfilePanelProps {
   state: GameState;
@@ -17,9 +21,9 @@ export function ProfilePanel({ state }: ProfilePanelProps) {
     .slice(-6)
     .reverse();
   const weeklyReviews = state.weeklyReviews.slice(-3).reverse();
-  const activeCases = state.cases.filter((entry) => entry.status === 'active').length;
-  const lostToRivalCases = state.cases.filter((entry) => entry.status === 'lost_to_rival').length;
-  const withdrawnCases = state.cases.filter((entry) => entry.status === 'withdrawn').length;
+  const activeCases = state.cases.filter((entry) => isCaseActiveByCanonicalStatus(state, entry)).length;
+  const lostToRivalCases = state.cases.filter((entry) => readCaseLifecycleStatus(state, entry).status === 'lost_to_rival').length;
+  const withdrawnCases = state.cases.filter((entry) => readCaseLifecycleStatus(state, entry).status === 'withdrawn').length;
   const actionCount = state.eventStore.filter((entry) => entry.kind === 'action_executed').length;
   const totalCommission = Math.round(state.auxiliaryStats.commission || state.commission || 0);
 

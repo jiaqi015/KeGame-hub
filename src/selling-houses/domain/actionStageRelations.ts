@@ -2,6 +2,8 @@ import { CASE_STAGES, OPPORTUNITY_STAGES } from './constants.js';
 import type { Case, GameState, Opportunity } from './models.js';
 import { clamp, getOpportunityPriority } from './utils.js';
 import { setOpportunityStageIndexOnState, setOpportunityTouchedTodayOnState, syncCaseStageMirrorFromCaseProgressionOnState } from './opportunitySplitHelper.js';
+import { isCaseActiveByCanonicalStatus, readCaseLifecycleStatus } from './caseLifecycleStatusRead.js';
+import { isOpportunityActiveByCanonicalState, filterActiveOpportunitiesByCanonicalState } from './opportunityLifecycleStatusRead.js';
 
 export type CaseProgressPhase =
   | 'pre_visit'
@@ -194,18 +196,20 @@ export function getActionStageRelation(actionId: string) {
 }
 
 function getActiveCaseOpportunities(world: GameState, caseId: string) {
-  return world.opportunities.filter((entry) => entry.caseId === caseId && entry.status === 'active');
+  return filterActiveOpportunitiesByCanonicalState(world, world.opportunities.filter((entry) => entry.caseId === caseId));
 }
 
 function getHighestOpportunityStage(opportunities: Opportunity[]) {
   return opportunities.length ? Math.max(...opportunities.map((entry) => entry.stageIndex)) : 0;
 }
 
-function deriveLegacyCaseStage(caseItem: Case, activeOpportunities: Opportunity[]) {
-  if (caseItem.status === 'sold') {
+function deriveLegacyCaseStage(world: GameState, caseItem: Case, activeOpportunities: Opportunity[]) {
+  // R41: Use canonical status instead of mirror
+  const lifecycleStatus = readCaseLifecycleStatus(world, caseItem);
+  if (lifecycleStatus.status === 'sold') {
     return CASE_STAGE.sold;
   }
-  if (caseItem.status !== 'active') {
+  if (lifecycleStatus.status !== 'active') {
     return clamp(caseItem.stageIndex, 0, CASE_STAGE.closing);
   }
 
@@ -238,8 +242,10 @@ function deriveLegacyCaseStage(caseItem: Case, activeOpportunities: Opportunity[
   return 0;
 }
 
-function derivePhase(caseItem: Case, legacyStageIndex: number) {
-  if (caseItem.status === 'sold') return 'sold';
+function derivePhase(world: GameState, caseItem: Case, legacyStageIndex: number) {
+  // R41: Use canonical status instead of mirror
+  const lifecycleStatus = readCaseLifecycleStatus(world, caseItem);
+  if (lifecycleStatus.status === 'sold') return 'sold';
   if (!caseItem.hasCompletedFirstVisit) return 'pre_visit';
   if (legacyStageIndex >= CASE_STAGE.closing) return 'closing';
   if (legacyStageIndex >= CASE_STAGE.feedbackOffer) return 'feedback_offer';
@@ -257,8 +263,8 @@ function deriveNextActionIds(phase: CaseProgressPhase) {
 export function deriveCaseProgression(world: GameState, caseItem: Case): CaseProgression {
   const activeOpportunities = getActiveCaseOpportunities(world, caseItem.id);
   const highestOpportunityStage = getHighestOpportunityStage(activeOpportunities);
-  const legacyStageIndex = deriveLegacyCaseStage(caseItem, activeOpportunities);
-  const phase = derivePhase(caseItem, legacyStageIndex);
+  const legacyStageIndex = deriveLegacyCaseStage(world, caseItem, activeOpportunities);
+  const phase = derivePhase(world, caseItem, legacyStageIndex);
   const viewingCount = Math.max(
     caseItem.viewings || 0,
     activeOpportunities.filter((entry) => entry.stageIndex >= OPPORTUNITY_STAGE.viewingReady).length,

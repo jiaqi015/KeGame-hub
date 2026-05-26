@@ -6,6 +6,7 @@ import {
   hasActiveProductRunForTargets,
 } from '../productRuns.js';
 import { recordDomainEvent } from '../runtimeState.js';
+import { isCaseActiveByCanonicalStatus } from '../caseLifecycleStatusRead.js';
 
 export type ActionProductRunKind = 'open-day' | 'sincere-sale';
 
@@ -34,7 +35,7 @@ export function resolveActionProductRunTargetIds(
 ) {
   const targetIds = productType === 'open-day'
     ? state.cases
-        .filter((entry) => entry.status === 'active' && entry.community === actionCase.community)
+        .filter((entry) => isCaseActiveByCanonicalStatus(state, entry) && entry.community === actionCase.community)
         .map((entry) => entry.id)
     : [actionCase.id];
 

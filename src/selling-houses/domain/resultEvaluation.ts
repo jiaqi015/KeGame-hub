@@ -1,3 +1,13 @@
+/**
+ * Result Evaluation — derives display/scoring values from case outcomes.
+ *
+ * R30: Primary path is buildCaseFinalResultFromCanonicalState which uses
+ * CaseTerminalOutcomeState / ContractFactState, not legacy mirrors.
+ *
+ * Legacy functions below (buildCaseFinalResult, resolveX) are retained
+ * for old_save_compatibility fallback only.
+ */
+
 import type {
   Case,
   CaseFinalResult,
@@ -17,6 +27,7 @@ import type {
 } from './models.js';
 import { getPromotionBudget, resolveFormalSoldCount } from './runtimeStats.js';
 import { STANDARD_SCORE_THRESHOLDS, STANDARD_TARGET_SCORE } from './config/difficultyTargets.js';
+import { readCaseTerminalOutcomeForCase, type CaseOutcomeReadResult } from './caseOutcome.js';
 
 const ABILITY_ACTION_IDS = new Set([
   'story',
@@ -92,6 +103,7 @@ function normalizeGoalTier(goalTier: GoalTier) {
   return 0.4;
 }
 
+// legacy_status_mirror_read: old_save_compatibility fallback for cases without canonical outcome
 function resolveRelativeOutcome(caseItem: Case): ListingRelativeOutcome {
   const spread = caseItem.askPrice - caseItem.marketPrice;
   if (caseItem.status === 'sold') {
@@ -104,6 +116,7 @@ function resolveRelativeOutcome(caseItem: Case): ListingRelativeOutcome {
     return 'lose';
   }
 
+  // legacy_status_mirror_read: old_save_compatibility fallback
   if (caseItem.status === 'withdrawn' || caseItem.status === 'lost_to_rival') {
     return 'lose';
   }
@@ -119,10 +132,8 @@ function resolveRelativeOutcome(caseItem: Case): ListingRelativeOutcome {
   return 'lose';
 }
 
+// legacy_status_mirror_read: old_save_compatibility fallback for cases without canonical outcome
 function resolveDefenseOutcome(caseItem: Case): DefenseOutcome {
-  if (caseItem.defenseOutcome === 'lost_to_rival') {
-    return 'lost_to_rival';
-  }
   if (caseItem.status === 'sold') {
     return 'held';
   }
@@ -138,11 +149,8 @@ function resolveDefenseOutcome(caseItem: Case): DefenseOutcome {
   return 'held';
 }
 
+// legacy_status_mirror_read: old_save_compatibility fallback for cases without canonical outcome
 function resolveOwnerSatisfaction(caseItem: Case): OwnerSatisfactionState {
-  if (caseItem.ownerSatisfaction) {
-    return caseItem.ownerSatisfaction;
-  }
-
   if (caseItem.status === 'sold') {
     if (caseItem.trust >= 76 && (caseItem.soldPrice || 0) >= caseItem.marketPrice * 0.97) {
       return 'happy';
@@ -153,9 +161,11 @@ function resolveOwnerSatisfaction(caseItem: Case): OwnerSatisfactionState {
     return 'regret';
   }
 
+  // legacy_status_mirror_read: old_save_compatibility fallback
   if (caseItem.status === 'lost_to_rival') {
     return caseItem.trust <= 50 ? 'unhappy' : 'regret';
   }
+  // legacy_status_mirror_read: old_save_compatibility fallback
   if (caseItem.status === 'withdrawn') {
     return caseItem.trust <= 50 ? 'unhappy' : 'regret';
   }
@@ -172,16 +182,13 @@ function resolveOwnerSatisfaction(caseItem: Case): OwnerSatisfactionState {
   return 'unhappy';
 }
 
+// legacy_status_mirror_read: old_save_compatibility fallback for cases without canonical outcome
 function resolveEndingType(
   caseItem: Case,
   relativeOutcome: ListingRelativeOutcome,
   satisfaction: OwnerSatisfactionState,
   defenseOutcome: DefenseOutcome,
 ): ListingEndingType {
-  if (caseItem.endingType) {
-    return caseItem.endingType;
-  }
-
   if (caseItem.status === 'sold') {
     if (satisfaction === 'happy') return 'sold_by_you_happy';
     if (satisfaction === 'neutral' || satisfaction === 'no_regret') return 'sold_by_you_neutral';
@@ -192,6 +199,7 @@ function resolveEndingType(
     return 'sold_by_other';
   }
 
+  // legacy_status_mirror_read: old_save_compatibility fallback
   if (caseItem.status === 'withdrawn') {
     return 'withdrawn_unhappy';
   }
@@ -293,7 +301,7 @@ function buildCaseFinalResult(caseItem: Case): CaseFinalResult {
   const defenseOutcome = resolveDefenseOutcome(caseItem);
   const ownerSatisfaction = resolveOwnerSatisfaction(caseItem);
   const endingType = resolveEndingType(caseItem, relativeOutcome, ownerSatisfaction, defenseOutcome);
-  const bucket = caseItem.endingBucket || endingBucket(endingType);
+  const bucket = endingBucket(endingType);
   const endingSummary = buildEndingSummary(caseItem, endingType);
 
   return {
@@ -316,6 +324,41 @@ function buildCaseFinalResult(caseItem: Case): CaseFinalResult {
     defenseOutcomeLabel: defenseLabel(defenseOutcome),
     soldPrice: caseItem.soldPrice,
     finalTrust: Math.round(caseItem.trust),
+    finalCompetitiveness: Math.round(caseItem.competitiveness),
+    remainingWindowDays: caseItem.windowDays,
+  };
+}
+
+/**
+ * R30: Build final case result from canonical runtime state.
+ * Derives terminal outcomes from CaseTerminalOutcomeState / ContractFactState,
+ * not from Case mirror fields. Falls back to old_save_compatibility when
+ * canonical state is missing.
+ */
+export function buildCaseFinalResultFromCanonicalState(state: GameState, caseItem: Case, trust: number): CaseFinalResult {
+  const outcome = readCaseTerminalOutcomeForCase(state, caseItem, trust);
+  const endingSummary = buildEndingSummary(caseItem, outcome.endingType);
+
+  return {
+    caseId: caseItem.id,
+    title: caseItem.title,
+    ownerName: caseItem.ownerName,
+    community: caseItem.community,
+    status: outcome.status,
+    goalTier: caseItem.goalTier,
+    endingType: outcome.endingType,
+    endingBucket: outcome.endingBucket,
+    endingBucketLabel: endingBucketLabel(outcome.endingBucket),
+    endingLabel: endingLabel(outcome.endingType),
+    endingSummary,
+    relativeOutcome: outcome.relativeOutcome,
+    relativeOutcomeLabel: relativeLabel(outcome.relativeOutcome),
+    ownerSatisfaction: outcome.ownerSatisfaction,
+    ownerSatisfactionLabel: satisfactionLabel(outcome.ownerSatisfaction),
+    defenseOutcome: outcome.defenseOutcome,
+    defenseOutcomeLabel: defenseLabel(outcome.defenseOutcome),
+    soldPrice: outcome.soldPrice ?? caseItem.soldPrice,
+    finalTrust: Math.round(trust),
     finalCompetitiveness: Math.round(caseItem.competitiveness),
     remainingWindowDays: caseItem.windowDays,
   };
@@ -805,7 +848,7 @@ function pickCustomerLeadCaseTitle(
 
 export function evaluateFinalResult(world: GameState, reason: string): FinalResult {
   const attribution = buildAttributionSummary(Array.isArray(world.eventStore) ? world.eventStore : []);
-  const caseResults = world.cases.map((caseItem) => buildCaseFinalResult(caseItem));
+  const caseResults = world.cases.map((caseItem) => buildCaseFinalResultFromCanonicalState(world, caseItem, caseItem.trust));
   const closedDealCount = getClosedDealCount(world);
   const endingStats = buildEndingStats(caseResults);
   const ability = buildAbilityDimension(caseResults, attribution);

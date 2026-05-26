@@ -1,4 +1,5 @@
 import type { GameState, MatterEntry, Opportunity, PriorityEntry, ScheduleEntry } from './models.js';
+import { isOpportunityActiveByCanonicalState } from './opportunityLifecycleStatusRead.js';
 
 function buildScheduleMatter(world: GameState, entry: ScheduleEntry): MatterEntry {
   return {
@@ -96,7 +97,7 @@ export function deriveMatters(world: GameState): MatterEntry[] {
     ...world.schedule.map((entry) => buildScheduleMatter(world, entry)),
     ...world.priorities.map((entry) => buildPriorityMatter(world, entry)),
     ...world.opportunities
-      .filter((entry) => entry.status === 'active' && entry.pendingClosingEvaluation)
+      .filter((entry) => isOpportunityActiveByCanonicalState(world, entry) && entry.pendingClosingEvaluation)
       .map((entry) => buildNegotiationMatter(world, entry)),
   ];
 

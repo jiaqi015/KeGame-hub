@@ -19,6 +19,8 @@ import { chance, clamp, randomInt } from '../utils.js';
 import { applyBrokerOwnerTrustDelta } from '../trustWriteHelper.js';
 import { getMarketCell } from '../engine/opportunityEngine.js';
 import { applyOpportunityIntentDeltaOnState, applyOpportunityConfidenceDeltaOnState } from '../opportunitySplitHelper.js';
+import { isCaseActiveByCanonicalStatus } from '../caseLifecycleStatusRead.js';
+import { isOpportunityActiveByCanonicalState } from '../opportunityLifecycleStatusRead.js';
 
 type CreateRivalListingOptions = {
   linkedCaseId?: string;
@@ -29,9 +31,9 @@ type CreateRivalListingOptions = {
 function markCaseLostToVisibleRival(state: GameState, listing: RivalListing) {
   const linkedCase = listing.linkedCaseId
     ? state.cases.find((entry) => entry.id === listing.linkedCaseId)
-    : state.cases.find((entry) => entry.status === 'active' && entry.marketCellId === listing.marketCellId);
+    : state.cases.find((entry) => isCaseActiveByCanonicalStatus(state, entry) && entry.marketCellId === listing.marketCellId);
 
-  if (!linkedCase || linkedCase.status !== 'active') {
+  if (!linkedCase || !isCaseActiveByCanonicalStatus(state, linkedCase)) {
     return false;
   }
 
@@ -61,7 +63,7 @@ function getRivalListingClaimChance(state: GameState, listing: RivalListing, bas
 }
 
 function chooseMarketCellId(state: GameState) {
-  const activeCases = state.cases.filter((entry) => entry.status === 'active');
+  const activeCases = state.cases.filter((entry) => isCaseActiveByCanonicalStatus(state, entry));
   if (activeCases.length && chance(0.72, state)) {
     return activeCases[randomInt(0, activeCases.length - 1, state)].marketCellId;
   }
@@ -299,7 +301,7 @@ export function applyRivalPressure(state: GameState, sink?: PressureReceiptSink)
   if (!activeRivals.length) return;
 
   state.cases.forEach((caseItem) => {
-    if (caseItem.status !== 'active') return;
+    if (!isCaseActiveByCanonicalStatus(state, caseItem)) return;
     const rivals = activeRivals.filter((entry) => entry.marketCellId === caseItem.marketCellId);
     if (!rivals.length) return;
 
@@ -346,7 +348,7 @@ export function applyRivalPressure(state: GameState, sink?: PressureReceiptSink)
     });
 
     state.opportunities
-      .filter((entry) => entry.caseId === caseItem.id && entry.status === 'active')
+      .filter((entry) => entry.caseId === caseItem.id && isOpportunityActiveByCanonicalState(state, entry))
       .forEach((entry) => {
         const intentDelta = -adjustedPressure / 85;
         const confidenceDelta = -adjustedPressure / 110;

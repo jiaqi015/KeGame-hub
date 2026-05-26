@@ -212,6 +212,7 @@ export function compareAllActiveCases(
   state: LegacyStateForComparison,
   snapshots: Map<string, AssetScoreSnapshot>,
 ): readonly AssetScoreComparison[] {
+  // legacy_status_mirror_read: constrained legacy state shape without runtime collections
   const activeCases = state.cases.filter((c) => c.status === 'active');
   const comparisons: AssetScoreComparison[] = [];
 

@@ -10,6 +10,7 @@ import type { OwnerProfilingTone } from '../../domain/ownerProfilingMemoryTypes.
 import { ACTIONS, ACTION_CATEGORIES } from '../../domain/constants';
 import { clamp, costText, caseSortValue } from '../../domain/utils';
 import { getActiveOpportunities, getActionAvailability } from '../../domain/engine';
+import { isCaseTerminalByCanonicalStatus } from '../../domain/caseLifecycleStatusRead';
 import { Star } from 'lucide-react';
 import { buildOpportunityViewModels, type OpportunityViewModel } from './caseOpportunityViewModel';
 import {
@@ -2101,7 +2102,7 @@ function deriveCaseListPriority(state: GameState, caseItem: Case) {
   if (caseItem.windowDays <= 5) score += 70;
   if (caseItem.askPrice > caseItem.marketPrice * 1.04) score += 55;
   if (opportunities.some((entry) => entry.visibility !== 'shadow' && entry.stageIndex >= 3)) score += 90;
-  if (caseItem.status === 'sold' || caseItem.status === 'withdrawn' || caseItem.status === 'lost_to_rival') score -= 200;
+  if (isCaseTerminalByCanonicalStatus(state, caseItem)) score -= 200;
 
   return score;
 }
@@ -2154,6 +2155,8 @@ function deriveWindowLabel(caseItem: Case, opportunities: Opportunity[]) {
   return '还要继续往前推';
 }
 
+// legacy_status_mirror_read: unused legacy display adapter, retained for reference
+// TODO: Remove if not needed, or refactor to accept GameState for canonical read
 function deriveManagerTake(caseItem: Case, opportunities: Opportunity[]) {
   if (caseItem.status === 'lost_to_rival') return '这套房已经在别处成交';
   if (caseItem.status === 'withdrawn') return '这套房已经核销';

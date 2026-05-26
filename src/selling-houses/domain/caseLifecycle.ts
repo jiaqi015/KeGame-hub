@@ -1,16 +1,18 @@
 import type { Case, GameState } from './models.js';
 import { recordDomainEvent } from './runtimeState.js';
 import { applyAuxiliaryStats } from './runtimeStats.js';
-import { markCaseLostToRival, createCaseTerminalOutcomeOnState, syncLegacyCaseTerminalMirrorFromOutcome, findCaseTerminalOutcome } from './caseOutcome.js';
+import { markCaseLostToRival, createCaseTerminalOutcomeOnState, syncLegacyCaseTerminalMirrorFromOutcome, findCaseTerminalOutcome, readCaseTerminalOutcomeForCase } from './caseOutcome.js';
 import { applyBrokerOwnerTrustDelta } from './trustWriteHelper.js';
 import { setOpportunityStatusOnState, setOpportunityStageLabel, findBrokeredStateForOpportunity, ensureBrokeredOpportunityState, findMatchStateForPair } from './opportunitySplitHelper.js';
+import { isCaseActiveByCanonicalStatus } from './caseLifecycleStatusRead.js';
+import { isOpportunityActiveByCanonicalState } from './opportunityLifecycleStatusRead.js';
 
 export function loseCaseToRival(
   state: GameState,
   caseItem: Case,
   detail: string,
 ) {
-  if (caseItem.status !== 'active') {
+  if (!isCaseActiveByCanonicalStatus(state, caseItem)) {
     return false;
   }
 
@@ -70,7 +72,7 @@ export function loseCaseToRival(
   });
 
   state.opportunities.forEach((entry) => {
-    if (entry.caseId === caseItem.id && entry.status === 'active') {
+    if (entry.caseId === caseItem.id && isOpportunityActiveByCanonicalState(state, entry)) {
       setOpportunityStatusOnState(state, entry, 'lost', '流失给竞品');
       // Ensure canonical brokered state exists, then set stageLabel through helper
       const match = findMatchStateForPair(state, entry.customerId, entry.caseId);
@@ -82,6 +84,7 @@ export function loseCaseToRival(
     }
   });
 
+  const outcome = readCaseTerminalOutcomeForCase(state, caseItem, caseItem.trust);
   recordDomainEvent(state, {
     kind: 'case_lost_to_rival',
     actor: '竞品截走',
@@ -90,10 +93,10 @@ export function loseCaseToRival(
     tone: 'danger',
     caseId: caseItem.id,
     payload: {
-      ownerSatisfaction: caseItem.ownerSatisfaction,
-      defenseOutcome: caseItem.defenseOutcome,
-      endingType: caseItem.endingType,
-      endingBucket: caseItem.endingBucket,
+      ownerSatisfaction: outcome.ownerSatisfaction,
+      defenseOutcome: outcome.defenseOutcome,
+      endingType: outcome.endingType,
+      endingBucket: outcome.endingBucket,
     },
   });
 

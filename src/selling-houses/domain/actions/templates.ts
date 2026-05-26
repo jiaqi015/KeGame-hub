@@ -6,6 +6,7 @@ import type {
   Opportunity,
 } from '../models.js';
 import { getActiveOpportunities } from '../engine.js';
+import { isOpportunityActiveByCanonicalState } from '../opportunityLifecycleStatusRead.js';
 
 export type ScenarioMode = 'heavy' | 'light';
 
@@ -129,7 +130,7 @@ function formatShowingCustomerLine(opportunity: ReturnType<typeof pickShowingCon
 function pickShowingCustomerOptions(state: GameState, caseItem: Case) {
   const { opportunities } = summarizeOpportunities(state, caseItem);
   return opportunities
-    .filter((entry) => entry.status === 'active' && entry.stageIndex <= 2)
+    .filter((entry) => isOpportunityActiveByCanonicalState(state, entry) && entry.stageIndex <= 2)
     .sort((left, right) => (
       (right.visibility === 'shadow' ? 0 : 45)
       + right.stageIndex * 70
@@ -151,7 +152,7 @@ function findShowingOpportunityByChoice(state: GameState, caseItem: Case, choice
   const optionPrefix = 'show-customer-';
   const opportunityId = choiceId.startsWith(optionPrefix) ? choiceId.slice(optionPrefix.length) : '';
   if (!opportunityId) return null;
-  return state.opportunities.find((entry) => entry.id === opportunityId && entry.caseId === caseItem.id && entry.status === 'active') || null;
+  return state.opportunities.find((entry) => entry.id === opportunityId && entry.caseId === caseItem.id && isOpportunityActiveByCanonicalState(state, entry)) || null;
 }
 
 function pickShowingRivals(state: GameState, caseItem: Case) {

@@ -10,6 +10,7 @@
 
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { asWritableGameState } from '../src/selling-houses/domain/models.js';
 
 const results: Array<{ check: string; pass: boolean; detail?: string }> = [];
 
@@ -364,7 +365,7 @@ try {
             const origTrust = state.runtimeBrokerCustomerRelations![bcrIndex].trust;
             const newTrust = Math.min(100, origTrust + 20);
 
-            state.runtimeBrokerCustomerRelations = state.runtimeBrokerCustomerRelations!.map((r, i) =>
+            asWritableGameState(state).runtimeBrokerCustomerRelations = state.runtimeBrokerCustomerRelations!.map((r, i) =>
               i === bcrIndex ? { ...r, trust: newTrust } : r,
             );
             const eval2 = buildDealClosingEvaluation(state, activeCase, testOpp, activeCase.askPrice, 'balanced');
@@ -430,14 +431,14 @@ try {
   }
 
   const createContractFn = dealClosingSrc.slice(
-    dealClosingSrc.indexOf('createContractFactOnState('),
-    dealClosingSrc.indexOf('createContractFactOnState(') + 500,
+    dealClosingSrc.indexOf('createContractFactFromPriceConsensusOnState('),
+    dealClosingSrc.indexOf('createContractFactFromPriceConsensusOnState(') + 500,
   );
 
-  if (typeof dealClosingSrc.indexOf('createContractFactOnState(') === 'number') {
+  if (typeof dealClosingSrc.indexOf('createContractFactFromPriceConsensusOnState(') === 'number') {
     const bcrNearContract = dealClosingSrc.slice(
-      Math.max(0, dealClosingSrc.indexOf('createContractFactOnState(') - 100),
-      dealClosingSrc.indexOf('createContractFactOnState(') + 600,
+      Math.max(0, dealClosingSrc.indexOf('createContractFactFromPriceConsensusOnState(') - 100),
+      dealClosingSrc.indexOf('createContractFactFromPriceConsensusOnState(') + 600,
     ).includes('runtimeBrokerCustomerRelations');
     if (bcrNearContract) {
       fail('bcr-no-contract-write', 'ContractFact creation area references runtimeBrokerCustomerRelations');

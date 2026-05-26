@@ -31,7 +31,12 @@ import {
 } from '../core/world-state/trustWriteSource.js';
 
 import type { GameState, Case } from './models.js';
-import { asWritableCase } from './models.js';
+import { asWritableCase, asWritableGameState } from './models.js';
+import {
+  type CanonicalStoreWriteProvenance,
+  type CanonicalStoreWriteReceipt,
+  makeStoreWriteReceipt,
+} from '../core/world-state/canonicalStoreKernel.js';
 
 // ---------------------------------------------------------------------------
 // R23: Named mirror-sync boundary for Case.trust
@@ -84,6 +89,22 @@ function buildRelationIds(caseItem: Case) {
 // ---------------------------------------------------------------------------
 
 /**
+ * Store-level ensure helper for trust relation store.
+ * Returns a CanonicalStoreWriteReceipt for audit.
+ */
+export function ensureBrokerOwnerTrustStore(
+  state: GameState,
+  provenance: CanonicalStoreWriteProvenance = 'canonical-bootstrap',
+): CanonicalStoreWriteReceipt {
+  if (!state.runtimeBrokerOwnerRelations) {
+    asWritableGameState(state).runtimeBrokerOwnerRelations = [];
+  }
+  return makeStoreWriteReceipt('runtimeBrokerOwnerRelations', 'ensure', provenance, {
+    nextCount: state.runtimeBrokerOwnerRelations.length,
+  });
+}
+
+/**
  * Ensures a BrokerOwnerRelationTrustState exists for the given case.
  * If not found in runtimeBrokerOwnerRelations, hydrates from Case.trust.
  * If found, returns the existing state (does NOT overwrite).
@@ -91,9 +112,11 @@ function buildRelationIds(caseItem: Case) {
 export function ensureBrokerOwnerTrustState(
   state: GameState,
   caseItem: Case,
+  /** R30: hydration provenance — 'old_save_compatibility' when hydrating from Case.trust */
+  _hydrationProvenance: 'canonical-bootstrap' | 'old_save_compatibility' = 'old_save_compatibility',
 ): BrokerOwnerRelationTrustState {
   if (!state.runtimeBrokerOwnerRelations) {
-    state.runtimeBrokerOwnerRelations = [];
+    asWritableGameState(state).runtimeBrokerOwnerRelations = [];
   }
 
   const { brokerId, ownerId } = buildRelationIds(caseItem);
@@ -104,9 +127,9 @@ export function ensureBrokerOwnerTrustState(
     return existing;
   }
 
-  // Hydrate from Case.trust
+  // Hydrate from Case.trust with old_save_compatibility provenance
   const hydrated = createTrustState(brokerId, ownerId, caseItem.trust, state.day);
-  state.runtimeBrokerOwnerRelations.push(hydrated);
+  asWritableGameState(state).runtimeBrokerOwnerRelations.push(hydrated);
   return hydrated;
 }
 
@@ -331,7 +354,7 @@ function persistTrustState(
   trustState: BrokerOwnerRelationTrustState,
 ): void {
   if (!state.runtimeBrokerOwnerRelations) {
-    state.runtimeBrokerOwnerRelations = [];
+    asWritableGameState(state).runtimeBrokerOwnerRelations = [];
   }
 
   const index = state.runtimeBrokerOwnerRelations.findIndex(
@@ -339,9 +362,9 @@ function persistTrustState(
   );
 
   if (index >= 0) {
-    state.runtimeBrokerOwnerRelations[index] = trustState;
+    asWritableGameState(state).runtimeBrokerOwnerRelations[index] = trustState;
   } else {
-    state.runtimeBrokerOwnerRelations.push(trustState);
+    asWritableGameState(state).runtimeBrokerOwnerRelations.push(trustState);
   }
 }
 
@@ -356,7 +379,7 @@ function persistTrustState(
  */
 export function initializeTrustRelations(state: GameState): void {
   if (!state.runtimeBrokerOwnerRelations) {
-    state.runtimeBrokerOwnerRelations = [];
+    asWritableGameState(state).runtimeBrokerOwnerRelations = [];
   }
 
   for (const caseItem of state.cases) {

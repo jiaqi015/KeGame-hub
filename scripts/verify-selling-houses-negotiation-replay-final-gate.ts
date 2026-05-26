@@ -32,6 +32,7 @@ import {
   buildProcessRunsFromState,
   enrichStateWithProcessRuns,
 } from '../src/selling-houses/runtime/simulation/processRunAdapter.js';
+import { asWritableGameState } from '../src/selling-houses/domain/models.js';
 import type { GameState, DailyTickResult } from '../src/selling-houses/domain/models.js';
 
 let passed = 0;
@@ -325,7 +326,7 @@ console.log('  No dice re-roll: PASS');
 console.log('=== Check 10: Enrichment upsert ===');
 
 const world10 = buildWorldWithRealReceipts(SEED);
-world10.negotiationReplayHistory = [];
+asWritableGameState(world10).negotiationReplayHistory = [];
 const replays10 = buildNegotiationReplaysFromState(world10);
 
 enrichStateWithNegotiationReplays(world10, replays10);

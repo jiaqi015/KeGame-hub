@@ -13,6 +13,7 @@
 
 import type { ActionReceipt, ActionReceiptFieldDelta, ActionReceiptOutcome, GameState } from '../../domain/models.js';
 import type { ActionReceiptSnapshot } from '../../domain/engine/actionReceiptSnapshot.js';
+import { isOpportunityActiveByCanonicalState } from '../../domain/opportunityLifecycleStatusRead.js';
 
 /**
  * Builds an ActionReceipt from a domain snapshot.
@@ -50,7 +51,7 @@ export function buildActionReceiptFromSnapshot(
     .map((e) => e.id);
 
   const affectedOpportunityIds = state.opportunities
-    .filter((o) => o.caseId === snapshot.caseId && o.status === 'active')
+    .filter((o) => o.caseId === snapshot.caseId && isOpportunityActiveByCanonicalState(state, o))
     .slice(0, snapshot.afterOpportunityCount)
     .map((o) => o.id);
 

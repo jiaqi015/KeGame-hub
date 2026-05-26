@@ -31,6 +31,7 @@ import type {
   OwnerDecisionMomentSignificance,
   OwnerDecisionMomentFactor,
 } from '../../domain/models.js';
+import { asWritableGameState } from '../../domain/models.js';
 
 import type {
   ProcessRun,
@@ -336,7 +337,7 @@ export function enrichStateWithOwnerDecisionMoments(
   moments: readonly OwnerDecisionMoment[],
 ): void {
   if (!state.ownerDecisionMomentHistory) {
-    state.ownerDecisionMomentHistory = [];
+    asWritableGameState(state).ownerDecisionMomentHistory = [];
   }
 
   for (const moment of moments) {
@@ -344,9 +345,9 @@ export function enrichStateWithOwnerDecisionMoments(
       (entry) => entry.momentId === moment.momentId,
     );
     if (existingIndex >= 0) {
-      state.ownerDecisionMomentHistory[existingIndex] = moment;
+      asWritableGameState(state).ownerDecisionMomentHistory[existingIndex] = moment;
     } else {
-      state.ownerDecisionMomentHistory.push(moment);
+      asWritableGameState(state).ownerDecisionMomentHistory.push(moment);
     }
   }
 }

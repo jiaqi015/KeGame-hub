@@ -60,6 +60,7 @@ function axisCompositeScore(caseItem: LegacyScoreSeparationCaseLike) {
 }
 
 function activeOpportunitiesForCase(state: Pick<LegacyScoreSeparationStateLike, 'opportunities'>, caseId: string) {
+  // legacy_status_mirror_read: legacy adapter context, constrained state shape without runtime collections
   return state.opportunities.filter((entry) => entry.caseId === caseId && entry.status === 'active');
 }
 

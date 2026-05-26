@@ -26,6 +26,7 @@ import type {
   CommitmentSettlementTrigger,
   GameState,
 } from '../../domain/models.js';
+import { asWritableGameState } from '../../domain/models.js';
 
 // ---------------------------------------------------------------------------
 // ActionReceiptBuildInput — caller captures state snapshot before/after
@@ -122,15 +123,15 @@ export function buildCommitmentSettlement(input: CommitmentSettlementBuildInput)
  */
 export function appendActionReceipt(state: GameState, receipt: ActionReceipt): void {
   if (!state.actionReceiptHistory) {
-    state.actionReceiptHistory = [];
+    asWritableGameState(state).actionReceiptHistory = [];
   }
   const existingIndex = state.actionReceiptHistory.findIndex(
     (entry) => entry.receiptId === receipt.receiptId,
   );
   if (existingIndex >= 0) {
-    state.actionReceiptHistory[existingIndex] = receipt;
+    asWritableGameState(state).actionReceiptHistory[existingIndex] = receipt;
   } else {
-    state.actionReceiptHistory.push(receipt);
+    asWritableGameState(state).actionReceiptHistory.push(receipt);
   }
 }
 
@@ -145,15 +146,15 @@ export function appendActionReceipt(state: GameState, receipt: ActionReceipt): v
  */
 export function appendCommitmentSettlement(state: GameState, settlement: CommitmentSettlement): void {
   if (!state.commitmentSettlementHistory) {
-    state.commitmentSettlementHistory = [];
+    asWritableGameState(state).commitmentSettlementHistory = [];
   }
   const existingIndex = state.commitmentSettlementHistory.findIndex(
     (entry) => entry.settlementId === settlement.settlementId,
   );
   if (existingIndex >= 0) {
-    state.commitmentSettlementHistory[existingIndex] = settlement;
+    asWritableGameState(state).commitmentSettlementHistory[existingIndex] = settlement;
   } else {
-    state.commitmentSettlementHistory.push(settlement);
+    asWritableGameState(state).commitmentSettlementHistory.push(settlement);
   }
 }
 

@@ -298,12 +298,12 @@ console.log('\n=== R20-5: ContractFactState has weightExplanations ===\n');
   }
 }
 
-// ── 6. createContractFactOnState passes weightExplanations through ──
+// ── 6. createContractFactForFixtureOnlyOnState passes weightExplanations through ──
 
-console.log('\n=== R20-6: createContractFactOnState carries weightExplanations ===\n');
+console.log('\n=== R20-6: createContractFactForFixtureOnlyOnState carries weightExplanations ===\n');
 
 {
-  const { createContractFactOnState, ensureConsensusRuntime } = await import(
+  const { createContractFactForFixtureOnlyOnState, ensureConsensusRuntime } = await import(
     '../src/selling-houses/domain/consensusFormationHelper.js'
   );
   const testState: any = {
@@ -316,7 +316,7 @@ console.log('\n=== R20-6: createContractFactOnState carries weightExplanations =
     { factor: 'customer_intent', weight: 0.46, derivedFrom: { sourceKind: 'market_signal', sourceIds: ['80'] } },
   ];
 
-  const contract = createContractFactOnState(
+  const contract = createContractFactForFixtureOnlyOnState(
     testState,
     'consensus-1',
     'brokered:opp-1',
@@ -334,7 +334,7 @@ console.log('\n=== R20-6: createContractFactOnState carries weightExplanations =
     testWeights,
   );
 
-  check(contract !== undefined, 'createContractFactOnState returns a contract');
+  check(contract !== undefined, 'createContractFactForFixtureOnlyOnState returns a contract');
   if (contract) {
     check(contract.weightExplanations.length === 1, `contract has weightExplanations (count: ${contract.weightExplanations.length})`);
     check(contract.weightExplanations[0].factor === 'customer_intent', 'weightExplanation factor preserved in contract');

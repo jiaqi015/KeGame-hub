@@ -7,6 +7,7 @@ import type {
   TodayArrangementItem,
   TodayArrangementSlot,
 } from '../domain/models.js';
+import { isCaseActiveByCanonicalStatus } from '../domain/caseLifecycleStatusRead.js';
 
 export interface TodayPlanDraft {
   sourceMatterId?: string;
@@ -234,7 +235,7 @@ export function syncTodayPlanForCurrentDayMutable(state: GameState) {
 
     if (normalized.status === 'planned' && normalized.linkedCaseId) {
       const caseItem = state.cases.find((entry) => entry.id === normalized.linkedCaseId);
-      if (!caseItem || caseItem.status !== 'active') {
+      if (!caseItem || !isCaseActiveByCanonicalStatus(state, caseItem)) {
         continue;
       }
     }

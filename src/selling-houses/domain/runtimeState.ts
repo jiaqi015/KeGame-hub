@@ -5,8 +5,11 @@ import { calculateUrgency, updateCompetitiveness } from './scoring.js';
 import { deriveCaseProgression } from './actionStageRelations.js';
 import { syncCaseStageMirrorFromCaseProgressionOnState } from './opportunitySplitHelper.js';
 import type { Case, DomainEventEntry, DomainEventKind, GameState, GoalTier, MatterEntry, Opportunity, Tone } from './models.js';
+import { asWritableGameState } from './models.js';
 import { getDayOfWeek, getOpportunityPriority, getRoutine, average, clamp } from './utils.js';
 import { syncAuxiliaryMirrors } from './runtimeStats.js';
+import { isCaseActiveByCanonicalStatus, readCaseLifecycleStatus } from './caseLifecycleStatusRead.js';
+import { isOpportunityActiveByCanonicalState } from './opportunityLifecycleStatusRead.js';
 
 function buildDomainEventId(kind: DomainEventKind, day: number, index: number) {
   return `event-${kind}-${day}-${index}`;
@@ -48,12 +51,12 @@ export function recordDomainEvent(
     customerId: input.customerId,
     payload: input.payload || {},
   };
-  world.eventStore.unshift(entry);
+  asWritableGameState(world).eventStore.unshift(entry);
   return entry;
 }
 
 export function logEvent(world: GameState, actor: string, message: string, tone: Tone = 'accent') {
-  world.eventLog.unshift({
+  asWritableGameState(world).eventLog.unshift({
     actor,
     message,
     tone,
@@ -61,7 +64,7 @@ export function logEvent(world: GameState, actor: string, message: string, tone:
     date: world.currentDate,
   });
   if (world.eventLog.length > 120) {
-    world.eventLog.pop();
+    asWritableGameState(world).eventLog.pop();
   }
   recordDomainEvent(world, {
     kind: 'journal',
@@ -133,15 +136,17 @@ export function updateDerivedState(world: GameState) {
     caseItem.marketPrice = priceAnchors.marketPrice;
     caseItem.bottomPrice = priceAnchors.bottomPrice;
 
-    const opportunities = world.opportunities.filter((entry) => entry.caseId === caseItem.id && entry.status === 'active');
+    const opportunities = world.opportunities.filter((entry) => entry.caseId === caseItem.id && isOpportunityActiveByCanonicalState(world, entry));
     const progression = deriveCaseProgression(world, caseItem);
 
-    if (caseItem.status === 'sold') {
+    // R41: Use canonical status for stageLabel derivation
+    const lifecycleStatus = readCaseLifecycleStatus(world, caseItem);
+    if (lifecycleStatus.status === 'sold') {
       syncCaseStageMirrorFromCaseProgressionOnState(caseItem, progression, CASE_STAGES.length - 2);
       caseItem.stageLabel = '已成交';
-    } else if (caseItem.status === 'lost_to_rival') {
+    } else if (lifecycleStatus.status === 'lost_to_rival') {
       caseItem.stageLabel = '他处成交';
-    } else if (caseItem.status === 'withdrawn') {
+    } else if (lifecycleStatus.status === 'withdrawn') {
       caseItem.stageLabel = '已核销';
     } else {
       syncCaseStageMirrorFromCaseProgressionOnState(caseItem, progression, CASE_STAGES.length - 2);
@@ -150,8 +155,8 @@ export function updateDerivedState(world: GameState) {
 
     caseItem.priceGapPct = Math.round(((caseItem.askPrice - caseItem.marketPrice) / Math.max(caseItem.marketPrice, 1)) * 1000) / 10;
     updateCompetitiveness(world, caseItem);
-    caseItem.riskFlags = deriveRiskFlags(caseItem, opportunities);
-    caseItem.storylineState = deriveStorylineState(caseItem, opportunities);
+    caseItem.riskFlags = deriveRiskFlags(caseItem, opportunities, world);
+    caseItem.storylineState = deriveStorylineState(caseItem, opportunities, world);
   });
 
   world.schedule = deriveSchedule(world);
@@ -161,15 +166,15 @@ export function updateDerivedState(world: GameState) {
   syncAuxiliaryMirrors(world);
 
   if (!world.cases.some((entry) => entry.id === world.selectedCaseId)) {
-    world.selectedCaseId = world.cases.find((entry) => entry.status === 'active')?.id || world.cases[0]?.id || null;
+    world.selectedCaseId = world.cases.find((entry) => isCaseActiveByCanonicalStatus(world, entry))?.id || world.cases[0]?.id || null;
   }
 
   world.opportunities.sort((left, right) => getOpportunityPriority(right) - getOpportunityPriority(left));
 }
 
-function deriveRiskFlags(caseItem: Case, opportunities: Opportunity[]) {
+function deriveRiskFlags(caseItem: Case, opportunities: Opportunity[], state: GameState) {
   const flags: string[] = [];
-  if (caseItem.status !== 'active') return flags;
+  if (!isCaseActiveByCanonicalStatus(state, caseItem)) return flags;
   if (caseItem.trust < 58) flags.push('业主开始不放心');
   if (caseItem.windowDays <= 4) flags.push('剩余时间不多');
   if (caseItem.askPrice > caseItem.marketPrice * 1.05) flags.push('要价偏高');
@@ -180,9 +185,10 @@ function deriveRiskFlags(caseItem: Case, opportunities: Opportunity[]) {
   return flags;
 }
 
-function deriveStorylineState(caseItem: Case, opportunities: Opportunity[]) {
-  if (caseItem.status === 'sold') return 'healthy' as const;
-  if (caseItem.status === 'lost_to_rival' || caseItem.status === 'withdrawn') return 'critical' as const;
+function deriveStorylineState(caseItem: Case, opportunities: Opportunity[], state: GameState) {
+  const status = readCaseLifecycleStatus(state, caseItem).status;
+  if (status === 'sold') return 'healthy' as const;
+  if (status === 'lost_to_rival' || status === 'withdrawn') return 'critical' as const;
   if (caseItem.windowDays <= 2 || caseItem.trust <= 45) return 'critical' as const;
   if (caseItem.windowDays <= 4 || caseItem.trust <= 55 || !opportunities.length) return 'sliding' as const;
   if (caseItem.heat < 50 || caseItem.competitionGroupIds.length > 0) return 'fragile' as const;
@@ -193,7 +199,7 @@ function deriveSchedule(world: GameState) {
   const items: GameState['schedule'] = [...deriveWeekRhythmSchedule(world)];
   if (getDayOfWeek(world.day) === 4) {
     const anchorCaseId = world.selectedCaseId
-      || world.cases.find((entry) => entry.status === 'active')?.id
+      || world.cases.find((entry) => isCaseActiveByCanonicalStatus(world, entry))?.id
       || world.cases[0]?.id
       || '';
     const submissionCount = world.focusMeeting.submissionDay === world.day
@@ -213,7 +219,7 @@ function deriveSchedule(world: GameState) {
     });
   }
   world.cases.forEach((caseItem) => {
-    if (caseItem.status !== 'active') return;
+    if (!isCaseActiveByCanonicalStatus(world, caseItem)) return;
     if (caseItem.windowDays <= 4) {
       items.push({
         key: `${caseItem.id}-window`,
@@ -228,7 +234,7 @@ function deriveSchedule(world: GameState) {
   });
 
   world.opportunities
-    .filter((entry) => entry.status === 'active' && entry.daysLeft <= 2)
+    .filter((entry) => isOpportunityActiveByCanonicalState(world, entry) && entry.daysLeft <= 2)
     .forEach((entry) => {
       const isShadow = entry.visibility === 'shadow';
       const displayName = isShadow ? `待确认客户 #${entry.id.split('-').pop()}` : entry.customerName;
@@ -282,7 +288,7 @@ function getScheduleSortScore(entry: GameState['schedule'][number]) {
 function deriveWeekRhythmSchedule(world: GameState): GameState['schedule'] {
   const routine = getRoutine(world.day, WEEKLY_ROUTINE);
   const dayOfWeek = getDayOfWeek(world.day);
-  const activeCases = world.cases.filter((entry) => entry.status === 'active');
+  const activeCases = world.cases.filter((entry) => isCaseActiveByCanonicalStatus(world, entry));
   const anchorCase = world.selectedCaseId
     ? activeCases.find((entry) => entry.id === world.selectedCaseId) || activeCases[0]
     : activeCases[0];
@@ -291,7 +297,7 @@ function deriveWeekRhythmSchedule(world: GameState): GameState['schedule'] {
   }
 
   const items: GameState['schedule'] = [];
-  const activeOpportunities = world.opportunities.filter((entry) => entry.status === 'active' && entry.visibility !== 'shadow');
+  const activeOpportunities = world.opportunities.filter((entry) => isOpportunityActiveByCanonicalState(world, entry) && entry.visibility !== 'shadow');
   const ownerFeedbackCase = activeCases
     .slice()
     .sort((left, right) => (world.day - left.lastOwnerTouchedDay) - (world.day - right.lastOwnerTouchedDay))
@@ -444,7 +450,7 @@ function productRunMilestoneUrgency(
 function derivePriorities(world: GameState) {
   const items: GameState['priorities'] = [];
   world.cases
-    .filter((entry) => entry.status === 'active')
+    .filter((entry) => isCaseActiveByCanonicalStatus(world, entry))
     .sort((left, right) => calculateUrgency(right) - calculateUrgency(left))
     .slice(0, 2)
     .forEach((caseItem) => {
@@ -465,7 +471,7 @@ function derivePriorities(world: GameState) {
     });
 
   world.opportunities
-    .filter((entry) => entry.status === 'active')
+    .filter((entry) => isOpportunityActiveByCanonicalState(world, entry))
     .slice(0, 2)
     .forEach((entry) => {
       const isShadow = entry.visibility === 'shadow';
@@ -485,8 +491,8 @@ function derivePriorities(world: GameState) {
 }
 
 function deriveMetrics(world: GameState) {
-  const activeCases = world.cases.filter((entry) => entry.status === 'active');
-  const activeOpportunities = world.opportunities.filter((entry) => entry.status === 'active');
+  const activeCases = world.cases.filter((entry) => isCaseActiveByCanonicalStatus(world, entry));
+  const activeOpportunities = world.opportunities.filter((entry) => isOpportunityActiveByCanonicalState(world, entry));
   return {
     activeCaseCount: activeCases.length,
     activeOpportunityCount: activeOpportunities.length,

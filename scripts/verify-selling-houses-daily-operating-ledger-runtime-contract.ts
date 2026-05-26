@@ -24,6 +24,7 @@ import { createInitialState } from '../src/selling-houses/application/gameState.
 import { advanceDays, advanceOneDay } from '../src/selling-houses/domain/engine.js';
 import { seedInitialOpportunities } from '../src/selling-houses/domain/engine/opportunityEngine.js';
 import { getScenarioSnapshotById } from '../src/selling-houses/domain/scenarioCatalog.js';
+import { asWritableGameState } from '../src/selling-houses/domain/models.js';
 import type { GameState, DailyTickResult } from '../src/selling-houses/domain/models.js';
 import type { DailyOperatingLedgerDaySummary } from '../src/selling-houses/core/world-state/semantic-receipt/dailyOperatingLedger.js';
 
@@ -82,7 +83,7 @@ console.log('  buildDailyOperatingLedgerFromTickResult: PASS');
 console.log('=== Check 2: enrichStateWithDailyOperatingLedger ===');
 
 const state2 = buildWorld(SEED);
-state2.operatingLedgerDays = [];
+asWritableGameState(state2).operatingLedgerDays = [];
 
 const entry1: DailyOperatingLedgerDaySummary = {
   day: 1,

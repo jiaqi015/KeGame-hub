@@ -1,4 +1,5 @@
 import type { ActionDefinition, GameState } from '../models.js';
+import { asWritableGameState } from '../models.js';
 
 type ActionResourceSnapshot = {
   energy: number;
@@ -43,8 +44,8 @@ function restoreResources(state: GameState, snapshot: ActionResourceSnapshot) {
     ...state.auxiliaryStats,
     promotionBudget: snapshot.promotionBudget,
   };
-  state.budgetLedger = snapshot.budgetLedger.slice();
-  state.eventStore = snapshot.eventStore.slice();
+  asWritableGameState(state).budgetLedger = snapshot.budgetLedger.slice();
+  asWritableGameState(state).eventStore = snapshot.eventStore.slice();
 }
 
 function detectManualRefund(state: GameState, action: ActionDefinition, snapshot: ActionResourceSnapshot) {

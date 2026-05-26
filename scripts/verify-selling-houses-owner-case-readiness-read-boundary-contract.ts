@@ -195,7 +195,7 @@ check(r9u.source === 'legacy_case_mirror', `Old save source: legacy_case_mirror,
 console.log('=== Check 10: readBoundary determinism ===');
 
 const readBoundarySrc = readFileSync(
-  '/Users/jiaqi/Documents/开放日测算/.claude/worktrees/kind-bassi-be0955/src/selling-houses/core/evaluation/ownerCaseReadBoundary.ts', 'utf-8');
+  '/Users/jiaqi/Documents/开放日测算/src/selling-houses/core/evaluation/ownerCaseReadBoundary.ts', 'utf-8');
 const nonComment = readBoundarySrc.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
 check(!nonComment.includes('Date.now'), 'readBoundary: no Date.now');
 check(!nonComment.includes('Math.random'), 'readBoundary: no Math.random');

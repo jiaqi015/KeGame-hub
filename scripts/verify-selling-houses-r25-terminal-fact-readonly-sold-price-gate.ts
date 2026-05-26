@@ -74,7 +74,7 @@ console.log('\n=== R25-1: Case.soldPrice readonly in public type ===\n');
     }
 
     // WritableCase includes mutable soldPrice
-    check(modelsSrc.includes("Omit<Case, 'status' | 'trust' | 'patience' | 'urgency' | 'soldPrice'>"),
+    check(modelsSrc.includes("Omit<Case, 'status' | 'trust' | 'patience' | 'urgency' | 'soldPrice' | 'ownerSatisfaction' | 'defenseOutcome' | 'endingType' | 'endingBucket' | 'relativeOutcome'>"),
       'WritableCase omits soldPrice from Case (alongside other readonly fields)');
     check(modelsSrc.includes('soldPrice: Case['), 'WritableCase includes mutable soldPrice');
 
@@ -100,7 +100,6 @@ console.log('\n=== R25-2: No direct soldPrice writes outside asWritableCase ===\
     'src/selling-houses/domain/engine/pricingActionExecutors.ts',
     'src/selling-houses/domain/engine/competitionEngine.ts',
     'src/selling-houses/domain/trustWriteHelper.ts',
-    'src/selling-houses/domain/ownerCaseReadinessHelper.ts',
     'src/selling-houses/domain/ownerCaseReadinessWriteHelper.ts',
     'src/selling-houses/domain/opportunitySplitHelper.ts',
   ];
@@ -216,6 +215,7 @@ console.log('\n=== R25-5: closedDeals confined to terminal finalization ===\n');
   check(dealClosingSrc !== null, 'dealClosing.ts exists');
   if (dealClosingSrc) {
     check(dealClosingSrc.includes('closedDeals.unshift'), 'closedDeals.unshift exists in dealClosing.ts');
+    check(dealClosingSrc.includes('prependClosedDealMirrorFromContractFact'), 'prependClosedDealMirrorFromContractFact exists in dealClosing.ts');
   }
 
   const otherFiles = [
@@ -242,8 +242,8 @@ console.log('\n=== R25-6: ContractFact is terminal truth ===\n');
   const consensusHelperSrc = readFileSafe('src/selling-houses/domain/consensusFormationHelper.ts');
   check(consensusHelperSrc !== null, 'consensusFormationHelper.ts exists');
   if (consensusHelperSrc) {
-    check(consensusHelperSrc.includes('createContractFactOnState'),
-      'createContractFactOnState exists');
+    check(consensusHelperSrc.includes('createContractFactForFixtureOnlyOnState'),
+      'createContractFactForFixtureOnlyOnState exists');
     check(consensusHelperSrc.includes('ContractFactState'),
       'ContractFactState type is used');
   }

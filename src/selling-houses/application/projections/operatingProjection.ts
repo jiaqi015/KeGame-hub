@@ -8,6 +8,8 @@ import type {
   TodayPlanConflictHint,
   TodayArrangementSlot,
 } from '../../domain/models.js';
+import { isCaseActiveByCanonicalStatus, isCaseSoldByCanonicalStatus, isCaseLostOrWithdrawnByCanonicalStatus, readCaseLifecycleStatus } from '../../domain/caseLifecycleStatusRead.js';
+import { isOpportunityActiveByCanonicalState } from '../../domain/opportunityLifecycleStatusRead.js';
 
 import type { WorldCausalEvent } from '../../domain/world-model/causalEvents.js';
 import { ACTIONS, WEEKLY_ROUTINE } from '../../domain/constants.js';
@@ -479,11 +481,14 @@ export function buildDashboardProjection(
   productOpportunities: ProductOpportunityProjection[] = buildProductOpportunityProjection(state, caseDetails),
   actorKnowledgeMap?: Map<string, ActorKnowledgeSnapshot>,
 ): DashboardProjection {
-  const activeCaseCount = state.cases.filter((caseItem) => caseItem.status === 'active').length;
+  const activeCaseCount = state.cases.filter((caseItem) => isCaseActiveByCanonicalStatus(state, caseItem)).length;
   const priorityProjection = buildFollowUpPriorityProjection(state);
   const marketIntelProjection = buildMarketIntelProjection(state);
   const topPriorityCase = [...caseDetails]
-    .filter((entry) => state.cases.find((caseItem) => caseItem.id === entry.caseId)?.status === 'active')
+    .filter((entry) => {
+      const caseItem = state.cases.find((c) => c.id === entry.caseId);
+      return caseItem && isCaseActiveByCanonicalStatus(state, caseItem);
+    })
     .sort((left, right) => scoreCaseProjectionUrgency(right) - scoreCaseProjectionUrgency(left))[0];
   const riskReminders = buildRiskReminders(state, caseDetails, priorityProjection);
   const todayPriority = buildTodayPriority(state, caseDetails, priorityProjection);
@@ -519,7 +524,7 @@ export function buildDashboardProjection(
       wordOfMouth: `${Math.round(state.auxiliaryStats?.wordOfMouth ?? state.reputation ?? 0)}`,
       commission: `${Math.round(state.auxiliaryStats?.commission ?? state.commission ?? 0)}`,
       activeCases: activeCaseCount,
-      activeOpportunities: state.opportunities.filter((opportunity) => opportunity.status === 'active').length,
+      activeOpportunities: state.opportunities.filter((opportunity) => isOpportunityActiveByCanonicalState(state, opportunity)).length,
     },
     riskReminders,
     priorityGroups: [
@@ -546,7 +551,7 @@ function buildProductOpportunityProjection(
   caseDetails: CaseDetailProjection[],
 ): ProductOpportunityProjection[] {
   const result: ProductOpportunityProjection[] = [];
-  const activeCases = state.cases.filter((entry) => entry.status === 'active');
+  const activeCases = state.cases.filter((entry) => isCaseActiveByCanonicalStatus(state, entry));
   const activeRuns = state.productRuns.filter((entry) => entry.status === 'running');
   const openDayWindow = getDayOfWeek(state.day) === 5 || getDayOfWeek(state.day) === 1;
 
@@ -562,7 +567,7 @@ function buildProductOpportunityProjection(
     const avgHeat = average(casesInCommunity.map((entry) => entry.heat));
     const topHeat = Math.max(...casesInCommunity.map((entry) => entry.heat));
     const liftReadyCount = state.opportunities.filter((entry) => (
-      entry.status === 'active'
+      isOpportunityActiveByCanonicalState(state, entry)
       && entry.visibility !== 'shadow'
       && casesInCommunity.some((caseItem) => caseItem.id === entry.caseId)
       && entry.stageIndex >= 1
@@ -610,7 +615,7 @@ function buildProductOpportunityProjection(
       && entry.targetIds.includes(caseItem.id)
     ));
     const offerLeads = state.opportunities.filter((entry) => (
-      entry.status === 'active'
+      isOpportunityActiveByCanonicalState(state, entry)
       && entry.caseId === caseItem.id
       && entry.visibility !== 'shadow'
       && entry.stageIndex >= 3
@@ -853,7 +858,7 @@ function resolveFixedScheduleActionId(
     return undefined;
   }
 
-  const opportunity = state.opportunities.find((item) => item.id === entry.opportunityId && item.status === 'active') || null;
+  const opportunity = state.opportunities.find((item) => item.id === entry.opportunityId && isOpportunityActiveByCanonicalState(state, item)) || null;
   const actionCandidates = opportunity && opportunity.stageIndex >= 3
     ? ['invite-customer-negotiation', 'sincerity-sale', 'showing']
     : ['showing', 'weekly-feedback'];
@@ -897,7 +902,7 @@ function buildCandidateArrangementItems(
     seenCaseIds.add(recommendation.caseId);
 
     const caseItem = state.cases.find((entry) => entry.id === recommendation.caseId);
-    if (!caseItem || caseItem.status !== 'active') {
+    if (!caseItem || !isCaseActiveByCanonicalStatus(state, caseItem)) {
       continue;
     }
 
@@ -1045,7 +1050,7 @@ function buildTodayPlanArrangementItem(
   const targetOpportunity = entry.linkedOpportunityId
     ? state.opportunities.find((item) => item.id === entry.linkedOpportunityId) || null
     : entry.linkedCustomerId
-      ? state.opportunities.find((item) => item.customerId === entry.linkedCustomerId && item.status === 'active') || null
+      ? state.opportunities.find((item) => item.customerId === entry.linkedCustomerId && isOpportunityActiveByCanonicalState(state, item)) || null
       : matter?.kind === 'opportunity'
         ? state.opportunities.find((item) => item.id === matter.sourceKey) || null
         : null;
@@ -1164,7 +1169,7 @@ function resolveRecommendationLinkedMatter(
       return state.opportunities.some((entry) => (
         entry.id === scheduleEntry.opportunityId
         && entry.caseId === recommendation.caseId
-        && entry.status === 'active'
+        && isOpportunityActiveByCanonicalState(state, entry)
       ));
     }
 
@@ -1194,7 +1199,7 @@ function resolveActionBoundOpportunities(
   }
 
   return state.opportunities.filter((entry) => {
-    if (entry.caseId !== caseId || entry.status !== 'active') {
+    if (entry.caseId !== caseId || !isOpportunityActiveByCanonicalState(state, entry)) {
       return false;
     }
     const window = relation.opportunityStageWindow;
@@ -1224,7 +1229,7 @@ function buildListingLifecyclePhaseProjection(
   customerLinks: CustomerRuntimeState[],
   competitionPressure: number,
 ): ListingLifecyclePhaseProjection {
-  if (caseItem.status === 'sold') {
+  if (isCaseSoldByCanonicalStatus(state, caseItem)) {
     return {
       phaseCode: 'sold',
       phaseLabel: '已成交',
@@ -1237,29 +1242,19 @@ function buildListingLifecyclePhaseProjection(
     };
   }
 
-  if (caseItem.status === 'withdrawn') {
+  if (isCaseLostOrWithdrawnByCanonicalStatus(state, caseItem)) {
+    // R41: Use canonical status to distinguish lost_to_rival vs withdrawn
+    const lifecycleStatus = readCaseLifecycleStatus(state, caseItem);
+    const lostToRival = lifecycleStatus.status === 'lost_to_rival';
     return {
-      phaseCode: 'written_off',
-      phaseLabel: '已核销',
-      coreProblemLabel: '这套房已经退出本轮经营',
-      primaryActionLabel: '回看失手节点',
+      phaseCode: lostToRival ? 'sold_elsewhere' : 'written_off',
+      phaseLabel: lostToRival ? '他处成交' : '已核销',
+      coreProblemLabel: lostToRival ? '这套房已经在别处成交' : '这套房已经退出本轮经营',
+      primaryActionLabel: lostToRival ? '回看失手机会' : '回看失手节点',
       phaseAgeDays: 0,
       phaseDelayLevel: 'late',
-      phaseRiskHint: '本轮经营已结束',
-      completionStateLabel: '已核销',
-    };
-  }
-
-  if (caseItem.status === 'lost_to_rival') {
-    return {
-      phaseCode: 'sold_elsewhere',
-      phaseLabel: '他处成交',
-      coreProblemLabel: '这套房已经在别处成交',
-      primaryActionLabel: '回看失手机会',
-      phaseAgeDays: 0,
-      phaseDelayLevel: 'late',
-      phaseRiskHint: '房子已在别处成交',
-      completionStateLabel: '他处成交',
+      phaseRiskHint: lostToRival ? '房子已在别处成交' : '本轮经营已结束',
+      completionStateLabel: lostToRival ? '他处成交' : '已核销',
     };
   }
 
@@ -1271,7 +1266,7 @@ function buildListingLifecyclePhaseProjection(
     caseItem.viewings,
     customerLinks.filter((entry) => entry.caseStates[caseItem.id]?.viewed).length,
   );
-  const activeOpportunityCount = opportunities.filter((opportunity) => opportunity.status === 'active').length;
+  const activeOpportunityCount = opportunities.filter((opportunity) => isOpportunityActiveByCanonicalState(state, opportunity)).length;
 
   let phaseCode: Exclude<ListingLifecyclePhaseCode, 'sold' | 'written_off' | 'sold_elsewhere'> = 'packaging';
   if (!caseItem.hasCompletedFirstVisit) {
@@ -1692,7 +1687,7 @@ function buildLiveCausalRefsForCase(
 }
 
 export function buildOpportunityListProjection(state: GameState): OpportunityListProjection {
-  const active = state.opportunities.filter((opportunity) => opportunity.status === 'active');
+  const active = state.opportunities.filter((opportunity) => isOpportunityActiveByCanonicalState(state, opportunity));
   const potential = active.filter((opportunity) => opportunity.visibility === 'shadow');
   const met = active.filter((opportunity) => opportunity.visibility !== 'shadow');
   const closing = met.filter((opportunity) => opportunity.stageIndex >= 4);
@@ -1796,7 +1791,7 @@ function buildCustomerCaseRelations(
 
   return [...caseIds]
     .map((caseId) => {
-      const caseItem = state.cases.find((entry) => entry.id === caseId && entry.status === 'active');
+      const caseItem = state.cases.find((entry) => entry.id === caseId && isCaseActiveByCanonicalStatus(state, entry));
       const runtime = customerState?.caseStates[caseId];
       const opportunity = activeOpportunityByCustomerCase.get(buildCustomerCaseKey(customer.id, caseId));
       if (!caseItem || (!runtime && !opportunity)) {
@@ -2073,7 +2068,7 @@ function buildCaseRecentChanges(
     });
   }
 
-  if (!caseItem.touchedToday && caseItem.status === 'active') {
+  if (!caseItem.touchedToday && isCaseActiveByCanonicalStatus(state, caseItem)) {
     changes.push({
       id: `${caseItem.id}-no-touch`,
       label: '今日动作',
@@ -2112,7 +2107,7 @@ function factToneWeight(tone: ProjectionTone) {
 }
 
 export function buildMarketProjection(state: GameState): MarketProjection {
-  const activeCases = state.cases.filter((caseItem) => caseItem.status === 'active');
+  const activeCases = state.cases.filter((caseItem) => isCaseActiveByCanonicalStatus(state, caseItem));
   const marketIntelProjection = buildMarketIntelProjection(state);
   const yesterdayNews = buildYesterdayIntel(state);
   const averageDemand = averageValue(state.markets.map((market) => market.demandHeat));
@@ -2200,7 +2195,7 @@ function buildDashboardTriageCards(
   marketBrief: DashboardProjection['marketBrief'],
   priorityProjection: ReturnType<typeof buildFollowUpPriorityProjection>,
 ): DashboardProjection['triageCards'] {
-  const activeOpportunityCount = state.opportunities.filter((opportunity) => opportunity.status === 'active').length;
+  const activeOpportunityCount = state.opportunities.filter((opportunity) => isOpportunityActiveByCanonicalState(state, opportunity)).length;
   const closingLead = priorityProjection.groups.closingOpportunity.items[0] || null;
   const firstPriority = todayPriority[0] || null;
 

@@ -27,6 +27,7 @@ import type {
   CommitmentSettlement,
   GameState,
 } from '../../domain/models.js';
+import { asWritableGameState } from '../../domain/models.js';
 
 import type {
   ProcessRun,
@@ -439,7 +440,7 @@ export function enrichStateWithProcessRuns(
   runs: readonly ProcessRun[],
 ): void {
   if (!state.processRunHistory) {
-    state.processRunHistory = [];
+    asWritableGameState(state).processRunHistory = [];
   }
 
   for (const run of runs) {
@@ -447,9 +448,9 @@ export function enrichStateWithProcessRuns(
       (entry) => entry.runId === run.runId,
     );
     if (existingIndex >= 0) {
-      state.processRunHistory[existingIndex] = run;
+      asWritableGameState(state).processRunHistory[existingIndex] = run;
     } else {
-      state.processRunHistory.push(run);
+      asWritableGameState(state).processRunHistory.push(run);
     }
   }
 }

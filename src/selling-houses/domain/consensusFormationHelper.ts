@@ -8,7 +8,7 @@
  *
  * Runtime status (as of 2026-05-06):
  * - dealClosing.ts actively calls ensureConsensusFormation, markConsensusSignedOnState,
- *   markConsensusCollapsedOnState, createContractFactOnState, createOpportunityClosureOnState.
+ *   markConsensusCollapsedOnState, createContractFactFromPriceConsensusOnState, createOpportunityClosureOnState.
  * - finalizeClosedDeal creates ContractFact + OpportunityClosureSet on success path.
  * - ContractFact has duplicate guard: one contract per case.
  * - deriveLegacyClosedDealMirror strips "brokered:" prefix for legacy UI traceability.
@@ -20,6 +20,12 @@
  */
 
 import type { GameState } from './models.js';
+import { asWritableGameState } from './models.js';
+import {
+  type CanonicalStoreWriteProvenance,
+  type CanonicalStoreWriteReceipt,
+  makeStoreWriteReceipt,
+} from '../core/world-state/canonicalStoreKernel.js';
 import {
   type ConsensusFormationState,
   type ConsensusFormationRecord,
@@ -32,7 +38,7 @@ import {
   setConsensusEvaluation as setEvalCore,
   markConsensusSigned as markSignedCore,
   markConsensusCollapsed as markCollapsedCore,
-  createContractFactState as createContractCore,
+  createContractFactForFixtureOnlyState as createContractCore,
   createContractFactFromProof as createContractFromProofCore,
   createOpportunityClosureSetState as createClosureCore,
   deriveLegacyClosedDealMirror,
@@ -57,24 +63,54 @@ export type {
  * Called during createInitialState or first access.
  */
 export function ensureConsensusRuntime(state: GameState): {
-  formations: ConsensusFormationState[];
-  contracts: ContractFactState[];
-  closures: OpportunityClosureSetState[];
+  formations: readonly ConsensusFormationState[];
+  contracts: readonly ContractFactState[];
+  closures: readonly OpportunityClosureSetState[];
 } {
-  if (!state.runtimeConsensusFormations) {
-    state.runtimeConsensusFormations = [];
-  }
-  if (!state.runtimeContractFacts) {
-    state.runtimeContractFacts = [];
-  }
-  if (!state.runtimeOpportunityClosureSets) {
-    state.runtimeOpportunityClosureSets = [];
-  }
+  ensureRuntimeConsensusFormations(state, 'canonical-bootstrap');
+  ensureRuntimeContractFacts(state, 'canonical-bootstrap');
+  ensureRuntimeOpportunityClosureSets(state, 'canonical-bootstrap');
   return {
-    formations: state.runtimeConsensusFormations,
-    contracts: state.runtimeContractFacts,
-    closures: state.runtimeOpportunityClosureSets,
+    formations: state.runtimeConsensusFormations!,
+    contracts: state.runtimeContractFacts!,
+    closures: state.runtimeOpportunityClosureSets!,
   };
+}
+
+export function ensureRuntimeConsensusFormations(
+  state: GameState,
+  provenance: CanonicalStoreWriteProvenance = 'canonical-bootstrap',
+): CanonicalStoreWriteReceipt {
+  if (!state.runtimeConsensusFormations) {
+    asWritableGameState(state).runtimeConsensusFormations = [];
+  }
+  return makeStoreWriteReceipt('runtimeConsensusFormations', 'ensure', provenance, {
+    nextCount: state.runtimeConsensusFormations.length,
+  });
+}
+
+export function ensureRuntimeContractFacts(
+  state: GameState,
+  provenance: CanonicalStoreWriteProvenance = 'canonical-bootstrap',
+): CanonicalStoreWriteReceipt {
+  if (!state.runtimeContractFacts) {
+    asWritableGameState(state).runtimeContractFacts = [];
+  }
+  return makeStoreWriteReceipt('runtimeContractFacts', 'ensure', provenance, {
+    nextCount: state.runtimeContractFacts.length,
+  });
+}
+
+export function ensureRuntimeOpportunityClosureSets(
+  state: GameState,
+  provenance: CanonicalStoreWriteProvenance = 'canonical-bootstrap',
+): CanonicalStoreWriteReceipt {
+  if (!state.runtimeOpportunityClosureSets) {
+    asWritableGameState(state).runtimeOpportunityClosureSets = [];
+  }
+  return makeStoreWriteReceipt('runtimeOpportunityClosureSets', 'ensure', provenance, {
+    nextCount: state.runtimeOpportunityClosureSets.length,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -106,7 +142,7 @@ export function ensureConsensusFormation(
   const created = createConsensusCore(
     brokeredOpportunityId, matchId, caseId, customerId, strategyId, day,
   );
-  formations.push(created);
+  asWritableGameState(state).runtimeConsensusFormations.push(created);
   return created;
 }
 
@@ -123,7 +159,7 @@ export function setConsensusStageOnState(
   const { formations } = ensureConsensusRuntime(state);
   const idx = formations.indexOf(existing);
   const { state: newState, record } = setStageCore(existing, stage, day, reason);
-  formations[idx] = newState;
+  asWritableGameState(state).runtimeConsensusFormations[idx] = newState;
   return record;
 }
 
@@ -148,7 +184,7 @@ export function setConsensusEvaluationOnState(
   const { formations } = ensureConsensusRuntime(state);
   const idx = formations.indexOf(existing);
   const { state: newState, record } = setEvalCore(existing, evaluation, day, reason, sourceEventRefs);
-  formations[idx] = newState;
+  asWritableGameState(state).runtimeConsensusFormations[idx] = newState;
   return record;
 }
 
@@ -164,7 +200,7 @@ export function markConsensusSignedOnState(
   const { formations } = ensureConsensusRuntime(state);
   const idx = formations.indexOf(existing);
   const { state: newState, record } = markSignedCore(existing, day, reason);
-  formations[idx] = newState;
+  asWritableGameState(state).runtimeConsensusFormations[idx] = newState;
   return record;
 }
 
@@ -180,7 +216,7 @@ export function markConsensusCollapsedOnState(
   const { formations } = ensureConsensusRuntime(state);
   const idx = formations.indexOf(existing);
   const { state: newState, record } = markCollapsedCore(existing, day, reason);
-  formations[idx] = newState;
+  asWritableGameState(state).runtimeConsensusFormations[idx] = newState;
   return record;
 }
 
@@ -200,7 +236,7 @@ export function findContractForCase(
   return contracts.find((c) => c.caseId === caseId);
 }
 
-export function createContractFactOnState(
+export function createContractFactForFixtureOnlyOnState(
   state: GameState,
   consensusId: string,
   brokeredOpportunityId: string,
@@ -228,7 +264,7 @@ export function createContractFactOnState(
     closeReadiness, closeProbability, resolvedBlockers, supportingFactors,
     sourceEventRefs, weightExplanations,
   );
-  contracts.push(created);
+  asWritableGameState(state).runtimeContractFacts.push(created);
   return created;
 }
 
@@ -263,7 +299,7 @@ export function createContractFactFromPriceConsensusOnState(
     resolvedBlockers, supportingFactors,
     proof,
   );
-  contracts.push(created);
+  asWritableGameState(state).runtimeContractFacts.push(created);
   return created;
 }
 
@@ -299,7 +335,7 @@ export function createOpportunityClosureOnState(
   const created = createClosureCore(
     contractId, wonOpportunityId, closedOpportunityIds, losingCustomerIds, reason, day,
   );
-  closures.push(created);
+  asWritableGameState(state).runtimeOpportunityClosureSets.push(created);
   return created;
 }
 

@@ -1,6 +1,7 @@
 import type { GameState, InboundOpportunity } from '../models.js';
 import { chance, randomInt } from '../utils.js';
 import { applyInboundOpportunity } from './inboundOpportunityEngine.js';
+import { isCaseActiveByCanonicalStatus } from '../caseLifecycleStatusRead.js';
 
 export function settleMarketSignals(state: GameState) {
   state.marketShadow.marketSignals.forEach((signal) => {
@@ -20,7 +21,7 @@ export function settleMarketSignals(state: GameState) {
 
   const templates = state.runContext.scenarioSnapshot.world.signalTemplates || [];
   const template = templates[randomInt(0, Math.max(0, templates.length - 1), state)];
-  const activeCase = state.cases.filter((entry) => entry.status === 'active')[0];
+  const activeCase = state.cases.filter((entry) => isCaseActiveByCanonicalStatus(state, entry))[0];
   if (!template || !activeCase) return;
 
   const inbound: InboundOpportunity = {

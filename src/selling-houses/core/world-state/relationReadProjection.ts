@@ -161,7 +161,7 @@ export interface RelationTrustProjection {
   readonly brokerId: string;
   readonly ownerId: string;
   readonly trust: number;
-  readonly source: 'canonical-relation' | 'case-fallback';
+  readonly source: 'canonical-relation' | 'old_save_compatibility';
 }
 
 /**
@@ -175,7 +175,7 @@ export interface RelationReadinessProjection {
   readonly patience: number;
   readonly urgency: number;
   readonly windowDays: number;
-  readonly source: 'canonical-relation' | 'case-fallback';
+  readonly source: 'canonical-relation' | 'old_save_compatibility';
 }
 
 // ---------------------------------------------------------------------------
@@ -223,7 +223,7 @@ export interface CaseRelationBundle {
 // OwnerRelationBusinessContext: flat, ready-to-use business context
 // ---------------------------------------------------------------------------
 
-export type RelationReadSource = 'canonical-relation' | 'case-fallback';
+export type RelationReadSource = 'canonical-relation' | 'old_save_compatibility';
 
 export interface OwnerRelationBusinessContext {
   /** Trust value — from canonical BrokerOwnerRelation or Case mirror fallback. */
@@ -271,7 +271,7 @@ export const readCaseRelationBusinessContextFromRuntime = readOwnerRelationBusin
  *
  * Source tracking:
  * - 'canonical-relation': value read from runtime relation state
- * - 'case-fallback': value read from Case field (old save or early game)
+ * - 'old_save_compatibility': value read from Case field (old save or early game)
  *
  * B should use: `const ctx = readOwnerRelationBusinessContext(state, caseItem)`
  * then `ctx.trustValue` instead of `caseItem.trust`.
@@ -294,7 +294,7 @@ export function readOwnerRelationBusinessContext(
     trustSource = 'canonical-relation';
   } else {
     trustValue = caseItem.trust;
-    trustSource = 'case-fallback';
+    trustSource = 'old_save_compatibility';
     if (!(state.runtimeBrokerOwnerRelations ?? []).length) {
       fallbackReasons.push('runtimeBrokerOwnerRelations empty');
     } else {
@@ -317,7 +317,7 @@ export function readOwnerRelationBusinessContext(
   } else {
     patienceValue = caseItem.patience;
     urgencyValue = caseItem.urgency;
-    readinessSource = 'case-fallback';
+    readinessSource = 'old_save_compatibility';
     if (!(state.runtimeOwnerCaseReadinessStates ?? []).length) {
       fallbackReasons.push('runtimeOwnerCaseReadinessStates empty');
     } else {
@@ -385,7 +385,7 @@ export function readCaseRelationBundleFromRuntime(
         brokerId: '',
         ownerId,
         trust: caseItem.trust,
-        source: 'case-fallback' as const,
+        source: 'old_save_compatibility' as const,
       });
 
   // Readiness: read from runtime canonical source, fallback to Case mirror
@@ -400,7 +400,7 @@ export function readCaseRelationBundleFromRuntime(
     patience: runtimeReadinessState?.patience ?? caseItem.patience,
     urgency: runtimeReadinessState?.urgency ?? caseItem.urgency,
     windowDays: caseItem.windowDays,
-    source: (runtimeReadinessState ? 'canonical-relation' : 'case-fallback') as 'canonical-relation' | 'case-fallback',
+    source: (runtimeReadinessState ? 'canonical-relation' : 'old_save_compatibility') as 'canonical-relation' | 'old_save_compatibility',
   });
 
   return Object.freeze({

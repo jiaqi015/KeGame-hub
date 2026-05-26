@@ -1,6 +1,7 @@
 import { Case, Opportunity, GameState, CompetitivenessSnapshot } from './models.js';
 import { BALANCE } from './config/balance.js';
 import { clamp } from './utils.js';
+import { isOpportunityActiveByCanonicalState } from './opportunityLifecycleStatusRead.js';
 
 export function updateCompetitiveness(world: GameState, caseItem: Case) {
   const scoringBalance = BALANCE.scoring;
@@ -50,7 +51,7 @@ export function updateCompetitiveness(world: GameState, caseItem: Case) {
 function calculateD1(world: GameState, caseItem: Case) {
   const scoringBalance = BALANCE.scoring;
   const d1Normalization = scoringBalance.d1Normalization;
-  const opps = world.opportunities.filter(o => o.caseId === caseItem.id && o.status === 'active');
+  const opps = world.opportunities.filter(o => o.caseId === caseItem.id && isOpportunityActiveByCanonicalState(world, o));
   const allOppsForCase = world.opportunities.filter(o => o.caseId === caseItem.id);
   
   // 1. 客群池大小 (Pool size): 过去 7 天内进入了解阶段的客户数

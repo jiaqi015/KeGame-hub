@@ -1,13 +1,17 @@
 import { logEvent, recordDomainEvent } from '../runtimeState.js';
 import { BALANCE } from '../config/balance.js';
 import type { GameState } from '../models.js';
+import { asWritableGameState } from '../models.js';
 import { clamp, randomInt, wave, average } from '../utils.js';
 import { applyBrokerOwnerTrustDelta, clampBrokerOwnerTrust } from '../trustWriteHelper.js';
-import { applyOwnerCasePatienceDelta, applyOwnerCaseUrgencyDelta } from '../ownerCaseReadinessHelper.js';
+import { applyOwnerCasePatienceDelta, applyOwnerCaseUrgencyDelta } from '../ownerCaseReadinessWriteHelper.js';
 import { readOwnerBehaviorDimensions, readOwnerDecisionProfile } from '../ownerDecisionProfileHelper.js';
 import { readCaseRelationBusinessContextFromRuntime } from '../../core/world-state/relationReadProjection.js';
 import { withdrawCase } from './actionResolvers.js';
 import { getMarketCell } from './opportunityEngine.js';
+import { readCaseTerminalOutcomeForCase } from '../caseOutcome.js';
+import { isCaseActiveByCanonicalStatus } from '../caseLifecycleStatusRead.js';
+import { isOpportunityActiveByCanonicalState } from '../opportunityLifecycleStatusRead.js';
 
 export function updateMarkets(world: GameState) {
   const marketPulseBalance = BALANCE.market.marketPulse;
@@ -38,7 +42,7 @@ export function updateMarkets(world: GameState) {
   });
 
   world.cases.forEach((caseItem) => {
-    if (caseItem.status !== 'active') return;
+    if (!isCaseActiveByCanonicalStatus(world, caseItem)) return;
     const cell = getMarketCell(world, caseItem.marketCellId);
     if (!cell) {
       return;
@@ -89,7 +93,7 @@ export function updateCustomers(world: GameState) {
 export function tickCases(world: GameState) {
   const caseTickBalance = BALANCE.market.caseTick;
   world.cases.forEach((caseItem) => {
-    if (caseItem.status !== 'active') return;
+    if (!isCaseActiveByCanonicalStatus(world, caseItem)) return;
 
     caseItem.openDayCooldown = Math.max(0, caseItem.openDayCooldown - 1);
     caseItem.windowDays -= 1;
@@ -158,7 +162,7 @@ export function tickCases(world: GameState) {
       const relationTrust = relationContext.trustValue;
       if (
         relationTrust >= caseTickBalance.renewalTrustThreshold
-        && caseItem.ownerSatisfaction !== 'unhappy'
+        && readCaseTerminalOutcomeForCase(world, caseItem, caseItem.trust).ownerSatisfaction !== 'unhappy'
         && caseItem.d3 >= caseTickBalance.renewalD3Threshold
       ) {
         caseItem.windowDays = caseTickBalance.renewalWindowDays;
@@ -189,10 +193,10 @@ export function tickCases(world: GameState) {
 }
 
 export function createWeeklyReview(world: GameState) {
-  const activeOpportunities = world.opportunities.filter((entry) => entry.status === 'active').length;
-  const averageTrust = average(world.cases.filter((entry) => entry.status === 'active').map((entry) => entry.trust));
+  const activeOpportunities = world.opportunities.filter((entry) => isOpportunityActiveByCanonicalState(world, entry)).length;
+  const averageTrust = average(world.cases.filter((entry) => isCaseActiveByCanonicalStatus(world, entry)).map((entry) => entry.trust));
   const hottestCase = world.cases
-    .filter((entry) => entry.status === 'active')
+    .filter((entry) => isCaseActiveByCanonicalStatus(world, entry))
     .sort((left, right) => (right.heat + right.competitiveness) - (left.heat + left.competitiveness))[0];
   const note = hottestCase
     ? `活跃机会 ${activeOpportunities} 个，平均业主信任 ${Math.round(averageTrust)}。本周热度最高的房源是 ${hottestCase.title}。`
@@ -203,7 +207,7 @@ export function createWeeklyReview(world: GameState) {
       ? '活跃机会数量偏少，准客池厚度不足。'
       : '已经走到后段的客户较多，最后几步怎么推进会更关键。';
 
-  world.weeklyReviews.unshift({
+  asWritableGameState(world).weeklyReviews.unshift({
     id: `week-${world.day}`,
     title: `第 ${Math.ceil(world.day / 7)} 周复盘`,
     note,

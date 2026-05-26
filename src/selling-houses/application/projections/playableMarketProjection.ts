@@ -36,6 +36,7 @@ import type {
   MarketCell,
   RivalListing,
 } from '../../domain/models.js';
+import { isCaseActiveByCanonicalStatus } from '../../domain/caseLifecycleStatusRead.js';
 
 import type {
   ActorKnowledgeSnapshot,
@@ -328,7 +329,7 @@ function buildOwnerPool(
   aggregatedSignals: readonly PressureSignal[],
   sharedRefs?: SharedCausalRefs,
 ): OwnerPoolDimension {
-  const activeCases = state.cases.filter((c) => c.status === 'active');
+  const activeCases = state.cases.filter((c) => isCaseActiveByCanonicalStatus(state, c));
   const totalActive = activeCases.length;
 
   const highPressureCases = activeCases.filter((c) => {
@@ -371,7 +372,7 @@ function buildBrokerOpportunity(
   const budgetRemaining = state.auxiliaryStats?.promotionBudget ?? 0;
 
   const actions: BrokerOpportunityAction[] = [];
-  const activeCases = state.cases.filter((c) => c.status === 'active');
+  const activeCases = state.cases.filter((c) => isCaseActiveByCanonicalStatus(state, c));
 
   if (actorKnowledgeMap && actorKnowledgeMap.size > 0) {
     // Build from decision pipeline — iterate ALL cases with knowledge

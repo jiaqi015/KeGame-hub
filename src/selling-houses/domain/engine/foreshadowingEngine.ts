@@ -3,7 +3,7 @@ import { randomInt } from '../utils.js';
 
 export function checkForeshadowing(
   store: ForeshadowingHook[] | undefined,
-  eventStore: DomainEventEntry[],
+  eventStore: readonly DomainEventEntry[],
   currentDay: number
 ): ForeshadowingHook[] {
   if (!store) return [];

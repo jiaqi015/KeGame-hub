@@ -1,4 +1,5 @@
 import type { GameState } from '../../domain/models.js';
+import { isCaseActiveByCanonicalStatus } from '../../domain/caseLifecycleStatusRead.js';
 import { deriveCaseRecommendations } from '../../domain/recommendationEngine.js';
 import {
   buildDecisionSupportWorkspaceProjection,
@@ -90,7 +91,7 @@ export interface ArchitectureParityProjection {
 const ARCHITECTURE_PARITY_FIXED_FORK_CREATED_AT = '2026-04-30T00:00:00.000Z';
 
 function activeCases(state: GameState) {
-  return state.cases.filter((caseItem) => caseItem.status === 'active');
+  return state.cases.filter((caseItem) => isCaseActiveByCanonicalStatus(state, caseItem));
 }
 
 function runtimeCaseStateCount(state: GameState) {

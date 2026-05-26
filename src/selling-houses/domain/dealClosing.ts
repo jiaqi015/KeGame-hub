@@ -14,16 +14,25 @@ import type {
   GameState,
   Opportunity,
 } from './models.js';
-import { asWritableCase } from './models.js';
+import { asWritableCase, asWritableGameState } from './models.js';
+import { isOpportunityActiveByCanonicalState } from './opportunityLifecycleStatusRead.js';
+import {
+  type CanonicalStoreWriteProvenance,
+  type CanonicalStoreWriteReceipt,
+  type LegacyMirrorWriteReceipt,
+  makeStoreWriteReceipt,
+  makeLegacyMirrorWriteReceipt,
+} from '../core/world-state/canonicalStoreKernel.js';
 import { BALANCE } from './config/balance.js';
 import { recordBudgetChange } from './budget.js';
 import { applyAuxiliaryStats } from './runtimeStats.js';
 import { logEvent, recordDomainEvent } from './runtimeState.js';
 import { closeOpportunity, refreshOpportunityLabel } from './engine/opportunityEngine.js';
 import { clamp } from './utils.js';
-import { applyBrokerOwnerTrustDelta } from './trustWriteHelper.js';
-import { markCaseSoldFromContract } from './caseOutcome.js';
+import { applyBrokerOwnerTrustDelta, readBrokerOwnerTrustState } from './trustWriteHelper.js';
+import { markCaseSoldFromContract, readCaseTerminalOutcomeForCase } from './caseOutcome.js';
 import { applyOpportunityIntentDeltaOnState, applyOpportunityConfidenceDeltaOnState, setOpportunityDaysLeftOnState, setOpportunityTouchedTodayOnState, setOpportunityPendingClosingOnState, setOpportunityStatusOnState, findBrokeredStateForOpportunity, findMatchStateForPair, ensureCustomerCaseMatchState, ensureBrokeredOpportunityState, syncCustomerRuntimeStageMirrorFromOpportunityOnState, syncOpportunityStageMirrorFromTrajectoryOnState } from './opportunitySplitHelper.js';
+import { readOwnerCaseReadinessState } from './ownerCaseReadinessWriteHelper.js';
 import { ensureConsensusFormation, setConsensusEvaluationOnState, setConsensusStageOnState, markConsensusSignedOnState, markConsensusCollapsedOnState, ensureConsensusRuntime, createOpportunityClosureOnState, findContractForCase, createContractFactFromPriceConsensusOnState, markConsensusSignedFromPriceConsensusOnState, type ContractFactState } from './consensusFormationHelper.js';
 import { buildConsensusFormationId } from '../core/world-state/consensus/writeSource.js';
 import { readOwnerDecisionProfile, type OwnerDecisionProfile } from './ownerDecisionProfileHelper.js';
@@ -41,6 +50,8 @@ import {
   type PriceConsensusProof,
   type WeightExplanation,
 } from '../core/world-state/consensus/priceTrajectory.js';
+import { readBrokerCustomerTrust as readBrokerCustomerTrustFromBoundary } from '../core/world-state/customer/customerReadBoundary.js';
+import { isCaseActiveByCanonicalStatus } from './caseLifecycleStatusRead.js';
 import {
   computeCloseProbability,
   buildDefaultCloseProbabilityWeights,
@@ -58,65 +69,51 @@ function syncCustomerJourneyStageMirrorFromDealClose(
 }
 
 // ---------------------------------------------------------------------------
-// BrokerCustomerRelation trust read helper
-// ---------------------------------------------------------------------------
-
-interface BrokerCustomerTrustResult {
-  readonly trust: number;
-  readonly familiarity: number;
-  readonly influence: number;
-  readonly relationSource: 'relation' | 'legacy-customer-runtime-fallback';
-  readonly relationId: string;
-}
-
-function readBrokerCustomerTrust(
-  state: GameState,
-  brokerId: string,
-  customerId: string,
-): BrokerCustomerTrustResult {
-  const relations = state.runtimeBrokerCustomerRelations;
-  if (relations) {
-    const match = relations.find(
-      (r) => r.brokerId === brokerId && r.customerId === customerId,
-    );
-    if (match) {
-      return {
-        trust: match.trust,
-        familiarity: match.familiarity,
-        influence: match.influence,
-        relationSource: match.source === 'canonical' ? 'relation' : 'legacy-customer-runtime-fallback',
-        relationId: match.relationId,
-      };
-    }
-  }
-
-  const customerState = state.customerStates.find(
-    (cs) => cs.customerId === customerId,
-  );
-  const fallbackTrust = customerState?.advisorTrust ?? 48;
-  return {
-    trust: fallbackTrust,
-    familiarity: 20,
-    influence: 30,
-    relationSource: 'legacy-customer-runtime-fallback',
-    relationId: `fallback:${brokerId}::${customerId}`,
-  };
-}
-
-// ---------------------------------------------------------------------------
 // PriceTrajectory runtime helpers
 // ---------------------------------------------------------------------------
 
 function ensurePriceTrajectoryRuntime(state: GameState): {
-  trajectories: PriceTrajectory[];
-  readinesses: PriceConsensusReadiness[];
+  trajectories: readonly PriceTrajectory[];
+  readinesses: readonly PriceConsensusReadiness[];
 } {
-  if (!state.runtimePriceTrajectories) state.runtimePriceTrajectories = [];
-  if (!state.runtimePriceConsensusReadinesses) state.runtimePriceConsensusReadinesses = [];
+  if (!state.runtimePriceTrajectories) {
+    asWritableGameState(state).runtimePriceTrajectories = [];
+  }
+  if (!state.runtimePriceConsensusReadinesses) {
+    asWritableGameState(state).runtimePriceConsensusReadinesses = [];
+  }
   return {
     trajectories: state.runtimePriceTrajectories,
     readinesses: state.runtimePriceConsensusReadinesses,
   };
+}
+
+/**
+ * Store-level ensure helper for price trajectory store.
+ * Returns a CanonicalStoreWriteReceipt for audit.
+ */
+export function ensureRuntimePriceTrajectories(
+  state: GameState,
+  provenance: CanonicalStoreWriteProvenance = 'canonical-bootstrap',
+): CanonicalStoreWriteReceipt {
+  if (!state.runtimePriceTrajectories) {
+    asWritableGameState(state).runtimePriceTrajectories = [];
+  }
+  return makeStoreWriteReceipt('runtimePriceTrajectories', 'ensure', provenance, {
+    nextCount: state.runtimePriceTrajectories.length,
+  });
+}
+
+export function ensureRuntimePriceConsensusReadinesses(
+  state: GameState,
+  provenance: CanonicalStoreWriteProvenance = 'canonical-bootstrap',
+): CanonicalStoreWriteReceipt {
+  if (!state.runtimePriceConsensusReadinesses) {
+    asWritableGameState(state).runtimePriceConsensusReadinesses = [];
+  }
+  return makeStoreWriteReceipt('runtimePriceConsensusReadinesses', 'ensure', provenance, {
+    nextCount: state.runtimePriceConsensusReadinesses.length,
+  });
 }
 
 function storePriceTrajectoryAndReadiness(
@@ -127,21 +124,43 @@ function storePriceTrajectoryAndReadiness(
   const { trajectories, readinesses } = ensurePriceTrajectoryRuntime(state);
   const existingTrajIdx = trajectories.findIndex(t => t.trajectoryId === trajectory.trajectoryId);
   if (existingTrajIdx >= 0) {
-    trajectories[existingTrajIdx] = trajectory;
+    asWritableGameState(state).runtimePriceTrajectories[existingTrajIdx] = trajectory;
   } else {
-    trajectories.push(trajectory);
+    asWritableGameState(state).runtimePriceTrajectories.push(trajectory);
   }
   const existingReadyIdx = readinesses.findIndex(r => r.readinessId === readiness.readinessId);
   if (existingReadyIdx >= 0) {
-    readinesses[existingReadyIdx] = readiness;
+    asWritableGameState(state).runtimePriceConsensusReadinesses[existingReadyIdx] = readiness;
   } else {
-    readinesses.push(readiness);
+    asWritableGameState(state).runtimePriceConsensusReadinesses.push(readiness);
   }
 }
 
 // ---------------------------------------------------------------------------
 // ContractFact → legacy mirror sync (controlled terminal writes)
 // ---------------------------------------------------------------------------
+
+/**
+ * Prepends a ClosedDealRecord to the closedDeals mirror store.
+ * This is the ONLY allowed way to add to closedDeals in production.
+ * Provenance must be 'contract-fact' (from a canonical ContractFactState).
+ * R32: Returns honest LegacyMirrorWriteReceipt naming closedDeals, not the canonical source.
+ */
+export function prependClosedDealMirrorFromContractFact(
+  state: GameState,
+  closedDeal: ClosedDealRecord,
+  contractFactId?: string,
+  provenance: CanonicalStoreWriteProvenance = 'contract-fact',
+): LegacyMirrorWriteReceipt {
+  const previousCount = state.closedDeals.length;
+  asWritableGameState(state).closedDeals.unshift(closedDeal);
+  return makeLegacyMirrorWriteReceipt('closedDeals', 'mirror-prepend', provenance, {
+    canonicalSourceId: contractFactId,
+    recordId: closedDeal.dealId,
+    previousCount,
+    nextCount: previousCount + 1,
+  });
+}
 
 /**
  * Syncs legacy Case/ClosedDealRecord mirrors from a canonical ContractFact.
@@ -174,8 +193,8 @@ export function syncLegacyCaseDealMirrorsFromContractFact(
   asWritableCase(caseItem).soldPrice = contract.dealPrice;
   caseItem.stageLabel = '已成交';
 
-  // R27: Always use markCaseSoldFromContract — no loose markCaseSold in production
-  markCaseSoldFromContract(caseItem, contract.dealPrice, contract.priceConsensusProofId ?? contract.contractId);
+  // R29: markCaseSoldFromContract consumes full ContractFactState
+  markCaseSoldFromContract(caseItem, contract);
 
   // Build legacy ClosedDealRecord mirror via single authority constructor
   const closedDeal: ClosedDealRecord = buildClosedDealRecord(
@@ -185,7 +204,7 @@ export function syncLegacyCaseDealMirrorsFromContractFact(
   if (input.consensusFormationId) closedDeal.consensusId = input.consensusFormationId;
   closedDeal.contractId = contract.contractId;
   if (input.opportunityClosureSetId) closedDeal.closureSetId = input.opportunityClosureSetId;
-  state.closedDeals.unshift(closedDeal);
+  prependClosedDealMirrorFromContractFact(state, closedDeal, contract.contractId, 'contract-fact');
 }
 
 function resolveNegotiationStrategy(strategyId?: string | null) {
@@ -198,44 +217,37 @@ function clearPendingDealClosing(state: GameState, opportunity: Opportunity) {
 }
 
 // ---------------------------------------------------------------------------
-// Relation-layer reads with Case fallback
+// R30: Relation-layer reads using shared boundaries with old_save_compatibility fallback
 // ---------------------------------------------------------------------------
 
 /**
- * Read trust from runtime broker-owner relation state.
- * Falls back to Case.trust when relation state is not populated.
- *
- * Mother model: trust belongs to BrokerOwnerRelation, not AssetCase.
+ * R30: Read trust from shared boundary with explicit fallback provenance.
+ * Replaces local readRelationTrustForCase.
  */
-function readRelationTrustForCase(state: GameState, caseItem: Case): number {
-  const relations = state.runtimeBrokerOwnerRelations;
-  if (relations) {
-    const match = relations.find(r => r.ownerId === `owner:${caseItem.id}` || r.ownerId === caseItem.ownerName);
-    if (match) return match.trust;
+function readTrustWithSource(state: GameState, caseItem: Case): { value: number; source: 'canonical_relation' | 'old_save_compatibility' } {
+  const relationState = readBrokerOwnerTrustState(state, caseItem);
+  if (relationState) {
+    return { value: relationState.trust, source: 'canonical_relation' };
   }
-  return caseItem.trust;
+  return { value: caseItem.trust, source: 'old_save_compatibility' };
 }
 
 interface RelationReadiness {
   readonly patience: number;
   readonly urgency: number;
-  /** Source: 'relation' when runtime state available, 'case-fallback' otherwise. */
-  readonly source: 'relation' | 'case-fallback';
+  readonly source: 'canonical_relation' | 'old_save_compatibility';
 }
 
 /**
- * Read patience/urgency from runtime owner-case readiness state.
- * Falls back to Case.patience / Case.urgency when relation state is not populated.
- *
- * Mother model: patience/urgency belong to OwnerCaseRelation, not AssetCase.
+ * R30: Read readiness from shared boundary with explicit fallback provenance.
+ * Replaces local readRelationReadinessForCase.
  */
-function readRelationReadinessForCase(state: GameState, caseItem: Case): RelationReadiness {
-  const states = state.runtimeOwnerCaseReadinessStates;
-  if (states) {
-    const match = states.find(s => s.assetCaseId === caseItem.id);
-    if (match) return { patience: match.patience, urgency: match.urgency, source: 'relation' };
+function readReadinessWithSource(state: GameState, caseItem: Case): RelationReadiness {
+  const readinessState = readOwnerCaseReadinessState(state, caseItem);
+  if (readinessState) {
+    return { patience: readinessState.patience, urgency: readinessState.urgency, source: 'canonical_relation' };
   }
-  return { patience: caseItem.patience, urgency: caseItem.urgency, source: 'case-fallback' };
+  return { patience: caseItem.patience, urgency: caseItem.urgency, source: 'old_save_compatibility' };
 }
 
 function finalizeClosedDeal(
@@ -382,7 +394,7 @@ function finalizeClosedDeal(
   });
 
   state.opportunities.forEach((entry) => {
-    if (entry.caseId !== caseItem.id || entry.status !== 'active') {
+    if (entry.caseId !== caseItem.id || !isOpportunityActiveByCanonicalState(state, entry)) {
       return;
     }
     setOpportunityStatusOnState(state, entry, entry.id === opportunity.id ? 'won' : 'closed', '成交结算');
@@ -426,11 +438,11 @@ function finalizeClosedDeal(
       budgetReturn,
       closeReadiness: evaluation.closeReadiness,
       closeProbability: evaluation.closeProbability,
-      ownerSatisfaction: caseItem.ownerSatisfaction,
-      defenseOutcome: caseItem.defenseOutcome,
-      endingType: caseItem.endingType,
-      endingBucket: caseItem.endingBucket,
-      relativeOutcome: caseItem.relativeOutcome,
+      ownerSatisfaction: readCaseTerminalOutcomeForCase(state, caseItem, caseItem.trust).ownerSatisfaction,
+      defenseOutcome: readCaseTerminalOutcomeForCase(state, caseItem, caseItem.trust).defenseOutcome,
+      endingType: readCaseTerminalOutcomeForCase(state, caseItem, caseItem.trust).endingType,
+      endingBucket: readCaseTerminalOutcomeForCase(state, caseItem, caseItem.trust).endingBucket,
+      relativeOutcome: readCaseTerminalOutcomeForCase(state, caseItem, caseItem.trust).relativeOutcome,
     },
   });
 
@@ -556,10 +568,10 @@ export function queueDealClosingEvaluation(
 }
 
 export function settlePendingDealClosings(state: GameState) {
-  const pendingOpportunities = state.opportunities.filter((entry) => entry.status === 'active' && entry.pendingClosingEvaluation);
+  const pendingOpportunities = state.opportunities.filter((entry) => isOpportunityActiveByCanonicalState(state, entry) && entry.pendingClosingEvaluation);
   pendingOpportunities.forEach((opportunity) => {
     const caseItem = state.cases.find((entry) => entry.id === opportunity.caseId);
-    if (!caseItem || caseItem.status !== 'active') {
+    if (!caseItem || !isCaseActiveByCanonicalStatus(state, caseItem)) {
       clearPendingDealClosing(state, opportunity);
       return;
     }
@@ -658,16 +670,16 @@ export function buildDealClosingEvaluation(
 ): DealClosingEvaluation {
   const brokerId = state.bigWorldRuntime?.playerBrokerAcnId ?? 'player-broker';
 
-  // Read trust from relation layer (canonical), fallback to Case
-  const trust = readRelationTrustForCase(state, caseItem);
+  // R30: Read trust from shared boundary with explicit provenance
+  const trustResult = readTrustWithSource(state, caseItem);
+  const trust = trustResult.value;
   const trustSource: EvaluationSourceTrace['trustSource'] =
-    state.runtimeBrokerOwnerRelations?.find(r => r.ownerId === `owner:${caseItem.id}` || r.ownerId === caseItem.ownerName)
-      ? 'relation' : 'case-fallback';
-  const readiness = readRelationReadinessForCase(state, caseItem);
+    trustResult.source === 'canonical_relation' ? 'relation' : 'old_save_compatibility';
+  const readiness = readReadinessWithSource(state, caseItem);
   const ownerProfile = readOwnerDecisionProfile(caseItem);
 
-  // Read broker-customer trust from relation layer, fallback to CustomerRuntimeState
-  const bcrResult = readBrokerCustomerTrust(state, brokerId, opportunity.customerId);
+  // R33: Read broker-customer trust from shared read boundary
+  const bcrResult = readBrokerCustomerTrustFromBoundary(state, brokerId, opportunity.customerId);
 
   // Read competition-derived evidence (read-only, does not change outcome directly)
   const cell = getMarketCell(state, caseItem.marketCellId);
@@ -744,7 +756,7 @@ export function buildDealClosingEvaluation(
 
   const sourceTrace: EvaluationSourceTrace = {
     trustSource,
-    readinessSource: readiness.source,
+    readinessSource: readiness.source === 'canonical_relation' ? 'relation' : 'old_save_compatibility',
     profileSource: ownerProfile.source,
     customerTrustSource: bcrResult.relationSource,
   };

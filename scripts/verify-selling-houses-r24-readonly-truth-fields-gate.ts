@@ -117,7 +117,7 @@ console.log('\n=== R24-1: Readonly truth fields in public type surface ===\n');
     check(modelsSrc.includes('export function asWritableOpportunity'), 'asWritableOpportunity cast function exists');
 
     // WritableCase re-exposes only the readonly fields as mutable
-    check(modelsSrc.includes("Omit<Case, 'status' | 'trust' | 'patience' | 'urgency' | 'soldPrice'>"),
+    check(modelsSrc.includes("Omit<Case, 'status' | 'trust' | 'patience' | 'urgency' | 'soldPrice' | 'ownerSatisfaction' | 'defenseOutcome' | 'endingType' | 'endingBucket' | 'relativeOutcome'>"),
       'WritableCase omits readonly truth fields from Case');
     check(modelsSrc.includes("Omit<Opportunity, 'stageIndex'>"),
       'WritableOpportunity omits readonly stageIndex from Opportunity');
@@ -134,7 +134,6 @@ console.log('\n=== R24-2: Production truth writes through canonical builders onl
     'src/selling-houses/domain/caseOutcome.ts',
     'src/selling-houses/domain/dealClosing.ts',
     'src/selling-houses/domain/trustWriteHelper.ts',
-    'src/selling-houses/domain/ownerCaseReadinessHelper.ts',
     'src/selling-houses/domain/ownerCaseReadinessWriteHelper.ts',
   ];
 
@@ -238,11 +237,9 @@ console.log('\n=== R24-4: Case trust/readiness write confinement ===\n');
       'ownerCaseReadinessWriteHelper.ts has readiness mirror boundary function');
   }
 
+  // R30: old helper deleted — verify it's gone
   const readinessHelperSrc = readFileSafe('src/selling-houses/domain/ownerCaseReadinessHelper.ts');
-  check(readinessHelperSrc !== null, 'ownerCaseReadinessHelper.ts exists');
-  if (readinessHelperSrc) {
-    check(readinessHelperSrc.includes('asWritableCase'), 'ownerCaseReadinessHelper.ts uses asWritableCase');
-  }
+  check(readinessHelperSrc === null, 'ownerCaseReadinessHelper.ts is deleted (R30)');
 
   // No trust/patience/urgency writes on caseItem outside named boundary files
   const otherDomainFiles = [

@@ -292,7 +292,6 @@ console.log('\n=== R19-6: No direct readiness/trust writes outside canonical hel
     'src/selling-houses/core/world-state/trustWriteSource.ts',
   ];
   const CANONICAL_READINESS_HELPERS = [
-    'src/selling-houses/domain/ownerCaseReadinessHelper.ts',
     'src/selling-houses/domain/ownerCaseReadinessWriteHelper.ts',
     'src/selling-houses/core/world-state/ownerCaseReadinessWriteSource.ts',
   ];
@@ -360,11 +359,15 @@ console.log('\n=== R19-7: Canonical records sync deterministic mirrors ===\n');
     check(trustHelperSrc.includes('deriveCaseTrustMirror'), 'trustWriteHelper uses deriveCaseTrustMirror for mirror sync');
   }
 
+  // R30: old helper deleted — WriteHelper is the canonical source
   const readinessHelperSrc = readFileSafe('src/selling-houses/domain/ownerCaseReadinessHelper.ts');
-  check(readinessHelperSrc !== null, 'ownerCaseReadinessHelper.ts exists');
-  if (readinessHelperSrc) {
-    check(readinessHelperSrc.includes('deriveCasePatienceMirror'), 'readinessHelper uses deriveCasePatienceMirror for mirror sync');
-    check(readinessHelperSrc.includes('deriveCaseUrgencyMirror'), 'readinessHelper uses deriveCaseUrgencyMirror for mirror sync');
+  check(readinessHelperSrc === null, 'ownerCaseReadinessHelper.ts is deleted (R30)');
+
+  const readinessWriteHelperSrc = readFileSafe('src/selling-houses/domain/ownerCaseReadinessWriteHelper.ts');
+  check(readinessWriteHelperSrc !== null, 'ownerCaseReadinessWriteHelper.ts exists');
+  if (readinessWriteHelperSrc) {
+    check(readinessWriteHelperSrc.includes('deriveCasePatienceMirror'), 'WriteHelper uses deriveCasePatienceMirror for mirror sync');
+    check(readinessWriteHelperSrc.includes('deriveCaseUrgencyMirror'), 'WriteHelper uses deriveCaseUrgencyMirror for mirror sync');
   }
 }
 
@@ -516,15 +519,15 @@ console.log('\n=== R19-11: ContractFact requires signed consensus ===\n');
   const helperSrc = readFileSafe('src/selling-houses/domain/consensusFormationHelper.ts');
   check(helperSrc !== null, 'consensusFormationHelper.ts exists');
   if (helperSrc) {
-    check(helperSrc.includes('consensusId'), 'createContractFactOnState takes consensusId param');
+    check(helperSrc.includes('consensusId'), 'createContractFactForFixtureOnlyOnState takes consensusId param');
   }
 
-  // Behavioral: createContractFactOnState creates a contract referencing a consensus
-  const { createContractFactOnState } = await import(
+  // Behavioral: createContractFactForFixtureOnlyOnState creates a contract referencing a consensus
+  const { createContractFactForFixtureOnlyOnState } = await import(
     '../src/selling-houses/domain/consensusFormationHelper.js'
   );
   const state: any = { runtimeContractFacts: [], runtimeConsensusFormations: [], runtimeOpportunityClosureSets: [] };
-  const result = createContractFactOnState(
+  const result = createContractFactForFixtureOnlyOnState(
     state,
     'consensus-signed-test',
     'brokered-opp-1',
@@ -540,7 +543,7 @@ console.log('\n=== R19-11: ContractFact requires signed consensus ===\n');
     ['strong trust'],
     ['ptraj:test-1', 'pready:test-1'],
   );
-  check(result !== undefined, 'createContractFactOnState returns a ContractFact');
+  check(result !== undefined, 'createContractFactForFixtureOnlyOnState returns a ContractFact');
   if (result) {
     check(result.consensusId === 'consensus-signed-test', `contract references consensus: ${result.consensusId}`);
   }
@@ -566,12 +569,12 @@ console.log('\n=== R19-12: ContractFact not fakable by receipts ===\n');
   for (const file of receiptFiles) {
     const src = readFileSafe(file);
     if (!src) continue;
-    check(!src.includes('createContractFactOnState'), `${file} does not create ContractFact`);
+    check(!src.includes('createContractFactForFixtureOnlyOnState'), `${file} does not create ContractFact`);
     check(!src.includes('ContractFactState'), `${file} does not reference ContractFactState`);
   }
 
   // Duplicate guard: second contract for same case is rejected
-  const { createContractFactOnState: createContract } = await import(
+  const { createContractFactForFixtureOnlyOnState: createContract } = await import(
     '../src/selling-houses/domain/consensusFormationHelper.js'
   );
   const testState: any = { runtimeContractFacts: [], runtimeConsensusFormations: [], runtimeOpportunityClosureSets: [] };

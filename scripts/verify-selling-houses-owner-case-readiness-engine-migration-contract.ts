@@ -36,7 +36,7 @@ function checkNoBareWrites() {
   const files = findTsFiles(DOMAIN_DIR);
   const violations: string[] = [];
 
-  const allowedFiles = ['ownerCaseReadinessHelper.ts', 'ownerCaseReadinessWriteSource.ts'];
+  const allowedFiles = ['ownerCaseReadinessWriteHelper.ts', 'ownerCaseReadinessWriteSource.ts'];
 
   for (const file of files) {
     const relPath = relative(DOMAIN_DIR, file);
@@ -91,16 +91,16 @@ function checkHelperImports() {
 
   for (const file of files) {
     const relPath = relative(DOMAIN_DIR, file);
-    if (relPath.endsWith('ownerCaseReadinessHelper.ts') || relPath.endsWith('ownerCaseReadinessWriteSource.ts')) continue;
+    if (relPath.endsWith('ownerCaseReadinessWriteHelper.ts') || relPath.endsWith('ownerCaseReadinessWriteSource.ts')) continue;
 
     const content = readFileSync(file, 'utf-8');
     const usesHelper = readinessMutationPatterns.some((p) => p.test(content));
 
     if (usesHelper) {
-      if (!content.includes("from '../ownerCaseReadinessHelper.js'") &&
-          !content.includes("from './ownerCaseReadinessHelper.js'") &&
-          !content.includes("from '../domain/ownerCaseReadinessHelper.js'")) {
-        violations.push(`${relPath}: uses readiness helper but doesn't import it`);
+      if (!content.includes("from '../ownerCaseReadinessWriteHelper.js'") &&
+          !content.includes("from './ownerCaseReadinessWriteHelper.js'") &&
+          !content.includes("from '../domain/ownerCaseReadinessWriteHelper.js'")) {
+        violations.push(`${relPath}: uses readiness helper but doesn't import from WriteHelper`);
       }
     }
   }
@@ -121,9 +121,9 @@ function checkHelperImports() {
 // ---------------------------------------------------------------------------
 
 function checkHelperExports() {
-  console.log('\n=== Check 3: ownerCaseReadinessHelper exports expected functions ===');
+  console.log('\n=== Check 3: ownerCaseReadinessWriteHelper exports expected functions ===');
 
-  const helperPath = join(DOMAIN_DIR, 'ownerCaseReadinessHelper.ts');
+  const helperPath = join(DOMAIN_DIR, 'ownerCaseReadinessWriteHelper.ts');
   const content = readFileSync(helperPath, 'utf-8');
 
   const expectedExports = [
@@ -152,7 +152,7 @@ function checkHelperExports() {
 function checkHelperUsesCore() {
   console.log('\n=== Check 4: Helper uses core ownerCaseReadinessWriteSource ===');
 
-  const helperPath = join(DOMAIN_DIR, 'ownerCaseReadinessHelper.ts');
+  const helperPath = join(DOMAIN_DIR, 'ownerCaseReadinessWriteHelper.ts');
   const content = readFileSync(helperPath, 'utf-8');
 
   const expectedImports = [
@@ -187,7 +187,7 @@ function checkHelperUsesCore() {
 function checkMirrorUsage() {
   console.log('\n=== Check 5: deriveCasePatienceMirror/deriveCaseUrgencyMirror used ===');
 
-  const helperPath = join(DOMAIN_DIR, 'ownerCaseReadinessHelper.ts');
+  const helperPath = join(DOMAIN_DIR, 'ownerCaseReadinessWriteHelper.ts');
   const content = readFileSync(helperPath, 'utf-8');
 
   check(content.includes('deriveCasePatienceMirror'), 'helper uses deriveCasePatienceMirror');

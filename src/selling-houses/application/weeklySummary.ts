@@ -1,4 +1,6 @@
 import type { Case, DailyTickResult, DomainEventEntry, GameState, MarketOutcomeState, Opportunity, Tone } from '../domain/models.js';
+import { isCaseActiveByCanonicalStatus, isCaseSoldByCanonicalStatus, isCaseLostOrWithdrawnByCanonicalStatus } from '../domain/caseLifecycleStatusRead.js';
+import { isOpportunityActiveByCanonicalState } from '../domain/opportunityLifecycleStatusRead.js';
 
 export interface WeeklySummaryLine {
   label: string;
@@ -49,7 +51,7 @@ export function buildWeeklySummaryPresentation(
 
   const isNaturalWeek = settledResults.length === 7;
   const totalClosedDeals = settledResults.reduce((sum, result) => sum + result.closedDeals.length, 0);
-  const activeCases = afterState.cases.filter((entry) => entry.status === 'active').length;
+  const activeCases = afterState.cases.filter((entry) => isCaseActiveByCanonicalStatus(afterState, entry)).length;
 
   return {
     title: isNaturalWeek ? '周经营复盘' : '推进复盘',
@@ -129,7 +131,7 @@ function buildCaseStageChanges(
       }
       const stageText = describeStageMovement(before, caseItem);
       const statusText = statusChanged ? `，状态 ${formatCaseStatus(before.status)} → ${formatCaseStatus(caseItem.status)}` : '';
-      const changeTone = caseItem.status === 'sold' ? 'success' as Tone : caseItem.status === 'active' ? 'accent' as Tone : 'danger' as Tone;
+      const changeTone = isCaseSoldByCanonicalStatus(afterState, caseItem) ? 'success' as Tone : isCaseActiveByCanonicalStatus(afterState, caseItem) ? 'accent' as Tone : 'danger' as Tone;
       return {
         title: caseItem.title,
         detail: `${stageText}${statusText}${describeStageContext(before, caseItem)}${describeEventContext(events)}`,
@@ -454,14 +456,14 @@ function buildDailyHighlights(settledResults: DailyTickResult[]): WeeklySummaryD
 
 function buildPriorityActions(state: GameState): string[] {
   const activeOpportunities = state.opportunities
-    .filter((entry) => entry.status === 'active')
+    .filter((entry) => isOpportunityActiveByCanonicalState(state, entry))
     .sort(compareOpportunityPriority);
   const highIntent = activeOpportunities.find((entry) => entry.intent >= 72 || entry.stageIndex >= 3);
   const lowTrustCase = state.cases
-    .filter((entry) => entry.status === 'active')
+    .filter((entry) => isCaseActiveByCanonicalStatus(state, entry))
     .sort((left, right) => left.trust - right.trust)[0];
   const tightWindowCase = state.cases
-    .filter((entry) => entry.status === 'active')
+    .filter((entry) => isCaseActiveByCanonicalStatus(state, entry))
     .sort((left, right) => left.windowDays - right.windowDays)[0];
   const market = state.marketOutcome || null;
   const openSlots = Math.max(

@@ -5,8 +5,9 @@
  * Evaluation and world-state adapters derive their types from these canonical
  * bases using Pick/extends/alias, so field drift between the two is impossible.
  *
- * Array fields use mutable types so domain types satisfy the contract without
- * casting. Readonly arrays appear only where the domain type is already readonly.
+ * Array fields use readonly types where the domain type uses readonly, so that
+ * the domain type is assignable to the contract without casting. Mutable arrays
+ * are used only where the domain type is also mutable.
  */
 
 // ---------------------------------------------------------------------------
@@ -129,7 +130,7 @@ export interface LegacyCanonicalGameStateLike {
   customers?: LegacyCanonicalCustomerLike[];
   competitionGroups?: LegacyCanonicalCompetitionGroupLike[];
   productRuns?: LegacyCanonicalProductRunLike[];
-  eventStore?: LegacyCanonicalDomainEventLike[];
+  eventStore?: readonly LegacyCanonicalDomainEventLike[];
 }
 
 // ---------------------------------------------------------------------------

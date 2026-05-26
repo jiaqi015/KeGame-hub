@@ -325,7 +325,7 @@ export function markConsensusCollapsed(
 // ContractFactState write functions (pure, no mutation)
 // ---------------------------------------------------------------------------
 
-export function createContractFactState(
+export function createContractFactForFixtureOnlyState(
   consensusId: string,
   brokeredOpportunityId: string,
   caseId: string,

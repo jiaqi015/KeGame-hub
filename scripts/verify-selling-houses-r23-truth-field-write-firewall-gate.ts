@@ -126,6 +126,7 @@ console.log('\n=== R23-2: closedDeals write boundary ===\n');
   if (dealClosingSrc) {
     check(dealClosingSrc.includes('closedDeals.unshift'), 'dealClosing.ts contains closedDeals.unshift');
     check(dealClosingSrc.includes('syncLegacyCaseDealMirrorsFromContractFact'), 'dealClosing.ts has named mirror boundary function');
+    check(dealClosingSrc.includes('prependClosedDealMirrorFromContractFact'), 'dealClosing.ts has prependClosedDealMirrorFromContractFact helper');
   }
 
   // No closedDeals.unshift/push in any other domain file
@@ -214,7 +215,6 @@ console.log('\n=== R23-5: Readiness/trust mirror write boundary ===\n');
   // Count direct trust/patience/urgency writes in domain (excluding test/bootstrap)
   const domainDirs = [
     'src/selling-houses/domain/trustWriteHelper.ts',
-    'src/selling-houses/domain/ownerCaseReadinessHelper.ts',
     'src/selling-houses/domain/ownerCaseReadinessWriteHelper.ts',
   ];
 
@@ -323,7 +323,7 @@ console.log('\n=== R23-7: No raw truth-field writes outside boundary ===\n');
       { encoding: 'utf-8' },
     ).trim();
     const patienceFiles = patienceHits ? patienceHits.split('\n').filter(Boolean) : [];
-    const allowedPatienceFiles = ['ownerCaseReadinessHelper.ts', 'ownerCaseReadinessWriteHelper.ts'];
+    const allowedPatienceFiles = ['ownerCaseReadinessWriteHelper.ts'];
     const forbiddenPatience = patienceFiles.filter(f => !allowedPatienceFiles.some(af => f.includes(af)));
     check(forbiddenPatience.length === 0, `no caseItem.patience= outside readiness helpers (found: ${forbiddenPatience.join(', ') || 'none'})`);
 

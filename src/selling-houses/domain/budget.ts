@@ -1,4 +1,5 @@
 import type { BudgetTransaction, BudgetTransactionKind, GameState } from './models.js';
+import { asWritableGameState } from './models.js';
 import { recordDomainEvent } from './runtimeState.js';
 import { getPromotionBudget } from './runtimeStats.js';
 
@@ -81,9 +82,9 @@ export function recordBudgetChange(
     title: input.title,
     detail: input.detail,
   };
-  state.budgetLedger.unshift(entry);
+  asWritableGameState(state).budgetLedger.unshift(entry);
   if (state.budgetLedger.length > 40) {
-    state.budgetLedger.pop();
+    asWritableGameState(state).budgetLedger.pop();
   }
   recordDomainEvent(state, {
     kind: 'budget_changed',

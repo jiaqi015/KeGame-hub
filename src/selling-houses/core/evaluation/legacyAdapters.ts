@@ -273,6 +273,7 @@ export function buildAssetScoreSnapshotFromLegacyCase(
   const trustRead = readTrust(caseItem, relation);
   const patienceRead = readPatience(caseItem, ownerRelation);
   const urgencyRead = readUrgency(caseItem, ownerRelation);
+  // legacy_status_mirror_read: opportunity status in legacy evaluation adapter
   const activeOpportunities = state.opportunities.filter(
     (entry) => entry.caseId === caseItem.id && entry.status === 'active',
   );
@@ -519,12 +520,14 @@ export function buildRegionOpenDayFitSnapshotFromLegacyState(
   state: Pick<LegacyEvaluationStateLike, 'day' | 'cases' | 'opportunities'>,
   scope: { district: string; community?: string },
 ): RegionOpenDayFitSnapshot {
+  // legacy_status_mirror_read: constrained legacy state shape
   const matchingCases = state.cases.filter((entry) => (
     entry.status === 'active'
     && entry.district === scope.district
     && (!scope.community || entry.community === scope.community)
   ));
   const caseIds = matchingCases.map((entry) => entry.id);
+  // legacy_status_mirror_read: opportunity status in legacy evaluation adapter
   const activeOpportunities = state.opportunities.filter(
     (entry) => caseIds.includes(entry.caseId) && entry.status === 'active',
   );

@@ -7,6 +7,7 @@ import { touchCustomersForCase } from './customerEngine.js';
 import { findBestOpportunity, refreshOpportunityLabel } from './opportunityEngine.js';
 import { applyOpportunityIntentDeltaOnState, applyOpportunityConfidenceDeltaOnState, setOpportunityDaysLeftOnState, setOpportunityTouchedTodayOnState, setOpportunityVisibilityOnState, setOpportunityStageIndexOnState } from '../opportunitySplitHelper.js';
 import type { ActionExecutorMap } from './actionExecutorTypes.js';
+import { isOpportunityActiveByCanonicalState } from '../opportunityLifecycleStatusRead.js';
 
 export const SHOWING_ACTION_EXECUTORS: ActionExecutorMap = {
   showing: ({ state, caseItem, action, optionId, onMessage }) => {
@@ -16,7 +17,7 @@ export const SHOWING_ACTION_EXECUTORS: ActionExecutorMap = {
       ? state.opportunities.find((entry) => (
           entry.id === explicitOpportunityId
           && entry.caseId === caseItem.id
-          && entry.status === 'active'
+          && isOpportunityActiveByCanonicalState(state, entry)
           && entry.stageIndex >= 0
           && entry.stageIndex <= 2
         )) || null

@@ -10,6 +10,8 @@ import {
 } from '../utils.js';
 import { readCaseRelationBusinessContextFromRuntime } from '../../core/world-state/relationReadProjection.js';
 import type { Case, CustomerProfile, GameState, Opportunity, Tone } from '../models.js';
+import { isCaseActiveByCanonicalStatus } from '../caseLifecycleStatusRead.js';
+import { isOpportunityActiveByCanonicalState } from '../opportunityLifecycleStatusRead.js';
 import {
   ensureCustomerCaseMatchState,
   ensureBrokeredOpportunityState,
@@ -56,10 +58,10 @@ export function tickOpportunities(world: GameState) {
   const funnelProgressionScale = Math.max(0, world.rules.outcomeControl.playerFunnelProgressionScale);
   const stagnationScale = Math.max(0, world.rules.outcomeControl.customerStagnationScale);
   world.opportunities.forEach((opportunity) => {
-    if (opportunity.status !== 'active') return;
+    if (!isOpportunityActiveByCanonicalState(world, opportunity)) return;
 
     const caseItem = world.cases.find((entry) => entry.id === opportunity.caseId);
-    if (!caseItem || caseItem.status !== 'active') {
+    if (!caseItem || !isCaseActiveByCanonicalStatus(world, caseItem)) {
       closeOpportunity(world, opportunity, 'closed');
       return;
     }
@@ -182,7 +184,7 @@ export function spawnPassiveLeads(state: GameState) {
   }
 
   state.cases.forEach((caseItem) => {
-    if (caseItem.status !== 'active') return;
+    if (!isCaseActiveByCanonicalStatus(state, caseItem)) return;
 
     const focusMultiplier = caseItem.isFocused ? state.rules.passiveLeadFocusedMultiplier : 1.0;
     const leadSupplyScale = Math.max(0, state.rules.outcomeControl.playerLeadSupplyScale);
@@ -206,12 +208,12 @@ export function createOpportunity(
   silent: boolean = false,
 ) {
   const createBalance = BALANCE.opportunities.create;
-  if (!caseItem || caseItem.status !== 'active') return null;
+  if (!caseItem || !isCaseActiveByCanonicalStatus(world, caseItem)) return null;
   const activeCount = getActiveOpportunities(world, caseItem.id).length;
   if (activeCount >= MAX_ACTIVE_OPPORTUNITIES_PER_CASE) return null;
   const candidates = world.customers.filter((customer) => {
     return customer.targetDistrict === caseItem.district
-      && !world.opportunities.some((entry) => entry.caseId === caseItem.id && entry.customerId === customer.id && entry.status === 'active');
+      && !world.opportunities.some((entry) => entry.caseId === caseItem.id && entry.customerId === customer.id && isOpportunityActiveByCanonicalState(world, entry));
   });
   if (!candidates.length) return null;
   const ranked = candidates
@@ -303,7 +305,7 @@ export function computeCustomerFit(caseItem: Case, customer: CustomerProfile) {
 }
 
 export function getActiveOpportunities(world: GameState, caseId: string) {
-  return world.opportunities.filter((entry) => entry.caseId === caseId && entry.status === 'active');
+  return world.opportunities.filter((entry) => entry.caseId === caseId && isOpportunityActiveByCanonicalState(world, entry));
 }
 
 export function getMarketCell(world: GameState, id: string) {
@@ -403,7 +405,7 @@ export function adjustCaseOpportunities(state: GameState, caseId: string, intent
 
 export function findBestOpportunity(state: GameState, caseId: string, minStage: number = 0, maxStage: number = 4) {
   return state.opportunities
-    .filter((entry) => entry.caseId === caseId && entry.status === 'active' && entry.stageIndex >= minStage && entry.stageIndex <= maxStage)
+    .filter((entry) => entry.caseId === caseId && isOpportunityActiveByCanonicalState(state, entry) && entry.stageIndex >= minStage && entry.stageIndex <= maxStage)
     .sort((left, right) => getOpportunityPriority(right) - getOpportunityPriority(left))[0];
 }
 

@@ -4,9 +4,10 @@ import { clamp, randomInt } from '../utils.js';
 import { createOpportunity } from '../engine/opportunityEngine.js';
 import { createRivalListing } from '../rivals/rivalListingEngine.js';
 import { setOpportunityVisibilityOnState, applyOpportunityIntentDeltaOnState } from '../opportunitySplitHelper.js';
+import { isCaseActiveByCanonicalStatus } from '../caseLifecycleStatusRead.js';
 
 function activeCaseForInbound(state: GameState) {
-  const activeCases = state.cases.filter((entry) => entry.status === 'active');
+  const activeCases = state.cases.filter((entry) => isCaseActiveByCanonicalStatus(state, entry));
   if (!activeCases.length) return null;
   return activeCases[randomInt(0, activeCases.length - 1, state)];
 }

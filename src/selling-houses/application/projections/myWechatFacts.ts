@@ -5,6 +5,8 @@ import type {
   MatterEntry,
   Opportunity,
 } from '../../domain/models.js';
+import { isCaseActiveByCanonicalStatus } from '../../domain/caseLifecycleStatusRead.js';
+import { isOpportunityActiveByCanonicalState } from '../../domain/opportunityLifecycleStatusRead.js';
 import type { DashboardProjection } from './operatingProjection.js';
 import type { MarketIntelProjection } from '../../ui/features/marketIntel.js';
 import { buildOpportunityViewModels } from '../../ui/features/caseOpportunityViewModel.js';
@@ -57,7 +59,7 @@ function extractEvidenceBackedFacts(input: ExtractMyWechatFactsInput): WechatFac
   if (!actorKnowledgeMap) return [];
 
   const facts: WechatFact[] = [];
-  const activeCases = state.cases.filter((c) => c.status === 'active');
+  const activeCases = state.cases.filter((c) => isCaseActiveByCanonicalStatus(state, c));
 
   for (const caseItem of activeCases) {
     const knowledge = actorKnowledgeMap.get(caseItem.id);
@@ -211,13 +213,13 @@ function extractCustomerFacts(input: ExtractMyWechatFactsInput): WechatFact[] {
   const todayPriorityCaseIds = new Set(dashboard.todayPriority.map((entry) => entry.caseId).filter(Boolean));
   const leadCaseId = resolveLeadCaseId(state, dashboard);
   const productCaseIds = new Set(dashboard.productOpportunities.map((entry) => entry.caseId).filter(Boolean));
-  const activeOpportunities = state.opportunities.filter((opportunity) => opportunity.status === 'active');
+  const activeOpportunities = state.opportunities.filter((opportunity) => isOpportunityActiveByCanonicalState(state, opportunity));
   const viewModels = buildOpportunityViewModels(state, activeOpportunities);
 
   return viewModels.flatMap((model) => {
     const opportunity = model.opportunity;
     const caseItem = model.caseItem;
-    if (!caseItem || caseItem.status !== 'active' || opportunity.visibility === 'shadow') {
+    if (!caseItem || !isCaseActiveByCanonicalStatus(state, caseItem) || opportunity.visibility === 'shadow') {
       return [];
     }
 
@@ -463,7 +465,7 @@ function extractMatterFacts(input: ExtractMyWechatFactsInput): WechatFact[] {
     });
 }
 
-export function extractFactsFromEventStore(eventStore: DomainEventEntry[], state: GameState): WechatFact[] {
+export function extractFactsFromEventStore(eventStore: readonly DomainEventEntry[], state: GameState): WechatFact[] {
   return eventStore
     .filter((event) => event.day >= state.day - 1)
     .filter((event) => Boolean(event.caseId || event.opportunityId))
@@ -539,11 +541,11 @@ export function buildWechatFactId(input: {
 }
 
 function activeCases(state: GameState) {
-  return state.cases.filter((caseItem) => caseItem.status === 'active');
+  return state.cases.filter((caseItem) => isCaseActiveByCanonicalStatus(state, caseItem));
 }
 
 function hasActiveCase(state: GameState, caseId: string) {
-  return state.cases.some((caseItem) => caseItem.id === caseId && caseItem.status === 'active');
+  return state.cases.some((caseItem) => caseItem.id === caseId && isCaseActiveByCanonicalStatus(state, caseItem));
 }
 
 function resolveLeadCaseId(state: GameState, dashboard: DashboardProjection) {

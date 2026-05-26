@@ -838,11 +838,11 @@ export interface Case {
   lastRivalThreatDay?: number;
   goalTier: GoalTier;
   storylineState: StorylineState;
-  relativeOutcome?: ListingRelativeOutcome;
-  ownerSatisfaction?: OwnerSatisfactionState;
-  defenseOutcome?: DefenseOutcome;
-  endingType?: ListingEndingType;
-  endingBucket?: ListingEndingBucket;
+  readonly relativeOutcome?: ListingRelativeOutcome;
+  readonly ownerSatisfaction?: OwnerSatisfactionState;
+  readonly defenseOutcome?: DefenseOutcome;
+  readonly endingType?: ListingEndingType;
+  readonly endingBucket?: ListingEndingBucket;
   endingSummary?: string;
   isFocused?: boolean;
   personality: 'pragmatic' | 'emotional' | 'urgent';
@@ -1021,20 +1021,20 @@ export interface EvidenceChainTrace {
   readonly brokerCustomerTrust: number;
   readonly brokerCustomerFamiliarity: number;
   readonly brokerCustomerInfluence: number;
-  readonly brokerCustomerRelationSource: 'relation' | 'legacy-customer-runtime-fallback';
+  readonly brokerCustomerRelationSource: 'relation' | 'legacy-customer-runtime-fallback' | 'old_save_compatibility';
   readonly brokerCustomerRelationId: string;
 }
 
 /** Provenance of inputs used in deal closing evaluation. */
 export interface EvaluationSourceTrace {
-  /** Where trust value came from: 'relation' or 'case-fallback'. */
+  /** Where trust value came from: 'relation' or 'old_save_compatibility'. */
   trustSource: string;
-  /** Where readiness (patience/urgency) came from: 'relation' or 'case-fallback'. */
+  /** Where readiness (patience/urgency) came from: 'relation' or 'old_save_compatibility'. */
   readinessSource: string;
   /** Where owner profile came from: 'profiling' or 'legacy-personality-fallback'. */
   profileSource: string;
-  /** Where broker-customer trust came from: 'relation' or 'legacy-customer-runtime-fallback'. */
-  customerTrustSource: 'relation' | 'legacy-customer-runtime-fallback';
+  /** Where broker-customer trust came from: 'relation', 'legacy-customer-runtime-fallback', or 'old_save_compatibility'. */
+  customerTrustSource: 'relation' | 'legacy-customer-runtime-fallback' | 'old_save_compatibility';
 }
 
 export interface ClosedDealMarketSnapshot {
@@ -1713,10 +1713,10 @@ export interface GameState {
   rngCalls: number;
   cases: Case[];
   opportunities: Opportunity[];
-  budgetLedger: BudgetTransaction[];
-  eventLog: EventLogEntry[];
-  eventStore: DomainEventEntry[];
-  weeklyReviews: WeeklyReview[];
+  readonly budgetLedger: readonly BudgetTransaction[];
+  readonly eventLog: readonly EventLogEntry[];
+  readonly eventStore: readonly DomainEventEntry[];
+  readonly weeklyReviews: readonly WeeklyReview[];
   markets: MarketCell[];
   customers: CustomerProfile[];
   customerStates: CustomerRuntimeState[];
@@ -1728,99 +1728,99 @@ export interface GameState {
   focusMeeting: FocusMeetingState;
   flowProgress?: Record<string, FlowProgressState>;
   productRuns: ProductRun[];
-  closedDeals: ClosedDealRecord[];
+  readonly closedDeals: readonly ClosedDealRecord[];
   marketOutcome?: MarketOutcomeState;
   metrics: DerivedMetrics;
   currentReport: DailyReport | null;
   lastDailyTickResult?: DailyTickResult | null;
   /** Optional runtime BrokerOwnerRelation trust states. Canonical trust write source. */
-  runtimeBrokerOwnerRelations?: import('../core/world-state/trustWriteSource.js').BrokerOwnerRelationTrustState[];
+  readonly runtimeBrokerOwnerRelations?: readonly import('../core/world-state/trustWriteSource.js').BrokerOwnerRelationTrustState[];
   /** Optional runtime BrokerCustomerRelation states. Canonical broker-customer relation source. */
-  runtimeBrokerCustomerRelations?: import('../core/world-state/customer/brokerCustomerRelation.js').BrokerCustomerRelation[];
+  readonly runtimeBrokerCustomerRelations?: readonly import('../core/world-state/customer/brokerCustomerRelation.js').BrokerCustomerRelation[];
   /** Optional runtime OwnerCaseRelation readiness states. Canonical patience/urgency write source. */
-  runtimeOwnerCaseReadinessStates?: import('../core/world-state/ownerCaseReadinessWriteSource.js').OwnerCaseReadinessState[];
+  readonly runtimeOwnerCaseReadinessStates?: readonly import('../core/world-state/ownerCaseReadinessWriteSource.js').OwnerCaseReadinessState[];
   /** Optional runtime CustomerCaseMatch states. Canonical match write source. */
-  runtimeCustomerCaseMatches?: import('../core/world-state/opportunity-relations/writeSource.js').CustomerCaseMatchState[];
+  readonly runtimeCustomerCaseMatches?: readonly import('../core/world-state/opportunity-relations/writeSource.js').CustomerCaseMatchState[];
   /** Optional runtime BrokeredOpportunity states. Canonical opportunity write source. */
-  runtimeBrokeredOpportunities?: import('../core/world-state/opportunity-relations/writeSource.js').BrokeredOpportunityState[];
+  readonly runtimeBrokeredOpportunities?: readonly import('../core/world-state/opportunity-relations/writeSource.js').BrokeredOpportunityState[];
   /** Optional runtime ConsensusFormation states. Canonical consensus write source. */
-  runtimeConsensusFormations?: import('../core/world-state/consensus/writeSource.js').ConsensusFormationState[];
+  readonly runtimeConsensusFormations?: readonly import('../core/world-state/consensus/writeSource.js').ConsensusFormationState[];
   /** Optional runtime ContractFact states. Canonical contract write source. */
-  runtimeContractFacts?: import('../core/world-state/consensus/writeSource.js').ContractFactState[];
+  readonly runtimeContractFacts?: readonly import('../core/world-state/consensus/writeSource.js').ContractFactState[];
   /** Optional runtime OpportunityClosureSet states. Canonical closure write source. */
-  runtimeOpportunityClosureSets?: import('../core/world-state/consensus/writeSource.js').OpportunityClosureSetState[];
+  readonly runtimeOpportunityClosureSets?: readonly import('../core/world-state/consensus/writeSource.js').OpportunityClosureSetState[];
   /** Optional runtime PriceTrajectory states. Canonical price trajectory write source. */
-  runtimePriceTrajectories?: import('../core/world-state/consensus/priceTrajectory.js').PriceTrajectory[];
+  readonly runtimePriceTrajectories?: readonly import('../core/world-state/consensus/priceTrajectory.js').PriceTrajectory[];
   /** Optional runtime PriceConsensusReadiness states. Canonical price readiness write source. */
-  runtimePriceConsensusReadinesses?: import('../core/world-state/consensus/priceTrajectory.js').PriceConsensusReadiness[];
+  readonly runtimePriceConsensusReadinesses?: readonly import('../core/world-state/consensus/priceTrajectory.js').PriceConsensusReadiness[];
   /** Optional runtime CaseTerminalOutcome states. Canonical terminal outcome for non-sold cases. */
-  runtimeCaseTerminalOutcomes?: import('../core/world-state/caseOutcomeTypes.js').CaseTerminalOutcomeState[];
+  readonly runtimeCaseTerminalOutcomes?: readonly import('../core/world-state/caseOutcomeTypes.js').CaseTerminalOutcomeState[];
   /**
    * Optional daily operating ledger — one entry per settled day.
    * Lightweight per-day operating summaries for historical replay and review.
    * Does NOT contain raw GameState/Case/Opportunity — only compressed summaries.
    * Old saves without this field work normally (empty array fallback).
    */
-  operatingLedgerDays?: import('../core/world-state/semantic-receipt/dailyOperatingLedger.js').DailyOperatingLedgerDaySummary[];
+  readonly operatingLedgerDays?: readonly import('../core/world-state/semantic-receipt/dailyOperatingLedger.js').DailyOperatingLedgerDaySummary[];
   /**
    * Optional action receipt history — compressed audit trail of action executions.
    * Each receipt records what action was chosen, what happened, and key field deltas.
    * Does NOT contain raw GameState/Case/Opportunity — only compressed summaries.
    * Old saves without this field work normally (empty array fallback).
    */
-  actionReceiptHistory?: ActionReceipt[];
+  readonly actionReceiptHistory?: readonly ActionReceipt[];
   /**
    * Optional commitment settlement history — compressed audit trail of commitment changes.
    * Each settlement records a commitment state transition (created/advanced/expired/revoked/signed).
    * Does NOT contain raw GameState/Case/Opportunity — only compressed summaries.
    * Old saves without this field work normally (empty array fallback).
    */
-  commitmentSettlementHistory?: CommitmentSettlement[];
+  readonly commitmentSettlementHistory?: readonly CommitmentSettlement[];
   /**
    * Optional process run history — aggregated multi-day business process instances.
    * Derived from actionReceiptHistory and commitmentSettlementHistory.
    * Does NOT contain raw GameState/Case/Opportunity — only compressed summaries.
    * Old saves without this field work normally (empty array fallback).
    */
-  processRunHistory?: import('../core/world-state/processes/models.js').ProcessRun[];
+  readonly processRunHistory?: readonly import('../core/world-state/processes/models.js').ProcessRun[];
   /**
    * Optional owner decision moment history — structural observations of owner decision nodes.
    * Derived from readiness, trust, pressure, commitment, and price signals.
    * Does NOT contain raw GameState/Case/Opportunity — only compressed summaries.
    * Old saves without this field work normally (empty array fallback).
    */
-  ownerDecisionMomentHistory?: OwnerDecisionMoment[];
+  readonly ownerDecisionMomentHistory?: readonly OwnerDecisionMoment[];
   /**
    * Optional strategy fork history — read-only fork branch summaries.
    * Derived from structuredClone + seed. Does NOT alter main world.
    * Old saves without this field work normally (empty array fallback).
    */
-  strategyForkHistory?: StrategyForkSummary[];
+  readonly strategyForkHistory?: readonly StrategyForkSummary[];
   /**
    * Optional manager intervention receipt history.
    * Generated when focus meeting selects cases or manager drafts appear.
    * Does NOT contain raw GameState/Case/Opportunity — only compressed summaries.
    * Old saves without this field work normally (empty array fallback).
    */
-  managerInterventionReceiptHistory?: ManagerInterventionReceipt[];
+  readonly managerInterventionReceiptHistory?: readonly ManagerInterventionReceipt[];
   /**
    * Optional negotiation replay history — replay summaries from consensus/contract/receipts.
    * Derived from processRunHistory, consensusFormations, contractFacts, actionReceipts.
    * Does NOT re-roll dice. Old saves without this field work normally (empty array fallback).
    */
-  negotiationReplayHistory?: NegotiationReplaySummary[];
+  readonly negotiationReplayHistory?: readonly NegotiationReplaySummary[];
   /**
    * Optional business outcome review history — structured reviews from ended ProcessRuns.
    * Derived from processRunHistory with success/failure factors.
    * Does NOT create ContractFact. Old saves without this field work normally (empty array fallback).
    */
-  businessOutcomeReviewHistory?: BusinessOutcomeReview[];
+  readonly businessOutcomeReviewHistory?: readonly BusinessOutcomeReview[];
   /**
    * Optional WeChat conversation receipts — player-authored dialogue turns
    * settled into bounded business effects. The text is not truth by itself;
    * the receipt records the applied deltas and next-step drafts.
    */
-  wechatConversationHistory?: import('../core/world-state/conversation/models.js').ConversationReceipt[];
+  readonly wechatConversationHistory?: readonly import('../core/world-state/conversation/models.js').ConversationReceipt[];
   /**
    * Optional agent memory store — compressed, receipt-backed facts that let
    * scene agents remember prior interactions without owning world truth.
@@ -1858,12 +1858,17 @@ export interface GameState {
  * Case with truth fields writable — for canonical mirror helpers only.
  * Not for general use. The public Case interface has these fields as readonly.
  */
-export type WritableCase = Omit<Case, 'status' | 'trust' | 'patience' | 'urgency' | 'soldPrice'> & {
+export type WritableCase = Omit<Case, 'status' | 'trust' | 'patience' | 'urgency' | 'soldPrice' | 'ownerSatisfaction' | 'defenseOutcome' | 'endingType' | 'endingBucket' | 'relativeOutcome'> & {
   status: Case['status'];
   trust: number;
   patience: number;
   urgency: number;
   soldPrice: Case['soldPrice'];
+  ownerSatisfaction?: OwnerSatisfactionState;
+  defenseOutcome?: DefenseOutcome;
+  endingType?: ListingEndingType;
+  endingBucket?: ListingEndingBucket;
+  relativeOutcome?: ListingRelativeOutcome;
 };
 
 /**
@@ -1888,4 +1893,54 @@ export function asWritableCase(c: Case): WritableCase {
  */
 export function asWritableOpportunity(o: Opportunity): WritableOpportunity {
   return o as WritableOpportunity;
+}
+
+// ---------------------------------------------------------------------------
+// R31: WritableGameState for canonical runtime-collection writes only
+// ---------------------------------------------------------------------------
+
+export type WritableGameState = Omit<GameState,
+  | 'runtimeBrokerOwnerRelations' | 'runtimeBrokerCustomerRelations'
+  | 'runtimeOwnerCaseReadinessStates' | 'runtimeCustomerCaseMatches'
+  | 'runtimeBrokeredOpportunities' | 'runtimeConsensusFormations'
+  | 'runtimeContractFacts' | 'runtimeOpportunityClosureSets'
+  | 'runtimePriceTrajectories' | 'runtimePriceConsensusReadinesses'
+  | 'runtimeCaseTerminalOutcomes'
+  | 'eventLog' | 'eventStore' | 'weeklyReviews' | 'closedDeals'
+  | 'budgetLedger' | 'operatingLedgerDays' | 'actionReceiptHistory'
+  | 'commitmentSettlementHistory' | 'processRunHistory'
+  | 'ownerDecisionMomentHistory' | 'negotiationReplayHistory'
+  | 'businessOutcomeReviewHistory' | 'wechatConversationHistory'
+  | 'strategyForkHistory' | 'managerInterventionReceiptHistory'
+> & {
+  runtimeBrokerOwnerRelations?: import('../core/world-state/trustWriteSource.js').BrokerOwnerRelationTrustState[];
+  runtimeBrokerCustomerRelations?: import('../core/world-state/customer/brokerCustomerRelation.js').BrokerCustomerRelation[];
+  runtimeOwnerCaseReadinessStates?: import('../core/world-state/ownerCaseReadinessWriteSource.js').OwnerCaseReadinessState[];
+  runtimeCustomerCaseMatches?: import('../core/world-state/opportunity-relations/writeSource.js').CustomerCaseMatchState[];
+  runtimeBrokeredOpportunities?: import('../core/world-state/opportunity-relations/writeSource.js').BrokeredOpportunityState[];
+  runtimeConsensusFormations?: import('../core/world-state/consensus/writeSource.js').ConsensusFormationState[];
+  runtimeContractFacts?: import('../core/world-state/consensus/writeSource.js').ContractFactState[];
+  runtimeOpportunityClosureSets?: import('../core/world-state/consensus/writeSource.js').OpportunityClosureSetState[];
+  runtimePriceTrajectories?: import('../core/world-state/consensus/priceTrajectory.js').PriceTrajectory[];
+  runtimePriceConsensusReadinesses?: import('../core/world-state/consensus/priceTrajectory.js').PriceConsensusReadiness[];
+  runtimeCaseTerminalOutcomes?: import('../core/world-state/caseOutcomeTypes.js').CaseTerminalOutcomeState[];
+  eventLog: EventLogEntry[];
+  eventStore: DomainEventEntry[];
+  weeklyReviews: WeeklyReview[];
+  closedDeals: ClosedDealRecord[];
+  budgetLedger: BudgetTransaction[];
+  operatingLedgerDays?: import('../core/world-state/semantic-receipt/dailyOperatingLedger.js').DailyOperatingLedgerDaySummary[];
+  actionReceiptHistory?: ActionReceipt[];
+  commitmentSettlementHistory?: CommitmentSettlement[];
+  processRunHistory?: import('../core/world-state/processes/models.js').ProcessRun[];
+  ownerDecisionMomentHistory?: OwnerDecisionMoment[];
+  negotiationReplayHistory?: NegotiationReplaySummary[];
+  businessOutcomeReviewHistory?: BusinessOutcomeReview[];
+  wechatConversationHistory?: import('../core/world-state/conversation/models.js').ConversationReceipt[];
+  strategyForkHistory?: StrategyForkSummary[];
+  managerInterventionReceiptHistory?: ManagerInterventionReceipt[];
+};
+
+export function asWritableGameState(s: GameState): WritableGameState {
+  return s as WritableGameState;
 }

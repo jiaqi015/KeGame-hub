@@ -3,12 +3,14 @@ import { BALANCE } from '../config/balance.js';
 import type { Case, GameState } from '../models.js';
 import { chance, clamp, randomInt } from '../utils.js';
 import { applyBrokerOwnerTrustDelta } from '../trustWriteHelper.js';
-import { applyOwnerCaseUrgencyDelta } from '../ownerCaseReadinessHelper.js';
+import { applyOwnerCaseUrgencyDelta } from '../ownerCaseReadinessWriteHelper.js';
 import { readCaseRelationBusinessContextFromRuntime } from '../../core/world-state/relationReadProjection.js';
 import { getMarketCell } from './opportunityEngine.js';
 import { sellVisibleRivalForCase } from '../rivals/rivalListingEngine.js';
 import { getRivalOutcomeControl } from './outcomeControlRuntime.js';
 import type { PressureReceiptSink } from '../../core/world-state/competition/models.js';
+import { isCaseActiveByCanonicalStatus, isCaseSoldByCanonicalStatus } from '../caseLifecycleStatusRead.js';
+import { isOpportunityActiveByCanonicalState } from '../opportunityLifecycleStatusRead.js';
 
 function shouldLoseToRival(world: GameState, caseItem: Case, groupPricePremiumRatio: number) {
   const rivalLossBalance = BALANCE.competition.rivalLoss;
@@ -27,13 +29,13 @@ function shouldLoseToRival(world: GameState, caseItem: Case, groupPricePremiumRa
 
   const brokerShadowLeads = world.opportunities.filter((entry) => {
     return entry.caseId === caseItem.id
-      && entry.status === 'active'
+      && isOpportunityActiveByCanonicalState(world, entry)
       && entry.leadSource === 'broker'
       && entry.visibility === 'shadow';
   }).length;
   const ownedActiveLeads = world.opportunities.filter((entry) => {
     return entry.caseId === caseItem.id
-      && entry.status === 'active'
+      && isOpportunityActiveByCanonicalState(world, entry)
       && entry.visibility !== 'shadow';
   });
   const ownedQualifiedLeads = ownedActiveLeads.filter((entry) => entry.stageIndex >= 2).length;
@@ -144,7 +146,7 @@ export function resolveCompetitivePressure(world: GameState, caseItem: Case, sin
 export function tickCompetition(world: GameState, sink?: PressureReceiptSink) {
   const groupEffectsBalance = BALANCE.competition.groupEffects;
   const activeSoldIds = new Set(
-    world.cases.filter((entry) => entry.status === 'sold').map((entry) => entry.id),
+    world.cases.filter((entry) => isCaseSoldByCanonicalStatus(world, entry)).map((entry) => entry.id),
   );
 
   world.competitionGroups.forEach((group) => {
@@ -152,7 +154,7 @@ export function tickCompetition(world: GameState, sink?: PressureReceiptSink) {
       .map((memberId) => world.cases.find((entry) => entry.id === memberId))
       .filter((entry): entry is Case => Boolean(entry));
 
-    const activeMembers = members.filter((entry) => entry.status === 'active');
+    const activeMembers = members.filter((entry) => isCaseActiveByCanonicalStatus(world, entry));
     if (!activeMembers.length) {
       return;
     }

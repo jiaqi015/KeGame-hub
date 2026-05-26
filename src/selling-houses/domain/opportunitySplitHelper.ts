@@ -37,9 +37,42 @@ import {
 } from '../core/world-state/opportunity-relations/writeSource.js';
 
 import type { GameState, Opportunity, CustomerRuntimeState } from './models.js';
-import { asWritableOpportunity } from './models.js';
+import { asWritableOpportunity, asWritableGameState } from './models.js';
 import { OPPORTUNITY_STAGES } from './constants.js';
 import { clamp } from './utils.js';
+import {
+  type CanonicalStoreWriteProvenance,
+  type CanonicalStoreWriteReceipt,
+  makeStoreWriteReceipt,
+} from '../core/world-state/canonicalStoreKernel.js';
+
+// ---------------------------------------------------------------------------
+// Store ensure helpers — initialize canonical store arrays if absent
+// ---------------------------------------------------------------------------
+
+export function ensureRuntimeCustomerCaseMatches(
+  state: GameState,
+  provenance: CanonicalStoreWriteProvenance = 'canonical-bootstrap',
+): CanonicalStoreWriteReceipt {
+  if (!state.runtimeCustomerCaseMatches) {
+    asWritableGameState(state).runtimeCustomerCaseMatches = [];
+  }
+  return makeStoreWriteReceipt('runtimeCustomerCaseMatches', 'ensure', provenance, {
+    nextCount: state.runtimeCustomerCaseMatches.length,
+  });
+}
+
+export function ensureRuntimeBrokeredOpportunities(
+  state: GameState,
+  provenance: CanonicalStoreWriteProvenance = 'canonical-bootstrap',
+): CanonicalStoreWriteReceipt {
+  if (!state.runtimeBrokeredOpportunities) {
+    asWritableGameState(state).runtimeBrokeredOpportunities = [];
+  }
+  return makeStoreWriteReceipt('runtimeBrokeredOpportunities', 'ensure', provenance, {
+    nextCount: state.runtimeBrokeredOpportunities.length,
+  });
+}
 
 // ---------------------------------------------------------------------------
 // ensureCustomerCaseMatchState: get or create match for a customer-case pair
@@ -56,7 +89,7 @@ export function ensureCustomerCaseMatchState(
   priceSensitivity: number,
 ): CustomerCaseMatchState {
   if (!state.runtimeCustomerCaseMatches) {
-    state.runtimeCustomerCaseMatches = [];
+    ensureRuntimeCustomerCaseMatches(state, 'old_save_compatibility');
   }
 
   const matchId = buildCustomerCaseMatchId(customerId, caseId);
@@ -66,7 +99,7 @@ export function ensureCustomerCaseMatchState(
   const newMatch = createCustomerCaseMatchState(
     customerId, caseId, fit, interest, confidence, budgetMax, priceSensitivity, state.day,
   );
-  state.runtimeCustomerCaseMatches.push(newMatch);
+  asWritableGameState(state).runtimeCustomerCaseMatches.push(newMatch);
   return newMatch;
 }
 
@@ -80,7 +113,7 @@ export function ensureBrokeredOpportunityState(
   matchId: string,
 ): BrokeredOpportunityState {
   if (!state.runtimeBrokeredOpportunities) {
-    state.runtimeBrokeredOpportunities = [];
+    ensureRuntimeBrokeredOpportunities(state, 'old_save_compatibility');
   }
 
   const brokeredId = buildBrokeredOpportunityId(opportunity.id);
@@ -104,7 +137,7 @@ export function ensureBrokeredOpportunityState(
     opportunity.daysLeft,
     opportunity.createdDay,
   );
-  state.runtimeBrokeredOpportunities.push(newOpp);
+  asWritableGameState(state).runtimeBrokeredOpportunities.push(newOpp);
   return newOpp;
 }
 
@@ -120,10 +153,10 @@ export function ensureBrokeredOpportunityState(
  */
 export function initializeOpportunityRelations(state: GameState): void {
   if (!state.runtimeCustomerCaseMatches) {
-    state.runtimeCustomerCaseMatches = [];
+    ensureRuntimeCustomerCaseMatches(state, 'old_save_compatibility');
   }
   if (!state.runtimeBrokeredOpportunities) {
-    state.runtimeBrokeredOpportunities = [];
+    ensureRuntimeBrokeredOpportunities(state, 'old_save_compatibility');
   }
 
   // Build customer runtime lookup
@@ -189,7 +222,7 @@ function replaceMatchState(
   if (!state.runtimeCustomerCaseMatches) return newMatch;
   const idx = state.runtimeCustomerCaseMatches.findIndex((m) => m.matchId === newMatch.matchId);
   if (idx >= 0) {
-    state.runtimeCustomerCaseMatches[idx] = newMatch;
+    asWritableGameState(state).runtimeCustomerCaseMatches[idx] = newMatch;
   }
   return newMatch;
 }
@@ -207,7 +240,7 @@ function replaceBrokeredState(
     (o) => o.brokeredOpportunityId === newBrokered.brokeredOpportunityId,
   );
   if (idx >= 0) {
-    state.runtimeBrokeredOpportunities[idx] = newBrokered;
+    asWritableGameState(state).runtimeBrokeredOpportunities[idx] = newBrokered;
   }
 
   // Sync legacy Opportunity mirror
@@ -1149,6 +1182,7 @@ export function syncCaseStageMirrorFromCaseProgressionOnState(
   progression: { legacyStageIndex: number },
   maxStage: number,
 ): void {
+  // legacy_status_mirror_read: check terminal status for mirror sync
   if (caseItem.status === 'sold' || caseItem.status === 'lost_to_rival' || caseItem.status === 'withdrawn') {
     caseItem.stageIndex = progression.legacyStageIndex;
   } else {

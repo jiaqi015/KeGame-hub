@@ -21,6 +21,8 @@ import type {
   GameState,
   ManagerInterventionReceipt,
 } from '../../domain/models.js';
+import { asWritableGameState } from '../../domain/models.js';
+import { isOpportunityActiveByCanonicalState } from '../../domain/opportunityLifecycleStatusRead.js';
 
 import type {
   ActionReceipt,
@@ -73,7 +75,7 @@ export function buildManagerInterventionFromFocusMeeting(
 
     // Generate a draft based on case state
     const opportunities = state.opportunities.filter(
-      (o) => o.caseId === caseId && o.status === 'active',
+      (o) => o.caseId === caseId && isOpportunityActiveByCanonicalState(state, o),
     );
     const lateStageOpps = opportunities.filter((o) => o.stageIndex >= 3);
 
@@ -178,7 +180,7 @@ export function enrichStateWithManagerInterventions(
   receipts: readonly ManagerInterventionReceipt[],
 ): void {
   if (!state.managerInterventionReceiptHistory) {
-    state.managerInterventionReceiptHistory = [];
+    asWritableGameState(state).managerInterventionReceiptHistory = [];
   }
 
   for (const receipt of receipts) {
@@ -186,9 +188,9 @@ export function enrichStateWithManagerInterventions(
       (entry) => entry.receiptId === receipt.receiptId,
     );
     if (existingIndex >= 0) {
-      state.managerInterventionReceiptHistory[existingIndex] = receipt;
+      asWritableGameState(state).managerInterventionReceiptHistory[existingIndex] = receipt;
     } else {
-      state.managerInterventionReceiptHistory.push(receipt);
+      asWritableGameState(state).managerInterventionReceiptHistory.push(receipt);
     }
   }
 }

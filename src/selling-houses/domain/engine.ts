@@ -1,11 +1,13 @@
 import { WEEKLY_ROUTINE } from './constants.js';
-import { releaseMarketDealSlotsForDay } from './models.js';
+import { releaseMarketDealSlotsForDay, asWritableGameState } from './models.js';
 import { recordBudgetChange } from './budget.js';
 import type { DailyProcessResultSummary, DailyTickResult, DirtyScopeSet, GameState, TickInvariantAlert, Tone } from './models.js';
 import type { InformationSourceRecord } from './world-model/informationSourceTypes.js';
 import { addDays, average, clamp, getDayOfWeek, getRoutine } from './utils.js';
+import { isCaseActiveByCanonicalStatus } from './caseLifecycleStatusRead.js';
+import { isOpportunityActiveByCanonicalState } from './opportunityLifecycleStatusRead.js';
 import { applyBrokerOwnerTrustDelta } from './trustWriteHelper.js';
-import { applyOwnerCasePatienceDelta } from './ownerCaseReadinessHelper.js';
+import { applyOwnerCasePatienceDelta } from './ownerCaseReadinessWriteHelper.js';
 import { evaluateFinalResult } from './resultEvaluation.js';
 import { logEvent, recordDomainEvent, updateDerivedState } from './runtimeState.js';
 import { getPromotionBudget } from './runtimeStats.js';
@@ -103,7 +105,7 @@ function ensureFocusMeetingDayState(state: GameState) {
 
 function focusMeetingScore(state: GameState, caseItem: GameState['cases'][number]) {
   const opportunities = state.opportunities
-    .filter((entry) => entry.caseId === caseItem.id && entry.status === 'active')
+    .filter((entry) => entry.caseId === caseItem.id && isOpportunityActiveByCanonicalState(state, entry))
     .sort((left, right) => (right.stageIndex + right.intent / 100) - (left.stageIndex + left.intent / 100));
   const lead = opportunities[0];
   const stageBonus = !lead ? 0 : lead.stageIndex >= 4 ? 180 : lead.stageIndex >= 3 ? 120 : lead.stageIndex >= 2 ? 70 : 30;
@@ -153,7 +155,7 @@ export function advanceOneDay(state: GameState, onMessage?: (msg: string) => voi
   return resolveOneDay(state, onMessage);
 }
 
-function getNewEntriesAfterUnshift<T>(items: T[], startLength: number): T[] {
+function getNewEntriesAfterUnshift<T>(items: readonly T[], startLength: number): T[] {
   return items.slice(0, Math.max(0, items.length - startLength));
 }
 
@@ -260,7 +262,7 @@ function collectInvariantAlerts(state: GameState): TickInvariantAlert[] {
   });
 
   state.opportunities.forEach((opportunity) => {
-    if (opportunity.status === 'active' && soldCaseIds.has(opportunity.caseId)) {
+    if (isOpportunityActiveByCanonicalState(state, opportunity) && soldCaseIds.has(opportunity.caseId)) {
       alerts.push({
         level: 'warning',
         code: 'active_opportunity_after_case_closed',
@@ -391,11 +393,11 @@ function tickBigWorldRuntime(state: GameState): void {
   // Append causal events to the world causal ledger
   if (receipt.causalEventsToAppend.length > 0) {
     const prev = Array.isArray(state.worldCausalEvents) ? state.worldCausalEvents : [];
-    state.worldCausalEvents = [...prev, ...receipt.causalEventsToAppend];
+    asWritableGameState(state).worldCausalEvents = [...prev, ...receipt.causalEventsToAppend];
   }
 
   // Clear consumed source records (they've been ingested by the tick)
-  state.pendingSourceRecords = [];
+  asWritableGameState(state).pendingSourceRecords = [];
 }
 
 function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): DailyTickResult {
@@ -403,11 +405,11 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
   const eventStoreStart = state.eventStore.length;
   const closedDealStart = state.closedDeals.length;
   const beforeScore = average(state.cases.map((entry) => entry.competitiveness));
-  const beforeD1 = average(state.cases.filter((entry) => entry.status === 'active').map((entry) => entry.d1));
-  const beforeD3 = average(state.cases.filter((entry) => entry.status === 'active').map((entry) => entry.d3));
+  const beforeD1 = average(state.cases.filter((entry) => isCaseActiveByCanonicalStatus(state, entry)).map((entry) => entry.d1));
+  const beforeD3 = average(state.cases.filter((entry) => isCaseActiveByCanonicalStatus(state, entry)).map((entry) => entry.d3));
   const beforeCash = getPromotionBudget(state);
-  const beforeTrust = average(state.cases.filter((entry) => entry.status === 'active').map((entry) => entry.trust));
-  const beforeDanger = state.cases.filter((entry) => entry.status === 'active' && (entry.storylineState === 'critical' || entry.storylineState === 'sliding')).length;
+  const beforeTrust = average(state.cases.filter((entry) => isCaseActiveByCanonicalStatus(state, entry)).map((entry) => entry.trust));
+  const beforeDanger = state.cases.filter((entry) => isCaseActiveByCanonicalStatus(state, entry) && (entry.storylineState === 'critical' || entry.storylineState === 'sliding')).length;
 
   const expectations = buildExpectations(state);
   const processResults: DailyProcessResultSummary[] = [];
@@ -435,8 +437,8 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
   // Emit process_receipt source records from negotiation settlement
   const negotiationReceipts = buildProcessReceiptSourceRecords(state, negotiationResult);
   if (negotiationReceipts.length > 0) {
-    if (!state.pendingSourceRecords) state.pendingSourceRecords = [];
-    state.pendingSourceRecords.push(...negotiationReceipts);
+    if (!state.pendingSourceRecords) asWritableGameState(state).pendingSourceRecords = [];
+    asWritableGameState(state).pendingSourceRecords.push(...negotiationReceipts);
   }
   if (state.day >= state.maxDay - 7) {
     tryClaimOpenMarketDealForRivals(state);
@@ -470,10 +472,10 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
       .map((entry) => entry.id),
   );
   const afterScore = average(state.cases.map((entry) => entry.competitiveness));
-  const afterD1 = average(state.cases.filter((entry) => entry.status === 'active').map((entry) => entry.d1));
-  const afterD3 = average(state.cases.filter((entry) => entry.status === 'active').map((entry) => entry.d3));
-  const afterTrust = average(state.cases.filter((entry) => entry.status === 'active').map((entry) => entry.trust));
-  const afterDanger = state.cases.filter((entry) => entry.status === 'active' && (entry.storylineState === 'critical' || entry.storylineState === 'sliding')).length;
+  const afterD1 = average(state.cases.filter((entry) => isCaseActiveByCanonicalStatus(state, entry)).map((entry) => entry.d1));
+  const afterD3 = average(state.cases.filter((entry) => isCaseActiveByCanonicalStatus(state, entry)).map((entry) => entry.d3));
+  const afterTrust = average(state.cases.filter((entry) => isCaseActiveByCanonicalStatus(state, entry)).map((entry) => entry.trust));
+  const afterDanger = state.cases.filter((entry) => isCaseActiveByCanonicalStatus(state, entry) && (entry.storylineState === 'critical' || entry.storylineState === 'sliding')).length;
 
   const settledDomainEvents = getNewEntriesAfterUnshift(state.eventStore, eventStoreStart)
     .filter((entry) => entry.day === settledDay);
@@ -535,7 +537,7 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
     };
   };
 
-  if (state.day >= state.maxDay || !state.cases.some((entry) => entry.status === 'active')) {
+  if (state.day >= state.maxDay || !state.cases.some((entry) => isCaseActiveByCanonicalStatus(state, entry))) {
     finishGame(state, state.day >= state.maxDay ? `${state.maxDay} 天经营周期结束。` : '所有房源都已经结算。', onMessage);
     const result = buildTickResult();
     state.lastDailyTickResult = result;
@@ -548,8 +550,8 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
   processResults.push(productRunProcessResult);
   const productRunReceipts = buildProcessReceiptSourceRecords(state, productRunProcessResult);
   if (productRunReceipts.length > 0) {
-    if (!state.pendingSourceRecords) state.pendingSourceRecords = [];
-    state.pendingSourceRecords.push(...productRunReceipts);
+    if (!state.pendingSourceRecords) asWritableGameState(state).pendingSourceRecords = [];
+    asWritableGameState(state).pendingSourceRecords.push(...productRunReceipts);
   }
   state.todayPlan = {
     day: state.day,
@@ -569,7 +571,7 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
       ? state.focusMeeting.submittedCaseIds
       : [])
       .map((caseId) => state.cases.find((entry) => entry.id === caseId))
-      .filter((entry): entry is GameState['cases'][number] => Boolean(entry) && entry.status === 'active');
+      .filter((entry): entry is GameState['cases'][number] => Boolean(entry) && isCaseActiveByCanonicalStatus(state, entry));
     const selected = submittedCases
       .sort((left, right) => focusMeetingScore(state, right) - focusMeetingScore(state, left))
       .slice(0, 2);
@@ -613,8 +615,8 @@ function resolveOneDay(state: GameState, onMessage?: (msg: string) => void): Dai
           instruction: `聚焦会选定 ${selected.map((entry) => entry.title).join('、')}，集中资源推进`,
         },
       };
-      if (!state.pendingSourceRecords) state.pendingSourceRecords = [];
-      state.pendingSourceRecords.push(focusManagerRecord);
+      if (!state.pendingSourceRecords) asWritableGameState(state).pendingSourceRecords = [];
+      asWritableGameState(state).pendingSourceRecords.push(focusManagerRecord);
     } else {
       logEvent(state, '周四聚焦会', '本周四暂无有效提报，聚焦资源未能落地。', 'danger');
     }

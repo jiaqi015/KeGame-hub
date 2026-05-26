@@ -227,7 +227,7 @@ function groupJournalByDay(items: JournalItem[]) {
     }));
 }
 
-function hasJournalDuplicate(entry: EventLogEntry, eventStore: DomainEventEntry[]) {
+function hasJournalDuplicate(entry: EventLogEntry, eventStore: readonly DomainEventEntry[]) {
   return eventStore.some((event) =>
     event.day === entry.day
     && event.actor === entry.actor

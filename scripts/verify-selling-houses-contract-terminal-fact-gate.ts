@@ -5,8 +5,8 @@
  * soldPrice writes, and closedDeals.unshift only happen through controlled paths.
  *
  * Checks:
- *  1. createContractFactOnState exists in consensusFormationHelper
- *  2. dealClosing.ts uses ContractFact (calls createContractFactOnState)
+ *  1. contract fact creation APIs exist (fixture-only + proof-based)
+ *  2. dealClosing.ts uses ContractFact (calls createContractFactFromPriceConsensusOnState)
  *  3. syncLegacyCaseDealMirrorsFromContractFact exists and is the single write path
  *  4. Direct case status writes only in allowlisted locations
  *  5. Direct soldPrice writes only in allowlisted locations
@@ -86,15 +86,16 @@ const ALLOWLISTED_CLOSED_DEALS = [
 ];
 
 // ---------------------------------------------------------------------------
-// 1. createContractFactOnState exists
+// 1. createContractFactForFixtureOnlyOnState exists (fixture-only) + proof-based API exists
 // ---------------------------------------------------------------------------
 
 function checkContractFactExists() {
-  console.log('\n=== Check 1: createContractFactOnState exists ===');
+  console.log('\n=== Check 1: contract fact creation APIs exist ===');
   const src = readFileSafe(CONSENSUS_HELPER);
   check(src !== null, `${CONSENSUS_HELPER} exists`);
   if (!src) return;
-  check(src.includes('export function createContractFactOnState'), 'createContractFactOnState exported from consensusFormationHelper');
+  check(src.includes('createContractFactForFixtureOnlyOnState'), 'createContractFactForFixtureOnlyOnState exported (fixture-only) from consensusFormationHelper');
+  check(src.includes('createContractFactFromPriceConsensusOnState'), 'createContractFactFromPriceConsensusOnState exported (production) from consensusFormationHelper');
 }
 
 // ---------------------------------------------------------------------------
@@ -210,6 +211,11 @@ function checkDirectSoldPriceWrites() {
 
 function checkClosedDealsWrites() {
   console.log('\n=== Check 6: closedDeals writes ===');
+  const dealClosingSrc = readFileSafe(DEAL_CLOSING);
+  check(dealClosingSrc !== null, 'dealClosing.ts exists');
+  if (dealClosingSrc) {
+    check(dealClosingSrc.includes('prependClosedDealMirrorFromContractFact'), 'dealClosing.ts has prependClosedDealMirrorFromContractFact');
+  }
   const files = [
     DEAL_CLOSING,
     CASE_OUTCOME,
@@ -240,7 +246,7 @@ function checkContractFactReferencesConsensus() {
   console.log('\n=== Check 7: ContractFact references consensusId ===');
   const src = readFileSafe(CONSENSUS_HELPER);
   if (!src) { check(false, 'consensusFormationHelper not found'); return; }
-  check(src.includes('consensusId'), 'createContractFactOnState accepts consensusId param');
+  check(src.includes('consensusId'), 'contract creation accepts consensusId param');
 
   const wsSrc = readFileSafe('src/selling-houses/core/world-state/consensus/writeSource.ts');
   if (!wsSrc) { check(false, 'writeSource.ts not found'); return; }
@@ -296,13 +302,13 @@ function checkLint() {
 }
 
 // ---------------------------------------------------------------------------
-// 10. Behavioral: createContractFactOnState produces real ContractFact
+// 10. Behavioral: createContractFactForFixtureOnlyOnState produces real ContractFact
 // ---------------------------------------------------------------------------
 
 async function checkContractFactBehavior() {
   console.log('\n=== Check 10: ContractFact behavioral assertion ===');
   try {
-    const { createContractFactOnState } = await import(
+    const { createContractFactForFixtureOnlyOnState } = await import(
       '../src/selling-houses/domain/consensusFormationHelper.js'
     );
     const { ensureConsensusRuntime } = await import(
@@ -311,7 +317,7 @@ async function checkContractFactBehavior() {
 
     // Minimal GameState-like object — only the consensus runtime surface
     const state: any = { consensusRuntime: undefined };
-    const result = createContractFactOnState(
+    const result = createContractFactForFixtureOnlyOnState(
       state,
       'consensus-test-1',
       'opp-test-1',
@@ -328,7 +334,7 @@ async function checkContractFactBehavior() {
       ['ptraj:test-1', 'pready:test-1'],
     );
 
-    check(result !== undefined, 'createContractFactOnState returns a ContractFact');
+    check(result !== undefined, 'createContractFactForFixtureOnlyOnState returns a ContractFact');
     if (!result) return;
 
     check(result.contractId === 'contract:case-test-1:customer-test-1:12', `contractId format: ${result.contractId}`);
@@ -339,7 +345,7 @@ async function checkContractFactBehavior() {
     check(result.sourceEventRefs.includes('pready:test-1'), 'sourceEventRefs includes readiness ref');
 
     // Duplicate guard: second call for same case returns undefined
-    const duplicate = createContractFactOnState(
+    const duplicate = createContractFactForFixtureOnlyOnState(
       state,
       'consensus-test-2',
       'opp-test-2',

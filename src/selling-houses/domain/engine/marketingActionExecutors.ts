@@ -8,6 +8,7 @@ import { touchCaseForAction } from './actionExecutorHelpers.js';
 import { refundResources } from './actionResourceAccounting.js';
 import { adjustCaseOpportunities, createOpportunity } from './opportunityEngine.js';
 import type { ActionExecutorMap } from './actionExecutorTypes.js';
+import { isCaseActiveByCanonicalStatus } from '../caseLifecycleStatusRead.js';
 
 interface FocusMeetingMeta {
   submittedCaseIds?: unknown;
@@ -152,7 +153,7 @@ export const MARKETING_ACTION_EXECUTORS: ActionExecutorMap = {
     }
     const submittedCases = submittedCaseIds
       .map((caseId) => state.cases.find((entry) => entry.id === caseId))
-      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry) && entry.status === 'active');
+      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry) && isCaseActiveByCanonicalStatus(state, entry));
     if (!submittedCases.length) {
       refundResources(state, action, '没有可提报房源');
       onMessage?.('今天没有可提报的活跃房源。');
