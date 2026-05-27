@@ -213,13 +213,31 @@ export function buildReceiptFromSnapshot(
   const domainSourceRecords = snapshot.outcome === 'success'
     ? extractSourceRecordsFromCommand(command, seed)
     : [];
-  // Always create a player_action_receipt record for the action execution itself.
-  // This is separate from domain-specific records (owner_interview, customer_interaction, etc.)
-  // which capture the effect. player_action_receipt captures the fact that the action happened.
+
+  // R45: Enrich owner_interview records with price signals and correct identity refs
+  // R46: Fix ownerId/caseId mismatch — command.targetRefs[0].id is a source record ID,
+  // not an owner/case ID. Use snapshot's ownerName and caseId for canonical builder matching.
+  const enrichedDomainRecords = domainSourceRecords.map(record => {
+    if (record.sourceKind === 'owner_interview' && snapshot.outcome === 'success') {
+      const existingPayload = record.payload as import('../informationSourceTypes.js').OwnerInterviewPayload;
+      return {
+        ...record,
+        payload: {
+          ...existingPayload,
+          ownerId: snapshot.ownerName || `owner:${snapshot.caseId}`,
+          caseId: snapshot.caseId,
+          concessionPrice: snapshot.ownerConcessionPrice,
+          priceMentioned: snapshot.ownerPriceMentioned ?? existingPayload.priceMentioned,
+        },
+      } as typeof record;
+    }
+    return record;
+  });
+
   const actionReceiptRecord = snapshot.outcome === 'success'
     ? buildSuccessfulPlayerActionSourceRecord(snapshot, command, seed)
     : buildBlockedPlayerActionSourceRecord(snapshot, command, seed);
-  const sourceRecords = [...actionReceiptRecord, ...domainSourceRecords];
+  const sourceRecords = [...actionReceiptRecord, ...enrichedDomainRecords];
   const sourceIngestionReceipt = ingestSourceRecords(sourceRecords, snapshot.day, seed);
 
   return {

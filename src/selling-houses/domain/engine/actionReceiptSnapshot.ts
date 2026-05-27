@@ -15,6 +15,7 @@ import { isOpportunityActiveByCanonicalState } from '../opportunityLifecycleStat
 export interface ActionReceiptSnapshot {
   readonly day: number;
   readonly caseId: string;
+  readonly ownerName: string;
   readonly actionId: string;
   readonly executorId: string;
   readonly optionId: string | null;
@@ -43,6 +44,19 @@ export interface ActionReceiptSnapshot {
   readonly afterHeat: number;
   /** After-action competitiveness. */
   readonly afterCompetitiveness: number;
+  /**
+   * R45: Owner's concession price signal (万元).
+   * Present when action reveals owner's willingness to accept a specific price.
+   * Comes from: ask-psychological-price (bottomPrice), adjust-listing-price (new askPrice).
+   * This is NOT the final deal price — it's the owner's expressed price stance.
+   */
+  readonly ownerConcessionPrice?: number;
+  /**
+   * R45: Price mentioned by owner during interaction (万元).
+   * The price the owner talks about, which may differ from their true concession.
+   * Comes from: pricing-advice, ask-psychological-price.
+   */
+  readonly ownerPriceMentioned?: number;
 }
 
 export function captureActionReceiptSnapshot(
@@ -62,10 +76,13 @@ export function captureActionReceiptSnapshot(
   beforeUrgency?: number,
   beforeHeat?: number,
   beforeCompetitiveness?: number,
+  ownerConcessionPrice?: number,
+  ownerPriceMentioned?: number,
 ): ActionReceiptSnapshot {
   return Object.freeze({
     day: state.day,
     caseId: caseItem.id,
+    ownerName: caseItem.ownerName,
     actionId,
     executorId,
     optionId,
@@ -91,5 +108,7 @@ export function captureActionReceiptSnapshot(
     afterUrgency: caseItem.urgency,
     afterHeat: caseItem.heat,
     afterCompetitiveness: caseItem.competitiveness,
+    ownerConcessionPrice,
+    ownerPriceMentioned,
   });
 }

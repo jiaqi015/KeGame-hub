@@ -212,6 +212,12 @@ export interface CustomerInteractionPayload extends SourcePayloadBase {
   readonly interestLevel?: number;
   /** Whether the customer expressed this directly or was observed. */
   readonly observationMode: 'direct' | 'observed' | 'inferred';
+  /**
+   * R44: Offer price for buyer offers (万元).
+   * Only present when subtype === 'offer_submitted'.
+   * This enables canonical trajectory building from real evidence.
+   */
+  readonly offerPrice?: number;
 }
 
 // --- owner_interview ---
@@ -238,6 +244,12 @@ export interface OwnerInterviewPayload extends SourcePayloadBase {
   readonly trustLevel?: number;
   /** Price mentioned (if price-related). */
   readonly priceMentioned?: number;
+  /**
+   * R44: Owner's concession/acceptance price (万元).
+   * Only present when owner indicates willingness to accept a specific price.
+   * This enables canonical trajectory building from real evidence.
+   */
+  readonly concessionPrice?: number;
   /** Owner's emotional tone. */
   readonly tone: 'positive' | 'neutral' | 'negative' | 'hostile';
   /** What the owner said (compressed factual summary). */

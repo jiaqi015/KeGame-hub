@@ -50,6 +50,10 @@ import {
   type PriceConsensusProof,
   type WeightExplanation,
 } from '../core/world-state/consensus/priceTrajectory.js';
+import {
+  buildCanonicalPriceTrajectoryFromEvidence,
+  createEvidenceStateView,
+} from '../core/world-state/consensus/canonicalEvidenceBuilder.js';
 import { readBrokerCustomerTrust as readBrokerCustomerTrustFromBoundary } from '../core/world-state/customer/customerReadBoundary.js';
 import { isCaseActiveByCanonicalStatus } from './caseLifecycleStatusRead.js';
 import {
@@ -271,37 +275,66 @@ function finalizeClosedDeal(
   // R26: consensus signing is now done from PriceConsensusProof when proof is available
   // (moved below after proof construction)
 
-  const canonicalTrajectory = buildPriceTrajectoryFromDealClosingEvaluation({
+  // R44: Try canonical trajectory builder FIRST (requires real evidence)
+  const ownerId = caseItem.ownerName || `owner:${caseItem.id}`;
+  const canonicalResult = buildCanonicalPriceTrajectoryFromEvidence({
+    state: createEvidenceStateView(state),
     caseId: caseItem.id,
     customerId: opportunity.customerId,
-    ownerId: caseItem.ownerName || `owner:${caseItem.id}`,
+    ownerId,
     opportunityId: opportunity.id,
     day: state.day,
-    soldPrice,
-    closeReadiness: evaluation.closeReadiness,
-    closeProbability: evaluation.closeProbability,
-    buyerBudgetMax: opportunity.budgetMax,
-    buyerIntent: opportunity.intent,
-    buyerConfidence: opportunity.confidence,
-    caseAskPrice: caseItem.askPrice,
-    caseMarketPrice: caseItem.marketPrice,
-    caseBottomPrice: caseItem.bottomPrice,
-    blockers: evaluation.blockingReasons,
-    supportingFactors: evaluation.supportingReasons,
-    strategyId: opportunity.pendingClosingStrategyId || 'balanced',
   });
-  const canonicalReadiness = buildPriceConsensusReadiness(canonicalTrajectory);
+
+  let canonicalTrajectory: PriceTrajectory;
+  let canonicalReadiness: PriceConsensusReadiness;
+  let canonicalProofAvailable = false;
+
+  if (canonicalResult.success && canonicalResult.trajectory) {
+    // R44: Canonical evidence found — use real trajectory
+    canonicalTrajectory = canonicalResult.trajectory;
+    canonicalReadiness = buildPriceConsensusReadiness(canonicalTrajectory);
+    canonicalProofAvailable = true;
+  } else {
+    // R44: No canonical evidence — fall back to legacy projection for DISPLAY only
+    // Note: legacy_compatibility_projection is NOT valid for production ContractFact signing
+    canonicalTrajectory = buildPriceTrajectoryFromDealClosingEvaluation({
+      caseId: caseItem.id,
+      customerId: opportunity.customerId,
+      ownerId,
+      opportunityId: opportunity.id,
+      day: state.day,
+      soldPrice,
+      closeReadiness: evaluation.closeReadiness,
+      closeProbability: evaluation.closeProbability,
+      buyerBudgetMax: opportunity.budgetMax,
+      buyerIntent: opportunity.intent,
+      buyerConfidence: opportunity.confidence,
+      caseAskPrice: caseItem.askPrice,
+      caseMarketPrice: caseItem.marketPrice,
+      caseBottomPrice: caseItem.bottomPrice,
+      blockers: evaluation.blockingReasons,
+      supportingFactors: evaluation.supportingReasons,
+      strategyId: opportunity.pendingClosingStrategyId || 'balanced',
+    });
+    canonicalReadiness = buildPriceConsensusReadiness(canonicalTrajectory);
+    // R44: Mark that we only have legacy projection — cannot sign with this
+    canonicalProofAvailable = false;
+  }
+
   storePriceTrajectoryAndReadiness(state, canonicalTrajectory, canonicalReadiness);
 
   // Validate trajectory has both BuyerOffer and OwnerConcession (R19 structural invariant)
   const trajectoryValidation = assertTrajectoryHasOfferAndConcession(canonicalTrajectory);
 
   // R27: Build PriceConsensusProof and validate — no scalar fallback
+  // R44: Only create proof if canonical evidence was found
   let proof: PriceConsensusProof | undefined;
-  if (canonicalReadiness.ready && trajectoryValidation.valid) {
+  if (canonicalReadiness.ready && trajectoryValidation.valid && canonicalProofAvailable) {
     proof = buildPriceConsensusProof({
       trajectory: canonicalTrajectory,
       readiness: canonicalReadiness,
+      requiredProofKind: 'canonical', // R44: Explicitly require canonical
     });
     const proofValidation = validatePriceConsensusProof(proof);
     if (!proofValidation.valid) {
@@ -313,8 +346,9 @@ function finalizeClosedDeal(
   syncOpportunityStageMirrorFromTrajectoryOnState(state, opportunity, canonicalTrajectory, opportunity.stageIndex, 'deal close trajectory-derived stage');
 
   // R27: No scalar fallback — contract only from proof
+  // R44: Contract requires canonical proof (proofKind === 'canonical')
   let contractFact: ContractFactState | undefined;
-  if (consensusId && proof) {
+  if (consensusId && proof && proof.proofKind === 'canonical') {
     markConsensusSignedFromPriceConsensusOnState(state, signedBrokered!.brokeredOpportunityId, state.day, proof);
     contractFact = createContractFactFromPriceConsensusOnState(
       state,
@@ -332,9 +366,11 @@ function finalizeClosedDeal(
       proof,
     );
   } else if (consensusId) {
-    // R27: No proof = no contract. Collapse consensus as evidence failure.
-    markConsensusCollapsedOnState(state, signedBrokered!.brokeredOpportunityId, state.day,
-      `proof invalid or readiness not ready (readiness.ready=${canonicalReadiness.ready}, trajectoryValid=${trajectoryValidation.valid})`);
+    // R44: No canonical proof = no contract. Collapse consensus as evidence failure.
+    const reason = canonicalResult.success === false
+      ? `canonical evidence missing: ${canonicalResult.reason}`
+      : `proof invalid or not canonical (proofKind=${proof?.proofKind ?? 'undefined'})`;
+    markConsensusCollapsedOnState(state, signedBrokered!.brokeredOpportunityId, state.day, reason);
   }
 
   // Create OpportunityClosureSet (one contract closes many opportunities)
@@ -559,12 +595,75 @@ export function queueDealClosingEvaluation(
   // Advance consensus stage to at least price_gap_visible
   setConsensusStageOnState(state, brokered.brokeredOpportunityId, 'price_gap_visible', state.day, 'queue closing evaluation');
 
+  // R45: emit buyer offer source record for canonical trajectory
+  const brokerId = state.bigWorldRuntime?.playerBrokerAcnId ?? 'player-broker';
+  const offerPrice = computeBuyerOfferPrice(opportunity, caseItem);
+  emitBuyerOfferSourceRecord(state, opportunity, caseItem, brokerId, offerPrice);
+
   // Legacy mirror writes (preserved for backward compatibility)
   setOpportunityPendingClosingOnState(state, opportunity, true, strategyId || 'balanced', state.day, '请求结算评估');
   setOpportunityTouchedTodayOnState(state, opportunity, true, '请求结算标记今日触达');
   setOpportunityDaysLeftOnState(state, opportunity, Math.max(opportunity.daysLeft, 2), '请求结算确保剩余天数');
   refreshOpportunityLabel(state, opportunity);
   logEvent(state, opportunity.customerName, `${caseItem.title} 马上要见真章了。今晚关门算总账，看看底牌能不能碰上。`, 'accent');
+}
+
+/**
+ * Buyer offer price = marketPrice × (0.85 + intent/500), capped at budgetMax.
+ * intent=0 → 85% market, intent=100 → 110% market.
+ * Uses customer's real budget constraint, NOT soldPrice.
+ */
+function computeBuyerOfferPrice(opportunity: Opportunity, caseItem: Case): number {
+  const intentFactor = 0.85 + (opportunity.intent / 500);
+  const baseOffer = caseItem.marketPrice * intentFactor;
+  return Math.round(Math.min(opportunity.budgetMax, baseOffer));
+}
+
+function emitBuyerOfferSourceRecord(
+  state: GameState,
+  opportunity: Opportunity,
+  caseItem: Case,
+  brokerId: string,
+  offerPrice: number,
+): void {
+  if (!state.pendingSourceRecords) {
+    asWritableGameState(state).pendingSourceRecords = [];
+  }
+
+  const sourceId = `isr-offer-${state.day}-${opportunity.customerId}-${caseItem.id}`;
+
+  const record = {
+    sourceId,
+    sourceKind: 'customer_interaction' as const,
+    day: state.day,
+    phase: 'evening' as const,
+    entityRefs: [
+      { id: caseItem.id, kind: 'case' as const },
+      { id: opportunity.customerId, kind: 'customer' as const },
+    ],
+    actorRefs: [
+      { id: brokerId, role: 'player_broker' as const },
+    ],
+    visibility: { scope: 'player_only' as const, baseDelayDays: 0 },
+    confidence: 0.85 + (opportunity.intent / 1000),
+    delayDays: 0,
+    replayKey: `rk-offer-${state.runContext.runSeed}-${state.day}-${opportunity.customerId}`,
+    origin: 'player_action' as const,
+    payload: {
+      summary: `${opportunity.customerName} 对 ${caseItem.title} 提交了购买意向报价 ${offerPrice} 万。`,
+      subtype: 'offer_submitted' as const,
+      customerId: opportunity.customerId,
+      caseId: caseItem.id,
+      listingId: undefined,
+      opportunityId: opportunity.id,
+      fitScore: opportunity.fit,
+      interestLevel: opportunity.intent,
+      observationMode: 'direct' as const,
+      offerPrice,
+    },
+  };
+
+  asWritableGameState(state).pendingSourceRecords = [...state.pendingSourceRecords, record];
 }
 
 export function settlePendingDealClosings(state: GameState) {

@@ -161,23 +161,63 @@ export function executeAction(
   });
   updateDerivedState(state);
 
-  // Capture success snapshot for post-action receipt building.
-  // Receipt is built by the application layer via runtime adapter.
+  // R45: Capture price signals for owner concession evidence chain
+  let ownerConcessionPrice: number | undefined;
+  let ownerPriceMentioned: number | undefined;
+  if (action.id === 'ask-psychological-price') {
+    ownerConcessionPrice = caseItem.bottomPrice;
+    ownerPriceMentioned = caseItem.bottomPrice;
+  } else if (action.id === 'adjust-listing-price') {
+    ownerConcessionPrice = caseItem.askPrice;
+  } else if (action.id === 'pricing-advice') {
+    ownerPriceMentioned = caseItem.askPrice;
+  }
+
   _pendingReceiptSnapshots.push(
     captureActionReceiptSnapshot(
       state, caseItem, action.id, action.executorId || action.id, optionId,
       'success', action.costEnergy, action.costPromotionBudget,
       `${action.name} 执行成功`, beforeEventStoreLength, beforeOpportunityCount,
       beforeTrust, beforePatience, beforeUrgency, beforeHeat, beforeCompetitiveness,
+      ownerConcessionPrice, ownerPriceMentioned,
     ),
   );
   // Emit player_action_receipt source record for successful action
-  // Include fieldDeltas for trust/patience changes so economy pipeline can consume them
   if (!state.pendingSourceRecords) asWritableGameState(state).pendingSourceRecords = [];
   asWritableGameState(state).pendingSourceRecords.push(buildPlayerActionReceiptSourceRecord(
     state, caseItem, action.id, optionId, 'success', action.costEnergy, action.costPromotionBudget,
     beforeTrust, beforePatience, beforeUrgency,
   ));
+
+  // R46: owner_interview with concessionPrice must be in pendingSourceRecords before settlement
+  if (ownerConcessionPrice !== undefined) {
+    asWritableGameState(state).pendingSourceRecords.push({
+      sourceId: `isr-oi-${state.day}-${caseItem.id}-${action.id}`,
+      sourceKind: 'owner_interview' as const,
+      day: state.day,
+      phase: 'afternoon' as const,
+      entityRefs: [{ id: caseItem.id, kind: 'case' as const }],
+      actorRefs: [{ id: 'player-broker', role: 'player_broker' as const }],
+      visibility: { scope: 'player_only' as const, baseDelayDays: 0 },
+      confidence: 0.9,
+      delayDays: 0,
+      replayKey: `rk-oi-${state.runContext.runSeed}-${state.day}-${caseItem.id}`,
+      origin: 'player_action' as const,
+      payload: {
+        summary: `与业主沟通价格，业主表示可以接受 ${ownerConcessionPrice} 万。`,
+        subtype: 'price_discussed' as const,
+        ownerId: caseItem.ownerName || `owner:${caseItem.id}`,
+        caseId: caseItem.id,
+        brokerId: 'player-broker',
+        trustLevel: caseItem.trust,
+        priceMentioned: ownerPriceMentioned,
+        concessionPrice: ownerConcessionPrice,
+        tone: 'neutral' as const,
+        ownerStatement: `业主表示可以接受 ${ownerConcessionPrice} 万`,
+        interactionMode: 'meeting' as const,
+      },
+    });
+  }
 
   return true;
 }

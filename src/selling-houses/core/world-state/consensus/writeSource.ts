@@ -361,8 +361,20 @@ export function createContractFactForFixtureOnlyState(
 }
 
 /**
+ * R44: Result type for contract creation with validation.
+ */
+export interface ContractFactCreationResult {
+  success: boolean;
+  contract?: ContractFactState;
+  reason?: string;
+}
+
+/**
  * R26: Create a ContractFact from a validated PriceConsensusProof.
+ * R44: Enforces proofKind === 'canonical' for production contracts.
  * This is the strict production path — proof must be validated before calling.
+ *
+ * @throws Error if proof.proofKind !== 'canonical' (R44 enforcement)
  */
 export function createContractFactFromProof(
   consensusId: string,
@@ -378,6 +390,16 @@ export function createContractFactFromProof(
   supportingFactors: readonly string[],
   proof: import('./priceTrajectory.js').PriceConsensusProof,
 ): ContractFactState {
+  // R44: Enforce canonical proofKind — legacy_compatibility_projection is NOT allowed for production contracts
+  if (proof.proofKind !== 'canonical') {
+    throw new Error(
+      `R44: Cannot create production ContractFact from non-canonical proof. ` +
+      `proofKind='${proof.proofKind}' — need real evidence (customer_interaction.offer_submitted + offerPrice, ` +
+      `owner_interview.price_discussed + concessionPrice) in pendingSourceRecords. ` +
+      `Legacy projection is display-only, not signing.`
+    );
+  }
+
   return Object.freeze({
     contractId: buildContractFactId(caseId, customerId, signedDay),
     consensusId,
@@ -400,6 +422,49 @@ export function createContractFactFromProof(
     ownerConcessionId: proof.ownerConcession.concessionId,
     agreedPrice: proof.agreedPrice,
   });
+}
+
+/**
+ * R44: Try to create ContractFact from proof with validation.
+ * Returns result instead of throwing — safer for production codepaths.
+ * Use this when you need graceful failure instead of exception.
+ */
+export function tryCreateContractFactFromProof(
+  consensusId: string,
+  brokeredOpportunityId: string,
+  caseId: string,
+  customerId: string,
+  dealType: string,
+  signedDay: number,
+  sourceClosedDealId: string,
+  closeReadiness: number,
+  closeProbability: number,
+  resolvedBlockers: readonly string[],
+  supportingFactors: readonly string[],
+  proof: import('./priceTrajectory.js').PriceConsensusProof,
+): ContractFactCreationResult {
+  // R44: Enforce canonical proofKind
+  if (proof.proofKind !== 'canonical') {
+    return {
+      success: false,
+      reason: `R44: proofKind='${proof.proofKind}' is not canonical. Production contracts require real evidence.`,
+    };
+  }
+
+  try {
+    const contract = createContractFactFromProof(
+      consensusId, brokeredOpportunityId, caseId, customerId,
+      dealType, signedDay, sourceClosedDealId,
+      closeReadiness, closeProbability,
+      resolvedBlockers, supportingFactors, proof
+    );
+    return { success: true, contract };
+  } catch (err) {
+    return {
+      success: false,
+      reason: err instanceof Error ? err.message : String(err),
+    };
+  }
 }
 
 // ---------------------------------------------------------------------------

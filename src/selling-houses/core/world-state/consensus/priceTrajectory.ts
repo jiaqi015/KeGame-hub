@@ -62,6 +62,12 @@ export interface PriceTrajectory {
   readonly concessions: readonly OwnerConcession[];
   readonly convergenceCurve: readonly { readonly day: number; readonly gap: number }[];
   readonly source: 'canonical' | 'legacy_compatibility_projection';
+  /**
+   * R43: Proof kind distinguishes canonical evidence from legacy compatibility.
+   * - 'canonical': sourceRecordIds are real SourceRecords (isr-xxx), validators pass
+   * - 'legacy_compatibility_projection': fabricated from soldPrice for backward compatibility
+   */
+  readonly proofKind?: 'canonical' | 'legacy_compatibility_projection';
   readonly evidenceRefs: readonly string[];
 }
 
@@ -306,34 +312,38 @@ export function buildPriceTrajectoryFromDealClosingEvaluation(params: {
   const trajectoryId = buildPriceTrajectoryId(caseId, customerId, day);
 
   // Buyer offer: the proposed deal price
+  // R43: This is legacy_compatibility_projection - fabricated from soldPrice
+  // TODO: Replace with real offer sequence from action receipts
   const buyerOffer: BuyerOffer = Object.freeze({
     offerId: `offer:${caseId}:${customerId}:${day}`,
     day,
     customerId,
     caseId,
     price: soldPrice,
-    sourceRecordIds: Object.freeze([opportunityId]),
+    sourceRecordIds: Object.freeze([opportunityId]), // R43: opportunityId is NOT a real SourceRecord
     conditions: Object.freeze(blockers),
     confidence: Math.round(buyerConfidence),
-    source: 'canonical',
+    source: 'legacy_compatibility_projection', // R43: Mark as legacy projection
     evidenceRefs: Object.freeze([opportunityId, `strategy:${strategyId}`]),
   });
 
   // Owner concession: ask price → sold price
+  // R43: This is legacy_compatibility_projection - fabricated from soldPrice
+  // TODO: Replace with real concession sequence from action receipts
   const ownerConcession: OwnerConcession = Object.freeze({
     concessionId: `concession:${caseId}:${ownerId}:${day}`,
     day,
     ownerId,
     caseId,
     price: soldPrice,
-    sourceRecordIds: Object.freeze([`case:${caseId}`]),
+    sourceRecordIds: Object.freeze([`case:${caseId}`]), // R43: case:xxx is NOT a real SourceRecord
     conditions: Object.freeze(blockers),
     confidence: Math.round(closeReadiness),
-    source: 'canonical',
+    source: 'legacy_compatibility_projection', // R43: Mark as legacy projection
     evidenceRefs: Object.freeze([
       `case:${caseId}`,
-      `readiness:${closeReadiness}`,
-      `probability:${closeProbability}`,
+      `readiness:${closeReadiness}`, // R43: weight factor, NOT an evidence ref
+      `probability:${closeProbability}`, // R43: weight factor, NOT an evidence ref
       ...supportingFactors,
     ]),
   });
@@ -348,11 +358,12 @@ export function buildPriceTrajectoryFromDealClosingEvaluation(params: {
     offers: Object.freeze([buyerOffer]),
     concessions: Object.freeze([ownerConcession]),
     convergenceCurve: Object.freeze([{ day, gap }]),
-    source: 'canonical',
+    source: 'legacy_compatibility_projection', // R43: Mark as legacy projection
+    proofKind: 'legacy_compatibility_projection', // R43: Explicit proof kind
     evidenceRefs: Object.freeze([
-      opportunityId,
-      `case:${caseId}`,
-      `strategy:${strategyId}`,
+      opportunityId, // R43: structural ID, NOT evidence
+      `case:${caseId}`, // R43: structural ID, NOT evidence
+      `strategy:${strategyId}`, // R43: strategy ID without evidence backing
     ]),
   });
 }

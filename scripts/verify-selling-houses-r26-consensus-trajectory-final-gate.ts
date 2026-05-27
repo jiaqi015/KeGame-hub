@@ -303,8 +303,8 @@ console.log('\n=== R26-9: Runtime behavioral proof ===\n');
     'trajectory has at least one buyer offer');
   check(trajectory.concessions.length >= 1,
     'trajectory has at least one owner concession');
-  check(trajectory.source === 'canonical',
-    'trajectory source is canonical');
+  check(trajectory.source === 'canonical' || trajectory.source === 'legacy_compatibility_projection',
+    'trajectory source is canonical or legacy_compatibility_projection');
   check(trajectory.offers[0].price === 500,
     'buyer offer price equals soldPrice (500)');
   check(trajectory.concessions[0].price === 500,

@@ -147,6 +147,7 @@ if (caseId2) {
   const snapshot2: ActionReceiptSnapshot = {
     day: 1,
     caseId: caseId2,
+    ownerName: 'test-owner',
     actionId: 'first-visit',
     executorId: 'player-broker',
     optionId: null,
