@@ -54,6 +54,8 @@ import {
 } from './perfectProjectionAdapters.js';
 import type { ActorKnowledgeSnapshot } from './actorKnowledgeProjection.js';
 import { buildDecisionEvidenceEnvelope } from './actorKnowledgeProjection.js';
+import { buildClosingPreflight, type ClosingPreflightResult } from '../../core/world-state/consensus/closingPreflight.js';
+import { createEvidenceStateView } from '../../core/world-state/consensus/canonicalEvidenceBuilder.js';
 
 function formatVisibleDaysLeft(daysLeft: number) {
   const value = Number.isFinite(daysLeft) ? Math.max(0, daysLeft) : 0;
@@ -345,6 +347,12 @@ export interface CaseDetailProjection {
    * enabling cross-surface live causal ref reuse verification.
    */
   readonly liveCausalRefs?: readonly { readonly refType: string; readonly refId: string; readonly refLabel: string }[];
+  /**
+   * Closing preflight — explains why this case can or cannot close (R47).
+   * Read-only: does NOT create canonical facts.
+   * Built from pendingSourceRecords evidence when a closing opportunity exists.
+   */
+  readonly closingPreflight?: import('../../core/world-state/consensus/closingPreflight.js').ClosingPreflightResult;
 }
 
 export interface ListingLifecyclePhaseProjection {
@@ -1643,6 +1651,9 @@ export function buildCaseDetailProjection(
 
     // ── Live causal refs (Round 15) ──
     liveCausalRefs: buildLiveCausalRefsForCase(state, caseItem.id),
+
+    // ── Closing preflight (R47) — explains why can/can't sign ──
+    closingPreflight: buildClosingPreflightForCase(state, caseItem, met),
   };
 }
 
@@ -1683,6 +1694,34 @@ function buildLiveCausalRefsForCase(
       return { refType: 'case', refId: e.id, refLabel: `业主压力感知 day ${e.day}` };
     }
     return { refType: 'market-signal', refId: e.id, refLabel: `市场变化 day ${e.day}` };
+  });
+}
+
+function buildClosingPreflightForCase(
+  state: GameState,
+  caseItem: Case,
+  opportunities: readonly Opportunity[],
+): ClosingPreflightResult | undefined {
+  const closingOpp = opportunities.find((o) => o.pendingClosingEvaluation);
+  if (!closingOpp) return undefined;
+
+  const ownerId = caseItem.ownerName || `owner:${caseItem.id}`;
+  const customer = state.customers.find((c) => c.id === closingOpp.customerId);
+
+  return buildClosingPreflight({
+    state: createEvidenceStateView({
+      pendingSourceRecords: state.pendingSourceRecords,
+      worldCausalEvents: state.worldCausalEvents,
+    }),
+    caseId: caseItem.id,
+    customerId: closingOpp.customerId,
+    ownerId,
+    day: state.day,
+    caseTitle: caseItem.title,
+    customerName: customer?.name,
+    ownerName: caseItem.ownerName,
+    marketPrice: caseItem.marketPrice,
+    askPrice: caseItem.askPrice,
   });
 }
 

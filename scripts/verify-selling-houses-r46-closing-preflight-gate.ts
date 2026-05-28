@@ -24,6 +24,7 @@ import {
   type ClosingPreflightResult,
 } from '../src/selling-houses/core/world-state/consensus/closingPreflight.js';
 import type { GameStateForEvidence } from '../src/selling-houses/core/world-state/consensus/canonicalEvidenceBuilder.js';
+import { findGateSoftPassLines } from './selling-houses-gate-hygiene.js';
 
 let passed = 0;
 let failed = 0;
@@ -321,22 +322,15 @@ console.log('\n=== R46-7: Layer Boundary Compliance ===\n');
 
 console.log('\n=== R46-8: Gate Self-Audit ===\n');
 
-// Strip comments and string literals before checking for soft-pass patterns
-function stripCommentsAndStrings(src: string): string {
-  let result = src.replace(/\/\*[\s\S]*?\*\//g, '');
-  result = result.replace(/\/\/.*$/gm, '');
-  result = result.replace(/'[^']*'/g, "''");
-  result = result.replace(/"[^"]*"/g, '""');
-  result = result.replace(/`[^`]*`/g, '``');
-  return result;
-}
-
 const gateSrc = readFile('scripts/verify-selling-houses-r46-closing-preflight-gate.ts');
-const gateSrcClean = stripCommentsAndStrings(gateSrc);
+const softPassLines = findGateSoftPassLines(gateSrc);
 
-check(!gateSrcClean.includes('check(true,'), 'no check(true) in gate');
-check(!gateSrcClean.includes('|| true'), 'no || true in gate');
-check(!gateSrcClean.includes('warn('), 'no warn() soft pass in gate');
+check(softPassLines.length === 0, `no soft-pass patterns in gate (found ${softPassLines.length})`);
+if (softPassLines.length > 0) {
+  for (const violation of softPassLines) {
+    console.error(`  [SOFT-PASS] line ${violation.line}: ${violation.pattern}`);
+  }
+}
 
 // ════════════════════════════════════════════════════════════════════════════
 // Summary

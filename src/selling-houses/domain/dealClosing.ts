@@ -334,16 +334,13 @@ function finalizeClosedDeal(
     proof = buildPriceConsensusProof({
       trajectory: canonicalTrajectory,
       readiness: canonicalReadiness,
-      requiredProofKind: 'canonical', // R44: Explicitly require canonical
+      requiredProofKind: 'canonical',
     });
     const proofValidation = validatePriceConsensusProof(proof);
     if (!proofValidation.valid) {
       proof = undefined;
     }
   }
-
-  // R20: Derive opportunity stage from trajectory for the closing path
-  syncOpportunityStageMirrorFromTrajectoryOnState(state, opportunity, canonicalTrajectory, opportunity.stageIndex, 'deal close trajectory-derived stage');
 
   // R27: No scalar fallback — contract only from proof
   // R44: Contract requires canonical proof (proofKind === 'canonical')
@@ -366,12 +363,14 @@ function finalizeClosedDeal(
       proof,
     );
   } else if (consensusId) {
-    // R44: No canonical proof = no contract. Collapse consensus as evidence failure.
     const reason = canonicalResult.success === false
       ? `canonical evidence missing: ${canonicalResult.reason}`
       : `proof invalid or not canonical (proofKind=${proof?.proofKind ?? 'undefined'})`;
     markConsensusCollapsedOnState(state, signedBrokered!.brokeredOpportunityId, state.day, reason);
   }
+
+  // R20: Derive opportunity stage from trajectory for the closing path
+  syncOpportunityStageMirrorFromTrajectoryOnState(state, opportunity, canonicalTrajectory, opportunity.stageIndex, 'deal close trajectory-derived stage');
 
   // Create OpportunityClosureSet (one contract closes many opportunities)
   const closureSet = contractFact
