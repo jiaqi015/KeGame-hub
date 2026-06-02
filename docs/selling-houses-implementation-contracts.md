@@ -181,6 +181,8 @@ type RunResult = {
 
 当前代码里，`ClosedDealRecord` 已经至少固定到下面这组字段：
 
+当前实现口径要强调的是：`ClosedDealRecord` 不是签约真因，而是签约后的事实镜像与结算载体。真正决定能否签约的是 canonical evidence 经过 `PriceConsensusProof` 汇聚后是否成立，然后才写入 `ContractFact`。
+
 ```ts
 type ClosedDealRecord = {
   dealId: string;
@@ -208,6 +210,7 @@ type ClosedDealRecord = {
 - `closedDeals / ClosedDealRecord[]` 才是正式成交事实的 canonical 来源。
 - `auxiliaryStats.soldCount`、顶层 `soldCount` 只作为 legacy compatibility mirror 存在，允许桥接读取和回填，但不再作为主事实来源。
 - 结果页、正式结算、仓储持久化、排行榜摘要都应优先读 `closedDeals`，不能再只信 `auxiliaryStats.soldCount`。
+- 和当前实现对照时还要记住：正式签约是否成立，不再由 `closedDeals` 里的数值本身决定，而是由 canonical evidence 汇聚出的 `PriceConsensusProof` 和 `ContractFact` 决定；`ClosedDealRecord` 是结果镜像，不是签约真因。
 
 ---
 

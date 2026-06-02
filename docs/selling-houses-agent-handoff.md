@@ -136,13 +136,72 @@ This means fixture values set AFTER `executeAction` are overwritten by `updateDe
 
 ### Agent B Report - Evidence Timing / Pending vs Persisted Source Records
 
-_等待 Agent B 回填。_
+**Status**: ✅ Audit + fix + verification complete.
 
-Expected focus:
+**Modified files**:
 
-- 审计 owner concession、buyer offer 在 `pendingSourceRecords`、`persistedSourceRecords`、`worldCausalEvents` 三处的生命周期。
-- 消除或解释 duplicate source record 问题。
-- 确保 `finalizeClosedDeal` 读取 evidence 时不会错过真实 action receipt 产物。
+1. **`src/selling-houses/domain/dealClosing.ts`** — `finalizeClosedDeal` now merges `pendingSourceRecords` + `persistedSourceRecords` before passing to canonical builder.
+
+**Source Record Lifecycle**:
+
+```
+executeAction('ask-psychological-price')
+  → actionResolvers pushes owner_interview + concessionPrice → pendingSourceRecords
+  → actionResolvers pushes player_action_receipt → pendingSourceRecords
+
+queueDealClosingEvaluation()
+  → emitBuyerOfferSourceRecord → customer_interaction.offer_submitted + offerPrice → pendingSourceRecords
+
+resolveOneDay:
+  1. callSettleNegotiationProcesses → settlePendingDealClosings
+     → finalizeClosedDeal → createEvidenceStateView(state)
+       → reads pendingSourceRecords (has both buyer + owner evidence)
+       → buildCanonicalPriceTrajectoryFromEvidence → ContractFact ✓
+
+  2. tickBigWorldRuntime → ingests pendingSourceRecords → worldCausalEvents
+     → persists to bigWorldRuntime.persistedSourceRecords
+     → CLEARS pendingSourceRecords = []
+
+  3. (next tick) settlePendingDealClosings runs again
+     → finalizeClosedDeal → createEvidenceStateView(state)
+       → pendingSourceRecords is EMPTY (cleared by tick)
+       → persistedSourceRecords HAS the evidence (from step 2)
+       → FIX: merge pending + persisted → canonical builder finds evidence ✓
+```
+
+**Duplicate owner_interview Analysis**:
+
+| Source | sourceId format | When created |
+|--------|----------------|--------------|
+| `actionResolvers.ts` line 194 | `isr-oi-${day}-${caseId}-${actionId}` | During `executeAction` |
+| `actionReceiptWiring.ts` via `buildReceiptFromSnapshot` | `isr-owner_interview-${actorId}-${day}-${seed}` | After `executeAction` returns |
+
+Both records are semantically equivalent (same `ownerId`, `caseId`, `concessionPrice`). The canonical builder deduplicates via `selectBestConcession` (picks lowest price). Duplicates are harmless — they produce the same trajectory.
+
+**Evidence Timing Fix**:
+
+Before fix: `createEvidenceStateView(state)` only read `pendingSourceRecords`. After `tickBigWorldRuntime` clears them, evidence from previous ticks was invisible to the canonical builder.
+
+After fix: `finalizeClosedDeal` merges `pendingSourceRecords` + `persistedSourceRecords` before calling `createEvidenceStateView`. This ensures evidence survives across ticks without changing the core layer interface.
+
+**Negative path verified**: R47 gate §4-§7 confirm that missing buyer/owner evidence, refs mismatch, and legacy projection all correctly prevent ContractFact creation.
+
+**Verification**:
+
+| Gate | Result |
+|------|--------|
+| R47 actual settlement | **51/51 PASS** |
+| R46 full runtime | **57/57 PASS** |
+| R46 full closing happy path | **34/34 PASS** |
+| R45 canonical evidence runtime | **71/71 PASS** |
+| R44 canonical causal | **22/22 PASS** |
+| R26 consensus trajectory | **83/83 PASS** |
+| TypeScript | **PASS** |
+| Build | **PASS** |
+
+**Remaining risks**:
+- Duplicate `owner_interview` records are harmless but wasteful. A dedup filter on `sourceId` prefix could reduce storage, but is low priority.
+- The merged array grows with tick count. `persistedSourceRecords` is capped by `maxPersistedSourceRecords` (default 500), so this is bounded.
 
 ### Agent C Report - Preflight Product Integration
 

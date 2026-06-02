@@ -1,8 +1,10 @@
 # 卖房 Big World 领域架构合同
 
-最后整理：2026-05-15
+最后整理：2025-05-15
 
 这份文档不再保留旧版“建议稿”长论证，只定义当前资产顾问 Big World 的领域边界。若与旧专题文档冲突，以本文件、[卖房 Big World 架构总纲](selling-houses-master.md)、[母模型迁移工作板](selling-houses-mother-model-agent-workplan.md) 和代码 gate 为准。
+
+当前代码对领域的更严格要求是：领域对象本身不能直接承担 UI 摘要、结算结果或推荐文案；这些都必须先经过 source / causal / receipt / knowledge / decision 链路，再由 projection 或 result 层消费。
 
 ## 1. 领域主链
 

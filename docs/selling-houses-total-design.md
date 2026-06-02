@@ -35,6 +35,8 @@
   -> 游戏层沉淀 / 排行榜
 ```
 
+但这份总设计现在要服从更严格的实现口径：成交不是结果字段的改值，而是 canonical evidence 汇聚后生成的 `ContractFact`；页面投影只能解释世界，不能替世界下结论。
+
 ---
 
 ## 1. 这个游戏到底在模拟什么
@@ -91,6 +93,8 @@
 ## 3. 总体架构
 
 整个系统分三层：
+
+当前实现口径里，还要把“事实层”再说得更直白一点：真正能写入历史的，不是页面上的状态，而是 runtime 接住的 source / causal / receipt 以及由其生成的 proof / result。
 
 ```text
 游戏层
@@ -530,6 +534,13 @@ Matter 四类模板：
 4. 检查
 5. 完成
 
+但当前实现已经比“泛日结”更明确：
+
+- 日结必须驱动真实 runtime tick
+- world causal events 必须由真实推进产生，而不是只在验证脚本里生成
+- `pendingSourceRecords` 不能在未进入 causal / receipt 链前就被当作完成
+- 成交结算必须通过 canonical evidence → `PriceConsensusProof` → `ContractFact`
+
 推荐主链路：
 
 ```text
@@ -545,6 +556,8 @@ Step 8 更新 GoodHouseModel
 Step 9 生成 Projection 和日结摘要
 Step 10 做一致性检查
 ```
+
+实现时要记住：这不是“每一步都在页面上可见”，而是把世界事实推进到下一天，再把解释投影给玩家。
 
 如果跳过 7 天，不是粗算一次。
 
@@ -760,6 +773,15 @@ L1 一级导航
 - 守盘数
 - 丢盘数
 - 丢客数
+
+其中“成交”必须以 canonical closing chain 为准：
+
+```text
+real evidence
+  -> PriceConsensusProof
+  -> ContractFact
+  -> case / outcome mirrors
+```
 
 然后沉淀到游戏层：
 

@@ -121,7 +121,7 @@ export function findConsensusForOpportunity(
   state: GameState,
   brokeredOpportunityId: string,
 ): ConsensusFormationState | undefined {
-  const { formations } = ensureConsensusRuntime(state);
+  const formations = state.runtimeConsensusFormations ?? [];
   const consensusId = buildConsensusFormationId(brokeredOpportunityId);
   return formations.find((f) => f.consensusId === consensusId);
 }
@@ -232,7 +232,7 @@ export function findContractForCase(
   state: GameState,
   caseId: string,
 ): ContractFactState | undefined {
-  const { contracts } = ensureConsensusRuntime(state);
+  const contracts = state.runtimeContractFacts ?? [];
   return contracts.find((c) => c.caseId === caseId);
 }
 

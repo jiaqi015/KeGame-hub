@@ -1,14 +1,14 @@
 # 卖房 Big World 架构总纲
 
-最后整理：2026-05-21
+最后整理：2026-05-29
 
-这份总纲是资产顾问玩法的当前架构入口。旧的 6 周小世界路径、世界-视角长论证、2026-04 架构图和阶段报告已经清理，不再作为事实来源。
+这份总纲是资产顾问玩法的当前架构入口。它只保留当前仍然有效的判断、边界和主链，不再承接旧的阶段报告、一次性论证或历史流水账。
 
 ## 1. 当前判断
 
 资产顾问不是“一个玩家管理几套房”的小状态机，而是一个持续运行的卖房市场。
 
-当前架构目标：
+当前架构目标不是“把数据做大”，而是把卖房世界接成一条可追溯、可回放、可解释、可反馈的因果链：
 
 ```text
 SourceRecord
@@ -24,6 +24,39 @@ SourceRecord
 ```
 
 只有接上这条链，才算 Big World。只多生成客户、房源、竞品，或者只改 UI 文案，都不算完成。
+
+### 1.1 目标边界
+
+- 目标是“卖房市场模拟与决策系统”，不是通用经营沙盒。
+- 目标是让同一批事实在不同 actor POV 下产生不同 belief、pressure 和 command，而不是堆更多静态实体。
+- 目标是让每个推荐都能回指到 source / causal / receipt，而不是只给出结果。
+- 目标是保证 runtime 演化、回放验证、UI projection 三者对齐，而不是其中任一层单独好看。
+
+### 1.2 约束与限制
+
+- 不允许用更大的列表、更多字段、更多 mock 数据冒充世界变大。
+- 不允许把 hidden truth 直接暴露给 broker POV。
+- 不允许把推演结果写成不可追溯的“最终答案”，必须保留 source / causal / receipt 链路。
+- 不允许只修 projection 或 UI 而绕开 runtime、ledger、receipt 回灌。
+- 不允许新增特例把系统切回“脚本驱动”，必须维持 runtime 驱动。
+- 不允许为通过 gate 临时放宽校验、硬编码通过值或跳过验证。
+- 不允许破坏现有可玩性来换取理论完整性。
+- 不允许把“完成”定义成文档齐全、注释齐全或样例齐全，必须有可验证行为变化。
+- 不允许只增加数据覆盖率而不改变因果表达、决策质量或回放一致性。
+- 不允许新增对外依赖来替代本地可重放逻辑，核心链路必须离线可验证。
+- 不允许引入无法解释来源的魔法默认值，所有关键结论都要可回指到 source 或 receipt。
+- 不允许让任一新增能力只在理想路径可用，必须考虑缺失、延迟、冲突和回滚。
+- 不允许把“更清晰”简化成“更短”，goal 说明必须同时回答边界、非目标和验收标准。
+
+### 1.3 读这个文档时的唯一判断标准
+
+看到一个改动，先问三件事：
+
+1. 它有没有让因果链更完整？
+2. 它有没有让 actor POV 更真实、更受限？
+3. 它有没有让 replay / gate 更可验证？
+
+如果答案都是否，这个改动就不算在推进主目标。
 
 ## 2. 当前成熟度
 
@@ -134,8 +167,9 @@ UI 可以表达：
    - [`selling-houses-entity-canonical-map.md`](selling-houses-entity-canonical-map.md) — 每个业务概念在 legacy / 母模型视图 / 大世界种群中的 canonical / derived / shadow 声明。
    - [`selling-houses-entity-relation-map-2026-05-21.md`](selling-houses-entity-relation-map-2026-05-21.md) — 80+ 实体的六层全景 ER 图。
    - [`selling-houses-field-ownership-matrix.md`](selling-houses-field-ownership-matrix.md) — Case 字段归属表，**脚本生成**，SOT 是 [`legacy-case-field-ownership.ts`](../src/selling-houses/core/world-state/legacy-case-field-ownership.ts)。改字段归属请改 TS registry，然后跑 `npm run generate:field-ownership`。
-5. 宪法审计（2026-05-22 起新增）：
+5. 宪法审计与 AI 路线图（2026-05-22 起新增）：
    - [`selling-houses-constitutional-audit-2026-05-22.md`](selling-houses-constitutional-audit-2026-05-22.md) — 7 条核心世界观的形式化语义、代码现状对账、并轨路线。回答"为什么这条 fact 合法"。
+   - [`selling-houses-constitutional-progress-and-ai-roadmap-2026-05-28.md`](selling-houses-constitutional-progress-and-ai-roadmap-2026-05-28.md) — 宪法落地对账（5/22→5/28，通过率 1/7 → 5/7）+ AI 系统 4 阶段优化路线图（A1 Hardening / A2 Explainer / A3 Multi-Actor / A4 Self-Improving）。
 
 历史过程文、一次性报告、旧图、阶段迁移说明不再放在主文档体系中。
 

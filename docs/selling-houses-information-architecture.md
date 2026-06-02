@@ -4,6 +4,8 @@
 
 这份文档定义当前产品面怎么消费 Big World。旧版页面细稿、页面职责矩阵和“第一版界面建议”已经清理；当前重点不是画更多页面，而是保证每个 UI 判断都接在 source → causal → actor knowledge → decision → receipt → replay 主链上。
 
+当前实现的更强约束是：页面只能消费 evidence-backed world state 的解释结果，不能把 display fallback、legacy compatibility 或局部聚合误当成事实本身。
+
 ## 1. 信息架构原则
 
 1. 页面按玩家判断组织，不按数据库表组织。

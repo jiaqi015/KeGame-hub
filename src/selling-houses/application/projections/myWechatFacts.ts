@@ -429,6 +429,40 @@ function extractMarketIntelFacts(input: ExtractMyWechatFactsInput): WechatFact[]
       district: methodCase.district,
       debugSignals: [`intelId=${leadIntel.id}`, 'method=owner-followup'],
     }));
+
+    facts.push(buildFact({
+      state,
+      source: 'market_intel',
+      type: 'policy_window_watch',
+      caseId: methodCase.id,
+      eventId: `${leadIntel.id}-policy-window`,
+      priority: 14,
+      reason: `${leadIntel.title} 已经影响到 ${methodCase.title}，需要同步准备贷款、税费和付款节奏口径。`,
+      senderRole: 'official_account',
+      senderName: '政策风向标',
+      relatedCaseIds: [methodCase.id],
+      caseTitle: methodCase.title,
+      community: methodCase.community,
+      district: methodCase.district,
+      debugSignals: [`intelId=${leadIntel.id}`, 'policy=payment-tax-window'],
+    }));
+
+    facts.push(buildFact({
+      state,
+      source: 'market_intel',
+      type: 'transaction_sample_digest',
+      caseId: methodCase.id,
+      eventId: `${leadIntel.id}-transaction-sample`,
+      priority: 13,
+      reason: `${leadIntel.title} 已经关联到 ${methodCase.community}，需要把可比成交样本整理成客户和业主都听得懂的口径。`,
+      senderRole: 'official_account',
+      senderName: '成交样本库',
+      relatedCaseIds: [methodCase.id],
+      caseTitle: methodCase.title,
+      community: methodCase.community,
+      district: methodCase.district,
+      debugSignals: [`intelId=${leadIntel.id}`, 'sample=comparable-transaction'],
+    }));
   }
 
   return facts;

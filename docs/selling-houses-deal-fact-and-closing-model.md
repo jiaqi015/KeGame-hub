@@ -12,13 +12,16 @@
 CustomerListingRelation.stage = closed
 ```
 
+也不能把 `ClosedDealRecord` 当成“签约真因”。在当前实现里，成交事实的真实签约依据是 canonical evidence 汇聚后的 `PriceConsensusProof`，再由它写出 `ContractFact`；`ClosedDealRecord` 是结果镜像、结算输出和复盘入口，不是事实生成器。
+
 正确链路：
 
 ```text
-relation reaches offer / close candidate
-  → DealClosingEvaluation
-  → ClosedDealRecord
-  → outcome receipt
+real buyer offer / owner concession evidence
+  → canonical price trajectory
+  → PriceConsensusProof
+  → ContractFact
+  → ClosedDealRecord / outcome receipt
   → causal event
   → runtime feedback
   → result / review projection

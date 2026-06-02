@@ -169,6 +169,20 @@ const OFFICIAL_ACCOUNT_TEMPLATES = {
     tag: 'community' as const,
     tone: 'risk' as const,
   },
+  policy_window_watch: {
+    accountName: '政策风向标',
+    title: '贷款和税费口径要提前讲清',
+    summary: '最近客户更容易把月供、税费和置换时间一起算。沟通前先准备贷款资格、税费区间和付款节奏，避免客户只盯总价压价。',
+    tag: 'policy' as const,
+    tone: 'neutral' as const,
+  },
+  transaction_sample_digest: {
+    accountName: '成交样本库',
+    title: '{community} 可比成交开始影响议价',
+    summary: '{community} 近期可比成交会被客户和业主同时拿来参考。今天沟通前先准备同户型成交、挂牌差异和业主可谈空间。',
+    tag: 'market' as const,
+    tone: 'chance' as const,
+  },
   market_competition_risk: {
     accountName: '竞品快讯',
     title: '同价位供给增加，客户压价理由变多',

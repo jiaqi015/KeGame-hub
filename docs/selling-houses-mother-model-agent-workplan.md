@@ -6,15 +6,16 @@
 
 ## 1. 当前成熟度
 
-当前目标不是“多造一些房源和客户”，而是把卖房玩法接到同一条生命周期链：
+当前目标不是“多造一些房源和客户”，而是把卖房玩法接到同一条可验证的主链：
 
-`source → causal event → actor knowledge → belief / pressure → decision → command → receipt → runtime feedback → replay → projection envelope`
+`source → causal event → actor knowledge / belief / pressure → decision → command / receipt → runtime feedback → replay → projection`
 
 当前认可的成熟度：
 
 - `FIVE-X-CITY-MARKET-BIG`
 - 规模口径来自 `src/selling-houses/domain/world-model/bigWorldSpecFactory.ts` 的 `FIVE_X_SCALE_POLICY`
 - 门禁必须证明 runtime、projection、receipt、replay 和 product decision 都接在同一条 live causal chain 上
+- 成交与结算必须走 canonical evidence → `PriceConsensusProof` → `ContractFact`，不能只靠 legacy projection 或结果字段
 
 任何只增加初始实体数量、只加 UI 文案、只在脚本里 standalone 跑通的实现，都不能算 Big World 完成。
 
@@ -65,6 +66,7 @@
 - `Date.now`、`Math.random`、`fetch`、LLM provider 作为核心模拟真相。
 - `pendingSourceRecords` 未进入 `worldCausalEvents` 就当完成。
 - standalone runtime 通过，但真实游戏推进链路没有接上。
+- 用 legacy projection、结果字段或页面摘要冒充成交事实。
 - 重写整个游戏或破坏现有可玩性。
 
 ## 5. 当前硬门禁

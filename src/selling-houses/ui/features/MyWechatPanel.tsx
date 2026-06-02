@@ -94,6 +94,19 @@ const OFFICIAL_ACCOUNT_AVATAR_BY_NAME: Record<string, string> = {
 };
 
 const OFFICIAL_ACCOUNT_AVATAR_FALLBACKS = Object.values(OFFICIAL_ACCOUNT_AVATAR_BY_NAME);
+const WECHAT_MESSAGE_META_PILL_CLASS =
+  'box-border inline-flex h-[18px] min-w-[54px] shrink-0 items-center justify-center whitespace-nowrap rounded-full px-2 text-[9px] font-semibold leading-none';
+const WECHAT_MESSAGE_META_NEUTRAL_PILL_CLASS =
+  `${WECHAT_MESSAGE_META_PILL_CLASS} border border-[var(--seller-border)] bg-[rgba(255,255,255,0.05)] text-[var(--seller-muted)]`;
+const WECHAT_MESSAGE_META_ACCENT_PILL_CLASS =
+  `${WECHAT_MESSAGE_META_PILL_CLASS} border border-[color:var(--seller-accent)]/24 bg-[color:var(--seller-accent)]/10 text-[var(--seller-accent)]`;
+const WECHAT_MESSAGE_META_ACTION_PILL_CLASS =
+  `${WECHAT_MESSAGE_META_PILL_CLASS} border border-[color:var(--seller-accent)]/24 bg-[color:var(--seller-accent)]/8 text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/14`;
+const WECHAT_MESSAGE_META_ACTION_STYLE: React.CSSProperties = {
+  fontSize: '9px',
+  fontWeight: 600,
+  lineHeight: 1,
+};
 
 export function MyWechatPanel({
   state,
@@ -816,16 +829,16 @@ const WechatMessageRow: React.FC<WechatMessageRowProps> = ({
           {latestImpact || stripWechatSpeakerPrefix(latestMessage.preview, conversation.senderName, conversation.senderRole)}
         </p>
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${urgencyClassName(latestMessage.urgency)}`}>
+          <span className={`${WECHAT_MESSAGE_META_PILL_CLASS} ${urgencyClassName(latestMessage.urgency)}`}>
             {urgencyLabel(latestMessage.urgency)}
           </span>
-          {lead && <span className="seller-chip seller-chip-accent">今日重点</span>}
-          {latestReceipt && <span className="seller-chip">已回复</span>}
+          {lead && <span className={WECHAT_MESSAGE_META_ACCENT_PILL_CLASS}>今日重点</span>}
+          {latestReceipt && <span className={WECHAT_MESSAGE_META_NEUTRAL_PILL_CLASS}>已回复</span>}
           {latestReceipt && getConversationEffectLabels(latestReceipt).slice(0, 2).map((label) => (
-            <span key={label} className="seller-chip seller-chip-accent">{label}</span>
+            <span key={label} className={WECHAT_MESSAGE_META_ACCENT_PILL_CLASS}>{label}</span>
           ))}
           {latestMessage.primaryCtaLabel && primaryActionHandled ? (
-            <span className="seller-chip">已承接</span>
+            <span className={WECHAT_MESSAGE_META_NEUTRAL_PILL_CLASS}>已承接</span>
           ) : latestMessage.primaryCtaLabel && onPrimaryAction ? (
             <button
               type="button"
@@ -834,13 +847,14 @@ const WechatMessageRow: React.FC<WechatMessageRowProps> = ({
                 event.stopPropagation();
                 onPrimaryAction();
               }}
-              className="rounded-full border border-[color:var(--seller-accent)]/24 bg-[color:var(--seller-accent)]/8 px-1.5 py-0 text-[9px] font-semibold leading-[17px] text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/14"
+              className={WECHAT_MESSAGE_META_ACTION_PILL_CLASS}
+              style={WECHAT_MESSAGE_META_ACTION_STYLE}
               title="点击直接安排事项"
             >
               {latestMessage.primaryCtaLabel}
             </button>
           ) : latestMessage.primaryCtaLabel ? (
-            <span className="text-[10px] font-semibold text-[var(--seller-accent)]">{latestMessage.primaryCtaLabel}</span>
+            <span className={WECHAT_MESSAGE_META_ACCENT_PILL_CLASS}>{latestMessage.primaryCtaLabel}</span>
           ) : null}
         </div>
       </div>

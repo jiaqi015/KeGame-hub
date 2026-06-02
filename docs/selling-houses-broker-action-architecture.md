@@ -17,6 +17,8 @@ actor knowledge
   → runtime feedback
 ```
 
+当前实现对动作的约束更明确：动作不是页面上看起来能点的按钮，而是必须由可用 command 生成；执行后还要把 evidence 和 receipt 送回 runtime，保证后续 projection、settlement、replay 能读到同一条事实链。
+
 ## 2. 动作来源
 
 动作只能来自：

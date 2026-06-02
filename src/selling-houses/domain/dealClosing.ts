@@ -262,7 +262,7 @@ function finalizeClosedDeal(
   evaluation: DealClosingEvaluation,
   wordOfMouthBonus: number,
 ) {
-  if (state.closedDeals.some((entry) => entry.caseId === caseItem.id)) {
+  if ((state.runtimeContractFacts ?? []).some((cf) => cf.caseId === caseItem.id)) {
     clearPendingDealClosing(state, opportunity);
     return;
   }
@@ -276,9 +276,15 @@ function finalizeClosedDeal(
   // (moved below after proof construction)
 
   // R44: Try canonical trajectory builder FIRST (requires real evidence)
+  // R47: Merge pending + persisted source records so evidence from previous ticks
+  // is available even after tickBigWorldRuntime clears pendingSourceRecords.
   const ownerId = caseItem.ownerName || `owner:${caseItem.id}`;
+  const mergedPendingRecords = [
+    ...(state.pendingSourceRecords ?? []),
+    ...(state.bigWorldRuntime?.persistedSourceRecords ?? []),
+  ];
   const canonicalResult = buildCanonicalPriceTrajectoryFromEvidence({
-    state: createEvidenceStateView(state),
+    state: createEvidenceStateView({ ...state, pendingSourceRecords: mergedPendingRecords }),
     caseId: caseItem.id,
     customerId: opportunity.customerId,
     ownerId,
@@ -391,7 +397,7 @@ function finalizeClosedDeal(
 
   const saleBalance = BALANCE.actions.sale;
 
-  // R27: Sync legacy mirrors only when proof-backed contract exists
+  // R44: only proof-backed contracts may run post-close side-effects.
   if (contractFact) {
     syncLegacyCaseDealMirrorsFromContractFact(state, {
       contractFact,
@@ -401,87 +407,87 @@ function finalizeClosedDeal(
       opportunity,
       evaluation,
     });
+
+    applyBrokerOwnerTrustDelta(state, caseItem, saleBalance.soldTrustBonus, '成交信任奖励', 0, 100);
+    caseItem.heat = clamp(caseItem.heat + saleBalance.soldHeatBonus, 0, 100);
+
+    const commission = Math.round(
+      soldPrice
+        * saleBalance.commissionRate
+        * saleBalance.advisorShareRate
+        * saleBalance.precisionFactor,
+    ) / saleBalance.precisionFactor;
+    const budgetReturn = Math.max(
+      state.rules.promotionRebateFloor,
+      Math.round(commission * state.rules.promotionRebateRatio),
+    );
+    recordBudgetChange(state, {
+      amount: budgetReturn,
+      kind: 'sale-rebate',
+      title: '总部推广金到账',
+      detail: `${caseItem.title} 成功过户。按规定提了 ${commission} 个点，总部按比例发了 ${budgetReturn} 个推广点，又有弹药了。`,
+    });
+    applyAuxiliaryStats(state, {
+      soldCount: state.auxiliaryStats.soldCount + 1,
+      commission: state.auxiliaryStats.commission + commission,
+      wordOfMouth: clamp(state.auxiliaryStats.wordOfMouth + saleBalance.wordOfMouthBaseBonus + wordOfMouthBonus, 0, 100),
+    });
+
+    state.opportunities.forEach((entry) => {
+      if (entry.caseId !== caseItem.id || !isOpportunityActiveByCanonicalState(state, entry)) {
+        return;
+      }
+      setOpportunityStatusOnState(state, entry, entry.id === opportunity.id ? 'won' : 'closed', '成交结算');
+      clearPendingDealClosing(state, entry);
+      refreshOpportunityLabel(state, entry);
+    });
+
+    state.customerStates.forEach((customerState) => {
+      const runtime = customerState.caseStates[caseItem.id];
+      if (!runtime) return;
+      if (customerState.customerId === opportunity.customerId) {
+        customerState.status = 'converted';
+        runtime.selected = true;
+        runtime.offered = true;
+        syncCustomerJourneyStageMirrorFromDealClose(runtime, saleBalance.convertedStageIndex);
+        runtime.interest = 100;
+        runtime.confidence = 100;
+        customerState.lastActionNote = '成交完成';
+      } else {
+        customerState.status = customerState.status === 'lost' ? 'lost' : 'idle';
+        runtime.selected = false;
+        runtime.interest = clamp(runtime.interest - saleBalance.losingOtherCustomersInterestPenalty, 0, 100);
+        runtime.confidence = clamp(runtime.confidence - saleBalance.losingOtherCustomersConfidencePenalty, 0, 100);
+      }
+      customerState.activeCaseIds = customerState.activeCaseIds.filter((id) => id !== caseItem.id);
+    });
+
+    recordDomainEvent(state, {
+      kind: 'case_sold',
+      actor: caseItem.title,
+      title: '房源成交',
+      detail: `${caseItem.title} 最终以 ${soldPrice} 万落锤，咱们拿到了 ${budgetReturn} 个推广点奖励。`,
+      tone: 'success',
+      caseId: caseItem.id,
+      opportunityId: opportunity.id,
+      customerId: opportunity.customerId,
+      payload: {
+        dealId: contractFact.contractId,
+        soldPrice,
+        commission,
+        budgetReturn,
+        closeReadiness: evaluation.closeReadiness,
+        closeProbability: evaluation.closeProbability,
+        ownerSatisfaction: readCaseTerminalOutcomeForCase(state, caseItem, caseItem.trust).ownerSatisfaction,
+        defenseOutcome: readCaseTerminalOutcomeForCase(state, caseItem, caseItem.trust).defenseOutcome,
+        endingType: readCaseTerminalOutcomeForCase(state, caseItem, caseItem.trust).endingType,
+        endingBucket: readCaseTerminalOutcomeForCase(state, caseItem, caseItem.trust).endingBucket,
+        relativeOutcome: readCaseTerminalOutcomeForCase(state, caseItem, caseItem.trust).relativeOutcome,
+      },
+    });
+
+    logEvent(state, '成交快报', `${caseItem.title} 签了！最终 ${soldPrice} 万落锤，咱们组分了 ${commission} 个点，外加 ${budgetReturn} 个推广点，今晚加鸡腿！`, 'success');
   }
-
-  applyBrokerOwnerTrustDelta(state, caseItem, saleBalance.soldTrustBonus, '成交信任奖励', 0, 100);
-  caseItem.heat = clamp(caseItem.heat + saleBalance.soldHeatBonus, 0, 100);
-
-  const commission = Math.round(
-    soldPrice
-      * saleBalance.commissionRate
-      * saleBalance.advisorShareRate
-      * saleBalance.precisionFactor,
-  ) / saleBalance.precisionFactor;
-  const budgetReturn = Math.max(
-    state.rules.promotionRebateFloor,
-    Math.round(commission * state.rules.promotionRebateRatio),
-  );
-  recordBudgetChange(state, {
-    amount: budgetReturn,
-    kind: 'sale-rebate',
-    title: '总部推广金到账',
-    detail: `${caseItem.title} 成功过户。按规定提了 ${commission} 个点，总部按比例发了 ${budgetReturn} 个推广点，又有弹药了。`,
-  });
-  applyAuxiliaryStats(state, {
-    soldCount: state.auxiliaryStats.soldCount + 1,
-    commission: state.auxiliaryStats.commission + commission,
-    wordOfMouth: clamp(state.auxiliaryStats.wordOfMouth + saleBalance.wordOfMouthBaseBonus + wordOfMouthBonus, 0, 100),
-  });
-
-  state.opportunities.forEach((entry) => {
-    if (entry.caseId !== caseItem.id || !isOpportunityActiveByCanonicalState(state, entry)) {
-      return;
-    }
-    setOpportunityStatusOnState(state, entry, entry.id === opportunity.id ? 'won' : 'closed', '成交结算');
-    clearPendingDealClosing(state, entry);
-    refreshOpportunityLabel(state, entry);
-  });
-
-  state.customerStates.forEach((customerState) => {
-    const runtime = customerState.caseStates[caseItem.id];
-    if (!runtime) return;
-    if (customerState.customerId === opportunity.customerId) {
-      customerState.status = 'converted';
-      runtime.selected = true;
-      runtime.offered = true;
-      syncCustomerJourneyStageMirrorFromDealClose(runtime, saleBalance.convertedStageIndex);
-      runtime.interest = 100;
-      runtime.confidence = 100;
-      customerState.lastActionNote = '成交完成';
-    } else {
-      customerState.status = customerState.status === 'lost' ? 'lost' : 'idle';
-      runtime.selected = false;
-      runtime.interest = clamp(runtime.interest - saleBalance.losingOtherCustomersInterestPenalty, 0, 100);
-      runtime.confidence = clamp(runtime.confidence - saleBalance.losingOtherCustomersConfidencePenalty, 0, 100);
-    }
-    customerState.activeCaseIds = customerState.activeCaseIds.filter((id) => id !== caseItem.id);
-  });
-
-  recordDomainEvent(state, {
-    kind: 'case_sold',
-    actor: caseItem.title,
-    title: '房源成交',
-    detail: `${caseItem.title} 最终以 ${soldPrice} 万落锤，咱们拿到了 ${budgetReturn} 个推广点奖励。`,
-    tone: 'success',
-    caseId: caseItem.id,
-    opportunityId: opportunity.id,
-    customerId: opportunity.customerId,
-    payload: {
-      dealId: contractFact?.contractId ?? `deal-${caseItem.id}-${opportunity.customerId}-${state.day}`,
-      soldPrice,
-      commission,
-      budgetReturn,
-      closeReadiness: evaluation.closeReadiness,
-      closeProbability: evaluation.closeProbability,
-      ownerSatisfaction: readCaseTerminalOutcomeForCase(state, caseItem, caseItem.trust).ownerSatisfaction,
-      defenseOutcome: readCaseTerminalOutcomeForCase(state, caseItem, caseItem.trust).defenseOutcome,
-      endingType: readCaseTerminalOutcomeForCase(state, caseItem, caseItem.trust).endingType,
-      endingBucket: readCaseTerminalOutcomeForCase(state, caseItem, caseItem.trust).endingBucket,
-      relativeOutcome: readCaseTerminalOutcomeForCase(state, caseItem, caseItem.trust).relativeOutcome,
-    },
-  });
-
-  logEvent(state, '成交快报', `${caseItem.title} 签了！最终 ${soldPrice} 万落锤，咱们组分了 ${commission} 个点，外加 ${budgetReturn} 个推广点，今晚加鸡腿！`, 'success');
 }
 
 function resolveFailedPendingClosing(
@@ -673,7 +679,7 @@ export function settlePendingDealClosings(state: GameState) {
       clearPendingDealClosing(state, opportunity);
       return;
     }
-    if (state.closedDeals.some((entry) => entry.caseId === caseItem.id)) {
+    if ((state.runtimeContractFacts ?? []).some((cf) => cf.caseId === caseItem.id)) {
       clearPendingDealClosing(state, opportunity);
       return;
     }

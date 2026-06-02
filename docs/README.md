@@ -6,12 +6,14 @@
 
 ## 先读这 6 份
 
-1. [接手清单](project-memory/handoff-checklist.md)
-2. [模块地图](project-memory/module-map.md)
-3. [稳定决策](project-memory/durable-decisions.md)
-4. [卖房总设计](selling-houses-total-design.md)
-5. [卖房架构总纲](selling-houses-master.md)
-6. [母模型迁移工作板](selling-houses-mother-model-agent-workplan.md)
+按这个顺序读，能最快建立当前项目的共同语境：
+
+1. [接手清单](project-memory/handoff-checklist.md) — 先确认项目状态、入口和风险。
+2. [模块地图](project-memory/module-map.md) — 先知道改哪块去哪里看。
+3. [稳定决策](project-memory/durable-decisions.md) — 先记住哪些事已经定死。
+4. [卖房架构总纲](selling-houses-master.md) — 先理解当前 Big World 的判断与边界。
+5. [母模型迁移工作板](selling-houses-mother-model-agent-workplan.md) — 先对齐当前迁移成熟度和 gate 口径。
+6. [卖房总设计](selling-houses-total-design.md) — 最后补完整体业务、玩法和页面闭环。
 
 ## 当前主文
 

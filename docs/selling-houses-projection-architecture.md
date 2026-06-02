@@ -4,6 +4,8 @@
 
 Projection 不是“把状态格式化给页面”，而是把 actor 可见的世界翻译成可解释、可执行、可重放的产品判断。
 
+当前实现下，projection 必须严格服从 evidence-backed world state：它可以解释事实、组织事实、推荐动作，但不能替代事实来源本身，也不能把 legacy compatibility 结果包装成主真相。
+
 ## 1. Projection 的输入
 
 Projection 只能读取：
@@ -16,6 +18,8 @@ Projection 只能读取：
 - receipts
 - bounded runtime summaries
 - run result / career stats（仅结果和榜单面）
+
+当前实现口径下，Projection 更像是“世界事实的解释层”，不是事实源头；任何不能回指到 source / causal / receipt 的内容，只能算 display-only。
 
 Projection 禁止读取：
 

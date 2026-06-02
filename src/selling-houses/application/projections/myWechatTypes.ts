@@ -38,6 +38,8 @@ export type WechatFactType =
   | 'market_competition_risk'
   | 'market_demand_change'
   | 'community_supply_change'
+  | 'policy_window_watch'
+  | 'transaction_sample_digest'
   | 'method_suggestion'
   | 'matter_pending'
   | 'event_followup_needed';

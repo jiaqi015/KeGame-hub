@@ -48,6 +48,8 @@
 6. `priceFlexibility`
 7. `pricePressure`
 
+当前实现对价格模型的要求还额外多了一层：它不仅要服务机会推进，还要为后面的成交结算提供可追溯的 evidence 输入，最终能进入 canonical closing chain，而不是只给出“看起来合理”的静态估价。
+
 ---
 
 ## 1. 先分清 3 种价

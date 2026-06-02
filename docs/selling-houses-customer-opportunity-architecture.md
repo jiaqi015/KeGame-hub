@@ -221,6 +221,8 @@ type CustomerCaseRelation = {
 
 ## 6. 机会阶段定义
 
+机会主线只负责推进，不负责成交真因；正式成交要交给独立的成交/结算链路，最后落到 `PriceConsensusProof` 和 `ContractFact`。
+
 ## 6.1 线上咨询
 
 说明：
