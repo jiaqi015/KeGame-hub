@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import type { GameState, Case, MatterEntry } from '../../../domain/models';
 import type { ActionDecisionConfig, CharacterFeedback, Settlement } from '../ActionDecisionOverlay';
-import { getActionTemplate } from '../../../domain/actions/templates';
+import { getActionTemplate, isScenarioTemplate } from '../../../domain/actions/templates';
 import { ACTIONS } from '../../../domain/actions/definitions';
 
 interface Props {
@@ -46,8 +46,8 @@ export function ReportMatterView({ config, matter, onChoose, onComplete, onClose
       }
 
       const template = config.actionId ? getActionTemplate(ACTIONS.find((a) => a.id === config.actionId)!) : null;
-      if (template && (template as any).getFeedback) {
-        feedback = (template as any).getFeedback(selectedMain, '', state, caseItem);
+      if (template && isScenarioTemplate(template) && template.getFeedback) {
+        feedback = template.getFeedback(selectedMain, '', state, caseItem);
       } else if (config.rounds) {
         const roundDef = config.rounds[currentRound - 1];
         feedback = roundDef.getFeedback(selectedMain, '', state, caseItem);
@@ -69,8 +69,8 @@ export function ReportMatterView({ config, matter, onChoose, onComplete, onClose
     } else {
       const template = config.actionId ? getActionTemplate(ACTIONS.find((a) => a.id === config.actionId)!) : null;
       let outcomeResult: Settlement;
-      if (template && (template as any).resolveOutcome) {
-        outcomeResult = (template as any).resolveOutcome(choices, feedbacks, state, caseItem);
+      if (template && isScenarioTemplate(template)) {
+        outcomeResult = template.resolveOutcome(choices, feedbacks, state, caseItem);
       } else {
         outcomeResult = {
           outcome: 'progress',

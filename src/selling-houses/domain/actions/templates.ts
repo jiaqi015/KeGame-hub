@@ -78,6 +78,16 @@ export type ScenarioActionTemplate = ActionBattleTemplate & {
   ) => Settlement;
 };
 
+/**
+ * Narrows ActionBattleTemplate to ScenarioActionTemplate.
+ * Scenarios expose resolveOutcome; the base template does not.
+ */
+export function isScenarioTemplate(
+  template: ActionBattleTemplate,
+): template is ScenarioActionTemplate {
+  return 'resolveOutcome' in template;
+}
+
 function buildTemplate(
   template: Omit<ActionBattleTemplate, 'buildBody' | 'getStrategies'> & {
     buildBody: (state: GameState, caseItem: Case, action: ActionDefinition) => string;

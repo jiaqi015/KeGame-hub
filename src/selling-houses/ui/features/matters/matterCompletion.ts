@@ -2,7 +2,7 @@ import type { Case, GameState } from '../../../domain/models';
 import { ACTIONS } from '../../../domain/actions/definitions';
 import {
   getActionTemplate,
-  type ScenarioActionTemplate,
+  isScenarioTemplate,
   type ScenarioChoice,
   type CharacterFeedback,
   type Settlement,
@@ -14,10 +14,6 @@ type QuickMatterCompletion = {
   choices: ScenarioChoice[];
   feedbacks: CharacterFeedback[];
 };
-
-function isScenarioTemplate(template: ReturnType<typeof getActionTemplate>): template is ScenarioActionTemplate {
-  return 'resolveOutcome' in template;
-}
 
 export function buildQuickMatterScenarioCompletion(
   config: ActionDecisionConfig,

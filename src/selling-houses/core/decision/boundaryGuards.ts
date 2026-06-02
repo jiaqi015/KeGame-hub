@@ -142,14 +142,14 @@ export function validateOwnerPOVBoundary(pov: OwnerPOVSnapshot): readonly POVBou
 export function validateOwnerCaseBoundary(caseCtx: OwnerPOVContext): readonly POVBoundaryViolation[] {
   const violations: POVBoundaryViolation[] = [];
 
-  if ((caseCtx.assetScore as any).d4 !== undefined) {
+  if ('d4' in caseCtx.assetScore) {
     violations.push({
       rule: 'no-d4',
       detail: 'OwnerPOV must NOT expose D4 competition data',
       path: 'case.assetScore.d4',
     });
   }
-  if ('recommendationDrafts' in caseCtx && Array.isArray((caseCtx as any).recommendationDrafts)) {
+  if ('recommendationDrafts' in caseCtx && Array.isArray(caseCtx.recommendationDrafts)) {
     violations.push({
       rule: 'no-drafts',
       detail: 'OwnerPOV must NOT expose recommendation drafts',

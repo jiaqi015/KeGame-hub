@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { GameState, Case, ActionDefinition } from '../../domain/models';
 import { ACTIONS } from '../../domain/actions/definitions';
-import { getActionTemplate, getScenarioMode, getScenarioTemplate, isScenarioAction } from '../../domain/actions/templates';
+import { getActionTemplate, getScenarioMode, getScenarioTemplate, isScenarioAction, isScenarioTemplate } from '../../domain/actions/templates';
 import type { ScenarioChoice as DomainScenarioChoice } from '../../domain/actions/templates';
 import type { MatterEntry } from '../../domain/models';
 import { ReportMatterView } from './matters/ReportMatterView';
@@ -114,27 +114,27 @@ export function buildActionDecisionConfig(
   if (!template) return null;
 
   const isScenario = isScenarioAction(actionId);
-  const scenarioTemplate = template as any;
+  const scenario = isScenario && isScenarioTemplate(template) ? template : null;
 
   return {
     actionId,
-    title: isScenario && scenarioTemplate.scenarioTitle
-      ? `${caseItem.title} · ${scenarioTemplate.scenarioTitle}`
+    title: scenario
+      ? `${caseItem.title} · ${scenario.scenarioTitle}`
       : `${caseItem.title} · ${action.name}`,
-    summary: isScenario && scenarioTemplate.goal ? scenarioTemplate.goal : (action.summary || template.summary),
+    summary: scenario ? scenario.goal : (action.summary || template.summary),
     body: template.buildBody(state, caseItem, action),
     actorLabel: deriveActorLabel(template),
     metricFocus: template.metricFocus,
-    options: template.getStrategies(state, caseItem, action).map((option: any) => ({
+    options: template.getStrategies(state, caseItem, action).map((option) => ({
       id: option.id,
       title: option.title,
       note: option.note,
     })),
     isScenario,
-    scenarioMode: scenarioTemplate.scenarioMode,
-    contextBullets: scenarioTemplate.getContextBullets?.(state, caseItem),
-    rounds: isScenario ? buildScenarioRoundsForConfig(scenarioTemplate, state, caseItem, action) : scenarioTemplate.rounds,
-    strategies: scenarioTemplate.strategies,
+    scenarioMode: scenario?.scenarioMode,
+    contextBullets: scenario?.getContextBullets(state, caseItem),
+    rounds: scenario ? buildScenarioRoundsForConfig(scenario, state, caseItem, action) : undefined,
+    strategies: scenario?.strategies,
   };
 }
 
@@ -432,9 +432,9 @@ export function ActionDecisionOverlay({
     }
 
     const template = config.actionId ? getActionTemplate(ACTIONS.find((a) => a.id === config.actionId)!) : null;
-    
-    if (template && (template as any).getFeedback) {
-      feedback = (template as any).getFeedback(selectedMain, selectedAssist || '', state, caseItem);
+
+    if (template && isScenarioTemplate(template) && template.getFeedback) {
+      feedback = template.getFeedback(selectedMain, selectedAssist || '', state, caseItem);
     } else if (config.rounds) {
       const roundDef = config.rounds[currentRound - 1];
       feedback = roundDef.getFeedback(selectedMain, selectedAssist || '', state, caseItem);
@@ -480,9 +480,9 @@ export function ActionDecisionOverlay({
     } else {
       const template = config.actionId ? getActionTemplate(ACTIONS.find((a) => a.id === config.actionId)!) : null;
       let outcomeResult: Settlement;
-      
-      if (template && (template as any).resolveOutcome) {
-        outcomeResult = (template as any).resolveOutcome(choices, feedbacks, state, caseItem);
+
+      if (template && isScenarioTemplate(template)) {
+        outcomeResult = template.resolveOutcome(choices, feedbacks, state, caseItem);
       } else {
         const lastChoiceMain = choices.length > 0 ? choices[choices.length - 1].main : null;
         outcomeResult = {
