@@ -219,11 +219,16 @@ function replaceMatchState(
   state: GameState,
   newMatch: CustomerCaseMatchState,
 ): CustomerCaseMatchState {
-  if (!state.runtimeCustomerCaseMatches) return newMatch;
+  if (!state.runtimeCustomerCaseMatches) {
+    asWritableGameState(state).runtimeCustomerCaseMatches = [newMatch];
+    return newMatch;
+  }
   const idx = state.runtimeCustomerCaseMatches.findIndex((m) => m.matchId === newMatch.matchId);
   if (idx >= 0) {
     asWritableGameState(state).runtimeCustomerCaseMatches[idx] = newMatch;
+    return newMatch;
   }
+  asWritableGameState(state).runtimeCustomerCaseMatches.push(newMatch);
   return newMatch;
 }
 
@@ -235,12 +240,17 @@ function replaceBrokeredState(
   state: GameState,
   newBrokered: BrokeredOpportunityState,
 ): BrokeredOpportunityState {
-  if (!state.runtimeBrokeredOpportunities) return newBrokered;
-  const idx = state.runtimeBrokeredOpportunities.findIndex(
-    (o) => o.brokeredOpportunityId === newBrokered.brokeredOpportunityId,
-  );
-  if (idx >= 0) {
-    asWritableGameState(state).runtimeBrokeredOpportunities[idx] = newBrokered;
+  if (!state.runtimeBrokeredOpportunities) {
+    asWritableGameState(state).runtimeBrokeredOpportunities = [newBrokered];
+  } else {
+    const idx = state.runtimeBrokeredOpportunities.findIndex(
+      (o) => o.brokeredOpportunityId === newBrokered.brokeredOpportunityId,
+    );
+    if (idx >= 0) {
+      asWritableGameState(state).runtimeBrokeredOpportunities[idx] = newBrokered;
+    } else {
+      asWritableGameState(state).runtimeBrokeredOpportunities.push(newBrokered);
+    }
   }
 
   // Sync legacy Opportunity mirror
