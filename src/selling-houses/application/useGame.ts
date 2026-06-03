@@ -582,16 +582,14 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
     onMessage?: (msg: string) => void,
     todayPlanItemId: string | null = null,
     meta?: unknown,
-  ) => {
-    let success = false;
-    setState((prev) => {
-      if (!prev) return null;
-      const result = executeGameAction(prev, actionId, caseItem.id, optionId, todayPlanItemId, onMessage, meta);
-      success = result.success;
-      return result.success ? commitLocalStateChange(result.nextState) : prev;
-    });
-    return success;
-  }, [commitLocalStateChange]);
+  ): boolean => {
+    if (!state) return false;
+    const result = executeGameAction(state, actionId, caseItem.id, optionId, todayPlanItemId, onMessage, meta);
+    if (result.success) {
+      setState(commitLocalStateChange(result.nextState));
+    }
+    return result.success;
+  }, [state, commitLocalStateChange]);
 
   const handleExecuteScenarioAction = useCallback((
     actionId: string,
@@ -601,24 +599,22 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
     feedbacks: Array<{ actor: string; mood: string; message: string }> = [],
     onMessage?: (msg: string) => void,
     todayPlanItemId: string | null = null,
-  ) => {
-    let success = false;
-    setState((prev) => {
-      if (!prev) return null;
-      const result = executeScenarioAction(
-        prev,
-        actionId,
-        caseItem.id,
-        settlement,
-        { choices, feedbacks },
-        todayPlanItemId,
-        onMessage,
-      );
-      success = result.success;
-      return result.success ? commitLocalStateChange(result.nextState) : prev;
-    });
-    return success;
-  }, [commitLocalStateChange]);
+  ): boolean => {
+    if (!state) return false;
+    const result = executeScenarioAction(
+      state,
+      actionId,
+      caseItem.id,
+      settlement,
+      { choices, feedbacks },
+      todayPlanItemId,
+      onMessage,
+    );
+    if (result.success) {
+      setState(commitLocalStateChange(result.nextState));
+    }
+    return result.success;
+  }, [state, commitLocalStateChange]);
 
   const handleSendWechatConversationReply = useCallback(async (
     conversationKey: string,
@@ -678,51 +674,37 @@ export function useGame(input?: { activationKey?: string } & SellingHousesPlayer
   }, [commitLocalStateChange]);
 
   const handleAddTodayPlanItem = useCallback((input: TodayPlanDraft, onMessage?: (msg: string) => void) => {
-    let success = false;
-    let reason = '';
-    setState((prev) => {
-      if (!prev) return null;
-      const result = addTodayPlanItem(prev, input, onMessage);
-      success = result.success;
-      reason = result.reason;
-      return result.success ? commitLocalStateChange(result.nextState) : prev;
-    });
-    return { success, reason };
-  }, [commitLocalStateChange]);
+    if (!state) return { success: false, reason: 'no state' };
+    const result = addTodayPlanItem(state, input, onMessage);
+    if (result.success) {
+      setState(commitLocalStateChange(result.nextState));
+    }
+    return { success: result.success, reason: result.reason };
+  }, [state, commitLocalStateChange]);
 
   const handleRemoveTodayPlanItem = useCallback((itemId: string, onMessage?: (msg: string) => void) => {
-    let success = false;
-    let reason = '';
-    setState((prev) => {
-      if (!prev) return null;
-      const result = removeTodayPlanItem(prev, itemId, onMessage);
-      success = result.success;
-      reason = result.reason;
-      return result.success ? commitLocalStateChange(result.nextState) : prev;
-    });
-    return { success, reason };
-  }, [commitLocalStateChange]);
+    if (!state) return { success: false, reason: 'no state' };
+    const result = removeTodayPlanItem(state, itemId, onMessage);
+    if (result.success) {
+      setState(commitLocalStateChange(result.nextState));
+    }
+    return { success: result.success, reason: result.reason };
+  }, [state, commitLocalStateChange]);
 
   const handleExecuteTodayPlanItem = useCallback((
     itemId: string,
     optionId: string | null = null,
     onMessage?: (msg: string) => void,
   ) => {
-    let success = false;
-    let reason = '';
-    let outcome: 'executed' | 'scenario' | 'missing' | 'blocked' = 'blocked';
-    let executionMode: TodayPlanDraft['executionMode'] | null = null;
-    setState((prev) => {
-      if (!prev) return null;
-      const result = executeTodayPlanItem(prev, itemId, optionId, onMessage);
-      success = result.success;
-      reason = result.reason;
-      outcome = result.outcome;
-      executionMode = result.executionMode;
-      return result.success && result.outcome === 'executed' ? commitLocalStateChange(result.nextState) : prev;
-    });
-    return { success, reason, outcome, executionMode };
-  }, [commitLocalStateChange]);
+    if (!state) {
+      return { success: false, reason: 'no state', outcome: 'blocked' as const, executionMode: null };
+    }
+    const result = executeTodayPlanItem(state, itemId, optionId, onMessage);
+    if (result.success && result.outcome === 'executed') {
+      setState(commitLocalStateChange(result.nextState));
+    }
+    return { success: result.success, reason: result.reason, outcome: result.outcome, executionMode: result.executionMode };
+  }, [state, commitLocalStateChange]);
 
   const handleReset = useCallback(() => {
     setSyncWarning(null);
