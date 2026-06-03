@@ -157,6 +157,56 @@ function modalReducer(state: ModalState, action: ModalAction): ModalState {
   }
 }
 
+type FocusMeetingState = {
+  step: FocusMeetingStage;
+  selectedCaseIds: string[];
+  focusedCaseId: string | null;
+  selectedOptionId: string;
+};
+
+type FocusMeetingAction =
+  | { type: 'SET_STEP'; step: FocusMeetingStage }
+  | { type: 'SET_FOCUSED_CASE_ID'; caseId: string | null }
+  | { type: 'SET_SELECTED_OPTION_ID'; optionId: string }
+  | { type: 'TOGGLE_CASE'; caseId: string; maxSlots: number }
+  | { type: 'GO_COMPARE' };
+
+function focusMeetingReducer(state: FocusMeetingState, action: FocusMeetingAction): FocusMeetingState {
+  switch (action.type) {
+    case 'SET_STEP':
+      return { ...state, step: action.step };
+    case 'SET_FOCUSED_CASE_ID':
+      return { ...state, focusedCaseId: action.caseId };
+    case 'SET_SELECTED_OPTION_ID':
+      return { ...state, selectedOptionId: action.optionId };
+    case 'TOGGLE_CASE': {
+      const { caseId, maxSlots } = action;
+      if (state.selectedCaseIds.includes(caseId)) {
+        const next = state.selectedCaseIds.filter((id) => id !== caseId);
+        return {
+          ...state,
+          selectedCaseIds: next,
+          focusedCaseId: state.focusedCaseId === caseId ? (next[0] || null) : state.focusedCaseId,
+        };
+      }
+      if (state.selectedCaseIds.length >= maxSlots) return state;
+      return {
+        ...state,
+        selectedCaseIds: [...state.selectedCaseIds, caseId],
+        focusedCaseId: state.focusedCaseId || caseId,
+      };
+    }
+    case 'GO_COMPARE': {
+      const focused = state.focusedCaseId && state.selectedCaseIds.includes(state.focusedCaseId)
+        ? state.focusedCaseId
+        : state.selectedCaseIds[0] || null;
+      return { ...state, focusedCaseId: focused, step: 'compare' };
+    }
+    default:
+      return state;
+  }
+}
+
 type FocusMeetingStage = 'submit' | 'compare' | 'promote';
 type FocusMeetingSubmittedEntry = {
   caseItem: Case;
@@ -1753,13 +1803,34 @@ function FocusMeetingSubmitOverlay({
   const preferredInitialId = initialCaseId && activeCases.some((entry) => entry.caseItem.id === initialCaseId)
     ? initialCaseId
     : initialSubmittedIds[0] || null;
-  const [step, setStep] = useState<FocusMeetingStage>('submit');
-  const [selectedCaseIds, setSelectedCaseIds] = useState<string[]>(() => {
-    if (!preferredInitialId) return initialSubmittedIds;
-    return [preferredInitialId, ...initialSubmittedIds.filter((caseId) => caseId !== preferredInitialId)].slice(0, 3);
+  const [focusState, dispatchFocus] = useReducer(focusMeetingReducer, {
+    step: 'submit',
+    selectedCaseIds: (() => {
+      if (!preferredInitialId) return initialSubmittedIds;
+      return [preferredInitialId, ...initialSubmittedIds.filter((caseId) => caseId !== preferredInitialId)].slice(0, 3);
+    })(),
+    focusedCaseId: preferredInitialId,
+    selectedOptionId: 'quality-priority',
   });
-  const [focusedCaseId, setFocusedCaseId] = useState<string | null>(() => preferredInitialId);
-  const [selectedOptionId, setSelectedOptionId] = useState<string>('quality-priority');
+  const step = focusState.step;
+  const selectedCaseIds = focusState.selectedCaseIds;
+  const focusedCaseId = focusState.focusedCaseId;
+  const selectedOptionId = focusState.selectedOptionId;
+  const setStep = (s: FocusMeetingStage) => dispatchFocus({ type: 'SET_STEP', step: s });
+  const setSelectedCaseIds = (updater: string[] | ((prev: string[]) => string[])) => {
+    if (typeof updater === 'function') {
+      const next = updater(focusState.selectedCaseIds);
+      dispatchFocus({ type: 'SET_FOCUSED_CASE_ID', caseId: next[0] || null });
+    }
+  };
+  const setFocusedCaseId = (caseId: string | null | ((prev: string | null) => string | null)) => {
+    if (typeof caseId === 'function') {
+      dispatchFocus({ type: 'SET_FOCUSED_CASE_ID', caseId: caseId(focusState.focusedCaseId) });
+    } else {
+      dispatchFocus({ type: 'SET_FOCUSED_CASE_ID', caseId });
+    }
+  };
+  const setSelectedOptionId = (optionId: string) => dispatchFocus({ type: 'SET_SELECTED_OPTION_ID', optionId });
   const submittedEntries = selectedCaseIds
     .map((caseId) => {
       const entry = activeCases.find((candidate) => candidate.caseItem.id === caseId);
@@ -1800,24 +1871,12 @@ function FocusMeetingSubmitOverlay({
   ];
 
   const toggleCase = (caseId: string) => {
-    setSelectedCaseIds((current) => {
-      if (current.includes(caseId)) {
-        const next = current.filter((id) => id !== caseId);
-        if (focusedCaseId === caseId) {
-          setFocusedCaseId(next[0] || null);
-        }
-        return next;
-      }
-      if (current.length >= remainingSubmissionSlots) return current;
-      if (!focusedCaseId) setFocusedCaseId(caseId);
-      return [...current, caseId];
-    });
+    dispatchFocus({ type: 'TOGGLE_CASE', caseId, maxSlots: remainingSubmissionSlots });
   };
 
   const goCompare = () => {
     if (submittedEntries.length === 0) return;
-    setFocusedCaseId((current) => current && selectedCaseIds.includes(current) ? current : selectedCaseIds[0] || null);
-    setStep('compare');
+    dispatchFocus({ type: 'GO_COMPARE' });
   };
 
   const progressLabel = step === 'submit'
