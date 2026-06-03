@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
   ChevronRight,
   CircleDollarSign,
@@ -77,6 +77,42 @@ type FocusMeetingSubmitResult = {
   externalRivalListingIds: string[];
   comparingCustomerIds: string[];
 };
+
+type ViewState = {
+  activeView: WorkspaceView;
+  marketEntryLayer: MarketEntryLayer;
+  activeDetailPanel: DetailPanelType | null;
+};
+
+type ViewAction =
+  | { type: 'SET_ACTIVE_VIEW'; view: WorkspaceView }
+  | { type: 'SET_MARKET_ENTRY_LAYER'; layer: MarketEntryLayer }
+  | { type: 'SET_ACTIVE_DETAIL_PANEL'; panel: DetailPanelType | null }
+  | { type: 'RESET_TO_OVERVIEW' }
+  | { type: 'OPEN_MARKET_VIEW'; layer: MarketEntryLayer };
+
+const initialViewState: ViewState = {
+  activeView: 'overview',
+  marketEntryLayer: 'macro',
+  activeDetailPanel: null,
+};
+
+function viewReducer(state: ViewState, action: ViewAction): ViewState {
+  switch (action.type) {
+    case 'SET_ACTIVE_VIEW':
+      return { ...state, activeView: action.view };
+    case 'SET_MARKET_ENTRY_LAYER':
+      return { ...state, marketEntryLayer: action.layer };
+    case 'SET_ACTIVE_DETAIL_PANEL':
+      return { ...state, activeDetailPanel: action.panel };
+    case 'RESET_TO_OVERVIEW':
+      return { ...state, activeView: 'overview', marketEntryLayer: 'macro' };
+    case 'OPEN_MARKET_VIEW':
+      return { ...state, marketEntryLayer: action.layer, activeView: 'market' };
+    default:
+      return state;
+  }
+}
 type FocusMeetingStage = 'submit' | 'compare' | 'promote';
 type FocusMeetingSubmittedEntry = {
   caseItem: Case;
@@ -146,12 +182,16 @@ export function SellingHousesWorkspace({
     storageProfile,
   });
 
-  const [activeView, setActiveView] = useState<WorkspaceView>('overview');
-  const [marketEntryLayer, setMarketEntryLayer] = useState<MarketEntryLayer>('macro');
+  const [viewState, dispatchView] = useReducer(viewReducer, initialViewState);
+  const activeView = viewState.activeView;
+  const marketEntryLayer = viewState.marketEntryLayer;
+  const activeDetailPanel = viewState.activeDetailPanel;
+  const setActiveView = (view: WorkspaceView) => dispatchView({ type: 'SET_ACTIVE_VIEW', view });
+  const setMarketEntryLayer = (layer: MarketEntryLayer) => dispatchView({ type: 'SET_MARKET_ENTRY_LAYER', layer });
+  const setActiveDetailPanel = (panel: DetailPanelType | null) => dispatchView({ type: 'SET_ACTIVE_DETAIL_PANEL', panel });
   const [activeResourcePanel, setActiveResourcePanel] = useState<ResourcePanelType | null>(null);
   const [selectedCaseIdOverride, setSelectedCaseIdOverride] = useState<string | null>(null);
   const [journalOpen, setJournalOpen] = useState(false);
-  const [activeDetailPanel, setActiveDetailPanel] = useState<DetailPanelType | null>(null);
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -275,8 +315,7 @@ export function SellingHousesWorkspace({
 
   const resetToNewDayView = () => {
     closeTransientPanels();
-    setActiveView('overview');
-    setMarketEntryLayer('macro');
+    dispatchView({ type: 'RESET_TO_OVERVIEW' });
   };
 
   const resetTestProfile = async () => {
@@ -633,8 +672,7 @@ export function SellingHousesWorkspace({
 
   const openMarketView = (layer: MarketEntryLayer = 'macro') => {
     setSelectedCaseIdOverride(null);
-    setMarketEntryLayer(layer);
-    setActiveView('market');
+    dispatchView({ type: 'OPEN_MARKET_VIEW', layer });
   };
 
   const renderView = () => {
