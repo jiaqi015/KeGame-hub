@@ -113,6 +113,50 @@ function viewReducer(state: ViewState, action: ViewAction): ViewState {
       return state;
   }
 }
+
+type ModalState = {
+  journalOpen: boolean;
+  leaderboardOpen: boolean;
+  leaderboardError: string | null;
+  message: string | null;
+  weeklySummary: WeeklySummaryPresentation | null;
+};
+
+type ModalAction =
+  | { type: 'SET_JOURNAL_OPEN'; open: boolean }
+  | { type: 'SET_LEADERBOARD_OPEN'; open: boolean }
+  | { type: 'SET_LEADERBOARD_ERROR'; error: string | null }
+  | { type: 'SET_MESSAGE'; message: string | null }
+  | { type: 'SET_WEEKLY_SUMMARY'; summary: WeeklySummaryPresentation | null }
+  | { type: 'CLOSE_TRANSIENT_MODALS' };
+
+const initialModalState: ModalState = {
+  journalOpen: false,
+  leaderboardOpen: false,
+  leaderboardError: null,
+  message: null,
+  weeklySummary: null,
+};
+
+function modalReducer(state: ModalState, action: ModalAction): ModalState {
+  switch (action.type) {
+    case 'SET_JOURNAL_OPEN':
+      return { ...state, journalOpen: action.open };
+    case 'SET_LEADERBOARD_OPEN':
+      return { ...state, leaderboardOpen: action.open };
+    case 'SET_LEADERBOARD_ERROR':
+      return { ...state, leaderboardError: action.error };
+    case 'SET_MESSAGE':
+      return { ...state, message: action.message };
+    case 'SET_WEEKLY_SUMMARY':
+      return { ...state, weeklySummary: action.summary };
+    case 'CLOSE_TRANSIENT_MODALS':
+      return { ...state, journalOpen: false, leaderboardOpen: false, leaderboardError: null };
+    default:
+      return state;
+  }
+}
+
 type FocusMeetingStage = 'submit' | 'compare' | 'promote';
 type FocusMeetingSubmittedEntry = {
   caseItem: Case;
@@ -189,16 +233,22 @@ export function SellingHousesWorkspace({
   const setActiveView = (view: WorkspaceView) => dispatchView({ type: 'SET_ACTIVE_VIEW', view });
   const setMarketEntryLayer = (layer: MarketEntryLayer) => dispatchView({ type: 'SET_MARKET_ENTRY_LAYER', layer });
   const setActiveDetailPanel = (panel: DetailPanelType | null) => dispatchView({ type: 'SET_ACTIVE_DETAIL_PANEL', panel });
+  const [modalState, dispatchModal] = useReducer(modalReducer, initialModalState);
+  const journalOpen = modalState.journalOpen;
+  const leaderboardOpen = modalState.leaderboardOpen;
+  const leaderboardError = modalState.leaderboardError;
+  const message = modalState.message;
+  const weeklySummary = modalState.weeklySummary;
+  const setJournalOpen = (open: boolean) => dispatchModal({ type: 'SET_JOURNAL_OPEN', open });
+  const setLeaderboardOpen = (open: boolean) => dispatchModal({ type: 'SET_LEADERBOARD_OPEN', open });
+  const setLeaderboardError = (error: string | null) => dispatchModal({ type: 'SET_LEADERBOARD_ERROR', error });
+  const setMessage = (msg: string | null) => dispatchModal({ type: 'SET_MESSAGE', message: msg });
+  const setWeeklySummary = (summary: WeeklySummaryPresentation | null) => dispatchModal({ type: 'SET_WEEKLY_SUMMARY', summary });
   const [activeResourcePanel, setActiveResourcePanel] = useState<ResourcePanelType | null>(null);
   const [selectedCaseIdOverride, setSelectedCaseIdOverride] = useState<string | null>(null);
-  const [journalOpen, setJournalOpen] = useState(false);
-  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
-  const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
   const [activeTodayScenario, setActiveTodayScenario] = useState<ActiveTodayScenario | null>(null);
   const [focusMeetingSubmitDraft, setFocusMeetingSubmitDraft] = useState<FocusMeetingSubmitDraft | null>(null);
   const [isAdvancing, setIsAdvancing] = useState(false);
-  const [weeklySummary, setWeeklySummary] = useState<WeeklySummaryPresentation | null>(null);
   const [wechatReadIds, setWechatReadIds] = useState<Set<string>>(() => new Set());
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     try { return (localStorage.getItem('seller-theme') as 'dark' | 'light') || 'dark'; } catch { return 'dark'; }
@@ -307,10 +357,8 @@ export function SellingHousesWorkspace({
   const closeTransientPanels = () => {
     setActiveResourcePanel(null);
     setActiveDetailPanel(null);
-    setJournalOpen(false);
     setActiveTodayScenario(null);
-    setLeaderboardOpen(false);
-    setLeaderboardError(null);
+    dispatchModal({ type: 'CLOSE_TRANSIENT_MODALS' });
   };
 
   const resetToNewDayView = () => {
