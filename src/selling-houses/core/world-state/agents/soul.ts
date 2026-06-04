@@ -13,6 +13,14 @@ export interface ParticipantSoul {
     urgency: number;
     mood: 'positive' | 'neutral' | 'negative';
   };
+  readonly emotionalArc: {
+    readonly trustTrend: 'rising' | 'falling' | 'stable';
+    readonly patienceTrend: 'rising' | 'falling' | 'stable';
+    readonly urgencyTrend: 'rising' | 'falling' | 'stable';
+    readonly lastMood: 'positive' | 'neutral' | 'negative';
+    readonly consecutivePositive: number;
+    readonly consecutiveNegative: number;
+  };
   readonly conversationHistory: readonly ConversationMemory[];
   readonly communicationPatterns: readonly CommunicationPattern[];
 }

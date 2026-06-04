@@ -17,6 +17,8 @@ import type {
   WechatMessageUrgency,
 } from '../../application/projections/myWechatTypes.js';
 import { fetchMyWechatBrokerReplyDrafts } from '../../infrastructure/myWechatAiClient.js';
+import { buildCoachFeedback } from '../../application/conversationCoach.js';
+import { ConversationCoachCard } from './ConversationCoachCard.js';
 import type { IntelLayerTab } from './marketIntel.js';
 import { isOpportunityActiveByCanonicalState } from '../../domain/opportunityLifecycleStatusRead';
 
@@ -1192,6 +1194,10 @@ const ConversationTurnThread: React.FC<{
             </p>
           </div>
           <ConversationEffectStrip turn={turn} />
+          {(() => {
+            const feedback = buildCoachFeedback(turn);
+            return feedback ? <ConversationCoachCard feedback={feedback} /> : null;
+          })()}
         </div>
       </div>
     </div>
@@ -1271,44 +1277,59 @@ const ConversationEffectStrip: React.FC<{ turn: ConversationReceipt }> = ({ turn
     ? effectLabels
     : [turn.summary];
   const impactText = buildConversationImpactText(turn);
+  const displayImpactText = stripImpactPrefix(impactText);
   const snapshot = turn.traceSnapshot;
   const [traceOpen, setTraceOpen] = useState(false);
 
   return (
-    <div className="mt-1.5 space-y-1">
-      <div className="flex flex-wrap items-center gap-1.5">
-        {labels.slice(0, 4).map((label) => (
-          <span
-            key={label}
-            className="rounded-full border border-[color:var(--seller-accent)]/18 bg-[color:var(--seller-accent)]/7 px-2 py-0.5 text-[9px] font-semibold text-[var(--seller-accent)]"
-          >
-            {label}
-          </span>
-        ))}
-        {turn.source === 'fallback' && (
-          <span className="rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] px-2 py-0.5 text-[9px] font-semibold text-[var(--seller-subtle)]">
-            本地判断
-          </span>
-        )}
-        {snapshot && (
+    <div className="mt-2 max-w-full overflow-hidden rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] px-2.5 py-2">
+      <div className="flex min-w-0 items-start justify-between gap-2">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+          {labels.slice(0, 3).map((label) => (
+            <span
+              key={label}
+              className="max-w-full truncate rounded-full border border-[color:var(--seller-accent)]/18 bg-[color:var(--seller-accent)]/7 px-2 py-0.5 text-[9px] font-semibold text-[var(--seller-accent)]"
+            >
+              {label}
+            </span>
+          ))}
+          {labels.length > 3 && (
+            <span className="rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.035)] px-2 py-0.5 text-[9px] font-semibold text-[var(--seller-subtle)]">
+              +{labels.length - 3}
+            </span>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          {turn.source === 'fallback' && (
+            <span className="rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] px-2 py-0.5 text-[9px] font-semibold text-[var(--seller-subtle)]">
+              本地
+            </span>
+          )}
+          {snapshot && (
           <button
             type="button"
             onClick={() => setTraceOpen((v) => !v)}
             className="rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] px-2 py-0.5 text-[9px] font-semibold text-[var(--seller-subtle)] hover:bg-[rgba(255,255,255,0.08)]"
           >
-            {traceOpen ? '收起判断' : '查看判断'}
+            {traceOpen ? '收起' : '判断'}
           </button>
-        )}
+          )}
+        </div>
       </div>
-      {impactText && (
-        <div className="max-w-full px-0.5 text-[9px] leading-4 text-[var(--seller-subtle)]">
-          {impactText}
+      {displayImpactText && (
+        <div className="mt-1.5 grid grid-cols-[auto_minmax(0,1fr)] gap-1.5 rounded-[9px] bg-[rgba(255,255,255,0.025)] px-2 py-1.5 text-[9px] leading-4">
+          <span className="font-semibold text-[var(--seller-subtle)]">影响</span>
+          <span className="min-w-0 break-words text-[var(--seller-muted)]">{displayImpactText}</span>
         </div>
       )}
       {snapshot && traceOpen && <AgentTraceDetail snapshot={snapshot} />}
     </div>
   );
 };
+
+function stripImpactPrefix(text: string) {
+  return text.replace(/^影响[:：]\s*/, '');
+}
 
 const AgentTraceDetail: React.FC<{ snapshot: ConversationTraceSnapshot }> = ({ snapshot }) => {
   const sourceLabel =

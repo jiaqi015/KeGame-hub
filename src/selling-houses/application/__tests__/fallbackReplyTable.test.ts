@@ -631,7 +631,7 @@ describe('fallbackReplyTable - overpromise risk', () => {
 });
 
 describe('fallbackReplyTable - missing_next_step risk', () => {
-  it('returns assertive reply for missing next step', () => {
+  it('does not flag missing_next_step for vague positive text (assertive)', () => {
     const scene = buildScene({
       playerText: '方向是对的',
       caseContext: {
@@ -653,12 +653,11 @@ describe('fallbackReplyTable - missing_next_step risk', () => {
       },
     });
     const proposal = buildFallbackConversationEffectProposal(scene);
-    expect(proposal.riskKinds).toContain('missing_next_step');
-    expect(proposal.recipientReply).toContain('下一步做什么你没说');
-    expect(proposal.recipientReply).toContain('明确动作和时间点');
+    expect(proposal.riskKinds).not.toContain('missing_next_step');
+    expect(proposal.recipientReply).toContain('关键情况确认清楚');
   });
 
-  it('returns default reply for missing next step', () => {
+  it('does not flag missing_next_step for vague positive text (default)', () => {
     const scene = buildScene({
       playerText: '方向是对的',
       caseContext: {
@@ -680,9 +679,8 @@ describe('fallbackReplyTable - missing_next_step risk', () => {
       },
     });
     const proposal = buildFallbackConversationEffectProposal(scene);
-    expect(proposal.riskKinds).toContain('missing_next_step');
-    expect(proposal.recipientReply).toContain('下一步做什么你没说');
-    expect(proposal.recipientReply).toContain('明确动作');
+    expect(proposal.riskKinds).not.toContain('missing_next_step');
+    expect(proposal.recipientReply).toContain('关键情况确认清楚');
   });
 });
 
@@ -766,5 +764,210 @@ describe('fallbackReplyTable - reassure intent with empty_comfort', () => {
     expect(proposal.riskKinds).toContain('empty_comfort');
     expect(proposal.recipientReply).toContain('不够具体');
     expect(proposal.recipientReply).toContain('下一步怎么做');
+  });
+});
+
+describe('fallbackReplyTable - empty_comfort with promisesNotYetFulfilled', () => {
+  it('prepends promiseRef for high urgency', () => {
+    const scene = buildScene({
+      playerText: '收到，先这样。',
+      caseContext: {
+        caseId: 'case-test',
+        title: '测试小区 80㎡ 两房',
+        ownerName: '张三',
+        district: '浦东',
+        community: '测试小区',
+        askPrice: 500,
+        marketPrice: 480,
+        priceGapPct: 4,
+        trust: 50,
+        patience: 50,
+        urgency: 80,
+        heat: 50,
+        competitiveness: 50,
+        hasCompletedFirstVisit: true,
+        ownerProfileLabel: '普通业主',
+        promisesNotYetFulfilled: ['下周给反馈'],
+      },
+    });
+    const proposal = buildFallbackConversationEffectProposal(scene);
+    expect(proposal.riskKinds).toContain('empty_comfort');
+    expect(proposal.recipientReply).toContain('你上次说的下周给反馈还没兑现');
+    expect(proposal.recipientReply).toContain('具体方案');
+  });
+
+  it('prepends promiseRef for assertive owner', () => {
+    const scene = buildScene({
+      playerText: '收到，先这样。',
+      caseContext: {
+        caseId: 'case-test',
+        title: '测试小区 80㎡ 两房',
+        ownerName: '张三',
+        district: '浦东',
+        community: '测试小区',
+        askPrice: 500,
+        marketPrice: 480,
+        priceGapPct: 4,
+        trust: 50,
+        patience: 50,
+        urgency: 50,
+        heat: 50,
+        competitiveness: 50,
+        hasCompletedFirstVisit: true,
+        ownerProfileLabel: '强势业主',
+        promisesNotYetFulfilled: ['降价到450'],
+      },
+    });
+    const proposal = buildFallbackConversationEffectProposal(scene);
+    expect(proposal.riskKinds).toContain('empty_comfort');
+    expect(proposal.recipientReply).toContain('你上次说的降价到450还没兑现');
+    expect(proposal.recipientReply).toContain('具体怎么做');
+  });
+
+  it('works without promises', () => {
+    const scene = buildScene({
+      playerText: '收到，先这样。',
+      caseContext: {
+        caseId: 'case-test',
+        title: '测试小区 80㎡ 两房',
+        ownerName: '张三',
+        district: '浦东',
+        community: '测试小区',
+        askPrice: 500,
+        marketPrice: 480,
+        priceGapPct: 4,
+        trust: 50,
+        patience: 50,
+        urgency: 50,
+        heat: 50,
+        competitiveness: 50,
+        hasCompletedFirstVisit: true,
+        ownerProfileLabel: '普通业主',
+      },
+    });
+    const proposal = buildFallbackConversationEffectProposal(scene);
+    expect(proposal.riskKinds).toContain('empty_comfort');
+    expect(proposal.recipientReply).not.toContain('你上次说的');
+    expect(proposal.recipientReply).toContain('不够具体');
+  });
+});
+
+describe('fallbackReplyTable - reassure with serviceStrategy', () => {
+  it('inserts strategyRef for low trust', () => {
+    const scene = buildScene({
+      playerText: '放心，交给我来处理，有消息第一时间告诉你。',
+      caseContext: {
+        caseId: 'case-test',
+        title: '测试小区 80㎡ 两房',
+        ownerName: '张三',
+        district: '浦东',
+        community: '测试小区',
+        askPrice: 500,
+        marketPrice: 480,
+        priceGapPct: 4,
+        trust: 30,
+        patience: 50,
+        urgency: 50,
+        heat: 50,
+        competitiveness: 50,
+        hasCompletedFirstVisit: true,
+        ownerProfileLabel: '普通业主',
+        serviceStrategy: {
+          primaryGoal: '降价',
+          mainBlocker: '信任不足',
+          recommendedNextAction: '带看',
+          communicationStyle: '温和但坚定的方式',
+        },
+      },
+    });
+    const proposal = buildFallbackConversationEffectProposal(scene);
+    expect(proposal.riskKinds).not.toContain('empty_comfort');
+    expect(proposal.recipientReply).toContain('按温和但坚定的方式');
+  });
+
+  it('inserts strategyRef for anxious owner', () => {
+    const scene = buildScene({
+      playerText: '放心，我会持续关注这套的。',
+      caseContext: {
+        caseId: 'case-test',
+        title: '测试小区 80㎡ 两房',
+        ownerName: '张三',
+        district: '浦东',
+        community: '测试小区',
+        askPrice: 500,
+        marketPrice: 480,
+        priceGapPct: 4,
+        trust: 50,
+        patience: 50,
+        urgency: 80,
+        heat: 50,
+        competitiveness: 50,
+        hasCompletedFirstVisit: true,
+        ownerProfileLabel: '焦虑业主',
+        serviceStrategy: {
+          primaryGoal: '稳定情绪',
+          mainBlocker: '焦虑',
+          recommendedNextAction: '安抚',
+          communicationStyle: '共情式沟通',
+        },
+      },
+    });
+    const proposal = buildFallbackConversationEffectProposal(scene);
+    expect(proposal.riskKinds).not.toContain('empty_comfort');
+    expect(proposal.recipientReply).toContain('按共情式沟通');
+  });
+
+  it('works without serviceStrategy', () => {
+    const scene = buildScene({
+      playerText: '收到，先这样。',
+      caseContext: {
+        caseId: 'case-test',
+        title: '测试小区 80㎡ 两房',
+        ownerName: '张三',
+        district: '浦东',
+        community: '测试小区',
+        askPrice: 500,
+        marketPrice: 480,
+        priceGapPct: 4,
+        trust: 50,
+        patience: 50,
+        urgency: 50,
+        heat: 50,
+        competitiveness: 50,
+        hasCompletedFirstVisit: true,
+        ownerProfileLabel: '普通业主',
+      },
+    });
+    const proposal = buildFallbackConversationEffectProposal(scene);
+    expect(proposal.riskKinds).toContain('empty_comfort');
+    expect(proposal.recipientReply).not.toContain('按');
+    expect(proposal.recipientReply).toContain('不够具体');
+  });
+});
+
+describe('fallbackReplyTable - ignores_customer with sourceSnippet', () => {
+  it('includes customer question in reply', () => {
+    const scene = buildScene({
+      sceneType: 'customer_wechat',
+      playerText: '我晚点联系您。',
+      sourceMessage: {
+        messageId: 'msg-test',
+        senderName: '李四',
+        senderRole: 'customer',
+        content: '价格还能再低点吗？',
+        timeLabel: 'DAY 7',
+        urgency: 'medium',
+      },
+      opportunityContext: {
+        opportunityId: 'opp-test',
+        customerName: '李四',
+        stage: '价格谈判',
+        intent: 60,
+        confidence: 50,
+      },
+    });
+    const proposal = buildFallbackConversationEffectProposal(scene);
+    expect(proposal.recipientReply).toContain('窗口别错过');
+    expect(proposal.recipientReply).toContain('李四');
   });
 });

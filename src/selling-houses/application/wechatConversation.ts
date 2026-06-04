@@ -273,10 +273,12 @@ export function buildFallbackConversationEffectProposal(scene: ConversationScene
   const text = scene.playerText;
   const intents = new Set<ConversationIntentKind>();
   const risks = new Set<ConversationRiskKind>();
+  let isExplicitReassure = false;
 
   if (isEmptyComfortText(text)) {
     intents.add('reassure');
     risks.add('empty_comfort');
+    isExplicitReassure = true;
   }
   if (isIgnoringSourceQuestion(scene)) {
     risks.add('ignores_customer');
@@ -308,12 +310,13 @@ export function buildFallbackConversationEffectProposal(scene: ConversationScene
   }
   if (intents.size === 0) {
     intents.add('reassure');
+    isExplicitReassure = true;
   }
 
   let nextStep = resolveNextStep([...intents], scene);
   const hasEvidence = intents.has('present_market_evidence');
   const hasNextStep = nextStep.kind !== 'none';
-  if (!hasNextStep && !risks.has('overpromise') && risks.size === 0) {
+  if (!hasNextStep && !risks.has('overpromise') && risks.size === 0 && !isExplicitReassure) {
     risks.add('missing_next_step');
   }
   if (nextStep.kind === 'none' && shouldRecommendRecoveryStep([...risks], {
@@ -1088,6 +1091,8 @@ interface ReplyContext {
   readonly customerName: string;
   readonly customerIntent: number;
   readonly sourceSnippet: string;
+  readonly promiseRef: string;
+  readonly strategyRef: string;
   readonly priceRef: string;
   readonly actionRef: string;
   readonly timeRef: string;
@@ -1124,11 +1129,15 @@ function buildReplyContext(scene: ConversationSceneInputPack): ReplyContext {
   const locRef = community || district;
   const playerDetails = extractPlayerTextDetails(scene.playerText);
   const sourceSnippet = sourceContent.length > 20 ? `${sourceContent.slice(0, 20)}…` : sourceContent;
+  const promises = scene.caseContext?.promisesNotYetFulfilled || [];
+  const promiseRef = promises.length > 0 ? `你上次说的${promises[0]}还没兑现，` : '';
+  const strategy = scene.caseContext?.serviceStrategy;
+  const strategyRef = strategy ? `按${strategy.communicationStyle}` : '';
 
   return {
     senderName, caseRef, locRef, community, district,
     askPrice, marketPrice, priceGapPct, trust, patience, urgency,
-    customerName, customerIntent, sourceSnippet,
+    customerName, customerIntent, sourceSnippet, promiseRef, strategyRef,
     priceRef: playerDetails.priceRef,
     actionRef: playerDetails.actionRef,
     timeRef: playerDetails.timeRef,
@@ -1166,27 +1175,26 @@ function matchRule(
   intents: readonly ConversationIntentKind[],
   risks: readonly ConversationRiskKind[],
   ctx: ReplyContext,
+  ownerProfile: 'assertive' | 'anxious' | 'default',
+  flags: Set<string>,
 ): boolean {
   if (rule.sceneType && rule.sceneType !== scene.sceneType) return false;
   if (rule.intents && !rule.intents.some(i => intents.includes(i))) return false;
   if (rule.risks && !rule.risks.some(r => risks.includes(r))) return false;
 
-  const ownerProfile = resolveOwnerProfile(scene);
   if (rule.ownerProfile && rule.ownerProfile !== ownerProfile) return false;
 
-  const flags = resolveFlags(scene);
   if (rule.flags && !rule.flags.every(f => flags.has(f))) return false;
 
   if (rule.playerDetail) {
-    const playerDetails = extractPlayerTextDetails(scene.playerText);
-    if (rule.playerDetail === 'hasPriceRef' && !playerDetails.priceRef) return false;
-    if (rule.playerDetail === 'noPriceRef' && playerDetails.priceRef) return false;
-    if (rule.playerDetail === 'actionData' && playerDetails.actionRef !== '数据') return false;
-    if (rule.playerDetail === 'actionFeedback' && playerDetails.actionRef !== '反馈') return false;
-    if (rule.playerDetail === 'actionVisit' && playerDetails.actionRef !== '面访') return false;
-    if (rule.playerDetail === 'actionCustomer' && playerDetails.actionRef !== '客户') return false;
-    if (rule.playerDetail === 'hasTimeRef' && !playerDetails.timeRef) return false;
-    if (rule.playerDetail === 'noTimeRef' && playerDetails.timeRef) return false;
+    if (rule.playerDetail === 'hasPriceRef' && !ctx.priceRef) return false;
+    if (rule.playerDetail === 'noPriceRef' && ctx.priceRef) return false;
+    if (rule.playerDetail === 'actionData' && ctx.actionRef !== '数据') return false;
+    if (rule.playerDetail === 'actionFeedback' && ctx.actionRef !== '反馈') return false;
+    if (rule.playerDetail === 'actionVisit' && ctx.actionRef !== '面访') return false;
+    if (rule.playerDetail === 'actionCustomer' && ctx.actionRef !== '客户') return false;
+    if (rule.playerDetail === 'hasTimeRef' && !ctx.timeRef) return false;
+    if (rule.playerDetail === 'noTimeRef' && ctx.timeRef) return false;
   }
 
   if (rule.customerIntentHigh !== undefined) {
@@ -1278,17 +1286,17 @@ const OWNER_REPLY_TABLE: readonly ReplyRule[] = [
 
   // Priority 10: risk-based
   { priority: 10, risks: ['overpromise'], buildReply: (ctx) => `${ctx.senderName}：你这么说太绝对了，${ctx.caseRef}的情况不确定，你得给我一个更稳妥的方案。` },
-  { priority: 10, risks: ['empty_comfort'], flags: ['highUrgency'], buildReply: (ctx) => `${ctx.senderName}：你这么说太笼统了，${ctx.caseRef}现在需要具体方案，不是安慰。` },
-  { priority: 10, risks: ['empty_comfort'], ownerProfile: 'assertive', buildReply: (ctx) => `${ctx.senderName}：这话太泛了。${ctx.caseRef}你得告诉我具体怎么做，别只让我再等等。` },
-  { priority: 10, risks: ['empty_comfort'], buildReply: (ctx) => `${ctx.senderName}：我听到了，但${ctx.caseRef}的情况不够具体，你得告诉我下一步怎么做。` },
+  { priority: 10, risks: ['empty_comfort'], flags: ['highUrgency'], buildReply: (ctx) => `${ctx.senderName}：${ctx.promiseRef}你这么说太笼统了，${ctx.caseRef}现在需要具体方案，不是安慰。` },
+  { priority: 10, risks: ['empty_comfort'], ownerProfile: 'assertive', buildReply: (ctx) => `${ctx.senderName}：${ctx.promiseRef}这话太泛了。${ctx.caseRef}你得告诉我具体怎么做，别只让我再等等。` },
+  { priority: 10, risks: ['empty_comfort'], buildReply: (ctx) => `${ctx.senderName}：${ctx.promiseRef}我听到了，但${ctx.caseRef}的情况不够具体，你得告诉我下一步怎么做。` },
   { priority: 10, risks: ['ignores_customer'], buildReply: (ctx) => `${ctx.senderName}：你没回答我的问题，我问的是${ctx.sourceSnippet}，你得正面回应。` },
   { priority: 10, risks: ['missing_next_step'], ownerProfile: 'assertive', buildReply: (ctx) => `${ctx.senderName}：方向可以，但${ctx.caseRef}下一步做什么你没说，我需要明确动作和时间点。` },
   { priority: 10, risks: ['missing_next_step'], buildReply: (ctx) => `${ctx.senderName}：方向可以，但${ctx.caseRef}下一步做什么你没说，我需要明确动作。` },
 
   // Priority 5: reassure
-  { priority: 5, intents: ['reassure'], flags: ['lowTrust'], buildReply: (ctx) => `${ctx.senderName}：我听到了，但${ctx.caseRef}的情况光说没用，你得拿出具体动作让我看到变化。` },
-  { priority: 5, intents: ['reassure'], ownerProfile: 'anxious', buildReply: (ctx) => `${ctx.senderName}：我能理解，但${ctx.caseRef}我现在最怕一直拖。你今天要给我一个明确判断。` },
-  { priority: 5, intents: ['reassure'], buildReply: (ctx) => `${ctx.senderName}：收到，你把${ctx.caseRef}的关键情况确认清楚，再给我一个明确反馈。` },
+  { priority: 5, intents: ['reassure'], flags: ['lowTrust'], buildReply: (ctx) => `${ctx.senderName}：我听到了，但${ctx.caseRef}的情况光说没用，${ctx.strategyRef}你得拿出具体动作让我看到变化。` },
+  { priority: 5, intents: ['reassure'], ownerProfile: 'anxious', buildReply: (ctx) => `${ctx.senderName}：我能理解，但${ctx.caseRef}我现在最怕一直拖。${ctx.strategyRef}你今天要给我一个明确判断。` },
+  { priority: 5, intents: ['reassure'], buildReply: (ctx) => `${ctx.senderName}：收到，${ctx.strategyRef}你把${ctx.caseRef}的关键情况确认清楚，再给我一个明确反馈。` },
 ];
 
 const MANAGER_REPLY_TABLE: readonly ReplyRule[] = [
@@ -1328,17 +1336,21 @@ const MANAGER_REPLY_TABLE: readonly ReplyRule[] = [
   { priority: 5, intents: ['reassure'], buildReply: (ctx) => `${ctx.senderName}：收到，${ctx.caseRef}的关键情况你确认清楚再给我反馈。` },
 ];
 
+const OWNER_REPLY_TABLE_SORTED = [...OWNER_REPLY_TABLE].sort((a, b) => b.priority - a.priority);
+const MANAGER_REPLY_TABLE_SORTED = [...MANAGER_REPLY_TABLE].sort((a, b) => b.priority - a.priority);
+
 function buildFallbackRecipientReply(
   intents: readonly ConversationIntentKind[],
   risks: readonly ConversationRiskKind[],
   scene: ConversationSceneInputPack,
 ) {
   const ctx = buildReplyContext(scene);
+  const ownerProfile = resolveOwnerProfile(scene);
+  const flags = resolveFlags(scene);
   const isManager = scene.sceneType === 'manager_wechat';
-  const table = isManager ? MANAGER_REPLY_TABLE : OWNER_REPLY_TABLE;
-  const sorted = [...table].sort((a, b) => b.priority - a.priority);
-  for (const rule of sorted) {
-    if (matchRule(rule, scene, intents, risks, ctx)) {
+  const table = isManager ? MANAGER_REPLY_TABLE_SORTED : OWNER_REPLY_TABLE_SORTED;
+  for (const rule of table) {
+    if (matchRule(rule, scene, intents, risks, ctx, ownerProfile, flags)) {
       return rule.buildReply(ctx);
     }
   }

@@ -28,6 +28,14 @@ export function initializeSoulFromCase(caseContext: {
       urgency: caseContext.urgency,
       mood: 'neutral',
     },
+    emotionalArc: {
+      trustTrend: 'stable',
+      patienceTrend: 'stable',
+      urgencyTrend: 'stable',
+      lastMood: 'neutral',
+      consecutivePositive: 0,
+      consecutiveNegative: 0,
+    },
     conversationHistory: [],
     communicationPatterns: [],
   };
@@ -89,6 +97,12 @@ export function updateSoulAfterConversation(
     ];
   }
 
+  const trustTrend = newTrust > soul.emotionalState.trust + 2 ? 'rising' : newTrust < soul.emotionalState.trust - 2 ? 'falling' : 'stable';
+  const patienceTrend = newPatience > soul.emotionalState.patience + 2 ? 'rising' : newPatience < soul.emotionalState.patience - 2 ? 'falling' : 'stable';
+  const urgencyTrend = newUrgency > soul.emotionalState.urgency + 2 ? 'rising' : newUrgency < soul.emotionalState.urgency - 2 ? 'falling' : 'stable';
+  const consecutivePositive = newMood === 'positive' ? soul.emotionalArc.consecutivePositive + 1 : 0;
+  const consecutiveNegative = newMood === 'negative' ? soul.emotionalArc.consecutiveNegative + 1 : 0;
+
   return {
     ...soul,
     emotionalState: {
@@ -96,6 +110,14 @@ export function updateSoulAfterConversation(
       patience: newPatience,
       urgency: newUrgency,
       mood: newMood,
+    },
+    emotionalArc: {
+      trustTrend,
+      patienceTrend,
+      urgencyTrend,
+      lastMood: newMood,
+      consecutivePositive,
+      consecutiveNegative,
     },
     conversationHistory: [...soul.conversationHistory, memory].slice(-10),
     communicationPatterns: updatedPatterns,
@@ -108,6 +130,7 @@ export function buildSoulPromptLines(soul: ParticipantSoul): string[] {
   lines.push(`参与者 Soul：${soul.ownerProfileLabel}（${soul.participantId}）`);
   lines.push(`基础性格：强势=${soul.basePersonality.assertiveness}，耐心=${soul.basePersonality.patience}，信任倾向=${soul.basePersonality.trust倾向}，价格敏感=${soul.basePersonality.priceSensitivity}`);
   lines.push(`当前状态：trust=${soul.emotionalState.trust}，patience=${soul.emotionalState.patience}，urgency=${soul.emotionalState.urgency}，mood=${soul.emotionalState.mood}`);
+  lines.push(`情绪弧线：信任${soul.emotionalArc.trustTrend === 'rising' ? '↑' : soul.emotionalArc.trustTrend === 'falling' ? '↓' : '→'}，耐心${soul.emotionalArc.patienceTrend === 'rising' ? '↑' : soul.emotionalArc.patienceTrend === 'falling' ? '↓' : '→'}，催促${soul.emotionalArc.urgencyTrend === 'rising' ? '↑' : soul.emotionalArc.urgencyTrend === 'falling' ? '↓' : '→'}，连续正面=${soul.emotionalArc.consecutivePositive}，连续负面=${soul.emotionalArc.consecutiveNegative}`);
 
   if (soul.conversationHistory.length > 0) {
     const recent = soul.conversationHistory.slice(-3);

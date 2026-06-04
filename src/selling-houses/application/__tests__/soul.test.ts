@@ -20,6 +20,7 @@ describe('ParticipantSoul', () => {
           urgency: 80,
           mood: 'negative',
         },
+        emotionalArc: { trustTrend: 'stable', patienceTrend: 'stable', urgencyTrend: 'stable', lastMood: 'neutral', consecutivePositive: 0, consecutiveNegative: 0 },
         conversationHistory: [],
         communicationPatterns: [],
       };
@@ -64,6 +65,7 @@ describe('ParticipantSoul', () => {
           ownerProfileLabel: '焦虑型',
           basePersonality: { assertiveness: 40, patience: 50, trust倾向: 50, priceSensitivity: 60 },
           emotionalState: { trust: 35, patience: 25, urgency: 80, mood: 'negative' },
+        emotionalArc: { trustTrend: 'stable', patienceTrend: 'stable', urgencyTrend: 'stable', lastMood: 'neutral', consecutivePositive: 0, consecutiveNegative: 0 },
           conversationHistory: [],
           communicationPatterns: [],
         },
@@ -152,6 +154,7 @@ describe('ParticipantSoul', () => {
         ownerProfileLabel: '焦虑型',
         basePersonality: { assertiveness: 40, patience: 50, trust倾向: 50, priceSensitivity: 60 },
         emotionalState: { trust: 35, patience: 25, urgency: 80, mood: 'neutral' },
+        emotionalArc: { trustTrend: 'stable', patienceTrend: 'stable', urgencyTrend: 'stable', lastMood: 'neutral', consecutivePositive: 0, consecutiveNegative: 0 },
         conversationHistory: [],
         communicationPatterns: [],
       };
@@ -179,6 +182,7 @@ describe('ParticipantSoul', () => {
         ownerProfileLabel: '焦虑型',
         basePersonality: { assertiveness: 40, patience: 50, trust倾向: 50, priceSensitivity: 60 },
         emotionalState: { trust: 40, patience: 25, urgency: 80, mood: 'neutral' },
+        emotionalArc: { trustTrend: 'stable', patienceTrend: 'stable', urgencyTrend: 'stable', lastMood: 'neutral', consecutivePositive: 0, consecutiveNegative: 0 },
         conversationHistory: [],
         communicationPatterns: [],
       };
@@ -203,6 +207,7 @@ describe('ParticipantSoul', () => {
         ownerProfileLabel: '焦虑型',
         basePersonality: { assertiveness: 40, patience: 50, trust倾向: 50, priceSensitivity: 60 },
         emotionalState: { trust: 35, patience: 25, urgency: 80, mood: 'neutral' },
+        emotionalArc: { trustTrend: 'stable', patienceTrend: 'stable', urgencyTrend: 'stable', lastMood: 'neutral', consecutivePositive: 0, consecutiveNegative: 0 },
         conversationHistory: [],
         communicationPatterns: [],
       };
@@ -230,6 +235,7 @@ describe('ParticipantSoul', () => {
         ownerProfileLabel: '焦虑型',
         basePersonality: { assertiveness: 40, patience: 50, trust倾向: 50, priceSensitivity: 60 },
         emotionalState: { trust: 35, patience: 25, urgency: 80, mood: 'negative' },
+        emotionalArc: { trustTrend: 'stable', patienceTrend: 'stable', urgencyTrend: 'stable', lastMood: 'neutral', consecutivePositive: 0, consecutiveNegative: 0 },
         conversationHistory: [
           {
             day: 1,
@@ -261,6 +267,7 @@ describe('ParticipantSoul', () => {
         ownerProfileLabel: '焦虑型',
         basePersonality: { assertiveness: 40, patience: 50, trust倾向: 50, priceSensitivity: 60 },
         emotionalState: { trust: 35, patience: 25, urgency: 80, mood: 'negative' },
+        emotionalArc: { trustTrend: 'stable', patienceTrend: 'stable', urgencyTrend: 'stable', lastMood: 'neutral', consecutivePositive: 0, consecutiveNegative: 0 },
         conversationHistory: [
           {
             day: 1,
@@ -287,6 +294,7 @@ describe('ParticipantSoul', () => {
         ownerProfileLabel: '焦虑型',
         basePersonality: { assertiveness: 40, patience: 50, trust倾向: 50, priceSensitivity: 60 },
         emotionalState: { trust: 35, patience: 25, urgency: 80, mood: 'negative' },
+        emotionalArc: { trustTrend: 'stable', patienceTrend: 'stable', urgencyTrend: 'stable', lastMood: 'neutral', consecutivePositive: 0, consecutiveNegative: 0 },
         conversationHistory: [],
         communicationPatterns: [
           { intent: 'reassure', effectiveness: -0.5, lastUsed: 1, count: 1 },
