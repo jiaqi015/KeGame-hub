@@ -1135,13 +1135,23 @@ function buildManagerFallbackReply(
     return `${senderName}：价格的事你得有依据，${caseRef}的竞品数据和客户出价你清楚吗？`;
   }
   if (intents.includes('present_market_evidence')) {
+    const playerDetails = extractPlayerTextDetails(scene.playerText);
     if (!hasCompletedFirstVisit) {
-      return `${senderName}：数据先放一边，${caseRef}你还没面访过，先把业主关系打牢。`;
+      return playerDetails.actionRef === '竞品'
+        ? `${senderName}：竞品数据先放一边，${caseRef}你还没面访过，先把业主关系打牢。`
+        : `${senderName}：数据先放一边，${caseRef}你还没面访过，先把业主关系打牢。`;
     }
     if (trust < 40) {
-      return `${senderName}：数据有了，但${caseRef}的信任基础还不够，你得先稳住业主。`;
+      return playerDetails.actionRef === '客户'
+        ? `${senderName}：客户反馈我看了，但${caseRef}的信任基础还不够，你得先稳住业主。`
+        : `${senderName}：数据有了，但${caseRef}的信任基础还不够，你得先稳住业主。`;
     }
-    return `${senderName}：好，${caseRef}的竞品和客户情况你整理一下，我看看有没有风险。`;
+    if (playerDetails.priceRef) {
+      return `${senderName}：${playerDetails.priceRef}的数据我看了，${caseRef}的竞品和客户情况你整理一下，我看看有没有风险。`;
+    }
+    return playerDetails.actionRef === '竞品'
+      ? `${senderName}：竞品数据我看了，${caseRef}的客户情况你补充一下，我看看有没有风险。`
+      : `${senderName}：好，${caseRef}的竞品和客户情况你整理一下，我看看有没有风险。`;
   }
   if (intents.includes('follow_customer')) {
     return `${senderName}：客户跟进别停，${caseRef}的窗口随时会变。`;
