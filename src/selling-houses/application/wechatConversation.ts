@@ -194,6 +194,13 @@ export function isHostileWechatPlayerText(text: string) {
   return /傻[逼比屄]|煞笔|沙币|蠢货|废物|sb\b|爱咋咋地|关我屁事|你有病|滚|闭嘴|别烦|烦死|懒得管|不想管|别找我|随便你|你自己看着办|老子/.test(normalized);
 }
 
+export function isThreateningWechatPlayerText(text: string) {
+  const normalized = text
+    .replace(/\s+/g, '')
+    .replace(/[，。！？、,.!?]/g, '');
+  return /不[降调]价.*找.*[别的]中介|换[个别人]|找[别的]中介|不[降调]价.*[换找]|你要是不/.test(normalized);
+}
+
 function isEmptyComfortText(text: string) {
   const normalized = text.replace(/\s+/g, '').replace(/[，。！？、,.!?]/g, '');
   if (normalized.length <= 10 && /^(收到|好的|好|嗯|明白|知道了|先这样|再说|再等等|我看看)$/.test(normalized)) {
@@ -214,6 +221,9 @@ function isIgnoringSourceQuestion(scene: ConversationSceneInputPack) {
 export function buildFallbackConversationEffectProposal(scene: ConversationSceneInputPack): ConversationEffectProposal {
   if (isHostileWechatPlayerText(scene.playerText)) {
     return buildHostileConversationEffectProposal(scene);
+  }
+  if (isThreateningWechatPlayerText(scene.playerText)) {
+    return buildThreateningConversationEffectProposal(scene);
   }
 
   const text = scene.playerText;
@@ -894,6 +904,39 @@ function buildHostileRecipientReply(scene: ConversationSceneInputPack) {
     return '你要是这个态度，那我没法继续信你了。';
   }
   return '这个态度没法继续配合，先冷静一下。';
+}
+
+function buildThreateningConversationEffectProposal(scene: ConversationSceneInputPack): ConversationEffectProposal {
+  const senderName = scene.sourceMessage.senderName;
+  const caseTitle = scene.caseContext?.title || '';
+  const caseRef = caseTitle ? `${caseTitle}这套` : '这套房';
+  const isCustomer = scene.sceneType === 'customer_wechat';
+  const isManager = scene.sceneType === 'manager_wechat';
+
+  let recipientReply: string;
+  if (isCustomer) {
+    recipientReply = `${senderName}：您这么说我就理解了，但${caseRef}的情况我得跟业主确认，价格不是我一个人能定的。`;
+  } else if (isManager) {
+    recipientReply = `${senderName}：这个态度不行，先把${caseRef}的情况稳住，别让业主跑单。`;
+  } else {
+    recipientReply = `${senderName}：您这么说我就理解了，但${caseRef}的价格不是我能直接定的，我得跟客户和市场确认。您给我一点时间。`;
+  }
+
+  return {
+    summary: '回复中带有施压成分，关系出现裂痕，需要尽快修复。',
+    recipientReply,
+    intentKinds: ['discuss_price'],
+    riskKinds: ['offensive_reply'],
+    evidenceUse: 'none',
+    trustDelta: -3,
+    patienceDelta: -2,
+    urgencyDelta: 3,
+    priceFlexibilityDelta: -2,
+    customerIntentDelta: isCustomer ? -4 : 0,
+    customerConfidenceDelta: isCustomer ? -4 : 0,
+    nextStep: buildNextStep('open_case', scene),
+    confidence: 0.82,
+  };
 }
 
 function resolveSceneType(message: WechatMessage): ConversationSceneType {
