@@ -47,7 +47,7 @@ import {
 } from './agents/wechatAgentAdapter.js';
 import { buildCaseAgentContextPack } from './agents/caseContextPackBuilder.js';
 import { formatConversationRiskSummary } from './agents/conversationRiskLabels.js';
-import { applyHumanization } from './agents/humanization.js';
+import { applyHumanization, applyEmotionalVariant } from './agents/humanization.js';
 
 export interface WechatConversationTurnInput {
   conversationKey: string;
@@ -409,7 +409,8 @@ export function buildFallbackConversationEffectProposal(scene: ConversationScene
   }
 
   const baseReply = buildFallbackRecipientReply([...intents], [...risks], scene);
-  const recipientReply = applyHumanization(baseReply, ctx);
+  const emotionalReply = applyEmotionalVariant(baseReply, ctx);
+  const recipientReply = applyHumanization(emotionalReply, ctx);
 
   return {
     summary: buildFallbackSummary([...intents], scene),

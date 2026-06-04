@@ -34,6 +34,8 @@ export function applyHumanization(reply: string, ctx: ConversationContext): stri
 }
 
 export function applyEmotionalVariant(reply: string, ctx: ConversationContext): string {
+  if (reply.length > 25) return reply;
+
   const variants = getEmotionalVariants(ctx);
   if (!variants) return reply;
 
@@ -42,30 +44,42 @@ export function applyEmotionalVariant(reply: string, ctx: ConversationContext): 
 }
 
 function getEmotionalVariants(ctx: ConversationContext): string[] | null {
-  const { senderName, caseRef, emotionalState, isAssertive, isAnxious } = ctx;
+  const { senderName, caseRef, emotionalState, isAssertive, isAnxious, playerText } = ctx;
 
   if (emotionalState === 'frustrated') {
-    return [
+    const base = [
       `${senderName}：唉，你这么说太笼统了，${caseRef}现在需要具体方案，不是安慰。`,
       `${senderName}：真是愁人，${caseRef}的情况你得给我一个明确判断。`,
       `${senderName}：我跟你说啊，${caseRef}我现在最怕一直拖，你今天要给我一个明确动作。`,
     ];
+    if (playerText.length > 20) {
+      base.push(`${senderName}：你说的我听到了，但${caseRef}我现在最怕拖，你得给我一个明确动作。`);
+    }
+    return base;
   }
 
   if (emotionalState === 'anxious') {
-    return [
+    const base = [
       `${senderName}：我真的很着急，${caseRef}你今天要给我一个明确判断。`,
       `${senderName}：我现在最怕拖，${caseRef}你今天要给我一个明确动作。`,
       `${senderName}：你懂的，${caseRef}我现在最怕一直拖，你今天要给我一个明确判断。`,
     ];
+    if (isAnxious) {
+      base.push(`${senderName}：我真的很着急，${caseRef}你今天要给我一个明确判断，别让我白折腾。`);
+    }
+    return base;
   }
 
   if (emotionalState === 'hopeful') {
-    return [
+    const base = [
       `${senderName}：哈哈，终于有消息了，${caseRef}你继续推进。`,
       `${senderName}：好，${caseRef}你继续推进，我等你消息。`,
       `${senderName}：不错，${caseRef}你继续推进，我等你消息。`,
     ];
+    if (playerText.length > 20) {
+      base.push(`${senderName}：你说的我听到了，${caseRef}你继续推进，我等你消息。`);
+    }
+    return base;
   }
 
   return null;
