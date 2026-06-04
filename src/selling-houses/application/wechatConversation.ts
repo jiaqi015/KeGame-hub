@@ -936,7 +936,7 @@ function shouldApplyPriceAdjustment(
 function buildHostileConversationEffectProposal(scene: ConversationSceneInputPack): ConversationEffectProposal {
   return {
     summary: '这句回复冒犯了对方，关系明显受损。',
-    recipientReply: buildHostileRecipientReply(scene),
+    recipientReply: buildFallbackRecipientReply(['hostile'], ['offensive_reply'], scene),
     intentKinds: ['hostile'],
     riskKinds: ['offensive_reply'],
     evidenceUse: 'none',
@@ -949,19 +949,6 @@ function buildHostileConversationEffectProposal(scene: ConversationSceneInputPac
     nextStep: buildNextStep('open_case', scene),
     confidence: 0.9,
   };
-}
-
-function buildHostileRecipientReply(scene: ConversationSceneInputPack) {
-  if (scene.sceneType === 'customer_wechat') {
-    return '你这个态度，我就先不跟你聊这套了。';
-  }
-  if (scene.sceneType === 'manager_wechat') {
-    return '这个态度不行，先把客户和业主稳住。';
-  }
-  if (scene.sceneType === 'owner_wechat') {
-    return '你要是这个态度，那我没法继续信你了。';
-  }
-  return '这个态度没法继续配合，先冷静一下。';
 }
 
 function buildThreateningConversationEffectProposal(scene: ConversationSceneInputPack): ConversationEffectProposal {
@@ -1086,15 +1073,40 @@ function extractPlayerTextDetails(text: string): { priceRef: string; actionRef: 
   return { priceRef, actionRef, timeRef };
 }
 
-function buildFallbackRecipientReply(
-  intents: readonly ConversationIntentKind[],
-  risks: readonly ConversationRiskKind[],
-  scene: ConversationSceneInputPack,
-) {
-  if (risks.includes('offensive_reply') || intents.includes('hostile')) {
-    return buildHostileRecipientReply(scene);
-  }
+interface ReplyContext {
+  readonly senderName: string;
+  readonly caseRef: string;
+  readonly locRef: string;
+  readonly community: string;
+  readonly district: string;
+  readonly askPrice: number;
+  readonly marketPrice: number;
+  readonly priceGapPct: number;
+  readonly trust: number;
+  readonly patience: number;
+  readonly urgency: number;
+  readonly customerName: string;
+  readonly customerIntent: number;
+  readonly sourceSnippet: string;
+  readonly priceRef: string;
+  readonly actionRef: string;
+  readonly timeRef: string;
+}
 
+interface ReplyRule {
+  readonly priority: number;
+  readonly sceneType?: ConversationSceneType;
+  readonly intents?: readonly ConversationIntentKind[];
+  readonly risks?: readonly ConversationRiskKind[];
+  readonly ownerProfile?: 'assertive' | 'anxious' | 'default';
+  readonly flags?: readonly ('lowTrust' | 'highUrgency' | 'lowPatience' | 'highPriceGap' | 'noFirstVisit' | 'isCustomer')[];
+  readonly playerDetail?: 'hasPriceRef' | 'noPriceRef' | 'actionData' | 'actionFeedback' | 'actionVisit' | 'actionCustomer' | 'hasTimeRef' | 'noTimeRef' | 'any';
+  readonly customerIntentHigh?: boolean;
+  readonly hasCustomerName?: boolean;
+  readonly buildReply: (ctx: ReplyContext) => string;
+}
+
+function buildReplyContext(scene: ConversationSceneInputPack): ReplyContext {
   const senderName = scene.sourceMessage.senderName;
   const sourceContent = scene.sourceMessage.content;
   const caseTitle = scene.caseContext?.title || '';
@@ -1106,303 +1118,232 @@ function buildFallbackRecipientReply(
   const priceGapPct = scene.caseContext?.priceGapPct ?? 0;
   const askPrice = scene.caseContext?.askPrice ?? 0;
   const marketPrice = scene.caseContext?.marketPrice ?? 0;
-  const hasCompletedFirstVisit = scene.caseContext?.hasCompletedFirstVisit ?? false;
-  const ownerProfileLabel = scene.caseContext?.ownerProfileLabel || '';
   const customerName = scene.opportunityContext?.customerName || '';
   const customerIntent = scene.opportunityContext?.intent ?? 50;
-  const customerStage = scene.opportunityContext?.stage || '';
   const caseRef = caseTitle ? `${caseTitle}这套` : '这套房';
   const locRef = community || district;
-  const isLowTrust = trust < 40;
-  const isHighUrgency = urgency >= 70;
-  const isLowPatience = patience < 30;
-  const isHighPriceGap = priceGapPct > 15;
-  const isAssertive = /强势|硬控|控盘|博弈|自信/.test(ownerProfileLabel);
-  const isAnxious = /焦虑|急/.test(ownerProfileLabel) || isHighUrgency;
-  const isManager = scene.sceneType === 'manager_wechat';
-  const isCustomer = scene.sceneType === 'customer_wechat';
   const playerDetails = extractPlayerTextDetails(scene.playerText);
+  const sourceSnippet = sourceContent.length > 20 ? `${sourceContent.slice(0, 20)}…` : sourceContent;
 
-  if (isManager) {
-    return buildManagerFallbackReply(intents, risks, scene, {
-      senderName, caseRef, locRef, community, district,
-      trust, urgency, hasCompletedFirstVisit, isHighUrgency,
-    });
-  }
-
-  if (intents.includes('secure_price_adjustment')) {
-    if (isAssertive) {
-      if (playerDetails.priceRef) {
-        return `${senderName}：${playerDetails.priceRef}这个价格你有依据吗？${caseRef}挂价${askPrice}万，市场才${marketPrice}万，你得告诉我凭什么调。`;
-      }
-      return isHighPriceGap
-        ? `${senderName}：调价可以，但${caseRef}挂价${askPrice}万，市场才${marketPrice}万，差了${priceGapPct.toFixed(0)}%。你得告诉我客户到底出到多少，凭什么调。`
-        : `${senderName}：调价可以，但你得先告诉我客户到底出到多少，凭什么调，我听依据，不听空判断。`;
-    }
-    if (isAnxious) {
-      if (playerDetails.priceRef) {
-        return `${senderName}：你说调到${playerDetails.priceRef}，我现在最怕调了也没用。${caseRef}挂了这么久没成交，你告诉我调多少能成交。`;
-      }
-      return `${senderName}：你说调价，我现在最怕调了也没用。${caseRef}挂了这么久没成交，你告诉我调多少能成交，别让我白折腾。`;
-    }
-    if (isHighPriceGap) {
-      if (playerDetails.priceRef) {
-        return `${senderName}：你说${playerDetails.priceRef}，但${caseRef}挂价${askPrice}万比市场高${priceGapPct.toFixed(0)}%，你先告诉我客户真实出价。`;
-      }
-      return `${senderName}：你说调价，但${caseRef}挂价${askPrice}万比市场高${priceGapPct.toFixed(0)}%，你先告诉我客户真实出价，我再判断怎么调。`;
-    }
-    if (playerDetails.priceRef) {
-      return `${senderName}：${playerDetails.priceRef}可以，但${caseRef}的情况你得先给我分析清楚，市场价和客户反馈我都需要。`;
-    }
-    return `${senderName}：调价可以，但${caseRef}的情况你得先给我分析清楚，市场价和客户反馈我都需要。`;
-  }
-
-  if (intents.includes('propose_face_visit')) {
-    const timeRef = playerDetails.timeRef ? `${playerDetails.timeRef}` : '';
-    if (isAssertive) {
-      return timeRef
-        ? `${senderName}：${timeRef}可以，但你得带${caseRef}的竞品数据和客户反馈来，别只来聊聊。`
-        : `${senderName}：行，那你带${caseRef}的竞品数据和客户反馈来，别只来聊聊。`;
-    }
-    if (isAnxious || isHighUrgency) {
-      return timeRef
-        ? `${senderName}：${timeRef}就定时间，${caseRef}的事我不能再等了。`
-        : `${senderName}：行，那你今天就定时间，${caseRef}的事我不能再等了。`;
-    }
-    if (isLowPatience) {
-      return `${senderName}：可以见面，但你得带方案来，${caseRef}的情况你得说清楚。`;
-    }
-    return timeRef
-      ? `${senderName}：好，${timeRef}我们当面把${caseRef}的情况理清楚。`
-      : `${senderName}：好，那你定个时间，我们当面把${caseRef}的情况理清楚。`;
-  }
-
-  if (intents.includes('discuss_price')) {
-    if (isAssertive) {
-      if (playerDetails.priceRef) {
-        return `${senderName}：${playerDetails.priceRef}你有依据吗？${locRef ? `${locRef}同小区` : '同小区'}成交数据和客户出价摆出来。`;
-      }
-      return `${senderName}：价格的事你得给我依据，${locRef ? `${locRef}同小区` : '同小区'}成交数据和客户出价摆出来，我再判断。`;
-    }
-    if (isHighPriceGap) {
-      if (playerDetails.priceRef) {
-        return `${senderName}：${playerDetails.priceRef}可以谈，但${caseRef}挂价${askPrice}万确实偏高，市场价大概${marketPrice}万。`;
-      }
-      return `${senderName}：价格可以谈，但${caseRef}挂价${askPrice}万确实偏高，市场价大概${marketPrice}万，你得告诉我客户的真实出价。`;
-    }
-    if (playerDetails.priceRef) {
-      return `${senderName}：${playerDetails.priceRef}可以谈，但你得先告诉我客户的真实出价和${locRef ? `${locRef}的` : ''}市场对比。`;
-    }
-    return `${senderName}：价格可以谈，但你得先告诉我客户的真实出价和${locRef ? `${locRef}的` : ''}市场对比。`;
-  }
-
-  if (intents.includes('present_market_evidence')) {
-    if (!hasCompletedFirstVisit) {
-      return playerDetails.actionRef === '数据'
-        ? `${senderName}：数据我看了，但${caseRef}你还没面访过，我不确定这些数据是不是针对这套的。你先来一趟。`
-        : `${senderName}：你还没来面访过，${caseRef}的情况我不确定，你先来一趟。`;
-    }
-    if (isLowTrust) {
-      return playerDetails.actionRef === '数据'
-        ? `${senderName}：数据是有了，但你之前说的和实际有出入，${caseRef}的情况我需要更多依据才能信你。`
-        : `${senderName}：你说的我听到了，但${caseRef}之前有出入，我需要看到具体数据才信你。`;
-    }
-    if (isAssertive) {
-      if (playerDetails.priceRef) {
-        return `${senderName}：${playerDetails.priceRef}这个数据可以，但${caseRef}的竞品和客户反馈你得整理一下，我们当面过一遍。`;
-      }
-      if (playerDetails.actionRef === '竞品') {
-        return `${senderName}：竞品数据我看了，${caseRef}的差异你得摆明白，我们当面过一遍。`;
-      }
-      if (playerDetails.actionRef === '客户') {
-        return `${senderName}：客户反馈我看了，${caseRef}的竞品数据你也得整理一下，我们当面过一遍。`;
-      }
-      if (playerDetails.actionRef === '面访') {
-        return `${senderName}：面访完把${caseRef}的竞品数据和客户反馈整理一下，我看依据再做判断。`;
-      }
-      return `${senderName}：好，你把${caseRef}的竞品数据和客户反馈整理一下，我们当面过一遍，我看依据再做判断。`;
-    }
-    if (isCustomer) {
-      return playerDetails.actionRef === '竞品'
-        ? `${senderName}：竞品对比我看了，${caseRef}的优缺点你再发我一下。`
-        : `${senderName}：好，你把${caseRef}的优缺点和竞品对比发我，我看完再决定。`;
-    }
-    if (playerDetails.priceRef) {
-      return `${senderName}：${playerDetails.priceRef}这个数据我看到了，${caseRef}的竞品和客户反馈你整理一下，我们当面过一遍。`;
-    }
-    return playerDetails.actionRef === '竞品'
-      ? `${senderName}：竞品数据我看了，${caseRef}的情况你再补充一下客户反馈，我们当面过一遍。`
-      : `${senderName}：好，你把${caseRef}的竞品和客户反馈整理一下，我们当面过一遍。`;
-  }
-
-  if (intents.includes('follow_customer')) {
-    if (customerIntent >= 70 && customerName) {
-      return playerDetails.timeRef
-        ? `${senderName}：${playerDetails.timeRef}确认，${customerName}这边意向不错，${caseRef}的机会别错过。`
-        : `${senderName}：那你尽快确认，${customerName}这边意向不错，${caseRef}的机会别错过。`;
-    }
-    if (customerName) {
-      return playerDetails.timeRef
-        ? `${senderName}：${playerDetails.timeRef}确认，${customerName}这边时间不确定，${caseRef}的窗口别错过。`
-        : `${senderName}：那你尽快确认，${customerName}这边时间不确定，${caseRef}的窗口别错过。`;
-    }
-    return playerDetails.timeRef
-      ? `${senderName}：${playerDetails.timeRef}确认，客户这边时间不确定，${caseRef}的窗口别错过。`
-      : `${senderName}：那你尽快确认，客户这边时间不确定，${caseRef}的窗口别错过。`;
-  }
-
-  if (intents.includes('promise_feedback')) {
-    if (isLowTrust) {
-      return playerDetails.actionRef === '反馈'
-        ? `${senderName}：你说会反馈${caseRef}的情况，但我需要看到具体动作，不只是口头。`
-        : `${senderName}：你说会反馈，但${caseRef}的情况我需要看到具体动作，不只是口头。`;
-    }
-    return playerDetails.timeRef
-      ? `${senderName}：好，${playerDetails.timeRef}把${caseRef}的结果发我。`
-      : `${senderName}：好，那你今天就把${caseRef}的结果发我，我等你。`;
-  }
-
-  if (intents.includes('align_manager')) {
-    return playerDetails.actionRef === '反馈' || playerDetails.actionRef === '数据'
-      ? `${senderName}：收到，${caseRef}的情况和风险点你整理一下同步我，今天别散。`
-      : `${senderName}：收到，你把${caseRef}的情况和风险点同步我，今天别散。`;
-  }
-
-  if (risks.includes('overpromise')) {
-    return `${senderName}：你这么说太绝对了，${caseRef}的情况不确定，你得给我一个更稳妥的方案。`;
-  }
-
-  if (risks.includes('empty_comfort')) {
-    const promises = scene.caseContext?.promisesNotYetFulfilled || [];
-    const promiseRef = promises.length > 0 ? `你上次说的${promises[0]}还没兑现，` : '';
-    if (isHighUrgency) {
-      return `${senderName}：${promiseRef}你这么说太笼统了，${caseRef}现在需要具体方案，不是安慰。`;
-    }
-    if (isAssertive) {
-      return `${senderName}：${promiseRef}这话太泛了。${caseRef}你得告诉我具体怎么做，别只让我再等等。`;
-    }
-    return `${senderName}：${promiseRef}我听到了，但${caseRef}的情况不够具体，你得告诉我下一步怎么做。`;
-  }
-
-  if (risks.includes('ignores_customer')) {
-    const questionSnippet = sourceContent.length > 20 ? `${sourceContent.slice(0, 20)}…` : sourceContent;
-    return `${senderName}：你没回答我的问题，我问的是${questionSnippet}，你得正面回应。`;
-  }
-
-  if (risks.includes('missing_next_step')) {
-    if (isAssertive) {
-      return `${senderName}：方向可以，但${caseRef}下一步做什么你没说，我需要明确动作和时间点。`;
-    }
-    return `${senderName}：方向可以，但${caseRef}下一步做什么你没说，我需要明确动作。`;
-  }
-
-  if (intents.includes('reassure')) {
-    const strategy = scene.caseContext?.serviceStrategy;
-    const strategyRef = strategy ? `按${strategy.communicationStyle}` : '';
-    if (isLowTrust) {
-      return `${senderName}：我听到了，但${caseRef}的情况光说没用，${strategyRef}你得拿出具体动作让我看到变化。`;
-    }
-    if (isAnxious) {
-      return `${senderName}：我能理解，但${caseRef}我现在最怕一直拖。${strategyRef}你今天要给我一个明确判断。`;
-    }
-    return `${senderName}：收到，${strategyRef}你把${caseRef}的关键情况确认清楚，再给我一个明确反馈。`;
-  }
-
-  const variants = buildWechatLocalReplyVariants(scene);
-  return variants.neutral;
+  return {
+    senderName, caseRef, locRef, community, district,
+    askPrice, marketPrice, priceGapPct, trust, patience, urgency,
+    customerName, customerIntent, sourceSnippet,
+    priceRef: playerDetails.priceRef,
+    actionRef: playerDetails.actionRef,
+    timeRef: playerDetails.timeRef,
+  };
 }
 
-function buildManagerFallbackReply(
+function resolveOwnerProfile(scene: ConversationSceneInputPack): 'assertive' | 'anxious' | 'default' {
+  const ownerProfileLabel = scene.caseContext?.ownerProfileLabel || '';
+  const urgency = scene.caseContext?.urgency ?? 50;
+  if (/强势|硬控|控盘|博弈|自信/.test(ownerProfileLabel)) return 'assertive';
+  if (/焦虑|急/.test(ownerProfileLabel) || urgency >= 70) return 'anxious';
+  return 'default';
+}
+
+function resolveFlags(scene: ConversationSceneInputPack): Set<string> {
+  const flags = new Set<string>();
+  const trust = scene.caseContext?.trust ?? 50;
+  const urgency = scene.caseContext?.urgency ?? 50;
+  const patience = scene.caseContext?.patience ?? 50;
+  const priceGapPct = scene.caseContext?.priceGapPct ?? 0;
+  const hasCompletedFirstVisit = scene.caseContext?.hasCompletedFirstVisit ?? false;
+
+  if (trust < 40) flags.add('lowTrust');
+  if (urgency >= 70) flags.add('highUrgency');
+  if (patience < 30) flags.add('lowPatience');
+  if (priceGapPct > 15) flags.add('highPriceGap');
+  if (!hasCompletedFirstVisit) flags.add('noFirstVisit');
+  if (scene.sceneType === 'customer_wechat') flags.add('isCustomer');
+  return flags;
+}
+
+function matchRule(
+  rule: ReplyRule,
+  scene: ConversationSceneInputPack,
+  intents: readonly ConversationIntentKind[],
+  risks: readonly ConversationRiskKind[],
+  ctx: ReplyContext,
+): boolean {
+  if (rule.sceneType && rule.sceneType !== scene.sceneType) return false;
+  if (rule.intents && !rule.intents.some(i => intents.includes(i))) return false;
+  if (rule.risks && !rule.risks.some(r => risks.includes(r))) return false;
+
+  const ownerProfile = resolveOwnerProfile(scene);
+  if (rule.ownerProfile && rule.ownerProfile !== ownerProfile) return false;
+
+  const flags = resolveFlags(scene);
+  if (rule.flags && !rule.flags.every(f => flags.has(f))) return false;
+
+  if (rule.playerDetail) {
+    const playerDetails = extractPlayerTextDetails(scene.playerText);
+    if (rule.playerDetail === 'hasPriceRef' && !playerDetails.priceRef) return false;
+    if (rule.playerDetail === 'noPriceRef' && playerDetails.priceRef) return false;
+    if (rule.playerDetail === 'actionData' && playerDetails.actionRef !== '数据') return false;
+    if (rule.playerDetail === 'actionFeedback' && playerDetails.actionRef !== '反馈') return false;
+    if (rule.playerDetail === 'actionVisit' && playerDetails.actionRef !== '面访') return false;
+    if (rule.playerDetail === 'actionCustomer' && playerDetails.actionRef !== '客户') return false;
+    if (rule.playerDetail === 'hasTimeRef' && !playerDetails.timeRef) return false;
+    if (rule.playerDetail === 'noTimeRef' && playerDetails.timeRef) return false;
+  }
+
+  if (rule.customerIntentHigh !== undefined) {
+    if (rule.customerIntentHigh && ctx.customerIntent < 70) return false;
+    if (!rule.customerIntentHigh && ctx.customerIntent >= 70) return false;
+  }
+
+  if (rule.hasCustomerName !== undefined) {
+    if (rule.hasCustomerName && !ctx.customerName) return false;
+    if (!rule.hasCustomerName && ctx.customerName) return false;
+  }
+
+  return true;
+}
+
+const OWNER_REPLY_TABLE: readonly ReplyRule[] = [
+  // Priority 100: hostile/offensive
+  { priority: 100, risks: ['offensive_reply'], sceneType: 'customer_wechat', buildReply: () => '你这个态度，我就先不跟你聊这套了。' },
+  { priority: 100, risks: ['offensive_reply'], sceneType: 'manager_wechat', buildReply: () => '这个态度不行，先把客户和业主稳住。' },
+  { priority: 100, risks: ['offensive_reply'], sceneType: 'owner_wechat', buildReply: () => '你要是这个态度，那我没法继续信你了。' },
+  { priority: 100, risks: ['offensive_reply'], buildReply: () => '这个态度没法继续配合，先冷静一下。' },
+  { priority: 100, intents: ['hostile'], sceneType: 'customer_wechat', buildReply: () => '你这个态度，我就先不跟你聊这套了。' },
+  { priority: 100, intents: ['hostile'], sceneType: 'manager_wechat', buildReply: () => '这个态度不行，先把客户和业主稳住。' },
+  { priority: 100, intents: ['hostile'], sceneType: 'owner_wechat', buildReply: () => '你要是这个态度，那我没法继续信你了。' },
+  { priority: 100, intents: ['hostile'], buildReply: () => '这个态度没法继续配合，先冷静一下。' },
+
+  // Priority 20: intent-based - secure_price_adjustment
+  { priority: 20, intents: ['secure_price_adjustment'], ownerProfile: 'assertive', playerDetail: 'hasPriceRef', buildReply: (ctx) => `${ctx.senderName}：${ctx.priceRef}这个价格你有依据吗？${ctx.caseRef}挂价${ctx.askPrice}万，市场才${ctx.marketPrice}万，你得告诉我凭什么调。` },
+  { priority: 20, intents: ['secure_price_adjustment'], ownerProfile: 'assertive', flags: ['highPriceGap'], buildReply: (ctx) => `${ctx.senderName}：调价可以，但${ctx.caseRef}挂价${ctx.askPrice}万，市场才${ctx.marketPrice}万，差了${ctx.priceGapPct.toFixed(0)}%。你得告诉我客户到底出到多少，凭什么调。` },
+  { priority: 20, intents: ['secure_price_adjustment'], ownerProfile: 'assertive', buildReply: (ctx) => `${ctx.senderName}：调价可以，但你得先告诉我客户到底出到多少，凭什么调，我听依据，不听空判断。` },
+  { priority: 20, intents: ['secure_price_adjustment'], ownerProfile: 'anxious', playerDetail: 'hasPriceRef', buildReply: (ctx) => `${ctx.senderName}：你说调到${ctx.priceRef}，我现在最怕调了也没用。${ctx.caseRef}挂了这么久没成交，你告诉我调多少能成交。` },
+  { priority: 20, intents: ['secure_price_adjustment'], ownerProfile: 'anxious', buildReply: (ctx) => `${ctx.senderName}：你说调价，我现在最怕调了也没用。${ctx.caseRef}挂了这么久没成交，你告诉我调多少能成交，别让我白折腾。` },
+  { priority: 20, intents: ['secure_price_adjustment'], flags: ['highPriceGap'], playerDetail: 'hasPriceRef', buildReply: (ctx) => `${ctx.senderName}：你说${ctx.priceRef}，但${ctx.caseRef}挂价${ctx.askPrice}万比市场高${ctx.priceGapPct.toFixed(0)}%，你先告诉我客户真实出价。` },
+  { priority: 20, intents: ['secure_price_adjustment'], flags: ['highPriceGap'], buildReply: (ctx) => `${ctx.senderName}：你说调价，但${ctx.caseRef}挂价${ctx.askPrice}万比市场高${ctx.priceGapPct.toFixed(0)}%，你先告诉我客户真实出价，我再判断怎么调。` },
+  { priority: 20, intents: ['secure_price_adjustment'], playerDetail: 'hasPriceRef', buildReply: (ctx) => `${ctx.senderName}：${ctx.priceRef}可以，但${ctx.caseRef}的情况你得先给我分析清楚，市场价和客户反馈我都需要。` },
+  { priority: 20, intents: ['secure_price_adjustment'], buildReply: (ctx) => `${ctx.senderName}：调价可以，但${ctx.caseRef}的情况你得先给我分析清楚，市场价和客户反馈我都需要。` },
+
+  // Priority 20: intent-based - propose_face_visit
+  { priority: 20, intents: ['propose_face_visit'], ownerProfile: 'assertive', playerDetail: 'hasTimeRef', buildReply: (ctx) => `${ctx.senderName}：${ctx.timeRef}可以，但你得带${ctx.caseRef}的竞品数据和客户反馈来，别只来聊聊。` },
+  { priority: 20, intents: ['propose_face_visit'], ownerProfile: 'assertive', buildReply: (ctx) => `${ctx.senderName}：行，那你带${ctx.caseRef}的竞品数据和客户反馈来，别只来聊聊。` },
+  { priority: 20, intents: ['propose_face_visit'], ownerProfile: 'anxious', playerDetail: 'hasTimeRef', buildReply: (ctx) => `${ctx.senderName}：${ctx.timeRef}就定时间，${ctx.caseRef}的事我不能再等了。` },
+  { priority: 20, intents: ['propose_face_visit'], ownerProfile: 'anxious', buildReply: (ctx) => `${ctx.senderName}：行，那你今天就定时间，${ctx.caseRef}的事我不能再等了。` },
+  { priority: 20, intents: ['propose_face_visit'], flags: ['lowPatience'], buildReply: (ctx) => `${ctx.senderName}：可以见面，但你得带方案来，${ctx.caseRef}的情况你得说清楚。` },
+  { priority: 20, intents: ['propose_face_visit'], playerDetail: 'hasTimeRef', buildReply: (ctx) => `${ctx.senderName}：好，${ctx.timeRef}我们当面把${ctx.caseRef}的情况理清楚。` },
+  { priority: 20, intents: ['propose_face_visit'], buildReply: (ctx) => `${ctx.senderName}：好，那你定个时间，我们当面把${ctx.caseRef}的情况理清楚。` },
+
+  // Priority 20: intent-based - discuss_price
+  { priority: 20, intents: ['discuss_price'], ownerProfile: 'assertive', playerDetail: 'hasPriceRef', buildReply: (ctx) => `${ctx.senderName}：${ctx.priceRef}你有依据吗？${ctx.locRef ? `${ctx.locRef}同小区` : '同小区'}成交数据和客户出价摆出来。` },
+  { priority: 20, intents: ['discuss_price'], ownerProfile: 'assertive', buildReply: (ctx) => `${ctx.senderName}：价格的事你得给我依据，${ctx.locRef ? `${ctx.locRef}同小区` : '同小区'}成交数据和客户出价摆出来，我再判断。` },
+  { priority: 20, intents: ['discuss_price'], flags: ['highPriceGap'], playerDetail: 'hasPriceRef', buildReply: (ctx) => `${ctx.senderName}：${ctx.priceRef}可以谈，但${ctx.caseRef}挂价${ctx.askPrice}万确实偏高，市场价大概${ctx.marketPrice}万。` },
+  { priority: 20, intents: ['discuss_price'], flags: ['highPriceGap'], buildReply: (ctx) => `${ctx.senderName}：价格可以谈，但${ctx.caseRef}挂价${ctx.askPrice}万确实偏高，市场价大概${ctx.marketPrice}万，你得告诉我客户的真实出价。` },
+  { priority: 20, intents: ['discuss_price'], playerDetail: 'hasPriceRef', buildReply: (ctx) => `${ctx.senderName}：${ctx.priceRef}可以谈，但你得先告诉我客户的真实出价和${ctx.locRef ? `${ctx.locRef}的` : ''}市场对比。` },
+  { priority: 20, intents: ['discuss_price'], buildReply: (ctx) => `${ctx.senderName}：价格可以谈，但你得先告诉我客户的真实出价和${ctx.locRef ? `${ctx.locRef}的` : ''}市场对比。` },
+
+  // Priority 20: intent-based - present_market_evidence
+  { priority: 20, intents: ['present_market_evidence'], flags: ['noFirstVisit'], playerDetail: 'actionData', buildReply: (ctx) => `${ctx.senderName}：数据我看了，但${ctx.caseRef}你还没面访过，我不确定这些数据是不是针对这套的。你先来一趟。` },
+  { priority: 20, intents: ['present_market_evidence'], flags: ['noFirstVisit'], buildReply: (ctx) => `${ctx.senderName}：你还没来面访过，${ctx.caseRef}的情况我不确定，你先来一趟。` },
+  { priority: 20, intents: ['present_market_evidence'], flags: ['lowTrust'], playerDetail: 'actionData', buildReply: (ctx) => `${ctx.senderName}：数据是有了，但你之前说的和实际有出入，${ctx.caseRef}的情况我需要更多依据才能信你。` },
+  { priority: 20, intents: ['present_market_evidence'], flags: ['lowTrust'], buildReply: (ctx) => `${ctx.senderName}：你说的我听到了，但${ctx.caseRef}之前有出入，我需要看到具体数据才信你。` },
+  { priority: 20, intents: ['present_market_evidence'], ownerProfile: 'assertive', playerDetail: 'hasPriceRef', buildReply: (ctx) => `${ctx.senderName}：${ctx.priceRef}这个数据可以，但${ctx.caseRef}的竞品和客户反馈你得整理一下，我们当面过一遍。` },
+  { priority: 20, intents: ['present_market_evidence'], ownerProfile: 'assertive', playerDetail: 'actionData', buildReply: (ctx) => `${ctx.senderName}：竞品数据我看了，${ctx.caseRef}的差异你得摆明白，我们当面过一遍。` },
+  { priority: 20, intents: ['present_market_evidence'], ownerProfile: 'assertive', playerDetail: 'actionCustomer', buildReply: (ctx) => `${ctx.senderName}：客户反馈我看了，${ctx.caseRef}的竞品数据你也得整理一下，我们当面过一遍。` },
+  { priority: 20, intents: ['present_market_evidence'], ownerProfile: 'assertive', playerDetail: 'actionVisit', buildReply: (ctx) => `${ctx.senderName}：面访完把${ctx.caseRef}的竞品数据和客户反馈整理一下，我看依据再做判断。` },
+  { priority: 20, intents: ['present_market_evidence'], ownerProfile: 'assertive', buildReply: (ctx) => `${ctx.senderName}：好，你把${ctx.caseRef}的竞品数据和客户反馈整理一下，我们当面过一遍，我看依据再做判断。` },
+  { priority: 20, intents: ['present_market_evidence'], flags: ['isCustomer'], playerDetail: 'actionData', buildReply: (ctx) => `${ctx.senderName}：竞品对比我看了，${ctx.caseRef}的优缺点你再发我一下。` },
+  { priority: 20, intents: ['present_market_evidence'], flags: ['isCustomer'], buildReply: (ctx) => `${ctx.senderName}：好，你把${ctx.caseRef}的优缺点和竞品对比发我，我看完再决定。` },
+  { priority: 20, intents: ['present_market_evidence'], playerDetail: 'hasPriceRef', buildReply: (ctx) => `${ctx.senderName}：${ctx.priceRef}这个数据我看到了，${ctx.caseRef}的竞品和客户反馈你整理一下，我们当面过一遍。` },
+  { priority: 20, intents: ['present_market_evidence'], playerDetail: 'actionData', buildReply: (ctx) => `${ctx.senderName}：竞品数据我看了，${ctx.caseRef}的情况你再补充一下客户反馈，我们当面过一遍。` },
+  { priority: 20, intents: ['present_market_evidence'], buildReply: (ctx) => `${ctx.senderName}：好，你把${ctx.caseRef}的竞品和客户反馈整理一下，我们当面过一遍。` },
+
+  // Priority 20: intent-based - follow_customer
+  { priority: 20, intents: ['follow_customer'], customerIntentHigh: true, hasCustomerName: true, playerDetail: 'hasTimeRef', buildReply: (ctx) => `${ctx.senderName}：${ctx.timeRef}确认，${ctx.customerName}这边意向不错，${ctx.caseRef}的机会别错过。` },
+  { priority: 20, intents: ['follow_customer'], customerIntentHigh: true, hasCustomerName: true, buildReply: (ctx) => `${ctx.senderName}：那你尽快确认，${ctx.customerName}这边意向不错，${ctx.caseRef}的机会别错过。` },
+  { priority: 20, intents: ['follow_customer'], hasCustomerName: true, playerDetail: 'hasTimeRef', buildReply: (ctx) => `${ctx.senderName}：${ctx.timeRef}确认，${ctx.customerName}这边时间不确定，${ctx.caseRef}的窗口别错过。` },
+  { priority: 20, intents: ['follow_customer'], hasCustomerName: true, buildReply: (ctx) => `${ctx.senderName}：那你尽快确认，${ctx.customerName}这边时间不确定，${ctx.caseRef}的窗口别错过。` },
+  { priority: 20, intents: ['follow_customer'], playerDetail: 'hasTimeRef', buildReply: (ctx) => `${ctx.senderName}：${ctx.timeRef}确认，客户这边时间不确定，${ctx.caseRef}的窗口别错过。` },
+  { priority: 20, intents: ['follow_customer'], buildReply: (ctx) => `${ctx.senderName}：那你尽快确认，客户这边时间不确定，${ctx.caseRef}的窗口别错过。` },
+
+  // Priority 20: intent-based - promise_feedback
+  { priority: 20, intents: ['promise_feedback'], flags: ['lowTrust'], playerDetail: 'actionFeedback', buildReply: (ctx) => `${ctx.senderName}：你说会反馈${ctx.caseRef}的情况，但我需要看到具体动作，不只是口头。` },
+  { priority: 20, intents: ['promise_feedback'], flags: ['lowTrust'], buildReply: (ctx) => `${ctx.senderName}：你说会反馈，但${ctx.caseRef}的情况我需要看到具体动作，不只是口头。` },
+  { priority: 20, intents: ['promise_feedback'], playerDetail: 'hasTimeRef', buildReply: (ctx) => `${ctx.senderName}：好，${ctx.timeRef}把${ctx.caseRef}的结果发我。` },
+  { priority: 20, intents: ['promise_feedback'], buildReply: (ctx) => `${ctx.senderName}：好，那你今天就把${ctx.caseRef}的结果发我，我等你。` },
+
+  // Priority 20: intent-based - align_manager
+  { priority: 20, intents: ['align_manager'], playerDetail: 'actionFeedback', buildReply: (ctx) => `${ctx.senderName}：收到，${ctx.caseRef}的情况和风险点你整理一下同步我，今天别散。` },
+  { priority: 20, intents: ['align_manager'], playerDetail: 'actionData', buildReply: (ctx) => `${ctx.senderName}：收到，${ctx.caseRef}的情况和风险点你整理一下同步我，今天别散。` },
+  { priority: 20, intents: ['align_manager'], buildReply: (ctx) => `${ctx.senderName}：收到，你把${ctx.caseRef}的情况和风险点同步我，今天别散。` },
+
+  // Priority 10: risk-based
+  { priority: 10, risks: ['overpromise'], buildReply: (ctx) => `${ctx.senderName}：你这么说太绝对了，${ctx.caseRef}的情况不确定，你得给我一个更稳妥的方案。` },
+  { priority: 10, risks: ['empty_comfort'], flags: ['highUrgency'], buildReply: (ctx) => `${ctx.senderName}：你这么说太笼统了，${ctx.caseRef}现在需要具体方案，不是安慰。` },
+  { priority: 10, risks: ['empty_comfort'], ownerProfile: 'assertive', buildReply: (ctx) => `${ctx.senderName}：这话太泛了。${ctx.caseRef}你得告诉我具体怎么做，别只让我再等等。` },
+  { priority: 10, risks: ['empty_comfort'], buildReply: (ctx) => `${ctx.senderName}：我听到了，但${ctx.caseRef}的情况不够具体，你得告诉我下一步怎么做。` },
+  { priority: 10, risks: ['ignores_customer'], buildReply: (ctx) => `${ctx.senderName}：你没回答我的问题，我问的是${ctx.sourceSnippet}，你得正面回应。` },
+  { priority: 10, risks: ['missing_next_step'], ownerProfile: 'assertive', buildReply: (ctx) => `${ctx.senderName}：方向可以，但${ctx.caseRef}下一步做什么你没说，我需要明确动作和时间点。` },
+  { priority: 10, risks: ['missing_next_step'], buildReply: (ctx) => `${ctx.senderName}：方向可以，但${ctx.caseRef}下一步做什么你没说，我需要明确动作。` },
+
+  // Priority 5: reassure
+  { priority: 5, intents: ['reassure'], flags: ['lowTrust'], buildReply: (ctx) => `${ctx.senderName}：我听到了，但${ctx.caseRef}的情况光说没用，你得拿出具体动作让我看到变化。` },
+  { priority: 5, intents: ['reassure'], ownerProfile: 'anxious', buildReply: (ctx) => `${ctx.senderName}：我能理解，但${ctx.caseRef}我现在最怕一直拖。你今天要给我一个明确判断。` },
+  { priority: 5, intents: ['reassure'], buildReply: (ctx) => `${ctx.senderName}：收到，你把${ctx.caseRef}的关键情况确认清楚，再给我一个明确反馈。` },
+];
+
+const MANAGER_REPLY_TABLE: readonly ReplyRule[] = [
+  // Priority 100: hostile/offensive
+  { priority: 100, risks: ['offensive_reply'], sceneType: 'customer_wechat', buildReply: () => '你这个态度，我就先不跟你聊这套了。' },
+  { priority: 100, risks: ['offensive_reply'], sceneType: 'manager_wechat', buildReply: () => '这个态度不行，先把客户和业主稳住。' },
+  { priority: 100, risks: ['offensive_reply'], sceneType: 'owner_wechat', buildReply: () => '你要是这个态度，那我没法继续信你了。' },
+  { priority: 100, risks: ['offensive_reply'], buildReply: () => '这个态度没法继续配合，先冷静一下。' },
+  { priority: 100, intents: ['hostile'], sceneType: 'customer_wechat', buildReply: () => '你这个态度，我就先不跟你聊这套了。' },
+  { priority: 100, intents: ['hostile'], sceneType: 'manager_wechat', buildReply: () => '这个态度不行，先把客户和业主稳住。' },
+  { priority: 100, intents: ['hostile'], sceneType: 'owner_wechat', buildReply: () => '你要是这个态度，那我没法继续信你了。' },
+  { priority: 100, intents: ['hostile'], buildReply: () => '这个态度没法继续配合，先冷静一下。' },
+  { priority: 20, intents: ['secure_price_adjustment'], buildReply: (ctx) => `${ctx.senderName}：调价的事你先别急，把${ctx.caseRef}的市场数据和客户反馈拿来，我帮你判断。` },
+  { priority: 20, intents: ['propose_face_visit'], playerDetail: 'hasTimeRef', buildReply: (ctx) => `${ctx.senderName}：${ctx.timeRef}面访完把${ctx.caseRef}的结果和风险点同步我。` },
+  { priority: 20, intents: ['propose_face_visit'], playerDetail: 'actionData', buildReply: (ctx) => `${ctx.senderName}：好，面访时把${ctx.caseRef}的竞品数据和客户反馈带齐，结果同步我。` },
+  { priority: 20, intents: ['propose_face_visit'], playerDetail: 'actionFeedback', buildReply: (ctx) => `${ctx.senderName}：好，面访时把${ctx.caseRef}的竞品数据和客户反馈带齐，结果同步我。` },
+  { priority: 20, intents: ['propose_face_visit'], buildReply: (ctx) => `${ctx.senderName}：好，面访完把${ctx.caseRef}的结果和风险点同步我。` },
+  { priority: 20, intents: ['discuss_price'], buildReply: (ctx) => `${ctx.senderName}：价格的事你得有依据，${ctx.caseRef}的竞品数据和客户出价你清楚吗？` },
+  { priority: 20, intents: ['present_market_evidence'], flags: ['noFirstVisit'], playerDetail: 'actionData', buildReply: (ctx) => `${ctx.senderName}：竞品数据先放一边，${ctx.caseRef}你还没面访过，先把业主关系打牢。` },
+  { priority: 20, intents: ['present_market_evidence'], flags: ['noFirstVisit'], playerDetail: 'actionCustomer', buildReply: (ctx) => `${ctx.senderName}：客户反馈先放一边，${ctx.caseRef}你还没面访过，先把业主关系打牢。` },
+  { priority: 20, intents: ['present_market_evidence'], flags: ['noFirstVisit'], playerDetail: 'hasPriceRef', buildReply: (ctx) => `${ctx.senderName}：${ctx.priceRef}的数据先放一边，${ctx.caseRef}你还没面访过，先把业主关系打牢。` },
+  { priority: 20, intents: ['present_market_evidence'], flags: ['noFirstVisit'], playerDetail: 'actionVisit', buildReply: (ctx) => `${ctx.senderName}：面访是好事，但${ctx.caseRef}你得先把业主关系打牢，再谈数据。` },
+  { priority: 20, intents: ['present_market_evidence'], flags: ['noFirstVisit'], buildReply: (ctx) => `${ctx.senderName}：数据先放一边，${ctx.caseRef}你还没面访过，先把业主关系打牢。` },
+  { priority: 20, intents: ['present_market_evidence'], flags: ['lowTrust'], playerDetail: 'actionCustomer', buildReply: (ctx) => `${ctx.senderName}：客户反馈我看了，但${ctx.caseRef}的信任基础还不够，你得先稳住业主。` },
+  { priority: 20, intents: ['present_market_evidence'], flags: ['lowTrust'], buildReply: (ctx) => `${ctx.senderName}：数据有了，但${ctx.caseRef}的信任基础还不够，你得先稳住业主。` },
+  { priority: 20, intents: ['present_market_evidence'], playerDetail: 'hasPriceRef', buildReply: (ctx) => `${ctx.senderName}：${ctx.priceRef}的数据我看了，${ctx.caseRef}的竞品和客户情况你整理一下，我看看有没有风险。` },
+  { priority: 20, intents: ['present_market_evidence'], playerDetail: 'actionData', buildReply: (ctx) => `${ctx.senderName}：竞品数据我看了，${ctx.caseRef}的客户情况你补充一下，我看看有没有风险。` },
+  { priority: 20, intents: ['present_market_evidence'], buildReply: (ctx) => `${ctx.senderName}：好，${ctx.caseRef}的竞品和客户情况你整理一下，我看看有没有风险。` },
+  { priority: 20, intents: ['follow_customer'], buildReply: (ctx) => `${ctx.senderName}：客户跟进别停，${ctx.caseRef}的窗口随时会变。` },
+  { priority: 20, intents: ['promise_feedback'], buildReply: (ctx) => `${ctx.senderName}：好，今天把${ctx.caseRef}的结果发我，别拖。` },
+  { priority: 20, intents: ['align_manager'], buildReply: (ctx) => `${ctx.senderName}：收到，${ctx.caseRef}的情况和风险点你同步我，今天别散。` },
+  { priority: 10, risks: ['overpromise'], buildReply: (ctx) => `${ctx.senderName}：别说绝对话，${ctx.caseRef}的情况你给我一个稳妥方案。` },
+  { priority: 10, risks: ['empty_comfort'], flags: ['highUrgency'], buildReply: (ctx) => `${ctx.senderName}：别给我空话，${ctx.caseRef}今天到底抓哪件事，你给我说清楚。` },
+  { priority: 10, risks: ['empty_comfort'], buildReply: (ctx) => `${ctx.senderName}：方向可以，但${ctx.caseRef}的具体动作你没说，我需要明确。` },
+  { priority: 10, risks: ['ignores_customer'], buildReply: (ctx) => `${ctx.senderName}：你没回答我的问题，${ctx.caseRef}的情况你得正面回应。` },
+  { priority: 10, risks: ['missing_next_step'], buildReply: (ctx) => `${ctx.senderName}：${ctx.caseRef}下一步做什么你没说，今天先落到一件事。` },
+  { priority: 5, intents: ['reassure'], buildReply: (ctx) => `${ctx.senderName}：收到，${ctx.caseRef}的关键情况你确认清楚再给我反馈。` },
+];
+
+function buildFallbackRecipientReply(
   intents: readonly ConversationIntentKind[],
   risks: readonly ConversationRiskKind[],
   scene: ConversationSceneInputPack,
-  ctx: {
-    senderName: string;
-    caseRef: string;
-    locRef: string;
-    community: string;
-    district: string;
-    trust: number;
-    urgency: number;
-    hasCompletedFirstVisit: boolean;
-    isHighUrgency: boolean;
-  },
 ) {
-  const { senderName, caseRef, trust, hasCompletedFirstVisit, isHighUrgency } = ctx;
-
-  if (intents.includes('secure_price_adjustment')) {
-    return `${senderName}：调价的事你先别急，把${caseRef}的市场数据和客户反馈拿来，我帮你判断。`;
-  }
-  if (intents.includes('propose_face_visit')) {
-    const playerDetails = extractPlayerTextDetails(scene.playerText);
-    if (playerDetails.timeRef) {
-      return `${senderName}：${playerDetails.timeRef}面访完把${caseRef}的结果和风险点同步我。`;
+  const ctx = buildReplyContext(scene);
+  const isManager = scene.sceneType === 'manager_wechat';
+  const table = isManager ? MANAGER_REPLY_TABLE : OWNER_REPLY_TABLE;
+  const sorted = [...table].sort((a, b) => b.priority - a.priority);
+  for (const rule of sorted) {
+    if (matchRule(rule, scene, intents, risks, ctx)) {
+      return rule.buildReply(ctx);
     }
-    if (playerDetails.actionRef === '竞品' || playerDetails.actionRef === '数据') {
-      return `${senderName}：好，面访时把${caseRef}的竞品数据和客户反馈带齐，结果同步我。`;
-    }
-    return `${senderName}：好，面访完把${caseRef}的结果和风险点同步我。`;
   }
-  if (intents.includes('discuss_price')) {
-    return `${senderName}：价格的事你得有依据，${caseRef}的竞品数据和客户出价你清楚吗？`;
-  }
-  if (intents.includes('present_market_evidence')) {
-    const playerDetails = extractPlayerTextDetails(scene.playerText);
-    if (!hasCompletedFirstVisit) {
-      if (playerDetails.actionRef === '竞品') {
-        return `${senderName}：竞品数据先放一边，${caseRef}你还没面访过，先把业主关系打牢。`;
-      }
-      if (playerDetails.actionRef === '客户') {
-        return `${senderName}：客户反馈先放一边，${caseRef}你还没面访过，先把业主关系打牢。`;
-      }
-      if (playerDetails.priceRef) {
-        return `${senderName}：${playerDetails.priceRef}的数据先放一边，${caseRef}你还没面访过，先把业主关系打牢。`;
-      }
-      if (playerDetails.actionRef === '面访') {
-        return `${senderName}：面访是好事，但${caseRef}你得先把业主关系打牢，再谈数据。`;
-      }
-      return `${senderName}：数据先放一边，${caseRef}你还没面访过，先把业主关系打牢。`;
-    }
-    if (trust < 40) {
-      return playerDetails.actionRef === '客户'
-        ? `${senderName}：客户反馈我看了，但${caseRef}的信任基础还不够，你得先稳住业主。`
-        : `${senderName}：数据有了，但${caseRef}的信任基础还不够，你得先稳住业主。`;
-    }
-    if (playerDetails.priceRef) {
-      return `${senderName}：${playerDetails.priceRef}的数据我看了，${caseRef}的竞品和客户情况你整理一下，我看看有没有风险。`;
-    }
-    return playerDetails.actionRef === '竞品'
-      ? `${senderName}：竞品数据我看了，${caseRef}的客户情况你补充一下，我看看有没有风险。`
-      : `${senderName}：好，${caseRef}的竞品和客户情况你整理一下，我看看有没有风险。`;
-  }
-  if (intents.includes('follow_customer')) {
-    return `${senderName}：客户跟进别停，${caseRef}的窗口随时会变。`;
-  }
-  if (intents.includes('promise_feedback')) {
-    return `${senderName}：好，今天把${caseRef}的结果发我，别拖。`;
-  }
-  if (intents.includes('align_manager')) {
-    return `${senderName}：收到，${caseRef}的情况和风险点你同步我，今天别散。`;
-  }
-  if (risks.includes('overpromise')) {
-    return `${senderName}：别说绝对话，${caseRef}的情况你给我一个稳妥方案。`;
-  }
-  if (risks.includes('empty_comfort')) {
-    if (isHighUrgency) {
-      return `${senderName}：别给我空话，${caseRef}今天到底抓哪件事，你给我说清楚。`;
-    }
-    return `${senderName}：方向可以，但${caseRef}的具体动作你没说，我需要明确。`;
-  }
-  if (risks.includes('ignores_customer')) {
-    return `${senderName}：你没回答我的问题，${caseRef}的情况你得正面回应。`;
-  }
-  if (risks.includes('missing_next_step')) {
-    return `${senderName}：${caseRef}下一步做什么你没说，今天先落到一件事。`;
-  }
-  if (intents.includes('reassure')) {
-    return `${senderName}：收到，${caseRef}的关键情况你确认清楚再给我反馈。`;
-  }
-  return `${senderName}：收到，你把${caseRef}的情况和风险点同步我，今天别散。`;
+  const variants = buildWechatLocalReplyVariants(scene);
+  return variants.neutral;
 }
 
 function buildEffectLabels(input: {
