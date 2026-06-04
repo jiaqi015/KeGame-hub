@@ -392,15 +392,30 @@ export function buildFallbackConversationEffectProposal(scene: ConversationScene
     nextStep = buildNextStep('open_case', scene);
   }
 
+  const ctx = buildConversationContext(scene);
+
+  let trustDelta = risks.has('overpromise') ? -3 : risks.has('empty_comfort') || risks.has('ignores_customer') ? -1 : hasEvidence || hasNextStep ? 3 : 1;
+  let patienceDelta = risks.has('overpromise') ? -1 : risks.has('empty_comfort') || risks.has('ignores_customer') ? -1 : hasNextStep ? 2 : 0;
+  let urgencyDelta = risks.has('overpromise') ? 2 : risks.has('empty_comfort') || risks.has('ignores_customer') ? 1 : hasNextStep ? -2 : 0;
+
+  if (ctx.strategy === 'handle_crisis') {
+    trustDelta = Math.min(trustDelta, -3);
+    urgencyDelta = Math.max(urgencyDelta, 2);
+  } else if (ctx.strategy === 'rebuild_trust') {
+    trustDelta = Math.min(trustDelta, -1);
+  } else if (ctx.strategy === 'fulfill_promise') {
+    trustDelta = Math.max(trustDelta, 1);
+  }
+
   return {
     summary: buildFallbackSummary([...intents], scene),
     recipientReply: buildFallbackRecipientReply([...intents], [...risks], scene),
     intentKinds: [...intents],
     riskKinds: risks.size > 0 ? [...risks] : ['none'],
     evidenceUse: hasEvidence ? 'specific' : 'mentioned',
-    trustDelta: risks.has('overpromise') ? -3 : risks.has('empty_comfort') || risks.has('ignores_customer') ? -1 : hasEvidence || hasNextStep ? 3 : 1,
-    patienceDelta: risks.has('overpromise') ? -1 : risks.has('empty_comfort') || risks.has('ignores_customer') ? -1 : hasNextStep ? 2 : 0,
-    urgencyDelta: risks.has('overpromise') ? 2 : risks.has('empty_comfort') || risks.has('ignores_customer') ? 1 : hasNextStep ? -2 : 0,
+    trustDelta,
+    patienceDelta,
+    urgencyDelta,
     priceFlexibilityDelta: intents.has('secure_price_adjustment') ? 9 : intents.has('discuss_price') && hasEvidence ? 5 : 0,
     customerIntentDelta: scene.sceneType === 'customer_wechat' ? risks.has('ignores_customer') ? -4 : 4 : 0,
     customerConfidenceDelta: scene.sceneType === 'customer_wechat' ? risks.has('ignores_customer') ? -4 : 4 : 0,

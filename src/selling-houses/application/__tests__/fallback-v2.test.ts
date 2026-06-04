@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { ConversationSceneInputPack, ConversationContext } from '../../core/world-state/conversation/models';
-import { buildConversationContext } from '../wechatConversation';
+import { buildConversationContext, buildFallbackConversationEffectProposal } from '../wechatConversation';
 
 function buildScene(overrides: Partial<ConversationSceneInputPack> = {}): ConversationSceneInputPack {
   return {
@@ -178,6 +178,41 @@ describe('Fallback 2.0 — ConversationContext', () => {
       const scene = buildScene({ caseContext: { trust: 50, patience: 50, urgency: 50, hasCompletedFirstVisit: false, promisesNotYetFulfilled: ['今天下午去面访'] } as any });
       const ctx = buildConversationContext(scene);
       expect(ctx.strategy).toBe('fulfill_promise');
+    });
+  });
+
+  describe('strategy-aware reply generation', () => {
+    it('handle_crisis: should reference crisis in reply', () => {
+      const scene = buildScene({ caseContext: { trust: 20, patience: 15, urgency: 85, ownerProfileLabel: '焦虑型' } as any });
+      const proposal = buildFallbackConversationEffectProposal(scene);
+      expect(proposal.trustDelta).toBeLessThan(0);
+    });
+
+    it('rebuild_trust: should show emotional awareness', () => {
+      const scene = buildScene({ caseContext: { trust: 25, patience: 50, urgency: 80, ownerProfileLabel: '焦虑型' } as any });
+      const proposal = buildFallbackConversationEffectProposal(scene);
+      expect(proposal.trustDelta).toBeLessThan(0);
+    });
+
+    it('fulfill_promise: should reference promise', () => {
+      const scene = buildScene({ caseContext: { trust: 50, patience: 50, urgency: 50, promisesNotYetFulfilled: ['今天下午去面访'], ownerProfileLabel: '焦虑型' } as any });
+      const proposal = buildFallbackConversationEffectProposal(scene);
+      expect(proposal.recipientReply).toContain('王姐');
+    });
+
+    it('push_price: should reference price gap', () => {
+      const scene = buildScene({
+        sourceMessage: { messageId: 'msg-1', senderName: '李总', senderRole: 'owner', content: '价格怎么样？', timeLabel: '14:30', urgency: 'medium' },
+        caseContext: { trust: 50, patience: 50, urgency: 50, priceGapPct: 20, askPrice: 680, marketPrice: 567, hasCompletedFirstVisit: true, ownerProfileLabel: '强势型' } as any,
+      });
+      const proposal = buildFallbackConversationEffectProposal(scene);
+      expect(proposal.recipientReply).toContain('李总');
+    });
+
+    it('build_rapport: should be neutral', () => {
+      const scene = buildScene({ caseContext: { trust: 60, patience: 60, urgency: 40, ownerProfileLabel: '理性型' } as any });
+      const proposal = buildFallbackConversationEffectProposal(scene);
+      expect(proposal.trustDelta).toBeGreaterThanOrEqual(-1);
     });
   });
 });
