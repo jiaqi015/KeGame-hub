@@ -1287,9 +1287,19 @@ function buildManagerFallbackReply(
   if (intents.includes('present_market_evidence')) {
     const playerDetails = extractPlayerTextDetails(scene.playerText);
     if (!hasCompletedFirstVisit) {
-      return playerDetails.actionRef === '竞品'
-        ? `${senderName}：竞品数据先放一边，${caseRef}你还没面访过，先把业主关系打牢。`
-        : `${senderName}：数据先放一边，${caseRef}你还没面访过，先把业主关系打牢。`;
+      if (playerDetails.actionRef === '竞品') {
+        return `${senderName}：竞品数据先放一边，${caseRef}你还没面访过，先把业主关系打牢。`;
+      }
+      if (playerDetails.actionRef === '客户') {
+        return `${senderName}：客户反馈先放一边，${caseRef}你还没面访过，先把业主关系打牢。`;
+      }
+      if (playerDetails.priceRef) {
+        return `${senderName}：${playerDetails.priceRef}的数据先放一边，${caseRef}你还没面访过，先把业主关系打牢。`;
+      }
+      if (playerDetails.actionRef === '面访') {
+        return `${senderName}：面访是好事，但${caseRef}你得先把业主关系打牢，再谈数据。`;
+      }
+      return `${senderName}：数据先放一边，${caseRef}你还没面访过，先把业主关系打牢。`;
     }
     if (trust < 40) {
       return playerDetails.actionRef === '客户'
