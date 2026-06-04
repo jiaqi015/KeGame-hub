@@ -1,6 +1,6 @@
 import type { ConversationContext } from '../../core/world-state/conversation/models';
 
-const EMOTIONAL_EXPRESSIONS: Record<string, string[]> = {
+const EMOTIONAL_EXPRESSIONS: Record<string, string | string[]> = {
   frustrated: ['唉，', '真是愁人，', '我跟你说啊，', '说实话，'],
   anxious: ['我真的很着急，', '我现在最怕拖，', '你懂的，'],
   angry: '我真是无语了，',

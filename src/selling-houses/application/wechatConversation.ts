@@ -47,6 +47,7 @@ import {
 } from './agents/wechatAgentAdapter.js';
 import { buildCaseAgentContextPack } from './agents/caseContextPackBuilder.js';
 import { formatConversationRiskSummary } from './agents/conversationRiskLabels.js';
+import { applyHumanization } from './agents/humanization.js';
 
 export interface WechatConversationTurnInput {
   conversationKey: string;
@@ -407,9 +408,12 @@ export function buildFallbackConversationEffectProposal(scene: ConversationScene
     trustDelta = Math.max(trustDelta, 1);
   }
 
+  const baseReply = buildFallbackRecipientReply([...intents], [...risks], scene);
+  const recipientReply = applyHumanization(baseReply, ctx);
+
   return {
     summary: buildFallbackSummary([...intents], scene),
-    recipientReply: buildFallbackRecipientReply([...intents], [...risks], scene),
+    recipientReply,
     intentKinds: [...intents],
     riskKinds: risks.size > 0 ? [...risks] : ['none'],
     evidenceUse: hasEvidence ? 'specific' : 'mentioned',
