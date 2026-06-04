@@ -704,6 +704,10 @@ function applyConversationSettlement(
   receipt: ConversationReceipt,
 ) {
   if (caseItem && isCaseActiveByCanonicalStatus(state, caseItem)) {
+    const trustBefore = caseItem.trust;
+    const patienceBefore = caseItem.patience;
+    const urgencyBefore = caseItem.urgency;
+
     if (settlement.trustDelta !== 0) {
       applyBrokerOwnerTrustDelta(state, caseItem, settlement.trustDelta, '微信对话影响关系', 0, 100);
     }
@@ -719,9 +723,56 @@ function applyConversationSettlement(
       caseItem.heat = clamp(caseItem.heat + 5, 0, 100);
       caseItem.competitiveness = clamp(caseItem.competitiveness + 6, 0, 100);
     }
+
+    if (settlement.trustDelta < 0) {
+      caseItem.heat = clamp(caseItem.heat - 3, 0, 100);
+    }
+    if (settlement.urgencyDelta > 2) {
+      caseItem.competitiveness = clamp(caseItem.competitiveness + 2, 0, 100);
+    }
+
+    if (trustBefore >= 30 && caseItem.trust < 30) {
+      recordDomainEvent(state, {
+        kind: 'journal',
+        actor: '微信对话',
+        title: `${caseItem.title} 关系告急`,
+        detail: `信任跌破 30（${caseItem.trust}），业主可能不再配合。需要尽快面访修复关系。`,
+        tone: 'danger',
+        caseId: caseItem.id,
+        opportunityId: receipt.targetOpportunityId,
+        payload: { trigger: 'trust_below_30', trust: caseItem.trust, receiptId: receipt.receiptId },
+      });
+    }
+    if (patienceBefore >= 20 && caseItem.patience < 20) {
+      recordDomainEvent(state, {
+        kind: 'journal',
+        actor: '微信对话',
+        title: `${caseItem.title} 耐心耗尽`,
+        detail: `耐心跌破 20（${caseItem.patience}），业主随时可能换人。需要立即给出明确方案。`,
+        tone: 'danger',
+        caseId: caseItem.id,
+        opportunityId: receipt.targetOpportunityId,
+        payload: { trigger: 'patience_below_20', patience: caseItem.patience, receiptId: receipt.receiptId },
+      });
+    }
+    if (urgencyBefore <= 80 && caseItem.urgency > 80) {
+      recordDomainEvent(state, {
+        kind: 'journal',
+        actor: '微信对话',
+        title: `${caseItem.title} 催促升级`,
+        detail: `紧迫突破 80（${caseItem.urgency}），业主开始频繁催促。需要今天给出动作。`,
+        tone: 'danger',
+        caseId: caseItem.id,
+        opportunityId: receipt.targetOpportunityId,
+        payload: { trigger: 'urgency_above_80', urgency: caseItem.urgency, receiptId: receipt.receiptId },
+      });
+    }
   }
 
   if (opportunity) {
+    const intentBefore = opportunity.intent;
+    const confidenceBefore = opportunity.confidence;
+
     if (settlement.customerIntentDelta !== 0) {
       applyOpportunityIntentDeltaOnState(state, opportunity, settlement.customerIntentDelta, '微信对话影响客户意向', 0, 100);
     }
@@ -729,6 +780,31 @@ function applyConversationSettlement(
       applyOpportunityConfidenceDeltaOnState(state, opportunity, settlement.customerConfidenceDelta, '微信对话影响客户信心', 0, 100);
     }
     refreshOpportunityLabel(state, opportunity);
+
+    if (intentBefore < 70 && opportunity.intent >= 70) {
+      recordDomainEvent(state, {
+        kind: 'journal',
+        actor: '微信对话',
+        title: `${opportunity.customerName} 意向升级`,
+        detail: `客户意向突破 70（${opportunity.intent}），进入高意向区间。需要尽快安排看房或出价。`,
+        tone: 'accent',
+        caseId: receipt.targetCaseId,
+        opportunityId: opportunity.id,
+        payload: { trigger: 'intent_above_70', intent: opportunity.intent, receiptId: receipt.receiptId },
+      });
+    }
+    if (confidenceBefore >= 30 && opportunity.confidence < 30) {
+      recordDomainEvent(state, {
+        kind: 'journal',
+        actor: '微信对话',
+        title: `${opportunity.customerName} 信心不足`,
+        detail: `客户信心跌破 30（${opportunity.confidence}），可能转向其他房源。需要尽快确认价格和竞品差异。`,
+        tone: 'danger',
+        caseId: receipt.targetCaseId,
+        opportunityId: opportunity.id,
+        payload: { trigger: 'confidence_below_30', confidence: opportunity.confidence, receiptId: receipt.receiptId },
+      });
+    }
   }
 
   recordDomainEvent(state, {
@@ -1010,9 +1086,16 @@ function buildFallbackRecipientReply(
       if (playerDetails.priceRef) {
         return `${senderName}：${playerDetails.priceRef}这个数据可以，但${caseRef}的竞品和客户反馈你得整理一下，我们当面过一遍。`;
       }
-      return playerDetails.actionRef === '竞品'
-        ? `${senderName}：竞品数据我看了，${caseRef}的差异你得摆明白，我们当面过一遍。`
-        : `${senderName}：好，你把${caseRef}的竞品数据和客户反馈整理一下，我们当面过一遍，我看依据再做判断。`;
+      if (playerDetails.actionRef === '竞品') {
+        return `${senderName}：竞品数据我看了，${caseRef}的差异你得摆明白，我们当面过一遍。`;
+      }
+      if (playerDetails.actionRef === '客户') {
+        return `${senderName}：客户反馈我看了，${caseRef}的竞品数据你也得整理一下，我们当面过一遍。`;
+      }
+      if (playerDetails.actionRef === '面访') {
+        return `${senderName}：面访完把${caseRef}的竞品数据和客户反馈整理一下，我看依据再做判断。`;
+      }
+      return `${senderName}：好，你把${caseRef}的竞品数据和客户反馈整理一下，我们当面过一遍，我看依据再做判断。`;
     }
     if (isCustomer) {
       return playerDetails.actionRef === '竞品'
