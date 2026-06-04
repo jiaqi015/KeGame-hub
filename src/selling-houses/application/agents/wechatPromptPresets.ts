@@ -8,12 +8,14 @@ import { resolveAgentToolManifest } from '../../core/world-state/agents/toolRegi
 import type { AgentPerceptionPack, AgentProfile } from '../../core/world-state/agents/models.js';
 import type { ConversationSceneInputPack } from '../../core/world-state/conversation/models.js';
 import { formatConversationRiskSummary } from './conversationRiskLabels.js';
+import { buildSoulPromptLines } from './soulStore.js';
 
 export interface WechatAgentPromptSections {
   readonly rootLines: readonly string[];
   readonly roleLines: readonly string[];
   readonly contextLines: readonly string[];
   readonly memoryLines: readonly string[];
+  readonly soulLines: readonly string[];
   readonly validationLines: readonly string[];
   readonly outputContractLines: readonly string[];
 }
@@ -57,6 +59,9 @@ export function buildWechatAgentPromptSections(input: {
           ...coordinatorPlan.sharedBoundaryLines,
         ]
       : buildWechatMemoryLines(input.scene, casePack, input.perception),
+    soulLines: input.scene.participantSoul
+      ? buildSoulPromptLines(input.scene.participantSoul)
+      : [],
     validationLines: [
       '意图识别顺序：先判辱骂/摆烂/威胁；再判过度承诺；再判是否空泛安抚；再判是否忽略对方核心问题；再判证据、动作、时间、价格、面访、客户跟进、经理对齐。',
       '如果上下文预算显示已压缩，不要脑补缺失事实；优先沿用已给出的市场、竞品、客户和最近记忆。',

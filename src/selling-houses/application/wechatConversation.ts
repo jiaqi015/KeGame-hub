@@ -14,6 +14,8 @@ import {
   applyOpportunityIntentDeltaOnState,
 } from '../domain/opportunitySplitHelper.js';
 import { refreshOpportunityLabel } from '../domain/engine.js';
+import type { ParticipantSoul } from '../core/world-state/agents/soul.js';
+import { initializeSoulFromCase, updateSoulAfterConversation } from './agents/soulStore.js';
 import type {
   ConversationEffectProposal,
   ConversationEffectSettlement,
@@ -75,6 +77,26 @@ const MAX_PLAYER_TEXT_CHARS = 220;
 
 export function sanitizeWechatPlayerText(text: string) {
   return text.replace(/\s+/g, ' ').trim().slice(0, MAX_PLAYER_TEXT_CHARS);
+}
+
+function getOrCreateSoul(state: GameState, caseItem: GameState['cases'][number]): ParticipantSoul {
+  const participantId = `owner:${caseItem.id}:${caseItem.ownerName}`;
+  const existing = state.participantSouls?.[participantId];
+  if (existing) return existing;
+  const soul = initializeSoulFromCase({
+    caseId: caseItem.id,
+    ownerName: caseItem.ownerName,
+    ownerProfileLabel: caseItem.ownerProfilingMemory?.ownerTypeName || caseItem.personality || '未知',
+    trust: caseItem.trust,
+    patience: caseItem.patience,
+    urgency: caseItem.urgency,
+    priceGapPct: caseItem.priceGapPct,
+  });
+  asWritableGameState(state).participantSouls = {
+    ...state.participantSouls,
+    [participantId]: soul,
+  };
+  return soul;
 }
 
 export function buildWechatConversationScenePack(
@@ -180,9 +202,13 @@ export function buildWechatConversationScenePack(
         summary: entry.summary,
       })),
   };
+  const participantSoul = caseItem
+    ? getOrCreateSoul(state, caseItem)
+    : undefined;
   return {
     ...scene,
     caseContextPack: buildCaseAgentContextPack(state, scene),
+    participantSoul,
   };
 }
 
@@ -458,6 +484,20 @@ export function settleWechatConversationTurn(
     state.agentMemoryStore,
     buildWechatAgentMemoryFactsFromReceipt(scene, receipt),
   );
+  if (scene.participantSoul && caseItem) {
+    const participantId = `owner:${caseItem.id}:${caseItem.ownerName}`;
+    const updatedSoul = updateSoulAfterConversation(scene.participantSoul, {
+      day: state.day,
+      playerText,
+      recipientReply: proposal.recipientReply,
+      settlement,
+      proposal,
+    });
+    asWritableGameState(state).participantSouls = {
+      ...state.participantSouls,
+      [participantId]: updatedSoul,
+    };
+  }
   updateDerivedState(state);
 
   return {

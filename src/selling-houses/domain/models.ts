@@ -1826,6 +1826,7 @@ export interface GameState {
    * scene agents remember prior interactions without owning world truth.
    */
   agentMemoryStore?: import('../core/world-state/agents/models.js').AgentMemoryStore;
+  participantSouls?: import('../core/world-state/agents/soul.js').ParticipantSoulStore;
   marketShadow: ShadowMarketState;
   expectationStore?: Expectation[];
   foreshadowingStore?: ForeshadowingHook[];

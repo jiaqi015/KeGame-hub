@@ -106,6 +106,7 @@ export interface ConversationSceneInputPack {
     readonly recipientReply: string;
     readonly summary: string;
   }[];
+  readonly participantSoul?: import('../agents/soul.js').ParticipantSoul;
 }
 
 export interface ConversationNextStepDraft {
