@@ -1110,7 +1110,14 @@ function buildManagerFallbackReply(
     return `${senderName}：调价的事你先别急，把${caseRef}的市场数据和客户反馈拿来，我帮你判断。`;
   }
   if (intents.includes('propose_face_visit')) {
-    return `${senderName}：好，面访完把结果和风险点同步我。`;
+    const playerDetails = extractPlayerTextDetails(scene.playerText);
+    if (playerDetails.timeRef) {
+      return `${senderName}：${playerDetails.timeRef}面访完把${caseRef}的结果和风险点同步我。`;
+    }
+    if (playerDetails.actionRef === '竞品' || playerDetails.actionRef === '数据') {
+      return `${senderName}：好，面访时把${caseRef}的竞品数据和客户反馈带齐，结果同步我。`;
+    }
+    return `${senderName}：好，面访完把${caseRef}的结果和风险点同步我。`;
   }
   if (intents.includes('discuss_price')) {
     return `${senderName}：价格的事你得有依据，${caseRef}的竞品数据和客户出价你清楚吗？`;
