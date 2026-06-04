@@ -871,6 +871,20 @@ function buildFallbackSummary(intents: readonly ConversationIntentKind[], scene:
   return '回复完成了基础安抚，但后续还需要更明确动作。';
 }
 
+function extractPlayerTextDetails(text: string): { priceRef: string; actionRef: string; timeRef: string } {
+  const priceMatch = text.match(/(\d+)\s*万/);
+  const priceRef = priceMatch ? `${priceMatch[1]}万` : '';
+  const timeMatch = text.match(/(今天|明天|下午|周末|下周|周[一二三四五六日天])/);
+  const timeRef = timeMatch ? timeMatch[1] : '';
+  let actionRef = '';
+  if (/面访|见面|上门|当面/.test(text)) actionRef = '面访';
+  else if (/调价|降价|改价|下调|动一动/.test(text)) actionRef = '调价';
+  else if (/反馈|整理|同步|发您/.test(text)) actionRef = '反馈';
+  else if (/竞品|成交|数据|市场/.test(text)) actionRef = '数据';
+  else if (/客户|带看|约|看房/.test(text)) actionRef = '客户';
+  return { priceRef, actionRef, timeRef };
+}
+
 function buildFallbackRecipientReply(
   intents: readonly ConversationIntentKind[],
   risks: readonly ConversationRiskKind[],
@@ -883,101 +897,153 @@ function buildFallbackRecipientReply(
   const senderName = scene.sourceMessage.senderName;
   const sourceContent = scene.sourceMessage.content;
   const caseTitle = scene.caseContext?.title || '';
+  const community = scene.caseContext?.community || '';
+  const district = scene.caseContext?.district || '';
   const trust = scene.caseContext?.trust ?? 50;
   const patience = scene.caseContext?.patience ?? 50;
   const urgency = scene.caseContext?.urgency ?? 50;
   const priceGapPct = scene.caseContext?.priceGapPct ?? 0;
+  const askPrice = scene.caseContext?.askPrice ?? 0;
+  const marketPrice = scene.caseContext?.marketPrice ?? 0;
   const hasCompletedFirstVisit = scene.caseContext?.hasCompletedFirstVisit ?? false;
   const ownerProfileLabel = scene.caseContext?.ownerProfileLabel || '';
   const customerName = scene.opportunityContext?.customerName || '';
   const customerIntent = scene.opportunityContext?.intent ?? 50;
+  const customerStage = scene.opportunityContext?.stage || '';
   const caseRef = caseTitle ? `${caseTitle}这套` : '这套房';
+  const locRef = community || district;
   const isLowTrust = trust < 40;
   const isHighUrgency = urgency >= 70;
   const isLowPatience = patience < 30;
   const isHighPriceGap = priceGapPct > 15;
   const isAssertive = /强势|硬控|控盘|博弈|自信/.test(ownerProfileLabel);
   const isAnxious = /焦虑|急/.test(ownerProfileLabel) || isHighUrgency;
+  const isManager = scene.sceneType === 'manager_wechat';
+  const isCustomer = scene.sceneType === 'customer_wechat';
+  const playerDetails = extractPlayerTextDetails(scene.playerText);
+
+  if (isManager) {
+    return buildManagerFallbackReply(intents, risks, scene, {
+      senderName, caseRef, locRef, community, district,
+      trust, urgency, hasCompletedFirstVisit, isHighUrgency,
+    });
+  }
 
   if (intents.includes('secure_price_adjustment')) {
     if (isAssertive) {
-      return `${senderName}：调价可以，但你得先告诉我客户到底出到多少，凭什么调，我听依据，不听空判断。`;
+      if (playerDetails.priceRef) {
+        return `${senderName}：${playerDetails.priceRef}这个价格你有依据吗？${caseRef}挂价${askPrice}万，市场才${marketPrice}万，你得告诉我凭什么调。`;
+      }
+      return isHighPriceGap
+        ? `${senderName}：调价可以，但${caseRef}挂价${askPrice}万，市场才${marketPrice}万，差了${priceGapPct.toFixed(0)}%。你得告诉我客户到底出到多少，凭什么调。`
+        : `${senderName}：调价可以，但你得先告诉我客户到底出到多少，凭什么调，我听依据，不听空判断。`;
     }
     if (isAnxious) {
-      return `${senderName}：你说调价，我现在最怕调了也没用。你告诉我调多少能成交，别让我白折腾。`;
+      if (playerDetails.priceRef) {
+        return `${senderName}：你说调到${playerDetails.priceRef}，我现在最怕调了也没用。${caseRef}挂了这么久没成交，你告诉我调多少能成交。`;
+      }
+      return `${senderName}：你说调价，我现在最怕调了也没用。${caseRef}挂了这么久没成交，你告诉我调多少能成交，别让我白折腾。`;
     }
     if (isHighPriceGap) {
-      return `${senderName}：你说调价，但${caseRef}挂价比市场高不少，你先告诉我客户真实出价，我再判断怎么调。`;
+      if (playerDetails.priceRef) {
+        return `${senderName}：你说${playerDetails.priceRef}，但${caseRef}挂价${askPrice}万比市场高${priceGapPct.toFixed(0)}%，你先告诉我客户真实出价。`;
+      }
+      return `${senderName}：你说调价，但${caseRef}挂价${askPrice}万比市场高${priceGapPct.toFixed(0)}%，你先告诉我客户真实出价，我再判断怎么调。`;
     }
-    return `${senderName}：调价可以，但你得先告诉我市场价和客户反馈，我好判断调多少合适。`;
+    if (playerDetails.priceRef) {
+      return `${senderName}：${playerDetails.priceRef}可以，但${caseRef}的情况你得先给我分析清楚，市场价和客户反馈我都需要。`;
+    }
+    return `${senderName}：调价可以，但${caseRef}的情况你得先给我分析清楚，市场价和客户反馈我都需要。`;
   }
 
   if (intents.includes('propose_face_visit')) {
+    const timeRef = playerDetails.timeRef ? `${playerDetails.timeRef}` : '';
     if (isAssertive) {
-      return `${senderName}：行，那你带竞品数据和客户反馈来，别只来聊聊。`;
+      return timeRef
+        ? `${senderName}：${timeRef}可以，但你得带${caseRef}的竞品数据和客户反馈来，别只来聊聊。`
+        : `${senderName}：行，那你带${caseRef}的竞品数据和客户反馈来，别只来聊聊。`;
     }
     if (isAnxious || isHighUrgency) {
-      return `${senderName}：行，那你今天就定时间，我这边随时可以，别再拖了。`;
+      return timeRef
+        ? `${senderName}：${timeRef}就定时间，${caseRef}的事我不能再等了。`
+        : `${senderName}：行，那你今天就定时间，${caseRef}的事我不能再等了。`;
     }
     if (isLowPatience) {
-      return `${senderName}：可以见面，但你得带方案来，别又只是聊聊。`;
+      return `${senderName}：可以见面，但你得带方案来，${caseRef}的情况你得说清楚。`;
     }
-    return `${senderName}：好，那你定个时间，我们当面把情况理清楚。`;
+    return timeRef
+      ? `${senderName}：好，${timeRef}我们当面把${caseRef}的情况理清楚。`
+      : `${senderName}：好，那你定个时间，我们当面把${caseRef}的情况理清楚。`;
   }
 
   if (intents.includes('discuss_price')) {
     if (isAssertive) {
-      return `${senderName}：价格的事你得给我依据，别只说市场价，把同小区成交数据和客户出价摆出来。`;
+      if (playerDetails.priceRef) {
+        return `${senderName}：${playerDetails.priceRef}你有依据吗？${locRef ? `${locRef}同小区` : '同小区'}成交数据和客户出价摆出来。`;
+      }
+      return `${senderName}：价格的事你得给我依据，${locRef ? `${locRef}同小区` : '同小区'}成交数据和客户出价摆出来，我再判断。`;
     }
     if (isHighPriceGap) {
-      return `${senderName}：价格可以谈，但${caseRef}挂价确实偏高，你得告诉我客户的真实出价和市场对比。`;
+      if (playerDetails.priceRef) {
+        return `${senderName}：${playerDetails.priceRef}可以谈，但${caseRef}挂价${askPrice}万确实偏高，市场价大概${marketPrice}万。`;
+      }
+      return `${senderName}：价格可以谈，但${caseRef}挂价${askPrice}万确实偏高，市场价大概${marketPrice}万，你得告诉我客户的真实出价。`;
     }
-    return `${senderName}：价格可以谈，但你得先告诉我客户的真实出价和市场对比。`;
+    if (playerDetails.priceRef) {
+      return `${senderName}：${playerDetails.priceRef}可以谈，但你得先告诉我客户的真实出价和${locRef ? `${locRef}的` : ''}市场对比。`;
+    }
+    return `${senderName}：价格可以谈，但你得先告诉我客户的真实出价和${locRef ? `${locRef}的` : ''}市场对比。`;
   }
 
   if (intents.includes('present_market_evidence')) {
     if (!hasCompletedFirstVisit) {
-      return `${senderName}：数据我看了，但你还没来面访过，我不确定这些数据是不是针对${caseRef}的。`;
+      return `${senderName}：数据我看了，但你还没来面访过，我不确定这些数据是不是针对${caseRef}的。你先来一趟。`;
     }
     if (isLowTrust) {
-      return `${senderName}：数据是有了，但你之前说的和实际有出入，我需要更多依据。`;
+      return `${senderName}：数据是有了，但你之前说的和实际有出入，${caseRef}的情况我需要更多依据才能信你。`;
     }
     if (isAssertive) {
-      return `${senderName}：好，你把竞品和客户反馈整理一下，我们当面过一遍，我看依据再做判断。`;
+      return `${senderName}：好，你把${caseRef}的竞品数据和客户反馈整理一下，我们当面过一遍，我看依据再做判断。`;
     }
-    return `${senderName}：好，你把竞品和客户反馈整理一下，我们当面过一遍。`;
+    if (isCustomer) {
+      return `${senderName}：好，你把${caseRef}的优缺点和竞品对比发我，我看完再决定。`;
+    }
+    return `${senderName}：好，你把${caseRef}的竞品和客户反馈整理一下，我们当面过一遍。`;
   }
 
   if (intents.includes('follow_customer')) {
-    if (customerIntent >= 70) {
-      return `${senderName}：那你尽快确认，${customerName}这边意向不错，别错过窗口。`;
+    if (customerIntent >= 70 && customerName) {
+      return `${senderName}：那你尽快确认，${customerName}这边意向不错，${caseRef}的机会别错过。`;
     }
-    return `${senderName}：那你尽快确认，客户这边时间不确定，别错过窗口。`;
+    if (customerName) {
+      return `${senderName}：那你尽快确认，${customerName}这边时间不确定，${caseRef}的窗口别错过。`;
+    }
+    return `${senderName}：那你尽快确认，客户这边时间不确定，${caseRef}的窗口别错过。`;
   }
 
   if (intents.includes('promise_feedback')) {
     if (isLowTrust) {
-      return `${senderName}：你说会反馈，但我现在需要看到具体动作，不只是口头。`;
+      return `${senderName}：你说会反馈，但${caseRef}的情况我需要看到具体动作，不只是口头。`;
     }
-    return `${senderName}：好，那你今天就把结果发我，我等你。`;
+    return `${senderName}：好，那你今天就把${caseRef}的结果发我，我等你。`;
   }
 
   if (intents.includes('align_manager')) {
-    return `${senderName}：收到，你把重点盘的情况和风险点同步我，今天别散。`;
+    return `${senderName}：收到，你把${caseRef}的情况和风险点同步我，今天别散。`;
   }
 
   if (risks.includes('overpromise')) {
-    return `${senderName}：你这么说太绝对了，市场不确定，你得给我一个更稳妥的方案。`;
+    return `${senderName}：你这么说太绝对了，${caseRef}的情况不确定，你得给我一个更稳妥的方案。`;
   }
 
   if (risks.includes('empty_comfort')) {
     if (isHighUrgency) {
-      return `${senderName}：你这么说太笼统了，我现在需要具体方案，不是安慰。`;
+      return `${senderName}：你这么说太笼统了，${caseRef}现在需要具体方案，不是安慰。`;
     }
     if (isAssertive) {
-      return `${senderName}：这话太泛了。你得告诉我具体怎么做，别只让我再等等。`;
+      return `${senderName}：这话太泛了。${caseRef}你得告诉我具体怎么做，别只让我再等等。`;
     }
-    return `${senderName}：我听到了，但这个不够具体，你得告诉我下一步怎么做。`;
+    return `${senderName}：我听到了，但${caseRef}的情况不够具体，你得告诉我下一步怎么做。`;
   }
 
   if (risks.includes('ignores_customer')) {
@@ -987,23 +1053,89 @@ function buildFallbackRecipientReply(
 
   if (risks.includes('missing_next_step')) {
     if (isAssertive) {
-      return `${senderName}：方向可以，但你没说下一步做什么，我需要明确动作和时间点。`;
+      return `${senderName}：方向可以，但${caseRef}下一步做什么你没说，我需要明确动作和时间点。`;
     }
-    return `${senderName}：方向可以，但你没说下一步做什么，我需要明确动作。`;
+    return `${senderName}：方向可以，但${caseRef}下一步做什么你没说，我需要明确动作。`;
   }
 
   if (intents.includes('reassure')) {
     if (isLowTrust) {
-      return `${senderName}：我听到了，但光说没用，你得拿出具体动作让我看到变化。`;
+      return `${senderName}：我听到了，但${caseRef}的情况光说没用，你得拿出具体动作让我看到变化。`;
     }
     if (isAnxious) {
-      return `${senderName}：我能理解，但我现在最怕一直拖。你今天要给我一个明确判断。`;
+      return `${senderName}：我能理解，但${caseRef}我现在最怕一直拖。你今天要给我一个明确判断。`;
     }
-    return `${senderName}：收到，你先把关键情况确认清楚，再给我一个明确反馈。`;
+    return `${senderName}：收到，你把${caseRef}的关键情况确认清楚，再给我一个明确反馈。`;
   }
 
   const variants = buildWechatLocalReplyVariants(scene);
   return variants.neutral;
+}
+
+function buildManagerFallbackReply(
+  intents: readonly ConversationIntentKind[],
+  risks: readonly ConversationRiskKind[],
+  scene: ConversationSceneInputPack,
+  ctx: {
+    senderName: string;
+    caseRef: string;
+    locRef: string;
+    community: string;
+    district: string;
+    trust: number;
+    urgency: number;
+    hasCompletedFirstVisit: boolean;
+    isHighUrgency: boolean;
+  },
+) {
+  const { senderName, caseRef, trust, hasCompletedFirstVisit, isHighUrgency } = ctx;
+
+  if (intents.includes('secure_price_adjustment')) {
+    return `${senderName}：调价的事你先别急，把${caseRef}的市场数据和客户反馈拿来，我帮你判断。`;
+  }
+  if (intents.includes('propose_face_visit')) {
+    return `${senderName}：好，面访完把结果和风险点同步我。`;
+  }
+  if (intents.includes('discuss_price')) {
+    return `${senderName}：价格的事你得有依据，${caseRef}的竞品数据和客户出价你清楚吗？`;
+  }
+  if (intents.includes('present_market_evidence')) {
+    if (!hasCompletedFirstVisit) {
+      return `${senderName}：数据先放一边，${caseRef}你还没面访过，先把业主关系打牢。`;
+    }
+    if (trust < 40) {
+      return `${senderName}：数据有了，但${caseRef}的信任基础还不够，你得先稳住业主。`;
+    }
+    return `${senderName}：好，${caseRef}的竞品和客户情况你整理一下，我看看有没有风险。`;
+  }
+  if (intents.includes('follow_customer')) {
+    return `${senderName}：客户跟进别停，${caseRef}的窗口随时会变。`;
+  }
+  if (intents.includes('promise_feedback')) {
+    return `${senderName}：好，今天把${caseRef}的结果发我，别拖。`;
+  }
+  if (intents.includes('align_manager')) {
+    return `${senderName}：收到，${caseRef}的情况和风险点你同步我，今天别散。`;
+  }
+  if (risks.includes('overpromise')) {
+    return `${senderName}：别说绝对话，${caseRef}的情况你给我一个稳妥方案。`;
+  }
+  if (risks.includes('empty_comfort')) {
+    if (isHighUrgency) {
+      return `${senderName}：别给我空话，${caseRef}今天到底抓哪件事，你给我说清楚。`;
+    }
+    return `${senderName}：方向可以，但${caseRef}的具体动作你没说，我需要明确。`;
+  }
+  if (risks.includes('ignores_customer')) {
+    return `${senderName}：你没回答我的问题，${caseRef}的情况你得正面回应。`;
+  }
+  if (risks.includes('missing_next_step')) {
+    return `${senderName}：${caseRef}下一步做什么你没说，今天先落到一件事。`;
+  }
+  if (intents.includes('reassure')) {
+    return `${senderName}：收到，${caseRef}的关键情况你确认清楚再给我反馈。`;
+  }
+  return `${senderName}：收到，你把${caseRef}的情况和风险点同步我，今天别散。`;
 }
 
 function buildEffectLabels(input: {
