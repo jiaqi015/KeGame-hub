@@ -53,6 +53,7 @@ import {
 import { handleMyWechatBrokerReplyDraft } from "./src/selling-houses/interfaces/http/myWechatAiHandlers.js";
 import { handleMyWechatConversationTurn } from "./src/selling-houses/interfaces/http/myWechatConversationHandlers.js";
 import { handleActionDecisionAdvice } from "./src/selling-houses/interfaces/http/actionDecisionAdviceHandlers.js";
+import { handleAiArrangement } from "./src/selling-houses/interfaces/http/aiArrangementHandlers.js";
 import {
   getFirstFieldValue,
   hasQueryValue,
@@ -561,6 +562,34 @@ async function startServer() {
         ok: false,
         source: "fallback",
         error: error instanceof Error ? error.message : "动作参谋生成失败",
+      });
+    }
+  });
+
+  app.post("/api/ai-arrangement", async (req, res) => {
+    try {
+      const authorization = await authorizeRequestPersisted(req, "selling-houses");
+      if (!authorization.ok) {
+        return res.status(authorization.status).json({ error: authorization.error });
+      }
+
+      const { day, currentSlot, state, arrangement } = req.body;
+      const result = await handleAiArrangement(state, arrangement, currentSlot || 'am');
+      return res.status(result.status).json(result.body);
+    } catch (error) {
+      return res.status(200).json({
+        ok: false,
+        proposal: {
+          proposalId: `fallback-${Date.now()}`,
+          source: 'fallback',
+          confidence: 0.42,
+          headline: '今天暂时不用再加安排',
+          summary: '当前余量或候选动作不足，先处理已有安排。',
+          evidenceLabels: [],
+          drafts: [],
+        },
+        source: 'fallback',
+        error: error instanceof Error ? error.message : "AI 安排生成失败",
       });
     }
   });
