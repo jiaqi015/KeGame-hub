@@ -17,6 +17,7 @@ import { refreshOpportunityLabel } from '../domain/engine.js';
 import type { ParticipantSoul } from '../core/world-state/agents/soul.js';
 import { initializeSoulFromCase, updateSoulAfterConversation } from './agents/soulStore.js';
 import type {
+  ConversationContext,
   ConversationEffectProposal,
   ConversationEffectSettlement,
   ConversationIntentKind,
@@ -113,6 +114,61 @@ function buildPromisesNotYetFulfilled(state: GameState, caseId: string): string[
     }
   }
   return promises.slice(0, 3);
+}
+
+export function buildConversationContext(scene: ConversationSceneInputPack): ConversationContext {
+  const senderName = scene.sourceMessage.senderName;
+  const sourceContent = scene.sourceMessage.content;
+  const caseTitle = scene.caseContext?.title || '';
+  const community = scene.caseContext?.community || '';
+  const district = scene.caseContext?.district || '';
+  const trust = scene.caseContext?.trust ?? 50;
+  const patience = scene.caseContext?.patience ?? 50;
+  const urgency = scene.caseContext?.urgency ?? 50;
+  const priceGapPct = scene.caseContext?.priceGapPct ?? 0;
+  const askPrice = scene.caseContext?.askPrice ?? 0;
+  const marketPrice = scene.caseContext?.marketPrice ?? 0;
+  const hasCompletedFirstVisit = scene.caseContext?.hasCompletedFirstVisit ?? false;
+  const ownerProfileLabel = scene.caseContext?.ownerProfileLabel || '';
+  const customerName = scene.opportunityContext?.customerName || '';
+  const customerIntent = scene.opportunityContext?.intent ?? 50;
+  const customerStage = scene.opportunityContext?.stage || '';
+  const caseRef = caseTitle ? `${caseTitle}这套` : '这套房';
+  const locRef = community || district;
+  const isAssertive = /强势|硬控|控盘|博弈|自信/.test(ownerProfileLabel);
+  const isAnxious = /焦虑|急/.test(ownerProfileLabel) || urgency >= 70;
+  const isLowTrust = trust < 40;
+  const isHighUrgency = urgency >= 70;
+  const isLowPatience = patience < 30;
+  const isHighPriceGap = priceGapPct > 15;
+  const isManager = scene.sceneType === 'manager_wechat';
+  const isCustomer = scene.sceneType === 'customer_wechat';
+  const promises = scene.caseContext?.promisesNotYetFulfilled || [];
+  const serviceStrategy = scene.caseContext?.serviceStrategy;
+  const playerDetails = extractPlayerTextDetails(scene.playerText);
+
+  let emotionalState: ConversationContext['emotionalState'] = 'calm';
+  if (trust < 30 && urgency > 70) emotionalState = 'frustrated';
+  else if (trust < 40 && patience < 30) emotionalState = 'anxious';
+  else if (trust < 30) emotionalState = 'angry';
+  else if (trust > 60 && urgency < 50) emotionalState = 'hopeful';
+
+  let relationshipStage: ConversationContext['relationshipStage'] = 'stable';
+  if (trust < 25 || patience < 15) relationshipStage = 'crisis';
+  else if (trust < 40) relationshipStage = 'probing';
+  else if (trust > 60) relationshipStage = 'building';
+
+  return {
+    senderName, sceneType: scene.sceneType, sourceContent,
+    playerText: scene.playerText, caseRef, locRef,
+    trust, patience, urgency, priceGapPct, askPrice, marketPrice,
+    hasCompletedFirstVisit, ownerProfileLabel,
+    isAssertive, isAnxious, isLowTrust, isHighUrgency, isLowPatience, isHighPriceGap,
+    isManager, isCustomer,
+    customerName, customerIntent, customerStage,
+    promises, serviceStrategy,
+    emotionalState, relationshipStage, playerDetails,
+  };
 }
 
 export function buildWechatConversationScenePack(

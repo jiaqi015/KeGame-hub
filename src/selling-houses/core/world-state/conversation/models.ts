@@ -208,3 +208,45 @@ export interface ConversationReceipt {
   readonly source: 'ai' | 'fallback';
   readonly traceSnapshot?: ConversationTraceSnapshot;
 }
+
+export interface ConversationContext {
+  readonly senderName: string;
+  readonly sceneType: ConversationSceneType;
+  readonly sourceContent: string;
+  readonly playerText: string;
+  readonly caseRef: string;
+  readonly locRef: string;
+  readonly trust: number;
+  readonly patience: number;
+  readonly urgency: number;
+  readonly priceGapPct: number;
+  readonly askPrice: number;
+  readonly marketPrice: number;
+  readonly hasCompletedFirstVisit: boolean;
+  readonly ownerProfileLabel: string;
+  readonly isAssertive: boolean;
+  readonly isAnxious: boolean;
+  readonly isLowTrust: boolean;
+  readonly isHighUrgency: boolean;
+  readonly isLowPatience: boolean;
+  readonly isHighPriceGap: boolean;
+  readonly isManager: boolean;
+  readonly isCustomer: boolean;
+  readonly customerName: string;
+  readonly customerIntent: number;
+  readonly customerStage: string;
+  readonly promises: readonly string[];
+  readonly serviceStrategy?: {
+    readonly primaryGoal: string;
+    readonly mainBlocker: string;
+    readonly recommendedNextAction: string;
+    readonly communicationStyle: string;
+  };
+  readonly emotionalState: 'calm' | 'anxious' | 'frustrated' | 'hopeful' | 'angry';
+  readonly relationshipStage: 'probing' | 'building' | 'stable' | 'crisis';
+  readonly playerDetails: {
+    readonly priceRef: string;
+    readonly actionRef: string;
+    readonly timeRef: string;
+  };
+}
