@@ -876,33 +876,134 @@ function buildFallbackRecipientReply(
   risks: readonly ConversationRiskKind[],
   scene: ConversationSceneInputPack,
 ) {
-  const variants = buildWechatLocalReplyVariants(scene);
   if (risks.includes('offensive_reply') || intents.includes('hostile')) {
     return buildHostileRecipientReply(scene);
   }
-  if (risks.includes('overpromise')) {
-    return variants.skeptical;
-  }
+
+  const senderName = scene.sourceMessage.senderName;
+  const sourceContent = scene.sourceMessage.content;
+  const caseTitle = scene.caseContext?.title || '';
+  const trust = scene.caseContext?.trust ?? 50;
+  const patience = scene.caseContext?.patience ?? 50;
+  const urgency = scene.caseContext?.urgency ?? 50;
+  const priceGapPct = scene.caseContext?.priceGapPct ?? 0;
+  const hasCompletedFirstVisit = scene.caseContext?.hasCompletedFirstVisit ?? false;
+  const ownerProfileLabel = scene.caseContext?.ownerProfileLabel || '';
+  const customerName = scene.opportunityContext?.customerName || '';
+  const customerIntent = scene.opportunityContext?.intent ?? 50;
+  const caseRef = caseTitle ? `${caseTitle}这套` : '这套房';
+  const isLowTrust = trust < 40;
+  const isHighUrgency = urgency >= 70;
+  const isLowPatience = patience < 30;
+  const isHighPriceGap = priceGapPct > 15;
+  const isAssertive = /强势|硬控|控盘|博弈|自信/.test(ownerProfileLabel);
+  const isAnxious = /焦虑|急/.test(ownerProfileLabel) || isHighUrgency;
+
   if (intents.includes('secure_price_adjustment')) {
-    return variants.positive;
+    if (isAssertive) {
+      return `${senderName}：调价可以，但你得先告诉我客户到底出到多少，凭什么调，我听依据，不听空判断。`;
+    }
+    if (isAnxious) {
+      return `${senderName}：你说调价，我现在最怕调了也没用。你告诉我调多少能成交，别让我白折腾。`;
+    }
+    if (isHighPriceGap) {
+      return `${senderName}：你说调价，但${caseRef}挂价比市场高不少，你先告诉我客户真实出价，我再判断怎么调。`;
+    }
+    return `${senderName}：调价可以，但你得先告诉我市场价和客户反馈，我好判断调多少合适。`;
   }
+
   if (intents.includes('propose_face_visit')) {
-    return variants.positive;
+    if (isAssertive) {
+      return `${senderName}：行，那你带竞品数据和客户反馈来，别只来聊聊。`;
+    }
+    if (isAnxious || isHighUrgency) {
+      return `${senderName}：行，那你今天就定时间，我这边随时可以，别再拖了。`;
+    }
+    if (isLowPatience) {
+      return `${senderName}：可以见面，但你得带方案来，别又只是聊聊。`;
+    }
+    return `${senderName}：好，那你定个时间，我们当面把情况理清楚。`;
   }
+
   if (intents.includes('discuss_price')) {
-    return variants.neutral;
+    if (isAssertive) {
+      return `${senderName}：价格的事你得给我依据，别只说市场价，把同小区成交数据和客户出价摆出来。`;
+    }
+    if (isHighPriceGap) {
+      return `${senderName}：价格可以谈，但${caseRef}挂价确实偏高，你得告诉我客户的真实出价和市场对比。`;
+    }
+    return `${senderName}：价格可以谈，但你得先告诉我客户的真实出价和市场对比。`;
   }
-  if (scene.sceneType === 'customer_wechat') {
-    return intents.includes('follow_customer') || intents.includes('present_market_evidence')
-      ? variants.positive
-      : variants.neutral;
+
+  if (intents.includes('present_market_evidence')) {
+    if (!hasCompletedFirstVisit) {
+      return `${senderName}：数据我看了，但你还没来面访过，我不确定这些数据是不是针对${caseRef}的。`;
+    }
+    if (isLowTrust) {
+      return `${senderName}：数据是有了，但你之前说的和实际有出入，我需要更多依据。`;
+    }
+    if (isAssertive) {
+      return `${senderName}：好，你把竞品和客户反馈整理一下，我们当面过一遍，我看依据再做判断。`;
+    }
+    return `${senderName}：好，你把竞品和客户反馈整理一下，我们当面过一遍。`;
   }
-  if (risks.includes('missing_next_step') || risks.includes('empty_comfort')) {
-    return variants.skeptical;
+
+  if (intents.includes('follow_customer')) {
+    if (customerIntent >= 70) {
+      return `${senderName}：那你尽快确认，${customerName}这边意向不错，别错过窗口。`;
+    }
+    return `${senderName}：那你尽快确认，客户这边时间不确定，别错过窗口。`;
   }
-  return intents.includes('present_market_evidence') || intents.includes('promise_feedback')
-    ? variants.neutral
-    : variants.skeptical;
+
+  if (intents.includes('promise_feedback')) {
+    if (isLowTrust) {
+      return `${senderName}：你说会反馈，但我现在需要看到具体动作，不只是口头。`;
+    }
+    return `${senderName}：好，那你今天就把结果发我，我等你。`;
+  }
+
+  if (intents.includes('align_manager')) {
+    return `${senderName}：收到，你把重点盘的情况和风险点同步我，今天别散。`;
+  }
+
+  if (risks.includes('overpromise')) {
+    return `${senderName}：你这么说太绝对了，市场不确定，你得给我一个更稳妥的方案。`;
+  }
+
+  if (risks.includes('empty_comfort')) {
+    if (isHighUrgency) {
+      return `${senderName}：你这么说太笼统了，我现在需要具体方案，不是安慰。`;
+    }
+    if (isAssertive) {
+      return `${senderName}：这话太泛了。你得告诉我具体怎么做，别只让我再等等。`;
+    }
+    return `${senderName}：我听到了，但这个不够具体，你得告诉我下一步怎么做。`;
+  }
+
+  if (risks.includes('ignores_customer')) {
+    const questionSnippet = sourceContent.length > 20 ? `${sourceContent.slice(0, 20)}…` : sourceContent;
+    return `${senderName}：你没回答我的问题，我问的是${questionSnippet}，你得正面回应。`;
+  }
+
+  if (risks.includes('missing_next_step')) {
+    if (isAssertive) {
+      return `${senderName}：方向可以，但你没说下一步做什么，我需要明确动作和时间点。`;
+    }
+    return `${senderName}：方向可以，但你没说下一步做什么，我需要明确动作。`;
+  }
+
+  if (intents.includes('reassure')) {
+    if (isLowTrust) {
+      return `${senderName}：我听到了，但光说没用，你得拿出具体动作让我看到变化。`;
+    }
+    if (isAnxious) {
+      return `${senderName}：我能理解，但我现在最怕一直拖。你今天要给我一个明确判断。`;
+    }
+    return `${senderName}：收到，你先把关键情况确认清楚，再给我一个明确反馈。`;
+  }
+
+  const variants = buildWechatLocalReplyVariants(scene);
+  return variants.neutral;
 }
 
 function buildEffectLabels(input: {
