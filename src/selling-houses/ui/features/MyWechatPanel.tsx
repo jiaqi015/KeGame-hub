@@ -1,12 +1,23 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronRight, Loader2, Maximize2, MessageCircle, Minimize2, Newspaper, Send } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Maximize2,
+  MessageCircle,
+  Minimize2,
+  MoreHorizontal,
+  Newspaper,
+  Send,
+} from 'lucide-react';
 import type {
   ConversationNextStepDraft,
   ConversationReceipt,
   ConversationTraceSnapshot,
 } from '../../core/world-state/conversation/models.js';
 import type { AgentMemoryFact } from '../../core/world-state/agents/models.js';
+import type { ParticipantSoul } from '../../core/world-state/agents/soul.js';
 import { selectAgentMemoryFacts } from '../../core/world-state/agents/memoryStore.js';
 import { OWNER_URGENCY_HIGH, PRICE_GAP_SIGNIFICANT } from '../../core/world-state/agents/thresholds.js';
 import type { GameState } from '../../domain/models.js';
@@ -16,7 +27,7 @@ import type {
   WechatMessage,
   WechatMessageUrgency,
 } from '../../application/projections/myWechatTypes.js';
-import { fetchMyWechatBrokerReplyDrafts } from '../../infrastructure/myWechatAiClient.js';
+import { initializeSoulFromCase } from '../../application/agents/soulStore.js';
 import { buildCoachFeedback } from '../../application/conversationCoach.js';
 import { ConversationCoachCard } from './ConversationCoachCard.js';
 import type { IntelLayerTab } from './marketIntel.js';
@@ -61,7 +72,6 @@ type ConversationWorldContext = {
   replyAngles: string[];
   memoryFacts: AgentMemoryFact[];
 };
-type BrokerReplyMap = Record<string, NonNullable<WechatMessage['brokerReply']>>;
 type WechatMessageRowProps = {
   conversation: WechatConversation;
   state: GameState;
@@ -124,9 +134,8 @@ export function MyWechatPanel({
   const [selectedConversationKey, setSelectedConversationKey] = useState<string | null>(null);
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
   const [localReadIds, setLocalReadIds] = useState<Set<string>>(() => new Set());
-  const [aiBrokerReplies, setAiBrokerReplies] = useState<BrokerReplyMap>({});
-  const aiReplyRequestKeysRef = useRef<Set<string>>(new Set());
   const effectiveReadIds = readIds || localReadIds;
+  const runScopeKey = `${state.runContext.createdAt}:${state.runContext.runSeed}:${state.runContext.difficultyId}`;
   const visibleIds = useMemo(
     () => new Set([
       ...projection.messages.map((message) => message.id),
@@ -134,6 +143,13 @@ export function MyWechatPanel({
     ]),
     [projection.messages, projection.officialAccounts],
   );
+
+  useEffect(() => {
+    setActiveTab('messages');
+    setSelectedConversationKey(null);
+    setSelectedArticleId(null);
+    setLocalReadIds(new Set());
+  }, [runScopeKey]);
 
   useEffect(() => {
     if (readIds) return;
@@ -179,55 +195,6 @@ export function MyWechatPanel({
       setSelectedArticleId(null);
     }
   }, [activeTab, selectedArticleId, sortedOfficialAccounts]);
-
-  useEffect(() => {
-    if (activeTab !== 'messages' || !selectedConversation) {
-      return;
-    }
-
-    const messagesToDraft = selectedConversation.messages.filter((message) =>
-      !message.conversationTurns?.length && !aiBrokerReplies[message.id]);
-    if (messagesToDraft.length === 0) {
-      return;
-    }
-
-    const requestKey = `${selectedConversation.key}:${messagesToDraft.map((message) => message.id).join(',')}`;
-    if (aiReplyRequestKeysRef.current.has(requestKey)) {
-      return;
-    }
-
-    aiReplyRequestKeysRef.current.add(requestKey);
-    const controller = new AbortController();
-
-    fetchMyWechatBrokerReplyDrafts(selectedConversation.key, messagesToDraft, controller.signal)
-      .then((replies) => {
-        if (controller.signal.aborted || replies.length === 0) {
-          return;
-        }
-        setAiBrokerReplies((current) => {
-          const next = { ...current };
-          replies.forEach((reply) => {
-            next[reply.messageId] = {
-              content: reply.content,
-              timeLabel: reply.timeLabel || '刚刚',
-            };
-          });
-          return next;
-        });
-      })
-      .catch(() => {
-        // Deterministic projection copy stays visible when AI is unavailable.
-      })
-      .finally(() => {
-        if (controller.signal.aborted) {
-          aiReplyRequestKeysRef.current.delete(requestKey);
-        }
-      });
-
-    return () => {
-      controller.abort();
-    };
-  }, [activeTab, aiBrokerReplies, selectedConversation]);
 
   const switchTab = (tab: WechatTab) => {
     setActiveTab(tab);
@@ -310,9 +277,10 @@ export function MyWechatPanel({
           selectedConversation ? (
             <WechatConversationDetail
               conversation={selectedConversation}
+              conversations={conversations}
               state={state}
-              brokerReplies={aiBrokerReplies}
               onBack={() => setSelectedConversationKey(null)}
+              onSwitchConversation={openConversation}
               onSelectCase={onSelectCase}
               onOpenMessageAction={triggerMessageAction}
               onSendConversationReply={onSendConversationReply}
@@ -520,9 +488,7 @@ function buildConversationWorldContext(
 
   return {
     title: caseItem?.title || opportunity?.customerName || getWechatSenderDisplayName(conversation.senderName, conversation.senderRole),
-    primaryLine: caseItem
-      ? `${caseItem.community} · ${caseItem.district} · 这条微信会影响今天的跟进节奏`
-      : '这条微信会影响今天的跟进节奏',
+    primaryLine: caseItem?.district || '',
     signals: dedupeStrings(signals).slice(0, 4),
     replyAngles: dedupeStrings(replyAngles).slice(0, 3),
     memoryFacts,
@@ -585,31 +551,6 @@ function dedupeStrings(values: string[]) {
   });
 }
 
-const WechatDraftReplySuggestion: React.FC<{
-  reply: NonNullable<WechatMessage['brokerReply']>;
-  onUse: () => void;
-}> = ({ reply, onUse }) => {
-  return (
-    <div className="flex justify-end gap-2.5">
-      <div className="min-w-0 max-w-[80%]">
-        <div className="mb-1 flex items-center justify-end gap-2 text-[10px] text-[var(--seller-subtle)]">
-          <span>{reply.timeLabel}</span>
-        </div>
-        <div className="rounded-[14px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.06)] px-3 py-2.5 shadow-[0_10px_24px_rgba(0,0,0,0.06)]">
-          <p className="whitespace-pre-wrap text-[12px] leading-5 text-[var(--seller-ink)]">{reply.content}</p>
-          <button
-            type="button"
-            onClick={onUse}
-            className="mt-2 inline-flex items-center gap-1 rounded-full border border-[color:var(--seller-accent)]/24 bg-[color:var(--seller-accent)]/10 px-2 py-0.5 text-[9px] font-semibold text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/16"
-          >
-            填入
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 const ConversationWorldContextCard: React.FC<{
   context: ConversationWorldContext;
   latestReceipt: ConversationReceipt | null;
@@ -618,7 +559,6 @@ const ConversationWorldContextCard: React.FC<{
   isNextStepHandled?: (receipt: ConversationReceipt, step: ConversationNextStepDraft) => boolean;
 }> = ({ context, latestReceipt, onUseAngle, onUseNextStep, isNextStepHandled }) => {
   const [selectedAngleIndex, setSelectedAngleIndex] = useState(0);
-  const [memoryExpanded, setMemoryExpanded] = useState(false);
   const latestNextSteps = latestReceipt ? getConversationNextSteps(latestReceipt) : [];
   const primaryNextStep = latestNextSteps[0] || null;
   const primaryNextStepHandled = Boolean(latestReceipt && primaryNextStep && isNextStepHandled?.(latestReceipt, primaryNextStep));
@@ -627,16 +567,16 @@ const ConversationWorldContextCard: React.FC<{
 
   useEffect(() => {
     setSelectedAngleIndex(0);
-    setMemoryExpanded(false);
   }, [context.title, context.primaryLine, replyAngleKey]);
 
   return (
     <div className="border-b border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] px-3 py-2.5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="seller-label text-[9px]">会话背景</div>
-          <div className="mt-1 truncate text-[12px] font-semibold text-[var(--seller-ink)]">{context.title}</div>
-          <div className="mt-0.5 truncate text-[10px] text-[var(--seller-subtle)]">{context.primaryLine}</div>
+          <div className="truncate text-[12px] font-semibold leading-5 text-[var(--seller-ink)]">{context.title}</div>
+          {context.primaryLine && (
+            <div className="truncate text-[10px] leading-4 text-[var(--seller-subtle)]">{context.primaryLine}</div>
+          )}
         </div>
         <div className="flex shrink-0 flex-wrap justify-end gap-1">
           <span className={`seller-chip ${latestReceipt ? 'seller-chip-accent' : ''}`}>
@@ -669,63 +609,50 @@ const ConversationWorldContextCard: React.FC<{
         ))}
       </div>
       {context.replyAngles.length > 0 && (
-        <div className="mt-2 rounded-[10px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.045)] px-2.5 py-1.5">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="shrink-0 text-[9px] font-semibold text-[var(--seller-subtle)]">回复参考</span>
-            <p className="min-w-0 flex-1 truncate text-[11px] leading-5 text-[var(--seller-ink)]" title={selectedAngle}>
-              {selectedAngle}
-            </p>
+        <div className="mt-2 rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.035)] px-2.5 py-2">
+          <div className="flex min-w-0 items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="mb-1 flex min-w-0 items-center justify-between gap-2">
+                <span className="shrink-0 text-[9px] font-semibold text-[var(--seller-subtle)]">回复参考</span>
+                {context.replyAngles.length > 1 && (
+                  <div className="flex shrink-0 items-center gap-1.5 text-[10px] font-semibold text-[var(--seller-subtle)]" aria-label="切换回复参考">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAngleIndex((current) => Math.max(0, current - 1))}
+                      disabled={selectedAngleIndex === 0}
+                      className="grid h-6 w-6 place-items-center rounded-[7px] text-[var(--seller-muted)] transition hover:bg-[rgba(255,255,255,0.06)] hover:text-[var(--seller-ink)] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[var(--seller-muted)]"
+                      title="上一条回复参考"
+                    >
+                      <ChevronLeft size={13} />
+                    </button>
+                    <span className="min-w-[30px] text-center leading-6 tabular-nums">
+                      {selectedAngleIndex + 1}/{context.replyAngles.length}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAngleIndex((current) => Math.min(context.replyAngles.length - 1, current + 1))}
+                      disabled={selectedAngleIndex >= context.replyAngles.length - 1}
+                      className="grid h-6 w-6 place-items-center rounded-[7px] text-[var(--seller-muted)] transition hover:bg-[rgba(255,255,255,0.06)] hover:text-[var(--seller-ink)] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[var(--seller-muted)]"
+                      title="下一条回复参考"
+                    >
+                      <ChevronRight size={13} />
+                    </button>
+                  </div>
+                )}
+              </div>
+              <p className="min-w-0 truncate text-[11px] leading-5 text-[var(--seller-ink)]" title={selectedAngle}>
+                {selectedAngle}
+              </p>
+            </div>
             <button
               type="button"
               onClick={() => onUseAngle(selectedAngle)}
-              className="shrink-0 rounded-full border border-[color:var(--seller-accent)]/20 bg-[color:var(--seller-accent)]/8 px-1.5 py-0 text-[8px] font-semibold leading-4 text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/14"
+              className="mt-3 shrink-0 rounded-[8px] border border-[color:var(--seller-accent)]/22 bg-[color:var(--seller-accent)]/9 px-2.5 py-1 text-[9px] font-semibold leading-4 text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/14"
               title={selectedAngle}
             >
-              填入
+              使用
             </button>
-            {context.replyAngles.length > 1 && (
-              <div className="flex shrink-0 gap-0.5">
-                {context.replyAngles.slice(1, 3).map((angle, index) => (
-                  <button
-                    key={angle}
-                    type="button"
-                    onClick={() => setSelectedAngleIndex(index + 1)}
-                    aria-pressed={selectedAngleIndex === index + 1}
-                    className={`rounded-full border px-1.5 py-0 text-[8px] font-semibold leading-4 transition ${
-                      selectedAngleIndex === index + 1
-                        ? 'border-[color:var(--seller-accent)]/35 bg-[color:var(--seller-accent)]/10 text-[var(--seller-accent)]'
-                        : 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] text-[var(--seller-subtle)] hover:border-[color:var(--seller-accent)]/24 hover:text-[var(--seller-accent)]'
-                    }`}
-                    title={`查看：${angle}`}
-                  >
-                    备{index + 2}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
-        </div>
-      )}
-      {context.memoryFacts.length > 0 && (
-        <div className="mt-1.5 grid gap-1">
-          <button
-            type="button"
-            onClick={() => setMemoryExpanded((expanded) => !expanded)}
-            aria-expanded={memoryExpanded}
-            className="inline-flex h-6 w-fit items-center gap-1.5 rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] px-2 text-left text-[9px] font-semibold text-[var(--seller-subtle)] transition hover:border-[color:var(--seller-accent)]/24 hover:text-[var(--seller-ink)]"
-          >
-            <span>记忆线索 {context.memoryFacts.length} 条</span>
-            <ChevronRight size={10} className={`transition-transform ${memoryExpanded ? 'rotate-90' : ''}`} />
-          </button>
-          {memoryExpanded && context.memoryFacts.slice(0, 3).map((fact) => (
-            <div
-              key={fact.factId}
-              className="rounded-[10px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.035)] px-2.5 py-1.5 text-[9px] leading-4 text-[var(--seller-muted)]"
-              title={fact.kind}
-            >
-              {fact.summary}
-            </div>
-          ))}
         </div>
       )}
     </div>
@@ -865,11 +792,93 @@ const WechatMessageRow: React.FC<WechatMessageRowProps> = ({
   );
 };
 
+const WechatConversationRail: React.FC<{
+  conversations: WechatConversation[];
+  activeKey: string;
+  state: GameState;
+  onSelect: (conversation: WechatConversation) => void;
+}> = ({ conversations, activeKey, state, onSelect }) => (
+  <aside className="hidden w-[264px] shrink-0 flex-col border-r border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] md:flex">
+    <div className="shrink-0 border-b border-[var(--seller-border)] px-3 py-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <WechatLogoIcon />
+          <span className="truncate text-[12px] font-semibold text-[var(--seller-ink)]">微信</span>
+        </div>
+        <span className="rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] px-2 py-0.5 text-[9px] font-semibold text-[var(--seller-subtle)]">
+          {conversations.length} 个会话
+        </span>
+      </div>
+      <div className="mt-2 rounded-[10px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.035)] px-2.5 py-1.5 text-[10px] text-[var(--seller-subtle)]">
+        会话列表
+      </div>
+    </div>
+    <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
+      <div className="space-y-1">
+        {conversations.map((item) => {
+          const latestMessage = item.messages[0];
+          const displayName = getWechatSenderDisplayName(item.senderName, item.senderRole);
+          const latestReceipt = getLatestConversationReceipt(item);
+          const latestImpact = latestReceipt ? buildConversationListImpactText(latestReceipt) : '';
+          const active = item.key === activeKey;
+          const primaryActionHandled = latestMessage ? hasConversationHandledMessage(latestMessage) || isMessageActionScheduled(state, latestMessage) : false;
+
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => onSelect(item)}
+              aria-current={active ? 'true' : undefined}
+              className={`group flex w-full gap-2 rounded-[10px] px-2 py-2 text-left transition ${
+                active
+                  ? 'bg-[rgba(255,255,255,0.075)] shadow-[inset_2px_0_0_var(--seller-accent)]'
+                  : 'hover:bg-[rgba(255,255,255,0.045)]'
+              }`}
+            >
+              <span
+                aria-hidden="true"
+                className={`mt-3 h-2 w-2 shrink-0 rounded-full ${item.unreadCount > 0 ? 'bg-rose-500' : 'bg-transparent'}`}
+              />
+              <WechatAvatar
+                senderName={item.senderName}
+                senderRole={item.senderRole}
+                label={item.avatarLabel}
+                className="h-8 w-8 rounded-full"
+              />
+              <span className="min-w-0 flex-1">
+                <span className="flex min-w-0 items-center justify-between gap-2">
+                  <span className="truncate text-[12px] font-semibold text-[var(--seller-ink)]">{displayName}</span>
+                  {latestMessage && (
+                    <span className="shrink-0 text-[9px] font-medium text-[var(--seller-subtle)]">{latestMessage.timeLabel}</span>
+                  )}
+                </span>
+                <span className="mt-0.5 block truncate text-[10px] leading-4 text-[var(--seller-muted)]">
+                  {latestImpact || (latestMessage ? stripWechatSpeakerPrefix(latestMessage.preview, item.senderName, item.senderRole) : '暂无消息')}
+                </span>
+                <span className="mt-1 flex min-w-0 flex-wrap gap-1">
+                  {latestMessage && latestMessage.urgency !== 'low' && (
+                    <span className={`${WECHAT_MESSAGE_META_PILL_CLASS} ${urgencyClassName(latestMessage.urgency)}`}>
+                      {urgencyLabel(latestMessage.urgency)}
+                    </span>
+                  )}
+                  {latestReceipt && <span className={WECHAT_MESSAGE_META_NEUTRAL_PILL_CLASS}>已回复</span>}
+                  {primaryActionHandled && <span className={WECHAT_MESSAGE_META_NEUTRAL_PILL_CLASS}>已承接</span>}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  </aside>
+);
+
 const WechatConversationDetail: React.FC<{
   conversation: WechatConversation;
+  conversations: WechatConversation[];
   state: GameState;
-  brokerReplies: BrokerReplyMap;
   onBack: () => void;
+  onSwitchConversation: (conversation: WechatConversation) => void;
   onSelectCase: (caseId: string) => void;
   onOpenMessageAction: (message: WechatMessage) => boolean;
   onSendConversationReply?: (
@@ -879,9 +888,10 @@ const WechatConversationDetail: React.FC<{
   ) => Promise<{ success: boolean; reason: string; receipt: unknown | null }>;
 }> = ({
   conversation,
+  conversations,
   state,
-  brokerReplies,
   onBack,
+  onSwitchConversation,
   onSelectCase,
   onOpenMessageAction,
   onSendConversationReply,
@@ -896,9 +906,8 @@ const WechatConversationDetail: React.FC<{
   const [fallbackHint, setFallbackHint] = useState(false);
   const [expanded, setExpanded] = useState(true);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
-  const prevScrollKey = useRef({ key: '', turns: 0, brokers: 0 });
+  const prevScrollKey = useRef({ key: '', turns: 0 });
   const conversationTurnCount = conversation.messages.reduce((total, message) => total + (message.conversationTurns?.length || 0), 0);
-  const brokerReplyCount = conversation.messages.reduce((total, message) => total + (brokerReplies[message.id] ? 1 : 0), 0);
 
   useEffect(() => {
     setDraftText('');
@@ -913,11 +922,9 @@ const WechatConversationDetail: React.FC<{
 
     const prev = prevScrollKey.current;
     const isKeyChange = prev.key !== conversation.key;
-    const hasNewContent = !isKeyChange && (
-      conversationTurnCount > prev.turns || brokerReplyCount > prev.brokers
-    );
+    const hasNewContent = !isKeyChange && conversationTurnCount > prev.turns;
 
-    prevScrollKey.current = { key: conversation.key, turns: conversationTurnCount, brokers: brokerReplyCount };
+    prevScrollKey.current = { key: conversation.key, turns: conversationTurnCount };
 
     if (!isKeyChange && !hasNewContent) return;
 
@@ -929,7 +936,7 @@ const WechatConversationDetail: React.FC<{
       });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [conversation.key, conversationTurnCount, brokerReplyCount]);
+  }, [conversation.key, conversationTurnCount]);
 
   const submitReply = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -976,159 +983,172 @@ const WechatConversationDetail: React.FC<{
 
   const detailPanel = (
     <div
-      className={`seller-wechat-detail flex flex-col overflow-hidden rounded-[18px] border border-[var(--seller-border)] shadow-[0_20px_50px_rgba(0,0,0,0.14)] transition-all duration-200 ${
+      className={`seller-wechat-detail flex overflow-hidden rounded-[18px] border border-[var(--seller-border)] shadow-[0_20px_50px_rgba(0,0,0,0.14)] transition-all duration-200 ${
         expanded
-          ? 'fixed bottom-3 left-3 right-3 top-[88px] z-[95] h-auto min-h-0 md:left-auto md:right-4 md:w-[min(620px,calc(100vw-24px))] xl:w-[min(700px,calc(100vw-24px))] xl:top-[96px] xl:right-5 xl:bottom-5'
-          : 'h-[min(820px,calc(100vh-110px))] min-h-[660px]'
+          ? 'fixed bottom-3 left-3 right-3 top-[76px] z-[95] h-auto min-h-0 flex-row md:left-8 md:right-8 md:top-[84px] xl:left-[calc(50vw-560px)] xl:right-[calc(50vw-560px)] xl:bottom-5 xl:top-[92px]'
+          : 'h-[min(820px,calc(100vh-110px))] min-h-[660px] flex-col'
       }`}
     >
-      <div className="seller-wechat-topbar flex shrink-0 items-center gap-2 border-b border-[var(--seller-border)] px-3 py-2.5">
-        <button
-          type="button"
-          onClick={onBack}
-          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[16px] text-[var(--seller-muted)] transition hover:bg-[rgba(255,255,255,0.08)] hover:text-[var(--seller-ink)]"
-          aria-label="返回消息列表"
-        >
-          ←
-        </button>
-        <WechatAvatar
-          senderName={conversation.senderName}
-          senderRole={conversation.senderRole}
-          label={conversation.avatarLabel}
-          className="h-8 w-8 rounded-full"
-        />
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-[13px] font-semibold text-[var(--seller-ink)]">{displayName}</div>
-          <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px] text-[var(--seller-subtle)]">
-            <span>{senderRoleLabel(conversation.senderRole)}</span>
-            <span className="h-0.5 w-0.5 rounded-full bg-current opacity-50" />
-            <span>DAY {state.day}</span>
-          </div>
-        </div>
-        <span className="seller-chip shrink-0">{conversation.messages.length} 条</span>
-        <button
-          type="button"
-          onClick={() => setExpanded((current) => !current)}
-          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.05)] text-[var(--seller-muted)] transition hover:border-[color:var(--seller-accent)]/35 hover:bg-[rgba(255,255,255,0.08)] hover:text-[var(--seller-ink)]"
-          title={expanded ? '回到右栏会话卡片' : '展开为会话焦点'}
-          aria-label={expanded ? '回到右栏会话卡片' : '展开为会话焦点'}
-        >
-          {expanded ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
-        </button>
-      </div>
-
-      {worldContext && (
-        <ConversationWorldContextCard
-          context={worldContext}
-          latestReceipt={latestReceipt}
-          onUseNextStep={useNextStep}
-          isNextStepHandled={(receipt, step) => {
-            const actionMessage = buildNextStepActionMessage(conversation, state, replyTarget, receipt, step);
-            return actionMessage ? isMessageActionScheduled(state, actionMessage) : false;
-          }}
-          onUseAngle={(text) => setDraftText((current) => current.trim() ? current : text)}
+      {expanded && (
+        <WechatConversationRail
+          conversations={conversations}
+          activeKey={conversation.key}
+          state={state}
+          onSelect={onSwitchConversation}
         />
       )}
-
-      <div ref={chatScrollRef} className="seller-wechat-chat flex-1 space-y-3 overflow-y-auto px-3 py-4">
-        <div className="flex justify-center">
-          <span className="seller-wechat-date-pill rounded-full px-2 py-0.5 text-[9px] font-semibold text-[var(--seller-subtle)]">
-            DAY {state.day}
-          </span>
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="seller-wechat-topbar flex shrink-0 items-center gap-2 border-b border-[var(--seller-border)] px-3 py-2.5">
+          {!expanded && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[16px] text-[var(--seller-muted)] transition hover:bg-[rgba(255,255,255,0.08)] hover:text-[var(--seller-ink)]"
+              aria-label="返回消息列表"
+            >
+              ←
+            </button>
+          )}
+          <WechatAvatar
+            senderName={conversation.senderName}
+            senderRole={conversation.senderRole}
+            label={conversation.avatarLabel}
+            className="h-8 w-8 rounded-full"
+          />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[13px] font-semibold text-[var(--seller-ink)]">{displayName}</div>
+            <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px] text-[var(--seller-subtle)]">
+              <span>{senderRoleLabel(conversation.senderRole)}</span>
+              <span className="h-0.5 w-0.5 rounded-full bg-current opacity-50" />
+              <span>DAY {state.day}</span>
+            </div>
+          </div>
+          <span className="seller-chip shrink-0">{conversation.messages.length} 条</span>
+          <button
+            type="button"
+            onClick={() => setExpanded((current) => !current)}
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.05)] text-[var(--seller-muted)] transition hover:border-[color:var(--seller-accent)]/35 hover:bg-[rgba(255,255,255,0.08)] hover:text-[var(--seller-ink)]"
+            title={expanded ? '回到右栏会话卡片' : '展开为会话焦点'}
+            aria-label={expanded ? '回到右栏会话卡片' : '展开为会话焦点'}
+          >
+            {expanded ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+          </button>
         </div>
-        {conversation.messages.map((message) => {
-          const turnHistory = message.conversationTurns || [];
-          const brokerReply = turnHistory.length > 0 ? null : brokerReplies[message.id] || message.brokerReply;
-          return (
-            <div key={message.id} className="space-y-2">
-              <div className="flex items-start gap-2.5">
-                <WechatAvatar
-                  senderName={message.senderName}
-                  senderRole={message.senderRole}
-                  label={message.avatarLabel}
-                  className="mt-4 h-7 w-7 rounded-full"
-                />
-                <div className="min-w-0 max-w-[78%]">
-                  <div className="mb-1 flex items-center gap-2 text-[10px] text-[var(--seller-subtle)]">
-                    <span>{message.timeLabel}</span>
-                    {message.urgency !== 'low' ? <span>{urgencyLabel(message.urgency)}</span> : null}
-                  </div>
-                  <div className="seller-wechat-bubble-in rounded-[16px] rounded-tl-[5px] px-3 py-2.5 shadow-[0_8px_18px_rgba(0,0,0,0.08)]">
-                    <p className="whitespace-pre-wrap text-[12px] leading-5 text-[var(--seller-ink)]">
-                      {stripWechatSpeakerPrefix(message.content, message.senderName, message.senderRole)}
-                    </p>
-                    {renderMessageActionSlot(state, message, onOpenMessageAction)}
+
+        {worldContext && (
+          <ConversationWorldContextCard
+            context={worldContext}
+            latestReceipt={latestReceipt}
+            onUseNextStep={useNextStep}
+            isNextStepHandled={(receipt, step) => {
+              const actionMessage = buildNextStepActionMessage(conversation, state, replyTarget, receipt, step);
+              return actionMessage ? isMessageActionScheduled(state, actionMessage) : false;
+            }}
+            onUseAngle={(text) => setDraftText((current) => current.trim() ? current : text)}
+          />
+        )}
+
+        <div ref={chatScrollRef} className="seller-wechat-chat flex-1 space-y-3 overflow-y-auto px-3 py-4">
+          <div className="flex justify-center">
+            <span className="seller-wechat-date-pill rounded-full px-2 py-0.5 text-[9px] font-semibold text-[var(--seller-subtle)]">
+              DAY {state.day}
+            </span>
+          </div>
+          {conversation.messages.map((message) => {
+            const turnHistory = message.conversationTurns || [];
+            return (
+              <div key={message.id} className="space-y-2">
+                <div className="flex items-start gap-2.5">
+                  <WechatAvatar
+                    senderName={message.senderName}
+                    senderRole={message.senderRole}
+                    label={message.avatarLabel}
+                    className="mt-4 h-7 w-7 rounded-full"
+                  />
+                  <div className="min-w-0 max-w-[78%]">
+                    <div className="mb-1 flex items-center gap-2 text-[10px] text-[var(--seller-subtle)]">
+                      <span>{message.timeLabel}</span>
+                      {message.urgency !== 'low' ? <span>{urgencyLabel(message.urgency)}</span> : null}
+                    </div>
+                    <div className="seller-wechat-bubble-in rounded-[16px] rounded-tl-[5px] px-3 py-2.5 shadow-[0_8px_18px_rgba(0,0,0,0.08)]">
+                      <p className="whitespace-pre-wrap text-[12px] leading-5 text-[var(--seller-ink)]">
+                        {stripWechatSpeakerPrefix(message.content, message.senderName, message.senderRole)}
+                      </p>
+                      {renderMessageActionSlot(state, message, onOpenMessageAction)}
+                    </div>
                   </div>
                 </div>
+
+                {turnHistory.map((turn) => (
+                  <ConversationTurnThread
+                    key={turn.receiptId}
+                    turn={turn}
+                    message={message}
+                    participantSoul={resolveConversationParticipantSoul(
+                      state,
+                      turn.targetCaseId || message.targetCaseId || conversation.caseIds[0],
+                      message.senderName,
+                    )}
+                  />
+                ))}
               </div>
+            );
+          })}
+        </div>
 
-              {brokerReply && (
-                <WechatDraftReplySuggestion
-                  reply={brokerReply}
-                  onUse={() => setDraftText(brokerReply.content)}
-                />
-              )}
+        <div className="seller-wechat-composer shrink-0 border-t border-[var(--seller-border)] px-3 py-2.5">
+          <div className="space-y-2">
+            <form onSubmit={submitReply} className="flex items-end gap-2">
+              <textarea
+                value={draftText}
+                onChange={(event) => {
+                  setDraftText(event.target.value);
+                  if (sendError) setSendError(null);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) {
+                    return;
+                  }
+                  event.preventDefault();
+                  const trimmed = draftText.trim();
+                  if (trimmed.length > 0 && trimmed.length < 2) {
+                    setSendError('请至少输入 2 个字。');
+                    return;
+                  }
+                  if (trimmed && replyTarget && onSendConversationReply && !sending) {
+                    event.currentTarget.form?.requestSubmit();
+                  }
+                }}
+                disabled={!replyTarget || !onSendConversationReply || sending}
+                maxLength={220}
+                rows={1}
+                placeholder={replyTarget ? `回复 ${displayName}` : '暂无可回复消息'}
+                title="回车发送，Shift+Enter 换行"
+                className="seller-wechat-input h-9 max-h-[76px] flex-1 resize-none rounded-full border border-[var(--seller-border)] px-3 py-2 text-[12px] leading-5 text-[var(--seller-ink)] outline-none transition placeholder:text-[var(--seller-subtle)] focus:border-[color:var(--seller-accent)]/50 disabled:opacity-60"
+              />
+              <button
+                type="submit"
+                disabled={!draftText.trim() || !replyTarget || !onSendConversationReply || sending}
+                title="发送（回车可发送）"
+                className="seller-button-primary inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full disabled:cursor-not-allowed disabled:opacity-55"
+              >
+                {sending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+              </button>
+            </form>
 
-              {turnHistory.map((turn) => (
-                <ConversationTurnThread key={turn.receiptId} turn={turn} message={message} />
-              ))}
-            </div>
-          );
-        })}
-      </div>
+            {sendError && (
+              <div className="rounded-[10px] border border-rose-500/20 bg-rose-500/10 px-2.5 py-1.5 text-[10px] leading-4 text-rose-200">
+                {sendError}
+              </div>
+            )}
 
-      <div className="seller-wechat-composer shrink-0 border-t border-[var(--seller-border)] px-3 py-2.5">
-        <div className="space-y-2">
-          <form onSubmit={submitReply} className="flex items-end gap-2">
-            <textarea
-              value={draftText}
-              onChange={(event) => {
-                setDraftText(event.target.value);
-                if (sendError) setSendError(null);
-              }}
-              onKeyDown={(event) => {
-                if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) {
-                  return;
-                }
-                event.preventDefault();
-                const trimmed = draftText.trim();
-                if (trimmed.length > 0 && trimmed.length < 2) {
-                  setSendError('请至少输入 2 个字。');
-                  return;
-                }
-                if (trimmed && replyTarget && onSendConversationReply && !sending) {
-                  event.currentTarget.form?.requestSubmit();
-                }
-              }}
-              disabled={!replyTarget || !onSendConversationReply || sending}
-              maxLength={220}
-              rows={1}
-              placeholder={replyTarget ? `回复 ${displayName}` : '暂无可回复消息'}
-              title="回车发送，Shift+Enter 换行"
-              className="seller-wechat-input h-9 max-h-[76px] flex-1 resize-none rounded-full border border-[var(--seller-border)] px-3 py-2 text-[12px] leading-5 text-[var(--seller-ink)] outline-none transition placeholder:text-[var(--seller-subtle)] focus:border-[color:var(--seller-accent)]/50 disabled:opacity-60"
-            />
-            <button
-              type="submit"
-              disabled={!draftText.trim() || !replyTarget || !onSendConversationReply || sending}
-              title="发送（回车可发送）"
-              className="seller-button-primary inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full disabled:cursor-not-allowed disabled:opacity-55"
-            >
-              {sending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
-            </button>
-          </form>
+            {fallbackHint && !sendError && (
+              <div className="text-[10px] text-[var(--seller-subtle)] px-3 pb-1">
+                回复较慢，正在用本地判断生成回复...
+              </div>
+            )}
 
-          {sendError && (
-            <div className="rounded-[10px] border border-rose-500/20 bg-rose-500/10 px-2.5 py-1.5 text-[10px] leading-4 text-rose-200">
-              {sendError}
-            </div>
-          )}
-
-          {fallbackHint && !sendError && (
-            <div className="text-[10px] text-[var(--seller-subtle)] px-3 pb-1">
-              回复较慢，正在用本地判断生成回复...
-            </div>
-          )}
-
+          </div>
         </div>
       </div>
     </div>
@@ -1155,7 +1175,8 @@ const WechatConversationDetail: React.FC<{
 const ConversationTurnThread: React.FC<{
   turn: ConversationReceipt;
   message: WechatMessage;
-}> = ({ turn, message }) => {
+  participantSoul?: ParticipantSoul | null;
+}> = ({ turn, message, participantSoul }) => {
   const displayName = getWechatSenderDisplayName(message.senderName, message.senderRole);
   return (
     <div className="space-y-2">
@@ -1193,7 +1214,7 @@ const ConversationTurnThread: React.FC<{
               {stripWechatSpeakerPrefix(turn.recipientReply, message.senderName, message.senderRole)}
             </p>
           </div>
-          <ConversationEffectStrip turn={turn} />
+          <ConversationEffectStrip turn={turn} participantSoul={participantSoul} participantName={displayName} />
           {(() => {
             const feedback = buildCoachFeedback(turn);
             return feedback ? <ConversationCoachCard feedback={feedback} /> : null;
@@ -1271,14 +1292,17 @@ function isMessageActionHandled(state: GameState, message: WechatMessage) {
   return hasConversationHandledMessage(message) || isMessageActionScheduled(state, message);
 }
 
-const ConversationEffectStrip: React.FC<{ turn: ConversationReceipt }> = ({ turn }) => {
+const ConversationEffectStrip: React.FC<{
+  turn: ConversationReceipt;
+  participantSoul?: ParticipantSoul | null;
+  participantName?: string;
+}> = ({ turn, participantSoul, participantName }) => {
   const effectLabels = getConversationEffectLabels(turn);
   const labels = effectLabels.length > 0
     ? effectLabels
     : [turn.summary];
-  const impactText = buildConversationImpactText(turn);
-  const displayImpactText = stripImpactPrefix(impactText);
   const snapshot = turn.traceSnapshot;
+  const hasAgentTrace = Boolean(snapshot?.modelId || snapshot?.llmError || snapshot?.llmConfidence != null);
   const [traceOpen, setTraceOpen] = useState(false);
 
   return (
@@ -1305,168 +1329,354 @@ const ConversationEffectStrip: React.FC<{ turn: ConversationReceipt }> = ({ turn
               本地
             </span>
           )}
-          {snapshot && (
-          <button
-            type="button"
-            onClick={() => setTraceOpen((v) => !v)}
-            className="rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] px-2 py-0.5 text-[9px] font-semibold text-[var(--seller-subtle)] hover:bg-[rgba(255,255,255,0.08)]"
-          >
-            {traceOpen ? '收起' : '判断'}
-          </button>
+          {snapshot && hasAgentTrace && (
+            <button
+              type="button"
+              onClick={() => setTraceOpen((v) => !v)}
+              aria-label={traceOpen ? '收起 AI 判断' : '查看 AI 判断'}
+              aria-expanded={traceOpen}
+              title={traceOpen ? '收起 AI 判断' : '查看 AI 判断'}
+              className="grid h-5 w-5 place-items-center rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] text-[var(--seller-subtle)] transition hover:bg-[rgba(255,255,255,0.08)] hover:text-[var(--seller-ink)]"
+            >
+              <MoreHorizontal size={12} strokeWidth={2.2} />
+            </button>
           )}
         </div>
       </div>
-      {displayImpactText && (
-        <div className="mt-1.5 grid grid-cols-[auto_minmax(0,1fr)] gap-1.5 rounded-[9px] bg-[rgba(255,255,255,0.025)] px-2 py-1.5 text-[9px] leading-4">
-          <span className="font-semibold text-[var(--seller-subtle)]">影响</span>
-          <span className="min-w-0 break-words text-[var(--seller-muted)]">{displayImpactText}</span>
-        </div>
+      {snapshot && hasAgentTrace && traceOpen && (
+        <AgentTraceDetail
+          snapshot={snapshot}
+          turn={turn}
+          participantSoul={participantSoul}
+          participantName={participantName}
+        />
       )}
-      {snapshot && traceOpen && <AgentTraceDetail snapshot={snapshot} />}
     </div>
   );
 };
 
-function stripImpactPrefix(text: string) {
-  return text.replace(/^影响[:：]\s*/, '');
-}
-
-const AgentTraceDetail: React.FC<{ snapshot: ConversationTraceSnapshot }> = ({ snapshot }) => {
+const AgentTraceDetail: React.FC<{
+  snapshot: ConversationTraceSnapshot;
+  turn: ConversationReceipt;
+  participantSoul?: ParticipantSoul | null;
+  participantName?: string;
+}> = ({ snapshot, turn, participantSoul, participantName }) => {
   const sourceLabel =
     snapshot.acceptedSource === 'llm' ? 'AI' :
-    snapshot.acceptedSource === 'rule' ? '规则兜底' : 'fallback';
-  const sourceColor =
-    snapshot.acceptedSource === 'llm' ? 'text-[var(--seller-accent)]' :
-    snapshot.acceptedSource === 'rule' ? 'text-[var(--seller-ink)]' :
-    'text-[var(--seller-muted)]';
+    snapshot.acceptedSource === 'rule' ? '规则兜底' : '本地兜底';
+  const sourceToneClass =
+    snapshot.acceptedSource === 'llm' ? 'border-[color:var(--seller-accent)]/22 bg-[color:var(--seller-accent)]/9 text-[var(--seller-accent)]' :
+    snapshot.acceptedSource === 'rule' ? 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.045)] text-[var(--seller-ink)]' :
+    'border-[var(--seller-border)] bg-[rgba(255,255,255,0.035)] text-[var(--seller-subtle)]';
+  const soulMetrics = participantSoul ? buildSoulMetricItems(participantSoul) : [];
+  const recentLine = participantSoul ? buildSoulRecentLine(participantSoul) : null;
+  const patternLine = participantSoul ? buildSoulPatternLine(participantSoul) : null;
+  const turnSoulLine = buildTurnSoulLine(turn);
+  const turnDeltaItems = buildTurnDeltaItems(turn);
+  const turnRiskLine = buildTurnRiskLine(turn);
+  const judgmentLines = buildTraceJudgmentLines(snapshot);
+  const sourceMeta = [
+    sourceLabel,
+    snapshot.modelId ? `模型 ${snapshot.modelId}` : null,
+    snapshot.llmConfidence != null ? `AI ${Math.round(snapshot.llmConfidence * 100)}%` : null,
+    `记忆 ${snapshot.memoryFactCount}`,
+    `上下文 ${snapshot.contextSignalCount}`,
+  ].filter((item): item is string => Boolean(item));
 
   return (
-    <div className="mt-1 min-w-0 space-y-0.5 overflow-hidden rounded-lg border border-[var(--seller-border)] bg-[rgba(255,255,255,0.02)] px-2.5 py-2 text-[9px] leading-[18px]">
-      <div>
-        <span className="text-[var(--seller-subtle)]">本次采用：</span>
-        <span className={sourceColor}>{sourceLabel}</span>
-      </div>
-      {snapshot.modelId && (
-        <div>
-          <span className="text-[var(--seller-subtle)]">模型：</span>
-          <span className="text-[var(--seller-ink)]">{snapshot.modelId}</span>
+    <div className="mt-1 min-w-0 space-y-2 overflow-hidden rounded-lg border border-[var(--seller-border)] bg-[rgba(255,255,255,0.02)] px-2.5 py-2 text-[9px] leading-[18px]">
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <div className="min-w-0 truncate text-[10px] font-semibold text-[var(--seller-ink)]">
+          {participantName ? `${participantName} 的 Soul` : '判断内核'}
         </div>
-      )}
-      {snapshot.llmError && (
-        <div>
-          <span className="text-[var(--seller-subtle)]">LLM 异常：</span>
-          <span className="text-rose-300">{snapshot.llmError}</span>
-        </div>
-      )}
-      {snapshot.shadowStatus && (
-        <div className="min-w-0 break-words text-[var(--seller-subtle)]">
-          Shadow：{snapshot.shadowStatus}{snapshot.shadowDecision ? ` / ${snapshot.shadowDecision}` : ''}
-          {snapshot.shadowRiskLevel ? ` / ${snapshot.shadowRiskLevel}` : ''}
-        </div>
-      )}
-      {snapshot.shadowSummary && (
-        <div className="min-w-0 break-words text-[var(--seller-subtle)]">
-          对比：{snapshot.shadowSummary}
-        </div>
-      )}
-      {snapshot.evaluationStatus && (
-        <div className="min-w-0 break-words text-[var(--seller-subtle)]">
-          会话：{snapshot.evaluationStatus}{snapshot.evaluationVerdict ? ` / ${snapshot.evaluationVerdict}` : ''}
-          {typeof snapshot.evaluationScore === 'number' ? ` / ${snapshot.evaluationScore}` : ''}
-        </div>
-      )}
-      {snapshot.evaluationSummary && (
-        <div className="min-w-0 break-words text-[var(--seller-subtle)]">
-          判断：{snapshot.evaluationSummary}
-        </div>
-      )}
-      {snapshot.evaluationSignals && snapshot.evaluationSignals.length > 0 && (
-        <div className="min-w-0 break-words text-[var(--seller-subtle)]">
-          会话信号：{snapshot.evaluationSignals.slice(0, 3).join('、')}
-          {snapshot.evaluationSignals.length > 3 && ` 等${snapshot.evaluationSignals.length}条`}
-        </div>
-      )}
-      {snapshot.shadowSignals && snapshot.shadowSignals.length > 0 && (
-        <div className="min-w-0 break-words text-[var(--seller-subtle)]">
-          信号：{snapshot.shadowSignals.slice(0, 3).join('、')}
-          {snapshot.shadowSignals.length > 3 && ` 等${snapshot.shadowSignals.length}条`}
-        </div>
-      )}
-      <div className="flex flex-wrap gap-x-3">
-        <span className="text-[var(--seller-subtle)]">规则置信度 {Math.round(snapshot.ruleConfidence * 100)}%</span>
-        <span className="text-[var(--seller-subtle)]">
-          LLM 置信度 {snapshot.llmConfidence != null ? `${Math.round(snapshot.llmConfidence * 100)}%` : '未启用'}
+        <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[8px] font-semibold ${sourceToneClass}`}>
+          {participantSoul ? formatSoulMood(participantSoul.emotionalState.mood) : sourceLabel}
         </span>
       </div>
-      <div className="flex flex-wrap gap-x-3">
-        <span className="text-[var(--seller-subtle)]">记忆：{snapshot.memoryFactCount} 条</span>
-        <span className="text-[var(--seller-subtle)]">上下文：{snapshot.contextSignalCount} 条</span>
+
+      {participantSoul ? (
+        <div className="space-y-1.5">
+          <div className="min-w-0 break-words text-[var(--seller-subtle)]">
+            {participantSoul.ownerProfileLabel} · {buildSoulStateLine(participantSoul)}
+          </div>
+          <div className="space-y-1">
+            {soulMetrics.map((metric) => (
+              <div key={metric.label} className="grid grid-cols-[34px_minmax(0,1fr)_34px] items-center gap-2">
+                <span className="text-[var(--seller-subtle)]">{metric.label}</span>
+                <span className="h-1.5 overflow-hidden rounded-full bg-[rgba(255,255,255,0.06)]">
+                  <span
+                    className={`block h-full rounded-full ${metric.toneClass}`}
+                    style={{ width: `${metric.value}%` }}
+                  />
+                </span>
+                <span className="text-right tabular-nums text-[var(--seller-muted)]">{metric.value}{metric.trend}</span>
+              </div>
+            ))}
+          </div>
+          {recentLine && <div className="min-w-0 break-words text-[var(--seller-muted)]">最近反应：{recentLine}</div>}
+          {patternLine && <div className="min-w-0 break-words text-[var(--seller-muted)]">沟通偏好：{patternLine}</div>}
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          <div className="min-w-0 break-words text-[var(--seller-subtle)]">
+            本轮反应 · {turnSoulLine}
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {turnDeltaItems.map((item) => (
+              <span
+                key={item.label}
+                className={`rounded-full border px-2 py-0.5 text-[8px] font-semibold ${item.className}`}
+              >
+                {item.label}{formatSignedDelta(item.value)}
+              </span>
+            ))}
+          </div>
+          {turnRiskLine && <div className="min-w-0 break-words text-[var(--seller-muted)]">风险：{turnRiskLine}</div>}
+        </div>
+      )}
+
+      {judgmentLines.length > 0 && (
+        <div className="space-y-1 border-t border-[var(--seller-border)] pt-1.5">
+          {judgmentLines.map((line) => (
+            <div key={`${line.label}:${line.text}`} className="grid grid-cols-[42px_minmax(0,1fr)] gap-1.5">
+              <span className="text-[var(--seller-subtle)]">{line.label}</span>
+              <span className="min-w-0 break-words text-[var(--seller-muted)]">{line.text}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-x-2 gap-y-1 border-t border-[var(--seller-border)] pt-1.5 text-[8px] text-[var(--seller-subtle)]">
+        {sourceMeta.map((item) => <span key={item}>{item}</span>)}
+        {snapshot.llmError && <span className="text-rose-300">异常：{snapshot.llmError}</span>}
+        {snapshot.rejectedReasons.length > 0 && <span className="text-rose-300">拒绝 {snapshot.rejectedReasons.length}</span>}
       </div>
-      {snapshot.contextBudget && (
-        <div className="min-w-0 break-words text-[var(--seller-subtle)]">
-          预算：{snapshot.contextBudget}
-        </div>
-      )}
-      {snapshot.pressure.length > 0 && (
-        <div className="min-w-0 break-words text-[var(--seller-subtle)]">
-          压力：{snapshot.pressure.slice(0, 2).join('、')}
-        </div>
-      )}
-      {snapshot.uncertainty.length > 0 && (
-        <div className="min-w-0 break-words text-[var(--seller-subtle)]">
-          不确定点：{snapshot.uncertainty.slice(0, 2).join('、')}
-        </div>
-      )}
-      {snapshot.validationNotes.length > 0 && (
-        <div className="min-w-0 break-words text-[var(--seller-subtle)]">
-          校验：{snapshot.validationNotes.slice(0, 3).join('、')}
-          {snapshot.validationNotes.length > 3 && ` 等${snapshot.validationNotes.length}条`}
-        </div>
-      )}
-      {snapshot.normalizationNotes && snapshot.normalizationNotes.length > 0 && (
-        <div className="min-w-0 break-words text-[var(--seller-subtle)]">
-          归一化：{snapshot.normalizationNotes.slice(0, 2).join('、')}
-          {snapshot.normalizationNotes.length > 2 && ` 等${snapshot.normalizationNotes.length}条`}
-        </div>
-      )}
-      {snapshot.rejectedReasons.length > 0 && (
-        <div className="min-w-0 break-words text-rose-300">
-          拒绝：{snapshot.rejectedReasons.slice(0, 2).join('、')}
-          {snapshot.rejectedReasons.length > 2 && ` 等${snapshot.rejectedReasons.length}条`}
-        </div>
-      )}
-      {snapshot.arbiterDecision && (
-        <div className="min-w-0 line-clamp-2 break-words text-[var(--seller-subtle)]">
-          原因：{snapshot.arbiterDecision}
-        </div>
-      )}
     </div>
   );
 };
 
-function buildConversationImpactText(turn: ConversationReceipt) {
-  const settlement = (turn as { settlement?: Partial<ConversationReceipt['settlement']> }).settlement || {};
-  if (typeof settlement.askPriceBefore === 'number' && typeof settlement.askPriceAfter === 'number') {
-    return `影响：挂牌价从 ${settlement.askPriceBefore} 调到 ${settlement.askPriceAfter}，客户比价和业主预期会一起变化。`;
+function resolveConversationParticipantSoul(
+  state: GameState,
+  caseId: string | undefined,
+  ownerName: string | undefined,
+): ParticipantSoul | null {
+  if (!caseId || !ownerName) return null;
+  const storedSoul = state.participantSouls?.[`owner:${caseId}:${ownerName}`];
+  if (storedSoul) return storedSoul;
+  const caseItem = state.cases.find((entry) => entry.id === caseId && entry.ownerName === ownerName) || null;
+  if (!caseItem) return null;
+  return initializeSoulFromCase({
+    caseId: caseItem.id,
+    ownerName: caseItem.ownerName,
+    ownerProfileLabel: caseItem.ownerProfilingMemory?.ownerTypeName || caseItem.personality || '未知业主',
+    trust: caseItem.trust,
+    patience: caseItem.patience,
+    urgency: caseItem.urgency,
+    priceGapPct: caseItem.priceGapPct,
+  });
+}
+
+function buildSoulMetricItems(soul: ParticipantSoul) {
+  return [
+    {
+      label: '信任',
+      value: clampPercent(soul.emotionalState.trust),
+      trend: formatSoulTrend(soul.emotionalArc.trustTrend),
+      toneClass: soul.emotionalState.trust >= 65 ? 'bg-[var(--seller-accent)]' : soul.emotionalState.trust < 45 ? 'bg-rose-400/80' : 'bg-sky-300/75',
+    },
+    {
+      label: '耐心',
+      value: clampPercent(soul.emotionalState.patience),
+      trend: formatSoulTrend(soul.emotionalArc.patienceTrend),
+      toneClass: soul.emotionalState.patience >= 60 ? 'bg-[var(--seller-accent)]' : soul.emotionalState.patience < 40 ? 'bg-rose-400/80' : 'bg-sky-300/75',
+    },
+    {
+      label: '催促',
+      value: clampPercent(soul.emotionalState.urgency),
+      trend: formatSoulTrend(soul.emotionalArc.urgencyTrend),
+      toneClass: soul.emotionalState.urgency >= 70 ? 'bg-rose-400/80' : soul.emotionalState.urgency <= 35 ? 'bg-[var(--seller-accent)]' : 'bg-amber-300/80',
+    },
+  ];
+}
+
+function buildSoulStateLine(soul: ParticipantSoul) {
+  const trustLine = soul.emotionalState.trust >= 65
+    ? '愿意听解释'
+    : soul.emotionalState.trust < 45
+      ? '信任偏薄'
+      : '半信半疑';
+  const patienceLine = soul.emotionalState.patience >= 60
+    ? '还能等'
+    : soul.emotionalState.patience < 40
+      ? '耐心快耗尽'
+      : '耐心有限';
+  const urgencyLine = soul.emotionalState.urgency >= 70
+    ? '正在催结果'
+    : soul.emotionalState.urgency <= 35
+      ? '催促感低'
+      : '有跟进压力';
+  return `${trustLine}，${patienceLine}，${urgencyLine}`;
+}
+
+function buildSoulRecentLine(soul: ParticipantSoul) {
+  const recent = soul.conversationHistory[soul.conversationHistory.length - 1];
+  if (!recent) return null;
+  const riskText = recent.risks
+    .filter((risk) => risk !== 'none')
+    .map(formatConversationRiskLabel)
+    .join('、') || '无明显风险';
+  return `信任${formatSignedDelta(recent.trustDelta)}，耐心${formatSignedDelta(recent.patienceDelta)}，催促${formatSignedDelta(recent.urgencyDelta)}；${riskText}`;
+}
+
+function buildSoulPatternLine(soul: ParticipantSoul) {
+  if (soul.communicationPatterns.length === 0) return null;
+  const [pattern] = [...soul.communicationPatterns].sort((a, b) => {
+    if (b.count !== a.count) return b.count - a.count;
+    return b.effectiveness - a.effectiveness;
+  });
+  if (!pattern) return null;
+  const effectLabel = pattern.effectiveness > 0.3
+    ? '更容易生效'
+    : pattern.effectiveness < -0.3
+      ? '容易反噬'
+      : '效果一般';
+  return `${formatConversationIntentLabel(pattern.intent)}：${effectLabel}，用过 ${pattern.count} 次`;
+}
+
+function buildTurnSoulLine(turn: ConversationReceipt) {
+  const trust = turn.settlement.trustDelta;
+  const patience = turn.settlement.patienceDelta;
+  const urgency = turn.settlement.urgencyDelta;
+  const trustLine = trust > 0 ? '更愿意听你说' : trust < 0 ? '信任被磨薄' : '信任没有明显变化';
+  const patienceLine = patience > 0 ? '还能继续沟通' : patience < 0 ? '耐心在下降' : '耐心暂时稳定';
+  const urgencyLine = urgency > 0 ? '催促感变强' : urgency < 0 ? '催促感被压住' : '催促感未变';
+  return `${trustLine}，${patienceLine}，${urgencyLine}`;
+}
+
+function buildTurnDeltaItems(turn: ConversationReceipt) {
+  return [
+    {
+      label: '信任',
+      value: turn.settlement.trustDelta,
+      className: toneClassForDelta(turn.settlement.trustDelta, false),
+    },
+    {
+      label: '耐心',
+      value: turn.settlement.patienceDelta,
+      className: toneClassForDelta(turn.settlement.patienceDelta, false),
+    },
+    {
+      label: '催促',
+      value: turn.settlement.urgencyDelta,
+      className: toneClassForDelta(turn.settlement.urgencyDelta, true),
+    },
+  ];
+}
+
+function buildTurnRiskLine(turn: ConversationReceipt) {
+  const risks = turn.proposal.riskKinds
+    .filter((risk) => risk !== 'none')
+    .map(formatConversationRiskLabel);
+  return risks.join('、') || null;
+}
+
+function toneClassForDelta(value: number, inverse: boolean) {
+  const positive = inverse ? value < 0 : value > 0;
+  const negative = inverse ? value > 0 : value < 0;
+  if (positive) return 'border-[color:var(--seller-accent)]/22 bg-[color:var(--seller-accent)]/9 text-[var(--seller-accent)]';
+  if (negative) return 'border-rose-400/20 bg-rose-400/10 text-rose-200';
+  return 'border-[var(--seller-border)] bg-[rgba(255,255,255,0.035)] text-[var(--seller-subtle)]';
+}
+
+function buildTraceJudgmentLines(snapshot: ConversationTraceSnapshot) {
+  const lines: Array<{ label: string; text: string }> = [];
+  if (snapshot.pressure.length > 0) {
+    lines.push({ label: '压力', text: snapshot.pressure.slice(0, 2).join('、') });
   }
-  if (settlement.trustDelta || settlement.patienceDelta || settlement.urgencyDelta) {
-    const pieces: string[] = [];
-    if (settlement.trustDelta > 0) pieces.push('业主更愿意听你的判断');
-    if (settlement.trustDelta < 0) pieces.push('业主对你的信任受损');
-    if (settlement.patienceDelta > 0) pieces.push('可沟通时间变宽');
-    if (settlement.patienceDelta < 0) pieces.push('可沟通窗口变窄');
-    if (settlement.urgencyDelta < 0) pieces.push('催促感下降');
-    if (settlement.urgencyDelta > 0) pieces.push('催促感上升');
-    return pieces.length ? `影响：${pieces.slice(0, 3).join('，')}。` : '';
+  if (snapshot.uncertainty.length > 0) {
+    lines.push({ label: '盲区', text: snapshot.uncertainty.slice(0, 2).join('、') });
   }
-  if (settlement.customerIntentDelta || settlement.customerConfidenceDelta) {
-    return '影响：客户更愿意继续等反馈，后续跟进空间变大。';
+  if (snapshot.evaluationSummary) {
+    lines.push({ label: '判断', text: cleanTraceSummary(snapshot.evaluationSummary) });
+  } else if (snapshot.shadowSummary) {
+    lines.push({ label: '对照', text: cleanTraceSummary(snapshot.shadowSummary) });
   }
-  const nextSteps = getConversationNextSteps(turn);
-  if (nextSteps.length > 0) {
-    return `下一步：${nextSteps[0]?.label || '继续跟进'}。`;
+  if (snapshot.evaluationSignals && snapshot.evaluationSignals.length > 0) {
+    lines.push({ label: '命中', text: snapshot.evaluationSignals.slice(0, 3).map(formatTraceSignal).join('、') });
+  } else if (snapshot.shadowSignals && snapshot.shadowSignals.length > 0) {
+    lines.push({ label: '命中', text: snapshot.shadowSignals.slice(0, 3).map(formatTraceSignal).join('、') });
   }
-  return '';
+  return lines.slice(0, 4);
+}
+
+function cleanTraceSummary(text: string) {
+  return text
+    .replace(/^微信回合[:：]\s*/, '')
+    .replace(/\s*verdict\s+\w+[，,]?\s*/i, '')
+    .replace(/\s*status\s+\w+[。.]?\s*/i, '')
+    .trim();
+}
+
+function formatTraceSignal(signal: string) {
+  const normalized = signal.replace(/_/g, ' ');
+  if (signal.includes('core_question_missed')) return '没接住核心问题';
+  if (signal.includes('no_next_step')) return '缺少下一步';
+  if (signal.includes('relationship_risk')) return '关系风险';
+  if (signal.includes('risk:none')) return '风险可控';
+  if (signal.includes('missing next step')) return '下一步不够明确';
+  if (signal.includes('empty comfort')) return '空安抚';
+  return normalized.replace(/^risk:/, '风险：').replace(/^critical risk:/, '关键风险：');
+}
+
+function formatSoulMood(mood: ParticipantSoul['emotionalState']['mood']) {
+  if (mood === 'positive') return '松动';
+  if (mood === 'negative') return '抵触';
+  return '观望';
+}
+
+function formatSoulTrend(trend: ParticipantSoul['emotionalArc']['trustTrend']) {
+  if (trend === 'rising') return '↑';
+  if (trend === 'falling') return '↓';
+  return '→';
+}
+
+function formatSignedDelta(value: number) {
+  if (value > 0) return `+${value}`;
+  return `${value}`;
+}
+
+function clampPercent(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function formatConversationIntentLabel(intent: string) {
+  const labels: Record<string, string> = {
+    reassure: '安抚',
+    present_market_evidence: '摆市场证据',
+    propose_face_visit: '约面访',
+    discuss_price: '谈价格',
+    secure_price_adjustment: '确认调价',
+    promise_feedback: '承诺反馈',
+    follow_customer: '跟客户',
+    align_manager: '对齐店长',
+    overpromise: '过度承诺',
+    hostile: '硬顶',
+    unclear: '没说清',
+  };
+  return labels[intent] || intent;
+}
+
+function formatConversationRiskLabel(risk: string) {
+  const labels: Record<string, string> = {
+    overpromise: '过度承诺',
+    empty_comfort: '空安抚',
+    price_pressure_too_fast: '价格压太快',
+    missing_next_step: '缺下一步',
+    ignores_customer: '没接住问题',
+    offensive_reply: '冒犯回复',
+  };
+  return labels[risk] || risk;
 }
 
 function getConversationEffectLabels(turn: ConversationReceipt) {

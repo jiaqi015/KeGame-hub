@@ -282,19 +282,20 @@ export function ScenarioSetup({
             <button
               type="button"
               disabled={starting}
-              onClick={openRandomBriefing}
+              onClick={openFeaturedBriefing}
               className="inline-flex items-center justify-center gap-2 rounded-[14px] border border-white/10 bg-white/[0.04] px-4 py-3 text-[14px] font-semibold text-white/88 transition hover:bg-white/[0.07] disabled:cursor-wait disabled:opacity-60"
             >
-              <WandSparkles size={15} />
-              {starting ? '正在生成...' : '按照难度随机生成'}
+              <Play size={15} />
+              {starting ? '正在进入...' : `进入固定${selectedPresentation.shortLabel}剧本`}
             </button>
             <button
               type="button"
               disabled={starting}
-              onClick={openFeaturedBriefing}
-              className="rounded-[14px] bg-[#49dd85] px-4 py-3 text-[14px] font-semibold text-[#08110d] transition hover:brightness-105 disabled:cursor-wait disabled:opacity-60"
+              onClick={openRandomBriefing}
+              className="inline-flex items-center justify-center gap-2 rounded-[14px] bg-[#49dd85] px-4 py-3 text-[14px] font-semibold text-[#08110d] transition hover:brightness-105 disabled:cursor-wait disabled:opacity-60"
             >
-              {starting ? '正在进入...' : `进入${selectedPresentation.shortLabel}剧本`}
+              <WandSparkles size={15} />
+              {starting ? '正在生成...' : '随机开一局'}
             </button>
           </div>
         </div>

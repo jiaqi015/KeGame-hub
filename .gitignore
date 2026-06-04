@@ -19,3 +19,6 @@ playwright-report/
 # Generated verification/browser artifacts. Keep outputs reproducible, not tracked.
 artifacts/*
 !artifacts/.gitkeep
+
+# GitHub Actions workflows — OAuth push lacks workflow scope
+.github/workflows/

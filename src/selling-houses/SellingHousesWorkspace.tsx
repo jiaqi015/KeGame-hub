@@ -426,8 +426,8 @@ export function SellingHousesWorkspace({
     setIsAdvancing(false);
     resetToNewDayView();
     handleReset();
-    await startFeaturedRun('standard');
-    displayMessage(`${storageProfileLabel}已重置到 Day 1。`);
+    await startRandomGeneratedRun('standard');
+    displayMessage(`${storageProfileLabel}已换一局，回到 Day 1。`);
   };
 
   if (phase === 'loading') {
