@@ -70,6 +70,13 @@ export interface ConversationSceneCaseContext {
   readonly competitiveness: number;
   readonly hasCompletedFirstVisit: boolean;
   readonly ownerProfileLabel: string;
+  readonly serviceStrategy?: {
+    readonly primaryGoal: string;
+    readonly mainBlocker: string;
+    readonly recommendedNextAction: string;
+    readonly communicationStyle: string;
+  };
+  readonly promisesNotYetFulfilled?: readonly string[];
 }
 
 export interface ConversationSceneSourceMessage {

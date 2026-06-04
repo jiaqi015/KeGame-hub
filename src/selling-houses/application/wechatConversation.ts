@@ -99,6 +99,22 @@ function getOrCreateSoul(state: GameState, caseItem: GameState['cases'][number])
   return soul;
 }
 
+function buildPromisesNotYetFulfilled(state: GameState, caseId: string): string[] {
+  const history = state.wechatConversationHistory || [];
+  const promises: string[] = [];
+  for (const receipt of history.slice(-5)) {
+    if (receipt.targetCaseId !== caseId) continue;
+    if (receipt.nextSteps.length > 0) {
+      for (const step of receipt.nextSteps) {
+        if (step.kind !== 'none') {
+          promises.push(step.label);
+        }
+      }
+    }
+  }
+  return promises.slice(0, 3);
+}
+
 export function buildWechatConversationScenePack(
   state: GameState,
   input: Pick<WechatConversationTurnInput, 'conversationKey' | 'message' | 'playerText'>,
@@ -132,6 +148,8 @@ export function buildWechatConversationScenePack(
         competitiveness: caseItem.competitiveness,
         hasCompletedFirstVisit: caseItem.hasCompletedFirstVisit,
         ownerProfileLabel: caseItem.ownerProfilingMemory?.ownerTypeName || caseItem.personality || '未知业主',
+        serviceStrategy: caseItem.ownerProfilingMemory?.serviceStrategy,
+        promisesNotYetFulfilled: buildPromisesNotYetFulfilled(state, caseItem.id),
       }
     : undefined;
   const sceneOpportunityContext = opportunity
@@ -1255,13 +1273,15 @@ function buildFallbackRecipientReply(
   }
 
   if (risks.includes('empty_comfort')) {
+    const promises = scene.caseContext?.promisesNotYetFulfilled || [];
+    const promiseRef = promises.length > 0 ? `你上次说的${promises[0]}还没兑现，` : '';
     if (isHighUrgency) {
-      return `${senderName}：你这么说太笼统了，${caseRef}现在需要具体方案，不是安慰。`;
+      return `${senderName}：${promiseRef}你这么说太笼统了，${caseRef}现在需要具体方案，不是安慰。`;
     }
     if (isAssertive) {
-      return `${senderName}：这话太泛了。${caseRef}你得告诉我具体怎么做，别只让我再等等。`;
+      return `${senderName}：${promiseRef}这话太泛了。${caseRef}你得告诉我具体怎么做，别只让我再等等。`;
     }
-    return `${senderName}：我听到了，但${caseRef}的情况不够具体，你得告诉我下一步怎么做。`;
+    return `${senderName}：${promiseRef}我听到了，但${caseRef}的情况不够具体，你得告诉我下一步怎么做。`;
   }
 
   if (risks.includes('ignores_customer')) {
@@ -1277,13 +1297,15 @@ function buildFallbackRecipientReply(
   }
 
   if (intents.includes('reassure')) {
+    const strategy = scene.caseContext?.serviceStrategy;
+    const strategyRef = strategy ? `按${strategy.communicationStyle}` : '';
     if (isLowTrust) {
-      return `${senderName}：我听到了，但${caseRef}的情况光说没用，你得拿出具体动作让我看到变化。`;
+      return `${senderName}：我听到了，但${caseRef}的情况光说没用，${strategyRef}你得拿出具体动作让我看到变化。`;
     }
     if (isAnxious) {
-      return `${senderName}：我能理解，但${caseRef}我现在最怕一直拖。你今天要给我一个明确判断。`;
+      return `${senderName}：我能理解，但${caseRef}我现在最怕一直拖。${strategyRef}你今天要给我一个明确判断。`;
     }
-    return `${senderName}：收到，你把${caseRef}的关键情况确认清楚，再给我一个明确反馈。`;
+    return `${senderName}：收到，${strategyRef}你把${caseRef}的关键情况确认清楚，再给我一个明确反馈。`;
   }
 
   const variants = buildWechatLocalReplyVariants(scene);
