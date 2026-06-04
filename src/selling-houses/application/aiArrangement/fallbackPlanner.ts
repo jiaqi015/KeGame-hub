@@ -9,10 +9,10 @@ export function buildFallbackAiArrangementProposal(
     .sort((a, b) => {
       const rankA = a.rank ?? 99;
       const rankB = b.rank ?? 99;
-      if (rankA !== rankB) return rankA - rankB;
       const slotA = (a.slot || pack.currentSlot) === pack.currentSlot ? 0 : 1;
       const slotB = (b.slot || pack.currentSlot) === pack.currentSlot ? 0 : 1;
-      return slotA - slotB;
+      if (Math.abs(rankA - rankB) <= 3) return slotA - slotB;
+      return rankA - rankB;
     });
 
   let remainingEnergy = pack.energy.remaining;
