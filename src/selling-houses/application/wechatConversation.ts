@@ -997,18 +997,34 @@ function buildFallbackRecipientReply(
 
   if (intents.includes('present_market_evidence')) {
     if (!hasCompletedFirstVisit) {
-      return `${senderName}：数据我看了，但你还没来面访过，我不确定这些数据是不是针对${caseRef}的。你先来一趟。`;
+      return playerDetails.actionRef === '数据'
+        ? `${senderName}：数据我看了，但${caseRef}你还没面访过，我不确定这些数据是不是针对这套的。你先来一趟。`
+        : `${senderName}：你还没来面访过，${caseRef}的情况我不确定，你先来一趟。`;
     }
     if (isLowTrust) {
-      return `${senderName}：数据是有了，但你之前说的和实际有出入，${caseRef}的情况我需要更多依据才能信你。`;
+      return playerDetails.actionRef === '数据'
+        ? `${senderName}：数据是有了，但你之前说的和实际有出入，${caseRef}的情况我需要更多依据才能信你。`
+        : `${senderName}：你说的我听到了，但${caseRef}之前有出入，我需要看到具体数据才信你。`;
     }
     if (isAssertive) {
-      return `${senderName}：好，你把${caseRef}的竞品数据和客户反馈整理一下，我们当面过一遍，我看依据再做判断。`;
+      if (playerDetails.priceRef) {
+        return `${senderName}：${playerDetails.priceRef}这个数据可以，但${caseRef}的竞品和客户反馈你得整理一下，我们当面过一遍。`;
+      }
+      return playerDetails.actionRef === '竞品'
+        ? `${senderName}：竞品数据我看了，${caseRef}的差异你得摆明白，我们当面过一遍。`
+        : `${senderName}：好，你把${caseRef}的竞品数据和客户反馈整理一下，我们当面过一遍，我看依据再做判断。`;
     }
     if (isCustomer) {
-      return `${senderName}：好，你把${caseRef}的优缺点和竞品对比发我，我看完再决定。`;
+      return playerDetails.actionRef === '竞品'
+        ? `${senderName}：竞品对比我看了，${caseRef}的优缺点你再发我一下。`
+        : `${senderName}：好，你把${caseRef}的优缺点和竞品对比发我，我看完再决定。`;
     }
-    return `${senderName}：好，你把${caseRef}的竞品和客户反馈整理一下，我们当面过一遍。`;
+    if (playerDetails.priceRef) {
+      return `${senderName}：${playerDetails.priceRef}这个数据我看到了，${caseRef}的竞品和客户反馈你整理一下，我们当面过一遍。`;
+    }
+    return playerDetails.actionRef === '竞品'
+      ? `${senderName}：竞品数据我看了，${caseRef}的情况你再补充一下客户反馈，我们当面过一遍。`
+      : `${senderName}：好，你把${caseRef}的竞品和客户反馈整理一下，我们当面过一遍。`;
   }
 
   if (intents.includes('follow_customer')) {
