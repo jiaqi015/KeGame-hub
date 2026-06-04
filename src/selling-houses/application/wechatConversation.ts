@@ -1029,23 +1029,35 @@ function buildFallbackRecipientReply(
 
   if (intents.includes('follow_customer')) {
     if (customerIntent >= 70 && customerName) {
-      return `${senderName}：那你尽快确认，${customerName}这边意向不错，${caseRef}的机会别错过。`;
+      return playerDetails.timeRef
+        ? `${senderName}：${playerDetails.timeRef}确认，${customerName}这边意向不错，${caseRef}的机会别错过。`
+        : `${senderName}：那你尽快确认，${customerName}这边意向不错，${caseRef}的机会别错过。`;
     }
     if (customerName) {
-      return `${senderName}：那你尽快确认，${customerName}这边时间不确定，${caseRef}的窗口别错过。`;
+      return playerDetails.timeRef
+        ? `${senderName}：${playerDetails.timeRef}确认，${customerName}这边时间不确定，${caseRef}的窗口别错过。`
+        : `${senderName}：那你尽快确认，${customerName}这边时间不确定，${caseRef}的窗口别错过。`;
     }
-    return `${senderName}：那你尽快确认，客户这边时间不确定，${caseRef}的窗口别错过。`;
+    return playerDetails.timeRef
+      ? `${senderName}：${playerDetails.timeRef}确认，客户这边时间不确定，${caseRef}的窗口别错过。`
+      : `${senderName}：那你尽快确认，客户这边时间不确定，${caseRef}的窗口别错过。`;
   }
 
   if (intents.includes('promise_feedback')) {
     if (isLowTrust) {
-      return `${senderName}：你说会反馈，但${caseRef}的情况我需要看到具体动作，不只是口头。`;
+      return playerDetails.actionRef === '反馈'
+        ? `${senderName}：你说会反馈${caseRef}的情况，但我需要看到具体动作，不只是口头。`
+        : `${senderName}：你说会反馈，但${caseRef}的情况我需要看到具体动作，不只是口头。`;
     }
-    return `${senderName}：好，那你今天就把${caseRef}的结果发我，我等你。`;
+    return playerDetails.timeRef
+      ? `${senderName}：好，${playerDetails.timeRef}把${caseRef}的结果发我。`
+      : `${senderName}：好，那你今天就把${caseRef}的结果发我，我等你。`;
   }
 
   if (intents.includes('align_manager')) {
-    return `${senderName}：收到，你把${caseRef}的情况和风险点同步我，今天别散。`;
+    return playerDetails.actionRef === '反馈' || playerDetails.actionRef === '数据'
+      ? `${senderName}：收到，${caseRef}的情况和风险点你整理一下同步我，今天别散。`
+      : `${senderName}：收到，你把${caseRef}的情况和风险点同步我，今天别散。`;
   }
 
   if (risks.includes('overpromise')) {
