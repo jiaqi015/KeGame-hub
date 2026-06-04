@@ -130,4 +130,54 @@ describe('Fallback 2.0 — ConversationContext', () => {
       expect(ctx.customerIntent).toBe(55);
     });
   });
+
+  describe('selectStrategy', () => {
+    it('should select handle_crisis for crisis stage', () => {
+      const scene = buildScene({ caseContext: { trust: 20, patience: 15 } as any });
+      const ctx = buildConversationContext(scene);
+      expect(ctx.strategy).toBe('handle_crisis');
+    });
+
+    it('should select rebuild_trust for frustrated emotional state', () => {
+      const scene = buildScene({ caseContext: { trust: 25, patience: 50, urgency: 80 } as any });
+      const ctx = buildConversationContext(scene);
+      expect(ctx.strategy).toBe('rebuild_trust');
+    });
+
+    it('should select fulfill_promise when promises exist', () => {
+      const scene = buildScene({ caseContext: { trust: 50, patience: 50, urgency: 50, promisesNotYetFulfilled: ['今天下午去面访'] } as any });
+      const ctx = buildConversationContext(scene);
+      expect(ctx.strategy).toBe('fulfill_promise');
+    });
+
+    it('should select schedule_visit when first visit not completed', () => {
+      const scene = buildScene({ caseContext: { trust: 50, patience: 50, urgency: 50, hasCompletedFirstVisit: false } as any });
+      const ctx = buildConversationContext(scene);
+      expect(ctx.strategy).toBe('schedule_visit');
+    });
+
+    it('should select push_price for high price gap', () => {
+      const scene = buildScene({ caseContext: { trust: 50, patience: 50, urgency: 50, priceGapPct: 20, hasCompletedFirstVisit: true } as any });
+      const ctx = buildConversationContext(scene);
+      expect(ctx.strategy).toBe('push_price');
+    });
+
+    it('should select build_rapport for normal case', () => {
+      const scene = buildScene({ caseContext: { trust: 60, patience: 60, urgency: 40, hasCompletedFirstVisit: true } as any });
+      const ctx = buildConversationContext(scene);
+      expect(ctx.strategy).toBe('build_rapport');
+    });
+
+    it('should prioritize handle_crisis over rebuild_trust', () => {
+      const scene = buildScene({ caseContext: { trust: 20, patience: 15, urgency: 80 } as any });
+      const ctx = buildConversationContext(scene);
+      expect(ctx.strategy).toBe('handle_crisis');
+    });
+
+    it('should prioritize fulfill_promise over schedule_visit', () => {
+      const scene = buildScene({ caseContext: { trust: 50, patience: 50, urgency: 50, hasCompletedFirstVisit: false, promisesNotYetFulfilled: ['今天下午去面访'] } as any });
+      const ctx = buildConversationContext(scene);
+      expect(ctx.strategy).toBe('fulfill_promise');
+    });
+  });
 });

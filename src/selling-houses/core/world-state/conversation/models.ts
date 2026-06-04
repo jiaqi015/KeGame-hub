@@ -244,9 +244,19 @@ export interface ConversationContext {
   };
   readonly emotionalState: 'calm' | 'anxious' | 'frustrated' | 'hopeful' | 'angry';
   readonly relationshipStage: 'probing' | 'building' | 'stable' | 'crisis';
+  readonly strategy: ConversationStrategy;
   readonly playerDetails: {
     readonly priceRef: string;
     readonly actionRef: string;
     readonly timeRef: string;
   };
 }
+
+export type ConversationStrategy =
+  | 'handle_crisis'
+  | 'rebuild_trust'
+  | 'fulfill_promise'
+  | 'schedule_visit'
+  | 'push_price'
+  | 'build_rapport'
+  | 'small_talk';

@@ -27,6 +27,7 @@ import type {
   ConversationRiskKind,
   ConversationSceneInputPack,
   ConversationSceneType,
+  ConversationStrategy,
   ConversationTraceSnapshot,
 } from '../core/world-state/conversation/models.js';
 import type { AgentMemoryFact } from '../core/world-state/agents/models.js';
@@ -158,6 +159,14 @@ export function buildConversationContext(scene: ConversationSceneInputPack): Con
   else if (trust < 40) relationshipStage = 'probing';
   else if (trust > 60) relationshipStage = 'building';
 
+  let strategy: ConversationStrategy = 'build_rapport';
+  if (relationshipStage === 'crisis') strategy = 'handle_crisis';
+  else if (emotionalState === 'frustrated') strategy = 'rebuild_trust';
+  else if (promises.length > 0) strategy = 'fulfill_promise';
+  else if (!hasCompletedFirstVisit) strategy = 'schedule_visit';
+  else if (isHighPriceGap) strategy = 'push_price';
+  else if (isLowTrust) strategy = 'rebuild_trust';
+
   return {
     senderName, sceneType: scene.sceneType, sourceContent,
     playerText: scene.playerText, caseRef, locRef,
@@ -167,7 +176,7 @@ export function buildConversationContext(scene: ConversationSceneInputPack): Con
     isManager, isCustomer,
     customerName, customerIntent, customerStage,
     promises, serviceStrategy,
-    emotionalState, relationshipStage, playerDetails,
+    emotionalState, relationshipStage, strategy, playerDetails,
   };
 }
 
