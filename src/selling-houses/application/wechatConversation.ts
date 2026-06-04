@@ -640,6 +640,30 @@ function buildWechatAgentMemoryFactsFromReceipt(
     });
   }
 
+  const ownerProfileLabel = scene.caseContext?.ownerProfileLabel || '';
+  if (ownerProfileLabel) {
+    const crossScope = {
+      conversationKey: `profile:${ownerProfileLabel}`,
+      caseId: receipt.targetCaseId,
+      channel: 'wechat' as const,
+    };
+    const effectiveIntents = receipt.proposal.intentKinds.filter((k) => k !== 'hostile' && k !== 'unclear');
+    const trustDir = receipt.settlement.trustDelta > 0 ? '提升' : receipt.settlement.trustDelta < 0 ? '下降' : '持平';
+    const urgencyDir = receipt.settlement.urgencyDelta > 0 ? '上升' : receipt.settlement.urgencyDelta < 0 ? '下降' : '持平';
+    facts.push({
+      factId: `wechat:profile:${ownerProfileLabel}:pattern:${receipt.day}:${receipt.receiptId.slice(-6)}`,
+      agentId: profile.agentId,
+      kind: 'communication_pattern',
+      summary: `${ownerProfileLabel}：用${effectiveIntents.join('+')}沟通，信任${trustDir}，紧迫${urgencyDir}；${receipt.summary}`,
+      strength: 0.65,
+      scope: crossScope,
+      sourceRef,
+      createdAtDay: receipt.day,
+      updatedAtDay: receipt.day,
+      expiresAtDay: receipt.day + 20,
+    });
+  }
+
   return [
     ...facts,
     ...buildConversationMemoryWriteback({
