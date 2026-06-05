@@ -70,6 +70,8 @@ function buildCityFrameParagraph(pack: DailyCityStoryContextPack): string {
     para += `今日重点盘：${todayPlan.focusCases.slice(0, 3).join('、')}。`;
   }
 
+  para += `各条线按计划推进，整体经营节奏平稳。`;
+
   return para;
 }
 
@@ -83,19 +85,19 @@ function buildDeltaParagraph(pack: DailyCityStoryContextPack, deltas: DailyCityS
   let para = `昨夜最明显的变化是${delta.label}${direction}${Math.abs(delta.value)}${delta.unit}。`;
 
   if (delta.label.includes('信任') && delta.direction === 'down') {
-    para += '信任下降意味着业主配合度在降低，后续沟通成本会增加。需要尽快用具体动作修复关系，不能只靠口头安抚。';
+    para += `因为之前的沟通没有兑现承诺，所以业主配合度在降低。信任下降意味着后续沟通成本会增加，需要尽快用具体动作修复关系，不能只靠口头安抚。`;
   } else if (delta.label.includes('信任') && delta.direction === 'up') {
-    para += '信任上升说明之前的沟通有效果，业主对经纪人的配合度在提升。可以趁热打铁推进关键动作。';
+    para += `因为之前的沟通有实际效果，所以业主对经纪人的配合度在提升。信任上升说明可以趁热打铁推进关键动作。`;
   } else if (delta.label.includes('紧迫') && delta.direction === 'up') {
-    para += '紧迫感上升说明业主在催促，时间窗口在收窄。需要今天给出明确动作，不能再拖。';
+    para += `因为时间窗口在收窄，所以业主在催促。紧迫感上升说明需要今天给出明确动作，不能再拖。`;
   } else if (delta.label.includes('紧迫') && delta.direction === 'down') {
-    para += '紧迫感下降说明业主情绪有所缓和，可以利用这个窗口做更深入的沟通。';
+    para += `因为之前的沟通缓解了压力，所以业主情绪有所缓和。紧迫感下降说明可以利用这个窗口做更深入的沟通。`;
   } else if (delta.label.includes('耐心') && delta.direction === 'down') {
-    para += '耐心下降说明业主对等待的容忍度在降低，需要尽快给出具体方案。';
+    para += `因为等待时间过长，所以业主对等待的容忍度在降低。耐心下降说明需要尽快给出具体方案。`;
   } else if (delta.label.includes('意向') && delta.direction === 'up') {
-    para += '客户意向上升说明之前的沟通有效果，需要尽快安排看房或出价。';
+    para += `因为之前的沟通有实际效果，所以客户意向在上升。意向上升说明需要尽快安排看房或出价。`;
   } else if (delta.label.includes('信心') && delta.direction === 'down') {
-    para += '客户信心下降说明对房源的疑虑在增加，需要尽快确认价格和竞品差异。';
+    para += `因为对房源有疑虑，所以客户信心在下降。信心下降说明需要尽快确认价格和竞品差异。`;
   } else {
     para += '这个变化会影响后续经营节奏，需要关注。';
   }
@@ -128,7 +130,7 @@ function buildEventParagraph(pack: DailyCityStoryContextPack, events: DailyCityS
   }
 
   if (evt.tone === 'danger') {
-    para += '这个变化需要尽快处理，不能拖。';
+    para += '这个变化需要尽快处理，不能拖。建议今天优先处理这个事项。';
   } else if (evt.tone === 'success') {
     para += '这是个好消息，可以趁热打铁推进。';
   }
@@ -152,6 +154,9 @@ function buildRelationshipParagraph(pack: DailyCityStoryContextPack, owners: Dai
     ownerText += `当前状态：${owner.visibleMood}。`;
     if (owner.pressureLabels.length > 0) {
       ownerText += `压力点：${owner.pressureLabels.join('、')}。`;
+    }
+    if (owner.visibleMood === '焦虑' || owner.visibleMood === '愤怒') {
+      ownerText += `需要尽快修复关系，不能只靠口头安抚。`;
     }
     parts.push(ownerText);
   }
@@ -177,7 +182,7 @@ function buildRelationshipParagraph(pack: DailyCityStoryContextPack, owners: Dai
 }
 
 function buildTodayBridgeParagraph(pack: DailyCityStoryContextPack): string {
-  const { todayPlan } = pack;
+  const { todayPlan, constraints } = pack;
   let para = '今天第一手应该接：';
 
   if (todayPlan.priorities.length > 0) {
@@ -192,9 +197,15 @@ function buildTodayBridgeParagraph(pack: DailyCityStoryContextPack): string {
     para += `其次：${todayPlan.priorities.slice(1, 3).join('、')}。`;
   }
 
-  if (pack.constraints.length > 0) {
-    para += `注意：${pack.constraints[0]}。`;
+  if (todayPlan.focusCases.length > 0) {
+    para += `重点房源：${todayPlan.focusCases.slice(0, 2).join('、')}。`;
   }
+
+  if (constraints.length > 0) {
+    para += `注意：${constraints[0]}。`;
+  }
+
+  para += `今日精力${todayPlan.energy}小时，主题是${todayPlan.theme}。`;
 
   return para;
 }
