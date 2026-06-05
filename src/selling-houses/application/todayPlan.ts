@@ -66,11 +66,15 @@ export function getTodayPlanActionDefinition(actionId: string) {
   return resolveActionDefinition(actionId);
 }
 
+function isNegotiationReserveMatter(entry: GameState['matters'][number]) {
+  return entry.stage === 'pending' && entry.source === 'negotiation' && entry.kind === 'opportunity';
+}
+
 export function estimateFixedTodayPlanEnergyReserve(state: GameState) {
-  const scheduleReserve = state.schedule
-    .slice(0, 2)
+  const scheduleReserve = getVisibleFixedScheduleEntries(state)
+    .filter(isScheduleEntryCapacityBlocking)
     .reduce((sum, entry) => sum + resolveScheduleEntryDurationHours(entry), 0);
-  const negotiationReserve = state.matters.some((entry) => entry.stage === 'pending' && entry.kind === 'opportunity') ? 1 : 0;
+  const negotiationReserve = state.matters.some(isNegotiationReserveMatter) ? 1 : 0;
   return scheduleReserve + negotiationReserve;
 }
 
@@ -97,6 +101,10 @@ export function isSlotBlockingRoutine(entry: GameState['schedule'][number]) {
   if (entry.source !== 'routine') return false;
   const label = `${entry.title} ${entry.badge} ${entry.weekdayIntent || ''}`;
   return /内部|聚焦会/.test(label);
+}
+
+export function isScheduleEntryCapacityBlocking(entry: GameState['schedule'][number]) {
+  return isSlotBlockingRoutine(entry);
 }
 
 export function getVisibleFixedScheduleEntries(state: GameState) {
@@ -131,10 +139,12 @@ export function getSlotRemainingCapacity(
   state: GameState,
   slot: 'am' | 'pm',
 ) {
-  const fixedItemsDurationHours = (getVisibleFixedScheduleEntries(state).reduce((sum, entry) => {
-    const entrySlot = resolveScheduleEntrySlot(entry);
-    return entrySlot === slot ? sum + resolveScheduleEntryDurationHours(entry) : sum;
-  }, 0)) + (slot === 'pm' && state.matters.some((entry) => entry.stage === 'pending' && entry.kind === 'opportunity') ? 1 : 0);
+  const fixedItemsDurationHours = (getVisibleFixedScheduleEntries(state)
+    .filter(isScheduleEntryCapacityBlocking)
+    .reduce((sum, entry) => {
+      const entrySlot = resolveScheduleEntrySlot(entry);
+      return entrySlot === slot ? sum + resolveScheduleEntryDurationHours(entry) : sum;
+    }, 0)) + (slot === 'pm' && state.matters.some(isNegotiationReserveMatter) ? 1 : 0);
 
   const committedDurationHours = getSlotCommittedDurationHours(state, slot, 'planned');
   return Math.max(0, SLOT_CAPACITY[slot] - fixedItemsDurationHours - committedDurationHours);

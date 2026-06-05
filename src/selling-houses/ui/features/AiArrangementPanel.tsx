@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Check, Loader2, Sparkles, X } from 'lucide-react';
-import type { TodayArrangementSlot } from '../../domain/models.js';
+import type { GameState, TodayArrangementSlot } from '../../domain/models.js';
 import type { ArrangementItemProjection, ArrangementProjection } from '../../application/projections/operatingProjection.js';
 import {
   AI_ARRANGEMENT_THINKING_STEPS,
@@ -13,6 +13,7 @@ type AiArrangementPanelStatus = 'idle' | 'thinking' | 'ready' | 'applying' | 'ap
 
 interface AiArrangementPanelProps {
   arrangement: ArrangementProjection;
+  state: GameState;
   day: number;
   activeSlot: TodayArrangementSlot;
   onAddToToday: (item: ArrangementItemProjection, slot: TodayArrangementSlot) => boolean;
@@ -25,6 +26,7 @@ function panelSlotLabel(slot: TodayArrangementSlot) {
 
 export function AiArrangementPanel({
   arrangement,
+  state,
   day,
   activeSlot,
   onAddToToday,
@@ -67,7 +69,7 @@ export function AiArrangementPanel({
     setAppliedCount(0);
     setErrorText('');
 
-    fetchAiArrangementProposal(day, activeSlot).then(result => {
+    fetchAiArrangementProposal(state, arrangement, activeSlot).then(result => {
       if (runIdRef.current !== runId) return;
       setProposal(result.proposal);
       setStatus('ready');
@@ -99,14 +101,14 @@ export function AiArrangementPanel({
         firstAdoptedSlot = firstAdoptedSlot || entry.slot;
       }
     }
-    setAppliedCount(count);
     if (count > 0) {
       if (firstAdoptedSlot) {
         onAdoptedSlot?.(firstAdoptedSlot);
       }
-      setStatus('applied');
+      cancel();
       return;
     }
+    setAppliedCount(0);
     setErrorText('这组建议已经不能直接排入今天。');
     setStatus('failed');
   };

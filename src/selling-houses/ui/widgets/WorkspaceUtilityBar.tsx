@@ -13,7 +13,7 @@ export function WorkspaceUtilityBar({
   onOpenLeaderboard,
 }: WorkspaceUtilityBarProps) {
   return (
-    <div className="seller-band flex items-center gap-1 p-1">
+    <div className="flex items-center gap-1">
       <button
         type="button"
         onClick={onOpenJournal}

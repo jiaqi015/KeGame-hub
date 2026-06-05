@@ -113,9 +113,9 @@ const WECHAT_MESSAGE_META_NEUTRAL_PILL_CLASS =
 const WECHAT_MESSAGE_META_ACCENT_PILL_CLASS =
   `${WECHAT_MESSAGE_META_PILL_CLASS} border border-[color:var(--seller-accent)]/24 bg-[color:var(--seller-accent)]/10 text-[var(--seller-accent)]`;
 const WECHAT_MESSAGE_META_ACTION_PILL_CLASS =
-  `${WECHAT_MESSAGE_META_PILL_CLASS} border border-[color:var(--seller-accent)]/24 bg-[color:var(--seller-accent)]/8 text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/14`;
+  'box-border inline-flex h-[14px] min-w-[42px] shrink-0 items-center justify-center whitespace-nowrap rounded-full border border-[#4ea7ff]/30 bg-[#4ea7ff]/12 px-1.5 text-[#65b7ff] transition hover:border-[#65b7ff]/45 hover:bg-[#4ea7ff]/18';
 const WECHAT_MESSAGE_META_ACTION_STYLE: React.CSSProperties = {
-  fontSize: '9px',
+  fontSize: '7px',
   fontWeight: 600,
   lineHeight: 1,
 };
@@ -983,6 +983,7 @@ const WechatConversationDetail: React.FC<{
 
   const detailPanel = (
     <div
+      data-my-wechat-conversation-detail="true"
       className={`seller-wechat-detail flex overflow-hidden rounded-[18px] border border-[var(--seller-border)] shadow-[0_20px_50px_rgba(0,0,0,0.14)] transition-all duration-200 ${
         expanded
           ? 'fixed bottom-3 left-3 right-3 top-[76px] z-[95] h-auto min-h-0 flex-row md:left-8 md:right-8 md:top-[84px] xl:left-[calc(50vw-560px)] xl:right-[calc(50vw-560px)] xl:bottom-5 xl:top-[92px]'
@@ -1144,7 +1145,7 @@ const WechatConversationDetail: React.FC<{
 
             {fallbackHint && !sendError && (
               <div className="text-[10px] text-[var(--seller-subtle)] px-3 pb-1">
-                回复较慢，正在用本地判断生成回复...
+                对方输入中...
               </div>
             )}
 
@@ -1271,7 +1272,7 @@ function renderMessageActionSlot(
 
   if (isMessageActionHandled(state, message)) {
     return (
-      <span className="mt-2 inline-flex rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] px-1.5 py-0 text-[8px] font-semibold leading-4 text-[var(--seller-subtle)]">
+      <span className="mt-2 inline-flex rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.035)] px-[5px] py-0 text-[7px] font-medium leading-[12px] text-[var(--seller-subtle)]">
         已承接
       </span>
     );
@@ -1281,7 +1282,7 @@ function renderMessageActionSlot(
     <button
       type="button"
       onClick={() => onOpenMessageAction(message)}
-      className="mt-2 rounded-full border border-[color:var(--seller-accent)]/24 bg-[color:var(--seller-accent)]/8 px-1 py-0 text-[8px] font-semibold leading-4 text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/14"
+      className="mt-2 rounded-full border border-[color:var(--seller-accent)]/18 bg-[color:var(--seller-accent)]/6 px-[5px] py-0 text-[7px] font-medium leading-[12px] text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/10"
     >
       {message.primaryCtaLabel}
     </button>

@@ -18,6 +18,7 @@ import { buildMyWechatProjection } from '../../application/projections/myWechatP
 import type { WechatMessage } from '../../application/projections/myWechatTypes.js';
 import { buildMarketIntelProjection, type IntelLayerTab } from './marketIntel';
 import { MyWechatPanel } from './MyWechatPanel';
+import { AiArrangementPanel } from './AiArrangementPanel';
 import type { WorldGraphSummary } from '../../domain/world-model/runtime/types';
 import {
   isCaseActiveByCanonicalStatus,
@@ -327,6 +328,7 @@ export function Dashboard({
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1.58fr)_minmax(320px,0.92fr)]">
             <AgendaPanel
               arrangement={dashboard.arrangement}
+              state={state}
               day={state.day}
               maxDay={state.maxDay}
               energyLabel={dashboard.resourceSnapshot.energy}
@@ -595,6 +597,7 @@ function RecommendedFollowListingsPanel({
 
 function AgendaPanel({
   arrangement,
+  state,
   day,
   maxDay,
   energyLabel,
@@ -607,6 +610,7 @@ function AgendaPanel({
   onUseTool,
 }: {
   arrangement: ArrangementProjection;
+  state: GameState;
   day: number;
   maxDay: number;
   energyLabel: string;
@@ -645,34 +649,40 @@ function AgendaPanel({
   }, [plannedItemKeySignature, plannedItemKeys]);
 
   const activePlannedItem = activeSlotArrangement.plannedItems.find((item) => getArrangementItemKey(item) === activePlannedItemKey) || null;
-  const summary = buildAgendaSummary(arrangement, activeSlotArrangement);
 
   return (
     <section className="seller-panel overflow-hidden">
-      <div className="border-b border-[var(--seller-border)] px-4 py-4">
-        <div className="min-w-0">
-          <div className="seller-label flex items-center gap-2">
-            <Clock3 size={13} />
-            今日安排
-          </div>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <span className="seller-chip">{day}/{maxDay}</span>
-            <span className="seller-chip seller-chip-accent">今日精力 {energyLabel}</span>
-            <span className="seller-chip">我的安排 {arrangement.plannedEnergy} 小时</span>
-            <span className="seller-chip">固定预留 {arrangement.fixedEnergyReserve} 小时</span>
-            <span className="seller-chip">可排余量 {arrangement.remainingEnergy} 小时</span>
-            <span className="seller-chip seller-chip-accent">
-              当前时段：{activeSlotArrangement.label}
-            </span>
-            {activePlannedItem ? (
+      <div className="border-b border-[var(--seller-border)] px-4 py-3">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <div className="seller-label flex items-center gap-2">
+              <Clock3 size={13} />
+              今日安排
+            </div>
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
+              <span className="seller-chip">{day}/{maxDay}</span>
+              <span className="seller-chip seller-chip-accent">今日精力 {energyLabel}</span>
+              <span className="seller-chip">我的安排 {arrangement.plannedEnergy} 小时</span>
+              <span className="seller-chip">固定预留 {arrangement.fixedEnergyReserve} 小时</span>
+              <span className="seller-chip">可排余量 {arrangement.remainingEnergy} 小时</span>
               <span className="seller-chip seller-chip-accent">
-                当前要做：{getArrangementItemShortTitle(activePlannedItem)}
+                当前时段：{activeSlotArrangement.label}
               </span>
-            ) : null}
+              {activePlannedItem ? (
+                <span className="seller-chip seller-chip-accent">
+                  当前要做：{getArrangementItemShortTitle(activePlannedItem)}
+                </span>
+              ) : null}
+            </div>
           </div>
-          <p className="mt-2 max-w-[78ch] text-[12px] leading-6 text-[var(--seller-muted)]">
-            {summary}
-          </p>
+          <AiArrangementPanel
+            arrangement={arrangement}
+            state={state}
+            day={day}
+            activeSlot={activeAgendaSlot}
+            onAddToToday={onAddToToday}
+            onAdoptedSlot={setActiveAgendaSlot}
+          />
         </div>
       </div>
 
@@ -787,21 +797,6 @@ function getArrangementItemShortTitle(item: ArrangementItemProjection) {
 
 function getDefaultAgendaSlot(): TodayArrangementSlot {
   return 'am';
-}
-
-function buildAgendaSummary(
-  arrangement: ArrangementProjection,
-  activeSlot: ArrangementProjection['slots'][TodayArrangementSlot],
-) {
-  const totalFixed = arrangement.fixedItems.length;
-  const totalPlanned = arrangement.plannedItems.length;
-  if (totalPlanned > 0) {
-    return `今天你主动排了 ${totalPlanned} 件事，系统还放进 ${totalFixed} 个固定/临时事项。当前只看${activeSlot.label}，先处理绿色"当前要做"，再切换时段补其他事。`;
-  }
-  if (arrangement.candidateItems.length > 0) {
-    return `当前有 ${arrangement.candidateItems.length} 件推荐动作。`;
-  }
-  return `今天有 ${totalFixed} 个系统固定/临时事项。先按上午/下午切换查看，不需要把两个时段同时摊开处理。`;
 }
 
 function presentFixedStatusLabel(label: string) {

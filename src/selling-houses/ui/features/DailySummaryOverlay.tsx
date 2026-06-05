@@ -1,6 +1,20 @@
 import React from 'react';
 import type { DailyReport, DailyTickResult, TickInvariantAlert } from '../../domain/models';
-import { TrendingUp, AlertCircle, Star, Calendar, ArrowRight, Zap, Target, SunMedium, BriefcaseBusiness, MapPinned, ShieldAlert, Users } from 'lucide-react';
+import {
+  Activity,
+  AlertCircle,
+  ArrowRight,
+  BookOpenText,
+  Calendar,
+  ListChecks,
+  MapPinned,
+  Radio,
+  ShieldAlert,
+  Star,
+  SunMedium,
+  Target,
+  TrendingUp,
+} from 'lucide-react';
 
 interface DailySummaryOverlayProps {
   report: DailyReport;
@@ -23,6 +37,24 @@ type SummaryRiskRow = {
   tone: 'danger' | 'warning';
 };
 
+type CompactTodaySignalRow = {
+  id: string;
+  label: string;
+  title: string;
+  detail: string;
+  tone: string;
+};
+
+type OvernightStory = {
+  headline: string;
+  kicker: string;
+  paragraphs: string[];
+  pulseLabel: string;
+  pulseValue: string;
+  todayHandle: string;
+  evidenceLabels: string[];
+};
+
 export function DailySummaryOverlay({ report, tickResult, onContinue }: DailySummaryOverlayProps) {
   const overnightEvents = [
     ...report.majorEvents.map((entry) => ({ ...entry, kind: 'major' as const })),
@@ -31,6 +63,14 @@ export function DailySummaryOverlay({ report, tickResult, onContinue }: DailySum
   const invariantAlerts = tickResult?.invariantAlerts || [];
   const impactRows = buildImpactRows(tickResult);
   const riskRows = buildRiskRows(report, invariantAlerts);
+  const story = buildOvernightStory(report, tickResult, impactRows, riskRows);
+  const keyMetrics = buildKeyMetrics(report.metricsDelta);
+  const priorityRows = report.todayPlan.priorities.slice(0, 3);
+  const hiddenPriorityCount = Math.max(0, report.todayPlan.priorities.length - priorityRows.length);
+  const focusCases = report.todayPlan.focusCases.slice(0, 2);
+  const hiddenFocusCount = Math.max(0, report.todayPlan.focusCases.length - focusCases.length);
+  const compactSignalRows = buildCompactTodaySignalRows(impactRows, riskRows);
+  const hiddenSignalCount = Math.max(0, impactRows.length + riskRows.length - compactSignalRows.length);
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/40 p-3 backdrop-blur-md sm:p-5">
@@ -46,130 +86,178 @@ export function DailySummaryOverlay({ report, tickResult, onContinue }: DailySum
         </div>
 
         <div className="max-h-[calc(82vh-56px)] overflow-y-auto p-4 sm:p-5">
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.18fr_0.82fr]">
-            <section className="seller-panel min-w-0 overflow-hidden">
-              <div className="border-b border-black/[0.05] px-5 py-4">
-                <h4 className="seller-label flex items-center gap-2 text-xs">
-                  <Zap size={14} className="text-amber-500" />
-                  昨夜变化
-                </h4>
-              </div>
-
-              <div className="space-y-4 p-4">
-                <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
-                  {report.metricsDelta.map((m, i) => (
-                    <MetricCard key={`${m.label}-${i}`} metric={m} />
+          <section className="mb-4 overflow-hidden rounded-[18px] border border-[var(--seller-border)] bg-[color-mix(in_srgb,var(--seller-paper)_92%,var(--seller-accent)_8%)]">
+            <div className="grid gap-0 lg:grid-cols-[minmax(0,1.35fr)_minmax(260px,0.65fr)]">
+              <div className="min-w-0 px-5 py-5 sm:px-6">
+                <div className="seller-label flex items-center gap-2">
+                  <BookOpenText size={14} className="text-[var(--seller-accent)]" />
+                  昨夜故事
+                </div>
+                <h3 className="mt-3 max-w-[26ch] text-[22px] font-semibold leading-[1.25] tracking-[-0.02em] text-[var(--seller-ink)] sm:text-[26px]">
+                  {story.headline}
+                </h3>
+                <p className="mt-3 max-w-[68ch] text-[13px] font-medium leading-6 text-[var(--seller-muted)]">
+                  {story.kicker}
+                </p>
+                <div className="mt-4 grid gap-3 text-[13px] leading-6 text-[var(--seller-ink)]">
+                  {story.paragraphs.map((paragraph, index) => (
+                    <p key={`${paragraph}-${index}`} className={index === 0 ? 'font-semibold' : 'text-[var(--seller-muted)]'}>
+                      {paragraph}
+                    </p>
                   ))}
                 </div>
+              </div>
 
-                <div className="overflow-hidden rounded-[16px] border border-black/[0.05] bg-slate-50/70">
-                  {overnightEvents.length > 0 ? (
-                    overnightEvents.map((entry, index) => (
-                      <EventRow
-                        key={`${entry.kind}-${index}`}
-                        actor={entry.actor}
-                        message={entry.message}
-                        tone={entry.tone}
-                        isLast={index === overnightEvents.length - 1}
-                      />
-                    ))
-                  ) : (
-                    <div className="px-5 py-10 text-center text-sm text-slate-400">
-                      昨天没有新的变化，经营整体比较平稳。
+              <div className="border-t border-[var(--seller-border)] bg-[rgba(255,255,255,0.035)] px-5 py-5 lg:border-l lg:border-t-0">
+                <div className="seller-label flex items-center gap-2">
+                  <Radio size={13} className="text-[var(--seller-accent)]" />
+                  今天怎么接
+                </div>
+                <div className="mt-4 grid gap-3">
+                  <div>
+                    <div className="text-[10px] font-semibold text-[var(--seller-subtle)]">{story.pulseLabel}</div>
+                    <div className="mt-1 text-[18px] font-semibold text-[var(--seller-ink)]">{story.pulseValue}</div>
+                  </div>
+                  <p className="text-[12px] font-medium leading-6 text-[var(--seller-muted)]">{story.todayHandle}</p>
+                  {story.evidenceLabels.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {story.evidenceLabels.map((label) => (
+                        <span key={label} className="seller-chip">{label}</span>
+                      ))}
                     </div>
-                  )}
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <section className="seller-panel-muted self-start">
+              <div className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <h4 className="seller-label flex items-center gap-2 text-xs">
+                    <Activity size={14} className="text-[var(--seller-accent)]" />
+                    关键证据
+                  </h4>
+                  <span className="rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.06)]">
+                    {keyMetrics.length} 项
+                  </span>
+                </div>
+
+                <div className="mt-3 border-y border-black/[0.06] py-3">
+                  <div className="seller-label">昨夜指标</div>
+                  <div className="mt-2 grid grid-cols-4 gap-2">
+                    {keyMetrics.map((m, i) => (
+                      <MetricCard key={`${m.label}-${i}`} metric={m} />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <div className="seller-label flex items-center gap-2">
+                      <ListChecks size={12} className="text-[var(--seller-subtle)]" />
+                      昨夜证据线
+                    </div>
+                    {overnightEvents.length > 0 ? (
+                      <span className="text-[10px] font-semibold text-slate-400">{overnightEvents.length} 条</span>
+                    ) : null}
+                  </div>
+                  <div className="max-h-[228px] overflow-y-auto rounded-[14px] bg-white shadow-[inset_0_0_0_1px_rgba(15,23,42,0.06)]">
+                    {overnightEvents.length > 0 ? (
+                      overnightEvents.map((entry, index) => (
+                        <EventRow
+                          key={`${entry.kind}-${index}`}
+                          actor={entry.actor}
+                          message={entry.message}
+                          tone={entry.tone}
+                          isLast={index === overnightEvents.length - 1}
+                        />
+                      ))
+                    ) : (
+                      <div className="px-5 py-10 text-center text-sm text-slate-400">
+                        昨天没有新的变化，经营整体比较平稳。
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </section>
 
-            <aside className="seller-panel-muted">
-              <div className="space-y-4 p-4">
-                <h4 className="seller-label flex items-center gap-2 text-xs">
-                  <SunMedium size={14} className="text-amber-500" />
-                  今天安排
-                </h4>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <InfoBlock label="日程" value={report.todayPlan.label} />
-                  <InfoBlock label="资源" value={`${report.todayPlan.energy} 精力`} />
+            <aside className="seller-panel-muted self-start">
+              <div className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <h4 className="seller-label flex items-center gap-2 text-xs">
+                    <SunMedium size={14} className="text-amber-500" />
+                    今天安排
+                  </h4>
+                  <div className="flex shrink-0 gap-1.5">
+                    <span className="rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.06)]">
+                      {report.todayPlan.label}
+                    </span>
+                    <span className="rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.06)]">
+                      {report.todayPlan.energy} 精力
+                    </span>
+                  </div>
                 </div>
 
-                <div className="seller-tablet px-4 py-4">
+                <div className="mt-3 border-y border-black/[0.06] py-3">
                   <div className="seller-label">今日主题</div>
-                  <div className="mt-2 text-base font-semibold text-slate-900">{report.todayPlan.theme}</div>
+                  <div className="mt-1 text-[17px] font-semibold leading-6 text-slate-900">{report.todayPlan.theme}</div>
+                  {focusCases.length > 0 ? (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {focusCases.map((name) => (
+                        <span key={name} className="rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.06)]">
+                          {name}
+                        </span>
+                      ))}
+                      {hiddenFocusCount > 0 ? (
+                        <span className="rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-slate-400 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.06)]">
+                          +{hiddenFocusCount}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
 
-                {report.todayPlan.focusCases.length > 0 ? (
-                  <div className="seller-tablet px-4 py-4">
-                    <div className="seller-label mb-3 flex items-center gap-2">
+                <div className="pt-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <div className="seller-label flex items-center gap-2">
                       <Target size={12} className="text-amber-500" />
-                      今日商圈聚焦房
+                      今日关注
                     </div>
-                    <div className="space-y-2">
-                      {report.todayPlan.focusCases.map((name, i) => (
-                        <div key={i} className="text-sm font-medium text-slate-700">
-                          {name}
-                        </div>
+                    {hiddenPriorityCount > 0 ? (
+                      <span className="text-[10px] font-semibold text-slate-400">+{hiddenPriorityCount}</span>
+                    ) : null}
+                  </div>
+                  {priorityRows.length > 0 ? (
+                    <div className="divide-y divide-black/[0.05] overflow-hidden rounded-[14px] bg-white shadow-[inset_0_0_0_1px_rgba(15,23,42,0.06)]">
+                      {priorityRows.map((item, index) => (
+                        <CompactPriorityRow key={`${item}-${index}`} index={index + 1} text={item} />
                       ))}
                     </div>
-                  </div>
-                ) : null}
-
-                <div className="border-t border-black/[0.06] pt-5">
-                  <h4 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
-                    <BriefcaseBusiness size={14} className="text-slate-600" />
-                    今日关注
-                  </h4>
-                  <div className="overflow-hidden rounded-[18px] border border-black/[0.05] bg-white">
-                    {report.todayPlan.priorities.length > 0 ? (
-                      report.todayPlan.priorities.map((item, i) => (
-                        <PriorityRow key={i} index={i + 1} text={item} isLast={i === report.todayPlan.priorities.length - 1} />
-                      ))
-                    ) : (
-                      <div className="px-4 py-6 text-center text-sm text-slate-400">
-                        今天没有明确待办，适合先盘点业主反馈和准客池。
-                      </div>
-                    )}
-                  </div>
+                  ) : (
+                    <div className="rounded-[14px] bg-white px-3 py-3 text-[12px] leading-5 text-slate-500 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.06)]">
+                      今天没有明确待办，先盘点业主反馈和准客池。
+                    </div>
+                  )}
                 </div>
 
-                {(impactRows.length > 0 || riskRows.length > 0) && (
-                  <div className="border-t border-black/[0.06] pt-5">
-                    {impactRows.length > 0 && (
-                      <div className="seller-tablet px-4 py-4">
-                        <div className="seller-label mb-3 flex items-center gap-2">
-                          <MapPinned size={12} className="text-emerald-600" />
-                          今天影响到哪里
-                        </div>
-                        <div className="space-y-2">
-                          {impactRows.map((row) => (
-                            <div key={row.id}>
-                              <ImpactRow row={row} />
-                            </div>
-                          ))}
-                        </div>
+                {compactSignalRows.length > 0 && (
+                  <div className="mt-3 border-t border-black/[0.06] pt-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <div className="seller-label flex items-center gap-2">
+                        <MapPinned size={12} className="text-emerald-600" />
+                        影响与提醒
                       </div>
-                    )}
-
-                    <div className="seller-tablet mt-3 px-4 py-4">
-                      <div className="seller-label mb-3 flex items-center gap-2">
-                        <ShieldAlert size={12} className={riskRows.length > 0 ? 'text-rose-500' : 'text-emerald-600'} />
-                        系统提醒
-                      </div>
-                      {riskRows.length > 0 ? (
-                        <div className="space-y-2.5">
-                          {riskRows.slice(0, 3).map((row) => (
-                            <div key={row.id}>
-                              <RiskRow row={row} />
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="flex items-start gap-2 text-sm leading-6 text-slate-600">
-                          <Users size={14} className="mt-1 shrink-0 text-emerald-600" />
-                          <span>暂无新增高危变化，重点仍在今日关注。</span>
-                        </div>
-                      )}
+                      {hiddenSignalCount > 0 ? (
+                        <span className="text-[10px] font-semibold text-slate-400">+{hiddenSignalCount}</span>
+                      ) : null}
+                    </div>
+                    <div className="grid gap-2">
+                      {compactSignalRows.map((row) => (
+                        <CompactSignalRow key={row.id} label={row.label} title={row.title} detail={row.detail} tone={row.tone} />
+                      ))}
                     </div>
                   </div>
                 )}
@@ -198,9 +286,9 @@ function MetricCard({ metric }: { key?: React.Key; metric: DailyReport['metricsD
   const valueClass = getMetricValueClass(metric);
 
   return (
-    <div className={`rounded-[14px] bg-slate-50 px-3 py-2.5 ${absolute ? 'md:col-span-2' : ''}`}>
-      <div className="text-[10px] font-bold tracking-[0.02em] text-slate-400">{metric.label}</div>
-      <div className={`mt-2 text-[17px] font-bold ${valueClass}`}>
+    <div className="min-w-0 rounded-[12px] bg-slate-50 px-2.5 py-2">
+      <div className="truncate text-[9px] font-bold text-slate-400">{metric.label}</div>
+      <div className={`mt-1.5 text-[15px] font-bold tabular-nums ${valueClass}`}>
         {valueText}
       </div>
     </div>
@@ -223,6 +311,155 @@ function getMetricValueClass(metric: DailyReport['metricsDelta'][number]) {
   return metric.value > 0 ? 'text-emerald-600' : metric.value < 0 ? 'text-rose-600' : 'text-slate-500';
 }
 
+function buildKeyMetrics(metrics: DailyReport['metricsDelta']): DailyReport['metricsDelta'] {
+  const absoluteMetrics = metrics.filter((metric) => metric.displayMode === 'absolute');
+  const deltaMetrics = metrics
+    .filter((metric) => metric.displayMode !== 'absolute')
+    .sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+  const selected = [...absoluteMetrics, ...deltaMetrics].slice(0, 4);
+
+  return selected.length > 0 ? selected : metrics.slice(0, 4);
+}
+
+function buildOvernightStory(
+  report: DailyReport,
+  tickResult: DailyTickResult | null | undefined,
+  impactRows: SummaryImpactRow[],
+  riskRows: SummaryRiskRow[],
+): OvernightStory {
+  const absoluteMetric = getAbsoluteScoreMetric(report.metricsDelta);
+  const sharpestMetric = getSharpestMetricChange(report.metricsDelta);
+  const narrativeParagraphs = splitNarrativeText(report);
+  const paragraphs = narrativeParagraphs.length > 0
+    ? narrativeParagraphs.slice(0, 3)
+    : buildFallbackStoryParagraphs(report, impactRows, riskRows);
+  const closedDealsCount = tickResult?.closedDeals.length ?? 0;
+  const scoreText = absoluteMetric ? `${absoluteMetric.value}${absoluteMetric.unit}` : null;
+  const sharpestLabel = sharpestMetric ? cleanMetricLabel(sharpestMetric.label) : null;
+  const sharpestText = sharpestMetric ? formatMetricValue(sharpestMetric) : null;
+  const firstFocusCase = report.todayPlan.focusCases[0];
+  const firstPriority = report.todayPlan.priorities[0];
+  const leadImpact = impactRows[0]?.title;
+
+  let headline = '昨夜没有大爆点，但今天不能空转';
+  if (closedDealsCount > 0) {
+    headline = `昨夜成交落袋，今天要接住余温`;
+  } else if (sharpestMetric && sharpestMetric.value < 0) {
+    headline = `昨夜主线：${sharpestLabel}被拉低`;
+  } else if (sharpestMetric && sharpestMetric.value > 0) {
+    headline = `昨夜主线：${sharpestLabel}有进展`;
+  } else if (leadImpact) {
+    headline = `昨夜主线落在${leadImpact}`;
+  }
+
+  const scoreClause = scoreText ? `收盘 ${scoreText}` : '收盘状态已经更新';
+  const sharpestClause = sharpestLabel && sharpestText ? `，${sharpestLabel} ${sharpestText}` : '';
+  const kicker = `${scoreClause}${sharpestClause}。这不是一张分数表，而是今天先补哪条关系、先推哪套房的开场。`;
+
+  const pulseLabel = sharpestMetric?.value && sharpestMetric.value < 0
+    ? '最需要补的线'
+    : closedDealsCount > 0
+      ? '成交后续'
+      : '今日抓手';
+  const pulseValue = sharpestMetric && sharpestText
+    ? `${sharpestLabel} ${sharpestText}`
+    : firstFocusCase || report.todayPlan.theme;
+  const todayHandle = firstPriority
+    ? `先做：${oneLine(firstPriority, 46)}`
+    : firstFocusCase
+      ? `先围绕 ${firstFocusCase} 做一次推进。`
+      : `先按「${report.todayPlan.theme}」推进，别让昨天的变化过夜。`;
+  const evidenceLabels = [
+    scoreText ? `总分 ${scoreText}` : null,
+    sharpestLabel && sharpestText ? `${sharpestLabel} ${sharpestText}` : null,
+    riskRows[0] ? '有风险线索' : null,
+    impactRows[0] ? buildImpactEvidenceLabel(impactRows[0]) : null,
+  ].filter(Boolean) as string[];
+
+  return {
+    headline,
+    kicker,
+    paragraphs,
+    pulseLabel,
+    pulseValue,
+    todayHandle,
+    evidenceLabels: Array.from(new Set(evidenceLabels)).slice(0, 4),
+  };
+}
+
+function getAbsoluteScoreMetric(metrics: DailyReport['metricsDelta']) {
+  return metrics.find((metric) => metric.displayMode === 'absolute') || null;
+}
+
+function getSharpestMetricChange(metrics: DailyReport['metricsDelta']) {
+  const deltas = metrics.filter((metric) => metric.displayMode !== 'absolute');
+  const nonZero = deltas.filter((metric) => metric.value !== 0);
+  const candidates = nonZero.length > 0 ? nonZero : deltas;
+
+  return [...candidates].sort((a, b) => Math.abs(b.value) - Math.abs(a.value))[0] || null;
+}
+
+function splitNarrativeText(report: DailyReport) {
+  const log = report.narrativeLog;
+  const directBlocks = log
+    ? [log.openingHook, log.midTwist, log.lateUndercurrent, log.tomorrowHook].filter(Boolean)
+    : [];
+  const sourceBlocks = directBlocks.length > 0
+    ? directBlocks
+    : log?.text.split(/\n{2,}|\n/).filter(Boolean) || [];
+  const seen = new Set<string>();
+
+  return sourceBlocks
+    .map((block) => oneLine(normalizeNarrativeText(block || ''), 96))
+    .filter((block) => {
+      if (!block || seen.has(block)) return false;
+      seen.add(block);
+      return true;
+    });
+}
+
+function buildFallbackStoryParagraphs(
+  report: DailyReport,
+  impactRows: SummaryImpactRow[],
+  riskRows: SummaryRiskRow[],
+) {
+  const events = [...report.majorEvents, ...report.randomEvents];
+  const paragraphs: string[] = [];
+  const leadEvent = events[0];
+
+  if (leadEvent) {
+    paragraphs.push(`${leadEvent.actor}这条线先发生变化：${oneLine(leadEvent.message, 72)}`);
+  }
+  if (impactRows[0]) {
+    paragraphs.push(`它会影响到 ${impactRows[0].title}，今天需要把这条推进重新接住。`);
+  }
+  if (riskRows[0]) {
+    paragraphs.push(`${riskRows[0].title}：${oneLine(riskRows[0].detail, 70)}`);
+  }
+  if (paragraphs.length === 0 && report.marketNews[0]) {
+    paragraphs.push(oneLine(report.marketNews[0], 90));
+  }
+  if (paragraphs.length === 0) {
+    paragraphs.push('昨夜没有明显爆点，但沉默也会消耗窗口。今天先把最容易推进的一条线做实。');
+  }
+
+  return paragraphs.slice(0, 3);
+}
+
+function cleanMetricLabel(label: string) {
+  return label.replace(/变化|变动/g, '').trim();
+}
+
+function formatMetricValue(metric: DailyReport['metricsDelta'][number]) {
+  const prefix = metric.displayMode === 'absolute' || metric.value <= 0 ? '' : '+';
+  return `${prefix}${metric.value}${metric.unit}`;
+}
+
+function buildImpactEvidenceLabel(row: SummaryImpactRow) {
+  if (row.label === '变化') return '有业务变化';
+  return row.label.endsWith('变化') ? row.label : `${row.label}变化`;
+}
+
 function EventRow({
   actor,
   message,
@@ -242,71 +479,96 @@ function EventRow({
       : 'text-amber-500';
 
   return (
-    <div className={`flex items-start gap-3 px-4 py-3.5 ${isLast ? '' : 'border-b border-black/[0.05]'}`}>
-      <div className={`mt-0.5 ${toneClass}`}>
-        {tone === 'success' && <Star size={15} />}
-        {tone === 'danger' && <AlertCircle size={15} />}
-        {tone === 'accent' && <TrendingUp size={15} />}
+    <div className={`flex items-start gap-2.5 px-3 py-2.5 ${isLast ? '' : 'border-b border-black/[0.05]'}`}>
+      <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 ${toneClass}`}>
+        {tone === 'success' && <Star size={11} />}
+        {tone === 'danger' && <AlertCircle size={11} />}
+        {tone === 'accent' && <TrendingUp size={11} />}
       </div>
       <div className="min-w-0">
-        <div className="mb-1 text-[10px] font-bold tracking-[0.02em] text-slate-400">{actor}</div>
-        <p className="text-[14px] font-medium leading-6 text-slate-700">{message}</p>
+        <div className="mb-0.5 text-[10px] font-bold text-slate-400">{actor}</div>
+        <p className="text-[12px] font-semibold leading-5 text-slate-700">{oneLine(message, 62)}</p>
       </div>
     </div>
   );
 }
 
-function InfoBlock({ label, value }: { label: string; value: string }) {
+function CompactPriorityRow({ index, text }: { key?: React.Key; index: number; text: string }) {
   return (
-    <div className="seller-tablet px-4 py-4">
-      <div className="seller-label">{label}</div>
-      <div className="mt-2 text-[18px] font-bold text-slate-900">{value}</div>
-    </div>
-  );
-}
-
-function PriorityRow({ index, text, isLast }: { key?: React.Key; index: number; text: string; isLast: boolean }) {
-  return (
-    <div className={`flex items-start gap-3 px-4 py-3.5 ${isLast ? '' : 'border-b border-black/[0.05]'}`}>
-      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-500">
+    <div className="flex items-start gap-2.5 px-3 py-2">
+      <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold text-slate-500">
         {index}
       </div>
-      <div className="pt-0.5 text-sm font-medium leading-6 text-slate-700">{text}</div>
+      <div className="min-w-0 text-[12px] font-semibold leading-5 text-slate-700">{oneLine(text, 34)}</div>
     </div>
   );
 }
 
-function ImpactRow({ row }: { row: SummaryImpactRow }) {
-  const toneClass = row.tone === 'danger'
+function CompactSignalRow({
+  label,
+  title,
+  detail,
+  tone,
+}: {
+  key?: React.Key;
+  label: string;
+  title: string;
+  detail: string;
+  tone: string;
+}) {
+  const toneClass = tone === 'danger'
     ? 'bg-rose-50 text-rose-600'
-    : row.tone === 'success'
+    : tone === 'success'
       ? 'bg-emerald-50 text-emerald-600'
       : 'bg-slate-100 text-slate-500';
+  const Icon = tone === 'danger' || label === '提醒' ? ShieldAlert : MapPinned;
 
   return (
-    <div className="rounded-[14px] bg-white px-3 py-2.5 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.06)]">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-[12px] font-semibold leading-5 text-slate-800">{row.title}</div>
-          <p className="mt-0.5 text-[12px] leading-5 text-slate-500">{row.detail}</p>
+    <div className="rounded-[14px] bg-white px-3 py-2 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.06)]">
+      <div className="flex items-start gap-2.5">
+        <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${toneClass}`}>
+          <Icon size={11} />
         </div>
-        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${toneClass}`}>{row.label}</span>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="shrink-0 text-[10px] font-bold text-slate-400">{label}</span>
+            <span className="min-w-0 text-[12px] font-semibold leading-5 text-slate-800">{oneLine(title, 24)}</span>
+          </div>
+          <p className="mt-0.5 text-[11px] leading-5 text-slate-500">{oneLine(detail, 38)}</p>
+        </div>
       </div>
     </div>
   );
 }
 
-function RiskRow({ row }: { row: SummaryRiskRow }) {
-  const toneClass = row.tone === 'danger'
-    ? 'bg-rose-50 text-rose-600'
-    : 'bg-amber-50 text-amber-700';
+function buildCompactTodaySignalRows(
+  impactRows: SummaryImpactRow[],
+  riskRows: SummaryRiskRow[],
+): CompactTodaySignalRow[] {
+  const rows: CompactTodaySignalRow[] = [
+    ...impactRows.map((row) => ({
+      id: row.id,
+      label: row.label,
+      title: row.title,
+      detail: row.detail,
+      tone: row.tone,
+    })),
+    ...riskRows.map((row) => ({
+      id: row.id,
+      label: '提醒',
+      title: row.title,
+      detail: row.detail,
+      tone: row.tone,
+    })),
+  ];
+  const seen = new Set<string>();
 
-  return (
-    <div className={`rounded-[14px] px-3 py-2.5 ${toneClass}`}>
-      <div className="text-[11px] font-bold uppercase tracking-[0.02em]">{row.title}</div>
-      <div className="mt-1 text-[13px] font-medium leading-6">{row.detail}</div>
-    </div>
-  );
+  return rows.filter((row) => {
+    const key = `${row.title}-${row.detail}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 2);
 }
 
 function buildImpactRows(tickResult?: DailyTickResult | null): SummaryImpactRow[] {
@@ -514,7 +776,21 @@ function isTechnicalToken(value: string) {
 }
 
 function oneLine(text: string, limit: number) {
-  const normalized = text.replace(/\s+/g, ' ').trim();
+  const normalized = normalizeStoryText(text);
   if (normalized.length <= limit) return normalized;
   return `${normalized.slice(0, limit - 1)}…`;
+}
+
+function normalizeStoryText(text: string) {
+  return text
+    .replace(/\s+/g, ' ')
+    .replace(/\s+([，。！？、；：])/g, '$1')
+    .replace(/([。！？]){2,}/g, '$1')
+    .replace(/([，、；：]){2,}/g, '$1')
+    .trim();
+}
+
+function normalizeNarrativeText(text: string) {
+  return normalizeStoryText(text)
+    .replace(/([\u4e00-\u9fff]{2,})\s+(被|把|对|将|已|仍|直接|开始|进入|失去|拉低|抬升)/g, '$1$2');
 }

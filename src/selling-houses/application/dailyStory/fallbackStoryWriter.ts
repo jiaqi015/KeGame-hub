@@ -78,17 +78,17 @@ function buildCityFrameParagraph(pack: DailyCityStoryContextPack): string {
   }
 
   if (scoreboard.riskCount && scoreboard.riskCount > 0) {
-    para += `有${scoreboard.riskCount}个风险点需要关注。`;
+    para += `有${scoreboard.riskCount}个风险点得盯紧。`;
   }
 
-  para += `各条线按计划推进，整体经营节奏平稳。需要关注几个关键变化。`;
+  para += `各条线按计划推进，整体节奏平稳。有几个变化得留意。`;
 
   return para;
 }
 
 function buildDeltaParagraph(pack: DailyCityStoryContextPack, deltas: DailyCityStoryContextPack['scoreboard']['sharpestDeltas']): string {
   if (deltas.length === 0) {
-    return '今天没有特别突出的指标变化，整体经营节奏平稳。各条线按计划推进，没有突发风险。需要关注市场变化和客户需求。同时需要关注竞品动态和市场趋势，为后续经营做好准备。各区域门店按计划推进，没有突发风险事件。整体经营节奏平稳，没有大的波动。需要关注市场变化和客户需求。同时需要关注竞品动态和市场趋势，为后续经营做好准备。';
+    return '今天没有特别突出的指标变化，整体经营节奏平稳。各条线按计划推进，没有突发风险。得盯紧市场变化和客户需求。同时得盯紧竞品动态和市场趋势，为后续经营做好准备。各区域门店按计划推进，没有突发风险事件。整体经营节奏平稳，没有大的波动。得盯紧市场变化和客户需求。同时得盯紧竞品动态和市场趋势，为后续经营做好准备。';
   }
 
   const delta = deltas[0];
@@ -96,21 +96,21 @@ function buildDeltaParagraph(pack: DailyCityStoryContextPack, deltas: DailyCityS
   let para = `昨夜最明显的变化是${delta.label}${direction}${Math.abs(delta.value)}${delta.unit}。`;
 
   if (delta.label.includes('信任') && delta.direction === 'down') {
-    para += `因为之前的沟通没有兑现承诺，所以业主配合度在降低。信任下降意味着后续沟通成本会增加，需要尽快用具体动作修复关系，不能只靠口头安抚。建议今天下午去面访，带竞品数据和客户反馈。`;
+    para += `因为之前的沟通没有兑现承诺，所以业主配合度在降低。信任下降意味着后续沟通成本会增加，得赶紧用具体动作修复关系，不能只靠口头安抚。今天得下午去面访，带竞品数据和客户反馈。`;
   } else if (delta.label.includes('信任') && delta.direction === 'up') {
-    para += `因为之前的沟通有实际效果，所以业主对经纪人的配合度在提升。信任上升说明可以趁热打铁推进关键动作。建议今天安排关键沟通，把信任转化为实际进展。`;
+    para += `因为之前的沟通有实际效果，所以业主对经纪人的配合度在提升。信任上升说明可以趁热打铁推进关键动作。今天得安排关键沟通，把信任转化为实际进展。`;
   } else if (delta.label.includes('紧迫') && delta.direction === 'up') {
-    para += `因为时间窗口在收窄，所以业主在催促。紧迫感上升说明需要今天给出明确动作，不能再拖。建议今天优先处理这个业主的事项。`;
+    para += `因为时间窗口在收窄，所以业主在催促。紧迫感上升说明需要今天给出明确动作，不能再拖。今天得优先处理这个业主的事项。`;
   } else if (delta.label.includes('紧迫') && delta.direction === 'down') {
-    para += `因为之前的沟通缓解了压力，所以业主情绪有所缓和。紧迫感下降说明可以利用这个窗口做更深入的沟通。建议今天安排一次深入面访。`;
+    para += `因为之前的沟通缓解了压力，所以业主情绪有所缓和。紧迫感下降说明可以利用这个窗口做更深入的沟通。今天得安排一次深入面访。`;
   } else if (delta.label.includes('耐心') && delta.direction === 'down') {
-    para += `因为等待时间过长，所以业主对等待的容忍度在降低。耐心下降说明需要尽快给出具体方案。建议今天给出明确的时间表和行动计划。`;
+    para += `因为等待时间过长，所以业主对等待的容忍度在降低。耐心下降说明得赶紧给出具体方案。今天得给出明确的时间表和行动计划。`;
   } else if (delta.label.includes('意向') && delta.direction === 'up') {
-    para += `因为之前的沟通有实际效果，所以客户意向在上升。意向上升说明需要尽快安排看房或出价。建议今天联系客户确认时间。`;
+    para += `因为之前的沟通有实际效果，所以客户意向在上升。意向上升说明得赶紧安排看房或出价。今天得联系客户确认时间。`;
   } else if (delta.label.includes('信心') && delta.direction === 'down') {
-    para += `因为对房源有疑虑，所以客户信心在下降。信心下降说明需要尽快确认价格和竞品差异。建议今天带客户看竞品，消除疑虑。`;
+    para += `因为对房源有疑虑，所以客户信心在下降。信心下降说明得赶紧确认价格和竞品差异。今天得带客户看竞品，消除疑虑。`;
   } else {
-    para += '这个变化会影响后续经营节奏，需要关注。建议今天重点关注这个指标的变化趋势。';
+    para += '这个变化会影响后续经营节奏，得盯紧。今天得盯紧这个指标的变化趋势。';
   }
 
   if (deltas.length > 1) {
@@ -123,7 +123,7 @@ function buildDeltaParagraph(pack: DailyCityStoryContextPack, deltas: DailyCityS
 
 function buildEventParagraph(pack: DailyCityStoryContextPack, events: DailyCityStoryContextPack['visibleEvents']): string {
   if (events.length === 0) {
-    return '昨夜没有特别关键的经营事件，各条线按常规节奏推进。整体来看，昨夜的经营节奏平稳，但需要关注几个关键变化。建议今天重点关注市场变化和客户需求。同时需要关注竞品动态和市场趋势。';
+    return '昨夜没有特别关键的经营事件，各条线按常规节奏推进。说实话，昨夜的经营节奏平稳，但得盯紧几个关键变化。今天得盯紧市场变化和客户需求。同时得盯紧竞品动态和市场趋势。';
   }
 
   const evt = events[0];
@@ -146,9 +146,9 @@ function buildEventParagraph(pack: DailyCityStoryContextPack, events: DailyCityS
   }
 
   if (evt.tone === 'danger') {
-    para += '这个变化需要尽快处理，不能拖。建议今天优先处理这个事项，带竞品数据和客户反馈去面访。';
+    para += '这个变化得赶紧处理，不能拖。今天得优先处理这个事项，带竞品数据和客户反馈去面访。';
   } else if (evt.tone === 'success') {
-    para += '这是个好消息，可以趁热打铁推进。建议今天安排关键沟通，把这个进展转化为实际成果。';
+    para += '这是个好消息，可以趁热打铁推进。今天得安排关键沟通，把这个进展转化为实际成果。';
   }
 
   if (events.length > 1) {
@@ -173,10 +173,10 @@ function buildRelationshipParagraph(pack: DailyCityStoryContextPack, owners: Dai
       ownerText += `压力点：${owner.pressureLabels.join('、')}。`;
     }
     if (owner.visibleMood === '焦虑' || owner.visibleMood === '愤怒') {
-      ownerText += `需要尽快修复关系，不能只靠口头安抚。建议今天下午去面访，带竞品数据和客户反馈。`;
+      ownerText += `得赶紧修复关系，不能只靠口头安抚。今天得下午去面访，带竞品数据和客户反馈。`;
     }
     if (owner.pressureLabels.length > 1) {
-      ownerText += `当前有${owner.pressureLabels.length}个压力点需要关注。`;
+      ownerText += `当前有${owner.pressureLabels.length}个压力点得盯紧。`;
     }
     parts.push(ownerText);
   }
@@ -197,7 +197,7 @@ function buildRelationshipParagraph(pack: DailyCityStoryContextPack, owners: Dai
       customerText += `最新动态：${customer.latestVisibleSignal}。`;
     }
     if (customer.intentLabel === '高意向') {
-      customerText += `这位客户已经接近行动，需要尽快安排看房或出价。`;
+      customerText += `这位客户已经接近行动，得赶紧安排看房或出价。`;
     } else if (customer.intentLabel === '低意向') {
       customerText += `这位客户还在观望，需要持续跟进，不能放弃。`;
     }
@@ -210,7 +210,7 @@ function buildRelationshipParagraph(pack: DailyCityStoryContextPack, owners: Dai
   }
 
   if (parts.length === 0) {
-    return '当前没有特别需要关注的业主或客户关系变化。整体来看，各条线按计划推进，没有突发风险。建议今天重点关注市场变化和客户需求。同时需要关注竞品动态和市场趋势，为后续经营做好准备。';
+    return '当前没有特别得盯紧的业主或客户关系变化。说实话，各条线按计划推进，没有突发风险。今天得盯紧市场变化和客户需求。同时得盯紧竞品动态和市场趋势，为后续经营做好准备。';
   }
 
   return parts.join('');
@@ -218,7 +218,7 @@ function buildRelationshipParagraph(pack: DailyCityStoryContextPack, owners: Dai
 
 function buildCaseParagraph(pack: DailyCityStoryContextPack, cases: DailyCityStoryContextPack['visibleCases']): string {
   if (cases.length === 0) {
-    return '当前没有特别需要关注的房源。建议今天重点关注市场变化和客户需求，同时关注竞品动态。整体来看，各条线按计划推进，没有突发风险。';
+    return '当前没有特别得盯紧的房源。今天得盯紧市场变化和客户需求，同时关注竞品动态。说实话，各条线按计划推进，没有突发风险。';
   }
 
   const caseItem = cases[0];
@@ -243,7 +243,7 @@ function buildCaseParagraph(pack: DailyCityStoryContextPack, cases: DailyCitySto
     para += `其他房源：${otherCases}。`;
   }
 
-  para += `建议今天重点关注这个房源的状态变化，同时关注竞品动态和市场趋势。`;
+  para += `今天得盯紧这个房源的状态变化，同时关注竞品动态和市场趋势。`;
 
   return para;
 }
@@ -272,7 +272,7 @@ function buildTodayBridgeParagraph(pack: DailyCityStoryContextPack): string {
     para += `注意：${constraints.join('、')}。`;
   }
 
-  para += `今日精力${todayPlan.energy}小时，主题是${todayPlan.theme}。建议今天优先处理高风险事项，同时关注其他业主和客户的变化。同时需要关注竞品动态和市场趋势，为后续经营做好准备。`;
+  para += `今日精力${todayPlan.energy}小时，主题是${todayPlan.theme}。今天得优先处理高风险事项，同时关注其他业主和客户的变化。同时得盯紧竞品动态和市场趋势，为后续经营做好准备。`;
 
   return para;
 }

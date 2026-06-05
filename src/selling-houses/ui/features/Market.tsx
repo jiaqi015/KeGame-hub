@@ -52,17 +52,24 @@ type TickerItem = {
 const SECTION_TABS = ['全部', '政策', '板块', '成交', '客户', '房源'] as const;
 
 const TONE_COLOR: Record<ProjectionTone | 'warm', string> = {
-  risk: 'var(--market-red)',
+  risk: 'var(--market-risk)',
   chance: 'var(--market-green)',
   neutral: 'var(--market-subtle)',
   warm: 'var(--market-amber)',
 };
 
 const TONE_BG: Record<ProjectionTone | 'warm', string> = {
-  risk: 'rgba(232,92,92,0.10)',
+  risk: 'var(--market-risk-bg)',
   chance: 'rgba(61,214,140,0.10)',
   neutral: 'rgba(255,255,255,0.04)',
   warm: 'rgba(240,176,48,0.10)',
+};
+
+const TONE_COPY_COLOR: Record<ProjectionTone | 'warm', string> = {
+  risk: 'var(--market-risk-copy)',
+  chance: 'var(--market-green-soft)',
+  neutral: 'var(--market-muted)',
+  warm: 'var(--market-amber-soft)',
 };
 
 export function Market({
@@ -123,9 +130,15 @@ export function Market({
           '--market-muted': 'rgba(230,226,216,0.62)',
           '--market-subtle': 'rgba(230,226,216,0.32)',
           '--market-green': '#3dd68c',
-          '--market-red': '#e85c5c',
+          '--market-green-soft': '#a6e7c3',
+          '--market-risk': '#d58980',
+          '--market-risk-copy': '#d8aaa2',
+          '--market-risk-bg': 'rgba(190,105,96,0.105)',
+          '--market-risk-border': 'rgba(213,137,128,0.32)',
+          '--market-risk-rule': 'rgba(213,137,128,0.58)',
           '--market-cyan': '#52cce0',
           '--market-amber': '#f0b030',
+          '--market-amber-soft': '#e6c67e',
         } as React.CSSProperties
       }
     >
@@ -217,7 +230,7 @@ export function Market({
 
           <div className="h-5" />
 
-          <SectionHead label="在场竞品" color="var(--market-red)" />
+          <SectionHead label="在场竞品" color="var(--market-risk-rule)" />
           <div>
             {rivalList.length > 0 ? rivalList.map((item, index) => (
               <RivalRow key={item.id} item={item} last={index === rivalRows.length - 1} />
@@ -324,7 +337,7 @@ function LeadStory({
 
   return (
     <article className="mb-6">
-      <Rule color={TONE_COLOR[story.tone]} />
+      <Rule color={toneRuleColor(story.tone)} />
       <div
         role="button"
         tabIndex={0}
@@ -339,7 +352,7 @@ function LeadStory({
             style={{
               color: TONE_COLOR[story.tone],
               background: TONE_BG[story.tone],
-              borderColor: colorMix(TONE_COLOR[story.tone], 0.35),
+              borderColor: toneBorderColor(story.tone, 0.35),
             }}
           >
             ● {story.section}
@@ -351,7 +364,7 @@ function LeadStory({
           {story.headline}
         </h1>
         {story.deck ? (
-          <div className="mb-3.5 text-[14px] font-semibold leading-[1.4]" style={{ color: TONE_COLOR[story.tone] }}>
+          <div className="mb-3.5 text-[14px] font-semibold leading-[1.45]" style={{ color: TONE_COPY_COLOR[story.tone] }}>
             {story.deck}
           </div>
         ) : null}
@@ -359,7 +372,7 @@ function LeadStory({
           {story.body}
         </p>
         {evidenceLine ? (
-          <p className="mb-4 max-w-[720px] text-[12px] leading-[1.85]" style={{ color: TONE_COLOR[story.tone] }}>
+          <p className="mb-4 max-w-[720px] text-[12px] font-medium leading-[1.85]" style={{ color: TONE_COPY_COLOR[story.tone] }}>
             {evidenceLine}
           </p>
         ) : null}
@@ -378,7 +391,7 @@ function LeadStory({
                 style={{
                   color: TONE_COLOR[story.tone],
                   background: TONE_BG[story.tone],
-                  borderColor: colorMix(TONE_COLOR[story.tone], 0.28),
+                  borderColor: toneBorderColor(story.tone, 0.28),
                 }}
               >
                 {tag.label}
@@ -425,7 +438,7 @@ function StoryCard({
         {story.headline}
       </div>
       {story.deck && big ? (
-        <div className="mb-2 text-[12px] font-semibold leading-[1.45]" style={{ color: TONE_COLOR[story.tone] }}>
+        <div className="mb-2 text-[12px] font-semibold leading-[1.5]" style={{ color: TONE_COPY_COLOR[story.tone] }}>
           {story.deck}
         </div>
       ) : null}
@@ -447,7 +460,7 @@ function StoryCard({
             style={{
               color: TONE_COLOR[story.tone],
               background: TONE_BG[story.tone],
-                borderColor: colorMix(TONE_COLOR[story.tone], 0.24),
+                borderColor: toneBorderColor(story.tone, 0.24),
               }}
             >
               {tag.label}
@@ -548,7 +561,7 @@ function MarketStoryModal({
                   style={{
                     color: TONE_COLOR[story.tone],
                     background: TONE_BG[story.tone],
-                    borderColor: colorMix(TONE_COLOR[story.tone], 0.35),
+                    borderColor: toneBorderColor(story.tone, 0.35),
                   }}
                 >
                   {story.section}
@@ -560,7 +573,7 @@ function MarketStoryModal({
                 {story.headline}
               </h2>
               {story.deck ? (
-                <p className="mt-3 text-[14px] font-semibold leading-6" style={{ color: TONE_COLOR[story.tone] }}>
+                <p className="mt-3 text-[14px] font-semibold leading-6" style={{ color: TONE_COPY_COLOR[story.tone] }}>
                   {story.deck}
                 </p>
               ) : null}
@@ -628,7 +641,7 @@ function MarketStoryModal({
                     style={{
                       color: TONE_COLOR[story.tone],
                       background: TONE_BG[story.tone],
-                      borderColor: colorMix(TONE_COLOR[story.tone], 0.28),
+                      borderColor: toneBorderColor(story.tone, 0.28),
                     }}
                   >
                     {tag.label}
@@ -754,11 +767,11 @@ function Rule({ color = 'var(--market-border-strong)' }: { color?: string }) {
 function ToneTag({ tone }: { tone: ProjectionTone }) {
   return (
     <span
-      className="rounded-[3px] border px-1.5 py-px text-[9px] font-bold uppercase tracking-[0.09em]"
+      className="rounded-[3px] border px-1.5 py-px text-[9px] font-semibold uppercase tracking-[0.09em]"
       style={{
         color: TONE_COLOR[tone],
         background: TONE_BG[tone],
-        borderColor: colorMix(TONE_COLOR[tone], 0.30),
+        borderColor: toneBorderColor(tone, 0.30),
       }}
     >
       {tone === 'risk' ? '风险' : tone === 'chance' ? '机会' : '中性'}
@@ -1071,6 +1084,16 @@ function extractDaysLeft(detail: string) {
 
 function colorMix(color: string, alpha: number) {
   return `color-mix(in srgb, ${color} ${Math.round(alpha * 100)}%, transparent)`;
+}
+
+function toneBorderColor(tone: ProjectionTone | 'warm', alpha: number) {
+  if (tone === 'risk') return 'var(--market-risk-border)';
+  return colorMix(TONE_COLOR[tone], alpha);
+}
+
+function toneRuleColor(tone: ProjectionTone | 'warm') {
+  if (tone === 'risk') return 'var(--market-risk-rule)';
+  return TONE_COLOR[tone];
 }
 
 function clamp(value: number, min: number, max: number) {

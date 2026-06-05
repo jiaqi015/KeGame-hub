@@ -128,6 +128,15 @@ async function expectTodayRhythmCell(page: Page, day: number) {
   await expect(page.getByRole('main')).not.toContainText('本周节奏');
 }
 
+async function closeWechatConversationDetail(page: Page) {
+  const detail = page.locator('[data-my-wechat-conversation-detail="true"]');
+  const collapseButton = detail.getByRole('button', { name: '回到右栏会话卡片' }).first();
+  if (await collapseButton.isVisible().catch(() => false)) {
+    await collapseButton.click();
+  }
+  await page.getByRole('button', { name: '返回消息列表' }).click();
+}
+
 test('selling-houses e2e profile advances safely without touching default save', async ({ page }) => {
   const consoleMessages: ConsoleMessage[] = [];
   const pageErrors: Error[] = [];
@@ -160,11 +169,11 @@ test('selling-houses e2e profile advances safely without touching default save',
   expect(snapshotBeforeWechatClick?.day).toBe(1);
 
   await firstWechatMessage.click();
-  await expect(page.getByRole('button', { name: '返回消息列表' })).toBeVisible();
+  await expect(page.locator('[data-my-wechat-conversation-detail="true"]')).toBeVisible();
   expect(await e2eSaveSnapshot(page)).toEqual(snapshotBeforeWechatClick);
   expect(defaultSaveFingerprint(await sellerSaveKeys(page))).toBe(defaultKeysBeforeE2e);
 
-  await page.getByRole('button', { name: '返回消息列表' }).click();
+  await closeWechatConversationDetail(page);
   await returnToWorkbench(page);
   await expect(page.locator('[data-my-wechat-panel="true"]')).toBeVisible();
   await expectUnreadRowsPinned(page, '[data-my-wechat-message-row="true"]');
