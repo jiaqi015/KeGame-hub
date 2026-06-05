@@ -33,7 +33,7 @@ export function buildReasonedProposal(pack: AiArrangementContextPack): AiArrange
     readonly durationHours: number;
   }> = [];
   const seen = new Set<string>();
-  const slotUsed = { am: 0, pm: 0 };
+  const slotUsedHours = { am: 0, pm: 0 };
   let remainingEnergy = pack.energy.remaining;
 
   for (const candidate of scored) {
@@ -43,7 +43,7 @@ export function buildReasonedProposal(pack: AiArrangementContextPack): AiArrange
     if (item.energyCost > remainingEnergy) continue;
     const slot = item.slot || pack.currentSlot;
     const slotCapacity = slot === 'am' ? pack.slots.am.remainingCapacity : pack.slots.pm.remainingCapacity;
-    if (slotUsed[slot] >= slotCapacity) continue;
+    if (slotUsedHours[slot] + item.durationHours > slotCapacity) continue;
     seen.add(item.itemId);
     drafts.push({
       itemId: item.itemId,
@@ -54,7 +54,7 @@ export function buildReasonedProposal(pack: AiArrangementContextPack): AiArrange
       durationHours: item.durationHours,
     });
     remainingEnergy -= item.energyCost;
-    slotUsed[slot]++;
+    slotUsedHours[slot] += item.durationHours;
   }
 
   const evidenceLabels = buildEvidenceLabels(pack, scored, drafts);
@@ -106,12 +106,15 @@ function scoreCandidate(item: VisibleArrangementItem, pack: AiArrangementContext
   if (item.actionId === 'deep-diagnosis') impactScore += 15;
   if (item.durationHours >= 1.5) impactScore += 10;
 
+  const slotMatch = (item.slot || pack.currentSlot) === pack.currentSlot ? 1 : 0;
+
   const compositeScore =
     ownerScore * 0.3 +
     customerScore * 0.2 +
     riskScore * 0.25 +
     urgencyScore * 0.15 +
-    impactScore * 0.1;
+    impactScore * 0.1 +
+    slotMatch * 5;
 
   if (ownerScore > 65) reasoning.push(`业主视角：${ownerScore > 80 ? '高优先' : '需关注'}`);
   if (customerScore > 65) reasoning.push(`客户视角：${customerScore > 80 ? '高意向' : '需跟进'}`);
