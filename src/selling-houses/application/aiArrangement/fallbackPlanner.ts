@@ -1,6 +1,20 @@
 import type { AiArrangementContextPack, VisibleArrangementItem } from './contextPack.js';
 import type { AiArrangementProposalV2, AiArrangementDraftV2 } from './proposal.js';
 
+export function buildReason(item: import('./contextPack.js').VisibleArrangementItem): string {
+  const parts: string[] = [];
+  if (item.evidenceLabels && item.evidenceLabels.length > 0) {
+    parts.push(item.evidenceLabels[0]);
+  }
+  if (item.signalTrace && item.signalTrace.length > 0) {
+    parts.push(item.signalTrace[0].signal.slice(0, 20));
+  }
+  if (item.riskLevel === 'high') parts.push('高风险');
+  if (item.riskLevel === 'medium') parts.push('需关注');
+  if (parts.length === 0) parts.push(item.detail.slice(0, 42) || '优先处理');
+  return parts.join('；').slice(0, 60);
+}
+
 export function buildFallbackAiArrangementProposal(
   pack: AiArrangementContextPack,
 ): AiArrangementProposalV2 {
@@ -16,7 +30,7 @@ export function buildFallbackAiArrangementProposal(
     });
 
   let remainingEnergy = pack.energy.remaining;
-  const slotUsed = { am: 0, pm: 0 };
+  const slotUsedHours = { am: 0, pm: 0 };
   const drafts: AiArrangementDraftV2[] = [];
   const seen = new Set<string>();
 
@@ -26,18 +40,18 @@ export function buildFallbackAiArrangementProposal(
     if (item.energyCost > remainingEnergy) continue;
     const slot = item.slot || pack.currentSlot;
     const slotCapacity = slot === 'am' ? pack.slots.am.remainingCapacity : pack.slots.pm.remainingCapacity;
-    if (slotUsed[slot] >= slotCapacity) continue;
+    if (slotUsedHours[slot] + item.durationHours > slotCapacity) continue;
     seen.add(item.itemId);
     drafts.push({
       itemId: item.itemId,
       slot,
       title: item.title.slice(0, 30),
-      reason: item.detail.slice(0, 42) || '优先处理',
+      reason: buildReason(item),
       energyCost: item.energyCost,
       durationHours: item.durationHours,
     });
     remainingEnergy -= item.energyCost;
-    slotUsed[slot]++;
+    slotUsedHours[slot] += item.durationHours;
   }
 
   const evidenceLabels = [

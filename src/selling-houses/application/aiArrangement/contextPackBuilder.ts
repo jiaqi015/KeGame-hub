@@ -1,5 +1,6 @@
 import type { GameState } from '../../domain/models.js';
 import type { ArrangementProjection } from '../projections/operatingProjection.js';
+import { getSlotRemainingCapacity } from '../todayPlan.js';
 import type {
   AiArrangementContextPack,
   VisibleArrangementItem,
@@ -18,31 +19,31 @@ export function buildAiArrangementContextPack(
   const energy = {
     remaining: Math.max(0, arrangement.remainingEnergy),
     planned: arrangement.plannedItems.reduce((sum, item) => sum + item.energyCost, 0),
-    fixedReserve: arrangement.fixedItems.reduce((sum, item) => sum + item.energyCost, 0),
+    fixedReserve: Math.max(0, arrangement.fixedEnergyReserve),
   };
 
   const slots = {
     am: {
-      remainingCapacity: Math.max(0, 4 - arrangement.slots.am.fixedItems.length - arrangement.slots.am.plannedItems.length),
+      remainingCapacity: getSlotRemainingCapacity(state, 'am'),
       fixedCount: arrangement.slots.am.fixedItems.length,
       plannedCount: arrangement.slots.am.plannedItems.length,
     },
     pm: {
-      remainingCapacity: Math.max(0, 4 - arrangement.slots.pm.fixedItems.length - arrangement.slots.pm.plannedItems.length),
+      remainingCapacity: getSlotRemainingCapacity(state, 'pm'),
       fixedCount: arrangement.slots.pm.fixedItems.length,
       plannedCount: arrangement.slots.pm.plannedItems.length,
     },
   };
 
-  const plannedItems = arrangement.plannedItems.map(mapToVisibleItem);
-  const fixedItems = arrangement.fixedItems.map(mapToVisibleItem);
+  const wechatSignals = buildWechatSignals(state);
+  const marketSignals = buildMarketSignals(state);
+
+  const plannedItems = arrangement.plannedItems.map(i => mapToVisibleItem(i, wechatSignals));
+  const fixedItems = arrangement.fixedItems.map(i => mapToVisibleItem(i, wechatSignals));
   const candidateItems = arrangement.candidateItems
     .filter(item => !item.isDisabled)
     .slice(0, 8)
-    .map(mapToVisibleItem);
-
-  const wechatSignals = buildWechatSignals(state);
-  const marketSignals = buildMarketSignals(state);
+    .map(i => mapToVisibleItem(i, wechatSignals));
 
   const constraints = buildConstraints(arrangement, energy, slots);
 
@@ -61,7 +62,20 @@ export function buildAiArrangementContextPack(
   };
 }
 
-function mapToVisibleItem(item: any): VisibleArrangementItem {
+function mapToVisibleItem(item: any, wechatSignals: VisibleWechatSignal[]): VisibleArrangementItem {
+  const evidenceLabels: string[] = [];
+  const signalTrace: import('./contextPack.js').SignalTrace[] = [];
+
+  const relatedWechat = wechatSignals.filter(s => s.caseId === item.caseId);
+  for (const ws of relatedWechat) {
+    evidenceLabels.push(`${ws.senderName}：${ws.content.slice(0, 20)}`);
+    signalTrace.push({ source: 'wechat', signal: ws.content.slice(0, 40), credibility: ws.urgency === 'high' ? 0.9 : 0.7, receivedAt: 'today' });
+  }
+
+  if (item.rank !== undefined && item.rank <= 3) evidenceLabels.push(`优先级 #${item.rank}`);
+
+  const riskLevel = item.isDisabled ? 'high' as const : item.rank !== undefined && item.rank <= 2 ? 'medium' as const : 'low' as const;
+
   return {
     itemId: item.id,
     actionId: item.actionId,
@@ -75,6 +89,9 @@ function mapToVisibleItem(item: any): VisibleArrangementItem {
     durationHours: item.durationHours,
     rank: item.rank,
     disabledReason: item.isDisabled ? item.conflictHint?.message : undefined,
+    evidenceLabels,
+    signalTrace,
+    riskLevel,
   };
 }
 

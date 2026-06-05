@@ -32,6 +32,24 @@ export interface VisibleArrangementItem {
   readonly durationHours: number;
   readonly rank?: number;
   readonly disabledReason?: string;
+  readonly evidenceLabels?: readonly string[];
+  readonly signalTrace?: readonly SignalTrace[];
+  readonly riskLevel?: 'high' | 'medium' | 'low';
+}
+
+export interface SignalTrace {
+  readonly source: 'wechat' | 'market' | 'case' | 'opportunity';
+  readonly signal: string;
+  readonly credibility: number;
+  readonly receivedAt: string;
+}
+
+export interface NoDecisionModel {
+  readonly posture: 'wait_observe' | 'stuck_conflicted' | 'blocked_resource' | 'no_candidates';
+  readonly exitCondition: string;
+  readonly accumulatedPressure: number;
+  readonly nextReviewDay: number;
+  readonly reason: string;
 }
 
 export interface VisibleWechatSignal {

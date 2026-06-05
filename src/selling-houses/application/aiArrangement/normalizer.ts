@@ -52,8 +52,10 @@ export function normalizeAiArrangementProposal(
 
     const slot = d.slot === 'pm' ? 'pm' as const : 'am' as const;
     const slotCapacity = slot === 'am' ? pack.slots.am.remainingCapacity : pack.slots.pm.remainingCapacity;
-    const slotUsed = normalizedDrafts.filter(dr => dr.slot === slot).length;
-    if (slotUsed >= slotCapacity) {
+    const slotUsedHours = normalizedDrafts
+      .filter(dr => dr.slot === slot)
+      .reduce((sum, dr) => sum + dr.durationHours, 0);
+    if (slotUsedHours + candidate.durationHours > slotCapacity) {
       validationNotes.push(`exceeds_slot_capacity:${slot}`);
       continue;
     }
