@@ -54,6 +54,7 @@ import { handleMyWechatBrokerReplyDraft } from "./src/selling-houses/interfaces/
 import { handleMyWechatConversationTurn } from "./src/selling-houses/interfaces/http/myWechatConversationHandlers.js";
 import { handleActionDecisionAdvice } from "./src/selling-houses/interfaces/http/actionDecisionAdviceHandlers.js";
 import { handleAiArrangement } from "./src/selling-houses/interfaces/http/aiArrangementHandlers.js";
+import { handleDailyStory } from "./src/selling-houses/interfaces/http/dailyStoryHandlers.js";
 import {
   getFirstFieldValue,
   hasQueryValue,
@@ -567,6 +568,7 @@ async function startServer() {
   });
 
   app.post("/api/ai-arrangement", async (req, res) => {
+    const fallbackDay = typeof req.body?.day === 'number' ? req.body.day : 0;
     try {
       const authorization = await authorizeRequestPersisted(req, "selling-houses");
       if (!authorization.ok) {
@@ -581,6 +583,7 @@ async function startServer() {
         ok: false,
         proposal: {
           proposalId: `fallback-${Date.now()}`,
+          day: fallbackDay,
           source: 'fallback',
           confidence: 0.42,
           headline: '今天暂时不用再加安排',
@@ -590,6 +593,25 @@ async function startServer() {
         },
         source: 'fallback',
         error: error instanceof Error ? error.message : "AI 安排生成失败",
+      });
+    }
+  });
+
+  app.post("/api/daily-story", async (req, res) => {
+    try {
+      const authorization = await authorizeRequestPersisted(req, "selling-houses");
+      if (!authorization.ok) {
+        return res.status(authorization.status).json({ error: authorization.error });
+      }
+
+      const result = await handleDailyStory(req.body);
+      return res.status(result.status).json(result.body);
+    } catch (error) {
+      return res.status(200).json({
+        ok: false,
+        story: null,
+        source: 'fallback',
+        error: error instanceof Error ? error.message : "日结故事生成失败",
       });
     }
   });
