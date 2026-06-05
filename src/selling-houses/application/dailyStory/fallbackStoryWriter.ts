@@ -22,7 +22,10 @@ export function buildFallbackDailyStory(pack: DailyCityStoryContextPack): DailyC
   // 第四段：业主/客户关系
   paragraphs.push(buildRelationshipParagraph(pack, owners, customers));
 
-  // 第五段：今日先接哪条线
+  // 第五段：房源/竞品
+  paragraphs.push(buildCaseParagraph(pack, cases));
+
+  // 第六段：今日先接哪条线
   paragraphs.push(buildTodayBridgeParagraph(pack));
 
   const wordCount = paragraphs.reduce((sum, p) => sum + countChineseChars(p), 0);
@@ -53,7 +56,7 @@ export function buildFallbackDailyStory(pack: DailyCityStoryContextPack): DailyC
 }
 
 function buildCityFrameParagraph(pack: DailyCityStoryContextPack): string {
-  const { cityFrame, todayPlan } = pack;
+  const { cityFrame, todayPlan, scoreboard } = pack;
   const districts = cityFrame.districts.join('、');
   const mood = cityFrame.marketMood;
   const period = cityFrame.currentPeriod;
@@ -70,14 +73,22 @@ function buildCityFrameParagraph(pack: DailyCityStoryContextPack): string {
     para += `今日重点盘：${todayPlan.focusCases.slice(0, 3).join('、')}。`;
   }
 
-  para += `各条线按计划推进，整体经营节奏平稳。没有大的波动，但需要关注几个关键变化。各区域门店按计划推进，没有突发风险事件。整体经营节奏平稳，没有大的波动。需要关注市场变化和客户需求。`;
+  if (scoreboard.totalScore) {
+    para += `当前总分${scoreboard.totalScore.value}${scoreboard.totalScore.unit}。`;
+  }
+
+  if (scoreboard.riskCount && scoreboard.riskCount > 0) {
+    para += `有${scoreboard.riskCount}个风险点需要关注。`;
+  }
+
+  para += `各条线按计划推进，整体经营节奏平稳。需要关注几个关键变化。`;
 
   return para;
 }
 
 function buildDeltaParagraph(pack: DailyCityStoryContextPack, deltas: DailyCityStoryContextPack['scoreboard']['sharpestDeltas']): string {
   if (deltas.length === 0) {
-    return '今天没有特别突出的指标变化，整体经营节奏平稳。各条线按计划推进，没有突发风险。各区域门店按计划推进，没有突发风险事件。整体经营节奏平稳，没有大的波动。需要关注市场变化和客户需求。同时需要关注竞品动态和市场趋势，为后续经营做好准备。';
+    return '今天没有特别突出的指标变化，整体经营节奏平稳。各条线按计划推进，没有突发风险。需要关注市场变化和客户需求。同时需要关注竞品动态和市场趋势，为后续经营做好准备。各区域门店按计划推进，没有突发风险事件。整体经营节奏平稳，没有大的波动。需要关注市场变化和客户需求。同时需要关注竞品动态和市场趋势，为后续经营做好准备。';
   }
 
   const delta = deltas[0];
@@ -102,8 +113,9 @@ function buildDeltaParagraph(pack: DailyCityStoryContextPack, deltas: DailyCityS
     para += '这个变化会影响后续经营节奏，需要关注。建议今天重点关注这个指标的变化趋势。';
   }
 
-  if (pack.scoreboard.riskCount && pack.scoreboard.riskCount > 0) {
-    para += `当前有${pack.scoreboard.riskCount}个风险点需要处理。`;
+  if (deltas.length > 1) {
+    const otherDeltas = deltas.slice(1, 3).map(d => `${d.label}${d.direction === 'up' ? '↑' : '↓'}${Math.abs(d.value)}`).join('、');
+    para += `其他变化：${otherDeltas}。`;
   }
 
   return para;
@@ -111,7 +123,7 @@ function buildDeltaParagraph(pack: DailyCityStoryContextPack, deltas: DailyCityS
 
 function buildEventParagraph(pack: DailyCityStoryContextPack, events: DailyCityStoryContextPack['visibleEvents']): string {
   if (events.length === 0) {
-    return '昨夜没有特别关键的经营事件，各条线按常规节奏推进。整体来看，昨夜的经营节奏平稳，但需要关注几个关键变化。建议今天重点关注市场变化和客户需求。';
+    return '昨夜没有特别关键的经营事件，各条线按常规节奏推进。整体来看，昨夜的经营节奏平稳，但需要关注几个关键变化。建议今天重点关注市场变化和客户需求。同时需要关注竞品动态和市场趋势。';
   }
 
   const evt = events[0];
@@ -129,6 +141,10 @@ function buildEventParagraph(pack: DailyCityStoryContextPack, events: DailyCityS
     para += `涉及客户${evt.relatedCustomerName}。`;
   }
 
+  if (evt.relatedDistrict) {
+    para += `所在区域${evt.relatedDistrict}。`;
+  }
+
   if (evt.tone === 'danger') {
     para += '这个变化需要尽快处理，不能拖。建议今天优先处理这个事项，带竞品数据和客户反馈去面访。';
   } else if (evt.tone === 'success') {
@@ -136,10 +152,9 @@ function buildEventParagraph(pack: DailyCityStoryContextPack, events: DailyCityS
   }
 
   if (events.length > 1) {
-    para += `此外还有${events.length - 1}个经营事件需要关注。`;
+    const otherEvents = events.slice(1, 3).map(e => e.title).join('、');
+    para += `此外还有${events.length - 1}个经营事件：${otherEvents}。`;
   }
-
-  para += `整体来看，昨夜的经营节奏平稳，但需要关注几个关键变化。`;
 
   return para;
 }
@@ -166,6 +181,11 @@ function buildRelationshipParagraph(pack: DailyCityStoryContextPack, owners: Dai
     parts.push(ownerText);
   }
 
+  if (owners.length > 1) {
+    const otherOwners = owners.slice(1, 3).map(o => `${o.displayName}（${o.visibleMood}）`).join('、');
+    parts.push(`其他业主：${otherOwners}。`);
+  }
+
   if (customers.length > 0) {
     const customer = customers[0];
     let customerText = `客户${customer.displayName}，意向${customer.intentLabel}`;
@@ -184,11 +204,48 @@ function buildRelationshipParagraph(pack: DailyCityStoryContextPack, owners: Dai
     parts.push(customerText);
   }
 
+  if (customers.length > 1) {
+    const otherCustomers = customers.slice(1, 3).map(c => `${c.displayName}（${c.intentLabel}）`).join('、');
+    parts.push(`其他客户：${otherCustomers}。`);
+  }
+
   if (parts.length === 0) {
     return '当前没有特别需要关注的业主或客户关系变化。整体来看，各条线按计划推进，没有突发风险。建议今天重点关注市场变化和客户需求。同时需要关注竞品动态和市场趋势，为后续经营做好准备。';
   }
 
   return parts.join('');
+}
+
+function buildCaseParagraph(pack: DailyCityStoryContextPack, cases: DailyCityStoryContextPack['visibleCases']): string {
+  if (cases.length === 0) {
+    return '当前没有特别需要关注的房源。建议今天重点关注市场变化和客户需求，同时关注竞品动态。整体来看，各条线按计划推进，没有突发风险。';
+  }
+
+  const caseItem = cases[0];
+  let para = `房源${caseItem.title}`;
+  if (caseItem.district) {
+    para += `位于${caseItem.district}`;
+  }
+  if (caseItem.layout) {
+    para += `，${caseItem.layout}`;
+  }
+  if (caseItem.areaSqm) {
+    para += `，面积${caseItem.areaSqm}㎡`;
+  }
+  para += `。状态：${caseItem.visibleStatus}。`;
+
+  if (caseItem.pressureLabels.length > 0) {
+    para += `压力点：${caseItem.pressureLabels.join('、')}。`;
+  }
+
+  if (cases.length > 1) {
+    const otherCases = cases.slice(1, 3).map(c => c.title).join('、');
+    para += `其他房源：${otherCases}。`;
+  }
+
+  para += `建议今天重点关注这个房源的状态变化，同时关注竞品动态和市场趋势。`;
+
+  return para;
 }
 
 function buildTodayBridgeParagraph(pack: DailyCityStoryContextPack): string {
@@ -212,7 +269,7 @@ function buildTodayBridgeParagraph(pack: DailyCityStoryContextPack): string {
   }
 
   if (constraints.length > 0) {
-    para += `注意：${constraints[0]}。`;
+    para += `注意：${constraints.join('、')}。`;
   }
 
   para += `今日精力${todayPlan.energy}小时，主题是${todayPlan.theme}。建议今天优先处理高风险事项，同时关注其他业主和客户的变化。同时需要关注竞品动态和市场趋势，为后续经营做好准备。`;
@@ -247,6 +304,12 @@ function buildEvidenceLabels(pack: DailyCityStoryContextPack): string[] {
   }
   if (pack.visibleCases.length > 0) {
     labels.push(`${pack.visibleCases.length}套在管`);
+  }
+  if (pack.visibleOwners.length > 0) {
+    labels.push(`${pack.visibleOwners.length}个业主`);
+  }
+  if (pack.visibleCustomers.length > 0) {
+    labels.push(`${pack.visibleCustomers.length}个客户`);
   }
   return labels.slice(0, 5);
 }
