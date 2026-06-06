@@ -12,7 +12,7 @@
  */
 
 import React from 'react';
-import { LineChart, TrendingUp, Shield, Users, Home, Flame } from 'lucide-react';
+import { TrendingUp, Shield, Users, Home, Flame } from 'lucide-react';
 import type { WorldGraphSummary, MarketCellGraphSummary } from '../../domain/world-model/runtime/types';
 
 interface WorldGraphSummaryPanelProps {
@@ -114,7 +114,7 @@ function CountTile({ icon, label, value }: { icon: React.ReactNode; label: strin
   );
 }
 
-export function WorldGraphSummaryPanel({ worldGraphSummary, onOpenMarket }: WorldGraphSummaryPanelProps) {
+export function WorldGraphSummaryPanel({ worldGraphSummary }: WorldGraphSummaryPanelProps) {
   if (!worldGraphSummary) return null;
   const summary = worldGraphSummary;
   const sortedCells = [...summary.marketCellSummaries].sort(
@@ -123,24 +123,6 @@ export function WorldGraphSummaryPanel({ worldGraphSummary, onOpenMarket }: Worl
 
   return (
     <section className="seller-panel overflow-hidden">
-      <div className="border-b border-[var(--seller-border)] px-4 py-2.5">
-        <div className="flex items-center justify-between gap-3">
-          <div className="seller-label flex items-center gap-2">
-            <LineChart size={13} />
-            大世界态势
-          </div>
-          {onOpenMarket ? (
-            <button
-              type="button"
-              onClick={() => onOpenMarket('district')}
-              className="text-[10px] font-medium text-[var(--seller-accent)] hover:underline"
-            >
-              去市场雷达
-            </button>
-          ) : null}
-        </div>
-      </div>
-
       <div className="px-4 py-3">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <CountTile

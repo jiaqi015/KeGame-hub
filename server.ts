@@ -604,7 +604,8 @@ async function startServer() {
         return res.status(authorization.status).json({ error: authorization.error });
       }
 
-      const result = await handleDailyStory(req.body);
+      const { pack, playerProfile } = req.body || {};
+      const result = await handleDailyStory(pack || req.body, playerProfile);
       return res.status(result.status).json(result.body);
     } catch (error) {
       return res.status(200).json({

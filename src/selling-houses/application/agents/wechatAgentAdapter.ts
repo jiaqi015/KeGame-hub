@@ -173,52 +173,85 @@ export function buildWechatLocalReplyVariants(scene: ConversationSceneInputPack)
   const profile = wechatAgentAdapter.resolveProfile(scene);
   const senderName = scene.sourceMessage.senderName;
   const caseTitle = scene.caseContext?.title || scene.sourceMessage.primaryCtaLabel || '';
+  const sourceContent = scene.sourceMessage.content || '';
+  const sourceTopic = extractSourceTopicForVariants(sourceContent);
+  const recentRef = extractRecentRefForVariants(scene.recentTurns);
 
   if (profile.agentId === 'wechat.manager-ops') {
+    const topicAck = sourceTopic ? `${sourceTopic}我看到了，` : '';
+    const recentAck = recentRef ? `${recentRef}的进展我知道，` : '';
     return {
-      positive: `${senderName}：可以，就按这个先抓。今天别散，做完把结果和风险点同步我。`,
-      neutral: `${senderName}：方向可以，但今天先落到一件事。你把对象、时间和预期结果讲清楚。`,
-      skeptical: `${senderName}：这还是偏虚。今天先处理哪套、做什么动作，你给我一句准话。`,
+      positive: `${senderName}：${topicAck}${recentAck}可以，就按这个先抓。今天别散，做完把结果和风险点同步我。`,
+      neutral: `${senderName}：${topicAck}${recentAck}方向可以，但今天先落到一件事。你把对象、时间和预期结果讲清楚。`,
+      skeptical: `${senderName}：${topicAck}这还是偏虚。今天先处理哪套、做什么动作，你给我一句准话。`,
     };
   }
 
   if (profile.agentId === 'wechat.owner-anxious') {
+    const topicAck = sourceTopic ? `${sourceTopic}我知道了，` : '';
+    const recentAck = recentRef ? `${recentRef}我也在跟，` : '';
     return {
-      positive: `${senderName}：好，那你今天别只口头说，按你说的把客户反馈和下一步给我讲清楚。`,
-      neutral: `${senderName}：我能理解，但我现在最怕一直拖。你今天要给我一个明确判断。`,
-      skeptical: `${senderName}：你这么说我还是不踏实，${caseTitle ? `${caseTitle}这套` : '这套房'}到底等还是动，你得说具体。`,
+      positive: `${senderName}：${topicAck}${recentAck}好，那你今天别只口头说，按你说的把客户反馈和下一步给我讲清楚。`,
+      neutral: `${senderName}：${topicAck}${recentAck}我能理解，但我现在最怕一直拖。你今天要给我一个明确判断。`,
+      skeptical: `${senderName}：${topicAck}你这么说我还是不踏实，${caseTitle ? `${caseTitle}这套` : '这套房'}到底等还是动，你得说具体。`,
     };
   }
 
   if (profile.agentId === 'wechat.owner-assertive') {
+    const topicAck = sourceTopic ? `${sourceTopic}我听到了，` : '';
+    const recentAck = recentRef ? `${recentRef}的进展我知道，` : '';
     return {
-      positive: `${senderName}：可以，你把同类房和客户反馈拿出来说，我看依据，不听空判断。`,
-      neutral: `${senderName}：你先别急着下结论，把竞品和客户反馈摆明白，我们再谈下一步。`,
-      skeptical: `${senderName}：这话太泛了。你得告诉我凭什么这么判断，别只让我再等等。`,
+      positive: `${senderName}：${topicAck}${recentAck}可以，你把同类房和客户反馈拿出来说，我看依据，不听空判断。`,
+      neutral: `${senderName}：${topicAck}你先别急着下结论，把竞品和客户反馈摆明白，我们再谈下一步。`,
+      skeptical: `${senderName}：${topicAck}这话太泛了。你得告诉我凭什么这么判断，别只让我再等等。`,
     };
   }
 
   if (profile.agentId === 'wechat.customer-cautious') {
+    const topicAck = sourceTopic ? `${sourceTopic}我看了，` : '';
     return {
-      positive: `${senderName}：行，你把价格和差异确认清楚，我再决定要不要继续看。`,
-      neutral: `${senderName}：可以，但我还是想再对比一下，你先把关键信息发我。`,
-      skeptical: `${senderName}：我先不急着定，你把价格和缺点说清楚我再考虑。`,
+      positive: `${senderName}：${topicAck}行，你把价格和差异确认清楚，我再决定要不要继续看。`,
+      neutral: `${senderName}：${topicAck}可以，但我还是想再对比一下，你先把关键信息发我。`,
+      skeptical: `${senderName}：${topicAck}我先不急着定，你把价格和缺点说清楚我再考虑。`,
     };
   }
 
   if (profile.agentId === 'wechat.customer-decisive') {
+    const topicAck = sourceTopic ? `${sourceTopic}我看了，` : '';
     return {
-      positive: `${senderName}：可以，那你直接帮我约时间，我看完再决定怎么谈。`,
-      neutral: `${senderName}：那你尽快确认，我这边时间可以配合，但别拖太久。`,
-      skeptical: `${senderName}：如果信息还不确定，我就先看别的，你确认好再找我。`,
+      positive: `${senderName}：${topicAck}可以，那你直接帮我约时间，我看完再决定怎么谈。`,
+      neutral: `${senderName}：${topicAck}那你尽快确认，我这边时间可以配合，但别拖太久。`,
+      skeptical: `${senderName}：${topicAck}如果信息还不确定，我就先看别的，你确认好再找我。`,
     };
   }
 
+  const topicAck = sourceTopic ? `${sourceTopic}我看到了，` : '';
+  const recentAck = recentRef ? `${recentRef}的结果我等你，` : '';
   return {
-    positive: `${senderName}：好，你按这个方向推进，晚点把结果同步我。`,
-    neutral: `${senderName}：收到，你先把关键情况确认清楚，再给我一个明确反馈。`,
-    skeptical: `${senderName}：我听到了，但这个还不够具体，你再把下一步说清楚。`,
+    positive: `${senderName}：${topicAck}${recentAck}好，你按这个方向推进，晚点把结果同步我。`,
+    neutral: `${senderName}：${topicAck}${recentAck}你先把关键情况确认清楚，再给我一个明确反馈。`,
+    skeptical: `${senderName}：${topicAck}我听到了，但这个还不够具体，你再把下一步说清楚。`,
   };
+}
+
+function extractSourceTopicForVariants(sourceContent: string): string {
+  const m = sourceContent.match(/价格|市场|什么时候|怎么样|多少|能不能|行不行|好不好|为什么|怎么|什么|谁|哪|房子|小区|业主|客户|竞品|面访|调价/);
+  if (!m) return '';
+  const kw = m[0];
+  return `${kw}的事`;
+}
+
+function extractRecentRefForVariants(recentTurns: readonly { playerText: string; recipientReply: string }[] | undefined): string {
+  if (!recentTurns || recentTurns.length === 0) return '';
+  const last = recentTurns[recentTurns.length - 1];
+  if (!last.playerText) return '';
+  const text = last.playerText;
+  if (/面访|见面|上门/.test(text)) return '上次说的面访';
+  if (/调价|降价|改价/.test(text)) return '上次说的调价';
+  if (/客户|带看/.test(text)) return '上次说的客户跟进';
+  if (/数据|竞品|整理/.test(text)) return '之前说的数据';
+  if (/反馈|同步/.test(text)) return '之前说的反馈';
+  return '之前提到的';
 }
 
 function resolveWechatAgentPresetId(scene: ConversationSceneInputPack): WechatAgentPresetId {

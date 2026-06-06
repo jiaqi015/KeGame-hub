@@ -4,8 +4,9 @@ import { normalizeDailyCityStory } from '../../application/dailyStory/normalizer
 import { buildFallbackDailyStory } from '../../application/dailyStory/fallbackStoryWriter.js';
 import type { DailyCityStoryContextPack } from '../../application/dailyStory/contextPack.js';
 import type { DailyCityStoryResult } from '../../application/dailyStory/storyContract.js';
+import type { DailyStoryPlayerProfile } from '../../application/dailyStory/contextPackBuilder.js';
 
-const DEFAULT_MODEL_ID = 'deepseek-v4-flash';
+const DEFAULT_MODEL_ID = 'deepseek-v4-pro';
 
 export interface DailyStoryHandlerResult {
   status: number;
@@ -19,7 +20,10 @@ export interface DailyStoryHandlerResult {
   };
 }
 
-export async function handleDailyStory(pack: DailyCityStoryContextPack): Promise<DailyStoryHandlerResult> {
+export async function handleDailyStory(
+  pack: DailyCityStoryContextPack,
+  playerProfile?: DailyStoryPlayerProfile | null,
+): Promise<DailyStoryHandlerResult> {
   const modelId = DEFAULT_MODEL_ID;
   const model = resolveEnabledModel(modelId);
 
@@ -39,8 +43,11 @@ export async function handleDailyStory(pack: DailyCityStoryContextPack): Promise
   }
 
   try {
-    const prompt = buildStoryPrompt(pack);
-    const llmResponse = await callDeepSeekChat([{ role: 'user', content: prompt }], model);
+    const messages = buildStoryMessages(pack, playerProfile);
+    const llmResponse = await callDeepSeekChat(messages, model, {
+      responseFormat: 'json_object',
+      temperature: 0.35,
+    });
     const rawOutput = parseLlmResponse(typeof llmResponse === 'string' ? llmResponse : JSON.stringify(llmResponse));
 
     const normalized = normalizeDailyCityStory(rawOutput, pack);
@@ -76,10 +83,31 @@ export async function handleDailyStory(pack: DailyCityStoryContextPack): Promise
   }
 }
 
-function buildStoryPrompt(pack: DailyCityStoryContextPack): string {
+function buildStoryMessages(
+  pack: DailyCityStoryContextPack,
+  playerProfile?: DailyStoryPlayerProfile | null,
+) {
+  const systemMessage = buildSystemMessage(playerProfile);
+  const userMessage = buildUserMessage(pack);
+
+  return [
+    { role: 'system' as const, content: systemMessage },
+    { role: 'user' as const, content: userMessage },
+  ];
+}
+
+function buildSystemMessage(playerProfile?: DailyStoryPlayerProfile | null): string {
+  const roleInstruction = playerProfile
+    ? getPlayerRoleInstruction(playerProfile)
+    : '读者是一个第二天早上要继续处理业主、客户、房源和商圈压力的经纪人。';
+
+  const styleInstruction = playerProfile
+    ? getPlayerStyleInstruction(playerProfile)
+    : '像资深门店店长的夜间经营手记，不像小说，不像教学，不像 SaaS 报表，不像 AI 总结。';
+
   return `你是"我是王牌资产顾问"卖房经营游戏里的日结城市故事代理。
 
-你的任务不是写报表，而是把昨天一天的经营事实写成一段真实、可信、可追溯的城市经营夜报。读者是一个第二天早上要继续处理业主、客户、房源和商圈压力的经纪人/资产顾问。
+你的任务不是写报表，而是把昨天一天的经营事实写成一段真实、可信、可追溯的城市经营夜报。${roleInstruction}
 
 你只能使用输入 JSON 里的可见事实。你不能发明不存在的成交、降价、客户、业主情绪、商圈新闻、天气或外部事件。你不能偷看 hidden truth。你不能修改游戏状态。你不能声称已经安排成功。你不能输出思维链。
 
@@ -87,7 +115,7 @@ function buildStoryPrompt(pack: DailyCityStoryContextPack): string {
 - 中文。
 - 500-900 字。
 - 4-6 段，每段 70-180 字。
-- 像资深门店店长的夜间经营手记，不像小说，不像教学，不像 SaaS 报表，不像 AI 总结。
+- ${styleInstruction}
 - 必须有城市感：商圈、街区、时间、门店节奏、客户/业主微信、竞品压力、天气或市场氛围。
 - 必须有人：至少提到 1 个业主或客户。
 - 必须有房子：至少提到 1 套房源或房源线索。
@@ -96,9 +124,40 @@ function buildStoryPrompt(pack: DailyCityStoryContextPack): string {
 
 禁止词：LLM、fallback、规则置信度、模型、算法、系统判断、训练、教学、任务、打卡、主矛盾、画像、锚点、盘面、闭环、抓手。
 
-输出必须是 JSON。不要 markdown。不要额外解释。
+输出必须是 JSON，格式如下：
+{
+  "headline": "标题（最多24字）",
+  "deck": "副标题（最多70字）",
+  "cityStory": { "paragraphs": ["段落1", "段落2", ...] },
+  "todayBridge": { "label": "标签", "value": "数值", "actionCue": "行动提示（最多60字）" },
+  "evidenceLabels": ["标签1", "标签2", ...]
+}`;
+}
 
-DailyCityStoryContextPack:
+function getPlayerRoleInstruction(profile: DailyStoryPlayerProfile): string {
+  switch (profile.role) {
+    case 'manager':
+      return '读者是一个需要管理团队、协调资源的门店经理。他需要知道团队整体表现、关键风险、资源分配建议。';
+    case 'owner':
+      return '读者是一个业主，需要了解自己房源的经营状况、市场变化、经纪人动作。';
+    default:
+      return '读者是一个第二天早上要继续处理业主、客户、房源和商圈压力的经纪人。';
+  }
+}
+
+function getPlayerStyleInstruction(profile: DailyStoryPlayerProfile): string {
+  switch (profile.preferredStyle) {
+    case 'concise':
+      return '简洁有力，每段不超过100字，直击要点，不废话。';
+    case 'storytelling':
+      return '像讲故事一样，有起伏有节奏，有悬念有转折，让人想读下去。';
+    default:
+      return '像资深门店店长的夜间经营手记，不像小说，不像教学，不像 SaaS 报表，不像 AI 总结。';
+  }
+}
+
+function buildUserMessage(pack: DailyCityStoryContextPack): string {
+  return `DailyCityStoryContextPack:
 ${JSON.stringify(pack, null, 2)}`;
 }
 

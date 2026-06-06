@@ -1,5 +1,6 @@
 import type { DailyCityStoryResult } from '../../application/dailyStory/storyContract.js';
 import type { DailyCityStoryContextPack } from '../../application/dailyStory/contextPack.js';
+import type { DailyStoryPlayerProfile } from '../../application/dailyStory/contextPackBuilder.js';
 
 export interface DailyStoryClientResult {
   story: DailyCityStoryResult;
@@ -7,12 +8,15 @@ export interface DailyStoryClientResult {
   error?: string;
 }
 
-export async function fetchDailyStory(pack: DailyCityStoryContextPack): Promise<DailyStoryClientResult> {
+export async function fetchDailyStory(
+  pack: DailyCityStoryContextPack,
+  playerProfile?: DailyStoryPlayerProfile | null,
+): Promise<DailyStoryClientResult> {
   try {
     const response = await fetch('/api/daily-story', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(pack),
+      body: JSON.stringify({ pack, playerProfile }),
     });
 
     if (!response.ok) {
