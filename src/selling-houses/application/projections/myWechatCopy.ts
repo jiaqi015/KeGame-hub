@@ -1,5 +1,6 @@
 import type { GameState } from '../../domain/models.js';
 import { getActionAvailability } from '../../domain/engine.js';
+import { generateInitialMessage } from '../intelligentMessageGenerator.js';
 import type {
   OfficialAccountArticle,
   WechatFact,
@@ -201,7 +202,7 @@ const OFFICIAL_ACCOUNT_TEMPLATES = {
 
 export function renderWechatMessage(fact: WechatFact, context: WechatCopyContext): WechatMessage {
   const senderRole = resolveSenderRole(fact);
-  const content = sanitizeMessageContent(normalizeSenderVoice(fillTemplate(selectMessageTemplate(fact, context), fact), senderRole));
+  const content = sanitizeMessageContent(generateInitialMessage(fact, context.state));
   const senderName = resolveSenderName(fact, senderRole, content);
 
   return {
