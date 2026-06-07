@@ -78,36 +78,48 @@ const CHIP_TONES: Record<DifficultyPresentationTone, string> = {
 };
 
 const SCORE_STANDARD_LABEL = '60 及格 · 80 优秀 · 90 极致';
-const WORLD_BUILDER_NAME = '盘面构建官';
+const WORLD_BUILDER_NAME = 'AI 开局参谋';
 const WORLD_BUILD_MINIMUM_MS = 5000;
 const WORLD_BUILD_STORY_TIMEOUT_MS = 5200;
 
 const WORLD_BUILD_STEPS = [
   {
     icon: Database,
-    label: '落种子',
-    detail: '先固定难度、seed 和剧本蓝图，保证这一局能回放、能复盘。',
+    label: '准备市场',
+    detail: '先把今天会影响你的板块、同价位竞品和成交机会排出来。',
   },
   {
     icon: Network,
-    label: '织关系',
-    detail: '把业主、客户、同类竞品、门店和商圈成交装进同一个关系网。',
+    label: '整理房源',
+    detail: '看看你手里的房：谁急、谁等得起、哪套容易被别人抢走客户。',
   },
   {
     icon: Brain,
     label: WORLD_BUILDER_NAME,
-    detail: '调用大模型读盘：写开局故事、解释风险、给出今天的经营顺序。',
+    detail: '把复杂信息写成开局简报，告诉你今天先看哪几套、先找谁聊。',
   },
   {
     icon: Clock3,
-    label: '开局校准',
-    detail: '把 AI 文案压回可见事实范围，不改写核心数值和隐藏随机性。',
+    label: '进入今天',
+    detail: '准备好后进入第一天，你会看到房源、客户、微信消息和待办安排。',
   },
 ] as const;
 
 function wait(ms: number) {
   return new Promise<void>((resolve) => {
     globalThis.setTimeout(resolve, ms);
+  });
+}
+
+function waitForNextPaint() {
+  return new Promise<void>((resolve) => {
+    if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') {
+      globalThis.setTimeout(resolve, 0);
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => resolve());
+    });
   });
 }
 
@@ -203,16 +215,25 @@ export function ScenarioSetup({
     const seed = createGeneratedScenarioSeed(Date.now());
     const token = buildTokenRef.current + 1;
     buildTokenRef.current = token;
-    const preview = buildGeneratedScenarioOpeningPreview(selectedOption.id, seed, 'random');
+    const startedAt = Date.now();
     setWorldBuildState({
       difficultyLabel: selectedPresentation.label,
       seed,
-      worldScaleLabel: preview.briefing.worldScaleLabel,
+      worldScaleLabel: selectedOpeningPreview?.briefing.worldScaleLabel ?? '正在扩展市场、客户、业主与竞品体量',
     });
+    await waitForNextPaint();
+    if (buildTokenRef.current !== token) return;
+    const preview = buildGeneratedScenarioOpeningPreview(selectedOption.id, seed, 'random');
+    setWorldBuildState((current) => (
+      current && current.seed === seed
+        ? { ...current, worldScaleLabel: preview.briefing.worldScaleLabel }
+        : current
+    ));
     try {
+      const remainingBuildMs = Math.max(0, WORLD_BUILD_MINIMUM_MS - (Date.now() - startedAt));
       const [storyResult] = await Promise.all([
         fetchWorldBuilderStory(preview.briefing),
-        wait(WORLD_BUILD_MINIMUM_MS),
+        wait(remainingBuildMs),
       ]);
       if (buildTokenRef.current !== token) return;
       setPendingOpening({
@@ -389,7 +410,6 @@ export function ScenarioSetup({
       {worldBuildState && (
         <WorldBuildLoadingPage
           difficultyLabel={worldBuildState.difficultyLabel}
-          seed={worldBuildState.seed}
           worldScaleLabel={worldBuildState.worldScaleLabel}
         />
       )}
@@ -558,39 +578,27 @@ function WorldGenerationStatus({
   const statusRows = [
     {
       icon: Database,
-      label: '当前现状',
-      title: '确定性种子生成已经接上',
-      detail: `随机局会先按「${difficultyLabel} + seed」生成开局快照；同一个 seed 能复盘，不会变成不可解释的黑盒世界。`,
+      label: '你会得到什么',
+      title: '一局新的卖房现场',
+      detail: `系统会按「${difficultyLabel}」准备本周的房源、业主、客户和竞品，每次随机开局都会有新的组合。`,
     },
     {
       icon: Network,
-      label: '世界范围',
+      label: '开局规模',
       title: worldScaleLabel,
-      detail: '开局不只生成玩家手里几套房，还会铺出同价位供给、潜在客户、竞品经纪人、商圈成交和压力来源。',
+      detail: '不是只换几套房。客户线索、同类房竞争、商圈变化也会一起准备好，让开局更像真实门店。',
     },
     {
       icon: Brain,
-      label: 'AI 能力',
-      title: `${WORLD_BUILDER_NAME} 可参与生产`,
-      detail: '大模型负责读盘、讲开局故事、解释今天先后顺序；核心价格、客户、竞品和业主状态仍由世界引擎落数。',
+      label: 'AI 帮什么',
+      title: `${WORLD_BUILDER_NAME}会先帮你读一遍`,
+      detail: '它会写出开局简报：哪些业主急、哪些客户有机会、今天先推进哪几套。',
     },
   ];
 
   return (
     <section className="rounded-[20px] border border-cyan-400/12 bg-cyan-500/[0.055] p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="seller-label text-cyan-100/58">初始化世界</div>
-          <h3 className="mt-2 text-[18px] font-semibold text-white">生产一个全新世界时，现在会发生什么</h3>
-          <p className="mt-2 max-w-[44rem] text-[12px] font-semibold leading-6 text-white/62">
-            当前方案是“可复盘世界引擎 + {WORLD_BUILDER_NAME} 推理层”：先把市场事实落稳，再让 AI 把事实翻成经纪人能读懂的开局判断。
-          </p>
-        </div>
-        <div className="rounded-full border border-cyan-400/18 bg-cyan-500/12 px-3 py-1 text-[11px] font-semibold text-cyan-100">
-          {WORLD_BUILDER_NAME}
-        </div>
-      </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-3">
         {statusRows.map((row) => (
           <div key={row.label} className="rounded-[16px] border border-white/8 bg-[#0d141e]/78 p-3">
             <div className="flex items-center gap-2 text-[10px] font-semibold text-white/38">
@@ -602,20 +610,15 @@ function WorldGenerationStatus({
           </div>
         ))}
       </div>
-      <div className="mt-3 rounded-[14px] border border-white/8 bg-white/[0.03] px-3 py-2 text-[11px] font-semibold leading-5 text-white/56">
-        提示词边界：基于已生成的世界摘要，输出开局故事、风险主线、证据标签、首日建议；不得发明不可见事实，不得改写数值。
-      </div>
     </section>
   );
 }
 
 function WorldBuildLoadingPage({
   difficultyLabel,
-  seed,
   worldScaleLabel,
 }: {
   difficultyLabel: string;
-  seed: number;
   worldScaleLabel: string;
 }) {
   return (
@@ -632,17 +635,17 @@ function WorldBuildLoadingPage({
               <Brain size={13} />
               {WORLD_BUILDER_NAME}
             </div>
-            <div className="font-mono text-[10px] font-semibold text-white/36">seed {seed}</div>
+            <div className="text-[10px] font-semibold text-white/36">随机局</div>
           </div>
-          <h2 className="mt-5 text-[28px] font-semibold tracking-[-0.04em] text-white">正在构建一个全新的初始化世界</h2>
+          <h2 className="mt-5 text-[28px] font-semibold tracking-[-0.04em] text-white">正在为你准备今天的卖房现场</h2>
           <p className="mt-3 max-w-[45rem] text-[13px] font-semibold leading-7 text-white/64">
-            {difficultyLabel} 正在落盘：世界引擎先生成可复盘的市场事实，再让 {WORLD_BUILDER_NAME} 读一遍客户、业主、竞品和今天的经营先后顺序。
+            {`正在生成${difficultyLabel}：先准备房源、业主、客户和竞品，再由 ${WORLD_BUILDER_NAME}写出开局简报。`}
           </p>
         </div>
 
         <div className="px-6 py-5">
           <div className="rounded-[18px] border border-white/8 bg-white/[0.03] px-4 py-3">
-            <div className="seller-label text-white/38">世界体量</div>
+            <div className="seller-label text-white/38">本局规模</div>
             <div className="mt-2 text-[15px] font-semibold leading-6 text-white/86">{worldScaleLabel}</div>
           </div>
 
@@ -660,8 +663,8 @@ function WorldBuildLoadingPage({
 
           <div className="mt-5">
             <div className="mb-2 flex items-center justify-between text-[11px] font-semibold text-white/44">
-              <span>构建进度</span>
-              <span>至少 5 秒</span>
+              <span>准备中</span>
+              <span>约 5 秒</span>
             </div>
             <div className="h-2 overflow-hidden rounded-full border border-white/8 bg-white/[0.05]">
               <div className="seller-world-build-progress h-full rounded-full bg-[#49dd85]" />

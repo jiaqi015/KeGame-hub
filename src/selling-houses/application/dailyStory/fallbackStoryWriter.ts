@@ -75,9 +75,13 @@ function buildCityFrameParagraph(pack: DailyCityStoryContextPack): string {
   const hash = stableHash(`${pack.packId}:${pack.day}`);
   const openers = [
     `${cityFrame.dayLabel}，${districts}商圈${mood}。`,
-    `回顾${cityFrame.dayLabel}，${districts}商圈整体${mood}。`,
+    `回顾${cityFrame.dayLabel}，${districts}商圈${mood}。`,
     `${districts}商圈${cityFrame.dayLabel}收市，${mood}。`,
     `${periodLabel}看${districts}，${mood}。`,
+    `从${districts}商圈来看，${cityFrame.dayLabel}${mood}。`,
+    `${cityFrame.dayLabel}${periodLabel}，${districts}商圈${mood}。`,
+    `走到${districts}商圈，${cityFrame.dayLabel}整体${mood}。`,
+    `${districts}的${cityFrame.dayLabel}，${mood}收市。`,
   ];
   let para = openers[hash % openers.length];
   para += `${periodLabel}的门店节奏${todayPlan.theme}，今日精力${todayPlan.energy}小时。`;
@@ -110,7 +114,14 @@ function buildDeltaParagraph(pack: DailyCityStoryContextPack, deltas: DailyCityS
 
   const delta = deltas[0];
   const direction = delta.direction === 'up' ? '上升' : delta.direction === 'down' ? '下降' : '持平';
-  let para = `昨夜最明显的变化是${delta.label}${direction}${Math.abs(delta.value)}${delta.unit}。`;
+  const hash = stableHash(`${pack.packId}:delta:${delta.label}`);
+  const deltaOpeners = [
+    `昨夜最明显的变化是${delta.label}${direction}${Math.abs(delta.value)}${delta.unit}。`,
+    `昨夜有一条关键指标变了——${delta.label}${direction}${Math.abs(delta.value)}${delta.unit}。`,
+    `昨夜的经营数据里，${delta.label}${direction}${Math.abs(delta.value)}${delta.unit}，这个变化得留意。`,
+    `从数据来看，${delta.label}${direction}${Math.abs(delta.value)}${delta.unit}，得分析背后的原因。`,
+  ];
+  let para = deltaOpeners[hash % deltaOpeners.length];
 
   if (delta.label.includes('信任') && delta.direction === 'down') {
     para += `因为之前的沟通没有兑现承诺，所以业主配合度在降低。信任下降意味着后续沟通成本会增加，得赶紧用具体动作修复关系，不能只靠口头安抚。今天得下午去面访，带竞品数据和客户反馈。`;
@@ -140,11 +151,23 @@ function buildDeltaParagraph(pack: DailyCityStoryContextPack, deltas: DailyCityS
 
 function buildEventParagraph(pack: DailyCityStoryContextPack, events: DailyCityStoryContextPack['visibleEvents']): string {
   if (events.length === 0) {
-    return '昨夜没有特别关键的经营事件，各条线按常规节奏推进。说实话，昨夜的经营节奏平稳，但得盯紧几个关键变化。今天得盯紧市场变化和客户需求。同时得盯紧竞品动态和市场趋势。';
+    const hash = stableHash(`${pack.packId}:no-events`);
+    const empties = [
+      '昨夜没有特别关键的经营事件，各条线按常规节奏推进。说实话，昨夜的经营节奏平稳，但得盯紧几个关键变化。',
+      '昨夜经营节奏平稳，没有大的突发事件。各条线按计划推进，但得留意几个潜在风险。',
+      '昨夜整体平稳，没有特别需要紧急处理的事项。各区域门店按计划推进，但得盯紧市场变化。',
+    ];
+    return empties[hash % empties.length] + '今天得盯紧市场变化和客户需求。同时得盯紧竞品动态和市场趋势。';
   }
 
   const evt = events[0];
-  let para = `昨夜最关键的变化是${evt.title}。${evt.detail}`;
+  const hash = stableHash(`${pack.packId}:event:${evt.eventId}`);
+  const openers = [
+    `昨夜最关键的变化是${evt.title}。`,
+    `昨夜的重点事件：${evt.title}。`,
+    `昨夜有一条关键变化——${evt.title}。`,
+  ];
+  let para = openers[hash % openers.length] + evt.detail;
 
   if (evt.relatedOwnerName) {
     para += `涉及业主${evt.relatedOwnerName}`;
@@ -163,14 +186,14 @@ function buildEventParagraph(pack: DailyCityStoryContextPack, events: DailyCityS
   }
 
   if (evt.tone === 'danger') {
-    para += '这个变化得赶紧处理，不能拖。今天得优先处理这个事项，带竞品数据和客户反馈去面访。';
+    para += '这个变化得赶紧处理，不能拖。今天得优先处理这个事项，带竞品数据和客户反馈去面访。如果处理不及时，可能会影响后续经营节奏。';
   } else if (evt.tone === 'success') {
-    para += '这是个好消息，可以趁热打铁推进。今天得安排关键沟通，把这个进展转化为实际成果。';
+    para += '这是个好消息，可以趁热打铁推进。今天得安排关键沟通，把这个进展转化为实际成果。如果能抓住这个窗口，后续经营会更顺。';
   }
 
   if (events.length > 1) {
     const otherEvents = events.slice(1, 3).map(e => e.title).join('、');
-    para += `此外还有${events.length - 1}个经营事件：${otherEvents}。`;
+    para += `此外还有${events.length - 1}个经营事件：${otherEvents}。这些事件也得盯紧，不能只关注主线。`;
   }
 
   return para;
@@ -178,10 +201,16 @@ function buildEventParagraph(pack: DailyCityStoryContextPack, events: DailyCityS
 
 function buildRelationshipParagraph(pack: DailyCityStoryContextPack, owners: DailyCityStoryContextPack['visibleOwners'], customers: DailyCityStoryContextPack['visibleCustomers']): string {
   const parts: string[] = [];
+  const hash = stableHash(`${pack.packId}:rel`);
 
   if (owners.length > 0) {
     const owner = owners[0];
-    let ownerText = `业主${owner.displayName}`;
+    const ownerOpeners = [
+      `业主${owner.displayName}`,
+      `跟业主${owner.displayName}这边`,
+      `再看业主${owner.displayName}`,
+    ];
+    let ownerText = ownerOpeners[hash % ownerOpeners.length];
     if (owner.relatedCaseTitle) {
       ownerText += `（${owner.relatedCaseTitle}）`;
     }
@@ -235,11 +264,23 @@ function buildRelationshipParagraph(pack: DailyCityStoryContextPack, owners: Dai
 
 function buildCaseParagraph(pack: DailyCityStoryContextPack, cases: DailyCityStoryContextPack['visibleCases']): string {
   if (cases.length === 0) {
-    return '当前没有特别得盯紧的房源。今天得盯紧市场变化和客户需求，同时关注竞品动态。说实话，各条线按计划推进，没有突发风险。';
+    const hash = stableHash(`${pack.packId}:no-cases`);
+    const empties = [
+      '当前没有特别得盯紧的房源。今天得盯紧市场变化和客户需求，同时关注竞品动态。',
+      '当前没有特别需要紧急处理的房源。各房源按计划推进，但得留意市场变化。',
+      '当前房源经营节奏平稳，没有特别需要紧急处理的。得盯紧市场变化和客户需求。',
+    ];
+    return empties[hash % empties.length];
   }
 
   const caseItem = cases[0];
-  let para = `房源${caseItem.title}`;
+  const hash = stableHash(`${pack.packId}:case:${caseItem.caseId}`);
+  const caseOpeners = [
+    `房源${caseItem.title}`,
+    `再看${caseItem.title}这套房`,
+    `${caseItem.title}`,
+  ];
+  let para = caseOpeners[hash % caseOpeners.length];
   if (caseItem.district) {
     para += `位于${caseItem.district}`;
   }
@@ -260,14 +301,20 @@ function buildCaseParagraph(pack: DailyCityStoryContextPack, cases: DailyCitySto
     para += `其他房源：${otherCases}。`;
   }
 
-  para += `今天得盯紧这个房源的状态变化，同时关注竞品动态和市场趋势。`;
+  para += `今天得盯紧这个房源的状态变化，同时关注竞品动态和市场趋势。如果市场有新动向，得第一时间调整策略。`;
 
   return para;
 }
 
 function buildTodayBridgeParagraph(pack: DailyCityStoryContextPack): string {
   const { todayPlan, constraints } = pack;
-  let para = '今天第一手应该接：';
+  const hash = stableHash(`${pack.packId}:bridge`);
+  const bridgeOpeners = [
+    '今天第一手应该接：',
+    '今天先接这条线：',
+    '今天的重点：',
+  ];
+  let para = bridgeOpeners[hash % bridgeOpeners.length];
 
   if (todayPlan.priorities.length > 0) {
     para += todayPlan.priorities[0] + '。';

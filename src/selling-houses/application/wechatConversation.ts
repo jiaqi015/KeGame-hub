@@ -429,6 +429,42 @@ export function buildFallbackConversationEffectProposal(scene: ConversationScene
   };
 }
 
+export function buildLlmFirstConversationEffectProposal(scene: ConversationSceneInputPack): ConversationEffectProposal {
+  // Use LLM-first agent for reply generation
+  const { buildLlmFirstProposal } = require('./llmFirstConversationAgent.js');
+  const llmProposal = buildLlmFirstProposal(scene);
+
+  // Keep same intent/risk analysis as fallback
+  const intents = new Set<ConversationIntentKind>();
+  const risks = new Set<ConversationRiskKind>();
+
+  if (/面访|见面|当面/.test(scene.playerText)) intents.add('propose_face_visit');
+  if (/价格|调价|降价/.test(scene.playerText)) intents.add('discuss_price');
+  if (/竞品|市场|数据/.test(scene.playerText)) intents.add('present_market_evidence');
+  if (/保证|肯定|一定/.test(scene.playerText)) { intents.add('overpromise'); risks.add('overpromise'); }
+  if (intents.size === 0) intents.add('reassure');
+
+  const nextStep = resolveNextStep([...intents], scene);
+  const ctx = buildConversationContext(scene);
+  const recipientReply = applyHumanization(llmProposal.reply, ctx);
+
+  return {
+    summary: llmProposal.reasoning,
+    recipientReply,
+    intentKinds: [...intents],
+    riskKinds: risks.size > 0 ? [...risks] : ['none'],
+    evidenceUse: 'mentioned',
+    trustDelta: llmProposal.strategy.goal === 'build_trust' ? 3 : 1,
+    patienceDelta: llmProposal.strategy.goal === 'de_escalate' ? 2 : 0,
+    urgencyDelta: llmProposal.strategy.goal === 'push_price' ? -2 : 0,
+    priceFlexibilityDelta: 0,
+    customerIntentDelta: 0,
+    customerConfidenceDelta: 0,
+    nextStep,
+    confidence: llmProposal.confidence,
+  };
+}
+
 export function normalizeConversationEffectProposalDetailed(
   proposal: ConversationEffectProposal | null | undefined,
   scene: ConversationSceneInputPack,

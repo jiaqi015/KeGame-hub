@@ -49,12 +49,13 @@ export interface LlmConversationProposal {
 
 export function buildLlmFirstProposal(
   scene: ConversationSceneInputPack,
-  state: GameState,
+  state?: GameState,
   memory?: ConversationMemory,
 ): LlmConversationProposal {
   const personality = resolvePersonality(scene);
-  const strategy = reasonStrategy(scene, personality, memory);
-  const reply = generateReply(scene, personality, strategy, memory);
+  const resolvedMemory = memory || (state ? buildConversationMemory(scene.conversationKey || '', state) : undefined);
+  const strategy = reasonStrategy(scene, personality, resolvedMemory);
+  const reply = generateReply(scene, personality, strategy, resolvedMemory);
 
   return {
     reply,
