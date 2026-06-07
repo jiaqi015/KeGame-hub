@@ -243,18 +243,22 @@ function generateDefault(ctx: MessageContext, seed: string): string {
     '{name}：{caseTitle}最近怎么样？有什么新情况吗？',
     '{name}：你帮我看看{community}这边的市场变化，我需要一个判断。',
   ];
-  return fillSmart(pick(templates, seed), { ...ctx, ownerName: name });
+  return fillSmart(pick(templates, seed), { ...ctx, ownerName: name, customerName: name });
 }
 
 // === Smart fill ===
 
 function fillSmart(template: string, ctx: MessageContext): string {
+  const displayName = ctx.customerName !== '客户' ? ctx.customerName : ctx.ownerName;
+
   return template
+    .replaceAll('{name}', displayName)
     .replaceAll('{ownerName}', ctx.ownerName)
     .replaceAll('{customerName}', ctx.customerName)
     .replaceAll('{caseTitle}', ctx.caseTitle)
     .replaceAll('{community}', ctx.community)
     .replaceAll('{district}', ctx.district)
+    .replace(/\{[A-Za-z][A-Za-z0-9_]*\}/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }

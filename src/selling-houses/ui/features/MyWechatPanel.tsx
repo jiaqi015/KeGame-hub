@@ -119,6 +119,11 @@ const WECHAT_MESSAGE_META_ACTION_STYLE: React.CSSProperties = {
   fontWeight: 600,
   lineHeight: 1,
 };
+const WECHAT_INLINE_ACTION_CHIP_STYLE: React.CSSProperties = {
+  fontSize: '10px',
+  fontWeight: 600,
+  lineHeight: '18px',
+};
 
 export function MyWechatPanel({
   state,
@@ -1290,7 +1295,8 @@ function renderMessageActionSlot(
     <button
       type="button"
       onClick={() => onOpenMessageAction(message)}
-      className="mt-2 rounded-full border border-[color:var(--seller-accent)]/18 bg-[color:var(--seller-accent)]/6 px-[5px] py-0 text-[7px] font-medium leading-[12px] text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/10"
+      className="mt-1.5 inline-flex h-[18px] items-center rounded-full border border-[color:var(--seller-accent)]/16 bg-[color:var(--seller-accent)]/6 px-2 py-0 text-[10px] font-semibold leading-none text-[var(--seller-accent)]/90 transition hover:bg-[color:var(--seller-accent)]/10"
+      style={WECHAT_INLINE_ACTION_CHIP_STYLE}
     >
       {message.primaryCtaLabel}
     </button>

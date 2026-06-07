@@ -107,6 +107,25 @@ describe('generateInitialMessage', () => {
     expect(msg).toContain('李先生');
   });
 
+  it('fills generic name placeholders in default market messages', () => {
+    const fact = makeFact({
+      type: 'community_supply_change',
+      source: 'market_intel',
+      senderRole: 'customer',
+      senderName: '张经理',
+      customerName: '张经理',
+      ownerName: undefined,
+      caseTitle: '江悦府 128㎡ 三房',
+      community: '江悦府',
+    });
+    const state = makeState();
+
+    const msg = generateInitialMessage(fact, state, 'seed-0');
+
+    expect(msg).toBe('张经理：你帮我看看江悦府这边的市场变化，我需要一个判断。');
+    expect(msg).not.toMatch(/\{[A-Za-z][A-Za-z0-9_]*\}/);
+  });
+
   it('generates unique messages across calls with different seeds', () => {
     const fact = makeFact();
     const state = makeState();

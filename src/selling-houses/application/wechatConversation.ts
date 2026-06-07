@@ -431,8 +431,13 @@ export function buildFallbackConversationEffectProposal(scene: ConversationScene
 
 export function buildLlmFirstConversationEffectProposal(scene: ConversationSceneInputPack): ConversationEffectProposal {
   // Use LLM-first agent for reply generation
-  const llmFirstAgent = require('./llmFirstConversationAgent.js');
-  const llmProposal = llmFirstAgent.buildLlmFirstProposal(scene);
+  let llmProposal: any = null;
+  try {
+    const llmFirstAgent = require('./llmFirstConversationAgent');
+    llmProposal = llmFirstAgent.buildLlmFirstProposal(scene);
+  } catch {
+    // Fallback: use rule-based reply if LLM-first agent not available
+  }
 
   // Keep same intent/risk analysis as fallback
   const intents = new Set<ConversationIntentKind>();
@@ -442,26 +447,37 @@ export function buildLlmFirstConversationEffectProposal(scene: ConversationScene
   if (/价格|调价|降价/.test(scene.playerText)) intents.add('discuss_price');
   if (/竞品|市场|数据/.test(scene.playerText)) intents.add('present_market_evidence');
   if (/保证|肯定|一定/.test(scene.playerText)) { intents.add('overpromise'); risks.add('overpromise'); }
+  if (isEmptyComfortText(scene.playerText)) { intents.add('reassure'); risks.add('empty_comfort'); }
+  if (isIgnoringSourceQuestion(scene)) { risks.add('ignores_customer'); }
   if (intents.size === 0) intents.add('reassure');
 
   const nextStep = resolveNextStep([...intents], scene);
   const ctx = buildConversationContext(scene);
-  const recipientReply = applyHumanization(llmProposal.reply, ctx);
+
+  // Use LLM-first reply if available, otherwise use rule-based
+  const fallbackReply = buildFallbackRecipientReply([...intents], [...risks], scene);
+  const reply = llmProposal?.reply || fallbackReply;
+  const recipientReply = applyHumanization(reply, ctx);
+
+  const hasRisk = risks.size > 0 && !risks.has('none');
+  const trustDelta = hasRisk ? -1 : 3;
+  const patienceDelta = hasRisk ? -1 : 2;
+  const urgencyDelta = hasRisk ? 1 : -2;
 
   return {
-    summary: llmProposal.reasoning,
+    summary: llmProposal?.reasoning || buildFallbackSummary([...intents], scene),
     recipientReply,
     intentKinds: [...intents],
     riskKinds: risks.size > 0 ? [...risks] : ['none'],
     evidenceUse: 'mentioned',
-    trustDelta: llmProposal.strategy.goal === 'build_trust' ? 3 : 1,
-    patienceDelta: llmProposal.strategy.goal === 'de_escalate' ? 2 : 0,
-    urgencyDelta: llmProposal.strategy.goal === 'push_price' ? -2 : 0,
+    trustDelta,
+    patienceDelta,
+    urgencyDelta,
     priceFlexibilityDelta: 0,
-    customerIntentDelta: 0,
-    customerConfidenceDelta: 0,
+    customerIntentDelta: hasRisk ? -4 : 4,
+    customerConfidenceDelta: hasRisk ? -4 : 4,
     nextStep,
-    confidence: llmProposal.confidence,
+    confidence: llmProposal?.confidence || 0.72,
   };
 }
 
