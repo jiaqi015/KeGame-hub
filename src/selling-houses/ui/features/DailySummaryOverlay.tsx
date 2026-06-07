@@ -1,5 +1,8 @@
 import React from 'react';
-import type { DailyReport, DailyTickResult, TickInvariantAlert } from '../../domain/models';
+import type { DailyReport, DailyTickResult, GameState, TickInvariantAlert } from '../../domain/models';
+import type { DailyCityStoryResult } from '../../application/dailyStory/storyContract';
+import { buildDailyStoryContextPack } from '../../application/dailyStory/contextPackBuilder';
+import { fetchDailyStory } from './dailyStoryClient';
 import {
   Activity,
   AlertCircle,
@@ -19,6 +22,7 @@ import {
 interface DailySummaryOverlayProps {
   report: DailyReport;
   tickResult?: DailyTickResult | null;
+  state?: GameState | null;
   onContinue: () => void;
 }
 
@@ -55,7 +59,7 @@ type OvernightStory = {
   evidenceLabels: string[];
 };
 
-export function DailySummaryOverlay({ report, tickResult, onContinue }: DailySummaryOverlayProps) {
+export function DailySummaryOverlay({ report, tickResult, state, onContinue }: DailySummaryOverlayProps) {
   const overnightEvents = [
     ...report.majorEvents.map((entry) => ({ ...entry, kind: 'major' as const })),
     ...report.randomEvents.map((entry) => ({ ...entry, kind: 'random' as const })),
@@ -63,7 +67,19 @@ export function DailySummaryOverlay({ report, tickResult, onContinue }: DailySum
   const invariantAlerts = tickResult?.invariantAlerts || [];
   const impactRows = buildImpactRows(tickResult);
   const riskRows = buildRiskRows(report, invariantAlerts);
-  const story = buildOvernightStory(report, tickResult, impactRows, riskRows);
+  const localStory = React.useMemo(
+    () => buildOvernightStory(report, tickResult, impactRows, riskRows),
+    [report, tickResult, impactRows, riskRows],
+  );
+  const storyContextPack = React.useMemo(
+    () => buildDailyStoryContextPack({ report, tickResult, state }),
+    [report, tickResult, state],
+  );
+  const [remoteStory, setRemoteStory] = React.useState<DailyCityStoryResult | null>(null);
+  const story = React.useMemo(
+    () => (remoteStory ? buildOvernightStoryFromDailyCityStory(remoteStory, localStory) : localStory),
+    [localStory, remoteStory],
+  );
   const keyMetrics = buildKeyMetrics(report.metricsDelta);
   const priorityRows = report.todayPlan.priorities.slice(0, 3);
   const hiddenPriorityCount = Math.max(0, report.todayPlan.priorities.length - priorityRows.length);
@@ -71,6 +87,26 @@ export function DailySummaryOverlay({ report, tickResult, onContinue }: DailySum
   const hiddenFocusCount = Math.max(0, report.todayPlan.focusCases.length - focusCases.length);
   const compactSignalRows = buildCompactTodaySignalRows(impactRows, riskRows);
   const hiddenSignalCount = Math.max(0, impactRows.length + riskRows.length - compactSignalRows.length);
+
+  React.useEffect(() => {
+    let disposed = false;
+    setRemoteStory(null);
+    fetchDailyStory(storyContextPack, {
+      playerId: 'seller-player',
+      displayName: '资产顾问',
+      role: 'broker',
+      experienceLevel: 'expert',
+      preferredStyle: 'storytelling',
+      focusAreas: ['业主沟通', '客户承接', '竞品压力'],
+    }).then((result) => {
+      if (!disposed && result.story) {
+        setRemoteStory(result.story);
+      }
+    });
+    return () => {
+      disposed = true;
+    };
+  }, [storyContextPack]);
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/40 p-3 backdrop-blur-md sm:p-5">
@@ -131,8 +167,8 @@ export function DailySummaryOverlay({ report, tickResult, onContinue }: DailySum
             </div>
           </section>
 
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            <section className="seller-panel-muted self-start">
+          <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-2">
+            <section className="seller-panel-muted h-full">
               <div className="p-4">
                 <div className="flex items-start justify-between gap-3">
                   <h4 className="seller-label flex items-center gap-2 text-xs">
@@ -184,7 +220,7 @@ export function DailySummaryOverlay({ report, tickResult, onContinue }: DailySum
               </div>
             </section>
 
-            <aside className="seller-panel-muted self-start">
+            <aside className="seller-panel-muted h-full">
               <div className="p-4">
                 <div className="flex items-start justify-between gap-3">
                   <h4 className="seller-label flex items-center gap-2 text-xs">
@@ -384,6 +420,28 @@ function buildOvernightStory(
     pulseValue,
     todayHandle,
     evidenceLabels: Array.from(new Set(evidenceLabels)).slice(0, 4),
+  };
+}
+
+function buildOvernightStoryFromDailyCityStory(
+  dailyStory: DailyCityStoryResult,
+  fallbackStory: OvernightStory,
+): OvernightStory {
+  const paragraphs = dailyStory.cityStory.paragraphs
+    .map((paragraph) => normalizeNarrativeText(paragraph))
+    .filter(Boolean)
+    .slice(0, 6);
+
+  return {
+    headline: dailyStory.headline || fallbackStory.headline,
+    kicker: dailyStory.deck || fallbackStory.kicker,
+    paragraphs: paragraphs.length > 0 ? paragraphs : fallbackStory.paragraphs,
+    pulseLabel: dailyStory.todayBridge.label || fallbackStory.pulseLabel,
+    pulseValue: dailyStory.todayBridge.value || fallbackStory.pulseValue,
+    todayHandle: dailyStory.todayBridge.actionCue || fallbackStory.todayHandle,
+    evidenceLabels: dailyStory.evidenceLabels.length > 0
+      ? dailyStory.evidenceLabels.slice(0, 5)
+      : fallbackStory.evidenceLabels,
   };
 }
 

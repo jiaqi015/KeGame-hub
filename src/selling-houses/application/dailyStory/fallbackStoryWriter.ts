@@ -34,6 +34,8 @@ export function buildFallbackDailyStory(pack: DailyCityStoryContextPack): DailyC
     [cityFrame, event, delta, relationship, casePara, bridge],
     [delta, event, cityFrame, relationship, casePara, bridge],
     [cityFrame, delta, relationship, event, casePara, bridge],
+    [relationship, cityFrame, delta, event, casePara, bridge],
+    [event, delta, cityFrame, relationship, casePara, bridge],
   ];
   const paragraphs = orders[hash % orders.length];
 

@@ -24,6 +24,10 @@ export async function fetchDailyStory(
     }
 
     const data = await response.json();
+    if (!data?.story) {
+      throw new Error(data?.error || 'empty_story');
+    }
+
     return {
       story: data.story,
       source: data.source || 'fallback',

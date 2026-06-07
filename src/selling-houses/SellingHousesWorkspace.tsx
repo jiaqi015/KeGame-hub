@@ -1080,6 +1080,7 @@ export function SellingHousesWorkspace({
           <DailySummaryOverlay
             report={state.currentReport}
             tickResult={state.lastDailyTickResult}
+            state={state}
             onContinue={continueAfterDailySummary}
           />
         </Suspense>
