@@ -1554,6 +1554,11 @@ function enrichInference(reply: string, ctx: ReplyContext, scene?: ConversationS
     return hasNameEnd ? `${prefix}${body}，竞品的情况我帮你做个对比。` : `${reply}，竞品的情况我帮你做个对比。`;
   }
 
+  // 客户犹豫 → 跟进 + 时间
+  if (/考虑|犹豫|再想想|再看看/.test(playerText) && !/联系|反馈|客户.*跟进|今天.*跟进/.test(reply)) {
+    return hasNameEnd ? `${prefix}${body}，客户那边我今天跟进，给个明确时间。` : `${reply}，客户那边我今天跟进，给个明确时间。`;
+  }
+
   return reply;
 }
 
