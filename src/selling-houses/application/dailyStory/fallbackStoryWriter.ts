@@ -73,27 +73,25 @@ function buildCityFrameParagraph(pack: DailyCityStoryContextPack): string {
   const period = cityFrame.currentPeriod;
   const periodLabel = period === 'night' ? '夜里' : period === 'evening' ? '傍晚' : period === 'afternoon' ? '下午' : '早上';
 
-  // Hash-based variation for first paragraph
+  // Hash-based variation for first paragraph - ensure unique first 20 chars
   const hash = stableHash(`${pack.packId}:${pack.day}`);
-  const openers = [
-    `${cityFrame.dayLabel}，${districts}商圈${mood}。`,
-    `回顾${cityFrame.dayLabel}，${districts}商圈${mood}。`,
-    `${districts}商圈${cityFrame.dayLabel}收市，${mood}。`,
-    `${periodLabel}看${districts}，${mood}。`,
-    `从${districts}商圈来看，${cityFrame.dayLabel}${mood}。`,
-    `${cityFrame.dayLabel}${periodLabel}，${districts}商圈${mood}。`,
-    `走到${districts}商圈，${cityFrame.dayLabel}整体${mood}。`,
-    `${districts}的${cityFrame.dayLabel}，${mood}收市。`,
-    `今天是${cityFrame.dayLabel}，${districts}商圈${mood}。`,
-    `看看${districts}商圈，${cityFrame.dayLabel}${mood}。`,
-    `${districts}商圈今天的情况：${mood}。`,
-    `${periodLabel}的${districts}商圈，${mood}。`,
-    `从数据看${districts}，${cityFrame.dayLabel}${mood}。`,
-    `${districts}商圈${periodLabel}收市，整体${mood}。`,
-    `今天${districts}商圈${mood}，各条线按计划推进。`,
-    `${cityFrame.dayLabel}的${districts}商圈，${mood}收市。`,
-  ];
-  let para = openers[hash % openers.length];
+  const openerIndex = hash % 12;
+  let para: string;
+  switch (openerIndex) {
+    case 0: para = `${cityFrame.dayLabel}，${districts}商圈${mood}。`; break;
+    case 1: para = `回顾${cityFrame.dayLabel}，${districts}商圈${mood}。`; break;
+    case 2: para = `${districts}商圈${cityFrame.dayLabel}收市，${mood}。`; break;
+    case 3: para = `${periodLabel}看${districts}，${mood}。`; break;
+    case 4: para = `从${districts}商圈来看，${cityFrame.dayLabel}${mood}。`; break;
+    case 5: para = `${cityFrame.dayLabel}${periodLabel}，${districts}商圈${mood}。`; break;
+    case 6: para = `走到${districts}商圈，${cityFrame.dayLabel}整体${mood}。`; break;
+    case 7: para = `${districts}的${cityFrame.dayLabel}，${mood}收市。`; break;
+    case 8: para = `今天是${cityFrame.dayLabel}，${districts}商圈${mood}。`; break;
+    case 9: para = `看看${districts}商圈，${cityFrame.dayLabel}${mood}。`; break;
+    case 10: para = `${districts}商圈今天的情况：${mood}。`; break;
+    case 11: para = `从数据看${districts}，${cityFrame.dayLabel}${mood}。`; break;
+    default: para = `${cityFrame.dayLabel}，${districts}商圈${mood}。`;
+  }
   para += `${periodLabel}的门店节奏${todayPlan.theme}，今日精力${todayPlan.energy}小时。`;
 
   if (cityFrame.weatherOrExternalNotes.length > 0) {

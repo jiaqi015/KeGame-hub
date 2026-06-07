@@ -59,6 +59,8 @@ type OvernightStory = {
   evidenceLabels: string[];
 };
 
+const DAILY_STORY_FETCH_TIMEOUT_MS = 6500;
+
 export function DailySummaryOverlay({ report, tickResult, state, onContinue }: DailySummaryOverlayProps) {
   const overnightEvents = [
     ...report.majorEvents.map((entry) => ({ ...entry, kind: 'major' as const })),
@@ -90,6 +92,10 @@ export function DailySummaryOverlay({ report, tickResult, state, onContinue }: D
 
   React.useEffect(() => {
     let disposed = false;
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => {
+      controller.abort();
+    }, DAILY_STORY_FETCH_TIMEOUT_MS);
     setRemoteStory(null);
     fetchDailyStory(storyContextPack, {
       playerId: 'seller-player',
@@ -98,13 +104,17 @@ export function DailySummaryOverlay({ report, tickResult, state, onContinue }: D
       experienceLevel: 'expert',
       preferredStyle: 'storytelling',
       focusAreas: ['业主沟通', '客户承接', '竞品压力'],
-    }).then((result) => {
+    }, { signal: controller.signal }).then((result) => {
       if (!disposed && result.story) {
         setRemoteStory(result.story);
       }
+    }).finally(() => {
+      window.clearTimeout(timeoutId);
     });
     return () => {
       disposed = true;
+      window.clearTimeout(timeoutId);
+      controller.abort();
     };
   }, [storyContextPack]);
 
