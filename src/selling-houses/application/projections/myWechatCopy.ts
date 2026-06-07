@@ -241,13 +241,16 @@ export function renderOfficialAccountArticle(fact: WechatFact, context: WechatCo
     || OFFICIAL_ACCOUNT_TEMPLATES.method_suggestion;
   const title = sanitizeMessageContent(fillTemplate(template.title, fact));
   const summary = ensureArticleSummaryQuality(sanitizeMessageContent(fillTemplate(template.summary, fact)), fact, context);
+  const bodySections = buildOfficialAccountBodySections(fact, context, template.tag);
 
   return {
     id: fact.id.replace('wechat-fact', 'official-account'),
     accountName: template.accountName,
     title,
     summary,
-    preview: toPreview(summary, 76),
+    bodySections,
+    mimoPrompt: buildMimoOfficialAccountArticlePrompt({ fact, context, title, summary, tag: template.tag }),
+    preview: toPreview([summary, ...bodySections.map((section) => section.body)].join(' '), 96),
     timeLabel: getTimeLabel(fact),
     tag: template.tag,
     tone: template.tone,
@@ -264,6 +267,180 @@ export function renderOfficialAccountArticle(fact: WechatFact, context: WechatCo
       reason: fact.reason,
     },
   };
+}
+
+export function buildMimoOfficialAccountArticlePrompt(input: {
+  fact: WechatFact;
+  context: WechatCopyContext;
+  title: string;
+  summary: string;
+  tag: OfficialAccountArticle['tag'];
+}) {
+  const { fact, context, title, summary, tag } = input;
+  const relatedCases = resolveRelatedCases(fact, context)
+    .slice(0, 4)
+    .map((caseItem) => ({
+      title: caseItem.title,
+      community: caseItem.community,
+      district: caseItem.district,
+      askPrice: Math.round(caseItem.askPrice),
+      marketPrice: Math.round(caseItem.marketPrice),
+      heat: caseItem.heat,
+      trust: caseItem.trust,
+      urgency: caseItem.urgency,
+      windowDays: caseItem.windowDays,
+      priceGapPct: Math.round(caseItem.priceGapPct * 10) / 10,
+    }));
+
+  return [
+    '你是贝壳门店经营公众号写作者，给一线经纪人写“今天值得先处理什么”的经营短文。',
+    '写作目标：像真实微信公众号，不像系统提示；要有故事感、经营判断、可执行动作。',
+    '读者：正在处理二手房源、业主、客户和竞品压力的一线经纪人。',
+    '语气：专业、直接、有现场感；不要鸡汤，不要营销腔，不要暴露 AI、模型、JSON、指标字段名。',
+    '内容要求：',
+    '1. 输出 JSON，字段为 title、summary、sections；sections 为 4 段，每段包含 title 和 body。',
+    '2. summary 写 90-130 个中文字符，说明今天为什么要看这条情报。',
+    '3. 每个 section.body 写 120-180 个中文字符，必须结合具体房源、客户/业主/竞品变化。',
+    '4. 第一段写市场故事，第二段写客户会怎么想，第三段写业主沟通怎么开口，第四段写今天动作顺序。',
+    '5. 不要写“看点”“建议动作”这种说明书标题；标题要像公众号小标题。',
+    '6. 不要虚构具体成交价格、政策、电话、姓名；只能使用输入中的事实。',
+    `文章类型：${tag}`,
+    `建议标题：${title}`,
+    `当前摘要：${summary}`,
+    `触发原因：${fact.reason}`,
+    `关联房源：${JSON.stringify(relatedCases)}`,
+  ].join('\n');
+}
+
+function buildOfficialAccountBodySections(
+  fact: WechatFact,
+  context: WechatCopyContext,
+  tag: OfficialAccountArticle['tag'],
+): OfficialAccountArticle['bodySections'] {
+  const relatedCases = resolveRelatedCases(fact, context);
+  const leadCase = relatedCases[0];
+  const casePhrase = leadCase
+    ? `${leadCase.community}的${leadCase.title}`
+    : fact.caseTitle || fact.community || '手里这批房源';
+  const districtPhrase = leadCase?.district || fact.district || '当前板块';
+  const priceLine = leadCase
+    ? `这套房挂牌 ${Math.round(leadCase.askPrice)} 万，市场参考约 ${Math.round(leadCase.marketPrice)} 万，价格差会影响客户第一轮判断。`
+    : '价格、带看和竞品变化会一起影响客户第一轮判断。';
+  const pressureLine = leadCase
+    ? `业主信任 ${leadCase.trust}、紧迫度 ${leadCase.urgency}、剩余窗口 ${leadCase.windowDays} 天，说明今天不能只等自然反馈。`
+    : '如果今天只等自然反馈，业主和客户都会觉得你没有把局面接住。';
+  const impactLine = relatedCases.length > 1
+    ? `同一条变化已经牵到 ${relatedCases.length} 套房，最好按影响程度排顺序，先处理最容易掉线或最容易被竞品截走的那套。`
+    : `这条变化先落到 ${casePhrase}，处理得好可以稳住一个具体沟通口，处理慢了就会变成业主和客户各说各话。`;
+  const withLength = (sections: NonNullable<OfficialAccountArticle['bodySections']>) => (
+    finalizeOfficialArticleSections(sections, fact, context)
+  );
+
+  if (tag === 'competitor') {
+    return withLength([
+      {
+        title: '今天这不是普通新增供给',
+        body: `${districtPhrase}今天的关键不是“又多了一套房”，而是客户终于有了更顺手的比较对象。${casePhrase}如果继续只讲自己的卖点，客户很容易把话题带到总价、装修、楼层和业主空间上。${priceLine}`,
+      },
+      {
+        title: '客户会把问题问得更具体',
+        body: `同价位房源一多，客户不会再抽象地说“我再考虑一下”，而是会问为什么这套贵、为什么那套看起来更省心、为什么业主不能让一点。你要提前把本房强项和短板都摆出来，先承认能比较，再解释为什么还值得继续看。`,
+      },
+      {
+        title: '业主侧别等客户压价才解释',
+        body: `${pressureLine}沟通业主时先讲外部竞争，而不是一上来谈降价。先说明客户现在拿什么比，再说明我们还能通过带看、卖点和议价边界补什么，最后才讨论价格预期，这样业主更容易听进去。`,
+      },
+      {
+        title: '动作顺序要先抢回解释权',
+        body: `${impactLine}今天先补竞品表，再给客户一版对比口径，同时把业主可谈边界摸清。等客户已经拿竞品来压价时再准备，会显得被动；先把解释权拿回来，后面推进才有余地。`,
+      },
+    ]);
+  }
+
+  if (tag === 'community' || tag === 'district') {
+    return withLength([
+      {
+        title: '板块变化会先改变看房路线',
+        body: `${districtPhrase}的变化不会只停在市场雷达里，它会直接改变客户今天怎么排看房路线。${casePhrase}如果和新增供给出现在同一轮选择里，客户会自然把位置、户型、装修和价格放在一张表里比较。${priceLine}`,
+      },
+      {
+        title: '不要只告诉业主“市场有变化”',
+        body: `业主听到市场变化，真正想知道的是自家房子会不会被影响。你需要把变化翻译成他能理解的话：客户多了一个选择、反馈可能变慢、价格解释要更细，今天我们会补哪一组客户触达。这样比转述数据更有效。`,
+      },
+      {
+        title: '客户侧要把差异讲在前面',
+        body: `客户还没开口比较之前，先把本房差异讲清楚。能赢的点要讲具体，不能赢的点也别回避，尤其是楼层、装修、总价和业主节奏。你越早把选择逻辑讲出来，客户越不容易被新房源一句价格带走。`,
+      },
+      {
+        title: '今天先做一轮有目的的同步',
+        body: `${impactLine}先同步业主，再约客户复核兴趣，最后把同小区或同板块的竞品变化整理成一句能复述的话。这个顺序能让每一次沟通都有依据，而不是靠临场反应补漏洞。`,
+      },
+    ]);
+  }
+
+  if (tag === 'market') {
+    return withLength([
+      {
+        title: '市场热度变化会先打到犹豫客户',
+        body: `${districtPhrase}现在最值得看的不是单个数字涨跌，而是客户愿不愿意继续出来看。${casePhrase}如果价格略高、反馈又不够密，客户会把预算压力和竞品选择放在一起考虑。${priceLine}`,
+      },
+      {
+        title: '先判断客户是在观望还是流失',
+        body: `客户说“再看看”背后可能是预算卡住，也可能是被别的房源吸走。你今天要先区分这两件事：如果只是预算敏感，就确认业主空间；如果已经转向竞品，就要补一轮差异解释和下一步看房安排。`,
+      },
+      {
+        title: '业主沟通要先讲市场，再讲动作',
+        body: `${pressureLine}别直接说客户少了或价格高了，先讲市场里客户为什么慢，再讲我们准备怎么补证据。业主需要听到的是你在经营这套房，而不是把市场变化当成一个无法改变的借口。`,
+      },
+      {
+        title: '今天的重点是把反馈做厚',
+        body: `${impactLine}先把客户反馈补完整，再决定要不要谈价格。没有反馈就谈价格，业主容易觉得你只会降价；有了竞品、客户和带看证据，再谈调整或继续守价，判断会更稳。`,
+      },
+    ]);
+  }
+
+  return withLength([
+    {
+      title: '这条提醒背后是一组沟通顺序',
+      body: `${casePhrase}今天需要的不是多一个通知，而是一组能说清楚的经营顺序。先判断变化打到谁，再决定先找业主还是先找客户，最后把下一步动作落到具体时间。${priceLine}`,
+    },
+    {
+      title: '别让消息停在“我知道了”',
+      body: `很多经营问题不是因为没有提醒，而是提醒之后没有转成话术。你要把这条消息翻译成三句话：现在发生了什么、会影响谁、我今天准备怎么处理。对方听到这三句，才会觉得你在掌控局面。`,
+    },
+    {
+      title: '沟通里先给判断感',
+      body: `${pressureLine}业主和客户都不只是在等动作，他们在等你给判断。先说你怎么看，再说你准备怎么做，最后说什么时候回结果，这样一轮沟通才像专业经营，而不是临时补一句回复。`,
+    },
+    {
+      title: '今天把一个动作做扎实',
+      body: `${impactLine}不要平均用力，也不要把所有问题都拖到晚上总结。先选一套最受影响的房，补竞品、补客户反馈、补业主同步，把这条线闭上，后面的安排才不会散。`,
+    },
+  ]);
+}
+
+function finalizeOfficialArticleSections(
+  sections: NonNullable<OfficialAccountArticle['bodySections']>,
+  fact: WechatFact,
+  context: WechatCopyContext,
+) {
+  return sections.map((section) => {
+    if (countChineseChars(section.body) >= 120) return section;
+    const caseTitle = fact.caseTitle || context.state.cases.find((entry) => entry.id === fact.caseId)?.title || '关联房源';
+    return {
+      ...section,
+      body: `${section.body} 这里要落到 ${caseTitle} 的下一次沟通里：先说明外部变化，再说明客户和业主各自会怎么理解，最后给出今天能完成的一个明确动作。`,
+    };
+  });
+}
+
+function resolveRelatedCases(fact: WechatFact, context: WechatCopyContext) {
+  const relatedIds = new Set<string>();
+  fact.relatedCaseIds?.forEach((caseId) => relatedIds.add(caseId));
+  if (fact.caseId) relatedIds.add(fact.caseId);
+  return [...relatedIds]
+    .map((caseId) => context.state.cases.find((caseItem) => caseItem.id === caseId))
+    .filter((caseItem): caseItem is GameState['cases'][number] => Boolean(caseItem));
 }
 
 export function stableHash(input: string): number {
@@ -390,9 +567,9 @@ function ensureArticleSummaryQuality(summary: string, fact: WechatFact, context:
   if (!/[建议先要避免准备沟通判断]/.test(nextSummary)) {
     nextSummary = `${nextSummary} 今天先准备可落到房源上的沟通动作。`;
   }
-  if (countChineseChars(nextSummary) < 45) {
+  if (countChineseChars(nextSummary) < 90) {
     const caseTitle = fact.caseTitle || context.state.cases.find((entry) => entry.id === fact.caseId)?.title || '关联房源';
-    nextSummary = `${nextSummary} ${caseTitle} 沟通前要先准备客户反馈、竞品差异和价格判断，避免只给业主一个空泛回复。`;
+    nextSummary = `${nextSummary} ${caseTitle} 沟通前要先准备客户反馈、竞品差异和价格判断，先把市场变化翻译成业主和客户都听得懂的下一步，避免只给一个空泛回复。`;
   }
   return nextSummary;
 }

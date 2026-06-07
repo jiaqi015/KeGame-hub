@@ -237,8 +237,14 @@ export function MyWechatPanel({
     setSelectedArticleId(article.id);
   };
 
+  const isOfficialMode = activeTab === 'official';
+
   return (
-    <section className="seller-panel overflow-hidden" data-my-wechat-panel="true">
+    <section
+      className="seller-panel overflow-hidden"
+      data-my-wechat-panel="true"
+      data-my-wechat-official-mode={isOfficialMode ? 'true' : 'false'}
+    >
       <div className="border-b border-[var(--seller-border)] px-4 py-3">
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -254,7 +260,9 @@ export function MyWechatPanel({
           )}
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-1 rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] p-1">
+        <div
+          className="mt-3 grid grid-cols-2 gap-1 rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] p-1"
+        >
           <WechatTabButton
             active={activeTab === 'messages'}
             icon={<MessageCircle size={12} />}
@@ -272,7 +280,7 @@ export function MyWechatPanel({
         </div>
       </div>
 
-      <div className="space-y-2 px-3 py-3">
+      <div className={`space-y-2 px-3 ${isOfficialMode && selectedArticle ? 'py-2' : 'py-3'}`}>
         {activeTab === 'messages' ? (
           selectedConversation ? (
             <WechatConversationDetail
@@ -1766,24 +1774,26 @@ const OfficialArticleRow: React.FC<OfficialArticleRowProps> = ({
       data-my-wechat-official-row="true"
       data-my-wechat-read={read ? 'true' : 'false'}
       onClick={onClick}
-      className="group w-full rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] px-3 py-3 text-left transition-all hover:border-[color:var(--seller-accent)]/45 hover:bg-[rgba(255,255,255,0.05)]"
+      className="seller-official-article-row group w-full overflow-hidden rounded-[14px] text-left transition-all"
     >
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
+      <div className="px-3.5 py-3.5">
+        <div className="flex items-start gap-2.5">
           <OfficialAccountAvatar accountName={article.accountName} />
-          <div className="min-w-0">
-            <div className="truncate text-[11px] font-semibold text-[var(--seller-muted)]">{article.accountName}</div>
-            <div className="mt-0.5 truncate text-[13px] font-semibold text-[var(--seller-ink)]">{article.title}</div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-2 text-[12px] font-bold text-[var(--seller-muted)]">
+              <span className="truncate">{article.accountName}</span>
+              <span className="shrink-0">{article.timeLabel}</span>
+            </div>
+            <div className="mt-3.5 text-[15px] font-bold leading-6 text-[var(--seller-ink)]">{article.title}</div>
           </div>
         </div>
-        <span className="shrink-0 text-[10px] font-medium text-[var(--seller-subtle)]">{article.timeLabel}</span>
+        <p className="mt-2.5 line-clamp-4 text-[13px] font-medium leading-6 text-[var(--seller-muted)]">{article.preview}</p>
       </div>
-      <p className="mt-2 line-clamp-3 text-[11px] leading-5 text-[var(--seller-muted)]">{article.preview}</p>
-      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-semibold">
-        {!read && <span className="h-2 w-2 rounded-full bg-rose-500" />}
-        <span className="text-[var(--seller-subtle)]">{articleTagLabel(article.tag)}</span>
-        {article.relatedCaseIds.length > 0 && <span className="text-[var(--seller-subtle)]">· 关联 {article.relatedCaseIds.length} 套房源</span>}
-        <span className="text-[var(--seller-accent)]">阅读全文</span>
+      <div className="seller-official-article-row-footer flex items-center justify-between px-3.5 pb-3.5 text-[12px] font-semibold">
+        <span className="text-[var(--seller-muted)]">
+          {article.relatedCaseIds.length > 0 ? `关联 ${article.relatedCaseIds.length} 套房源` : articleTagLabel(article.tag)}
+        </span>
+        <span className="text-[#8fa4c5]">全文</span>
       </div>
     </button>
   );
@@ -1800,63 +1810,67 @@ const OfficialArticleDetail: React.FC<OfficialArticleDetailProps> = ({
 
   return (
     <div
-      className="flex h-[min(560px,calc(100vh-220px))] min-h-[420px] flex-col overflow-hidden rounded-[14px] border border-[var(--seller-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.018))]"
+      className="seller-official-article-detail flex h-[clamp(720px,calc(100vh-104px),980px)] flex-col overflow-hidden rounded-[14px]"
       data-my-wechat-official-detail="true"
     >
-      <div className="flex shrink-0 items-center gap-2 border-b border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] px-3 py-2.5">
+      <div className="seller-official-article-topbar flex shrink-0 items-center gap-2 px-3.5 py-3">
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[15px] text-[var(--seller-muted)] transition hover:bg-[rgba(255,255,255,0.06)] hover:text-[var(--seller-ink)]"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[18px] text-[var(--seller-muted)] transition hover:bg-[rgba(255,255,255,0.08)] hover:text-[var(--seller-ink)]"
           aria-label="返回公众号列表"
         >
           ←
         </button>
         <OfficialAccountAvatar accountName={article.accountName} />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[13px] font-semibold text-[var(--seller-ink)]">{article.accountName}</div>
-          <div className="mt-0.5 text-[10px] text-[var(--seller-subtle)]">{article.timeLabel}</div>
+          <div className="truncate text-[14px] font-bold text-[var(--seller-ink)]">{article.accountName}</div>
+          <div className="mt-0.5 text-[12px] font-semibold text-[var(--seller-muted)]">公众号 · {article.timeLabel}</div>
         </div>
-        <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${articleToneClassName(article.tone)}`}>
-          {articleTagLabel(article.tag)}
-        </span>
+        <button
+          type="button"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--seller-muted)] transition hover:bg-[rgba(255,255,255,0.08)] hover:text-[var(--seller-ink)]"
+          aria-label="更多"
+        >
+          <MoreHorizontal size={18} />
+        </button>
       </div>
 
-      <article className="flex-1 overflow-y-auto px-4 py-4">
-        <header className="border-b border-[var(--seller-border)] pb-4">
-          <div className="text-[10px] font-semibold text-[var(--seller-subtle)]">
-            {article.accountName} · {article.timeLabel}
-          </div>
-          <h3 className="mt-2 text-[20px] font-semibold leading-7 tracking-[-0.02em] text-[var(--seller-ink)]">
+      <article className="flex-1 overflow-y-auto px-6 py-6">
+        <header>
+          <h3 className="text-[23px] font-bold leading-[1.34] text-[var(--seller-ink)]">
             {article.title}
           </h3>
-          <p className="mt-3 text-[13px] font-medium leading-7 text-[var(--seller-muted)]">
+          <div className="mt-4 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[12px] font-semibold leading-5 text-[var(--seller-subtle)]">
+            <span className="seller-official-original rounded-[4px] px-1.5 py-0.5">原创</span>
+            <span className="text-[#8fa4c5]">{article.accountName}</span>
+            <span>{article.timeLabel}</span>
+            <span>{articleTagLabel(article.tag)}</span>
+          </div>
+          <p className="seller-official-article-lead mt-6 font-medium">
             {article.summary}
           </p>
         </header>
 
-        <div className="mt-4 space-y-4">
+        <div className="mt-7 space-y-7">
           {articleSections.map((section) => (
             <section key={section.title}>
-              <div className="flex items-center gap-2">
-                <span className="h-px w-5 bg-[color:var(--seller-accent)]/55" />
-                <h4 className="text-[12px] font-semibold text-[var(--seller-ink)]">{section.title}</h4>
-              </div>
-              <p className="mt-2 text-[12px] leading-7 text-[var(--seller-muted)]">{section.body}</p>
+              <h4 className="seller-official-article-section-title text-center text-[17px] font-bold leading-8">{section.title}</h4>
+              <p className="seller-official-article-body mt-3 font-medium">{section.body}</p>
             </section>
           ))}
         </div>
 
         {article.relatedCaseIds.length > 0 && (
-          <footer className="mt-5 border-t border-[var(--seller-border)] pt-3">
-            <div className="text-[10px] font-semibold text-[var(--seller-subtle)]">文中提到的房源</div>
-            <div className="mt-2 flex flex-wrap gap-2">
+          <footer className="mt-8 border-t border-[var(--seller-border)] pt-4">
+            <div className="text-[13px] font-bold text-[var(--seller-muted)]">文中提到的房源</div>
+            <div className="mt-3 flex flex-wrap gap-2">
               {article.relatedCaseIds.map((caseId, index) => (
                 <button
                   key={caseId}
                   type="button"
                   onClick={() => onSelectCase(caseId)}
-                  className="rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.04)] px-2 py-1 text-[10px] font-semibold text-[var(--seller-ink)] transition hover:border-[color:var(--seller-accent)]/38 hover:text-[var(--seller-accent)]"
+                  className="rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.045)] px-3 py-1.5 text-[12px] font-bold text-[var(--seller-accent)] transition hover:border-[color:var(--seller-accent)]/40 hover:bg-[rgba(74,227,138,0.12)]"
                 >
                   受影响房源 {index + 1}
                 </button>
@@ -1866,13 +1880,13 @@ const OfficialArticleDetail: React.FC<OfficialArticleDetailProps> = ({
         )}
       </article>
 
-      <div className="shrink-0 border-t border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] px-3 py-2.5">
+      <div className="seller-official-article-actions shrink-0 px-3.5 py-3">
         <div className="flex flex-wrap justify-end gap-2">
           {onOpenMarket && (
             <button
               type="button"
               onClick={() => onOpenMarket(mapArticleTagToLayer(article.tag))}
-              className="seller-button-secondary h-8 rounded-full px-3 text-[11px]"
+              className="h-9 rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.045)] px-3.5 text-[12px] font-bold text-[var(--seller-ink)] transition hover:bg-[rgba(255,255,255,0.07)]"
             >
               看市场雷达
             </button>
@@ -1886,7 +1900,7 @@ const OfficialArticleDetail: React.FC<OfficialArticleDetailProps> = ({
               }
               onOpenMarket?.(mapArticleTagToLayer(article.tag));
             }}
-            className="seller-button-primary h-8 rounded-full px-3 text-[11px]"
+            className="h-9 rounded-full bg-[var(--seller-accent)] px-3.5 text-[12px] font-bold text-[var(--seller-bg)] transition hover:brightness-110"
           >
             {article.primaryCtaLabel || '继续处理'}
           </button>
@@ -1965,6 +1979,10 @@ function getOfficialAccountAvatarSrc(accountName: string) {
 }
 
 function buildOfficialArticleSections(article: OfficialAccountArticle) {
+  if (article.bodySections?.length) {
+    return article.bodySections;
+  }
+
   const impactLine = article.relatedCaseIds.length > 0
     ? `这条变化会打到 ${article.relatedCaseIds.length} 套手里房源。今天开口前，先把客户可能拿来比较的点、业主可能追问的点，以及你准备给出的下一步安排放在同一套话术里。`
     : '这条变化暂时更像市场风向。它不一定立刻改变某一套房，但会改变客户提问的方式，也会影响你今天判断价格、带看和沟通节奏。';

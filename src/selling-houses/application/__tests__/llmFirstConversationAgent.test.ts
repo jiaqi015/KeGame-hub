@@ -1,20 +1,18 @@
 import { describe, it, expect } from 'vitest';
-import { buildLlmFirstProposal } from '../llmFirstConversationAgent.js';
+import { buildLlmFirstProposal, buildConversationMemory } from '../llmFirstConversationAgent.js';
 import type { ConversationSceneInputPack } from '../../core/world-state/conversation/models.js';
 import type { GameState } from '../../domain/models.js';
 
 function buildScene(overrides: Partial<ConversationSceneInputPack> = {}): ConversationSceneInputPack {
-  return {
+  const base = {
     sceneId: 'test', runId: 'run', day: 1,
     conversationKey: 'owner:test', sourceMessageId: 'msg-1',
-    sceneType: 'owner_wechat', playerText: '',
-    sourceMessage: { messageId: 'msg-1', senderName: '王姐', senderRole: 'owner', content: '测试', timeLabel: '14:30', urgency: 'medium' },
+    sceneType: 'owner_wechat' as const, playerText: '',
+    sourceMessage: { messageId: 'msg-1', senderName: '王姐', senderRole: 'owner' as const, content: '测试', timeLabel: '14:30', urgency: 'medium' as const },
     caseContext: { caseId: 'case-1', title: '天山花园3房', ownerName: '王姐', district: '长宁', community: '天山花园', askPrice: 680, marketPrice: 620, priceGapPct: 9.7, trust: 50, patience: 50, urgency: 50, heat: 60, competitiveness: 55, hasCompletedFirstVisit: true, ownerProfileLabel: '焦虑型' },
     recentTurns: [],
-    ...overrides,
-    caseContext: { ...{ caseId: 'case-1', title: '天山花园3房', ownerName: '王姐', district: '长宁', community: '天山花园', askPrice: 680, marketPrice: 620, priceGapPct: 9.7, trust: 50, patience: 50, urgency: 50, heat: 60, competitiveness: 55, hasCompletedFirstVisit: true, ownerProfileLabel: '焦虑型' }, ...(overrides.caseContext || {}) },
-    sourceMessage: { ...{ messageId: 'msg-1', senderName: '王姐', senderRole: 'owner', content: '测试', timeLabel: '14:30', urgency: 'medium' }, ...(overrides.sourceMessage || {}) },
-  } as ConversationSceneInputPack;
+  };
+  return { ...base, ...overrides, caseContext: { ...base.caseContext, ...(overrides.caseContext || {}) }, sourceMessage: { ...base.sourceMessage, ...(overrides.sourceMessage || {}) } } as ConversationSceneInputPack;
 }
 
 const mockState = { runId: 'test', day: 1, cases: [] } as any as GameState;
@@ -80,5 +78,58 @@ describe('buildLlmFirstProposal', () => {
     const proposal = buildLlmFirstProposal(buildScene(), mockState);
     expect(proposal.reply.length).toBeGreaterThan(10);
     expect(proposal.reply.length).toBeLessThan(200);
+  });
+});
+
+describe('buildConversationMemory', () => {
+  it('returns empty memory for new conversation', () => {
+    const state = { wechatConversationHistory: [] } as any as GameState;
+    const memory = buildConversationMemory('owner:test', state);
+    expect(memory.turns).toEqual([]);
+    expect(memory.promises).toEqual([]);
+    expect(memory.conversationKey).toBe('owner:test');
+  });
+
+  it('builds memory from conversation history', () => {
+    const state = {
+      wechatConversationHistory: [
+        { conversationKey: 'owner:test', day: 1, playerText: '你好', recipientReply: '收到' },
+        { conversationKey: 'owner:test', day: 2, playerText: '价格怎么样？', recipientReply: '今天下午去面访' },
+      ],
+    } as any as GameState;
+    const memory = buildConversationMemory('owner:test', state);
+    expect(memory.turns.length).toBe(2);
+    expect(memory.lastInteractionDay).toBe(2);
+    expect(memory.relationshipScore).toBeGreaterThan(50);
+  });
+
+  it('extracts promises from history', () => {
+    const state = {
+      wechatConversationHistory: [
+        { conversationKey: 'owner:test', day: 1, playerText: '面访安排了吗？', recipientReply: '今天下午去面访' },
+      ],
+    } as any as GameState;
+    const memory = buildConversationMemory('owner:test', state);
+    expect(memory.promises.length).toBeGreaterThan(0);
+  });
+
+  it('filters by conversation key', () => {
+    const state = {
+      wechatConversationHistory: [
+        { conversationKey: 'owner:test', day: 1, playerText: '你好', recipientReply: '收到' },
+        { conversationKey: 'owner:other', day: 1, playerText: '你好', recipientReply: '收到' },
+      ],
+    } as any as GameState;
+    const memory = buildConversationMemory('owner:test', state);
+    expect(memory.turns.length).toBe(1);
+  });
+
+  it('limits to last 5 turns', () => {
+    const history = Array.from({ length: 10 }, (_, i) => ({
+      conversationKey: 'owner:test', day: i, playerText: `消息${i}`, recipientReply: `回复${i}`,
+    }));
+    const state = { wechatConversationHistory: history } as any as GameState;
+    const memory = buildConversationMemory('owner:test', state);
+    expect(memory.turns.length).toBe(5);
   });
 });

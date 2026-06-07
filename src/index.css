@@ -286,6 +286,66 @@ select {
   content: attr(data-avatar-label);
 }
 
+.seller-official-article-row {
+  border: 1px solid color-mix(in srgb, var(--seller-border) 92%, white 8%);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.034)),
+    rgba(19, 23, 28, 0.92);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.2);
+}
+
+.seller-official-article-row:hover {
+  border-color: color-mix(in srgb, #8fa4c5 36%, var(--seller-border) 64%);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.04)),
+    rgba(22, 27, 33, 0.94);
+}
+
+.seller-official-article-row-footer {
+  background: transparent;
+}
+
+.seller-official-article-detail {
+  border: 1px solid color-mix(in srgb, var(--seller-border) 90%, white 10%);
+  background: linear-gradient(180deg, rgba(20, 24, 29, 0.99), rgba(14, 18, 23, 0.99));
+  color: var(--seller-ink);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.2);
+}
+
+.seller-official-article-topbar,
+.seller-official-article-actions {
+  border-bottom: 1px solid var(--seller-border);
+  background: rgba(255, 255, 255, 0.028);
+}
+
+.seller-official-article-actions {
+  border-top: 1px solid var(--seller-border);
+  border-bottom: 0;
+}
+
+.seller-official-original {
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--seller-subtle);
+}
+
+.seller-official-article-lead {
+  color: rgba(232, 230, 222, 0.72);
+  font-size: 15.5px;
+  line-height: 1.85;
+  letter-spacing: 0;
+}
+
+.seller-official-article-section-title {
+  color: #1684ff;
+}
+
+.seller-official-article-body {
+  color: rgba(232, 230, 222, 0.72);
+  font-size: 15.5px;
+  line-height: 1.85;
+  letter-spacing: 0;
+}
+
 .seller-tabbar {
   display: flex;
   gap: 0.5rem;
@@ -442,6 +502,28 @@ select {
 @keyframes seller-ai-rainbow-spin {
   to {
     rotate: 1turn;
+  }
+}
+
+@keyframes seller-world-build-progress {
+  from {
+    transform: scaleX(0.06);
+  }
+
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.seller-world-build-progress {
+  transform-origin: left center;
+  animation: seller-world-build-progress 5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seller-world-build-progress {
+    animation: none;
+    transform: scaleX(1);
   }
 }
 
@@ -1044,6 +1126,41 @@ select {
 
 .selling-houses-shell[data-theme="light"] .seller-wechat-input {
   background: rgba(255, 255, 255, 0.88) !important;
+}
+
+.selling-houses-shell[data-theme="light"] .seller-official-article-row {
+  border-color: rgba(255, 255, 255, 0.54) !important;
+  background: rgba(255, 255, 255, 0.36) !important;
+  box-shadow: 0 12px 28px rgba(34, 53, 74, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.74) !important;
+}
+
+.selling-houses-shell[data-theme="light"] .seller-official-article-row:hover {
+  background: rgba(255, 255, 255, 0.48) !important;
+}
+
+.selling-houses-shell[data-theme="light"] .seller-official-article-row-footer,
+.selling-houses-shell[data-theme="light"] .seller-official-article-topbar,
+.selling-houses-shell[data-theme="light"] .seller-official-article-actions {
+  border-color: rgba(255, 255, 255, 0.54) !important;
+  background: rgba(255, 255, 255, 0.28) !important;
+}
+
+.selling-houses-shell[data-theme="light"] .seller-official-article-detail {
+  border-color: rgba(255, 255, 255, 0.56) !important;
+  background: var(--seller-glass-bg-soft) !important;
+  box-shadow: 0 18px 44px rgba(34, 53, 74, 0.11), inset 0 1px 0 rgba(255, 255, 255, 0.82) !important;
+}
+
+.selling-houses-shell[data-theme="light"] .seller-official-original {
+  background: rgba(0, 0, 0, 0.055) !important;
+}
+
+.selling-houses-shell[data-theme="light"] .seller-official-article-lead {
+  color: var(--seller-muted) !important;
+}
+
+.selling-houses-shell[data-theme="light"] .seller-official-article-section-title {
+  color: #0b75ff !important;
 }
 
 .selling-houses-shell[data-theme="light"] .seller-tone-neutral {

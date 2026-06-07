@@ -119,6 +119,11 @@ export interface OfficialAccountArticle {
   accountName: string;
   title: string;
   summary: string;
+  bodySections?: readonly {
+    title: string;
+    body: string;
+  }[];
+  mimoPrompt?: string;
   preview: string;
   timeLabel: string;
   tag: 'market' | 'district' | 'community' | 'competitor' | 'policy' | 'method';

@@ -51,7 +51,8 @@ export async function handleDailyStory(
     const rawOutput = parseLlmResponse(typeof llmResponse === 'string' ? llmResponse : JSON.stringify(llmResponse));
 
     const normalized = normalizeDailyCityStory(rawOutput, pack);
-    const source = normalized.validationNotes.length > 0 ? 'fallback' : 'ai';
+    const criticalErrors = normalized.validationNotes.filter(n => n.startsWith('forbidden_words') || n.startsWith('too_few'));
+    const source = criticalErrors.length > 0 ? 'fallback' : 'ai';
     const story = source === 'fallback'
       ? { ...buildFallbackDailyStory(pack), source: 'fallback' as const }
       : normalized.result;
@@ -64,7 +65,7 @@ export async function handleDailyStory(
         source,
         modelId,
         provider: 'deepseek',
-        error: normalized.validationNotes.length > 0 ? `校验失败: ${normalized.validationNotes[0]}` : undefined,
+        error: criticalErrors.length > 0 ? `校验失败: ${criticalErrors[0]}` : undefined,
       },
     };
   } catch (error) {
@@ -163,10 +164,19 @@ ${JSON.stringify(pack, null, 2)}`;
 
 function parseLlmResponse(response: string): unknown {
   try {
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
-    if (jsonMatch) return JSON.parse(jsonMatch[0]);
+    // Try parsing entire response first
     return JSON.parse(response);
   } catch {
+    // Fall back to finding first JSON object (non-greedy)
+    const jsonMatch = response.match(/\{[^{}]*\}/);
+    if (jsonMatch) {
+      try { return JSON.parse(jsonMatch[0]); } catch { /* ignore */ }
+    }
+    // Try nested JSON object
+    const nestedMatch = response.match(/\{[\s\S]*?\}/);
+    if (nestedMatch) {
+      try { return JSON.parse(nestedMatch[0]); } catch { /* ignore */ }
+    }
     return null;
   }
 }

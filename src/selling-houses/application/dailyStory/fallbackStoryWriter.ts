@@ -1,6 +1,15 @@
 import type { DailyCityStoryContextPack } from './contextPack.js';
 import type { DailyCityStoryResult } from './storyContract.js';
 
+function stableHash(input: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
 export function buildFallbackDailyStory(pack: DailyCityStoryContextPack): DailyCityStoryResult {
   const events = pack.visibleEvents;
   const cases = pack.visibleCases;
@@ -62,7 +71,15 @@ function buildCityFrameParagraph(pack: DailyCityStoryContextPack): string {
   const period = cityFrame.currentPeriod;
   const periodLabel = period === 'night' ? '夜里' : period === 'evening' ? '傍晚' : period === 'afternoon' ? '下午' : '早上';
 
-  let para = `${cityFrame.dayLabel}，${districts}商圈${mood}。`;
+  // Hash-based variation for first paragraph
+  const hash = stableHash(`${pack.packId}:${pack.day}`);
+  const openers = [
+    `${cityFrame.dayLabel}，${districts}商圈${mood}。`,
+    `回顾${cityFrame.dayLabel}，${districts}商圈整体${mood}。`,
+    `${districts}商圈${cityFrame.dayLabel}收市，${mood}。`,
+    `${periodLabel}看${districts}，${mood}。`,
+  ];
+  let para = openers[hash % openers.length];
   para += `${periodLabel}的门店节奏${todayPlan.theme}，今日精力${todayPlan.energy}小时。`;
 
   if (cityFrame.weatherOrExternalNotes.length > 0) {

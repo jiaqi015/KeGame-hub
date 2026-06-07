@@ -1,6 +1,6 @@
-import type { ConversationSceneInputPack } from '../../core/world-state/conversation/models.js';
-import type { GameState } from '../../domain/models.js';
-import { buildFallbackConversationEffectProposal } from '../wechatConversation.js';
+import type { ConversationSceneInputPack } from '../core/world-state/conversation/models.js';
+import type { GameState } from '../domain/models.js';
+import { buildFallbackConversationEffectProposal } from './wechatConversation.js';
 
 export interface ConversationMemory {
   readonly conversationKey: string;
@@ -270,4 +270,41 @@ function calculateConfidence(scene: ConversationSceneInputPack, strategy: Conver
   if (strategy.goal !== 'maintain') confidence += 0.1;
 
   return Math.min(1, confidence);
+}
+
+export function buildConversationMemory(
+  conversationKey: string,
+  state: GameState,
+): ConversationMemory {
+  const history = (state as any).wechatConversationHistory || [];
+  const relevantHistory = history.filter((h: any) => h.conversationKey === conversationKey);
+
+  const turns: MemoryTurn[] = relevantHistory.slice(-5).map((h: any) => ({
+    day: h.day || 0,
+    playerText: h.playerText || '',
+    recipientReply: h.recipientReply || '',
+    emotion: h.emotion || 'neutral',
+    topic: h.topic || 'general',
+  }));
+
+  const promises: PromiseRecord[] = relevantHistory
+    .filter((h: any) => /今天|明天|下午|这周/.test(h.recipientReply || ''))
+    .slice(-3)
+    .map((h: any) => ({
+      day: h.day || 0,
+      promise: (h.recipientReply || '').match(/(今天|明天|下午|这周).{0,20}/)?.[0] || '',
+      fulfilled: false,
+    }));
+
+  const relationshipScore = turns.length > 0
+    ? Math.min(100, 50 + turns.length * 5)
+    : 50;
+
+  return {
+    conversationKey,
+    turns,
+    promises,
+    relationshipScore,
+    lastInteractionDay: turns.length > 0 ? turns[turns.length - 1].day : 0,
+  };
 }

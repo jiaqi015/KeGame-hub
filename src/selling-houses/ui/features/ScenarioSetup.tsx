@@ -1,11 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
+  Brain,
   CalendarDays,
+  Clock3,
   Compass,
+  Database,
   Flame,
   Gauge,
   Home,
+  Network,
   Play,
   ShieldCheck,
   Sprout,
@@ -74,6 +78,49 @@ const CHIP_TONES: Record<DifficultyPresentationTone, string> = {
 };
 
 const SCORE_STANDARD_LABEL = '60 及格 · 80 优秀 · 90 极致';
+const WORLD_BUILDER_NAME = '盘面构建官';
+const WORLD_BUILD_MINIMUM_MS = 5000;
+const WORLD_BUILD_STORY_TIMEOUT_MS = 5200;
+
+const WORLD_BUILD_STEPS = [
+  {
+    icon: Database,
+    label: '落种子',
+    detail: '先固定难度、seed 和剧本蓝图，保证这一局能回放、能复盘。',
+  },
+  {
+    icon: Network,
+    label: '织关系',
+    detail: '把业主、客户、同类竞品、门店和商圈成交装进同一个关系网。',
+  },
+  {
+    icon: Brain,
+    label: WORLD_BUILDER_NAME,
+    detail: '调用大模型读盘：写开局故事、解释风险、给出今天的经营顺序。',
+  },
+  {
+    icon: Clock3,
+    label: '开局校准',
+    detail: '把 AI 文案压回可见事实范围，不改写核心数值和隐藏随机性。',
+  },
+] as const;
+
+function wait(ms: number) {
+  return new Promise<void>((resolve) => {
+    globalThis.setTimeout(resolve, ms);
+  });
+}
+
+async function fetchWorldBuilderStory(briefing: ScenarioOpeningBriefing) {
+  return Promise.race([
+    fetchScenarioOpeningStory(briefing),
+    wait(WORLD_BUILD_STORY_TIMEOUT_MS).then(() => ({
+      story: briefing.openingStory,
+      source: 'fallback' as const,
+      error: 'world_builder_timeout',
+    })),
+  ]);
+}
 
 export function ScenarioSetup({
   difficultyOptions,
@@ -91,11 +138,18 @@ export function ScenarioSetup({
   onStartRandom: (difficultyId: DifficultyId, seed?: number) => void | Promise<void>;
 }) {
   const [selectedDifficultyId, setSelectedDifficultyId] = useState<DifficultyId>(lastDifficulty);
+  const buildTokenRef = useRef(0);
   const [pendingOpening, setPendingOpening] = useState<{
     mode: 'featured' | 'random';
     difficultyId: DifficultyId;
     seed: number;
     briefing: ScenarioOpeningBriefing;
+    storyPrefetched?: boolean;
+  } | null>(null);
+  const [worldBuildState, setWorldBuildState] = useState<{
+    difficultyLabel: string;
+    seed: number;
+    worldScaleLabel: string;
   } | null>(null);
   const selectedOption = difficultyOptions.find((entry) => entry.id === selectedDifficultyId)
     || difficultyOptions.find((entry) => entry.id === lastDifficulty)
@@ -119,6 +173,7 @@ export function ScenarioSetup({
   const selectedOpeningPreview = selectedFeatured
     ? buildGeneratedScenarioOpeningPreview(selectedOption.id, selectedFeatured.seed, 'standard')
     : null;
+  const busy = starting || Boolean(worldBuildState);
   const primaryPreview = [
     {
       label: '大世界规模',
@@ -133,6 +188,7 @@ export function ScenarioSetup({
     { label: '额外空间', value: selectedPresentation.metrics.bonusPotential },
   ];
   const openFeaturedBriefing = () => {
+    if (busy) return;
     if (!selectedFeatured || !selectedOpeningPreview) return;
     const seed = selectedFeatured.seed;
     setPendingOpening({
@@ -142,15 +198,38 @@ export function ScenarioSetup({
       briefing: selectedOpeningPreview.briefing,
     });
   };
-  const openRandomBriefing = () => {
+  const openRandomBriefing = async () => {
+    if (busy) return;
     const seed = createGeneratedScenarioSeed(Date.now());
+    const token = buildTokenRef.current + 1;
+    buildTokenRef.current = token;
     const preview = buildGeneratedScenarioOpeningPreview(selectedOption.id, seed, 'random');
-    setPendingOpening({
-      mode: 'random',
-      difficultyId: selectedOption.id,
+    setWorldBuildState({
+      difficultyLabel: selectedPresentation.label,
       seed,
-      briefing: preview.briefing,
+      worldScaleLabel: preview.briefing.worldScaleLabel,
     });
+    try {
+      const [storyResult] = await Promise.all([
+        fetchWorldBuilderStory(preview.briefing),
+        wait(WORLD_BUILD_MINIMUM_MS),
+      ]);
+      if (buildTokenRef.current !== token) return;
+      setPendingOpening({
+        mode: 'random',
+        difficultyId: selectedOption.id,
+        seed,
+        briefing: {
+          ...preview.briefing,
+          openingStory: storyResult.story,
+        },
+        storyPrefetched: true,
+      });
+    } finally {
+      if (buildTokenRef.current === token) {
+        setWorldBuildState(null);
+      }
+    }
   };
   const enterPendingOpening = async () => {
     if (!pendingOpening) return;
@@ -166,6 +245,7 @@ export function ScenarioSetup({
       <OpeningBriefingView
         briefing={pendingOpening.briefing}
         difficultyLabel={selectedPresentation.label}
+        refreshStory={!pendingOpening.storyPrefetched}
         starting={starting}
         onBack={() => setPendingOpening(null)}
         onEnter={() => { void enterPendingOpening(); }}
@@ -190,13 +270,13 @@ export function ScenarioSetup({
             <button
               key={option.id}
               type="button"
-              disabled={starting}
+              disabled={busy}
               onClick={() => setSelectedDifficultyId(option.id)}
               className={`inline-flex items-center gap-1.5 rounded-full border px-4 py-2 text-[13px] font-semibold transition ${
                 selected
                   ? 'border-white/18 bg-[#efe8da] text-[#121821]'
                   : 'border-white/10 bg-white/[0.03] text-white/68 hover:border-white/18 hover:bg-white/[0.06] hover:text-white'
-              } ${starting ? 'cursor-wait opacity-60' : ''}`}
+              } ${busy ? 'cursor-wait opacity-60' : ''}`}
             >
               <OptionIcon size={13} strokeWidth={2.3} />
               {optionPresentation.shortLabel}
@@ -276,31 +356,43 @@ export function ScenarioSetup({
               ))}
             </div>
           )}
+
+          <WorldGenerationStatus
+            difficultyLabel={selectedPresentation.label}
+            worldScaleLabel={selectedOpeningPreview?.briefing.worldScaleLabel ?? '生成后展示整体市场体量'}
+          />
         </div>
 
         <div className="border-t border-white/8 bg-[#101823] p-4">
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
-              disabled={starting}
+              disabled={busy}
               onClick={openFeaturedBriefing}
               className="inline-flex items-center justify-center gap-2 rounded-[14px] border border-white/10 bg-white/[0.04] px-4 py-3 text-[14px] font-semibold text-white/88 transition hover:bg-white/[0.07] disabled:cursor-wait disabled:opacity-60"
             >
               <Play size={15} />
-              {starting ? '正在进入...' : `进入固定${selectedPresentation.shortLabel}剧本`}
+              {busy ? '正在准备...' : `进入固定${selectedPresentation.shortLabel}剧本`}
             </button>
             <button
               type="button"
-              disabled={starting}
-              onClick={openRandomBriefing}
+              disabled={busy}
+              onClick={() => { void openRandomBriefing(); }}
               className="inline-flex items-center justify-center gap-2 rounded-[14px] bg-[#49dd85] px-4 py-3 text-[14px] font-semibold text-[#08110d] transition hover:brightness-105 disabled:cursor-wait disabled:opacity-60"
             >
               <WandSparkles size={15} />
-              {starting ? '正在生成...' : '随机开一局'}
+              {busy ? '正在构建...' : '随机开一局'}
             </button>
           </div>
         </div>
       </div>
+      {worldBuildState && (
+        <WorldBuildLoadingPage
+          difficultyLabel={worldBuildState.difficultyLabel}
+          seed={worldBuildState.seed}
+          worldScaleLabel={worldBuildState.worldScaleLabel}
+        />
+      )}
     </div>
   );
 }
@@ -308,12 +400,14 @@ export function ScenarioSetup({
 function OpeningBriefingView({
   briefing,
   difficultyLabel,
+  refreshStory,
   starting,
   onBack,
   onEnter,
 }: {
   briefing: ScenarioOpeningBriefing;
   difficultyLabel: string;
+  refreshStory: boolean;
   starting: boolean;
   onBack: () => void;
   onEnter: () => void;
@@ -323,13 +417,16 @@ function OpeningBriefingView({
   useEffect(() => {
     let disposed = false;
     setStory(briefing.openingStory);
+    if (!refreshStory) {
+      return () => { disposed = true; };
+    }
     fetchScenarioOpeningStory(briefing).then((result) => {
       if (!disposed) {
         setStory(result.story);
       }
     });
     return () => { disposed = true; };
-  }, [briefing]);
+  }, [briefing, refreshStory]);
 
   return (
     <div className="mx-auto flex h-full w-full max-w-[980px] flex-col overflow-y-auto px-4 py-5 text-[var(--seller-ink)] lg:px-6">
@@ -445,6 +542,131 @@ function OpeningBriefingView({
             <Play size={15} fill="currentColor" />
             {starting ? '正在进入...' : '进入今天'}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WorldGenerationStatus({
+  difficultyLabel,
+  worldScaleLabel,
+}: {
+  difficultyLabel: string;
+  worldScaleLabel: string;
+}) {
+  const statusRows = [
+    {
+      icon: Database,
+      label: '当前现状',
+      title: '确定性种子生成已经接上',
+      detail: `随机局会先按「${difficultyLabel} + seed」生成开局快照；同一个 seed 能复盘，不会变成不可解释的黑盒世界。`,
+    },
+    {
+      icon: Network,
+      label: '世界范围',
+      title: worldScaleLabel,
+      detail: '开局不只生成玩家手里几套房，还会铺出同价位供给、潜在客户、竞品经纪人、商圈成交和压力来源。',
+    },
+    {
+      icon: Brain,
+      label: 'AI 能力',
+      title: `${WORLD_BUILDER_NAME} 可参与生产`,
+      detail: '大模型负责读盘、讲开局故事、解释今天先后顺序；核心价格、客户、竞品和业主状态仍由世界引擎落数。',
+    },
+  ];
+
+  return (
+    <section className="rounded-[20px] border border-cyan-400/12 bg-cyan-500/[0.055] p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="seller-label text-cyan-100/58">初始化世界</div>
+          <h3 className="mt-2 text-[18px] font-semibold text-white">生产一个全新世界时，现在会发生什么</h3>
+          <p className="mt-2 max-w-[44rem] text-[12px] font-semibold leading-6 text-white/62">
+            当前方案是“可复盘世界引擎 + {WORLD_BUILDER_NAME} 推理层”：先把市场事实落稳，再让 AI 把事实翻成经纪人能读懂的开局判断。
+          </p>
+        </div>
+        <div className="rounded-full border border-cyan-400/18 bg-cyan-500/12 px-3 py-1 text-[11px] font-semibold text-cyan-100">
+          {WORLD_BUILDER_NAME}
+        </div>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        {statusRows.map((row) => (
+          <div key={row.label} className="rounded-[16px] border border-white/8 bg-[#0d141e]/78 p-3">
+            <div className="flex items-center gap-2 text-[10px] font-semibold text-white/38">
+              <row.icon size={13} />
+              {row.label}
+            </div>
+            <div className="mt-2 text-[13px] font-semibold leading-5 text-white/88">{row.title}</div>
+            <p className="mt-2 text-[11px] font-semibold leading-5 text-white/52">{row.detail}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 rounded-[14px] border border-white/8 bg-white/[0.03] px-3 py-2 text-[11px] font-semibold leading-5 text-white/56">
+        提示词边界：基于已生成的世界摘要，输出开局故事、风险主线、证据标签、首日建议；不得发明不可见事实，不得改写数值。
+      </div>
+    </section>
+  );
+}
+
+function WorldBuildLoadingPage({
+  difficultyLabel,
+  seed,
+  worldScaleLabel,
+}: {
+  difficultyLabel: string;
+  seed: number;
+  worldScaleLabel: string;
+}) {
+  return (
+    <div
+      data-world-build-loading="true"
+      role="status"
+      aria-live="polite"
+      className="fixed inset-0 z-[140] flex items-center justify-center bg-[#071018]/96 px-4 backdrop-blur-xl"
+    >
+      <div className="seller-panel-muted w-full max-w-[760px] overflow-hidden rounded-[24px] border border-cyan-400/14 bg-[linear-gradient(180deg,rgba(17,25,35,0.98),rgba(9,16,24,0.98))] shadow-[0_36px_90px_rgba(0,0,0,0.42)]">
+        <div className="border-b border-white/8 px-6 py-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/18 bg-cyan-500/12 px-3 py-1 text-[11px] font-semibold text-cyan-100">
+              <Brain size={13} />
+              {WORLD_BUILDER_NAME}
+            </div>
+            <div className="font-mono text-[10px] font-semibold text-white/36">seed {seed}</div>
+          </div>
+          <h2 className="mt-5 text-[28px] font-semibold tracking-[-0.04em] text-white">正在构建一个全新的初始化世界</h2>
+          <p className="mt-3 max-w-[45rem] text-[13px] font-semibold leading-7 text-white/64">
+            {difficultyLabel} 正在落盘：世界引擎先生成可复盘的市场事实，再让 {WORLD_BUILDER_NAME} 读一遍客户、业主、竞品和今天的经营先后顺序。
+          </p>
+        </div>
+
+        <div className="px-6 py-5">
+          <div className="rounded-[18px] border border-white/8 bg-white/[0.03] px-4 py-3">
+            <div className="seller-label text-white/38">世界体量</div>
+            <div className="mt-2 text-[15px] font-semibold leading-6 text-white/86">{worldScaleLabel}</div>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {WORLD_BUILD_STEPS.map((step) => (
+              <div key={step.label} className="rounded-[16px] border border-white/8 bg-[#0d141e]/82 p-4">
+                <div className="flex items-center gap-2 text-[11px] font-semibold text-cyan-100/68">
+                  <step.icon size={14} />
+                  {step.label}
+                </div>
+                <p className="mt-2 text-[12px] font-semibold leading-6 text-white/56">{step.detail}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-5">
+            <div className="mb-2 flex items-center justify-between text-[11px] font-semibold text-white/44">
+              <span>构建进度</span>
+              <span>至少 5 秒</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full border border-white/8 bg-white/[0.05]">
+              <div className="seller-world-build-progress h-full rounded-full bg-[#49dd85]" />
+            </div>
+          </div>
         </div>
       </div>
     </div>
