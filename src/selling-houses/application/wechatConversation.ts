@@ -431,8 +431,8 @@ export function buildFallbackConversationEffectProposal(scene: ConversationScene
 
 export function buildLlmFirstConversationEffectProposal(scene: ConversationSceneInputPack): ConversationEffectProposal {
   // Use LLM-first agent for reply generation
-  const { buildLlmFirstProposal } = require('./llmFirstConversationAgent.js');
-  const llmProposal = buildLlmFirstProposal(scene);
+  const llmFirstAgent = require('./llmFirstConversationAgent.js');
+  const llmProposal = llmFirstAgent.buildLlmFirstProposal(scene);
 
   // Keep same intent/risk analysis as fallback
   const intents = new Set<ConversationIntentKind>();
