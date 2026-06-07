@@ -17,25 +17,25 @@ export function buildFallbackDailyStory(pack: DailyCityStoryContextPack): DailyC
   const customers = pack.visibleCustomers;
   const deltas = pack.scoreboard.sharpestDeltas;
 
-  const paragraphs: string[] = [];
+  // Build all paragraphs
+  const cityFrame = buildCityFrameParagraph(pack);
+  const delta = buildDeltaParagraph(pack, deltas);
+  const event = buildEventParagraph(pack, events);
+  const relationship = buildRelationshipParagraph(pack, owners, customers);
+  const casePara = buildCaseParagraph(pack, cases);
+  const bridge = buildTodayBridgeParagraph(pack);
 
-  // 第一段：城市/商圈/今日标题
-  paragraphs.push(buildCityFrameParagraph(pack));
-
-  // 第二段：最大变化指标背后的业务含义
-  paragraphs.push(buildDeltaParagraph(pack, deltas));
-
-  // 第三段：最重要事件
-  paragraphs.push(buildEventParagraph(pack, events));
-
-  // 第四段：业主/客户关系
-  paragraphs.push(buildRelationshipParagraph(pack, owners, customers));
-
-  // 第五段：房源/竞品
-  paragraphs.push(buildCaseParagraph(pack, cases));
-
-  // 第六段：今日先接哪条线
-  paragraphs.push(buildTodayBridgeParagraph(pack));
+  // Hash-based paragraph ordering for diversity
+  const hash = stableHash(`${pack.packId}:order:${pack.day}`);
+  const orders = [
+    [cityFrame, delta, event, relationship, casePara, bridge],
+    [delta, cityFrame, event, relationship, casePara, bridge],
+    [event, cityFrame, delta, relationship, casePara, bridge],
+    [cityFrame, event, delta, relationship, casePara, bridge],
+    [delta, event, cityFrame, relationship, casePara, bridge],
+    [cityFrame, delta, relationship, event, casePara, bridge],
+  ];
+  const paragraphs = orders[hash % orders.length];
 
   const wordCount = paragraphs.reduce((sum, p) => sum + countChineseChars(p), 0);
 
@@ -82,6 +82,14 @@ function buildCityFrameParagraph(pack: DailyCityStoryContextPack): string {
     `${cityFrame.dayLabel}${periodLabel}，${districts}商圈${mood}。`,
     `走到${districts}商圈，${cityFrame.dayLabel}整体${mood}。`,
     `${districts}的${cityFrame.dayLabel}，${mood}收市。`,
+    `今天是${cityFrame.dayLabel}，${districts}商圈${mood}。`,
+    `看看${districts}商圈，${cityFrame.dayLabel}${mood}。`,
+    `${districts}商圈今天的情况：${mood}。`,
+    `${periodLabel}的${districts}商圈，${mood}。`,
+    `从数据看${districts}，${cityFrame.dayLabel}${mood}。`,
+    `${districts}商圈${periodLabel}收市，整体${mood}。`,
+    `今天${districts}商圈${mood}，各条线按计划推进。`,
+    `${cityFrame.dayLabel}的${districts}商圈，${mood}收市。`,
   ];
   let para = openers[hash % openers.length];
   para += `${periodLabel}的门店节奏${todayPlan.theme}，今日精力${todayPlan.energy}小时。`;
@@ -120,6 +128,10 @@ function buildDeltaParagraph(pack: DailyCityStoryContextPack, deltas: DailyCityS
     `昨夜有一条关键指标变了——${delta.label}${direction}${Math.abs(delta.value)}${delta.unit}。`,
     `昨夜的经营数据里，${delta.label}${direction}${Math.abs(delta.value)}${delta.unit}，这个变化得留意。`,
     `从数据来看，${delta.label}${direction}${Math.abs(delta.value)}${delta.unit}，得分析背后的原因。`,
+    `昨夜有一条数据变了：${delta.label}${direction}${Math.abs(delta.value)}${delta.unit}。`,
+    `看昨夜的数据，${delta.label}${direction}${Math.abs(delta.value)}${delta.unit}，得想想怎么应对。`,
+    `昨夜的经营指标里，${delta.label}${direction}${Math.abs(delta.value)}${delta.unit}，这个信号不能忽视。`,
+    `从昨夜的数据看，${delta.label}${direction}${Math.abs(delta.value)}${delta.unit}，得赶紧分析。`,
   ];
   let para = deltaOpeners[hash % deltaOpeners.length];
 

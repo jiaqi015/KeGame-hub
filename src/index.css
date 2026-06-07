@@ -515,12 +515,510 @@ select {
   }
 }
 
+@keyframes seller-world-build-scan {
+  0% {
+    transform: translateX(-120%);
+    opacity: 0;
+  }
+
+  12% {
+    opacity: 0.72;
+  }
+
+  88% {
+    opacity: 0.72;
+  }
+
+  100% {
+    transform: translateX(120%);
+    opacity: 0;
+  }
+}
+
+@keyframes seller-world-build-node {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+    border-color: rgba(255, 255, 255, 0.09);
+    box-shadow: 0 0 0 rgba(73, 221, 133, 0);
+  }
+
+  42% {
+    transform: translateY(-2px) scale(1.012);
+    border-color: rgba(73, 221, 133, 0.28);
+    box-shadow: 0 0 22px rgba(73, 221, 133, 0.12);
+  }
+}
+
+@keyframes seller-world-build-flow-spark {
+  from {
+    transform: translateX(-24%);
+    opacity: 0;
+  }
+
+  35% {
+    opacity: 0.9;
+  }
+
+  to {
+    transform: translateX(112%);
+    opacity: 0;
+  }
+}
+
+@keyframes seller-world-build-ring {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(0.82);
+    opacity: 0.1;
+  }
+
+  45% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.42;
+  }
+}
+
+@keyframes seller-world-build-step {
+  0%,
+  100% {
+    transform: translateY(0);
+    border-color: rgba(255, 255, 255, 0.08);
+    background-color: rgba(13, 20, 30, 0.82);
+  }
+
+  45% {
+    transform: translateY(-1px);
+    border-color: rgba(73, 221, 133, 0.18);
+    background-color: rgba(19, 31, 39, 0.88);
+  }
+}
+
+@keyframes seller-world-build-dot {
+  0%,
+  100% {
+    transform: scale(0.72);
+    opacity: 0.26;
+  }
+
+  45% {
+    transform: scale(1);
+    opacity: 0.92;
+  }
+}
+
+@keyframes seller-world-build-progress-shine {
+  from {
+    transform: translateX(-110%);
+  }
+
+  to {
+    transform: translateX(110%);
+  }
+}
+
+.seller-world-build-stage {
+  position: relative;
+  height: 228px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(13, 21, 30, 0.98), rgba(8, 15, 22, 0.98)),
+    linear-gradient(120deg, rgba(73, 221, 133, 0.07), transparent 56%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  contain: paint;
+  isolation: isolate;
+}
+
+.seller-world-build-grid {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.46;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: radial-gradient(circle at 50% 50%, #000 0%, #000 58%, transparent 88%);
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 0%, #000 58%, transparent 88%);
+}
+
+.seller-world-build-scan {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 36%;
+  background: linear-gradient(90deg, transparent, rgba(73, 221, 133, 0.16), transparent);
+  filter: blur(0.5px);
+  animation: seller-world-build-scan 5s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  will-change: transform, opacity;
+}
+
+.seller-world-build-flow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 1;
+  width: 34%;
+  height: 1px;
+  overflow: hidden;
+  background: linear-gradient(90deg, transparent, rgba(73, 221, 133, 0.28), transparent);
+  opacity: 0.78;
+  transform-origin: left center;
+}
+
+.seller-world-build-flow::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: linear-gradient(90deg, transparent, rgba(233, 248, 236, 0.82), transparent);
+  animation: seller-world-build-flow-spark 2.6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  will-change: transform, opacity;
+}
+
+.seller-world-build-flow-a {
+  transform: rotate(209deg);
+}
+
+.seller-world-build-flow-b {
+  transform: rotate(150deg);
+}
+
+.seller-world-build-flow-c {
+  transform: rotate(31deg);
+}
+
+.seller-world-build-flow-d {
+  transform: rotate(-28deg);
+}
+
+.seller-world-build-flow-b::after {
+  animation-delay: 0.28s;
+}
+
+.seller-world-build-flow-c::after {
+  animation-delay: 0.56s;
+}
+
+.seller-world-build-flow-d::after {
+  animation-delay: 0.84s;
+}
+
+.seller-world-build-node {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  min-width: 132px;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  background: rgba(13, 20, 30, 0.92);
+  padding: 10px 11px;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.22);
+  animation: seller-world-build-node 3.2s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  will-change: transform, box-shadow;
+}
+
+.seller-world-build-node-listing {
+  left: 7%;
+  top: 18%;
+}
+
+.seller-world-build-node-owner {
+  left: 10%;
+  bottom: 17%;
+  animation-delay: 0.22s;
+}
+
+.seller-world-build-node-customer {
+  right: 8%;
+  top: 18%;
+  animation-delay: 0.44s;
+}
+
+.seller-world-build-node-rival {
+  right: 10%;
+  bottom: 17%;
+  animation-delay: 0.66s;
+}
+
+.seller-world-build-node-icon {
+  display: flex;
+  height: 28px;
+  width: 28px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(73, 221, 133, 0.12);
+  color: #86efac;
+}
+
+.seller-world-build-node-label {
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: rgba(244, 248, 244, 0.9);
+}
+
+.seller-world-build-node-value {
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: rgba(210, 224, 218, 0.5);
+  white-space: nowrap;
+}
+
+.seller-world-build-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 4;
+  transform: translate(-50%, -50%);
+}
+
+.seller-world-build-center-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  height: 198px;
+  width: 198px;
+  border: 1px solid rgba(73, 221, 133, 0.34);
+  border-radius: 999px;
+  animation: seller-world-build-ring 2.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  will-change: transform, opacity;
+}
+
+.seller-world-build-center-card {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  min-height: 152px;
+  min-width: 204px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  overflow: hidden;
+  border: 1px solid rgba(73, 221, 133, 0.28);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 50% 34%, rgba(73, 221, 133, 0.2), transparent 42%),
+    linear-gradient(180deg, rgba(21, 42, 37, 0.96), rgba(10, 25, 24, 0.98));
+  padding: 20px 26px 18px;
+  color: #b9f6ca;
+  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+.seller-world-build-center-card::before {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  height: 94px;
+  width: 94px;
+  content: "";
+  transform: translateX(-50%);
+  border: 1px solid rgba(134, 239, 172, 0.22);
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, transparent 48%, rgba(134, 239, 172, 0.14) 49%, rgba(134, 239, 172, 0.14) 51%, transparent 52%),
+    linear-gradient(0deg, transparent 48%, rgba(134, 239, 172, 0.12) 49%, rgba(134, 239, 172, 0.12) 51%, transparent 52%),
+    radial-gradient(circle at 35% 34%, rgba(134, 239, 172, 0.26), transparent 18%),
+    radial-gradient(circle at 64% 62%, rgba(24, 196, 127, 0.22), transparent 20%),
+    rgba(5, 20, 18, 0.72);
+  box-shadow: inset 0 0 18px rgba(73, 221, 133, 0.1);
+}
+
+.seller-world-build-center-card::after {
+  position: absolute;
+  top: 30px;
+  left: 50%;
+  height: 58px;
+  width: 116px;
+  content: "";
+  transform: translateX(-50%) rotate(-12deg);
+  border-top: 1px solid rgba(134, 239, 172, 0.22);
+  border-bottom: 1px solid rgba(134, 239, 172, 0.14);
+  border-radius: 999px;
+}
+
+.seller-world-build-center-card svg {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 4px;
+  color: #9af6b8;
+  filter: drop-shadow(0 0 10px rgba(73, 221, 133, 0.22));
+}
+
+.seller-world-build-center-card span {
+  position: relative;
+  z-index: 1;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: rgba(244, 248, 244, 0.86);
+}
+
+.seller-world-build-center-card strong {
+  position: relative;
+  z-index: 1;
+  font-size: 11px;
+  font-weight: 800;
+  color: rgba(134, 239, 172, 0.78);
+}
+
+.seller-world-build-timeline {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  z-index: 2;
+  display: flex;
+  width: 220px;
+  transform: translateX(-50%);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.seller-world-build-timeline::before {
+  position: absolute;
+  left: 9px;
+  right: 9px;
+  top: 50%;
+  height: 1px;
+  content: "";
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.seller-world-build-timeline span {
+  position: relative;
+  z-index: 1;
+  display: block;
+  height: 7px;
+  width: 7px;
+  border-radius: 999px;
+  background: #49dd85;
+  animation: seller-world-build-dot 1.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+.seller-world-build-timeline span:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+.seller-world-build-timeline span:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+.seller-world-build-timeline span:nth-child(4) {
+  animation-delay: 0.54s;
+}
+
+.seller-world-build-timeline span:nth-child(5) {
+  animation-delay: 0.72s;
+}
+
+.seller-world-build-step {
+  animation: seller-world-build-step 4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  will-change: transform;
+}
+
+.seller-world-build-step:nth-child(2) {
+  animation-delay: 0.28s;
+}
+
+.seller-world-build-step:nth-child(3) {
+  animation-delay: 0.56s;
+}
+
+.seller-world-build-step:nth-child(4) {
+  animation-delay: 0.84s;
+}
+
 .seller-world-build-progress {
+  position: relative;
+  overflow: hidden;
   transform-origin: left center;
   animation: seller-world-build-progress 5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  will-change: transform;
+}
+
+.seller-world-build-progress::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.48), transparent);
+  animation: seller-world-build-progress-shine 1.25s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  will-change: transform;
+}
+
+@media (max-width: 640px) {
+  .seller-world-build-stage {
+    height: 264px;
+  }
+
+  .seller-world-build-center-card {
+    min-height: 128px;
+    min-width: 158px;
+    border-radius: 24px;
+    padding-inline: 18px;
+  }
+
+  .seller-world-build-node {
+    min-width: 118px;
+    padding: 9px 10px;
+  }
+
+  .seller-world-build-node-listing {
+    left: 4%;
+    top: 10%;
+  }
+
+  .seller-world-build-node-owner {
+    left: 4%;
+    bottom: 13%;
+  }
+
+  .seller-world-build-node-customer {
+    right: 4%;
+    top: 10%;
+  }
+
+  .seller-world-build-node-rival {
+    right: 4%;
+    bottom: 13%;
+  }
+
+  .seller-world-build-flow {
+    width: 31%;
+  }
+
+  .seller-world-build-timeline {
+    width: 178px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .seller-world-build-scan,
+  .seller-world-build-flow::after,
+  .seller-world-build-node,
+  .seller-world-build-center-ring,
+  .seller-world-build-timeline span,
+  .seller-world-build-step,
+  .seller-world-build-progress::after {
+    animation: none;
+  }
+
+  .seller-world-build-scan {
+    opacity: 0;
+  }
+
+  .seller-world-build-center-ring {
+    transform: translate(-50%, -50%) scale(0.94);
+    opacity: 0.22;
+  }
+
   .seller-world-build-progress {
     animation: none;
     transform: scaleX(1);

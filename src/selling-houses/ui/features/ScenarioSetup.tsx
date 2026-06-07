@@ -8,6 +8,8 @@ import {
   Database,
   Flame,
   Gauge,
+  Globe2,
+  Handshake,
   Home,
   Network,
   Play,
@@ -102,6 +104,33 @@ const WORLD_BUILD_STEPS = [
     icon: Clock3,
     label: '进入今天',
     detail: '准备好后进入第一天，你会看到房源、客户、微信消息和待办安排。',
+  },
+] as const;
+
+const WORLD_BUILD_NODES = [
+  {
+    icon: Home,
+    label: '房源',
+    value: '价格 · 状态 · 热度',
+    className: 'seller-world-build-node-listing',
+  },
+  {
+    icon: Handshake,
+    label: '业主',
+    value: '急迫度 · 信任',
+    className: 'seller-world-build-node-owner',
+  },
+  {
+    icon: Users,
+    label: '客户',
+    value: '线索 · 看房意向',
+    className: 'seller-world-build-node-customer',
+  },
+  {
+    icon: Store,
+    label: '竞品',
+    value: '同价位 · 分流',
+    className: 'seller-world-build-node-rival',
   },
 ] as const;
 
@@ -643,7 +672,44 @@ function WorldBuildLoadingPage({
           </p>
         </div>
 
-        <div className="px-6 py-5">
+        <div className="px-6 pt-5">
+          <div className="seller-world-build-stage" aria-hidden="true">
+            <div className="seller-world-build-grid" />
+            <div className="seller-world-build-scan" />
+            <div className="seller-world-build-flow seller-world-build-flow-a" />
+            <div className="seller-world-build-flow seller-world-build-flow-b" />
+            <div className="seller-world-build-flow seller-world-build-flow-c" />
+            <div className="seller-world-build-flow seller-world-build-flow-d" />
+            <div className="seller-world-build-timeline">
+              <span />
+              <span />
+              <span />
+              <span />
+              <span />
+            </div>
+            {WORLD_BUILD_NODES.map((node) => (
+              <div key={node.label} className={`seller-world-build-node ${node.className}`}>
+                <div className="seller-world-build-node-icon">
+                  <node.icon size={13} />
+                </div>
+                <div>
+                  <div className="seller-world-build-node-label">{node.label}</div>
+                  <div className="seller-world-build-node-value">{node.value}</div>
+                </div>
+              </div>
+            ))}
+            <div className="seller-world-build-center">
+              <div className="seller-world-build-center-ring" />
+              <div className="seller-world-build-center-card">
+                <Globe2 size={26} />
+                <span>卖房世界</span>
+                <strong>生成中</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-6 pb-5 pt-4">
           <div className="rounded-[18px] border border-white/8 bg-white/[0.03] px-4 py-3">
             <div className="seller-label text-white/38">本局规模</div>
             <div className="mt-2 text-[15px] font-semibold leading-6 text-white/86">{worldScaleLabel}</div>
@@ -651,7 +717,7 @@ function WorldBuildLoadingPage({
 
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             {WORLD_BUILD_STEPS.map((step) => (
-              <div key={step.label} className="rounded-[16px] border border-white/8 bg-[#0d141e]/82 p-4">
+              <div key={step.label} className="seller-world-build-step rounded-[16px] border border-white/8 bg-[#0d141e]/82 p-4">
                 <div className="flex items-center gap-2 text-[11px] font-semibold text-cyan-100/68">
                   <step.icon size={14} />
                   {step.label}
