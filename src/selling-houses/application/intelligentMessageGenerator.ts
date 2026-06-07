@@ -62,7 +62,7 @@ function buildMessageContext(fact: WechatFact, state: GameState): MessageContext
     askPrice: caseItem?.askPrice ?? 0,
     marketPrice: caseItem?.marketPrice ?? 0,
     priceGapPct: caseItem?.priceGapPct ?? 0,
-    personality: (caseItem?.personality as any) || 'pragmatic',
+    personality: caseItem?.personality || 'pragmatic',
   };
 }
 
@@ -238,11 +238,12 @@ function generateCustomerChurnRisk(ctx: MessageContext, seed: string): string {
 }
 
 function generateDefault(ctx: MessageContext, seed: string): string {
+  const name = ctx.customerName !== '客户' ? ctx.customerName : ctx.ownerName;
   const templates = [
-    '{ownerName}：{caseTitle}最近怎么样？有什么新情况吗？',
-    '{ownerName}：你帮我看看{community}这边的市场变化，我需要一个判断。',
+    '{name}：{caseTitle}最近怎么样？有什么新情况吗？',
+    '{name}：你帮我看看{community}这边的市场变化，我需要一个判断。',
   ];
-  return fillSmart(pick(templates, seed), ctx);
+  return fillSmart(pick(templates, seed), { ...ctx, ownerName: name });
 }
 
 // === Smart fill ===

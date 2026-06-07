@@ -55,6 +55,7 @@ import { handleMyWechatConversationTurn } from "./src/selling-houses/interfaces/
 import { handleActionDecisionAdvice } from "./src/selling-houses/interfaces/http/actionDecisionAdviceHandlers.js";
 import { handleAiArrangement } from "./src/selling-houses/interfaces/http/aiArrangementHandlers.js";
 import { handleDailyStory } from "./src/selling-houses/interfaces/http/dailyStoryHandlers.js";
+import { handleScenarioOpeningStory } from "./src/selling-houses/interfaces/http/scenarioOpeningStoryHandlers.js";
 import {
   getFirstFieldValue,
   hasQueryValue,
@@ -613,6 +614,26 @@ async function startServer() {
         story: null,
         source: 'fallback',
         error: error instanceof Error ? error.message : "日结故事生成失败",
+      });
+    }
+  });
+
+  app.post("/api/scenario-opening-story", async (req, res) => {
+    try {
+      const authorization = await authorizeRequestPersisted(req, "selling-houses");
+      if (!authorization.ok) {
+        return res.status(authorization.status).json({ error: authorization.error });
+      }
+
+      const { briefing } = req.body || {};
+      const result = await handleScenarioOpeningStory(briefing);
+      return res.status(result.status).json(result.body);
+    } catch (error) {
+      return res.status(200).json({
+        ok: false,
+        story: null,
+        source: 'fallback',
+        error: error instanceof Error ? error.message : "开场故事生成失败",
       });
     }
   });

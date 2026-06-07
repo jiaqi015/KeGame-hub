@@ -149,9 +149,10 @@ describe('buildDailyStoryContextPack', () => {
 
   it('infers case pressure labels', () => {
     const state = makeState();
-    state.cases[0].priceGapPct = 20;
-    state.cases[0].urgency = 80;
-    state.cases[0].trust = 25;
+    const caseItem = state.cases[0] as any;
+    caseItem.priceGapPct = 20;
+    caseItem.urgency = 80;
+    caseItem.trust = 25;
     const pack = buildDailyStoryContextPack({ report: makeReport(), state });
 
     expect(pack.visibleCases[0].pressureLabels).toContain('价差大');
@@ -161,7 +162,8 @@ describe('buildDailyStoryContextPack', () => {
 
   it('infers owner mood', () => {
     const state = makeState();
-    state.cases[0].trust = 20;
+    const caseItem = state.cases[0] as any;
+    caseItem.trust = 20;
     const pack = buildDailyStoryContextPack({ report: makeReport(), state });
 
     expect(pack.visibleOwners[0].visibleMood).toBe('不信任');

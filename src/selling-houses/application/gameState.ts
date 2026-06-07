@@ -74,6 +74,7 @@ import {
 import { createMarketOpeningSnapshot } from '../domain/world-model/seededMarketWorld.js';
 import { createBigWorldBootstrap } from '../domain/world-model/bigWorldBootstrap.js';
 import { buildBigWorldBootstrapSummary } from '../domain/world-model/bigWorldBootstrapSummary.js';
+import { FIVE_X_SCALE_POLICY } from '../domain/world-model/bigWorldSpecFactory.js';
 import { createDefaultRuntimeState, DEFAULT_COMPACTION_POLICY, normalizeRuntimeState } from '../domain/world-model/runtime/index.js';
 import { resolvePlayerBrokerAcnId, resolveInitialPlayerBrokerAcnId } from '../domain/world-model/runtime/brandIdHelper.js';
 import {
@@ -249,6 +250,9 @@ function resolveRunSeeds(seedInput: RunSeedInput) {
 
 function buildRunContext(snapshot: ScenarioSnapshot, seedInput: RunSeedInput) {
   const { runSeed, scenarioSeed } = resolveRunSeeds(seedInput);
+  const generatedScaleOverride = snapshot.scenario.id.startsWith('generated-')
+    ? FIVE_X_SCALE_POLICY
+    : undefined;
 
   // BigWorldBootstrap is the canonical entrypoint for world initialization.
   // MarketOpeningSnapshot is derived as a child/adaptor from bootstrap.
@@ -258,6 +262,7 @@ function buildRunContext(snapshot: ScenarioSnapshot, seedInput: RunSeedInput) {
     difficultyId: snapshot.scenario.difficultyId,
     playerCaseCount: snapshot.scenario.cases.length,
     playerCaseIds: snapshot.scenario.cases.map((c) => c.id),
+    scaleOverride: generatedScaleOverride,
   });
 
   const marketOpeningSnapshot = bigWorldBootstrap.marketOpeningSnapshot;

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ArrowLeft,
   CalendarDays,
@@ -22,6 +22,7 @@ import {
   type ScenarioOpeningBriefing,
 } from '../../application/scenarioOpening';
 import { buildDifficultyPresentation, type DifficultyPresentationTone } from '../../application/difficultyPresentation';
+import { fetchScenarioOpeningStory } from './scenarioOpeningStoryClient';
 
 const ICONS = {
   warmup: ShieldCheck,
@@ -317,6 +318,19 @@ function OpeningBriefingView({
   onBack: () => void;
   onEnter: () => void;
 }) {
+  const [story, setStory] = useState(briefing.openingStory);
+
+  useEffect(() => {
+    let disposed = false;
+    setStory(briefing.openingStory);
+    fetchScenarioOpeningStory(briefing).then((result) => {
+      if (!disposed) {
+        setStory(result.story);
+      }
+    });
+    return () => { disposed = true; };
+  }, [briefing]);
+
   return (
     <div className="mx-auto flex h-full w-full max-w-[980px] flex-col overflow-y-auto px-4 py-5 text-[var(--seller-ink)] lg:px-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -339,9 +353,8 @@ function OpeningBriefingView({
           <div className="flex flex-wrap items-start justify-between gap-5">
             <div className="min-w-0">
               <div className="seller-label text-white/42">本局开局简报</div>
-              <h1 className="mt-2 text-[34px] font-semibold tracking-[-0.05em] text-white">今天先抓哪几套房</h1>
               <p className="mt-3 max-w-[42rem] text-[14px] font-semibold leading-7 text-white/72">
-                这不是考试说明，而是你今天要接手的一摊真实生意：哪些业主急、哪些客户快、哪套房值得先花力气，先看完再进场。
+                {story.deck}
               </p>
             </div>
             <div className="rounded-[20px] border border-white/10 bg-white/[0.04] p-4 text-right">
@@ -361,11 +374,17 @@ function OpeningBriefingView({
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <div className="seller-label text-white/42">今天的市场故事</div>
-                <div className="mt-2 text-[18px] font-semibold text-white">{briefing.marketTitle}</div>
-                <p className="mt-2 text-[13px] font-semibold leading-6 text-white/62">{briefing.marketDetail}</p>
+                <div className="mt-2 text-[18px] font-semibold text-white">{story.marketTitle}</div>
+                <div className="mt-2 space-y-2">
+                  {story.marketParagraphs.map((paragraph, index) => (
+                    <p key={`${paragraph.slice(0, 16)}-${index}`} className="text-[13px] font-semibold leading-6 text-white/62">
+                      {paragraph}
+                    </p>
+                  ))}
+                </div>
               </div>
               <div className="flex max-w-[26rem] flex-wrap justify-end gap-2">
-                {briefing.marketTags.map((tag) => (
+                {story.evidenceLabels.map((tag) => (
                   <span
                     key={tag}
                     className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-semibold text-white/62"

@@ -1779,11 +1779,11 @@ const OfficialArticleRow: React.FC<OfficialArticleRowProps> = ({
         <span className="shrink-0 text-[10px] font-medium text-[var(--seller-subtle)]">{article.timeLabel}</span>
       </div>
       <p className="mt-2 line-clamp-3 text-[11px] leading-5 text-[var(--seller-muted)]">{article.preview}</p>
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-semibold">
         {!read && <span className="h-2 w-2 rounded-full bg-rose-500" />}
-        <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${articleToneClassName(article.tone)}`}>{articleTagLabel(article.tag)}</span>
-        {article.relatedCaseIds.length > 0 && <span className="seller-chip">影响 {article.relatedCaseIds.length} 套</span>}
-        {article.primaryCtaLabel && <span className="text-[10px] font-semibold text-[var(--seller-accent)]">{article.primaryCtaLabel}</span>}
+        <span className="text-[var(--seller-subtle)]">{articleTagLabel(article.tag)}</span>
+        {article.relatedCaseIds.length > 0 && <span className="text-[var(--seller-subtle)]">· 关联 {article.relatedCaseIds.length} 套房源</span>}
+        <span className="text-[var(--seller-accent)]">阅读全文</span>
       </div>
     </button>
   );
@@ -1795,12 +1795,12 @@ const OfficialArticleDetail: React.FC<OfficialArticleDetailProps> = ({
   onSelectCase,
   onOpenMarket,
 }) => {
-  const detailLines = buildOfficialArticleDetailLines(article);
+  const articleSections = buildOfficialArticleSections(article);
   const firstCaseId = article.relatedCaseIds[0] || null;
 
   return (
     <div
-      className="flex h-[min(560px,calc(100vh-220px))] min-h-[420px] flex-col overflow-hidden rounded-[14px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)]"
+      className="flex h-[min(560px,calc(100vh-220px))] min-h-[420px] flex-col overflow-hidden rounded-[14px] border border-[var(--seller-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.018))]"
       data-my-wechat-official-detail="true"
     >
       <div className="flex shrink-0 items-center gap-2 border-b border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] px-3 py-2.5">
@@ -1822,32 +1822,35 @@ const OfficialArticleDetail: React.FC<OfficialArticleDetailProps> = ({
         </span>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 py-4">
-        <div className="rounded-[16px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.035)] px-3.5 py-3.5">
-          <h3 className="text-[16px] font-semibold leading-6 tracking-[-0.02em] text-[var(--seller-ink)]">
+      <article className="flex-1 overflow-y-auto px-4 py-4">
+        <header className="border-b border-[var(--seller-border)] pb-4">
+          <div className="text-[10px] font-semibold text-[var(--seller-subtle)]">
+            {article.accountName} · {article.timeLabel}
+          </div>
+          <h3 className="mt-2 text-[20px] font-semibold leading-7 tracking-[-0.02em] text-[var(--seller-ink)]">
             {article.title}
           </h3>
-          <p className="mt-3 whitespace-pre-wrap text-[12px] leading-6 text-[var(--seller-muted)]">
+          <p className="mt-3 text-[13px] font-medium leading-7 text-[var(--seller-muted)]">
             {article.summary}
           </p>
-        </div>
+        </header>
 
-        <div className="mt-3 grid gap-2">
-          {detailLines.map((line) => (
-            <div
-              key={line.label}
-              className="rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] px-3 py-2.5"
-            >
-              <div className="seller-label text-[9px]">{line.label}</div>
-              <p className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">{line.value}</p>
-            </div>
+        <div className="mt-4 space-y-4">
+          {articleSections.map((section) => (
+            <section key={section.title}>
+              <div className="flex items-center gap-2">
+                <span className="h-px w-5 bg-[color:var(--seller-accent)]/55" />
+                <h4 className="text-[12px] font-semibold text-[var(--seller-ink)]">{section.title}</h4>
+              </div>
+              <p className="mt-2 text-[12px] leading-7 text-[var(--seller-muted)]">{section.body}</p>
+            </section>
           ))}
         </div>
 
         {article.relatedCaseIds.length > 0 && (
-          <div className="mt-3 rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] px-3 py-2.5">
-            <div className="seller-label text-[9px]">影响范围</div>
-            <div className="mt-2 flex flex-wrap gap-1.5">
+          <footer className="mt-5 border-t border-[var(--seller-border)] pt-3">
+            <div className="text-[10px] font-semibold text-[var(--seller-subtle)]">文中提到的房源</div>
+            <div className="mt-2 flex flex-wrap gap-2">
               {article.relatedCaseIds.map((caseId, index) => (
                 <button
                   key={caseId}
@@ -1859,9 +1862,9 @@ const OfficialArticleDetail: React.FC<OfficialArticleDetailProps> = ({
                 </button>
               ))}
             </div>
-          </div>
+          </footer>
         )}
-      </div>
+      </article>
 
       <div className="shrink-0 border-t border-[var(--seller-border)] bg-[rgba(255,255,255,0.025)] px-3 py-2.5">
         <div className="flex flex-wrap justify-end gap-2">
@@ -1961,63 +1964,63 @@ function getOfficialAccountAvatarSrc(accountName: string) {
   return OFFICIAL_ACCOUNT_AVATAR_BY_NAME[accountName] || OFFICIAL_ACCOUNT_AVATAR_FALLBACKS[fallbackIndex];
 }
 
-function buildOfficialArticleDetailLines(article: OfficialAccountArticle) {
+function buildOfficialArticleSections(article: OfficialAccountArticle) {
   const impactLine = article.relatedCaseIds.length > 0
-    ? `这条情报会影响 ${article.relatedCaseIds.length} 套手里房源，适合在沟通前先统一客户比价、业主反馈和下一步动作。`
-    : '这条情报偏市场面，适合先放进今天的判断里，再决定是否调整当前沟通口径。';
+    ? `这条变化会打到 ${article.relatedCaseIds.length} 套手里房源。今天开口前，先把客户可能拿来比较的点、业主可能追问的点，以及你准备给出的下一步安排放在同一套话术里。`
+    : '这条变化暂时更像市场风向。它不一定立刻改变某一套房，但会改变客户提问的方式，也会影响你今天判断价格、带看和沟通节奏。';
 
   if (article.tag === 'competitor') {
     return [
       {
-        label: '看点',
-        value: '同价位新增供给变多后，客户会更容易拿竞品做锚点，压价理由也会更具体。',
+        title: '客户会拿什么来比',
+        body: '同价位供给一多，客户不会只问“这套好不好”，而是会直接拿旁边的房源问价格、楼层、装修和业主让步空间。压价不再是抽象情绪，而是有了更具体的参照物。',
       },
       {
-        label: '建议动作',
-        value: '先准备竞品对比口径：价格差、楼层装修差、业主可谈边界都要能讲清，再去承接客户反馈。',
+        title: '今天先准备什么',
+        body: '先把竞品对比口径准备好：我们的价格差在哪里，户型或装修有没有硬优势，业主能不能谈，哪些点不能让。再去接客户反馈，会比临场解释稳得多。',
       },
-      { label: '影响范围', value: impactLine },
+      { title: '会影响哪些动作', body: impactLine },
     ];
   }
 
   if (article.tag === 'community' || article.tag === 'district') {
     return [
       {
-        label: '看点',
-        value: '同小区或同板块供给变化，会直接改变客户看房路线和业主对市场热度的体感。',
+        title: '板块里的风向变了',
+        body: '同小区或同板块供给变化，会直接改变客户看房路线。客户多看一套，业主就多一个被比较的理由；如果不提前讲清差异，后面的反馈很容易变成一句“再看看”。',
       },
       {
-        label: '建议动作',
-        value: '先把本房和新增房源的差异讲清楚，再决定是补卖点、补带看，还是提前做价格预期沟通。',
+        title: '别只报新增供给',
+        body: '先把本房和新增房源的差异讲清楚，再决定是补卖点、补带看，还是提前做价格预期沟通。公众号提醒的价值，不是告诉你“有变化”，而是帮你提前组织判断。',
       },
-      { label: '影响范围', value: impactLine },
+      { title: '会影响哪些动作', body: impactLine },
     ];
   }
 
   if (article.tag === 'market') {
     return [
       {
-        label: '看点',
-        value: '客户预算和带看热度在变化，价格略高的房源更需要提前解释市场位置。',
+        title: '客户的预算感在变',
+        body: '客户预算和带看热度变化时，价格略高的房源最先感受到压力。你不能只说“市场就这样”，要能讲清这套房在同商圈里的位置。',
       },
       {
-        label: '建议动作',
-        value: '今天沟通时先给市场判断，再给行动安排，避免只说行情不好或继续等等。',
+        title: '沟通顺序要换一下',
+        body: '今天沟通时先给市场判断，再给行动安排：先解释客户为什么犹豫，再告诉业主下一步怎么补证据、补带看或补价格预期。这样比只说“继续等等”更能稳住信任。',
       },
-      { label: '影响范围', value: impactLine },
+      { title: '会影响哪些动作', body: impactLine },
     ];
   }
 
   return [
     {
-      label: '看点',
-      value: '这类提醒更像经营方法，不是单条消息通知，重点是帮你把下一次沟通说得更具体。',
+      title: '这不是一条普通通知',
+      body: '这类提醒更像一篇经营方法短文。重点不是多一个消息红点，而是帮你把下一次沟通说得更具体，让业主和客户知道你已经看到了问题。',
     },
     {
-      label: '建议动作',
-      value: '先给判断，再给安排：让业主看到你知道问题在哪，也知道下一步要做什么。',
+      title: '先给判断，再给安排',
+      body: '不要一上来就报动作。先告诉对方你判断的原因，再给出今天准备推进的安排，沟通会更像专业经营，而不是临时回复。',
     },
-    { label: '影响范围', value: impactLine },
+    { title: '会影响哪些动作', body: impactLine },
   ];
 }
 

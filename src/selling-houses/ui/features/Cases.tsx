@@ -590,10 +590,7 @@ export function Cases({ state, selectedCaseIdOverride, theme = 'dark', onSelectC
                         </div>
                       </DeskSection>
 
-                      <DeskSection title="比较详情" count={activeAttentionListing?.strengthLabel || '对比'}>
-                        {caseProjection ? (
-                          <ComparisonWorldBrief summary={caseProjection.comparisonSummary} />
-                        ) : null}
+                      <DeskSection title="竞品影响" count={activeAttentionListing?.strengthLabel || '对比'}>
                         <PkHeader caseItem={selectedCase} row={activeAttentionListing} />
                         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                           <ComparisonMetric
@@ -612,6 +609,9 @@ export function Cases({ state, selectedCaseIdOverride, theme = 'dark', onSelectC
                             tone={deriveAttentionOverlapTone(activeAttentionRows)}
                           />
                         </div>
+                        {caseProjection ? (
+                          <ComparisonWorldBrief summary={caseProjection.comparisonSummary} />
+                        ) : null}
                         <div className="mt-2.5">
                           <AttentionComparisonTable caseItem={selectedCase} row={activeAttentionListing} />
                         </div>

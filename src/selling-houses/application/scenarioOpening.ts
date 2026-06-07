@@ -4,9 +4,11 @@ import type {
   GameState,
   GoalTier,
   MarketCell,
+  Opportunity,
   ScenarioOpeningRef,
   ScenarioSnapshot,
   ScenarioSummary,
+  Case,
 } from '../domain/models.js';
 import { isOpportunityActiveByCanonicalState } from '../domain/opportunityLifecycleStatusRead.js';
 import {
@@ -55,8 +57,16 @@ export interface ScenarioOpeningBriefingCase {
   tags: string[];
 }
 
+export interface ScenarioOpeningStory {
+  deck: string;
+  marketTitle: string;
+  marketParagraphs: string[];
+  evidenceLabels: string[];
+}
+
 export interface ScenarioOpeningBriefing {
   dateLabel: string;
+  openingStory: ScenarioOpeningStory;
   marketTitle: string;
   marketDetail: string;
   marketTags: string[];
@@ -304,17 +314,33 @@ export function buildScenarioOpeningBriefing(opening: ScenarioOpening): Scenario
   const marketCellCount = marketCells.length || opening.snapshot.world.marketCells.length;
   const worldScaleLabel = buildBigWorldScaleLabel(state)
     ?? `${scenario.cases.length} 套房 · ${marketCellCount} 个板块 · ${state.customers.length} 位潜在客户 · ${visibleOpportunities.length} 条线索`;
+  const marketTitle = buildMarketStoryTitle(marketNames, averageDemandHeat, averageCompetitivePressure);
+  const marketDetail = buildMarketStoryDetail(
+    marketNames,
+    averageDemandHeat,
+    averageCompetitivePressure,
+    averageSentiment,
+    scenario.initialRivalListings?.length || 0,
+  );
 
   return {
     dateLabel: buildOpeningDateLabel(opening.snapshot),
-    marketTitle: buildMarketStoryTitle(marketNames, averageDemandHeat, averageCompetitivePressure),
-    marketDetail: buildMarketStoryDetail(
-      marketNames,
-      averageDemandHeat,
-      averageCompetitivePressure,
-      averageSentiment,
+    openingStory: buildOpeningStory(
+      state.cases,
+      visibleOpportunities,
+      urgentCases,
+      fragileOwners,
       scenario.initialRivalListings?.length || 0,
+      marketTitle,
+      marketDetail,
+      [
+        `${scenario.competitionGroups.length} 组同类房竞争`,
+        `${scenario.scriptedEvents.length} 个已知节点`,
+        `${scenario.initialRivalListings?.length || 0} 套竞品在场`,
+      ],
     ),
+    marketTitle,
+    marketDetail,
     marketTags: [
       `${scenario.competitionGroups.length} 组同类房竞争`,
       `${scenario.scriptedEvents.length} 个已知节点`,
@@ -358,6 +384,57 @@ export function buildScenarioOpeningBriefing(opening: ScenarioOpening): Scenario
       } satisfies ScenarioOpeningBriefingCase;
     }),
   };
+}
+
+function buildOpeningStory(
+  cases: Case[],
+  visibleOpportunities: Opportunity[],
+  urgentCases: Case[],
+  fragileOwners: Case[],
+  rivalCount: number,
+  marketTitle: string,
+  marketDetail: string,
+  marketTags: string[],
+): ScenarioOpeningStory {
+  const priorityCases = [...cases]
+    .sort((left, right) => openingPriorityScore(right) - openingPriorityScore(left))
+    .slice(0, 2);
+  const priorityCaseText = priorityCases.map((entry) => entry.title).join('、');
+  const ownerClause = urgentCases.length > 0
+    ? `${urgentCases.length} 位业主时间收紧`
+    : `${cases.length} 位业主要你先定节奏`;
+  const customerClause = visibleOpportunities.length > 0
+    ? `${visibleOpportunities.length} 条客户线索已经浮出`
+    : '客户需求还需要你今天拉出来';
+  const relationClause = fragileOwners.length > 0
+    ? `，还有 ${fragileOwners.length} 位业主信任或耐心偏低`
+    : '';
+  const rivalClause = rivalCount > 0
+    ? `，场上 ${rivalCount} 套竞品会分流注意力`
+    : '';
+  const actionClause = priorityCaseText
+    ? `，先把 ${priorityCaseText} 的先后手排清楚。`
+    : '，先把今天的先后手排清楚。';
+  const priorityParagraph = priorityCaseText
+    ? `今天不要平均用力，先把 ${priorityCaseText} 放到前面。${ownerClause}，${customerClause}${relationClause}${rivalClause}，早一点把业主沟通、客户筛选和竞品说法排成顺序。`
+    : `今天不要平均用力，先把业主沟通、客户筛选和竞品说法排成顺序。${ownerClause}，${customerClause}${relationClause}${rivalClause}。`;
+
+  return {
+    deck: `${ownerClause}，${customerClause}${relationClause}${rivalClause}${actionClause}`,
+    marketTitle,
+    marketParagraphs: [marketDetail, priorityParagraph],
+    evidenceLabels: marketTags,
+  };
+}
+
+function openingPriorityScore(caseItem: Case) {
+  const timePressure = Math.max(0, 12 - caseItem.windowDays) * 7;
+  const ownerRisk = Math.max(0, 62 - caseItem.trust) + Math.max(0, 54 - caseItem.patience);
+  const pricingRisk = caseItem.askPrice > caseItem.marketPrice
+    ? ((caseItem.askPrice - caseItem.marketPrice) / Math.max(caseItem.marketPrice, 1)) * 80
+    : 0;
+  const competitionPressure = caseItem.competitionGroupIds.length * 12;
+  return caseItem.urgency + caseItem.heat * 0.45 + timePressure + ownerRisk + pricingRisk + competitionPressure;
 }
 
 function buildOpeningDateLabel(snapshot: ScenarioSnapshot) {

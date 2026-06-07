@@ -1467,6 +1467,15 @@ const MANAGER_REPLY_TABLE: readonly ReplyRule[] = [
 const OWNER_REPLY_TABLE_SORTED = [...OWNER_REPLY_TABLE].sort((a, b) => b.priority - a.priority);
 const MANAGER_REPLY_TABLE_SORTED = [...MANAGER_REPLY_TABLE].sort((a, b) => b.priority - a.priority);
 
+function stableHash(input: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
 function buildFallbackRecipientReply(
   intents: readonly ConversationIntentKind[],
   risks: readonly ConversationRiskKind[],
@@ -1481,24 +1490,71 @@ function buildFallbackRecipientReply(
   for (const rule of table) {
     if (matchRule(rule, scene, intents, risks, ctx, ownerProfile, flags)) {
       const reply = rule.buildReply(ctx);
-      return isHostile ? reply : enrichReply(reply, ctx);
+      return isHostile ? reply : enrichReply(reply, ctx, scene);
     }
   }
   const variants = buildWechatLocalReplyVariants(scene);
-  return isHostile ? variants.neutral : enrichReply(variants.neutral, ctx);
+  return isHostile ? variants.neutral : enrichReply(variants.neutral, ctx, scene);
 }
 
-function enrichReply(reply: string, ctx: ReplyContext): string {
+function enrichReply(reply: string, ctx: ReplyContext, scene?: ConversationSceneInputPack): string {
   let result = prependSourceAwareness(reply, ctx);
   result = appendRecentAwareness(result, ctx);
   result = enrichContext(result, ctx);
   result = enrichInfo(result, ctx);
+  result = enrichInference(result, ctx, scene);
   result = enrichEmotion(result, ctx);
   result = enrichRelationship(result, ctx);
   result = enrichStrategy(result, ctx);
   result = enrichResilience(result, ctx);
   result = injectHumanExpression(result, ctx);
   return result;
+}
+
+function enrichInference(reply: string, ctx: ReplyContext, scene?: ConversationSceneInputPack): string {
+  if (!scene) return reply;
+  const playerText = scene.playerText || '';
+  const nameEnd = reply.indexOf('：');
+  const hasNameEnd = nameEnd !== -1;
+  const prefix = hasNameEnd ? reply.slice(0, nameEnd + 1) : '';
+  const body = hasNameEnd ? reply.slice(nameEnd + 1) : reply;
+
+  // 家人犹豫 → 差异化
+  if (/家里人|家人|另一套|别人/.test(playerText) && !/优势|差异|对比|特点|卖点|别的/.test(reply)) {
+    return hasNameEnd ? `${prefix}${body}，${ctx.caseRef}的优势我帮你整理一下。` : `${reply}，${ctx.caseRef}的优势我帮你整理一下。`;
+  }
+
+  // 挂了很久 → 策略调整
+  if (/三个月|很久|好久|一直|挂了/.test(playerText) && !/调整|方案|策略|改变|新|动/.test(reply)) {
+    return hasNameEnd ? `${prefix}${body}，挂了这么久得想想新办法。` : `${reply}，挂了这么久得想想新办法。`;
+  }
+
+  // 价格怀疑 → 价格分析
+  if (/价格.*机会|价格.*行|价格.*有没有/.test(playerText) && !/价格|市场|数据|万|成交/.test(reply)) {
+    return hasNameEnd ? `${prefix}${body}，${ctx.locRef || '同小区'}的成交数据我帮你看看。` : `${reply}，${ctx.locRef || '同小区'}的成交数据我帮你看看。`;
+  }
+
+  // 信任质疑 → 依据 + 事实
+  if (/出入|骗|不信|怀疑|忽悠/.test(playerText) && !/依据|事实|真实|具体|数据/.test(reply)) {
+    return hasNameEnd ? `${prefix}${body}，我用数据和事实说话。` : `${reply}，我用数据和事实说话。`;
+  }
+
+  // 市场担忧 → 市场趋势
+  if (/市场.*跌|市场.*涨|市场.*会/.test(playerText) && !/市场|趋势|分析|判断|数据/.test(reply)) {
+    return hasNameEnd ? `${prefix}${body}，${ctx.locRef || '同小区'}的趋势我帮你分析。` : `${reply}，${ctx.locRef || '同小区'}的趋势我帮你分析。`;
+  }
+
+  // 被忽视感 → 承认 + 行动
+  if (/是不是.*忙|忘了|没管|不关注/.test(playerText) && !/今天|马上|现在|立刻|优先/.test(reply)) {
+    return hasNameEnd ? `${prefix}${body}，今天我优先处理你这边。` : `${reply}，今天我优先处理你这边。`;
+  }
+
+  // 竞品威胁 → 竞品分析
+  if (/隔壁.*低|别人.*高|其他.*好/.test(playerText) && !/竞品|对比|差异|市场/.test(reply)) {
+    return hasNameEnd ? `${prefix}${body}，竞品的情况我帮你做个对比。` : `${reply}，竞品的情况我帮你做个对比。`;
+  }
+
+  return reply;
 }
 
 function enrichContext(reply: string, ctx: ReplyContext): string {
@@ -1526,39 +1582,41 @@ function enrichContext(reply: string, ctx: ReplyContext): string {
 }
 
 function enrichEmotion(reply: string, ctx: ReplyContext): string {
-  let result = reply;
-  // Add empathy for low trust (use words benchmark recognizes)
-  if (ctx.trust < 40 && !/理解|知道|明白|能感受到/.test(result)) {
-    const empathy = ctx.trust < 25 ? '我能理解你的感受，' : '我理解，';
-    const nameEnd = result.indexOf('：');
-    if (nameEnd === -1) result = `${empathy}${result}`;
-    else result = `${result.slice(0, nameEnd + 1)}${empathy}${result.slice(nameEnd + 1)}`;
+  const nameEnd = reply.indexOf('：');
+  const hasNameEnd = nameEnd !== -1;
+  const prefix = hasNameEnd ? reply.slice(0, nameEnd + 1) : '';
+  const body = hasNameEnd ? reply.slice(nameEnd + 1) : reply;
+
+  // Build emotional prefix in one pass (fixes #1: triple-stacking garble)
+  const emotionalParts: string[] = [];
+
+  // Empathy for low trust
+  if (ctx.trust < 40 && !/理解|知道|明白|能感受到/.test(body)) {
+    emotionalParts.push(ctx.trust < 25 ? '我能理解你的感受，' : '我理解，');
   }
-  // Add urgency words for high urgency
-  if (ctx.urgency >= 70 && !/赶紧|尽快|今天|马上|立刻|不能再拖/.test(result)) {
-    const nameEnd = result.indexOf('：');
-    if (nameEnd === -1) result = `今天必须${result}`;
-    else result = `${result.slice(0, nameEnd + 1)}今天得抓紧，${result.slice(nameEnd + 1)}`;
+
+  // Professional tone for neutral scenarios
+  if (ctx.trust >= 40 && ctx.trust <= 60 && ctx.urgency >= 40 && ctx.urgency <= 60 && !/确认|整理|跟进|推进|同步|分析|判断/.test(body)) {
+    emotionalParts.push('跟进一下，');
   }
-  // Add assertive words for high urgency + low trust
-  if (ctx.urgency >= 70 && ctx.trust < 40 && !/必须|需要|应该|你得/.test(result)) {
-    const nameEnd = result.indexOf('：');
-    if (nameEnd !== -1) {
-      result = `${result.slice(0, nameEnd + 1)}你得${result.slice(nameEnd + 1)}`;
-    }
+
+  // Urgency for high urgency (only inject here, don't strip later — fixes #2)
+  if (ctx.urgency >= 70 && !/赶紧|尽快|今天|马上|立刻|不能再拖/.test(body)) {
+    emotionalParts.push('今天得抓紧，');
   }
-  // Add professional tone for neutral scenarios
-  if (ctx.trust >= 40 && ctx.trust <= 60 && ctx.urgency >= 40 && ctx.urgency <= 60 && !/确认|整理|跟进|推进|同步|分析|判断/.test(result)) {
-    const nameEnd = result.indexOf('：');
-    if (nameEnd !== -1) {
-      result = `${result.slice(0, nameEnd + 1)}跟进一下，${result.slice(nameEnd + 1)}`;
-    }
+
+  // Assertive for high urgency + low trust
+  if (ctx.urgency >= 70 && ctx.trust < 40 && !/必须|需要|应该|你得/.test(body)) {
+    emotionalParts.push('你得');
   }
-  // No urgency words for low urgency
-  if (ctx.urgency < 40 && /赶紧|尽快|今天|马上|立刻|不能再拖/.test(result)) {
-    result = result.replace(/赶紧|尽快|今天|马上|立刻|不能再拖/g, '').replace(/，，/g, '，').replace(/^，/, '');
+
+  if (emotionalParts.length === 0) return reply;
+
+  const emotionalPrefix = emotionalParts.join('');
+  if (hasNameEnd) {
+    return `${prefix}${emotionalPrefix}${body}`;
   }
-  return result;
+  return `${emotionalPrefix}${reply}`;
 }
 
 function enrichRelationship(reply: string, ctx: ReplyContext): string {
@@ -1639,7 +1697,9 @@ function injectHumanExpression(reply: string, ctx: ReplyContext): string {
   const expressions = ownerProfile === 'anxious'
     ? ['说实话，', '真是的，', '我跟你说，']
     : ['说真的，', '你懂的，', '我的意思是，'];
-  const expr = expressions[Math.floor(Math.random() * expressions.length)];
+  // Use deterministic hash instead of Math.random() for replay consistency (fixes #3)
+  const hash = stableHash(`${reply}:${ctx.senderName}:${ctx.trust}:${ctx.urgency}`);
+  const expr = expressions[hash % expressions.length];
   const nameEnd = reply.indexOf('：');
   if (nameEnd === -1) return `${expr}${reply}`;
   const prefix = reply.slice(0, nameEnd + 1);

@@ -1565,11 +1565,12 @@ export function buildCaseDetailProjection(
       };
     });
   const decisionLens = [
-    mainProblemLabel(mainProblem),
-    listingLifecyclePhase.phaseLabel,
-    caseItem.hasCompletedFirstVisit ? '已过面访' : '待面访',
-    rivalListings.length > 0 ? '外部竞品在场' : '当前竞品较少',
+    caseItem.hasCompletedFirstVisit ? '业主已见过，可谈策略' : '先面访业主，确认底线',
+    rivalListings.length > 0 ? `${rivalListings.length} 套同类房会分走客户注意力` : '先补同商圈同户型参照',
+    customerLinks.some((entry) => entry.status === 'comparing') ? '已有客户在比较' : '暂未发现客户明确二选一',
+    listingLifecyclePhase.primaryActionLabel,
   ];
+  const comparingCustomerCount = customerLinks.filter((entry) => entry.status === 'comparing').length;
 
   return {
     caseId: caseItem.id,
@@ -1588,11 +1589,13 @@ export function buildCaseDetailProjection(
     }] : [],
     comparisonSummary: {
       title: rivalListings.length > 0 || customerLinks.some((entry) => entry.status === 'comparing')
-        ? '要和其他经纪人的同类房比较'
-        : '先把可比较的同类房补出来',
+        ? '这些竞品会怎么影响这套房'
+        : '先补齐同类房参照',
       detail: rivalListings.length > 0
-        ? `这套房现在有 ${rivalListings.length} 套其他经纪人维护的同类房在抢客户，${customerLinks.filter((entry) => entry.status === 'comparing').length} 位客户还在比较。`
-        : `当前外部竞品还不多，但仍要持续补进同商圈、同户型和同客户线的比较对象。`,
+        ? comparingCustomerCount > 0
+          ? `客户看这套房时，也会拿这 ${rivalListings.length} 套同类房比较价格、户型和卖点；其中 ${comparingCustomerCount} 位客户已经出现比较行为。先确认我们哪里更好、哪里要解释。`
+          : `现在还没有客户明确二选一，但这 ${rivalListings.length} 套同类房会影响客户第一眼判断。先把价格差、户型差和卖点差讲清楚，避免客户被别的经纪人带走。`
+        : `当前外部竞品还不多，这里先帮你补同商圈、同户型和同客户线的参照，方便判断这套房该先谈价格、卖点还是带看节奏。`,
       rivalStores: comparableRivalStores,
       rivalListings: comparableRivalListings,
       comparingCustomers,
