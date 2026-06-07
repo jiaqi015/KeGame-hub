@@ -536,7 +536,8 @@ export function normalizeConversationEffectProposal(
   }
 
   if (!proposal) {
-    return buildFallbackConversationEffectProposal(scene);
+    // Default: use LLM-first agent for better quality
+    return buildLlmFirstConversationEffectProposal(scene);
   }
 
   const fallback = buildFallbackConversationEffectProposal(scene);
