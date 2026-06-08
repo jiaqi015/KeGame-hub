@@ -281,7 +281,9 @@ export function ActionDecisionOverlay({
   }
 
   const mode: OverlayMode = !config.isScenario ? 'direct' : config.scenarioMode === 'heavy' ? 'heavy' : 'light';
-  const totalRounds = mode === 'heavy' ? 3 : 2;
+  const totalRounds = mode === 'direct'
+    ? 1
+    : config.rounds?.length || (mode === 'heavy' ? 3 : 2);
 
   const [currentRound, setCurrentRound] = useState(1);
   const [phase, setPhase] = useState<OverlayPhase>('choosing');

@@ -223,13 +223,25 @@ function pickScenarioLine(caseItem: Case, key: string, lines: string[]) {
 
 const FIRST_VISIT_TOPIC_LABELS: Record<string, string> = {
   'ask-motive': '卖房动机',
-  'ask-price-anchor': '价格锚点',
-  'confirm-deadline': '成交时间',
-  'map-decision-structure': '决策结构',
   'ask-selling-experience': '售卖经验',
+  'family-pressure': '家庭压力',
+  'asset-reallocation': '资产配置',
+  'ask-price-anchor': '价格锚点',
+  'compare-source': '对比来源',
+  'price-review-trigger': '复盘触发点',
+  'confirm-deadline': '成交时间',
+  'moving-chain': '置换链条',
+  'no-deal-cost': '不成交代价',
+  'map-decision-structure': '决策结构',
+  'identify-influencer': '影响人',
+  'decision-process': '决策流程',
   'test-price-flexibility': '价格复盘条件',
   'confirm-service-rules': '沟通看房规则',
+  'showing-availability': '可看时间',
+  'feedback-frequency': '反馈频率',
   'commit-next-step': '下一步服务承诺',
+  'set-first-milestone': '首个里程碑',
+  'align-review-date': '复盘时间',
 };
 
 function formatFirstVisitChoiceSummary(choices: ScenarioChoice[]) {
@@ -238,6 +250,35 @@ function formatFirstVisitChoiceSummary(choices: ScenarioChoice[]) {
     return topicIds.map((topicId) => FIRST_VISIT_TOPIC_LABELS[topicId] || topicId);
   });
   return Array.from(new Set(topicLabels)).join('、') || '业主基础信息';
+}
+
+function buildFirstVisitFeedback(input: {
+  mainChoice: string;
+  assistChoice: string;
+  messages: Record<string, readonly string[]>;
+  fallbackChoice: string;
+  trustBase: number;
+  patienceBase?: number;
+}): CharacterFeedback {
+  const assistBonus = input.assistChoice === 'listen-more' || input.assistChoice === 'build-rapport'
+    ? 2
+    : input.assistChoice === 'show-actions' || input.assistChoice === 'set-first-milestone'
+      ? 1
+      : 0;
+  const trustChange = Math.max(0, input.trustBase + assistBonus + Math.round(Math.random() * 2 - 1));
+  const messageList = input.messages[input.mainChoice] || input.messages[input.fallbackChoice] || ['"好，你先按这个方向继续推进。"'];
+  const message = messageList[Math.floor(Math.random() * messageList.length)];
+  const mood = trustChange >= 3 ? 'positive' : trustChange >= 1 ? 'neutral' : 'negative';
+
+  return {
+    actor: 'owner',
+    mood,
+    message,
+    metricChanges: [
+      { label: '信任', change: trustChange },
+      { label: '耐心', change: input.patienceBase ?? (mood === 'positive' ? 1 : 0) },
+    ],
+  };
 }
 
 export const SCENARIO_ACTION_TEMPLATES: Record<string, ScenarioActionTemplate> = {
@@ -260,14 +301,13 @@ export const SCENARIO_ACTION_TEMPLATES: Record<string, ScenarioActionTemplate> =
     rounds: [
       {
         roundIndex: 1,
-        title: '先采集哪些分型证据',
-        description: '这次面访不只是建立信任，还要把后续服务必须记住的长期事实问出来。',
+        title: '先问清为什么卖',
+        description: '先判断业主是真急、试水，还是资产重新配置；别一上来就谈降价。',
         mainStrategies: [
           { id: 'ask-motive', title: '卖房动机 / 资金用途', note: '判断是真急、试水，还是资产重新配置。' },
-          { id: 'ask-price-anchor', title: '心理价位从哪来', note: '判断价格锚定强弱，别只问能不能降。' },
-          { id: 'confirm-deadline', title: '最晚成交时间', note: '确认时间窗口和置换、用钱、家庭节点。' },
-          { id: 'map-decision-structure', title: '谁最终拍板', note: '区分日常沟通人、价格影响人和最终决策人。' },
           { id: 'ask-selling-experience', title: '二手房售卖经验', note: '判断流程经验和是否需要专业兜底。' },
+          { id: 'family-pressure', title: '家里最担心什么', note: '看清是价格焦虑、时间焦虑，还是流程不安全感。' },
+          { id: 'asset-reallocation', title: '卖完钱怎么安排', note: '判断是否有置换、还贷、投资或现金流节点。' },
         ],
         assistStrategies: [
           { id: 'listen-more', title: '多听少说', note: '先让业主把话说完，更容易建立信任。' },
@@ -275,87 +315,222 @@ export const SCENARIO_ACTION_TEMPLATES: Record<string, ScenarioActionTemplate> =
           { id: 'show-actions', title: '先讲可执行动作', note: '突出接下来的具体安排，给业主确定感。' },
           { id: 'build-rapport', title: '先拉近关系', note: '从共同话题切入，适合关系导向的业主。' },
         ],
-        getFeedback: (mainChoice, assistChoice, state, caseItem) => {
-          const trustBonus = mainChoice === 'rapport-first' ? 3 : mainChoice === 'plan-first' ? 2 : 1;
-          const assistBonus = assistChoice === 'listen-more' ? 2 : assistChoice === 'build-rapport' ? 2 : 1;
-          const random = Math.random() * 2 - 1;
-          const trustChange = Math.round(trustBonus + assistBonus + random);
-
-          const messages = {
-            'ask-motive': [
-              '"主要还是想看看能不能顺利换下一套，不想拖太久。"',
-              '"我也不是非卖不可，但如果价格合适就往前走。"',
-            ],
-            'ask-price-anchor': [
-              '"我这个价主要参考隔壁和之前成交，不能随便低。"',
-              '"价格可以谈，但你得让我知道为什么要动。"',
-            ],
-            'confirm-deadline': [
-              '"时间上我当然希望快一点，但也不能太亏。"',
-              '"最好这一阵子能有明确反馈，别一直空挂着。"',
-            ],
-            'map-decision-structure': [
-              '"平时我沟通，但价格最后家里也要一起看。"',
-              '"大方向我能定，关键价格我还得和家里说一下。"',
-            ],
-            'ask-selling-experience': [
-              '"之前没怎么卖过房，流程上你得帮我把关。"',
-              '"我大概懂一些，但现在市场变化我不一定摸得准。"',
-            ],
-          };
-
-          const messageList = messages[mainChoice as keyof typeof messages] || messages['ask-motive'];
-          const message = messageList[Math.floor(Math.random() * messageList.length)];
-          const mood = trustChange >= 3 ? 'positive' : trustChange >= 2 ? 'neutral' : 'negative';
-
-          return {
-            actor: 'owner',
-            mood,
-            message,
-            metricChanges: [
-              { label: '信任', change: trustChange },
-              { label: '耐心', change: Math.round(0.5 + Math.random()) },
-            ],
-          };
+        getFeedback: (mainChoice, assistChoice) => {
+          return buildFirstVisitFeedback({
+            mainChoice,
+            assistChoice,
+            fallbackChoice: 'ask-motive',
+            trustBase: 1,
+            messages: {
+              'ask-motive': [
+                '"主要还是想看看能不能顺利换下一套，不想拖太久。"',
+                '"我也不是非卖不可，但如果价格合适就往前走。"',
+              ],
+              'ask-selling-experience': [
+                '"之前没怎么卖过房，流程上你得帮我把关。"',
+                '"我大概懂一些，但现在市场变化我不一定摸得准。"',
+              ],
+              'family-pressure': [
+                '"家里主要怕拖太久，也怕到最后价格被压得太厉害。"',
+                '"他们最关心的是别折腾太久，流程上也要稳一点。"',
+              ],
+              'asset-reallocation': [
+                '"后面可能要看下一套，资金别卡得太死。"',
+                '"不是马上必须用钱，但我希望心里有个节奏。"',
+              ],
+            },
+          });
         },
       },
       {
         roundIndex: 2,
-        title: '补齐服务规则',
-        description: '分型不是问卷，最后要把价格复盘条件、沟通规则和下次动作落下来。',
+        title: '拆清价格锚点',
+        description: '把业主价格从哪里来、愿不愿复盘、什么证据能打动他问清楚。',
         mainStrategies: [
-          { id: 'test-price-flexibility', title: '价格复盘条件', note: '约定出现哪些客户/竞品反馈后再复盘价格。' },
-          { id: 'confirm-service-rules', title: '沟通和看房规则', note: '确认回复频率、可看时间、钥匙和雷点。' },
-          { id: 'commit-next-step', title: '下一步服务承诺', note: '把下次反馈、带看或市场复盘时间锁住。' },
+          { id: 'ask-price-anchor', title: '心理价位从哪来', note: '判断价格锚定强弱，别只问能不能降。' },
+          { id: 'compare-source', title: '参考了哪些房和成交', note: '区分真实竞品、邻居传言和平台挂牌噪音。' },
+          { id: 'price-review-trigger', title: '什么情况愿意复盘', note: '提前约定带看、竞品、客户反馈触发条件。' },
+          { id: 'test-price-flexibility', title: '价格复盘条件', note: '确认未来哪些证据能推动价格调整。' },
         ],
         assistStrategies: [
-          { id: 'set-low-expectation', title: '先降预期', note: '先说明不会太快，避免后续失望。' },
-          { id: 'share-success-case', title: '讲个成功案例', note: '用案例给信心，适合业主还犹豫的时候。' },
+          { id: 'show-professional', title: '先摆市场证据', note: '用成交和竞品说话，避免像是在压价。' },
+          { id: 'listen-more', title: '先听价格来历', note: '让业主说完他的依据，再判断锚点强弱。' },
+          { id: 'set-low-expectation', title: '先降预期', note: '先说明当前价格需要市场验证，别承诺太满。' },
+        ],
+        getFeedback: (mainChoice, assistChoice) => {
+          return buildFirstVisitFeedback({
+            mainChoice,
+            assistChoice,
+            fallbackChoice: 'ask-price-anchor',
+            trustBase: 1,
+            messages: {
+              'ask-price-anchor': [
+                '"我这个价主要参考隔壁和之前成交，不能随便低。"',
+                '"价格可以谈，但你得让我知道为什么要动。"',
+              ],
+              'compare-source': [
+                '"我看了小区里几套挂牌，也听邻居说之前有人卖到这个价。"',
+                '"平台上有些房挂得更高，我也不知道是不是虚的。"',
+              ],
+              'price-review-trigger': [
+                '"如果带看后客户都卡在同一个问题上，你再拿依据跟我复盘。"',
+                '"竞品如果真明显更便宜，你到时候直接给我看。"',
+              ],
+              'test-price-flexibility': [
+                '"如果后面客户反馈都差不多，你再拿依据来跟我复盘。"',
+                '"不是不能动，但我要看到真实反馈。"',
+              ],
+            },
+          });
+        },
+      },
+      {
+        roundIndex: 3,
+        title: '确认时间窗口',
+        description: '时间决定经营节奏：是真有节点，还是只是嘴上催。',
+        mainStrategies: [
+          { id: 'confirm-deadline', title: '最晚成交时间', note: '确认时间窗口和置换、用钱、家庭节点。' },
+          { id: 'moving-chain', title: '有没有置换链条', note: '判断是否被下一套、贷款、过户时间卡住。' },
+          { id: 'no-deal-cost', title: '卖不掉的代价', note: '确认拖延会造成什么损失，判断真实 urgency。' },
+        ],
+        assistStrategies: [
+          { id: 'listen-more', title: '先问真实节点', note: '先听时间压力来源，不急着给方案。' },
+          { id: 'show-actions', title: '直接给节奏表', note: '把带看、反馈、复盘节奏讲清楚。' },
+          { id: 'set-first-milestone', title: '设第一个里程碑', note: '比如一周内拿到第一波真实反馈。' },
+        ],
+        getFeedback: (mainChoice, assistChoice) => {
+          return buildFirstVisitFeedback({
+            mainChoice,
+            assistChoice,
+            fallbackChoice: 'confirm-deadline',
+            trustBase: 1,
+            messages: {
+              'confirm-deadline': [
+                '"时间上我当然希望快一点，但也不能太亏。"',
+                '"最好这一阵子能有明确反馈，别一直空挂着。"',
+              ],
+              'moving-chain': [
+                '"后面如果看中下一套，时间上就会更紧。"',
+                '"现在还没完全定下一套，但我不想被这边拖住。"',
+              ],
+              'no-deal-cost': [
+                '"卖不掉倒不是马上出事，但一直没动静会很烦。"',
+                '"如果拖太久，家里可能就不想卖了。"',
+              ],
+            },
+          });
+        },
+      },
+      {
+        roundIndex: 4,
+        title: '摸清决策结构',
+        description: '价格和节奏谁说了算，要在第一次面访里问出来。',
+        mainStrategies: [
+          { id: 'map-decision-structure', title: '谁最终拍板', note: '区分日常沟通人、价格影响人和最终决策人。' },
+          { id: 'identify-influencer', title: '谁会影响价格判断', note: '找出配偶、子女、亲友或邻居的影响。' },
+          { id: 'decision-process', title: '调价前要怎么确认', note: '提前知道复盘、开会、家里商量的流程。' },
+        ],
+        assistStrategies: [
+          { id: 'build-rapport', title: '先拉近关系', note: '决策结构敏感，先降低防备。' },
+          { id: 'show-professional', title: '用流程感提问', note: '把问题包装成服务流程，而不是刺探隐私。' },
+          { id: 'listen-more', title: '追问但不压迫', note: '听出真正拍板人，不急着下判断。' },
+        ],
+        getFeedback: (mainChoice, assistChoice) => {
+          return buildFirstVisitFeedback({
+            mainChoice,
+            assistChoice,
+            fallbackChoice: 'map-decision-structure',
+            trustBase: 1,
+            messages: {
+              'map-decision-structure': [
+                '"平时我沟通，但价格最后家里也要一起看。"',
+                '"大方向我能定，关键价格我还得和家里说一下。"',
+              ],
+              'identify-influencer': [
+                '"家里人会看市场反馈，尤其是价格不能差太多。"',
+                '"我会听家里意见，但你得给我能拿回去说的依据。"',
+              ],
+              'decision-process': [
+                '"真要调整价格，你提前把依据整理好，我再和家里确认。"',
+                '"别临时催我改价，先把反馈和对比说清楚。"',
+              ],
+            },
+          });
+        },
+      },
+      {
+        roundIndex: 5,
+        title: '定清服务规则',
+        description: '首次面访要把沟通、看房和反馈规则约清，否则后面容易反复消耗。',
+        mainStrategies: [
+          { id: 'confirm-service-rules', title: '沟通和看房规则', note: '确认回复频率、可看时间、钥匙和雷点。' },
+          { id: 'showing-availability', title: '哪些时间可看房', note: '确认工作日、周末、临时带看的边界。' },
+          { id: 'feedback-frequency', title: '多久反馈一次', note: '约定无带看、有带看、竞品变化分别怎么同步。' },
+        ],
+        assistStrategies: [
+          { id: 'show-actions', title: '说清执行动作', note: '把后续动作拆具体，让业主知道你不是空谈。' },
+          { id: 'set-low-expectation', title: '先讲市场现实', note: '降低不切实际预期，避免后续失望。' },
           { id: 'set-first-milestone', title: '设第一个里程碑', note: '比如"一周内出第一个带看反馈"。' },
         ],
-        getFeedback: (mainChoice, assistChoice, state, caseItem) => {
-          const trustBonus = mainChoice === 'commit-next-step' ? 2 : mainChoice === 'confirm-service-rules' ? 2 : 1;
-          const assistBonus = assistChoice === 'set-first-milestone' ? 1 : 0;
-          const trustChange = trustBonus + assistBonus;
-
-          const messages = {
-            'test-price-flexibility': '"如果后面客户反馈都差不多，你再拿依据来跟我复盘。"',
-            'confirm-service-rules': '"看房时间你提前说，反馈你也别让我一直等。"',
-            'commit-next-step': '"行，那你按这个节奏先推进，下次给我一个明确反馈。"',
-          };
-
-          const message = messages[mainChoice as keyof typeof messages] || messages['commit-next-step'];
-          const mood = trustChange >= 2 ? 'positive' : 'neutral';
-
-          return {
-            actor: 'owner',
-            mood,
-            message,
-            metricChanges: [
-              { label: '信任', change: trustChange },
-              { label: '耐心', change: mood === 'positive' ? 1 : 0 },
-            ],
-          };
+        getFeedback: (mainChoice, assistChoice) => {
+          return buildFirstVisitFeedback({
+            mainChoice,
+            assistChoice,
+            fallbackChoice: 'confirm-service-rules',
+            trustBase: 1,
+            messages: {
+              'confirm-service-rules': [
+                '"看房时间你提前说，反馈你也别让我一直等。"',
+                '"规则说清楚就行，我不想后面一直被临时打扰。"',
+              ],
+              'showing-availability': [
+                '"周末相对方便，平时要提前一天说。"',
+                '"临时带看可以，但别每次都很突然。"',
+              ],
+              'feedback-frequency': [
+                '"没带看也要告诉我市场有没有变化，有带看更要当天反馈。"',
+                '"你固定给我同步，我心里会踏实一点。"',
+              ],
+            },
+          });
+        },
+      },
+      {
+        roundIndex: 6,
+        title: '落下下一步承诺',
+        description: '最后把下一次反馈、带看或价格复盘锁住，让首次面访变成后续服务的起点。',
+        mainStrategies: [
+          { id: 'commit-next-step', title: '下一步服务承诺', note: '把下次反馈、带看或市场复盘时间锁住。' },
+          { id: 'set-first-milestone', title: '首个服务里程碑', note: '明确第一波带看、反馈或复盘的交付节点。' },
+          { id: 'align-review-date', title: '约定复盘时间', note: '提前定好什么时候看客户和竞品反馈。' },
+        ],
+        assistStrategies: [
+          { id: 'show-actions', title: '给具体行动清单', note: '用 2-3 个明确动作收尾。' },
+          { id: 'show-professional', title: '强调专业跟进', note: '让业主相信后续不是随缘推进。' },
+          { id: 'build-rapport', title: '关系上收一下', note: '用稳定、可靠的口吻结束面访。' },
+        ],
+        getFeedback: (mainChoice, assistChoice) => {
+          return buildFirstVisitFeedback({
+            mainChoice,
+            assistChoice,
+            fallbackChoice: 'commit-next-step',
+            trustBase: 2,
+            patienceBase: 1,
+            messages: {
+              'commit-next-step': [
+                '"行，那你按这个节奏先推进，下次给我一个明确反馈。"',
+                '"你把下一步说清楚，我就先看你这一轮怎么做。"',
+              ],
+              'set-first-milestone': [
+                '"一周内有第一波反馈就行，我不要求你马上卖掉。"',
+                '"先按这个节点来，别让我一直猜进展。"',
+              ],
+              'align-review-date': [
+                '"那就按你说的时间复盘，到时候拿真实反馈说话。"',
+                '"复盘时间先定下来，后面该不该调整再看证据。"',
+              ],
+            },
+          });
         },
       },
     ],
