@@ -524,7 +524,7 @@ function buildLlmContextBody(
 
   // Evidence from strategies
   const evidenceLine = buildHumanEvidenceLine(request);
-  parts.push(`客户到底卡在哪、${evidenceLine}，你给我摊开。`);
+  parts.push(`${evidenceLine}，你给我摊开。`);
 
   // Price gap
   const priceGap = typeof request.caseContext?.askPrice === 'number' && typeof request.caseContext?.marketPrice === 'number'
