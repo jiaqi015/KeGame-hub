@@ -11,7 +11,6 @@ import {
   Calendar,
   ListChecks,
   MapPinned,
-  Radio,
   ShieldAlert,
   Star,
   SunMedium,
@@ -53,10 +52,6 @@ type OvernightStory = {
   headline: string;
   kicker: string;
   paragraphs: string[];
-  pulseLabel: string;
-  pulseValue: string;
-  todayHandle: string;
-  evidenceLabels: string[];
 };
 
 const DAILY_STORY_FETCH_TIMEOUT_MS = 10000;
@@ -154,7 +149,7 @@ export function DailySummaryOverlay({ report, tickResult, state, onContinue }: D
             {storyLoading ? (
               <DailyStoryLoadingState />
             ) : (
-              <div className="grid gap-0 lg:grid-cols-[minmax(0,1.35fr)_minmax(260px,0.65fr)]">
+              <div>
                 <div className="min-w-0 px-5 py-5 sm:px-6">
                   <div className="seller-label flex items-center gap-2">
                     <BookOpenText size={14} className="text-[var(--seller-accent)]" />
@@ -172,27 +167,6 @@ export function DailySummaryOverlay({ report, tickResult, state, onContinue }: D
                         {paragraph}
                       </p>
                     ))}
-                  </div>
-                </div>
-
-                <div className="border-t border-[var(--seller-border)] bg-[rgba(255,255,255,0.035)] px-5 py-5 lg:border-l lg:border-t-0">
-                  <div className="seller-label flex items-center gap-2">
-                    <Radio size={13} className="text-[var(--seller-accent)]" />
-                    今天怎么接
-                  </div>
-                  <div className="mt-4 grid gap-3">
-                    <div>
-                      <div className="text-[10px] font-semibold text-[var(--seller-subtle)]">{story.pulseLabel}</div>
-                      <div className="mt-1 text-[18px] font-semibold text-[var(--seller-ink)]">{story.pulseValue}</div>
-                    </div>
-                    <p className="text-[12px] font-medium leading-6 text-[var(--seller-muted)]">{story.todayHandle}</p>
-                    {story.evidenceLabels.length > 0 ? (
-                      <div className="flex flex-wrap gap-1.5 pt-1">
-                        {story.evidenceLabels.map((label) => (
-                          <span key={label} className="seller-chip">{label}</span>
-                        ))}
-                      </div>
-                    ) : null}
                   </div>
                 </div>
               </div>
@@ -356,7 +330,7 @@ function DailyStoryLoadingState() {
   ];
 
   return (
-    <div className="grid gap-0 lg:grid-cols-[minmax(0,1.35fr)_minmax(260px,0.65fr)]" role="status" aria-live="polite">
+    <div role="status" aria-live="polite">
       <div className="min-w-0 px-5 py-5 sm:px-6">
         <div className="seller-label flex items-center gap-2">
           <BookOpenText size={14} className="text-[var(--seller-accent)]" />
@@ -383,27 +357,6 @@ function DailyStoryLoadingState() {
               </span>
             </div>
           ))}
-        </div>
-      </div>
-
-      <div className="border-t border-[var(--seller-border)] bg-[rgba(255,255,255,0.035)] px-5 py-5 lg:border-l lg:border-t-0">
-        <div className="seller-label flex items-center gap-2">
-          <Radio size={13} className="text-[var(--seller-accent)]" />
-          今天怎么接
-        </div>
-        <div className="mt-4 grid gap-3">
-          <div className="h-3 w-20 animate-pulse rounded-full bg-[color-mix(in_srgb,var(--seller-border)_65%,transparent)]" />
-          <div className="h-6 w-3/4 animate-pulse rounded-full bg-[color-mix(in_srgb,var(--seller-accent)_22%,transparent)]" />
-          <div className="h-3 w-full animate-pulse rounded-full bg-[color-mix(in_srgb,var(--seller-border)_60%,transparent)]" />
-          <div className="h-3 w-5/6 animate-pulse rounded-full bg-[color-mix(in_srgb,var(--seller-border)_60%,transparent)]" />
-          <div className="flex flex-wrap gap-1.5 pt-1">
-            {[0, 1, 2].map((index) => (
-              <span
-                key={index}
-                className="h-6 w-20 animate-pulse rounded-full bg-[color-mix(in_srgb,var(--seller-border)_60%,transparent)]"
-              />
-            ))}
-          </div>
         </div>
       </div>
     </div>
@@ -467,8 +420,6 @@ function buildOvernightStory(
   const scoreText = absoluteMetric ? `${absoluteMetric.value}${absoluteMetric.unit}` : null;
   const sharpestLabel = sharpestMetric ? cleanMetricLabel(sharpestMetric.label) : null;
   const sharpestText = sharpestMetric ? formatMetricValue(sharpestMetric) : null;
-  const firstFocusCase = report.todayPlan.focusCases[0];
-  const firstPriority = report.todayPlan.priorities[0];
   const leadImpact = impactRows[0]?.title;
 
   let headline = '昨夜没有大爆点，但今天不能空转';
@@ -486,34 +437,10 @@ function buildOvernightStory(
   const sharpestClause = sharpestLabel && sharpestText ? `，${sharpestLabel} ${sharpestText}` : '';
   const kicker = `${scoreClause}${sharpestClause}。这不是一张分数表，而是今天先补哪条关系、先推哪套房的开场。`;
 
-  const pulseLabel = sharpestMetric?.value && sharpestMetric.value < 0
-    ? '最需要补的线'
-    : closedDealsCount > 0
-      ? '成交后续'
-      : '今日抓手';
-  const pulseValue = sharpestMetric && sharpestText
-    ? `${sharpestLabel} ${sharpestText}`
-    : firstFocusCase || report.todayPlan.theme;
-  const todayHandle = firstPriority
-    ? `先做：${oneLine(firstPriority, 46)}`
-    : firstFocusCase
-      ? `先围绕 ${firstFocusCase} 做一次推进。`
-      : `先按「${report.todayPlan.theme}」推进，别让昨天的变化过夜。`;
-  const evidenceLabels = [
-    scoreText ? `总分 ${scoreText}` : null,
-    sharpestLabel && sharpestText ? `${sharpestLabel} ${sharpestText}` : null,
-    riskRows[0] ? '有风险线索' : null,
-    impactRows[0] ? buildImpactEvidenceLabel(impactRows[0]) : null,
-  ].filter(Boolean) as string[];
-
   return {
     headline,
     kicker,
     paragraphs,
-    pulseLabel,
-    pulseValue,
-    todayHandle,
-    evidenceLabels: Array.from(new Set(evidenceLabels)).slice(0, 4),
   };
 }
 
@@ -530,12 +457,6 @@ function buildOvernightStoryFromDailyCityStory(
     headline: dailyStory.headline || fallbackStory.headline,
     kicker: dailyStory.deck || fallbackStory.kicker,
     paragraphs: paragraphs.length > 0 ? paragraphs : fallbackStory.paragraphs,
-    pulseLabel: dailyStory.todayBridge.label || fallbackStory.pulseLabel,
-    pulseValue: dailyStory.todayBridge.value || fallbackStory.pulseValue,
-    todayHandle: dailyStory.todayBridge.actionCue || fallbackStory.todayHandle,
-    evidenceLabels: dailyStory.evidenceLabels.length > 0
-      ? dailyStory.evidenceLabels.slice(0, 5)
-      : fallbackStory.evidenceLabels,
   };
 }
 
@@ -605,11 +526,6 @@ function cleanMetricLabel(label: string) {
 function formatMetricValue(metric: DailyReport['metricsDelta'][number]) {
   const prefix = metric.displayMode === 'absolute' || metric.value <= 0 ? '' : '+';
   return `${prefix}${metric.value}${metric.unit}`;
-}
-
-function buildImpactEvidenceLabel(row: SummaryImpactRow) {
-  if (row.label === '变化') return '有业务变化';
-  return row.label.endsWith('变化') ? row.label : `${row.label}变化`;
 }
 
 function EventRow({
