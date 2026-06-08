@@ -138,8 +138,8 @@ export function DailySummaryOverlay({ report, tickResult, state, onContinue }: D
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/40 p-3 backdrop-blur-md sm:p-5">
-      <div className="seller-panel max-h-[82vh] w-full max-w-4xl overflow-hidden rounded-[18px] shadow-[var(--seller-shadow-lg)] animate-in fade-in zoom-in duration-300">
-        <div className="flex items-center gap-3 bg-[var(--seller-ink)] px-5 py-3 text-white">
+      <div className="seller-panel flex max-h-[82vh] w-full max-w-4xl flex-col overflow-hidden rounded-[18px] shadow-[var(--seller-shadow-lg)] animate-in fade-in zoom-in duration-300">
+        <div className="flex shrink-0 items-center gap-3 bg-[var(--seller-ink)] px-5 py-3 text-white">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[11px] bg-[var(--seller-accent)] text-white">
             <Calendar size={17} />
           </div>
@@ -149,7 +149,7 @@ export function DailySummaryOverlay({ report, tickResult, state, onContinue }: D
           </div>
         </div>
 
-        <div className="max-h-[calc(82vh-56px)] overflow-y-auto p-4 sm:p-5">
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
           <section className="mb-4 overflow-hidden rounded-[18px] border border-[var(--seller-border)] bg-[color-mix(in_srgb,var(--seller-paper)_92%,var(--seller-accent)_8%)]">
             {storyLoading ? (
               <DailyStoryLoadingState />
@@ -332,16 +332,16 @@ export function DailySummaryOverlay({ report, tickResult, state, onContinue }: D
               </div>
             </aside>
           </div>
+        </div>
 
-          <div className="pt-4">
-            <button
-              onClick={onContinue}
-              className="seller-button-primary ml-auto flex items-center justify-center gap-2 px-5 py-3 text-sm"
-            >
-              进入今天
-              <ArrowRight size={18} />
-            </button>
-          </div>
+        <div className="flex shrink-0 justify-end border-t border-[var(--seller-border)] bg-[color-mix(in_srgb,var(--seller-paper)_94%,var(--seller-accent)_6%)] px-4 py-3 sm:px-5">
+          <button
+            onClick={onContinue}
+            className="seller-button-primary flex items-center justify-center gap-2 px-5 py-3 text-sm"
+          >
+            进入今天
+            <ArrowRight size={18} />
+          </button>
         </div>
       </div>
     </div>
