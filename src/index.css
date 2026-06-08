@@ -932,7 +932,7 @@ select {
   position: relative;
   overflow: hidden;
   transform-origin: left center;
-  animation: seller-world-build-progress 5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: seller-world-build-progress 10s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   will-change: transform;
 }
 

@@ -81,8 +81,8 @@ const CHIP_TONES: Record<DifficultyPresentationTone, string> = {
 
 const SCORE_STANDARD_LABEL = '60 及格 · 80 优秀 · 90 极致';
 const WORLD_BUILDER_NAME = 'AI 开局参谋';
-const WORLD_BUILD_MINIMUM_MS = 5000;
-const WORLD_BUILD_STORY_TIMEOUT_MS = 5200;
+const WORLD_BUILD_MINIMUM_MS = 10000;
+const WORLD_BUILD_STORY_TIMEOUT_MS = 10200;
 
 const WORLD_BUILD_STEPS = [
   {
@@ -744,7 +744,7 @@ function WorldBuildLoadingPage({
           <div className="mt-5">
             <div className="mb-2 flex items-center justify-between text-[11px] font-semibold text-white/44">
               <span>准备中</span>
-              <span>约 5 秒</span>
+              <span>约 10 秒</span>
             </div>
             <div className="h-2 overflow-hidden rounded-full border border-white/8 bg-white/[0.05]">
               <div className="seller-world-build-progress h-full rounded-full bg-[#49dd85]" />
