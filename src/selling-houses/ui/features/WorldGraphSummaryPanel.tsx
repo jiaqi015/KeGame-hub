@@ -17,7 +17,6 @@ import type { WorldGraphSummary, MarketCellGraphSummary } from '../../domain/wor
 
 interface WorldGraphSummaryPanelProps {
   worldGraphSummary: WorldGraphSummary | null;
-  onOpenMarket?: (layer?: 'macro' | 'district') => void;
 }
 
 function heatColor(heat: number): string {

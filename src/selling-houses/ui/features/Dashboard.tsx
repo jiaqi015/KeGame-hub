@@ -346,7 +346,6 @@ export function Dashboard({
                 <Suspense fallback={null}>
                   <WorldGraphSummaryPanel
                     worldGraphSummary={worldGraphSummary}
-                    onOpenMarket={(layer) => onOpenMarket(layer || 'district')}
                   />
                 </Suspense>
               )}
