@@ -221,10 +221,7 @@ function ScenarioSimulationPanel({
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--seller-accent)]">情景模拟</span>
-            <span className="rounded-full border border-[var(--seller-border)] bg-[var(--seller-paper)] px-2 py-0.5 text-[10px] font-semibold text-[var(--seller-muted)]">
-              {simulationState.loading ? '生成中' : simulationState.source === 'ai' ? 'Agent' : '规则'}
-            </span>
+            <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--seller-accent)]">局面提示</span>
           </div>
           <h4 className="mt-1 text-[15px] font-bold text-[var(--seller-ink)]">{simulation.sceneTitle}</h4>
           <p className="mt-1 text-[12px] leading-5 text-[var(--seller-muted)]">{simulation.sceneOpening}</p>
@@ -246,39 +243,8 @@ function ScenarioSimulationPanel({
         </div>
       </div>
 
-      {simulationState.shadowReport && (
-        <div className="mt-3 rounded-[12px] border border-[var(--seller-border)] bg-[rgba(255,255,255,0.03)] px-3 py-2">
-          <div className="mb-1 text-[10px] font-semibold text-[var(--seller-subtle)]">Shadow 对比</div>
-          <div className="text-[11px] leading-5 text-[var(--seller-muted)]">
-            {simulationState.shadowReport.status} / {simulationState.shadowReport.decision}
-            {typeof simulationState.shadowReport.confidenceDelta === 'number'
-              ? ` / ${simulationState.shadowReport.confidenceDelta.toFixed(2)}`
-              : ''}
-          </div>
-          {simulationState.shadowReport.summary && (
-            <div className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">
-              {simulationState.shadowReport.summary}
-            </div>
-          )}
-        </div>
-      )}
-
-      {simulationState.evaluationReport && (
-        <div className="mt-2 rounded-[12px] border border-[color:var(--seller-accent)]/18 bg-[color:var(--seller-accent)]/6 px-3 py-2">
-          <div className="mb-1 text-[10px] font-semibold text-[var(--seller-subtle)]">Evaluation</div>
-          <div className="text-[11px] leading-5 text-[var(--seller-muted)]">
-            {simulationState.evaluationReport.status} / {simulationState.evaluationReport.verdict} / {simulationState.evaluationReport.score}
-          </div>
-          {simulationState.evaluationReport.summary && (
-            <div className="mt-1 text-[11px] leading-5 text-[var(--seller-muted)]">
-              {simulationState.evaluationReport.summary}
-            </div>
-          )}
-        </div>
-      )}
-
-      {simulationState.error ? (
-        <p className="mt-2 text-[10px] text-[var(--seller-subtle)]">{simulationState.error}</p>
+      {simulationState.loading ? (
+        <p className="mt-2 text-[10px] text-[var(--seller-subtle)]">正在结合当前房源和对方反馈更新提示...</p>
       ) : null}
     </div>
   );
