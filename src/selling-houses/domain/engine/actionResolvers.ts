@@ -225,9 +225,21 @@ export function executeAction(
 export function withdrawCase(world: GameState, caseItem: Case, reason: string) {
   // Compute terminal outcome fields before canonical creation
   const defenseOutcome = 'withdrawn';
-  const ownerSatisfaction = caseItem.trust <= 50 ? 'unhappy' as const : 'regret' as const;
-  const endingType = 'withdrawn_unhappy' as const;
-  const endingBucket = 'bad' as const;
+  const ownerSatisfaction = caseItem.trust >= 72
+    ? 'no_regret' as const
+    : caseItem.trust >= 52
+      ? 'regret' as const
+      : 'unhappy' as const;
+  const endingType = ownerSatisfaction === 'no_regret'
+    ? 'not_sold_no_regret' as const
+    : ownerSatisfaction === 'regret'
+      ? 'not_sold_regret' as const
+      : 'withdrawn_unhappy' as const;
+  const endingBucket = ownerSatisfaction === 'no_regret'
+    ? 'good' as const
+    : ownerSatisfaction === 'regret'
+      ? 'neutral' as const
+      : 'bad' as const;
 
   // Create canonical CaseTerminalOutcome (structural truth)
   const terminalOutcome = createCaseTerminalOutcomeOnState(
@@ -299,14 +311,14 @@ export function withdrawCase(world: GameState, caseItem: Case, reason: string) {
     actor: caseItem.ownerName,
     title: '房源撤盘',
     detail: `${caseItem.title} ${reason}`,
-    tone: 'danger',
+    tone: endingBucket === 'bad' ? 'danger' : 'neutral',
     caseId: caseItem.id,
     payload: {
       endingType: readCaseTerminalOutcomeForCase(world, caseItem, caseItem.trust).endingType,
       endingBucket: readCaseTerminalOutcomeForCase(world, caseItem, caseItem.trust).endingBucket,
     },
   });
-  logEvent(world, caseItem.ownerName, `${caseItem.title} ${reason}`, 'danger');
+  logEvent(world, caseItem.ownerName, `${caseItem.title} ${reason}`, endingBucket === 'bad' ? 'danger' : 'neutral');
 }
 
 export function getActionAvailability(

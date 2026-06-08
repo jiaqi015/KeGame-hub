@@ -160,10 +160,37 @@ export function tickCases(world: GameState) {
 
     if (caseItem.windowDays <= 0) {
       const relationTrust = relationContext.trustValue;
+      const recentlyMaintained = caseItem.touchedOwnerToday
+        || world.day - (caseItem.lastOwnerTouchedDay ?? caseItem.lastTouchedDay ?? 0) <= 2;
+      const activePipeline = world.opportunities.some((entry) => (
+        entry.caseId === caseItem.id
+        && isOpportunityActiveByCanonicalState(world, entry)
+        && entry.visibility !== 'shadow'
+        && entry.stageIndex >= 1
+      ));
+      const advancedPipeline = world.opportunities.some((entry) => (
+        entry.caseId === caseItem.id
+        && isOpportunityActiveByCanonicalState(world, entry)
+        && entry.visibility !== 'shadow'
+        && entry.stageIndex >= 2
+      ));
+      const protectedCoreTrustThreshold = world.runContext.difficultyId === 'extreme' ? 84 : 62;
+      const protectedCorePipeline = caseItem.goalTier === 'core'
+        && relationTrust >= protectedCoreTrustThreshold
+        && (activePipeline || recentlyMaintained)
+        && (world.runContext.difficultyId !== 'extreme' || advancedPipeline || relationTrust >= 90);
+      const protectedCoreRelationship = world.runContext.difficultyId !== 'extreme'
+        && caseItem.goalTier === 'core'
+        && recentlyMaintained
+        && relationTrust >= 76;
       if (
-        relationTrust >= caseTickBalance.renewalTrustThreshold
-        && readCaseTerminalOutcomeForCase(world, caseItem, caseItem.trust).ownerSatisfaction !== 'unhappy'
-        && caseItem.d3 >= caseTickBalance.renewalD3Threshold
+        (
+          relationTrust >= caseTickBalance.renewalTrustThreshold
+          && readCaseTerminalOutcomeForCase(world, caseItem, caseItem.trust).ownerSatisfaction !== 'unhappy'
+          && caseItem.d3 >= caseTickBalance.renewalD3Threshold
+        )
+        || protectedCorePipeline
+        || protectedCoreRelationship
       ) {
         caseItem.windowDays = caseTickBalance.renewalWindowDays;
         applyBrokerOwnerTrustDelta(world, caseItem, -caseTickBalance.renewalTrustLoss, '续期信任损失', 0, 100);

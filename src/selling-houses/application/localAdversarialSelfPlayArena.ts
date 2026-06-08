@@ -207,12 +207,18 @@ export class LocalAdversarialSelfPlayArena {
     const pricePressure = Math.max(0, caseItem.askPrice - caseItem.marketPrice) / 2;
 
     const relationTrust = readCaseRelationBusinessContextFromRuntime(state, caseItem).trustValue;
+    const corePriority = caseItem.goalTier === 'core' ? 28 : caseItem.goalTier === 'important' ? 12 : 0;
+    const coreRiskPriority = caseItem.goalTier === 'core' && relationTrust < 58 ? 24 : 0;
+    const expiryPriority = caseItem.windowDays <= 2 ? 18 : caseItem.windowDays <= 4 ? 8 : 0;
     return (100 - caseItem.windowDays * 8)
       + (65 - relationTrust)
       + (58 - caseItem.heat)
       + pricePressure
       + shadowCount * 8
-      + lateStageCount * 10;
+      + lateStageCount * 10
+      + corePriority
+      + coreRiskPriority
+      + expiryPriority;
   }
 
   private pickPlannedMove(state: GameState) {
@@ -252,6 +258,15 @@ export class LocalAdversarialSelfPlayArena {
       });
     }
 
+    if (lateOpportunity && !this.hasOwnerConcessionEvidence(state, caseItem)) {
+      candidates.push({
+        actionId: 'ask-psychological-price',
+        optionId: 'soft-anchor',
+        rationale: '客户已接近谈判区，先摸清业主真实底线，给成交收口补齐价格共识证据。',
+        weight: 99,
+      });
+    }
+
     if (lateOpportunity) {
       candidates.push({
         actionId: 'invite-customer-negotiation',
@@ -262,6 +277,15 @@ export class LocalAdversarialSelfPlayArena {
     }
 
     const relationTrust = readCaseRelationBusinessContextFromRuntime(state, caseItem).trustValue;
+    if (caseItem.goalTier === 'core' && (caseItem.windowDays <= 5 || relationTrust < 62)) {
+      candidates.push({
+        actionId: caseItem.hasCompletedFirstVisit ? 'weekly-feedback' : 'first-visit',
+        optionId: null,
+        rationale: '核心盘已经进入守盘风险区，先把业主关系和推进窗口拉回来。',
+        weight: 112,
+      });
+    }
+
     if (caseItem.windowDays <= 4 || relationTrust < 56) {
       candidates.push({
         actionId: caseItem.hasCompletedFirstVisit ? 'weekly-feedback' : 'first-visit',
@@ -367,6 +391,16 @@ export class LocalAdversarialSelfPlayArena {
       .find((entry) => getActionAvailability(state, caseItem, entry.actionId).enabled);
   }
 
+  private hasOwnerConcessionEvidence(state: GameState, caseItem: Case) {
+    return (state.pendingSourceRecords || []).some((record) => {
+      const payload = record.payload as unknown as Record<string, unknown>;
+      return record.sourceKind === 'owner_interview'
+        && payload.caseId === caseItem.id
+        && typeof payload.concessionPrice === 'number'
+        && Number.isFinite(payload.concessionPrice);
+    });
+  }
+
   private pickPriceOption(state: GameState, caseItem: Case) {
     const priceGap = caseItem.askPrice - caseItem.marketPrice;
     const relationTrust = readCaseRelationBusinessContextFromRuntime(state, caseItem).trustValue;
@@ -381,12 +415,15 @@ export class LocalAdversarialSelfPlayArena {
   }
 
   private pickNegotiationOption(state: GameState, caseItem: Case, opportunity: Opportunity) {
-    if (opportunity.intent >= 90 && opportunity.confidence >= 85) {
-      return 'hold';
+    if (caseItem.windowDays <= 5 || caseItem.askPrice > opportunity.budgetMax * 0.98) {
+      return 'close';
     }
     const relationTrust = readCaseRelationBusinessContextFromRuntime(state, caseItem).trustValue;
-    if (caseItem.windowDays <= 3 || relationTrust < 52) {
+    if (relationTrust < 56) {
       return 'close';
+    }
+    if (opportunity.intent >= 90 && opportunity.confidence >= 85) {
+      return 'hold';
     }
     return 'balanced';
   }

@@ -264,7 +264,7 @@ function finalizeClosedDeal(
 ) {
   if ((state.runtimeContractFacts ?? []).some((cf) => cf.caseId === caseItem.id)) {
     clearPendingDealClosing(state, opportunity);
-    return;
+    return true;
   }
 
   // Mark consensus as signed on successful close, then create canonical artifacts
@@ -352,6 +352,10 @@ function finalizeClosedDeal(
   // R44: Contract requires canonical proof (proofKind === 'canonical')
   let contractFact: ContractFactState | undefined;
   if (consensusId && proof && proof.proofKind === 'canonical') {
+    if (!claimPlayerMarketDealSlot(state)) {
+      markConsensusCollapsedOnState(state, signedBrokered!.brokeredOpportunityId, state.day, 'market capacity blocked');
+      return false;
+    }
     markConsensusSignedFromPriceConsensusOnState(state, signedBrokered!.brokeredOpportunityId, state.day, proof);
     contractFact = createContractFactFromPriceConsensusOnState(
       state,
@@ -488,6 +492,12 @@ function finalizeClosedDeal(
 
     logEvent(state, '成交快报', `${caseItem.title} 签了！最终 ${soldPrice} 万落锤，咱们组分了 ${commission} 个点，外加 ${budgetReturn} 个推广点，今晚加鸡腿！`, 'success');
   }
+
+  if (!contractFact) {
+    clearPendingDealClosing(state, opportunity);
+  }
+
+  return Boolean(contractFact);
 }
 
 function resolveFailedPendingClosing(
@@ -751,11 +761,15 @@ export function settlePendingDealClosings(state: GameState) {
     const canClose = evaluation.isEligible && evaluation.closeProbability >= BALANCE.actions.negotiation.closeThreshold;
 
     if (canClose) {
-      if (claimPlayerMarketDealSlot(state)) {
-        // R26: consensus signing now happens inside finalizeClosedDeal via proof path
-        finalizeClosedDeal(state, caseItem, opportunity, soldPrice, evaluation, strategy.wordOfMouthBonus);
-      } else {
-        resolveCapacityBlockedPendingClosing(state, caseItem, opportunity);
+      // R26/R44: consensus signing and market-slot claim happen inside finalizeClosedDeal
+      // only after canonical proof is available.
+      if (!finalizeClosedDeal(state, caseItem, opportunity, soldPrice, evaluation, strategy.wordOfMouthBonus)) {
+        if (isClosingBlockedByMarketCapacity(state, evaluation)) {
+          resolveCapacityBlockedPendingClosing(state, caseItem, opportunity);
+        } else {
+          const ownerProfileForFailure = readOwnerDecisionProfile(caseItem);
+          resolveFailedPendingClosing(state, caseItem, opportunity, strategyId, ownerProfileForFailure, evaluation);
+        }
       }
       return;
     }

@@ -1,7 +1,22 @@
 import type { DifficultyId, ScenarioDefinition, ScenarioSnapshot } from '../models.js';
 import { mergeRules } from '../config/baseRules.js';
 import { buildScenarioSummary, enrichScenarioDefinition } from '../scenarioMetadata.js';
+import { getDifficultyProfile } from '../scenario-generation/difficultyProfiles.js';
 import { BUILT_IN_WORLD, getBuiltInWorld } from '../worlds/builtinWorld.js';
+
+type BuiltInRuleOverrides = NonNullable<ScenarioDefinition['rules']>;
+
+function mergeDifficultyRules(difficultyId: DifficultyId, overrides: BuiltInRuleOverrides = {}) {
+  const profileRules = getDifficultyProfile(difficultyId).ruleAdjustments || {};
+  return mergeRules({
+    ...profileRules,
+    ...overrides,
+    outcomeControl: {
+      ...(profileRules.outcomeControl || {}),
+      ...(overrides.outcomeControl || {}),
+    },
+  });
+}
 
 const BUILT_IN_SCENARIOS: ScenarioDefinition[] = [
   {
@@ -15,7 +30,7 @@ const BUILT_IN_SCENARIOS: ScenarioDefinition[] = [
     startMonth: 5,
     startDay: 9,
     maxDay: 26,
-    rules: mergeRules({ maxDay: 26, initialCash: 24, initialReputation: 61, passiveLeadBaseMultiplier: 1.1, randomEventProbability: 0.09 }),
+    rules: mergeDifficultyRules('warmup', { maxDay: 26, initialCash: 24, initialReputation: 61, passiveLeadBaseMultiplier: 1.1, randomEventProbability: 0.09 }),
     randomEventPool: [
       { templateId: 'school-boom', weight: 5 },
       { templateId: 'policy-shift', weight: 1 },
@@ -46,7 +61,7 @@ const BUILT_IN_SCENARIOS: ScenarioDefinition[] = [
     startMonth: 9,
     startDay: 6,
     maxDay: 24,
-    rules: mergeRules({ maxDay: 24, initialCash: 22, initialReputation: 60, passiveLeadBaseMultiplier: 1.08, randomEventProbability: 0.1 }),
+    rules: mergeDifficultyRules('easy', { maxDay: 24, initialCash: 22, initialReputation: 60, passiveLeadBaseMultiplier: 1.08, randomEventProbability: 0.1 }),
     randomEventPool: [
       { templateId: 'school-boom', weight: 5 },
       { templateId: 'policy-shift', weight: 2 },
@@ -79,7 +94,7 @@ const BUILT_IN_SCENARIOS: ScenarioDefinition[] = [
     startMonth: 10,
     startDay: 10,
     maxDay: 24,
-    rules: mergeRules({ maxDay: 24, initialCash: 24, initialReputation: 58, passiveLeadFocusedMultiplier: 3.8, randomEventProbability: 0.12 }),
+    rules: mergeDifficultyRules('easy', { maxDay: 24, initialCash: 24, initialReputation: 58, passiveLeadFocusedMultiplier: 3.8, randomEventProbability: 0.12 }),
     randomEventPool: [
       { templateId: 'school-boom', weight: 4 },
       { templateId: 'policy-shift', weight: 2 },
@@ -112,7 +127,7 @@ const BUILT_IN_SCENARIOS: ScenarioDefinition[] = [
     startMonth: 5,
     startDay: 8,
     maxDay: 23,
-    rules: mergeRules({ maxDay: 23, initialCash: 20, initialReputation: 59, randomEventProbability: 0.11 }),
+    rules: mergeDifficultyRules('easy', { maxDay: 23, initialCash: 20, initialReputation: 59, randomEventProbability: 0.11 }),
     randomEventPool: [
       { templateId: 'school-boom', weight: 4 },
       { templateId: 'policy-shift', weight: 2 },
@@ -143,7 +158,7 @@ const BUILT_IN_SCENARIOS: ScenarioDefinition[] = [
     startMonth: 9,
     startDay: 20,
     maxDay: 21,
-    rules: mergeRules({ maxDay: 21, initialCash: 18, initialReputation: 56, randomEventProbability: 0.15 }),
+    rules: mergeDifficultyRules('standard', { maxDay: 21, initialCash: 18, initialReputation: 56, randomEventProbability: 0.15 }),
     randomEventPool: [
       { templateId: 'school-boom', weight: 3 },
       { templateId: 'policy-shift', weight: 3 },
@@ -178,7 +193,7 @@ const BUILT_IN_SCENARIOS: ScenarioDefinition[] = [
     startMonth: 11,
     startDay: 3,
     maxDay: 20,
-    rules: mergeRules({ maxDay: 20, initialCash: 17, initialReputation: 55, randomEventProbability: 0.17 }),
+    rules: mergeDifficultyRules('standard', { maxDay: 20, initialCash: 17, initialReputation: 55, randomEventProbability: 0.17 }),
     randomEventPool: [
       { templateId: 'school-boom', weight: 2 },
       { templateId: 'policy-shift', weight: 4 },
@@ -212,7 +227,7 @@ const BUILT_IN_SCENARIOS: ScenarioDefinition[] = [
     startMonth: 3,
     startDay: 15,
     maxDay: 20,
-    rules: mergeRules({ maxDay: 20, initialCash: 18, initialReputation: 54, randomEventProbability: 0.18 }),
+    rules: mergeDifficultyRules('standard', { maxDay: 20, initialCash: 18, initialReputation: 54, randomEventProbability: 0.18 }),
     randomEventPool: [
       { templateId: 'school-boom', weight: 2 },
       { templateId: 'policy-shift', weight: 3 },
@@ -247,7 +262,7 @@ const BUILT_IN_SCENARIOS: ScenarioDefinition[] = [
     startMonth: 6,
     startDay: 12,
     maxDay: 20,
-    rules: mergeRules({ maxDay: 20, initialCash: 17, initialReputation: 54, randomEventProbability: 0.18, competitionPressureThreshold: 68 }),
+    rules: mergeDifficultyRules('advanced', { maxDay: 20, initialCash: 17, initialReputation: 54, randomEventProbability: 0.18, competitionPressureThreshold: 68 }),
     randomEventPool: [
       { templateId: 'school-boom', weight: 2 },
       { templateId: 'policy-shift', weight: 4 },
@@ -282,7 +297,7 @@ const BUILT_IN_SCENARIOS: ScenarioDefinition[] = [
     startMonth: 12,
     startDay: 2,
     maxDay: 18,
-    rules: mergeRules({ maxDay: 18, initialCash: 16, initialReputation: 53, randomEventProbability: 0.22, competitionPressureThreshold: 68, competitionHeatPenaltyMin: 3, competitionHeatPenaltyMax: 6 }),
+    rules: mergeDifficultyRules('hard', { maxDay: 18, initialCash: 16, initialReputation: 53, randomEventProbability: 0.22, competitionPressureThreshold: 68, competitionHeatPenaltyMin: 3, competitionHeatPenaltyMax: 6 }),
     randomEventPool: [
       { templateId: 'school-boom', weight: 1 },
       { templateId: 'policy-shift', weight: 4 },
@@ -318,7 +333,7 @@ const BUILT_IN_SCENARIOS: ScenarioDefinition[] = [
     startMonth: 2,
     startDay: 18,
     maxDay: 17,
-    rules: mergeRules({ maxDay: 17, initialCash: 15, initialReputation: 52, randomEventProbability: 0.2, ownerUntouchedTrustLoss: 2, urgentOwnerUntouchedTrustLoss: 4 }),
+    rules: mergeDifficultyRules('hard', { maxDay: 17, initialCash: 15, initialReputation: 52, randomEventProbability: 0.2, ownerUntouchedTrustLoss: 2, urgentOwnerUntouchedTrustLoss: 4 }),
     randomEventPool: [
       { templateId: 'school-boom', weight: 1 },
       { templateId: 'policy-shift', weight: 4 },
@@ -353,7 +368,7 @@ const BUILT_IN_SCENARIOS: ScenarioDefinition[] = [
     startMonth: 1,
     startDay: 9,
     maxDay: 17,
-    rules: mergeRules({
+    rules: mergeDifficultyRules('extreme', {
       maxDay: 17,
       initialCash: 14,
       initialReputation: 50,
@@ -399,7 +414,7 @@ const BUILT_IN_SCENARIOS: ScenarioDefinition[] = [
     startMonth: 8,
     startDay: 14,
     maxDay: 18,
-    rules: mergeRules({ maxDay: 18, initialCash: 16, initialReputation: 52, randomEventProbability: 0.21, competitionPressureThreshold: 66, competitionTrustLossChance: 0.46 }),
+    rules: mergeDifficultyRules('hard', { maxDay: 18, initialCash: 16, initialReputation: 52, randomEventProbability: 0.21, competitionPressureThreshold: 66, competitionTrustLossChance: 0.46 }),
     randomEventPool: [
       { templateId: 'school-boom', weight: 1 },
       { templateId: 'policy-shift', weight: 3 },
