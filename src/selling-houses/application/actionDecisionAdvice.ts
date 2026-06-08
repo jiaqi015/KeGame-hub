@@ -441,6 +441,141 @@ export function buildFallbackActionFeedbackProposal(
   };
 }
 
+/**
+ * LLM-first action feedback proposal generator.
+ *
+ * Uses world context (soul, memory, world) to generate a richer,
+ * more context-aware feedback message than the template fallback.
+ *
+ * This is a rule-based "LLM simulation" that produces human-like
+ * feedback based on the owner's personality, emotional state,
+ * conversation history, and market context.
+ */
+export function buildLlmFirstActionFeedbackProposal(
+  request: ActionFeedbackRequest,
+  worldContext?: ActionFeedbackWorldContext,
+): ActionFeedbackProposal {
+  const soul = worldContext?.soul;
+  const memory = worldContext?.memory;
+  const world = worldContext?.worldContext;
+
+  // Build context-aware components
+  const personalityLead = buildLlmPersonalityLead(request, soul);
+  const contextBody = buildLlmContextBody(request, soul, memory, world);
+  const closingLine = buildLlmClosingLine(request, soul);
+
+  const message = ensureFeedbackQuote(trimSentence(
+    joinFeedbackSentences([personalityLead, contextBody, closingLine]),
+    200,
+  ));
+
+  // Confidence based on context richness
+  let confidence = 0.65;
+  if (soul) confidence += 0.05;
+  if (memory && memory.length > 0) confidence += 0.05;
+  if (world) confidence += 0.05;
+
+  return { message, confidence: Math.min(confidence, 0.85) };
+}
+
+function buildLlmPersonalityLead(
+  request: ActionFeedbackRequest,
+  soul: ParticipantSoul | undefined,
+): string {
+  const base = buildHumanFeedbackLead(request);
+
+  if (!soul) return base;
+
+  const assertiveness = soul.basePersonality.assertiveness;
+  const trust = soul.emotionalState.trust;
+  const urgency = soul.emotionalState.urgency;
+  const consecutiveNegative = soul.emotionalArc.consecutiveNegative;
+
+  // Assertive owners lead with directness
+  if (assertiveness >= 70) {
+    return '你别绕弯子，我就想知道结果。';
+  }
+
+  // Low trust owners lead with skepticism
+  if (trust < 35 || consecutiveNegative >= 2) {
+    return '我之前信你，但现在有点动摇了。';
+  }
+
+  // High urgency owners lead with impatience
+  if (urgency >= 75) {
+    return '我没时间等了，你给我一个明确说法。';
+  }
+
+  // Anxious owners lead with worry
+  if (soul.ownerProfileLabel.includes('焦虑')) {
+    return '我心里不踏实，你给我说清楚。';
+  }
+
+  return base;
+}
+
+function buildLlmContextBody(
+  request: ActionFeedbackRequest,
+  soul: ParticipantSoul | undefined,
+  memory: readonly AgentMemoryFact[] | undefined,
+  world: ActionFeedbackWorldContext['worldContext'],
+): string {
+  const parts: string[] = [];
+
+  // Evidence from strategies
+  const evidenceLine = buildHumanEvidenceLine(request);
+  parts.push(`客户到底卡在哪、${evidenceLine}，你给我摊开。`);
+
+  // Price gap
+  const priceGap = typeof request.caseContext?.askPrice === 'number' && typeof request.caseContext?.marketPrice === 'number'
+    ? Math.round(request.caseContext.askPrice - request.caseContext.marketPrice)
+    : null;
+  if (priceGap !== null && priceGap > 0) {
+    parts.push(`你说和市场价差 ${priceGap} 万，这个数我不能只听一句话。`);
+  }
+
+  // Memory reference
+  if (memory && memory.length > 0) {
+    const priceMemory = memory.find((f) => f.kind === 'price_commitment');
+    const riskMemory = memory.find((f) => f.kind === 'open_risk');
+    if (priceMemory) {
+      parts.push('上次说的价格我记着呢。');
+    } else if (riskMemory) {
+      parts.push('之前的风险你还没给我讲清楚。');
+    }
+  }
+
+  // Rival reference
+  if (world) {
+    const activeRivals = world.rivalListings?.filter((r) => r.status === 'active') || [];
+    if (activeRivals.length > 0) {
+      parts.push('旁边竞品都在动，你给我看清楚我们差在哪。');
+    } else if (world.marketSentiment === 'negative') {
+      parts.push('市场不太好，你给我一个说法。');
+    }
+  }
+
+  return parts.join('');
+}
+
+function buildLlmClosingLine(
+  request: ActionFeedbackRequest,
+  soul: ParticipantSoul | undefined,
+): string {
+  const urgency = soul?.emotionalState.urgency ?? request.caseContext?.urgency ?? 50;
+  const trust = soul?.emotionalState.trust ?? request.caseContext?.trust ?? 50;
+
+  if (urgency >= 70) {
+    return '今天就给我一个明确方案，我不想再等了。';
+  }
+  if (trust < 40) {
+    return '你先给我看依据，我再决定要不要继续配合。';
+  }
+
+  const assistLine = buildHumanAssistLine(request);
+  return assistLine || '我看明白了再跟家里商量，不想现在凭感觉动。';
+}
+
 export function normalizeActionFeedbackProposal(
   proposal: unknown,
   request: ActionFeedbackRequest,
