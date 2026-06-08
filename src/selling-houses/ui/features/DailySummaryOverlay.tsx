@@ -59,7 +59,8 @@ type OvernightStory = {
   evidenceLabels: string[];
 };
 
-const DAILY_STORY_FETCH_TIMEOUT_MS = 6500;
+const DAILY_STORY_FETCH_TIMEOUT_MS = 10000;
+const DAILY_STORY_MIN_GENERATION_MS = 10000;
 
 export function DailySummaryOverlay({ report, tickResult, state, onContinue }: DailySummaryOverlayProps) {
   const overnightEvents = [
@@ -78,6 +79,7 @@ export function DailySummaryOverlay({ report, tickResult, state, onContinue }: D
     [report, tickResult, state],
   );
   const [remoteStory, setRemoteStory] = React.useState<DailyCityStoryResult | null>(null);
+  const [storyLoading, setStoryLoading] = React.useState(true);
   const story = React.useMemo(
     () => (remoteStory ? buildOvernightStoryFromDailyCityStory(remoteStory, localStory) : localStory),
     [localStory, remoteStory],
@@ -92,11 +94,14 @@ export function DailySummaryOverlay({ report, tickResult, state, onContinue }: D
 
   React.useEffect(() => {
     let disposed = false;
+    let storyRevealTimer: number | null = null;
+    const startedAt = Date.now();
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => {
       controller.abort();
     }, DAILY_STORY_FETCH_TIMEOUT_MS);
     setRemoteStory(null);
+    setStoryLoading(true);
     fetchDailyStory(storyContextPack, {
       playerId: 'seller-player',
       displayName: '资产顾问',
@@ -105,15 +110,28 @@ export function DailySummaryOverlay({ report, tickResult, state, onContinue }: D
       preferredStyle: 'storytelling',
       focusAreas: ['业主沟通', '客户承接', '竞品压力'],
     }, { signal: controller.signal }).then((result) => {
-      if (!disposed && result.story) {
-        setRemoteStory(result.story);
+      if (disposed || !result.story) {
+        return;
       }
+
+      const elapsed = Date.now() - startedAt;
+      const revealDelay = Math.max(0, DAILY_STORY_MIN_GENERATION_MS - elapsed);
+      storyRevealTimer = window.setTimeout(() => {
+        if (disposed) {
+          return;
+        }
+        setRemoteStory(result.story);
+        setStoryLoading(false);
+      }, revealDelay);
     }).finally(() => {
       window.clearTimeout(timeoutId);
     });
     return () => {
       disposed = true;
       window.clearTimeout(timeoutId);
+      if (storyRevealTimer !== null) {
+        window.clearTimeout(storyRevealTimer);
+      }
       controller.abort();
     };
   }, [storyContextPack]);
@@ -133,48 +151,52 @@ export function DailySummaryOverlay({ report, tickResult, state, onContinue }: D
 
         <div className="max-h-[calc(82vh-56px)] overflow-y-auto p-4 sm:p-5">
           <section className="mb-4 overflow-hidden rounded-[18px] border border-[var(--seller-border)] bg-[color-mix(in_srgb,var(--seller-paper)_92%,var(--seller-accent)_8%)]">
-            <div className="grid gap-0 lg:grid-cols-[minmax(0,1.35fr)_minmax(260px,0.65fr)]">
-              <div className="min-w-0 px-5 py-5 sm:px-6">
-                <div className="seller-label flex items-center gap-2">
-                  <BookOpenText size={14} className="text-[var(--seller-accent)]" />
-                  昨夜故事
-                </div>
-                <h3 className="mt-3 max-w-[26ch] text-[22px] font-semibold leading-[1.25] tracking-[-0.02em] text-[var(--seller-ink)] sm:text-[26px]">
-                  {story.headline}
-                </h3>
-                <p className="mt-3 max-w-[68ch] text-[13px] font-medium leading-6 text-[var(--seller-muted)]">
-                  {story.kicker}
-                </p>
-                <div className="mt-4 grid gap-3 text-[13px] leading-6 text-[var(--seller-ink)]">
-                  {story.paragraphs.map((paragraph, index) => (
-                    <p key={`${paragraph}-${index}`} className={index === 0 ? 'font-semibold' : 'text-[var(--seller-muted)]'}>
-                      {paragraph}
-                    </p>
-                  ))}
-                </div>
-              </div>
-
-              <div className="border-t border-[var(--seller-border)] bg-[rgba(255,255,255,0.035)] px-5 py-5 lg:border-l lg:border-t-0">
-                <div className="seller-label flex items-center gap-2">
-                  <Radio size={13} className="text-[var(--seller-accent)]" />
-                  今天怎么接
-                </div>
-                <div className="mt-4 grid gap-3">
-                  <div>
-                    <div className="text-[10px] font-semibold text-[var(--seller-subtle)]">{story.pulseLabel}</div>
-                    <div className="mt-1 text-[18px] font-semibold text-[var(--seller-ink)]">{story.pulseValue}</div>
+            {storyLoading ? (
+              <DailyStoryLoadingState />
+            ) : (
+              <div className="grid gap-0 lg:grid-cols-[minmax(0,1.35fr)_minmax(260px,0.65fr)]">
+                <div className="min-w-0 px-5 py-5 sm:px-6">
+                  <div className="seller-label flex items-center gap-2">
+                    <BookOpenText size={14} className="text-[var(--seller-accent)]" />
+                    昨夜故事
                   </div>
-                  <p className="text-[12px] font-medium leading-6 text-[var(--seller-muted)]">{story.todayHandle}</p>
-                  {story.evidenceLabels.length > 0 ? (
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      {story.evidenceLabels.map((label) => (
-                        <span key={label} className="seller-chip">{label}</span>
-                      ))}
+                  <h3 className="mt-3 max-w-[26ch] text-[22px] font-semibold leading-[1.25] tracking-[-0.02em] text-[var(--seller-ink)] sm:text-[26px]">
+                    {story.headline}
+                  </h3>
+                  <p className="mt-3 max-w-[68ch] text-[13px] font-medium leading-6 text-[var(--seller-muted)]">
+                    {story.kicker}
+                  </p>
+                  <div className="mt-4 grid gap-3 text-[13px] leading-6 text-[var(--seller-ink)]">
+                    {story.paragraphs.map((paragraph, index) => (
+                      <p key={`${paragraph}-${index}`} className={index === 0 ? 'font-semibold' : 'text-[var(--seller-muted)]'}>
+                        {paragraph}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="border-t border-[var(--seller-border)] bg-[rgba(255,255,255,0.035)] px-5 py-5 lg:border-l lg:border-t-0">
+                  <div className="seller-label flex items-center gap-2">
+                    <Radio size={13} className="text-[var(--seller-accent)]" />
+                    今天怎么接
+                  </div>
+                  <div className="mt-4 grid gap-3">
+                    <div>
+                      <div className="text-[10px] font-semibold text-[var(--seller-subtle)]">{story.pulseLabel}</div>
+                      <div className="mt-1 text-[18px] font-semibold text-[var(--seller-ink)]">{story.pulseValue}</div>
                     </div>
-                  ) : null}
+                    <p className="text-[12px] font-medium leading-6 text-[var(--seller-muted)]">{story.todayHandle}</p>
+                    {story.evidenceLabels.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {story.evidenceLabels.map((label) => (
+                          <span key={label} className="seller-chip">{label}</span>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </section>
 
           <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-2">
@@ -319,6 +341,68 @@ export function DailySummaryOverlay({ report, tickResult, state, onContinue }: D
               进入今天
               <ArrowRight size={18} />
             </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DailyStoryLoadingState() {
+  const processSteps = [
+    '读取昨夜客户反馈与业主变化',
+    '比对竞品压力和指标波动',
+    '生成今日承接口径',
+  ];
+
+  return (
+    <div className="grid gap-0 lg:grid-cols-[minmax(0,1.35fr)_minmax(260px,0.65fr)]" role="status" aria-live="polite">
+      <div className="min-w-0 px-5 py-5 sm:px-6">
+        <div className="seller-label flex items-center gap-2">
+          <BookOpenText size={14} className="text-[var(--seller-accent)]" />
+          昨夜故事
+        </div>
+        <div className="mt-3 text-[18px] font-semibold leading-snug text-[var(--seller-ink)] sm:text-[20px]">
+          AI 正在生成昨夜经营简报
+        </div>
+        <p className="mt-3 max-w-[62ch] text-[13px] font-medium leading-6 text-[var(--seller-muted)]">
+          正在读取昨天的客户反馈、业主变化、竞品压力和今日安排，预计约 10 秒，完成后再展示正式简报。
+        </p>
+        <div className="mt-5 grid gap-2.5">
+          {processSteps.map((step, index) => (
+            <div key={step} className="flex items-center gap-3 rounded-[12px] bg-white/60 px-3 py-2 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.05)]">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--seller-accent)_14%,white)] text-[10px] font-bold text-[var(--seller-accent)]">
+                {index + 1}
+              </span>
+              <span className="min-w-0 flex-1 text-[12px] font-semibold text-[var(--seller-muted)]">{step}</span>
+              <span
+                className="h-1.5 w-16 overflow-hidden rounded-full bg-[color-mix(in_srgb,var(--seller-border)_65%,transparent)]"
+                aria-hidden="true"
+              >
+                <span className="block h-full w-1/2 animate-pulse rounded-full bg-[color-mix(in_srgb,var(--seller-accent)_42%,transparent)]" />
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="border-t border-[var(--seller-border)] bg-[rgba(255,255,255,0.035)] px-5 py-5 lg:border-l lg:border-t-0">
+        <div className="seller-label flex items-center gap-2">
+          <Radio size={13} className="text-[var(--seller-accent)]" />
+          今天怎么接
+        </div>
+        <div className="mt-4 grid gap-3">
+          <div className="h-3 w-20 animate-pulse rounded-full bg-[color-mix(in_srgb,var(--seller-border)_65%,transparent)]" />
+          <div className="h-6 w-3/4 animate-pulse rounded-full bg-[color-mix(in_srgb,var(--seller-accent)_22%,transparent)]" />
+          <div className="h-3 w-full animate-pulse rounded-full bg-[color-mix(in_srgb,var(--seller-border)_60%,transparent)]" />
+          <div className="h-3 w-5/6 animate-pulse rounded-full bg-[color-mix(in_srgb,var(--seller-border)_60%,transparent)]" />
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {[0, 1, 2].map((index) => (
+              <span
+                key={index}
+                className="h-6 w-20 animate-pulse rounded-full bg-[color-mix(in_srgb,var(--seller-border)_60%,transparent)]"
+              />
+            ))}
           </div>
         </div>
       </div>
