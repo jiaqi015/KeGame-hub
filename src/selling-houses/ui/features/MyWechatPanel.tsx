@@ -1056,7 +1056,7 @@ const WechatConversationDetail: React.FC<{
       data-my-wechat-conversation-detail="true"
       className={`seller-wechat-detail flex overflow-hidden rounded-[18px] border border-[var(--seller-border)] shadow-[0_20px_50px_rgba(0,0,0,0.14)] transition-all duration-200 ${
         expanded
-          ? 'fixed bottom-3 left-3 right-3 top-[76px] z-[95] h-auto min-h-0 flex-row md:left-8 md:right-8 md:top-[84px] xl:left-[calc(50vw-560px)] xl:right-[calc(50vw-560px)] xl:bottom-5 xl:top-[92px]'
+          ? 'fixed bottom-3 left-3 right-3 top-[76px] z-[95] h-auto min-h-0 flex-row md:left-8 md:right-8 md:top-[84px] xl:left-[calc(50vw-620px)] xl:right-[calc(50vw-620px)] xl:bottom-5 xl:top-[92px]'
           : 'h-[min(820px,calc(100vh-110px))] min-h-[660px] flex-col'
       }`}
     >
@@ -1167,7 +1167,7 @@ const WechatConversationDetail: React.FC<{
           })}
         </div>
 
-        <div className="seller-wechat-composer shrink-0 border-t border-[var(--seller-border)] px-3 py-2.5">
+        <div className="seller-wechat-composer shrink-0 border-t border-[var(--seller-border)] px-3 py-3">
           <div className="space-y-2">
             <form onSubmit={submitReply} className="flex items-end gap-2">
               <textarea
@@ -1195,15 +1195,15 @@ const WechatConversationDetail: React.FC<{
                 rows={1}
                 placeholder={replyTarget ? `回复 ${displayName}` : '暂无可回复消息'}
                 title="回车发送，Shift+Enter 换行"
-                className="seller-wechat-input h-9 max-h-[76px] flex-1 resize-none rounded-full border border-[var(--seller-border)] px-3 py-2 text-[12px] leading-5 text-[var(--seller-ink)] outline-none transition placeholder:text-[var(--seller-subtle)] focus:border-[color:var(--seller-accent)]/50 disabled:opacity-60"
+                className="seller-wechat-input h-10 max-h-[88px] flex-1 resize-none rounded-full border border-[var(--seller-border)] px-3.5 py-2.5 text-[12px] leading-5 text-[var(--seller-ink)] outline-none transition placeholder:text-[var(--seller-subtle)] focus:border-[color:var(--seller-accent)]/50 disabled:opacity-60"
               />
               <button
                 type="submit"
                 disabled={!draftText.trim() || !replyTarget || !onSendConversationReply || sending}
                 title="发送（回车可发送）"
-                className="seller-button-primary inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full disabled:cursor-not-allowed disabled:opacity-55"
+                className="seller-button-primary inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full disabled:cursor-not-allowed disabled:opacity-55"
               >
-                {sending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+                {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
               </button>
             </form>
 
