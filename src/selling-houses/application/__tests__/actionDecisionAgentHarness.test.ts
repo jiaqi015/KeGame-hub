@@ -66,6 +66,47 @@ function buildOpenDayFeedbackRequest(overrides: Partial<ActionFeedbackRequest> =
   };
 }
 
+function buildWeeklyFeedbackBenchmarkRequest(overrides: Partial<ActionFeedbackRequest> = {}): ActionFeedbackRequest {
+  return buildOpenDayFeedbackRequest({
+    actionId: 'weekly-feedback',
+    title: '江悦府 128㎡ 三房 · 周度反馈',
+    summary: '把这一周带看、客户反馈和价格风险同步给业主。',
+    body: '业主想知道这周有没有实质进展，也担心价格风险没有被讲透。',
+    round: {
+      title: '周度反馈',
+      description: '这一轮要让业主相信你不是泛泛汇报。',
+      mainStrategies: [
+        { id: 'progress', title: '突出本周进展', note: '说明带看和客户反馈的真实变化。' },
+        { id: 'risk', title: '坦诚讲风险', note: '把价格差距和竞品分流说清。' },
+      ],
+      assistStrategies: [
+        { id: 'direct-risk', title: '坦诚讲风险', note: '风险直接说，不做空泛安抚。' },
+      ],
+    },
+    choice: {
+      mainStrategyIds: ['progress', 'risk'],
+      assistStrategyId: 'direct-risk',
+      baseFeedbackMessage: '"听起来这周还不错，继续保持。"',
+      actor: 'owner',
+      mood: 'positive',
+    },
+    caseContext: {
+      title: '江悦府 128㎡ 三房',
+      ownerName: '王经理',
+      district: '浦东',
+      community: '江悦府',
+      askPrice: 930,
+      marketPrice: 921,
+      trust: 57,
+      patience: 44,
+      urgency: 66,
+      heat: 63,
+      stageLabel: '周度反馈',
+    },
+    ...overrides,
+  });
+}
+
 describe('action decision agent harness', () => {
   it('uses scenario prompt presets and tool manifests for open-day simulation', () => {
     const runtime = buildActionDecisionAgentRuntime(buildOpenDayRequest());
@@ -155,8 +196,37 @@ describe('action decision agent harness', () => {
     const feedback = buildFallbackActionFeedbackProposal(buildOpenDayFeedbackRequest());
 
     expect(feedback.message.length).toBeGreaterThan(60);
-    expect(feedback.message).toContain('邀罗投资客');
-    expect(feedback.message).toContain('同小区成交');
+    expect(feedback.message).not.toContain('邀罗投资客');
+    expect(feedback.message).not.toContain('「');
+    expect(feedback.message).not.toContain('讲清楚');
+    expect(feedback.message).toContain('同小区最近成交');
+  });
+
+  it('benchmarks owner feedback against WeChat-style human reply constraints', () => {
+    const feedback = buildFallbackActionFeedbackProposal(buildWeeklyFeedbackBenchmarkRequest());
+
+    expect(feedback.message.length).toBeGreaterThan(70);
+    expect(feedback.message).not.toContain('突出本周进展');
+    expect(feedback.message).not.toContain('坦诚讲风险');
+    expect(feedback.message).not.toContain('你把');
+    expect(feedback.message).not.toContain('讲清楚');
+    expect(feedback.message).not.toContain('本轮');
+    expect(feedback.message).toContain('这周有点动静');
+    expect(feedback.message).toContain('旁边同类房');
+    expect(feedback.message).toContain('市场价差 9 万');
+  });
+
+  it('rejects LLM feedback that copies action option labels as character speech', () => {
+    const feedback = normalizeActionFeedbackProposal({
+      message: '"听起来这周还不错，继续保持。你把「突出本周进展、坦诚讲风险」讲清楚，最好再拿客户反馈和竞品差异给我看。"',
+      confidence: 0.88,
+    }, buildWeeklyFeedbackBenchmarkRequest());
+
+    expect(feedback.message).not.toContain('突出本周进展');
+    expect(feedback.message).not.toContain('坦诚讲风险');
+    expect(feedback.message).not.toContain('讲清楚');
+    expect(feedback.message).toContain('这周有点动静');
+    expect(feedback.confidence).toBe(0.88);
   });
 
   it('rejects too-short LLM character feedback and keeps the richer fallback', () => {
@@ -167,5 +237,6 @@ describe('action decision agent harness', () => {
 
     expect(feedback.message.length).toBeGreaterThan(60);
     expect(feedback.message).not.toBe('"好。"');
+    expect(feedback.message).not.toContain('「');
   });
 });
