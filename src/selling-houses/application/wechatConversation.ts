@@ -45,6 +45,7 @@ import {
   resolveWechatAgentProfile,
   buildWechatRuntimeAgentId,
 } from './agents/wechatAgentAdapter.js';
+import { buildLlmFirstProposal } from './llmFirstConversationAgent.js';
 import { buildCaseAgentContextPack } from './agents/caseContextPackBuilder.js';
 import { formatConversationRiskSummary } from './agents/conversationRiskLabels.js';
 import { applyHumanization, applyEmotionalVariant } from './agents/humanization.js';
@@ -430,13 +431,13 @@ export function buildFallbackConversationEffectProposal(scene: ConversationScene
 }
 
 export function buildLlmFirstConversationEffectProposal(scene: ConversationSceneInputPack): ConversationEffectProposal {
-  // Use LLM-first agent for reply generation
-  let llmProposal: any = null;
+  // Use LLM-first agent for reply generation. Rule text is only recovery if
+  // the local LLM-first planner cannot produce a bounded proposal.
+  let llmProposal: ReturnType<typeof buildLlmFirstProposal> | null = null;
   try {
-    const llmFirstAgent = require('./llmFirstConversationAgent');
-    llmProposal = llmFirstAgent.buildLlmFirstProposal(scene);
+    llmProposal = buildLlmFirstProposal(scene);
   } catch {
-    // Fallback: use rule-based reply if LLM-first agent not available
+    // Fallback: use rule-based reply if the LLM-first planner is unavailable.
   }
 
   // Keep same intent/risk analysis as fallback

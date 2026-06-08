@@ -8,7 +8,12 @@ import {
   buildAgentHarnessObservation,
   summarizeAgentHarnessObservation,
 } from '../agents/observation.js';
-import { buildAgentProposalEnvelope, buildAgentArbiterResult, buildAgentRunTrace } from '../agents/proposal.js';
+import {
+  arbitrateAgentProposals,
+  buildAgentProposalEnvelope,
+  buildAgentArbiterResult,
+  buildAgentRunTrace,
+} from '../agents/proposal.js';
 
 describe('agent harness kernel', () => {
   it('resolves channel-specific toolsets and keeps forbidden mutation tools visible as guardrails', () => {
@@ -108,6 +113,38 @@ describe('agent harness kernel', () => {
     expect(observation.replay.acceptedProposalId).toBe('rule:scene-1');
     expect(summarizeAgentHarnessObservation(observation)).toContain('wechat');
     expect(summarizeAgentHarnessObservation(observation)).toContain('rule');
+  });
+
+  it('prefers valid LLM proposals even when rule confidence is higher', () => {
+    const ruleProposal = buildAgentProposalEnvelope({
+      proposalId: 'rule:scene-llm-first',
+      agentId: 'wechat:owner:shaonvshi',
+      channel: 'wechat',
+      mode: 'rule',
+      source: 'rule',
+      confidence: 0.92,
+      proposal: { summary: '规则兜底' },
+    });
+    const llmProposal = buildAgentProposalEnvelope({
+      proposalId: 'llm:scene-llm-first',
+      agentId: 'wechat:owner:shaonvshi',
+      channel: 'wechat',
+      mode: 'hybrid',
+      source: 'llm',
+      confidence: 0.35,
+      proposal: { summary: 'LLM 草稿' },
+    });
+
+    const result = arbitrateAgentProposals({
+      ruleProposal,
+      llmProposal,
+      validateLlmProposal: () => ({ ok: true, bounded: true }),
+    });
+
+    expect(result.acceptedSource).toBe('llm');
+    expect(result.finalProposal).toEqual(llmProposal.proposal);
+    expect(result.rejectedReasons).toEqual([]);
+    expect(result.reason).toContain('LLM-first accepted valid proposal');
   });
 
   it('keeps the default tool registry broad enough for scenario and world-engine agents', () => {

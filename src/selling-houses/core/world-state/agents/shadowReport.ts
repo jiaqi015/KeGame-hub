@@ -113,7 +113,7 @@ function buildSummary(
   if (input.status === 'needs-review') {
     return `${observation.channel} 的 LLM proposal 被裁决器拒绝，需要检查 prompt、上下文或校验规则。`;
   }
-  return `${observation.channel} shadow 对比正常，${input.decision === 'llm-won' ? 'LLM proposal 被采纳' : '规则 proposal 保持领先'}${typeof input.confidenceDelta === 'number' ? `，置信差 ${input.confidenceDelta.toFixed(2)}` : ''}。`;
+  return `${observation.channel} shadow 对比正常，${input.decision === 'llm-won' ? 'LLM proposal 被采纳' : '规则兜底被保留'}${typeof input.confidenceDelta === 'number' ? `，置信差 ${input.confidenceDelta.toFixed(2)}` : ''}。`;
 }
 
 function round2(value: number): number {

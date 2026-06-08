@@ -568,7 +568,7 @@ check(
   `dual runtime delta validation rejection: ${dualRisky.arbiterResult.rejectedReasons}`,
 );
 
-// 8c. LLM with low confidence → rule fallback
+// 8c. LLM-first: low-confidence but valid LLM still beats rule fallback
 const lowConfLlm = buildAgentProposalEnvelope<ConversationEffectProposal>({
   proposalId: 'llm:low-1',
   agentId: 'wechat:owner-test',
@@ -582,10 +582,10 @@ const lowConfArbiter = arbitrateAgentProposals<ConversationEffectProposal>({
   ruleProposal: ruleEnvelope,
   llmProposal: lowConfLlm,
 });
-check(lowConfArbiter.acceptedSource === 'rule', 'low confidence LLM falls back to rule');
+check(lowConfArbiter.acceptedSource === 'llm', 'low confidence but valid LLM still wins under LLM-first');
 check(
-  lowConfArbiter.rejectedReasons.includes('llm_confidence_below_threshold'),
-  `low conf rejection reason: ${lowConfArbiter.rejectedReasons}`,
+  lowConfArbiter.rejectedReasons.length === 0,
+  `low confidence LLM should not be rejected by confidence alone: ${lowConfArbiter.rejectedReasons}`,
 );
 
 // 8d. AgentRunTrace builder with full fields

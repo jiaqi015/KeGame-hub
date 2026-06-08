@@ -1,6 +1,5 @@
 import type { ConversationSceneInputPack } from '../core/world-state/conversation/models.js';
 import type { GameState } from '../domain/models.js';
-import { buildFallbackConversationEffectProposal } from './wechatConversation.js';
 
 export interface ConversationMemory {
   readonly conversationKey: string;

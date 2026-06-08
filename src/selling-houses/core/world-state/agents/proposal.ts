@@ -3,6 +3,9 @@
  *
  * Core principle: any agent output is a *proposal*, never a fact.
  * The arbiter decides which proposal becomes the final output.
+ * LLM-capable paths are LLM-first: a present, bounded, valid LLM proposal wins
+ * over rule/fallback proposals. Rule output remains the deterministic recovery
+ * path for missing, unavailable, or invalid LLM output.
  * All functions are pure: no side effects, no network, no GameState.
  *
  * This module is channel-agnostic. It knows nothing about WeChat deltas,
@@ -198,8 +201,6 @@ export type ProposalValidator<TProposal = unknown> = (
 // Arbiter: generic pure function that selects between rule and LLM proposals
 // ---------------------------------------------------------------------------
 
-const LLM_CONFIDENCE_THRESHOLD = 0.50;
-
 export interface ArbitrateAgentProposalsInput<TProposal = unknown> {
   readonly ruleProposal: AgentProposalEnvelope<TProposal>;
   readonly llmProposal: AgentProposalEnvelope<TProposal> | null;
@@ -225,20 +226,6 @@ export function arbitrateAgentProposals<TProposal>(
     });
   }
 
-  // Check LLM confidence threshold
-  if (llmProposal.confidence < LLM_CONFIDENCE_THRESHOLD) {
-    rejectedReasons.push('llm_confidence_below_threshold');
-    validationNotes.push(`LLM confidence ${llmProposal.confidence.toFixed(2)} < threshold ${LLM_CONFIDENCE_THRESHOLD}`);
-    return buildAgentArbiterResult({
-      acceptedSource: 'rule',
-      finalProposal: ruleProposal.proposal,
-      reason: `LLM confidence ${llmProposal.confidence.toFixed(2)} below threshold ${LLM_CONFIDENCE_THRESHOLD}`,
-      bounded: true,
-      rejectedReasons,
-      validationNotes,
-    });
-  }
-
   // Run injectable business validation if provided
   if (validateLlmProposal) {
     const validation = validateLlmProposal(llmProposal.proposal);
@@ -256,23 +243,10 @@ export function arbitrateAgentProposals<TProposal>(
     }
   }
 
-  // LLM confidence higher than rule → accept LLM
-  if (llmProposal.confidence > ruleProposal.confidence) {
-    return buildAgentArbiterResult({
-      acceptedSource: 'llm',
-      finalProposal: llmProposal.proposal,
-      reason: `LLM confidence ${llmProposal.confidence.toFixed(2)} > rule ${ruleProposal.confidence.toFixed(2)}`,
-      bounded: true,
-      rejectedReasons,
-      validationNotes,
-    });
-  }
-
-  // Equal or lower confidence → prefer rule (more predictable)
   return buildAgentArbiterResult({
-    acceptedSource: 'rule',
-    finalProposal: ruleProposal.proposal,
-    reason: `rule confidence ${ruleProposal.confidence.toFixed(2)} >= LLM ${llmProposal.confidence.toFixed(2)}`,
+    acceptedSource: 'llm',
+    finalProposal: llmProposal.proposal,
+    reason: `LLM-first accepted valid proposal; LLM confidence ${llmProposal.confidence.toFixed(2)}, rule confidence ${ruleProposal.confidence.toFixed(2)}`,
     bounded: true,
     rejectedReasons,
     validationNotes,
