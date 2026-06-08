@@ -251,12 +251,17 @@ export function buildFallbackActionFeedbackProposal(request: ActionFeedbackReque
     ? `你说和市场价差 ${priceGap} 万，这个数我不能只听一句话。`
     : '';
 
+  const urgency = request.caseContext?.urgency ?? 50;
+  const trust = request.caseContext?.trust ?? 50;
+  const isHighUrgency = urgency >= 70;
+  const isLowTrust = trust < 40;
+
   if (request.choice.actor === 'customer') {
     return {
       message: ensureFeedbackQuote(trimSentence(
         joinFeedbackSentences([
           base,
-          `我主要想看${evidenceLine}，别只说这套不错。`,
+          `我不是不看${evidenceLine}，但别只说这套不错。`,
           assistLine || '你把差异摆清，我再决定要不要继续看。',
         ]),
         170,
@@ -278,6 +283,13 @@ export function buildFallbackActionFeedbackProposal(request: ActionFeedbackReque
       confidence: 0.55,
     };
   }
+
+  const pressureLine = isHighUrgency
+    ? '今天就给我一个明确方案，我不想再等了。'
+    : isLowTrust
+      ? '你先给我看依据，我再决定要不要继续配合。'
+      : '';
+
   return {
     message: ensureFeedbackQuote(trimSentence(
       joinFeedbackSentences([
@@ -285,6 +297,7 @@ export function buildFallbackActionFeedbackProposal(request: ActionFeedbackReque
         `别只给我一句结论，${evidenceLine}你都给我摊开。`,
         priceLine,
         assistLine || '我看明白了再跟家里商量，不想现在凭感觉动。',
+        pressureLine,
       ]),
       180,
     )),
@@ -313,6 +326,7 @@ function isHumanFeedbackMessageUsable(message: string, request: ActionFeedbackRe
   if (visible.length < 48) return false;
   if (/系统|AI|模型|评分|内部变量|本轮选择|主话题|option/i.test(visible)) return false;
   if (/你把.+讲清楚/.test(visible)) return false;
+  if (/我主要想看/.test(visible)) return false;
 
   const selectedTitles = [
     ...resolveSelectedMainOptions(request).map((option) => option.title),

@@ -216,6 +216,50 @@ describe('action decision agent harness', () => {
     expect(feedback.message).toContain('市场价差 9 万');
   });
 
+  it('keeps customer negotiation feedback in buyer speech instead of broker review language', () => {
+    const feedback = buildFallbackActionFeedbackProposal(buildOpenDayFeedbackRequest({
+      actionId: 'customer-negotiation',
+      title: '徐汇悦府 95㎡ 两房 · 客户谈判推进',
+      summary: '这次要决定怎么把客户往前推一步。',
+      body: '客户在比较同小区成交、房源差异和后续谈价空间。',
+      round: {
+        title: '顺着打还是换打法',
+        description: '第一轮已经摸到客户底牌，现在要根据客户反应继续推进。',
+        mainStrategies: [
+          { id: 'price-space', title: '继续谈价格空间', note: '客户对价格敏感，就把可谈空间讲具体。' },
+          { id: 'market-window', title: '转讲市场节奏', note: '从这个价转到再拖会怎样。' },
+        ],
+        assistStrategies: [
+          { id: 'slow-down', title: '放缓节奏', note: '客户有压力时，先松一松。' },
+        ],
+      },
+      choice: {
+        mainStrategyIds: ['price-space'],
+        assistStrategyId: 'slow-down',
+        baseFeedbackMessage: '"我明白你的意思，让我再想想。"',
+        actor: 'customer',
+        mood: 'neutral',
+      },
+      caseContext: {
+        title: '徐汇悦府 95㎡ 两房',
+        ownerName: '孙女士',
+        district: '徐汇',
+        community: '徐汇悦府',
+        askPrice: 933,
+        marketPrice: 914,
+        trust: 68,
+        patience: 65,
+        urgency: 54,
+        heat: 61,
+        stageLabel: '客户谈判推进',
+      },
+    }));
+
+    expect(feedback.message).not.toContain('我主要想看');
+    expect(feedback.message).toContain('我不是不看');
+    expect(feedback.message).toContain('最近成交');
+  });
+
   it('rejects LLM feedback that copies action option labels as character speech', () => {
     const feedback = normalizeActionFeedbackProposal({
       message: '"听起来这周还不错，继续保持。你把「突出本周进展、坦诚讲风险」讲清楚，最好再拿客户反馈和竞品差异给我看。"',
@@ -227,6 +271,26 @@ describe('action decision agent harness', () => {
     expect(feedback.message).not.toContain('讲清楚');
     expect(feedback.message).toContain('这周有点动静');
     expect(feedback.confidence).toBe(0.88);
+  });
+
+  it('rejects customer feedback that sounds like an evaluation checklist', () => {
+    const request = buildOpenDayFeedbackRequest({
+      choice: {
+        mainStrategyIds: ['invite-customer-a'],
+        assistStrategyId: 'steady',
+        baseFeedbackMessage: '"我明白你的意思，让我再想想。"',
+        actor: 'customer',
+        mood: 'neutral',
+      },
+    });
+    const feedback = normalizeActionFeedbackProposal({
+      message: '"我明白你的意思，让我再想想。我主要想看这几组客户到底卡在哪里、同小区成交和同小区最近成交，别只说这套不错。你把差异摆清，我再决定要不要继续看。"',
+      confidence: 0.91,
+    }, request);
+
+    expect(feedback.message).not.toContain('我主要想看');
+    expect(feedback.message).toContain('我不是不看');
+    expect(feedback.confidence).toBe(0.91);
   });
 
   it('rejects too-short LLM character feedback and keeps the richer fallback', () => {
