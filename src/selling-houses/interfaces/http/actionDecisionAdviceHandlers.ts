@@ -2,16 +2,21 @@ import { callDeepSeekChat } from '../../../../lib/deepseek.js';
 import { resolveEnabledModel } from '../../../../lib/modelRuntime.js';
 import {
   buildActionFeedbackPrompt,
+  buildActionFeedbackRepairPrompt,
   buildActionScenarioSimulationPrompt,
   buildFallbackActionFeedbackProposal,
+  buildLlmFirstActionFeedbackProposal,
   normalizeActionScenarioSimulationProposal,
   normalizeActionAdviceRequest,
-  normalizeActionFeedbackProposal,
+  normalizeActionFeedbackProposalResult,
   normalizeActionFeedbackRequest,
   parseActionAdvicePayload,
   type ActionAdviceProposal,
   type ActionFeedbackProposal,
+  type ActionFeedbackWorldContext,
 } from '../../application/actionDecisionAdvice.js';
+import type { ParticipantSoul } from '../../core/world-state/agents/soul.js';
+import type { AgentMemoryFact } from '../../core/world-state/agents/models.js';
 import { buildActionDecisionAgentRuntime } from '../../application/agents/actionDecisionAgentAdapter.js';
 import { buildActionDecisionDualRuntime } from '../../application/agents/actionDecisionDualRuntime.js';
 import type {
@@ -206,7 +211,12 @@ export async function handleActionDecisionFeedback(input: unknown): Promise<Acti
 
   const modelId = resolveActionAdviceModelId(input);
   const model = resolveEnabledModel(modelId);
-  const fallback = buildFallbackActionFeedbackProposal(request);
+
+  // Try to extract world context from input for LLM-first fallback
+  const worldContext = extractWorldContext(input);
+  const fallback = worldContext
+    ? buildLlmFirstActionFeedbackProposal(request, worldContext)
+    : buildFallbackActionFeedbackProposal(request);
 
   if (!model || model.provider !== 'deepseek') {
     return {
@@ -257,32 +267,85 @@ export async function handleActionDecisionFeedback(input: unknown): Promise<Acti
     };
   }
 
+  let rejectedOutput = result.result;
+  let rejectionReasons: readonly string[] = [];
+
   try {
     const parsed = parseActionAdvicePayload(result.result);
-    const feedback = normalizeActionFeedbackProposal(parsed, request);
-    return {
-      status: 200,
-      body: {
-        ok: true,
-        feedback,
-        source: 'ai',
-        modelId: model.id,
-        provider: 'deepseek',
-      },
-    };
+    const normalized = normalizeActionFeedbackProposalResult(parsed, request);
+    if (normalized.acceptedSource === 'llm') {
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          feedback: normalized.proposal,
+          source: 'ai',
+          modelId: model.id,
+          provider: 'deepseek',
+        },
+      };
+    }
+    rejectionReasons = normalized.rejectionReasons;
   } catch (error) {
-    return {
-      status: 200,
-      body: {
-        ok: true,
-        feedback: fallback,
-        source: 'fallback',
-        modelId: model.id,
-        provider: 'deepseek',
-        error: error instanceof Error ? error.message : 'DeepSeek 动作反馈返回格式不可用。',
-      },
-    };
+    rejectionReasons = [error instanceof Error ? error.message : 'parse_error'];
   }
+
+  const repairResult = await callDeepSeekChat(
+    [
+      {
+        role: 'system',
+        content: '你只输出符合要求的 JSON。不要输出 Markdown、说明、思考过程。',
+      },
+      {
+        role: 'user',
+        content: buildActionFeedbackRepairPrompt(request, rejectedOutput, rejectionReasons, agent.promptLines),
+      },
+    ],
+    model,
+    {
+      responseFormat: 'json_object',
+      thinking: 'disabled',
+      temperature: 0.36,
+      maxTokens: 420,
+    },
+  );
+
+  if (repairResult.status === 'completed') {
+    try {
+      rejectedOutput = repairResult.result;
+      const parsed = parseActionAdvicePayload(repairResult.result);
+      const normalized = normalizeActionFeedbackProposalResult(parsed, request);
+      if (normalized.acceptedSource === 'llm') {
+        return {
+          status: 200,
+          body: {
+            ok: true,
+            feedback: normalized.proposal,
+            source: 'ai',
+            modelId: model.id,
+            provider: 'deepseek',
+          },
+        };
+      }
+      rejectionReasons = normalized.rejectionReasons;
+    } catch (error) {
+      rejectionReasons = [error instanceof Error ? error.message : 'repair_parse_error'];
+    }
+  } else {
+    rejectionReasons = [repairResult.result || 'DeepSeek 动作反馈修复失败。'];
+  }
+
+  return {
+    status: 200,
+    body: {
+      ok: true,
+      feedback: fallback,
+      source: 'fallback',
+      modelId: model.id,
+      provider: 'deepseek',
+      error: `DeepSeek 动作反馈未通过角色口吻校验：${rejectionReasons.join('、') || 'unknown'}`,
+    },
+  };
 }
 
 function resolveActionAdviceModelId(input: unknown) {
@@ -324,5 +387,18 @@ function buildMinimalFallbackRequest() {
       mainStrategies: [{ id: 'fallback-main', title: '先推进明确动作', note: '先把最确定的一步做掉。' }],
       assistStrategies: [],
     },
+  };
+}
+
+function extractWorldContext(input: unknown): ActionFeedbackWorldContext | undefined {
+  if (!input || typeof input !== 'object') return undefined;
+  const raw = input as Record<string, unknown>;
+  const worldContext = raw.worldContext as Record<string, unknown> | undefined;
+  if (!worldContext) return undefined;
+
+  return {
+    soul: worldContext.soul as ParticipantSoul | undefined,
+    memory: worldContext.memory as readonly AgentMemoryFact[] | undefined,
+    worldContext: worldContext.world as ActionFeedbackWorldContext['worldContext'],
   };
 }
