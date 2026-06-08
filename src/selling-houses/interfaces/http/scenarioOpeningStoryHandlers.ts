@@ -80,9 +80,9 @@ function buildStoryMessages(briefing: ScenarioOpeningBriefing) {
 硬性要求：
 - 只能使用输入 JSON 里的可见事实，不得发明不存在的成交、客户、业主、天气、外部政策或隐藏真相。
 - 中文。
-- deck 写 90-150 字，像开场摘要。
+- deck 写 45-70 字，像开场摘要。
 - marketTitle 最多 28 字。
-- marketParagraphs 写 2-4 段，每段 80-150 字。
+- marketParagraphs 写 1-2 段，每段 45-80 字。
 - 要有人、有房、有街区/商圈、有今天先后顺序。
 - 必须解释数字背后的经营原因，不能堆指标。
 - 最后至少落到 1 条今天该先处理的房源或业主线索。
@@ -114,7 +114,7 @@ function normalizeScenarioOpeningStory(input: unknown, briefing: ScenarioOpening
   const fallback = buildFallbackScenarioOpeningStory(briefing);
   if (!input || typeof input !== 'object') return fallback;
   const payload = input as Record<string, unknown>;
-  const deck = cleanText(payload.deck, 180) || fallback.deck;
+  const deck = cleanText(payload.deck, 90) || fallback.deck;
   const marketTitle = cleanText(payload.marketTitle, 42) || fallback.marketTitle || briefing.marketTitle;
   const marketParagraphs = normalizeParagraphs(payload.marketParagraphs, fallback.marketParagraphs);
   const evidenceLabels = normalizeLabels(payload.evidenceLabels, fallback.evidenceLabels);
@@ -130,11 +130,11 @@ function normalizeScenarioOpeningStory(input: unknown, briefing: ScenarioOpening
 function normalizeParagraphs(value: unknown, fallback: string[]) {
   if (!Array.isArray(value)) return fallback;
   const paragraphs = value
-    .map((entry) => cleanText(entry, 180))
+    .map((entry) => cleanText(entry, 100))
     .filter((entry): entry is string => Boolean(entry))
-    .slice(0, 4);
-  if (paragraphs.length >= 2) return paragraphs;
-  const merged = [...paragraphs, ...fallback.filter((entry) => !paragraphs.includes(entry))].slice(0, 4);
+    .slice(0, 2);
+  if (paragraphs.length >= 1) return paragraphs;
+  const merged = [...paragraphs, ...fallback.filter((entry) => !paragraphs.includes(entry))].slice(0, 2);
   return merged.length > 0 ? merged : fallback;
 }
 

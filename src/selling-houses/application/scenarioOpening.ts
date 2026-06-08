@@ -406,25 +406,30 @@ function buildOpeningStory(
   const customerClause = visibleOpportunities.length > 0
     ? `${visibleOpportunities.length} 条客户线索已经浮出`
     : '客户需求还需要你今天拉出来';
-  const relationClause = fragileOwners.length > 0
-    ? `，还有 ${fragileOwners.length} 位业主信任或耐心偏低`
-    : '';
-  const rivalClause = rivalCount > 0
-    ? `，场上 ${rivalCount} 套竞品会分流注意力`
-    : '';
-  const actionClause = priorityCaseText
-    ? `，先把 ${priorityCaseText} 的先后手排清楚。`
-    : '，先把今天的先后手排清楚。';
+  const riskClause = [
+    fragileOwners.length > 0 ? `${fragileOwners.length} 位业主耐心偏低` : '',
+    rivalCount > 0 ? `${rivalCount} 套竞品在场` : '',
+  ].filter(Boolean).join('，');
+  const compactDeck = priorityCaseText
+    ? `${ownerClause}，${customerClause}${riskClause ? `，${riskClause}` : ''}。先看 ${priorityCaseText}。`
+    : `${ownerClause}，${customerClause}${riskClause ? `，${riskClause}` : ''}。先排今天先后手。`;
   const priorityParagraph = priorityCaseText
-    ? `今天不要平均用力，先把 ${priorityCaseText} 放到前面。${ownerClause}，${customerClause}${relationClause}${rivalClause}，早一点把业主沟通、客户筛选和竞品说法排成顺序。`
-    : `今天不要平均用力，先把业主沟通、客户筛选和竞品说法排成顺序。${ownerClause}，${customerClause}${relationClause}${rivalClause}。`;
+    ? `先处理 ${priorityCaseText}；业主沟通、客户筛选、竞品说法按这个顺序排。`
+    : `先把业主沟通、客户筛选和竞品说法排成顺序。`;
 
   return {
-    deck: `${ownerClause}，${customerClause}${relationClause}${rivalClause}${actionClause}`,
+    deck: compactText(compactDeck, 70),
     marketTitle,
-    marketParagraphs: [marketDetail, priorityParagraph],
+    marketParagraphs: [compactText(marketDetail, 80), priorityParagraph],
     evidenceLabels: marketTags,
   };
+}
+
+function compactText(text: string, maxLength: number) {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  return normalized.length > maxLength
+    ? `${normalized.slice(0, Math.max(0, maxLength - 3))}...`
+    : normalized;
 }
 
 function openingPriorityScore(caseItem: Case) {
