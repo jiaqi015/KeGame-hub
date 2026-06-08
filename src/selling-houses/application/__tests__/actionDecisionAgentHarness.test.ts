@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { buildActionDecisionAgentRuntime } from '../agents/actionDecisionAgentAdapter.js';
 import { buildActionDecisionDualRuntime } from '../agents/actionDecisionDualRuntime.js';
 import {
+  buildFallbackActionFeedbackProposal,
   buildFallbackActionScenarioSimulation,
+  normalizeActionFeedbackProposal,
   normalizeActionScenarioSimulationProposal,
+  type ActionFeedbackRequest,
   type ActionAdviceRequest,
 } from '../actionDecisionAdvice.js';
 
@@ -43,6 +46,21 @@ function buildOpenDayRequest(overrides: Partial<ActionAdviceRequest> = {}): Acti
       urgency: 72,
       heat: 68,
       stageLabel: '客户准备出价',
+    },
+    ...overrides,
+  };
+}
+
+function buildOpenDayFeedbackRequest(overrides: Partial<ActionFeedbackRequest> = {}): ActionFeedbackRequest {
+  const request = buildOpenDayRequest();
+  return {
+    ...request,
+    choice: {
+      mainStrategyIds: ['invite-customer-a'],
+      assistStrategyId: 'steady',
+      baseFeedbackMessage: '"我再看看。"',
+      actor: 'owner',
+      mood: 'neutral',
     },
     ...overrides,
   };
@@ -131,5 +149,23 @@ describe('action decision agent harness', () => {
     expect(dual.arbiterResult.rejectedReasons).toContain('llm_proposal_validation_failed');
     expect(dual.arbiterResult.validationNotes).toContain('invalid_recommended_main:not-an-option');
     expect(dual.arbiterResult.finalProposal.recommendedMainStrategyIds).toEqual(['invite-customer-a', 'invite-customer-b']);
+  });
+
+  it('expands deterministic character feedback beyond one short sentence', () => {
+    const feedback = buildFallbackActionFeedbackProposal(buildOpenDayFeedbackRequest());
+
+    expect(feedback.message.length).toBeGreaterThan(60);
+    expect(feedback.message).toContain('邀罗投资客');
+    expect(feedback.message).toContain('同小区成交');
+  });
+
+  it('rejects too-short LLM character feedback and keeps the richer fallback', () => {
+    const feedback = normalizeActionFeedbackProposal({
+      message: '"好。"',
+      confidence: 0.9,
+    }, buildOpenDayFeedbackRequest());
+
+    expect(feedback.message.length).toBeGreaterThan(60);
+    expect(feedback.message).not.toBe('"好。"');
   });
 });

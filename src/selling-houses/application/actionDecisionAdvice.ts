@@ -53,6 +53,23 @@ export interface ActionAdviceProposal {
   readonly confidence: number;
 }
 
+export interface ActionFeedbackChoice {
+  readonly mainStrategyIds: readonly string[];
+  readonly assistStrategyId: string | null;
+  readonly baseFeedbackMessage: string;
+  readonly actor: 'owner' | 'customer' | 'market';
+  readonly mood: 'positive' | 'neutral' | 'negative';
+}
+
+export interface ActionFeedbackRequest extends ActionAdviceRequest {
+  readonly choice: ActionFeedbackChoice;
+}
+
+export interface ActionFeedbackProposal {
+  readonly message: string;
+  readonly confidence: number;
+}
+
 export function normalizeActionAdviceRequest(input: unknown): ActionAdviceRequest | null {
   const raw = isRecord(input) && isRecord(input.request) ? input.request : input;
   if (!isRecord(raw)) return null;
@@ -75,6 +92,19 @@ export function normalizeActionAdviceRequest(input: unknown): ActionAdviceReques
 
   if (!request.actionId || !request.title) return null;
   return request;
+}
+
+export function normalizeActionFeedbackRequest(input: unknown): ActionFeedbackRequest | null {
+  const raw = isRecord(input) && isRecord(input.feedbackRequest) ? input.feedbackRequest : input;
+  if (!isRecord(raw)) return null;
+  const request = normalizeActionAdviceRequest(raw);
+  if (!request) return null;
+  const choice = normalizeActionFeedbackChoice(raw.choice, request);
+  if (!choice) return null;
+  return {
+    ...request,
+    choice,
+  };
 }
 
 export function buildFallbackActionScenarioSimulation(request: ActionAdviceRequest): ActionAdviceProposal {
@@ -125,6 +155,33 @@ export function buildActionScenarioSimulationPrompt(
     '',
     '输入：',
     JSON.stringify(toVisibleAdviceContext(request), null, 2),
+  ].join('\n');
+}
+
+export function buildActionFeedbackPrompt(
+  request: ActionFeedbackRequest,
+  agentPromptLines: readonly string[] = [],
+): string {
+  return [
+    '你是上海二手房经纪经营模拟里的角色反馈 writer。',
+    '你只做一件事：根据经纪人本轮实际选择，生成对方的一段真实反馈原话。',
+    '',
+    '底层 agent 档案：',
+    ...(agentPromptLines.length ? agentPromptLines : ['暂无额外 agent 档案。']),
+    '',
+    '重要边界：',
+    '1. 只生成角色原话，不写旁白、不解释、不写教学总结。',
+    '2. 反馈必须回应本轮已选主话题和态度，不能像通用模板。',
+    '3. 反馈要比模板更完整：2 到 4 个短句，70 到 170 个中文字符。',
+    '4. 不直接结算，不写已成交、已调价、已带看等未发生事实。',
+    '5. 不说“系统/AI/模型/评分/内部变量”。',
+    '6. 可以保留犹豫、防御、追问和条件，但要像真实业主/客户会说的话。',
+    '',
+    '只输出 JSON，格式如下：',
+    '{"message":"\\"我这个价不是随口报的，主要参考了隔壁挂牌和之前成交。你要说现在市场变了可以，但最好把同户型成交、客户反馈和竞品差异摊开讲清楚；如果证据确实一致，我再跟家里复盘。\\"","confidence":0.76}',
+    '',
+    '输入：',
+    JSON.stringify(toVisibleFeedbackContext(request), null, 2),
   ].join('\n');
 }
 
@@ -181,6 +238,66 @@ export function normalizeActionScenarioSimulationProposal(
   };
 }
 
+export function buildFallbackActionFeedbackProposal(request: ActionFeedbackRequest): ActionFeedbackProposal {
+  const base = stripFeedbackQuotes(request.choice.baseFeedbackMessage)
+    || '好，我知道了。';
+  const mainText = resolveSelectedMainOptions(request)
+    .map((option) => option.title)
+    .join('、') || '你刚才问的点';
+  const assistTitle = request.choice.assistStrategyId
+    ? request.round.assistStrategies.find((option) => option.id === request.choice.assistStrategyId)?.title
+    : null;
+  const priceGap = typeof request.caseContext?.askPrice === 'number' && typeof request.caseContext?.marketPrice === 'number'
+    ? Math.round(request.caseContext.askPrice - request.caseContext.marketPrice)
+    : null;
+  const priceLine = priceGap !== null && Math.abs(priceGap) > 0
+    ? `现在挂牌和你说的市场价还差 ${Math.abs(priceGap)} 万，`
+    : '';
+  const assistLine = assistTitle ? `你这个节奏如果是「${assistTitle}」，我会愿意继续聊，` : '';
+
+  if (request.choice.actor === 'customer') {
+    return {
+      message: ensureFeedbackQuote(trimSentence(
+        `${base} 我还想把「${mainText}」看清楚，尤其是价格、房况和同类选择的差异。${assistLine}只要你把比较依据说透，我可以继续往下判断。`,
+        180,
+      )),
+      confidence: 0.56,
+    };
+  }
+  if (request.choice.actor === 'market') {
+    return {
+      message: ensureFeedbackQuote(trimSentence(
+        `${base} 这轮真正影响结果的是「${mainText}」。${priceLine}如果后面客户反馈、竞品变化和带看质量都能接上，市场会给出更清楚的信号。`,
+        180,
+      )),
+      confidence: 0.55,
+    };
+  }
+  return {
+    message: ensureFeedbackQuote(trimSentence(
+      `${base} 我不是不听建议，你把「${mainText}」讲清楚，最好再拿同小区成交、客户反馈和竞品差异给我看。${priceLine}${assistLine}只要证据一致，我再回去复盘，不想现在凭感觉降。`,
+      190,
+    )),
+    confidence: 0.58,
+  };
+}
+
+export function normalizeActionFeedbackProposal(
+  proposal: unknown,
+  request: ActionFeedbackRequest,
+): ActionFeedbackProposal {
+  const raw = isRecord(proposal) ? proposal : {};
+  const fallback = buildFallbackActionFeedbackProposal(request);
+  const message = normalizeString(raw.message, 240);
+  const usableMessage = countVisibleFeedbackChars(message) >= 48
+    ? ensureFeedbackQuote(message)
+    : fallback.message;
+  return {
+    message: usableMessage,
+    confidence: clampNumber(raw.confidence, 0, 1, fallback.confidence),
+  };
+}
+
 function normalizeRound(raw: unknown): ActionAdviceRound | null {
   if (!isRecord(raw)) return null;
   const mainStrategies = normalizeOptions(raw.mainStrategies);
@@ -226,6 +343,44 @@ function normalizeCaseContext(raw: unknown): ActionAdviceCaseContext | undefined
   };
 }
 
+function normalizeActionFeedbackChoice(
+  raw: unknown,
+  request: ActionAdviceRequest,
+): ActionFeedbackChoice | null {
+  if (!isRecord(raw)) return null;
+  const validMainIds = new Set(request.round.mainStrategies.map((option) => option.id));
+  const usedMainIds = new Set<string>();
+  const mainStrategyIds = Array.isArray(raw.mainStrategyIds)
+    ? raw.mainStrategyIds
+      .map((entry) => normalizeString(entry, 80))
+      .filter((id) => {
+        if (!id || !validMainIds.has(id) || usedMainIds.has(id)) return false;
+        usedMainIds.add(id);
+        return true;
+      })
+      .slice(0, request.actionId === 'showing' ? 1 : 2)
+    : [];
+  if (!mainStrategyIds.length) return null;
+
+  const assistStrategyId = normalizeString(raw.assistStrategyId, 80);
+  const validAssistStrategyId = assistStrategyId && request.round.assistStrategies.some((option) => option.id === assistStrategyId)
+    ? assistStrategyId
+    : null;
+  const actor = raw.actor === 'customer' || raw.actor === 'market' || raw.actor === 'owner'
+    ? raw.actor
+    : 'owner';
+  const mood = raw.mood === 'positive' || raw.mood === 'negative' || raw.mood === 'neutral'
+    ? raw.mood
+    : 'neutral';
+  return {
+    mainStrategyIds,
+    assistStrategyId: validAssistStrategyId,
+    baseFeedbackMessage: normalizeString(raw.baseFeedbackMessage, 240),
+    actor,
+    mood,
+  };
+}
+
 function toVisibleAdviceContext(request: ActionAdviceRequest) {
   return {
     action: {
@@ -246,6 +401,27 @@ function toVisibleAdviceContext(request: ActionAdviceRequest) {
     contextBullets: request.contextBullets,
     caseContext: request.caseContext,
   };
+}
+
+function toVisibleFeedbackContext(request: ActionFeedbackRequest) {
+  return {
+    ...toVisibleAdviceContext(request),
+    choice: {
+      mainStrategies: resolveSelectedMainOptions(request),
+      assistStrategy: request.choice.assistStrategyId
+        ? request.round.assistStrategies.find((option) => option.id === request.choice.assistStrategyId) || null
+        : null,
+      actor: request.choice.actor,
+      mood: request.choice.mood,
+      baseFeedbackMessage: request.choice.baseFeedbackMessage,
+    },
+  };
+}
+
+function resolveSelectedMainOptions(request: ActionFeedbackRequest): ActionAdviceOption[] {
+  return request.choice.mainStrategyIds
+    .map((id) => request.round.mainStrategies.find((option) => option.id === id))
+    .filter((option): option is ActionAdviceOption => Boolean(option));
 }
 
 function buildFallbackRoleCue(request: ActionAdviceRequest): string {
@@ -332,6 +508,27 @@ function normalizeRecommendedOptionId(
 ): string | null {
   const id = normalizeString(raw, 80);
   return id && options.some((option) => option.id === id) ? id : null;
+}
+
+function ensureFeedbackQuote(message: string): string {
+  const trimmed = message.trim();
+  if (!trimmed) return '"好，我知道了。"';
+  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith('“') && trimmed.endsWith('”'))) {
+    return trimmed;
+  }
+  return `"${trimmed}"`;
+}
+
+function stripFeedbackQuotes(message: string): string {
+  return message
+    .trim()
+    .replace(/^["“]+/, '')
+    .replace(/["”]+$/, '')
+    .trim();
+}
+
+function countVisibleFeedbackChars(message: string): number {
+  return stripFeedbackQuotes(message).replace(/\s+/g, '').length;
 }
 
 function trimSentence(value: string, maxLength: number): string {

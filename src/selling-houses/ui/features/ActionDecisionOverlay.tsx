@@ -12,11 +12,16 @@ import { NegotiateMatterView } from './matters/NegotiateMatterView';
 import { buildOwnerProfilingMemorySummary } from '../../application/projections/ownerProfilingMemory.js';
 import {
   buildFallbackActionScenarioSimulation,
+  buildFallbackActionFeedbackProposal,
   type ActionAdviceOption,
   type ActionAdviceProposal,
   type ActionAdviceRequest,
+  type ActionFeedbackRequest,
 } from '../../application/actionDecisionAdvice.js';
-import { fetchActionDecisionAdvice } from '../../infrastructure/actionDecisionAdviceClient.js';
+import {
+  fetchActionDecisionAdvice,
+  fetchActionDecisionFeedback,
+} from '../../infrastructure/actionDecisionAdviceClient.js';
 import type { AgentEvaluationReport } from '../../core/world-state/agents/evaluationReport.js';
 import type { AgentShadowReport } from '../../core/world-state/agents/shadowReport.js';
 
@@ -183,6 +188,24 @@ function buildActionAdviceRequest(
       heat: caseItem.heat,
       stageLabel: caseItem.stageLabel,
     } : undefined,
+  };
+}
+
+function buildActionFeedbackRequest(
+  adviceRequest: ActionAdviceRequest,
+  mainStrategyIds: readonly string[],
+  assistStrategyId: string | null,
+  feedback: CharacterFeedback,
+): ActionFeedbackRequest {
+  return {
+    ...adviceRequest,
+    choice: {
+      mainStrategyIds,
+      assistStrategyId,
+      baseFeedbackMessage: feedback.message,
+      actor: feedback.actor,
+      mood: feedback.mood,
+    },
   };
 }
 
@@ -514,7 +537,7 @@ export function ActionDecisionOverlay({
       .join(' / ');
   };
 
-  const handleConfirmChoice = () => {
+  const handleConfirmChoice = async () => {
     if (!selectedMain || isAnimating) return;
     setIsAnimating(true);
 
@@ -527,12 +550,14 @@ export function ActionDecisionOverlay({
     }
 
     const template = config.actionId ? getActionTemplate(ACTIONS.find((a) => a.id === config.actionId)!) : null;
+    const mainIdsForFeedback = [...selectedMainIds];
+    const assistForFeedback = selectedAssist || null;
 
     if (template && isScenarioTemplate(template) && template.getFeedback) {
-      feedback = template.getFeedback(selectedMain, selectedAssist || '', state, caseItem);
+      feedback = template.getFeedback(selectedMain, assistForFeedback || '', state, caseItem);
     } else if (config.rounds) {
       const roundDef = config.rounds[currentRound - 1];
-      feedback = roundDef.getFeedback(selectedMain, selectedAssist || '', state, caseItem);
+      feedback = roundDef.getFeedback(selectedMain, assistForFeedback || '', state, caseItem);
     } else {
       feedback = {
         actor: 'owner',
@@ -542,13 +567,42 @@ export function ActionDecisionOverlay({
       };
     }
 
+    if (displayRoundConfig) {
+      try {
+        const adviceRequest = buildActionAdviceRequest(config, displayRoundConfig, currentRound, totalRounds, caseItem);
+        const feedbackRequest = buildActionFeedbackRequest(
+          adviceRequest,
+          mainIdsForFeedback,
+          assistForFeedback,
+          feedback,
+        );
+        const aiFeedback = await fetchActionDecisionFeedback(feedbackRequest);
+        feedback = {
+          ...feedback,
+          message: aiFeedback?.feedback.message || buildFallbackActionFeedbackProposal(feedbackRequest).message,
+        };
+      } catch {
+        const adviceRequest = buildActionAdviceRequest(config, displayRoundConfig, currentRound, totalRounds, caseItem);
+        const feedbackRequest = buildActionFeedbackRequest(
+          adviceRequest,
+          mainIdsForFeedback,
+          assistForFeedback,
+          feedback,
+        );
+        feedback = {
+          ...feedback,
+          message: buildFallbackActionFeedbackProposal(feedbackRequest).message,
+        };
+      }
+    }
+
     const newChoices = [
       ...choices,
       {
         round: currentRound,
         main: selectedMain,
-        mainTopics: [...selectedMainIds],
-        assist: selectedAssist || '',
+        mainTopics: mainIdsForFeedback,
+        assist: assistForFeedback || '',
       },
     ];
     setChoices(newChoices);
@@ -1007,7 +1061,7 @@ export function ActionDecisionOverlay({
                     disabled={!selectedMain || isAnimating}
                     className="seller-button-primary disabled:opacity-40 rounded-[14px] px-6 py-2.5 text-[13px] font-bold"
                   >
-                    确认选择
+                    {isAnimating ? '生成反馈...' : '确认选择'}
                   </button>
                 </div>
               </div>

@@ -1,11 +1,16 @@
 import { callDeepSeekChat } from '../../../../lib/deepseek.js';
 import { resolveEnabledModel } from '../../../../lib/modelRuntime.js';
 import {
+  buildActionFeedbackPrompt,
   buildActionScenarioSimulationPrompt,
+  buildFallbackActionFeedbackProposal,
   normalizeActionScenarioSimulationProposal,
   normalizeActionAdviceRequest,
+  normalizeActionFeedbackProposal,
+  normalizeActionFeedbackRequest,
   parseActionAdvicePayload,
   type ActionAdviceProposal,
+  type ActionFeedbackProposal,
 } from '../../application/actionDecisionAdvice.js';
 import { buildActionDecisionAgentRuntime } from '../../application/agents/actionDecisionAgentAdapter.js';
 import { buildActionDecisionDualRuntime } from '../../application/agents/actionDecisionDualRuntime.js';
@@ -33,6 +38,18 @@ export interface ActionDecisionAdviceHandlerResult {
     observation?: AgentHarnessObservation;
     shadowReport?: AgentShadowReport;
     evaluationReport?: AgentEvaluationReport;
+  };
+}
+
+export interface ActionDecisionFeedbackHandlerResult {
+  status: number;
+  body: {
+    ok: boolean;
+    feedback: ActionFeedbackProposal;
+    source: 'ai' | 'fallback';
+    modelId?: string;
+    provider?: 'deepseek';
+    error?: string;
   };
 }
 
@@ -172,6 +189,102 @@ export async function handleActionDecisionAdvice(input: unknown): Promise<Action
   }
 }
 
+export async function handleActionDecisionFeedback(input: unknown): Promise<ActionDecisionFeedbackHandlerResult> {
+  const request = normalizeActionFeedbackRequest(input);
+  if (!request) {
+    const fallbackRequest = normalizeActionFeedbackRequest(buildMinimalFallbackFeedbackRequest())!;
+    return {
+      status: 400,
+      body: {
+        ok: false,
+        feedback: buildFallbackActionFeedbackProposal(fallbackRequest),
+        source: 'fallback',
+        error: '动作反馈上下文不可用。',
+      },
+    };
+  }
+
+  const modelId = resolveActionAdviceModelId(input);
+  const model = resolveEnabledModel(modelId);
+  const fallback = buildFallbackActionFeedbackProposal(request);
+
+  if (!model || model.provider !== 'deepseek') {
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        feedback: fallback,
+        source: 'fallback',
+        modelId,
+        provider: 'deepseek',
+        error: '动作反馈模型未启用或不是 DeepSeek 渠道。',
+      },
+    };
+  }
+
+  const agent = buildActionDecisionAgentRuntime(request);
+  const result = await callDeepSeekChat(
+    [
+      {
+        role: 'system',
+        content: '你只输出符合要求的 JSON。不要输出 Markdown、说明、思考过程。',
+      },
+      {
+        role: 'user',
+        content: buildActionFeedbackPrompt(request, agent.promptLines),
+      },
+    ],
+    model,
+    {
+      responseFormat: 'json_object',
+      thinking: 'disabled',
+      temperature: 0.42,
+      maxTokens: 380,
+    },
+  );
+
+  if (result.status !== 'completed') {
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        feedback: fallback,
+        source: 'fallback',
+        modelId: model.id,
+        provider: 'deepseek',
+        error: result.result || 'DeepSeek 动作反馈生成失败。',
+      },
+    };
+  }
+
+  try {
+    const parsed = parseActionAdvicePayload(result.result);
+    const feedback = normalizeActionFeedbackProposal(parsed, request);
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        feedback,
+        source: 'ai',
+        modelId: model.id,
+        provider: 'deepseek',
+      },
+    };
+  } catch (error) {
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        feedback: fallback,
+        source: 'fallback',
+        modelId: model.id,
+        provider: 'deepseek',
+        error: error instanceof Error ? error.message : 'DeepSeek 动作反馈返回格式不可用。',
+      },
+    };
+  }
+}
+
 function resolveActionAdviceModelId(input: unknown) {
   if (typeof process.env.SELLING_HOUSES_ACTION_ADVICE_MODEL_ID === 'string' && process.env.SELLING_HOUSES_ACTION_ADVICE_MODEL_ID.trim()) {
     return process.env.SELLING_HOUSES_ACTION_ADVICE_MODEL_ID.trim();
@@ -180,6 +293,19 @@ function resolveActionAdviceModelId(input: unknown) {
     return input.modelId.trim();
   }
   return DEFAULT_ACTION_ADVICE_MODEL_ID;
+}
+
+function buildMinimalFallbackFeedbackRequest() {
+  return {
+    ...buildMinimalFallbackRequest(),
+    choice: {
+      mainStrategyIds: ['fallback-main'],
+      assistStrategyId: null,
+      baseFeedbackMessage: '"好，我知道了。"',
+      actor: 'owner',
+      mood: 'neutral',
+    },
+  };
 }
 
 function buildMinimalFallbackRequest() {

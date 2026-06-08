@@ -1,6 +1,8 @@
 import type {
   ActionAdviceProposal,
   ActionAdviceRequest,
+  ActionFeedbackProposal,
+  ActionFeedbackRequest,
 } from '../application/actionDecisionAdvice.js';
 import type {
   AgentArbiterResult,
@@ -22,6 +24,12 @@ export interface ActionDecisionAdviceResult {
   readonly observation?: AgentHarnessObservation;
   readonly shadowReport?: AgentShadowReport;
   readonly evaluationReport?: AgentEvaluationReport;
+}
+
+export interface ActionDecisionFeedbackResult {
+  readonly feedback: ActionFeedbackProposal;
+  readonly source: 'ai' | 'fallback';
+  readonly error?: string;
 }
 
 export async function fetchActionDecisionAdvice(
@@ -59,6 +67,34 @@ export async function fetchActionDecisionAdvice(
     observation: payload.observation as AgentHarnessObservation | undefined,
     shadowReport: payload.shadowReport as AgentShadowReport | undefined,
     evaluationReport: payload.evaluationReport as AgentEvaluationReport | undefined,
+  };
+}
+
+export async function fetchActionDecisionFeedback(
+  feedbackRequest: ActionFeedbackRequest,
+  signal?: AbortSignal,
+): Promise<ActionDecisionFeedbackResult | null> {
+  const response = await fetch('/api/selling-houses-action-feedback', {
+    method: 'POST',
+    headers: buildHeaders(),
+    body: JSON.stringify({ feedbackRequest }),
+    signal,
+  });
+
+  const payload = await response.json().catch(() => ({})) as {
+    feedback?: unknown;
+    source?: unknown;
+    error?: unknown;
+  };
+
+  if (!response.ok || !payload.feedback || typeof payload.feedback !== 'object') {
+    return null;
+  }
+
+  return {
+    feedback: payload.feedback as ActionFeedbackProposal,
+    source: payload.source === 'ai' ? 'ai' : 'fallback',
+    error: typeof payload.error === 'string' ? payload.error : undefined,
   };
 }
 

@@ -52,7 +52,10 @@ import {
 } from "./src/selling-houses/interfaces/http/sellingHousesScenarioHandlers.js";
 import { handleMyWechatBrokerReplyDraft } from "./src/selling-houses/interfaces/http/myWechatAiHandlers.js";
 import { handleMyWechatConversationTurn } from "./src/selling-houses/interfaces/http/myWechatConversationHandlers.js";
-import { handleActionDecisionAdvice } from "./src/selling-houses/interfaces/http/actionDecisionAdviceHandlers.js";
+import {
+  handleActionDecisionAdvice,
+  handleActionDecisionFeedback,
+} from "./src/selling-houses/interfaces/http/actionDecisionAdviceHandlers.js";
 import { handleAiArrangement } from "./src/selling-houses/interfaces/http/aiArrangementHandlers.js";
 import { handleDailyStory } from "./src/selling-houses/interfaces/http/dailyStoryHandlers.js";
 import { handleScenarioOpeningStory } from "./src/selling-houses/interfaces/http/scenarioOpeningStoryHandlers.js";
@@ -564,6 +567,26 @@ async function startServer() {
         ok: false,
         source: "fallback",
         error: error instanceof Error ? error.message : "动作参谋生成失败",
+      });
+    }
+  });
+
+  app.post("/api/selling-houses-action-feedback", async (req, res) => {
+    try {
+      const authorization = await authorizeRequestPersisted(req, "selling-houses");
+      if (!authorization.ok) {
+        return res.status(authorization.status).json({ error: authorization.error });
+      }
+
+      const result = await handleActionDecisionFeedback(req.body);
+      return res.status(result.status).json(result.body);
+    } catch (error) {
+      const result = await handleActionDecisionFeedback({});
+      return res.status(200).json({
+        ...result.body,
+        ok: false,
+        source: "fallback",
+        error: error instanceof Error ? error.message : "动作反馈生成失败",
       });
     }
   });
