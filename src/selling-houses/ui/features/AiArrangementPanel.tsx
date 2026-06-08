@@ -113,7 +113,7 @@ export function AiArrangementPanel({
     setStatus('failed');
   };
 
-  const buttonLabel = status === 'idle' ? 'AI 安排' : status === 'thinking' ? '推演中' : status === 'applied' ? '已安排' : '今日建议';
+  const buttonLabel = status === 'idle' ? 'AI 帮你安排' : status === 'thinking' ? '推演中' : status === 'applied' ? '已安排' : '今日建议';
   const isOpen = status !== 'idle';
 
   const trigger = (
@@ -121,7 +121,7 @@ export function AiArrangementPanel({
       type="button"
       onClick={status === 'idle' ? startThinking : undefined}
       disabled={status !== 'idle'}
-      className={`inline-flex h-10 min-w-[104px] items-center justify-center gap-2 rounded-[12px] px-4 text-[12px] font-semibold ${
+      className={`inline-flex h-10 min-w-[122px] items-center justify-center gap-2 whitespace-nowrap rounded-[12px] px-4 text-[12px] font-semibold ${
         status === 'idle'
           ? 'seller-ai-arrange-trigger'
           : 'border border-[color:var(--seller-accent)]/35 bg-[var(--seller-accent-soft)] text-[var(--seller-accent)]'

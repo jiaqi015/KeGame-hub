@@ -485,24 +485,16 @@ select {
 .seller-ai-arrange-trigger:focus-visible::before {
   opacity: 0.7;
   transform: scale(1);
-  animation: seller-ai-rainbow-spin 2.8s linear infinite;
 }
 
 .seller-ai-arrange-trigger:hover::after,
 .seller-ai-arrange-trigger:focus-visible::after {
   opacity: 1;
-  animation: seller-ai-rainbow-spin 2.8s linear infinite;
 }
 
 .seller-ai-arrange-trigger:hover svg,
 .seller-ai-arrange-trigger:focus-visible svg {
   color: #65b7ff;
-}
-
-@keyframes seller-ai-rainbow-spin {
-  to {
-    rotate: 1turn;
-  }
 }
 
 @keyframes seller-world-build-progress {
