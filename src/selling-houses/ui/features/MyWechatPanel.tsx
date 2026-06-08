@@ -934,6 +934,11 @@ const WechatConversationDetail: React.FC<{
   const activeAiDraft = replyTarget
     ? aiDrafts.find((draft) => draft.messageId === replyTarget.id) || null
     : null;
+  const isAiDraftApplied = Boolean(
+    activeAiDraft?.content
+    && draftText.replace(/\s+/g, ' ').trim() === activeAiDraft.content.replace(/\s+/g, ' ').trim(),
+  );
+  const shouldShowAiDraftCard = aiDraftLoading || Boolean(activeAiDraft && !isAiDraftApplied);
 
   useEffect(() => {
     setDraftText('');
@@ -1208,7 +1213,7 @@ const WechatConversationDetail: React.FC<{
               </div>
             )}
 
-            {(aiDraftLoading || activeAiDraft) && (
+            {shouldShowAiDraftCard && (
               <div className="flex items-center justify-between gap-2 rounded-[10px] border border-[color:var(--seller-accent)]/18 bg-[color:var(--seller-accent)]/8 px-2.5 py-1.5">
                 <div className="min-w-0">
                   <div className="text-[9px] font-semibold text-[var(--seller-accent)]">
