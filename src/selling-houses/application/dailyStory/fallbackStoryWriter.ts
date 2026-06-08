@@ -126,12 +126,12 @@ function buildDeltaParagraph(pack: DailyCityStoryContextPack, deltas: DailyCityS
   const deltaOpeners = [
     `昨夜最明显的变化是${delta.label}${direction}${Math.abs(delta.value)}${delta.unit}。`,
     `昨夜有一条关键指标变了——${delta.label}${direction}${Math.abs(delta.value)}${delta.unit}。`,
-    `昨夜的经营数据里，${delta.label}${direction}${Math.abs(delta.value)}${delta.unit}，这个变化得留意。`,
     `从数据来看，${delta.label}${direction}${Math.abs(delta.value)}${delta.unit}，得分析背后的原因。`,
     `昨夜有一条数据变了：${delta.label}${direction}${Math.abs(delta.value)}${delta.unit}。`,
     `看昨夜的数据，${delta.label}${direction}${Math.abs(delta.value)}${delta.unit}，得想想怎么应对。`,
-    `昨夜的经营指标里，${delta.label}${direction}${Math.abs(delta.value)}${delta.unit}，这个信号不能忽视。`,
-    `从昨夜的数据看，${delta.label}${direction}${Math.abs(delta.value)}${delta.unit}，得赶紧分析。`,
+    `经营指标里，${delta.label}${direction}${Math.abs(delta.value)}${delta.unit}，这个信号不能忽视。`,
+    `数据说话：${delta.label}${direction}${Math.abs(delta.value)}${delta.unit}。`,
+    `整体来看，${delta.label}${direction}${Math.abs(delta.value)}${delta.unit}，这个变化得留意。`,
   ];
   let para = deltaOpeners[hash % deltaOpeners.length];
 
@@ -175,11 +175,20 @@ function buildEventParagraph(pack: DailyCityStoryContextPack, events: DailyCityS
   const evt = events[0];
   const hash = stableHash(`${pack.packId}:event:${evt.eventId}`);
   const openers = [
-    `昨夜最关键的变化是${evt.title}。`,
-    `昨夜的重点事件：${evt.title}。`,
-    `昨夜有一条关键变化——${evt.title}。`,
+    `昨夜有一条关键数据发生了变化，这件事得盯紧。`,
+    `各条线来看，经营主线落在一个关键点上。`,
+    `从数据来看，核心信号指向了一个明确方向。`,
+    `昨夜的经营指标给出了一个明确信号。`,
+    `各条线昨晚都在推进，但有一条线最关键。`,
+    `昨夜的关键变化落在一个重要事件上。`,
+    `商圈里有一条数据值得注意。`,
+    `昨夜的经营节奏围绕一个核心变化展开。`,
+    `从数据来看，今天的主线已经很清晰了。`,
+    `昨夜的信号很清楚，有一件事得马上跟进。`,
+    `经营指标给出的信号指向一个明确方向。`,
+    `各条线的进展指向一个关键节点。`,
   ];
-  let para = openers[hash % openers.length] + evt.detail;
+  let para = openers[hash % openers.length] + `${evt.title}。` + evt.detail;
 
   if (evt.relatedOwnerName) {
     para += `涉及业主${evt.relatedOwnerName}`;
@@ -221,6 +230,9 @@ function buildRelationshipParagraph(pack: DailyCityStoryContextPack, owners: Dai
       `业主${owner.displayName}`,
       `跟业主${owner.displayName}这边`,
       `再看业主${owner.displayName}`,
+      `各条线来看，业主${owner.displayName}`,
+      `整体来看，业主${owner.displayName}`,
+      `经营节奏里，业主${owner.displayName}`,
     ];
     let ownerText = ownerOpeners[hash % ownerOpeners.length];
     if (owner.relatedCaseTitle) {
