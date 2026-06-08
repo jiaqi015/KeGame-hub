@@ -9,6 +9,7 @@ import type { Case, GameState } from '../models.js';
 import { asWritableGameState } from '../models.js';
 import { isCaseActiveByCanonicalStatus } from '../caseLifecycleStatusRead.js';
 import { isOpportunityActiveByCanonicalState } from '../opportunityLifecycleStatusRead.js';
+import { resolveWithdrawnTerminalOutcome } from '../caseTerminalOutcomePolicy.js';
 import {
   findBestOpportunity,
   refreshOpportunityLabel,
@@ -32,14 +33,14 @@ import { captureActionReceiptSnapshot, type ActionReceiptSnapshot } from './acti
 import type { InformationSourceRecord } from '../world-model/informationSourceTypes.js';
 import { buildPlayerActionSourceIds, buildBlockedPlayerActionSourceIds } from '../world-model/playerActionSourceIds.js';
 
-// Module-level pending receipt snapshots for post-action enrichment.
-// The caller reads and clears this after executeAction returns.
+// Legacy pending receipt snapshots for compatibility gates that still call executeAction directly.
 const _pendingReceiptSnapshots: ActionReceiptSnapshot[] = [];
 
-/**
- * Returns pending receipt snapshots from the last executeAction call.
- * Caller should clear after reading.
- */
+export interface ActionExecutionResult {
+  success: boolean;
+  receiptSnapshots: readonly ActionReceiptSnapshot[];
+}
+
 export function popPendingActionReceiptSnapshots(): readonly ActionReceiptSnapshot[] {
   const snapshots = [..._pendingReceiptSnapshots];
   _pendingReceiptSnapshots.length = 0;
@@ -80,21 +81,25 @@ const ACTION_EXECUTORS: ActionExecutorMap = {
 
 export const LEGACY_ACTION_EXECUTOR_IDS = Object.freeze(Object.keys(ACTION_EXECUTORS));
 
-export function executeAction(
+export function executeActionWithReceipts(
   state: GameState,
   actionId: string,
   caseItem: Case | null | undefined,
   optionId: string | null = null,
   onMessage?: (msg: string) => void,
   meta?: unknown,
-) {
+): ActionExecutionResult {
+  const receiptSnapshots: ActionReceiptSnapshot[] = [];
+  const finish = (success: boolean): ActionExecutionResult => ({
+    success,
+    receiptSnapshots: Object.freeze([...receiptSnapshots]),
+  });
   const action = resolveActionDefinition(actionId);
-  if (!action || !caseItem || !isCaseActiveByCanonicalStatus(state, caseItem)) return false;
+  if (!action || !caseItem || !isCaseActiveByCanonicalStatus(state, caseItem)) return finish(false);
 
   const availability = getActionAvailability(state, caseItem, actionId);
   if (!availability.enabled) {
-    // Capture blocked snapshot for post-action receipt building
-    _pendingReceiptSnapshots.push(
+    receiptSnapshots.push(
       captureActionReceiptSnapshot(
         state, caseItem, actionId, actionId, optionId,
         'blocked', 0, 0, availability.reason, state.eventStore.length,
@@ -107,13 +112,13 @@ export function executeAction(
       state, caseItem, actionId, optionId, 'blocked', 0, 0,
     ));
     onMessage?.(availability.reason);
-    return false;
+    return finish(false);
   }
 
   const executor = ACTION_EXECUTORS[action.executorId || action.id];
   if (!executor) {
     onMessage?.('这个动作暂时还没有接好执行逻辑。');
-    return false;
+    return finish(false);
   }
 
   // Snapshot key fields before execution for receipt delta computation
@@ -139,7 +144,7 @@ export function executeAction(
     return false;
   });
   if (!transactionResult.success) {
-    return false;
+    return finish(false);
   }
 
   recordDomainEvent(state, {
@@ -173,7 +178,7 @@ export function executeAction(
     ownerPriceMentioned = caseItem.askPrice;
   }
 
-  _pendingReceiptSnapshots.push(
+  receiptSnapshots.push(
     captureActionReceiptSnapshot(
       state, caseItem, action.id, action.executorId || action.id, optionId,
       'success', action.costEnergy, action.costPromotionBudget,
@@ -219,27 +224,24 @@ export function executeAction(
     });
   }
 
-  return true;
+  return finish(true);
+}
+
+export function executeAction(
+  state: GameState,
+  actionId: string,
+  caseItem: Case | null | undefined,
+  optionId: string | null = null,
+  onMessage?: (msg: string) => void,
+  meta?: unknown,
+) {
+  const result = executeActionWithReceipts(state, actionId, caseItem, optionId, onMessage, meta);
+  _pendingReceiptSnapshots.push(...result.receiptSnapshots);
+  return result.success;
 }
 
 export function withdrawCase(world: GameState, caseItem: Case, reason: string) {
-  // Compute terminal outcome fields before canonical creation
-  const defenseOutcome = 'withdrawn';
-  const ownerSatisfaction = caseItem.trust >= 72
-    ? 'no_regret' as const
-    : caseItem.trust >= 52
-      ? 'regret' as const
-      : 'unhappy' as const;
-  const endingType = ownerSatisfaction === 'no_regret'
-    ? 'not_sold_no_regret' as const
-    : ownerSatisfaction === 'regret'
-      ? 'not_sold_regret' as const
-      : 'withdrawn_unhappy' as const;
-  const endingBucket = ownerSatisfaction === 'no_regret'
-    ? 'good' as const
-    : ownerSatisfaction === 'regret'
-      ? 'neutral' as const
-      : 'bad' as const;
+  const terminalDecision = resolveWithdrawnTerminalOutcome(world, caseItem);
 
   // Create canonical CaseTerminalOutcome (structural truth)
   const terminalOutcome = createCaseTerminalOutcomeOnState(
@@ -247,10 +249,10 @@ export function withdrawCase(world: GameState, caseItem: Case, reason: string) {
     caseItem.id,
     'withdrawn',
     world.day,
-    defenseOutcome,
-    ownerSatisfaction,
-    endingType,
-    endingBucket,
+    terminalDecision.defenseOutcome,
+    terminalDecision.ownerSatisfaction,
+    terminalDecision.endingType,
+    terminalDecision.endingBucket,
     [`case:${caseItem.id}:withdrawn:${world.day}`],
   );
 
@@ -261,10 +263,10 @@ export function withdrawCase(world: GameState, caseItem: Case, reason: string) {
       caseId: caseItem.id,
       kind: 'withdrawn',
       stageLabel: '已核销',
-      defenseOutcome,
-      ownerSatisfaction,
-      endingType,
-      endingBucket,
+      defenseOutcome: terminalDecision.defenseOutcome,
+      ownerSatisfaction: terminalDecision.ownerSatisfaction,
+      endingType: terminalDecision.endingType,
+      endingBucket: terminalDecision.endingBucket,
       provenance: 'canonical-outcome',
       sourceEventRefs: [`case:${caseItem.id}:withdrawn:${world.day}`],
     });
@@ -276,10 +278,10 @@ export function withdrawCase(world: GameState, caseItem: Case, reason: string) {
       caseId: caseItem.id,
       kind: 'withdrawn',
       stageLabel: '已核销',
-      defenseOutcome,
-      ownerSatisfaction,
-      endingType,
-      endingBucket,
+      defenseOutcome: terminalDecision.defenseOutcome,
+      ownerSatisfaction: terminalDecision.ownerSatisfaction,
+      endingType: terminalDecision.endingType,
+      endingBucket: terminalDecision.endingBucket,
       provenance: 'fallback-guard',
     });
   }
@@ -311,14 +313,15 @@ export function withdrawCase(world: GameState, caseItem: Case, reason: string) {
     actor: caseItem.ownerName,
     title: '房源撤盘',
     detail: `${caseItem.title} ${reason}`,
-    tone: endingBucket === 'bad' ? 'danger' : 'neutral',
+    tone: terminalDecision.eventTone,
     caseId: caseItem.id,
     payload: {
       endingType: readCaseTerminalOutcomeForCase(world, caseItem, caseItem.trust).endingType,
       endingBucket: readCaseTerminalOutcomeForCase(world, caseItem, caseItem.trust).endingBucket,
+      terminalOutcomeReasons: terminalDecision.reasons,
     },
   });
-  logEvent(world, caseItem.ownerName, `${caseItem.title} ${reason}`, endingBucket === 'bad' ? 'danger' : 'neutral');
+  logEvent(world, caseItem.ownerName, `${caseItem.title} ${reason}`, terminalDecision.eventTone);
 }
 
 export function getActionAvailability(

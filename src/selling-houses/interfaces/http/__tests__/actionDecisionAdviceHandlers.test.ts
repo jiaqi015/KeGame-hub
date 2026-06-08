@@ -1,10 +1,21 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { callDeepSeekChat } from '../../../../../lib/deepseek.js';
 import {
   handleActionDecisionAdvice,
   handleActionDecisionFeedback,
 } from '../actionDecisionAdviceHandlers.js';
 
+vi.mock('../../../../../lib/deepseek.js', () => ({
+  callDeepSeekChat: vi.fn(),
+}));
+
+const mockedCallDeepSeekChat = vi.mocked(callDeepSeekChat);
+
 describe('handleActionDecisionAdvice harness observation', () => {
+  beforeEach(() => {
+    mockedCallDeepSeekChat.mockReset();
+  });
+
   it('returns scenario observation with fallback advice when model is unavailable', async () => {
     const result = await handleActionDecisionAdvice({
       modelId: 'missing-model',
@@ -73,6 +84,70 @@ describe('handleActionDecisionAdvice harness observation', () => {
     expect(result.body.source).toBe('fallback');
     expect(result.body.feedback.message.length).toBeGreaterThan(80);
     expect(result.body.feedback.message).toContain('心理价位从哪来');
-    expect(result.body.feedback.message).toContain('同小区成交');
+    expect(result.body.feedback.message).toContain('同小区最近成交');
+  });
+
+  it('repairs unusable LLM customer feedback with a second LLM pass before falling back', async () => {
+    mockedCallDeepSeekChat
+      .mockResolvedValueOnce({
+        modelId: 'deepseek-v4-flash',
+        status: 'completed',
+        result: '{"message":"\\"我不是不看，只是还得比较一下。你把差异摆清，再把这几组客户到底卡在哪里、同小区成交和同小区最近成交都列出来，我再决定。\\"","confidence":0.91}',
+      })
+      .mockResolvedValueOnce({
+        modelId: 'deepseek-v4-flash',
+        status: 'completed',
+        result: '{"message":"\\"我不是不看，就是还没想定。最近那套成交条件、旁边同类房差在哪，你直接摊开说；价格和房况对得上，我就继续看。\\"","confidence":0.78}',
+      });
+
+    const result = await handleActionDecisionFeedback({
+      feedbackRequest: {
+        actionId: 'customer-negotiation',
+        title: '徐汇悦府 95㎡ 两房 · 客户谈判推进',
+        summary: '这次要决定怎么把客户往前推一步。',
+        body: '客户在比较同小区成交、房源差异和后续谈价空间。',
+        actorLabel: '这次主要在和客户博弈',
+        currentRound: 2,
+        totalRounds: 3,
+        contextBullets: ['客户犹豫点在价格和旁边同类房。'],
+        round: {
+          title: '顺着打还是换打法',
+          description: '第一轮已经摸到客户底牌，现在要根据客户反应继续推进。',
+          mainStrategies: [
+            { id: 'price-space', title: '继续谈价格空间', note: '客户对价格敏感，就把可谈空间讲具体。' },
+          ],
+          assistStrategies: [
+            { id: 'slow-down', title: '放缓节奏', note: '客户有压力时，先松一松。' },
+          ],
+        },
+        choice: {
+          mainStrategyIds: ['price-space'],
+          assistStrategyId: 'slow-down',
+          baseFeedbackMessage: '"我明白你的意思，让我再想想。"',
+          actor: 'customer',
+          mood: 'neutral',
+        },
+        caseContext: {
+          title: '徐汇悦府 95㎡ 两房',
+          ownerName: '孙女士',
+          district: '徐汇',
+          community: '徐汇悦府',
+          askPrice: 933,
+          marketPrice: 914,
+          trust: 68,
+          patience: 65,
+          urgency: 54,
+          heat: 61,
+          stageLabel: '客户谈判推进',
+        },
+      },
+    });
+
+    expect(result.status).toBe(200);
+    expect(result.body.source).toBe('ai');
+    expect(result.body.feedback.message).toContain('最近那套成交条件');
+    expect(result.body.feedback.message).not.toContain('你把差异摆清');
+    expect(mockedCallDeepSeekChat).toHaveBeenCalledTimes(2);
+    expect(mockedCallDeepSeekChat.mock.calls[1]?.[0]?.[1]?.content).toContain('上一版不可用');
   });
 });

@@ -89,7 +89,6 @@ type OfficialArticleDetailProps = {
   article: OfficialAccountArticle;
   onBack: () => void;
   onSelectCase: (caseId: string) => void;
-  onOpenMarket?: (layer?: IntelLayerTab) => void;
 };
 type WechatAvatarProps = {
   senderName: string;
@@ -318,7 +317,6 @@ export function MyWechatPanel({
             article={selectedArticle}
             onBack={() => setSelectedArticleId(null)}
             onSelectCase={onSelectCase}
-            onOpenMarket={onOpenMarket}
           />
         ) : sortedOfficialAccounts.length > 0 ? (
           sortedOfficialAccounts.map((article) => (
@@ -1850,10 +1848,8 @@ const OfficialArticleDetail: React.FC<OfficialArticleDetailProps> = ({
   article,
   onBack,
   onSelectCase,
-  onOpenMarket,
 }) => {
   const articleSections = buildOfficialArticleSections(article);
-  const firstCaseId = article.relatedCaseIds[0] || null;
 
   return (
     <div
@@ -1926,33 +1922,6 @@ const OfficialArticleDetail: React.FC<OfficialArticleDetailProps> = ({
           </footer>
         )}
       </article>
-
-      <div className="seller-official-article-actions shrink-0 px-3.5 py-3">
-        <div className="flex flex-wrap justify-end gap-2">
-          {onOpenMarket && (
-            <button
-              type="button"
-              onClick={() => onOpenMarket(mapArticleTagToLayer(article.tag))}
-              className="h-9 rounded-full border border-[var(--seller-border)] bg-[rgba(255,255,255,0.045)] px-3.5 text-[12px] font-bold text-[var(--seller-ink)] transition hover:bg-[rgba(255,255,255,0.07)]"
-            >
-              看市场雷达
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => {
-              if (firstCaseId) {
-                onSelectCase(firstCaseId);
-                return;
-              }
-              onOpenMarket?.(mapArticleTagToLayer(article.tag));
-            }}
-            className="h-9 rounded-full bg-[var(--seller-accent)] px-3.5 text-[12px] font-bold text-[var(--seller-bg)] transition hover:brightness-110"
-          >
-            {article.primaryCtaLabel || '继续处理'}
-          </button>
-        </div>
-      </div>
     </div>
   );
 };
@@ -2122,14 +2091,6 @@ function articleTagLabel(tag: OfficialAccountArticle['tag']) {
   if (tag === 'competitor') return '竞品';
   if (tag === 'policy') return '政策';
   return '方法';
-}
-
-function mapArticleTagToLayer(tag: OfficialAccountArticle['tag']): IntelLayerTab {
-  if (tag === 'competitor') return 'competition';
-  if (tag === 'community') return 'district';
-  if (tag === 'district') return 'district';
-  if (tag === 'method') return 'listing';
-  return 'macro';
 }
 
 export default MyWechatPanel;

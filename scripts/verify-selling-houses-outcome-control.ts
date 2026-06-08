@@ -865,9 +865,11 @@ verify('rival-side outcome scales are observable in engine sources', () => {
   assertSourceIncludes('src/selling-houses/domain/rivals/rivalListingEngine.ts', [
     'rivalOwnerPressureScale',
   ], 'rival owner pressure control');
-  assertSourceIncludes('src/selling-houses/domain/engine/competitionEngine.ts', [
+  assertSourceIncludes('src/selling-houses/domain/rivals/rivalCaseLossPolicy.ts', [
     'rivalCaseLossScale',
-  ], 'rival case loss control');
+    'evaluateCompetitionRivalCaseLoss',
+    'evaluateVisibleRivalCaseLoss',
+  ], 'rival case loss policy control');
 });
 
 verify('DifficultyPresentation contract matches outcomeControl', () => {

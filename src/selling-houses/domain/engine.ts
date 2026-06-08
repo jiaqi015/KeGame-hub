@@ -11,7 +11,7 @@ import { applyOwnerCasePatienceDelta } from './ownerCaseReadinessWriteHelper.js'
 import { evaluateFinalResult } from './resultEvaluation.js';
 import { logEvent, recordDomainEvent, updateDerivedState } from './runtimeState.js';
 import { getPromotionBudget } from './runtimeStats.js';
-import { executeAction, getActionAvailability, spendResources, resolveActionDefinition, refundResources } from './engine/actionResolvers.js';
+import { executeAction, executeActionWithReceipts, getActionAvailability, spendResources, resolveActionDefinition, refundResources } from './engine/actionResolvers.js';
 import { tickCompetition } from './engine/competitionEngine.js';
 import { fireScheduledEvents, triggerRandomEvent } from './engine/eventEngine.js';
 import { createWeeklyReview, tickCases, tickSeasonality, updateCustomers, updateMarkets } from './engine/marketEngine.js';
@@ -59,6 +59,7 @@ export {
   computeCustomerFit,
   createOpportunity,
   executeAction,
+  executeActionWithReceipts,
   findBestOpportunity,
   fireScheduledEvents,
   getActionAvailability,

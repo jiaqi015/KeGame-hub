@@ -6,10 +6,9 @@ import type { Settlement } from '../domain/actions/templates.js';
 import type { TodayPlanDraft } from './todayPlan.js';
 import type { WorldCausalEvent } from '../domain/world-model/causalEvents.js';
 import type { ActionReceipt } from '../domain/world-model/actorKnowledgeTypes.js';
-import { advanceDays, executeAction, spendResources, resolveActionDefinition } from '../domain/engine.js';
+import { advanceDays, executeActionWithReceipts, spendResources, resolveActionDefinition } from '../domain/engine.js';
 import { getActionAvailability, recordDomainEvent, refreshOpportunityLabel } from '../domain/engine.js';
 import { enrichStateWithDailyTickSemantics } from '../runtime/simulation/dailyTickSemanticEnrichmentPipeline.js';
-import { popPendingActionReceiptSnapshots } from '../domain/engine/actionResolvers.js';
 import { buildActionReceiptFromSnapshot, appendActionReceiptFromSnapshot } from '../runtime/simulation/actionReceiptFromSnapshotAdapter.js';
 import { buildReceiptFromSnapshot, applyReceiptToGameState } from '../domain/world-model/runtime/actionReceiptWiring.js';
 import { buildMinimalKnowledgeSnapshot } from '../domain/world-model/runtime/actionReceiptWiring.js';
@@ -168,10 +167,11 @@ export function executeGameAction(
   const nextState = transitionGameState(state, (next) => {
     const currentCase = next.cases.find((entry) => entry.id === caseId);
     if (currentCase) {
-      success = executeAction(next, actionId, currentCase, optionId, onMessage, meta);
+      const actionResult = executeActionWithReceipts(next, actionId, currentCase, optionId, onMessage, meta);
+      success = actionResult.success;
       // 2. Build action receipts from domain snapshots
       try {
-        for (const snapshot of popPendingActionReceiptSnapshots()) {
+        for (const snapshot of actionResult.receiptSnapshots) {
           // Legacy receipt (stored in actionReceiptHistory)
           const receipt = buildActionReceiptFromSnapshot(snapshot, next);
           appendActionReceiptFromSnapshot(next, receipt);

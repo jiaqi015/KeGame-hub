@@ -22,6 +22,7 @@ export const WITHDRAWN_UNHAPPY_TRUST_THRESHOLD = 50;
 export const SOLD_HAPPY_TRUST_THRESHOLD = 76;
 export const SOLD_HAPPY_PRICE_RATIO_THRESHOLD = 0.97;
 export const SOLD_NEUTRAL_TRUST_THRESHOLD = 62;
+export const ACTIVE_NO_REGRET_TRUST_THRESHOLD = 72;
 export const RELATIVE_OUTCOME_OUTRUN_PRICE_RATIO = 0.985;
 export const RELATIVE_OUTCOME_FLAT_PRICE_RATIO = 0.95;
 
@@ -141,6 +142,10 @@ function deriveOwnerSatisfaction(
   if (status === 'withdrawn') {
     return trust <= WITHDRAWN_UNHAPPY_TRUST_THRESHOLD ? 'unhappy' : 'regret';
   }
+  if (status === 'active') {
+    if (trust >= ACTIVE_NO_REGRET_TRUST_THRESHOLD) return 'no_regret';
+    return trust <= WITHDRAWN_UNHAPPY_TRUST_THRESHOLD ? 'unhappy' : 'regret';
+  }
   return 'regret';
 }
 
@@ -163,7 +168,11 @@ function deriveEndingType(
     return deriveEndingTypeForSold(satisfaction);
   }
   if (defenseOutcome === 'lost_to_rival') return 'sold_by_other';
-  if (status === 'withdrawn') return 'withdrawn_unhappy';
+  if (status === 'withdrawn') {
+    if (satisfaction === 'unhappy') return 'withdrawn_unhappy';
+    if (satisfaction === 'no_regret' || satisfaction === 'neutral') return 'not_sold_no_regret';
+    return 'not_sold_regret';
+  }
   if (satisfaction === 'no_regret' || satisfaction === 'neutral') return 'not_sold_no_regret';
   return 'not_sold_regret';
 }
@@ -276,11 +285,14 @@ export function markCaseLostToRival(caseItem: Case): void {
 
 export function markCaseWithdrawn(caseItem: Case): void {
   const ownerSatisfaction = caseItem.trust <= WITHDRAWN_UNHAPPY_TRUST_THRESHOLD ? 'unhappy' as const : 'regret' as const;
+  const defenseOutcome = 'withdrawn' as const;
+  const endingType = deriveEndingType('withdrawn', ownerSatisfaction, defenseOutcome);
+  const endingBucket = resolveEndingBucket(endingType);
   syncLegacyCaseOutcomeMirrorsFromTerminalFact(caseItem, {
     ownerSatisfaction,
-    defenseOutcome: 'withdrawn',
-    endingType: 'withdrawn_unhappy',
-    endingBucket: 'bad',
+    defenseOutcome,
+    endingType,
+    endingBucket,
     relativeOutcome: 'lose',
   });
 }

@@ -10,6 +10,7 @@ import { readCaseRelationBusinessContextFromRuntime } from '../../core/world-sta
 import { withdrawCase } from './actionResolvers.js';
 import { getMarketCell } from './opportunityEngine.js';
 import { readCaseTerminalOutcomeForCase } from '../caseOutcome.js';
+import { shouldExtendExpiredCoreWindow } from '../coreProtectionPolicy.js';
 import { isCaseActiveByCanonicalStatus } from '../caseLifecycleStatusRead.js';
 import { isOpportunityActiveByCanonicalState } from '../opportunityLifecycleStatusRead.js';
 
@@ -159,38 +160,10 @@ export function tickCases(world: GameState) {
     clampBrokerOwnerTrust(world, caseItem, '边界夹紧', 10, 100);
 
     if (caseItem.windowDays <= 0) {
-      const relationTrust = relationContext.trustValue;
-      const recentlyMaintained = caseItem.touchedOwnerToday
-        || world.day - (caseItem.lastOwnerTouchedDay ?? caseItem.lastTouchedDay ?? 0) <= 2;
-      const activePipeline = world.opportunities.some((entry) => (
-        entry.caseId === caseItem.id
-        && isOpportunityActiveByCanonicalState(world, entry)
-        && entry.visibility !== 'shadow'
-        && entry.stageIndex >= 1
-      ));
-      const advancedPipeline = world.opportunities.some((entry) => (
-        entry.caseId === caseItem.id
-        && isOpportunityActiveByCanonicalState(world, entry)
-        && entry.visibility !== 'shadow'
-        && entry.stageIndex >= 2
-      ));
-      const protectedCoreTrustThreshold = world.runContext.difficultyId === 'extreme' ? 84 : 62;
-      const protectedCorePipeline = caseItem.goalTier === 'core'
-        && relationTrust >= protectedCoreTrustThreshold
-        && (activePipeline || recentlyMaintained)
-        && (world.runContext.difficultyId !== 'extreme' || advancedPipeline || relationTrust >= 90);
-      const protectedCoreRelationship = world.runContext.difficultyId !== 'extreme'
-        && caseItem.goalTier === 'core'
-        && recentlyMaintained
-        && relationTrust >= 76;
+      const ownerSatisfaction = readCaseTerminalOutcomeForCase(world, caseItem, caseItem.trust).ownerSatisfaction;
+      const extensionDecision = shouldExtendExpiredCoreWindow(world, caseItem, ownerSatisfaction);
       if (
-        (
-          relationTrust >= caseTickBalance.renewalTrustThreshold
-          && readCaseTerminalOutcomeForCase(world, caseItem, caseItem.trust).ownerSatisfaction !== 'unhappy'
-          && caseItem.d3 >= caseTickBalance.renewalD3Threshold
-        )
-        || protectedCorePipeline
-        || protectedCoreRelationship
+        extensionDecision.extend
       ) {
         caseItem.windowDays = caseTickBalance.renewalWindowDays;
         applyBrokerOwnerTrustDelta(world, caseItem, -caseTickBalance.renewalTrustLoss, '续期信任损失', 0, 100);
@@ -203,7 +176,8 @@ export function tickCases(world: GameState) {
           caseId: caseItem.id,
           payload: {
             windowDays: caseItem.windowDays,
-            trust: relationContext.trustValue,
+            trust: extensionDecision.protection.relationTrust,
+            protectionReasons: extensionDecision.reasons,
           },
         });
         logEvent(world, caseItem.ownerName, `${caseItem.title} 的业主被安抚后又给了 4 天操作空间。`, 'accent');

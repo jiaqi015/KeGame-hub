@@ -1,10 +1,9 @@
 import { logEvent } from '../runtimeState.js';
-import { getAvailableMarketDealSlots } from '../models.js';
+import { ensureMarketOutcomeState, getAvailableMarketDealSlots } from '../models.js';
 import type { Case, GameState, RivalListing, RivalListingArchetype, RivalStore } from '../models.js';
 import type { PressureReceiptSink } from '../../core/world-state/competition/models.js';
 import { loseCaseToRival } from '../caseLifecycle.js';
 import {
-  getRivalOutcomeControl,
   recordActiveRivalListingSample,
   recordFailedRivalClaimRoll,
   recordRivalListingCreated,
@@ -15,13 +14,17 @@ import {
   scaleProbability,
   tryClaimRivalMarketDealSlot,
 } from '../engine/outcomeControlRuntime.js';
+import { getMarketCell } from '../market/marketReadBoundary.js';
 import { chance, clamp, randomInt } from '../utils.js';
 import { applyBrokerOwnerTrustDelta } from '../trustWriteHelper.js';
-import { getMarketCell } from '../engine/opportunityEngine.js';
 import { applyOpportunityIntentDeltaOnState, applyOpportunityConfidenceDeltaOnState } from '../opportunitySplitHelper.js';
 import { isCaseActiveByCanonicalStatus } from '../caseLifecycleStatusRead.js';
 import { isOpportunityActiveByCanonicalState } from '../opportunityLifecycleStatusRead.js';
-import { readCaseRelationBusinessContextFromRuntime } from '../../core/world-state/relationReadProjection.js';
+import {
+  evaluateVisibleRivalCaseLoss,
+  getRivalListingStrengthScale,
+} from './rivalCaseLossPolicy.js';
+import { getRivalOutcomeControl } from './rivalOutcomeControlScales.js';
 
 type CreateRivalListingOptions = {
   linkedCaseId?: string;
@@ -38,7 +41,8 @@ function markCaseLostToVisibleRival(state: GameState, listing: RivalListing) {
     return false;
   }
 
-  if (!shouldVisibleRivalClosePlayerCase(state, linkedCase, listing)) {
+  const evaluation = evaluateVisibleRivalCaseLoss(state, linkedCase, listing);
+  if (!evaluation.allowed || !chance(evaluation.probability, state)) {
     return false;
   }
 
@@ -51,88 +55,19 @@ function markCaseLostToVisibleRival(state: GameState, listing: RivalListing) {
   return true;
 }
 
-function shouldVisibleRivalClosePlayerCase(state: GameState, caseItem: Case, listing: RivalListing) {
-  const { rivalCaseLossScale } = getRivalOutcomeControl(state);
-  if (rivalCaseLossScale <= 0) {
-    return false;
-  }
-
-  const difficultyId = state.runContext.difficultyId;
-  const relationTrust = Math.max(readCaseRelationBusinessContextFromRuntime(state, caseItem).trustValue, caseItem.trust);
-  const relationshipGap = caseItem.lastOwnerTouchedDay <= 0 ? state.day : state.day - caseItem.lastOwnerTouchedDay;
-  const activeOwnedOpportunities = state.opportunities.filter((entry) => (
-    entry.caseId === caseItem.id
-    && isOpportunityActiveByCanonicalState(state, entry)
-    && entry.visibility !== 'shadow'
-  ));
-  const lateOwnedOpportunityCount = activeOwnedOpportunities.filter((entry) => entry.stageIndex >= 3).length;
-  const hasPipeline = activeOwnedOpportunities.length > 0;
-  const recentlyMaintained = relationshipGap <= 2 && relationTrust >= 60;
-
-  if (
-    (difficultyId === 'warmup' || difficultyId === 'easy')
-    && relationTrust >= 62
-    && (recentlyMaintained || hasPipeline)
-  ) {
-    return false;
-  }
-
-  if (
-    caseItem.goalTier === 'core'
-    && relationTrust >= (difficultyId === 'extreme' ? 86 : 78)
-  ) {
-    return false;
-  }
-
-  if (
-    caseItem.goalTier === 'core'
-    && relationTrust >= (difficultyId === 'extreme' ? 72 : 58)
-    && (recentlyMaintained || lateOwnedOpportunityCount > 0 || activeOwnedOpportunities.length >= 2)
-  ) {
-    return false;
-  }
-
-  const coreProtection = caseItem.goalTier === 'core' && recentlyMaintained ? 0.18 : 0;
-  const pipelineProtection = lateOwnedOpportunityCount > 0 ? 0.14 : 0;
-  const neglectedPenalty = relationshipGap >= 5 ? 0.1 : 0;
-  const windowPenalty = caseItem.windowDays <= 2 ? 0.14 : caseItem.windowDays <= 4 ? 0.06 : 0;
-  const trustPenalty = relationTrust <= 50 ? 0.1 : relationTrust <= 56 ? 0.05 : 0;
-  const heatPenalty = caseItem.heat <= 42 ? 0.07 : 0;
-  const noPipelinePenalty = activeOwnedOpportunities.length === 0 ? 0.06 : 0;
-  const tierBase = caseItem.goalTier === 'core' ? 0.16 : caseItem.goalTier === 'important' ? 0.24 : 0.32;
-  const strengthAdjustment = (getListingStrengthScale(listing) - 1) * 0.12;
-  const probability = clamp(
-    (
-      tierBase
-      + strengthAdjustment
-      + neglectedPenalty
-      + windowPenalty
-      + trustPenalty
-      + heatPenalty
-      + noPipelinePenalty
-      - coreProtection
-      - pipelineProtection
-    ) * rivalCaseLossScale,
-    0,
-    0.95,
-  );
-
-  return chance(probability, state);
-}
-
-function getListingStrengthScale(listing: RivalListing) {
-  return clamp(
-    (listing.heat + listing.leadSiphonPower + listing.ownerAnchorPower) / 240,
-    0.65,
-    1.35,
-  );
+function isMarketCapacityExhausted(state: GameState) {
+  const marketOutcome = ensureMarketOutcomeState(state);
+  const consumedCapacity = marketOutcome.playerClaimedDeals
+    + marketOutcome.rivalClaimedDeals
+    + marketOutcome.delayedDeals;
+  return getAvailableMarketDealSlots(state) <= 0 && consumedCapacity >= marketOutcome.totalCapacity21d;
 }
 
 function getRivalListingClaimChance(state: GameState, listing: RivalListing, baseChance: number) {
   const { rivalDealShareScale, rivalStoreCapabilityScale } = getRivalOutcomeControl(state);
   return scaleProbability(
     baseChance,
-    rivalDealShareScale * rivalStoreCapabilityScale * getListingStrengthScale(listing),
+    rivalDealShareScale * rivalStoreCapabilityScale * getRivalListingStrengthScale(listing),
   );
 }
 
@@ -247,6 +182,11 @@ export function sellVisibleRivalForCase(state: GameState, caseItem: Case, detail
     });
 
   if (!existingListing) {
+    return false;
+  }
+
+  if (isMarketCapacityExhausted(state)) {
+    tryClaimRivalMarketDealSlot(state, { allowFutureSlot: true });
     return false;
   }
 

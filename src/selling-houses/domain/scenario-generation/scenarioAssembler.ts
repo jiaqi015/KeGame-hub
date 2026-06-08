@@ -2,6 +2,7 @@ import { MAINTAINER_NAMES, OWNER_NAMES } from '../constants.js';
 import type {
   CompetitionGroup,
   DifficultyId,
+  GameRuleOverrides,
   HousePrototype,
   OwnerArchetype,
   RivalListing,
@@ -773,6 +774,22 @@ function buildRandomEventPool(profile: DifficultyProfile, blueprint: ScenarioBlu
   }));
 }
 
+function mergeScenarioRuleAdjustments(
+  profile: DifficultyProfile,
+  blueprint: ScenarioBlueprint,
+  maxDay: number,
+) {
+  return {
+    ...profile.ruleAdjustments,
+    ...blueprint.ruleAdjustments,
+    outcomeControl: {
+      ...(profile.ruleAdjustments.outcomeControl || {}),
+      ...(blueprint.ruleAdjustments?.outcomeControl || {}),
+    },
+    maxDay,
+  } satisfies GameRuleOverrides;
+}
+
 export function assembleGeneratedScenario(request: ScenarioGenerationRequest) {
   const generationVersion = request.generationVersion || 'v1';
   const source = buildRandomSource(request.seed);
@@ -834,11 +851,7 @@ export function assembleGeneratedScenario(request: ScenarioGenerationRequest) {
     targetScore: goalContext.targetScore,
     scoreThresholds: goalContext.scoreThresholds,
     boardPressureProfile: goalContext.boardPressureProfile,
-    rules: {
-      ...profile.ruleAdjustments,
-      ...blueprint.ruleAdjustments,
-      maxDay,
-    },
+    rules: mergeScenarioRuleAdjustments(profile, blueprint, maxDay),
     published: true,
   };
 

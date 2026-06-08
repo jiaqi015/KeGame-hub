@@ -311,14 +311,14 @@ export function ScenarioSetup({
   }
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-[880px] flex-col overflow-y-auto px-4 py-5 text-[var(--seller-ink)] lg:px-6">
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+    <div className="mx-auto flex h-full w-full max-w-[880px] flex-col px-4 py-4 text-[var(--seller-ink)] lg:px-6">
+      <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="seller-title text-[26px]">选择难度</h1>
         </div>
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-3 flex flex-wrap gap-2">
         {difficultyOptions.map((option) => {
           const selected = option.id === selectedOption.id;
           const optionPresentation = buildDifficultyPresentation({ difficultyId: option.id, label: option.label });
@@ -342,12 +342,12 @@ export function ScenarioSetup({
         })}
       </div>
 
-      <div className="seller-panel-muted flex flex-1 flex-col overflow-y-auto rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(17,25,35,0.98),rgba(11,17,24,0.98))]">
-        <div className="flex flex-1 flex-col gap-5 p-5">
+      <div className="seller-panel-muted flex min-h-0 flex-1 flex-col overflow-hidden rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(17,25,35,0.98),rgba(11,17,24,0.98))]">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <div className="mb-3 flex items-center gap-2">
-                <div className={`flex h-10 w-10 items-center justify-center rounded-[14px] ${selectedTone.icon}`}>
+                <div className={`flex h-9 w-9 items-center justify-center rounded-[13px] ${selectedTone.icon}`}>
                   <SelectedIcon size={18} />
                 </div>
                 {selectedOption.id === lastDifficulty && (
@@ -357,9 +357,9 @@ export function ScenarioSetup({
                 )}
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                <h2 className="text-[34px] font-semibold tracking-[-0.05em] text-white">{selectedPresentation.label}</h2>
+                <h2 className="text-[31px] font-semibold tracking-[-0.04em] text-white">{selectedPresentation.label}</h2>
               </div>
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="mt-2 flex flex-wrap gap-2">
                 {selectedPresentation.chips.map((chip) => (
                   <span
                     key={`${selectedPresentation.id}-${chip.label}`}
@@ -369,7 +369,7 @@ export function ScenarioSetup({
                   </span>
                 ))}
               </div>
-              <p className="mt-3 max-w-full overflow-x-auto whitespace-nowrap text-[14px] font-semibold leading-6 text-white/82 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <p className="mt-2 max-w-[48rem] text-[13px] font-semibold leading-6 text-white/82">
                 {selectedPresentation.summary}
               </p>
             </div>
@@ -383,9 +383,9 @@ export function ScenarioSetup({
           )}
 
           {selectedFeatured && (
-            <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-4">
+            <div className="rounded-[18px] border border-white/8 bg-white/[0.03] p-3">
               <div className="seller-label text-white/40">评分标准</div>
-              <div className={`mt-2 text-[18px] font-semibold ${selectedTone.accent}`}>{SCORE_STANDARD_LABEL}</div>
+              <div className={`mt-1 text-[16px] font-semibold ${selectedTone.accent}`}>{SCORE_STANDARD_LABEL}</div>
             </div>
           )}
 
@@ -401,11 +401,11 @@ export function ScenarioSetup({
           </div>
 
           {secondaryPreview.length > 0 && (
-            <div className="overflow-hidden rounded-[20px] border border-white/8 bg-white/[0.02]">
+            <div className="overflow-hidden rounded-[18px] border border-white/8 bg-white/[0.02]">
               {secondaryPreview.map((item, index) => (
                 <div
                   key={`${selectedOption.id}-${item.label}`}
-                  className={`flex items-center justify-between gap-3 px-4 py-3 ${index === 0 ? '' : 'border-t border-white/8'}`}
+                  className={`flex items-center justify-between gap-3 px-4 py-2.5 ${index === 0 ? '' : 'border-t border-white/8'}`}
                 >
                   <div className="text-[12px] font-medium text-white/48">{item.label}</div>
                   <div className="text-right text-[12px] font-semibold text-white/78">{item.value}</div>
@@ -414,31 +414,41 @@ export function ScenarioSetup({
             </div>
           )}
 
-          <WorldGenerationStatus
-            difficultyLabel={selectedPresentation.label}
-            worldScaleLabel={selectedOpeningPreview?.briefing.worldScaleLabel ?? '生成后展示整体市场体量'}
-          />
         </div>
 
-        <div className="border-t border-white/8 bg-[#101823] p-4">
-          <div className="grid grid-cols-2 gap-3">
+        <div className="shrink-0 border-t border-white/8 bg-[#101823] p-2.5">
+          <div className="grid gap-2.5 md:grid-cols-2">
             <button
               type="button"
               disabled={busy}
               onClick={openFeaturedBriefing}
-              className="inline-flex items-center justify-center gap-2 rounded-[14px] border border-white/10 bg-white/[0.04] px-4 py-3 text-[14px] font-semibold text-white/88 transition hover:bg-white/[0.07] disabled:cursor-wait disabled:opacity-60"
+              className="group flex min-h-[52px] items-center justify-between gap-3 rounded-[14px] border border-white/10 bg-white/[0.04] px-3.5 py-2 text-left transition hover:border-white/18 hover:bg-white/[0.07] disabled:cursor-wait disabled:opacity-60"
             >
-              <Play size={15} />
-              {busy ? '正在准备...' : `进入固定${selectedPresentation.shortLabel}剧本`}
+              <span className="min-w-0">
+                <span className="block text-[10px] font-semibold uppercase tracking-[0.16em] text-white/38">固定剧本</span>
+                <span className="mt-1 block text-[15px] font-semibold text-white/90">
+                  {busy ? '正在准备...' : `进入${selectedPresentation.shortLabel}本周局`}
+                </span>
+              </span>
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-white/72 transition group-hover:text-white">
+                <Play size={15} />
+              </span>
             </button>
             <button
               type="button"
               disabled={busy}
               onClick={() => { void openRandomBriefing(); }}
-              className="inline-flex items-center justify-center gap-2 rounded-[14px] bg-[#49dd85] px-4 py-3 text-[14px] font-semibold text-[#08110d] transition hover:brightness-105 disabled:cursor-wait disabled:opacity-60"
+              className="group flex min-h-[52px] items-center justify-between gap-3 rounded-[14px] bg-[#49dd85] px-3.5 py-2 text-left text-[#08110d] transition hover:brightness-105 disabled:cursor-wait disabled:opacity-60"
             >
-              <WandSparkles size={15} />
-              {busy ? '正在构建...' : '随机开一局'}
+              <span className="min-w-0">
+                <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-[#08110d]/56">随机开局</span>
+                <span className="mt-1 block text-[15px] font-bold">
+                  {busy ? '正在构建...' : '从生成新的卖房世界模型开始'}
+                </span>
+              </span>
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#08110d]/10 transition group-hover:bg-[#08110d]/14">
+                <WandSparkles size={15} />
+              </span>
             </button>
           </div>
         </div>
@@ -611,52 +621,6 @@ function OpeningBriefingView({
   );
 }
 
-function WorldGenerationStatus({
-  difficultyLabel,
-  worldScaleLabel,
-}: {
-  difficultyLabel: string;
-  worldScaleLabel: string;
-}) {
-  const statusRows = [
-    {
-      icon: Database,
-      label: '你会得到什么',
-      title: '一局新的卖房现场',
-      detail: `系统会按「${difficultyLabel}」准备本周的房源、业主、客户和竞品，每次随机开局都会有新的组合。`,
-    },
-    {
-      icon: Network,
-      label: '开局规模',
-      title: worldScaleLabel,
-      detail: '不是只换几套房。客户线索、同类房竞争、商圈变化也会一起准备好，让开局更像真实门店。',
-    },
-    {
-      icon: Brain,
-      label: 'AI 帮什么',
-      title: `${WORLD_BUILDER_NAME}会先帮你读一遍`,
-      detail: '它会写出开局简报：哪些业主急、哪些客户有机会、今天先推进哪几套。',
-    },
-  ];
-
-  return (
-    <section className="rounded-[20px] border border-cyan-400/12 bg-cyan-500/[0.055] p-4">
-      <div className="grid gap-3 md:grid-cols-3">
-        {statusRows.map((row) => (
-          <div key={row.label} className="rounded-[16px] border border-white/8 bg-[#0d141e]/78 p-3">
-            <div className="flex items-center gap-2 text-[10px] font-semibold text-white/38">
-              <row.icon size={13} />
-              {row.label}
-            </div>
-            <div className="mt-2 text-[13px] font-semibold leading-5 text-white/88">{row.title}</div>
-            <p className="mt-2 text-[11px] font-semibold leading-5 text-white/52">{row.detail}</p>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 function WorldBuildLoadingPage({
   difficultyLabel,
   worldScaleLabel,
@@ -746,8 +710,14 @@ function WorldBuildLoadingPage({
               <span>AI 推理中</span>
               <span>约 10 秒</span>
             </div>
-            <p className="mb-3 text-[11px] font-semibold leading-5 text-white/48">
-              正在判断业主急迫度、客户看房意向和竞品分流，再排出今天先找谁、先看哪套。
+            <p
+              className="seller-world-build-reasoning mb-3 text-[11px] font-semibold leading-5 text-white/48"
+              aria-label="正在构建卖房世界模型：生成房源池、业主状态、客户需求和竞品分流，再校准今天的市场节奏。"
+            >
+              <span className="seller-world-build-reasoning-track" aria-hidden="true">
+                <span>正在构建卖房世界模型：生成房源池、业主状态、客户需求和竞品分流，再校准今天的市场节奏。</span>
+                <span>正在构建卖房世界模型：生成房源池、业主状态、客户需求和竞品分流，再校准今天的市场节奏。</span>
+              </span>
             </p>
             <div className="h-2 overflow-hidden rounded-full border border-white/8 bg-white/[0.05]">
               <div className="seller-world-build-progress h-full rounded-full bg-[#49dd85]" />
@@ -804,9 +774,9 @@ function FactCard({
   detail?: string;
 }) {
   return (
-    <div className="rounded-[18px] border border-white/8 bg-white/[0.03] p-4">
+    <div className="rounded-[16px] border border-white/8 bg-white/[0.03] p-3">
       <div className="seller-label text-white/40">{label}</div>
-      <div className="mt-2 text-[15px] font-semibold leading-6 text-white">{value}</div>
+      <div className="mt-1.5 text-[14px] font-semibold leading-5 text-white">{value}</div>
       {detail ? <div className="mt-1 text-[12px] leading-6 text-white/52">{detail}</div> : null}
     </div>
   );

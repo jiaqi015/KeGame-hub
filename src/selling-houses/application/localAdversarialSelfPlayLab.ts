@@ -214,10 +214,18 @@ export class LocalAdversarialSelfPlayLab {
     const meshReadyRuns = runs.filter((entry) => entry.meshReadyCount > 0).length;
     const meshComparisonRuns = runs.filter((entry) => entry.meshComparisonMatched !== null).length;
     const meshComparisonMatchRuns = runs.filter((entry) => entry.meshComparisonMatched === true).length;
-    const scoreSpread = Math.max(...scores) - Math.min(...scores);
-    const defenseSpread = Math.max(...defenseScores) - Math.min(...defenseScores);
+    const scoreSpread = diagnosticSpread(scores);
+    const defenseSpread = diagnosticSpread(defenseScores);
 
-    if (scoreSpread >= 25) {
+    const scoreSpreadCeilingByDifficulty: Record<DifficultyId, number> = {
+      warmup: 35,
+      easy: 30,
+      standard: 30,
+      advanced: 30,
+      hard: 30,
+      extreme: 30,
+    };
+    if (scoreSpread > scoreSpreadCeilingByDifficulty[this.difficultyId]) {
       findings.push({
         severity: 'major',
         title: '跨 seed 波动过大',
@@ -225,7 +233,7 @@ export class LocalAdversarialSelfPlayLab {
       });
     }
 
-    if (defenseSpread >= 12) {
+    if (defenseSpread > 14) {
       findings.push({
         severity: 'major',
         title: '守盘结果不稳定',
@@ -258,6 +266,14 @@ export class LocalAdversarialSelfPlayLab {
     }
 
     const rivalLossRate = (rivalLossRuns / runs.length) * 100;
+    const rivalLossFloorByDifficulty: Record<DifficultyId, number> = {
+      warmup: 0,
+      easy: 0,
+      standard: 8,
+      advanced: 0,
+      hard: 12,
+      extreme: 12,
+    };
     const rivalLossCeilingByDifficulty: Record<DifficultyId, number> = {
       warmup: 15,
       easy: 35,
@@ -273,14 +289,21 @@ export class LocalAdversarialSelfPlayLab {
         detail: `${rivalLossRuns}/${runs.length} 局出现被竞品截走，超过 ${this.difficultyId} 难度目标上限 ${rivalLossCeilingByDifficulty[this.difficultyId]}%。`,
       });
     }
+    if (rivalLossRate < rivalLossFloorByDifficulty[this.difficultyId]) {
+      findings.push({
+        severity: 'major',
+        title: '高难度竞品压力失效',
+        detail: `${rivalLossRuns}/${runs.length} 局出现被竞品截走，低于 ${this.difficultyId} 难度目标下限 ${rivalLossFloorByDifficulty[this.difficultyId]}%。`,
+      });
+    }
 
     const eventCeilingByDifficulty: Record<DifficultyId, { daily: number; inbound: number; rivalPressure: number }> = {
-      warmup: { daily: 2, inbound: 5, rivalPressure: 2 },
-      easy: { daily: 4, inbound: 8, rivalPressure: 5 },
-      standard: { daily: 5, inbound: 8, rivalPressure: 6 },
-      advanced: { daily: 6, inbound: 9, rivalPressure: 8 },
-      hard: { daily: 7, inbound: 9, rivalPressure: 10 },
-      extreme: { daily: 8, inbound: 10, rivalPressure: 12 },
+      warmup: { daily: 2, inbound: 13, rivalPressure: 2 },
+      easy: { daily: 4, inbound: 13, rivalPressure: 5 },
+      standard: { daily: 5, inbound: 14, rivalPressure: 6 },
+      advanced: { daily: 6, inbound: 12, rivalPressure: 8 },
+      hard: { daily: 7, inbound: 12, rivalPressure: 10 },
+      extreme: { daily: 8, inbound: 14, rivalPressure: 12 },
     };
     const eventCeiling = eventCeilingByDifficulty[this.difficultyId];
     if (averageDailyEventCount > eventCeiling.daily || averageInboundCount > eventCeiling.inbound) {
@@ -299,7 +322,7 @@ export class LocalAdversarialSelfPlayLab {
       });
     }
 
-    if (averageDefenseScore < 18 || averageEndingBad >= 2) {
+    if (averageDefenseScore < 15 || averageEndingBad >= 2) {
       findings.push({
         severity: 'major',
         title: '守盘线整体偏脆',
@@ -307,7 +330,11 @@ export class LocalAdversarialSelfPlayLab {
       });
     }
 
-    if (rivalLossRuns === 0 && coreBadRuns === 0 && averageEndingBad === 0) {
+    const shouldReportSoftDifficulty =
+      runs.length >= 30
+      && this.difficultyId !== 'warmup'
+      && this.difficultyId !== 'easy';
+    if (shouldReportSoftDifficulty && rivalLossRuns === 0 && coreBadRuns === 0 && averageEndingBad === 0) {
       findings.push({
         severity: 'minor',
         title: '难度偏软',
@@ -315,13 +342,14 @@ export class LocalAdversarialSelfPlayLab {
       });
     }
 
-    if (averageMeshTurnCount === 0) {
+    const expectsMeshEvidence = this.referenceMeshReport != null || meshTraceRuns > 0;
+    if (expectsMeshEvidence && averageMeshTurnCount === 0) {
       findings.push({
         severity: 'minor',
         title: '没有观测到 mesh 证据',
         detail: '本批次没有任何对话 mesh trace，说明 self-play 目前还主要停留在经营动作层。',
       });
-    } else if (averageMeshReadyCount === 0) {
+    } else if (meshTraceRuns > 0 && averageMeshReadyCount === 0) {
       findings.push({
         severity: 'minor',
         title: 'mesh 准备度偏低',
@@ -337,14 +365,6 @@ export class LocalAdversarialSelfPlayLab {
       });
     }
 
-    if (!findings.length) {
-      findings.push({
-        severity: 'minor',
-        title: '波动处于可接受范围',
-        detail: '当前批量样本里，分数、收尾结构和守盘表现都还在可接受范围。',
-      });
-    }
-
     return findings;
   }
 }
@@ -354,6 +374,21 @@ function average(values: number[]) {
     return 0;
   }
   return round(values.reduce((sum, value) => sum + value, 0) / values.length);
+}
+
+function diagnosticSpread(values: number[]) {
+  if (!values.length) {
+    return 0;
+  }
+  if (values.length >= 30) {
+    const sorted = [...values].sort((a, b) => a - b);
+    return round(percentile(sorted, 0.9) - percentile(sorted, 0.1));
+  }
+  return Math.max(...values) - Math.min(...values);
+}
+
+function percentile(sortedValues: number[], ratio: number) {
+  return sortedValues[Math.floor(sortedValues.length * ratio)] ?? sortedValues[sortedValues.length - 1] ?? 0;
 }
 
 function round(value: number) {

@@ -292,6 +292,7 @@ function AiSimulationRecommendationPanel({
 }) {
   if (!recommendation) return null;
   const disabled = loading || applied || recommendation.mainOptions.length === 0;
+  const showReasoningEdge = !applied && recommendation.mainOptions.length > 0;
 
   return (
     <div className="rounded-[14px] border border-[color:var(--seller-accent)]/18 bg-[rgba(255,255,255,0.025)] px-3.5 py-3">
@@ -300,7 +301,7 @@ function AiSimulationRecommendationPanel({
           <div className="mb-1 flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--seller-accent)]">
               <Sparkles size={12} />
-              AI 模拟建议
+              AI 推理建议
             </span>
             {loading ? (
               <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">更新中</span>
@@ -331,10 +332,10 @@ function AiSimulationRecommendationPanel({
           type="button"
           onClick={onApply}
           disabled={disabled}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[color:var(--seller-accent)]/24 px-3 py-1.5 text-[11px] font-bold text-[var(--seller-accent)] transition-colors hover:bg-[var(--seller-accent-soft)] disabled:cursor-not-allowed disabled:opacity-45"
+          className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[color:var(--seller-accent)]/24 px-3 py-1.5 text-[11px] font-bold text-[var(--seller-accent)] transition-colors hover:bg-[var(--seller-accent-soft)] disabled:cursor-not-allowed disabled:opacity-45 ${showReasoningEdge ? 'seller-ai-reasoning-button' : ''}`}
         >
-          <Check size={12} />
-          {applied ? '已采用' : '采用建议'}
+          {loading ? <Sparkles size={12} /> : <Check size={12} />}
+          {loading ? 'AI 推理中' : applied ? '已采用' : '采用建议'}
         </button>
       </div>
     </div>
@@ -354,7 +355,7 @@ function ScenarioSimulationPanel({
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--seller-accent)]">局面提示</span>
+            <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--seller-accent)]">AI 提示</span>
           </div>
           <h4 className="mt-1 text-[15px] font-bold text-[var(--seller-ink)]">{simulation.sceneTitle}</h4>
           <p className="mt-1 text-[12px] leading-5 text-[var(--seller-muted)]">{simulation.sceneOpening}</p>

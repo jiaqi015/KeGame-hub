@@ -312,15 +312,9 @@ select {
   box-shadow: 0 18px 42px rgba(0, 0, 0, 0.2);
 }
 
-.seller-official-article-topbar,
-.seller-official-article-actions {
+.seller-official-article-topbar {
   border-bottom: 1px solid var(--seller-border);
   background: rgba(255, 255, 255, 0.028);
-}
-
-.seller-official-article-actions {
-  border-top: 1px solid var(--seller-border);
-  border-bottom: 0;
 }
 
 .seller-official-original {
@@ -497,6 +491,36 @@ select {
   color: #65b7ff;
 }
 
+.seller-ai-reasoning-button {
+  --seller-ai-edge: linear-gradient(90deg, rgba(74, 227, 138, 0.28), #4ae38a, #38bdf8, #4ae38a, rgba(74, 227, 138, 0.28));
+  border-color: transparent;
+  background:
+    linear-gradient(color-mix(in srgb, var(--seller-paper) 88%, white 12%), color-mix(in srgb, var(--seller-paper) 88%, white 12%)) padding-box,
+    var(--seller-ai-edge) border-box;
+  background-size: 100% 100%, 220% 100%;
+  background-position: 0 0, 0 0;
+  box-shadow: 0 0 0 1px rgba(74, 227, 138, 0.1), 0 0 12px rgba(74, 227, 138, 0.12);
+  opacity: 1;
+  animation: seller-ai-reasoning-edge 2.8s ease-in-out infinite;
+}
+
+.seller-ai-reasoning-button:disabled {
+  opacity: 1;
+}
+
+@keyframes seller-ai-reasoning-edge {
+  0%,
+  100% {
+    background-position: 0 0, 0 0;
+    box-shadow: 0 0 0 1px rgba(74, 227, 138, 0.1), 0 0 10px rgba(74, 227, 138, 0.1);
+  }
+
+  50% {
+    background-position: 0 0, 100% 0;
+    box-shadow: 0 0 0 1px rgba(74, 227, 138, 0.16), 0 0 14px rgba(56, 189, 248, 0.14);
+  }
+}
+
 @keyframes seller-world-build-progress {
   from {
     transform: scaleX(0.06);
@@ -606,6 +630,16 @@ select {
 
   to {
     transform: translateX(110%);
+  }
+}
+
+@keyframes seller-world-build-reasoning-scroll {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(calc(-50% - 14px));
   }
 }
 
@@ -945,6 +979,26 @@ select {
   will-change: transform;
 }
 
+.seller-world-build-reasoning {
+  position: relative;
+  overflow: hidden;
+  white-space: nowrap;
+  mask-image: linear-gradient(90deg, transparent, black 7%, black 93%, transparent);
+}
+
+.seller-world-build-reasoning-track {
+  display: inline-flex;
+  width: max-content;
+  gap: 28px;
+  min-width: max-content;
+  animation: seller-world-build-reasoning-scroll 12s linear infinite;
+  will-change: transform;
+}
+
+.seller-world-build-reasoning-track span {
+  flex: 0 0 auto;
+}
+
 @media (max-width: 640px) {
   .seller-world-build-stage {
     height: 264px;
@@ -998,7 +1052,9 @@ select {
   .seller-world-build-center-ring,
   .seller-world-build-timeline span,
   .seller-world-build-step,
-  .seller-world-build-progress::after {
+  .seller-world-build-reasoning-track,
+  .seller-world-build-progress::after,
+  .seller-ai-reasoning-button {
     animation: none;
   }
 

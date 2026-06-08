@@ -9,6 +9,7 @@ import {
   randomInt,
 } from '../utils.js';
 import { readCaseRelationBusinessContextFromRuntime } from '../../core/world-state/relationReadProjection.js';
+import { getMarketCell as readMarketCell } from '../market/marketReadBoundary.js';
 import type { Case, CustomerProfile, GameState, Opportunity, Tone } from '../models.js';
 import { isCaseActiveByCanonicalStatus } from '../caseLifecycleStatusRead.js';
 import { isOpportunityActiveByCanonicalState } from '../opportunityLifecycleStatusRead.js';
@@ -309,7 +310,7 @@ export function getActiveOpportunities(world: GameState, caseId: string) {
 }
 
 export function getMarketCell(world: GameState, id: string) {
-  return world.markets.find((entry) => entry.id === id);
+  return readMarketCell(world, id);
 }
 
 export function closeOpportunity(

@@ -4,100 +4,18 @@ import type { Case, GameState } from '../models.js';
 import { chance, clamp, randomInt } from '../utils.js';
 import { applyBrokerOwnerTrustDelta } from '../trustWriteHelper.js';
 import { applyOwnerCaseUrgencyDelta } from '../ownerCaseReadinessWriteHelper.js';
-import { readCaseRelationBusinessContextFromRuntime } from '../../core/world-state/relationReadProjection.js';
 import { getMarketCell } from './opportunityEngine.js';
 import { sellVisibleRivalForCase } from '../rivals/rivalListingEngine.js';
-import { getRivalOutcomeControl } from './outcomeControlRuntime.js';
+import { evaluateCompetitionRivalCaseLoss } from '../rivals/rivalCaseLossPolicy.js';
 import type { PressureReceiptSink } from '../../core/world-state/competition/models.js';
 import { isCaseActiveByCanonicalStatus, isCaseSoldByCanonicalStatus } from '../caseLifecycleStatusRead.js';
-import { isOpportunityActiveByCanonicalState } from '../opportunityLifecycleStatusRead.js';
 
 function shouldLoseToRival(world: GameState, caseItem: Case, groupPricePremiumRatio: number) {
-  const rivalLossBalance = BALANCE.competition.rivalLoss;
-  const { rivalCaseLossScale } = getRivalOutcomeControl(world);
-  const cell = getMarketCell(world, caseItem.marketCellId);
-  if (!cell || caseItem.defenseOutcome === 'lost_to_rival') {
-    return false;
-  }
-
-  if (
-    Number.isFinite(caseItem.lastRivalThreatDay)
-    && world.day - (caseItem.lastRivalThreatDay || 0) < rivalLossBalance.threatCooldownDays
-  ) {
-    return false;
-  }
-
-  const brokerShadowLeads = world.opportunities.filter((entry) => {
-    return entry.caseId === caseItem.id
-      && isOpportunityActiveByCanonicalState(world, entry)
-      && entry.leadSource === 'broker'
-      && entry.visibility === 'shadow';
-  }).length;
-  const ownedActiveLeads = world.opportunities.filter((entry) => {
-    return entry.caseId === caseItem.id
-      && isOpportunityActiveByCanonicalState(world, entry)
-      && entry.visibility !== 'shadow';
-  });
-  const ownedQualifiedLeads = ownedActiveLeads.filter((entry) => entry.stageIndex >= 2).length;
-  const priceGapRatio = Math.max(0, caseItem.askPrice - caseItem.marketPrice) / Math.max(caseItem.marketPrice, 1);
-  const pressureOverLine = Math.max(0, cell.competitivePressure - world.rules.competitionPressureThreshold);
-  const relationshipGap = caseItem.lastOwnerTouchedDay <= 0 ? world.day : world.day - caseItem.lastOwnerTouchedDay;
-  const urgentOpening = caseItem.windowDays <= 1 || brokerShadowLeads >= 2;
-  const relationTrust = readCaseRelationBusinessContextFromRuntime(world, caseItem).trustValue;
-  const relationshipOpening = relationshipGap >= rivalLossBalance.relationshipOpeningDays
-    && relationTrust <= rivalLossBalance.relationshipOpeningTrustThreshold;
-  const trustCollapse = relationTrust <= rivalLossBalance.trustCollapseThreshold;
-  const coldAndNeglected = caseItem.heat <= rivalLossBalance.coldHeatThreshold
-    && relationshipGap >= rivalLossBalance.coldRelationshipDays;
-  const pipelineOpening = (
-    ownedActiveLeads.length === 0
-    || (ownedQualifiedLeads === 0 && caseItem.heat <= rivalLossBalance.pipelineHeatThreshold)
-  ) && (
-    pressureOverLine >= rivalLossBalance.pipelinePressureThreshold
-    || groupPricePremiumRatio >= rivalLossBalance.pipelinePremiumThreshold
-    || priceGapRatio >= rivalLossBalance.pipelinePriceGapThreshold
-  );
-  const priceAndPressureTrap = (
-    pressureOverLine >= rivalLossBalance.priceTrapPressureThreshold
-    || groupPricePremiumRatio >= rivalLossBalance.priceTrapPremiumThreshold
-    || priceGapRatio >= rivalLossBalance.priceTrapPriceGapThreshold
-  ) && (
-    relationTrust <= rivalLossBalance.priceTrapTrustThreshold
-    || relationshipGap >= rivalLossBalance.priceTrapRelationshipDays
-    || caseItem.windowDays <= rivalLossBalance.priceTrapWindowDays
-  );
-  const recentlyMaintained = relationshipGap <= rivalLossBalance.recentlyMaintainedDays
-    && relationTrust >= rivalLossBalance.recentlyMaintainedTrustThreshold;
-  const visibleSlip = urgentOpening
-    || relationshipOpening
-    || trustCollapse
-    || coldAndNeglected
-    || pipelineOpening
-    || priceAndPressureTrap;
-  const rivalHasOpening = pressureOverLine >= rivalLossBalance.rivalOpenPressureThreshold
-    || groupPricePremiumRatio >= rivalLossBalance.rivalOpenPremiumThreshold
-    || priceGapRatio >= rivalLossBalance.rivalOpenPriceGapThreshold
-    || brokerShadowLeads >= 2;
-
-  if (!visibleSlip || !rivalHasOpening || (recentlyMaintained && !urgentOpening && !pipelineOpening)) {
-    return false;
-  }
-
-  const rawProbability = rivalLossBalance.rawProbabilityBase
-    + pressureOverLine * rivalLossBalance.rawPressureWeight
-    + Math.max(0, groupPricePremiumRatio - rivalLossBalance.rawPremiumOffset) * rivalLossBalance.rawPremiumWeight
-    + Math.max(0, priceGapRatio - rivalLossBalance.rawPriceGapOffset) * rivalLossBalance.rawPriceGapWeight
-    + brokerShadowLeads * rivalLossBalance.rawBrokerLeadWeight
-    + (caseItem.windowDays <= rivalLossBalance.lastWindowThreshold ? rivalLossBalance.rawLastWindowBonus : 0);
-  const maintainedGuard = recentlyMaintained && pipelineOpening ? rivalLossBalance.maintainedGuardWhenPipelineOpen : 1;
-  const probability = clamp(
-    rawProbability * world.rules.rivalLossProbabilityScale * rivalCaseLossScale * maintainedGuard,
-    rivalLossBalance.probabilityMin,
-    rivalLossBalance.probabilityMax,
-  );
+  const evaluation = evaluateCompetitionRivalCaseLoss(world, caseItem, { groupPricePremiumRatio });
+  if (!evaluation.allowed) return false;
   caseItem.lastRivalThreatDay = world.day;
 
-  return chance(probability, world);
+  return chance(evaluation.probability, world);
 }
 
 export function resolveCompetitivePressure(world: GameState, caseItem: Case, sink?: PressureReceiptSink) {

@@ -1,5 +1,5 @@
 import type { GameState } from '../models.js';
-import { getRivalOutcomeControl } from '../engine/outcomeControlRuntime.js';
+import { getRivalOutcomeControl } from './rivalOutcomeControlScales.js';
 import { clamp, randomInt } from '../utils.js';
 
 export function tickRivalStores(state: GameState) {

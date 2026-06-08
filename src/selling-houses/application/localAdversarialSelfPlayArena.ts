@@ -1,7 +1,7 @@
 import { createInitialState } from './gameState.js';
 import './gameTransitions.js';
 import { updateDerivedState } from '../domain/runtimeState.js';
-import { advanceDays, executeAction, findBestOpportunity, getActionAvailability, seedInitialOpportunities } from '../domain/engine.js';
+import { advanceDays, executeActionWithReceipts, findBestOpportunity, getActionAvailability, seedInitialOpportunities } from '../domain/engine.js';
 import { getScenarioSnapshotById } from '../domain/scenarioCatalog.js';
 import type { Case, FinalResult, GameState, Opportunity, ScenarioSnapshot } from '../domain/models.js';
 import { getPromotionBudget, resolveFormalSoldCount } from '../domain/runtimeStats.js';
@@ -168,7 +168,8 @@ export class LocalAdversarialSelfPlayArena {
 
       const { caseItem, decision } = plannedMove;
       const energyBefore = state.energy;
-      const ok = executeAction(state, decision.actionId, caseItem, decision.optionId);
+      const actionResult = executeActionWithReceipts(state, decision.actionId, caseItem, decision.optionId);
+      const ok = actionResult.success;
       if (!ok) {
         this.findings.push({
           severity: 'major',

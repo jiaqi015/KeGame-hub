@@ -1,20 +1,15 @@
-import type { GameState, OutcomeControlRules, RivalListing } from '../models.js';
+import type { GameState, RivalListing } from '../models.js';
 import {
   ensureMarketOutcomeState,
   getAvailableMarketDealSlots,
   setDelayedMarketDealConversionObserver,
 } from '../models.js';
 import { clamp } from '../utils.js';
-
-export type RivalOutcomeControlKey =
-  | 'rivalStoreCapabilityScale'
-  | 'rivalDealShareScale'
-  | 'rivalListingSpawnScale'
-  | 'rivalCustomerPullScale'
-  | 'rivalOwnerPressureScale'
-  | 'rivalCaseLossScale';
-
-export type RivalOutcomeControlScales = Pick<OutcomeControlRules, RivalOutcomeControlKey>;
+export {
+  getRivalOutcomeControl,
+  type RivalOutcomeControlKey,
+  type RivalOutcomeControlScales,
+} from '../rivals/rivalOutcomeControlScales.js';
 
 export interface RivalMarketClaimOptions {
   allowFutureSlot?: boolean;
@@ -83,13 +78,6 @@ function createEmptyRivalOutcomeDiagnostics(): RivalOutcomeDiagnostics {
     rivalClaimDayBuckets: {},
     rivalClaimedDealDayBuckets: {},
   };
-}
-
-function finitePositiveScale(value: number, fallback: number) {
-  if (!Number.isFinite(value) || value < 0) {
-    return fallback;
-  }
-  return value;
 }
 
 function getMutableRivalOutcomeDiagnostics(state: GameState) {
@@ -189,18 +177,6 @@ export function recordDelayedDealsConverted(state: GameState, convertedDeals: nu
   const diagnostics = getMutableRivalOutcomeDiagnostics(state);
   diagnostics.delayedDealsConverted += convertedDeals;
   recordActualRivalClaimDay(state, convertedDeals);
-}
-
-export function getRivalOutcomeControl(state: GameState): RivalOutcomeControlScales {
-  const outcomeControl = state.rules.outcomeControl;
-  return {
-    rivalStoreCapabilityScale: finitePositiveScale(outcomeControl.rivalStoreCapabilityScale, 1),
-    rivalDealShareScale: finitePositiveScale(outcomeControl.rivalDealShareScale, 1),
-    rivalListingSpawnScale: finitePositiveScale(outcomeControl.rivalListingSpawnScale, 1),
-    rivalCustomerPullScale: finitePositiveScale(outcomeControl.rivalCustomerPullScale, 1),
-    rivalOwnerPressureScale: finitePositiveScale(outcomeControl.rivalOwnerPressureScale, 1),
-    rivalCaseLossScale: finitePositiveScale(outcomeControl.rivalCaseLossScale, 1),
-  };
 }
 
 export function scaleProbability(probability: number, scale: number, max = 0.95) {

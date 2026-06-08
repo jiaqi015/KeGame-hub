@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildActionDecisionAgentRuntime } from '../agents/actionDecisionAgentAdapter.js';
 import { buildActionDecisionDualRuntime } from '../agents/actionDecisionDualRuntime.js';
 import {
+  buildActionFeedbackPrompt,
   buildFallbackActionFeedbackProposal,
   buildFallbackActionScenarioSimulation,
   normalizeActionFeedbackProposal,
@@ -256,8 +257,28 @@ describe('action decision agent harness', () => {
     }));
 
     expect(feedback.message).not.toContain('我主要想看');
+    expect(feedback.message).not.toContain('这几组客户');
+    expect(feedback.message).not.toContain('同小区成交和同小区最近成交');
+    expect(feedback.message).not.toContain('你把差异摆清');
     expect(feedback.message).toContain('我不是不看');
     expect(feedback.message).toContain('最近成交');
+  });
+
+  it('pushes role-specific buyer speech constraints into the LLM feedback prompt', () => {
+    const prompt = buildActionFeedbackPrompt(buildOpenDayFeedbackRequest({
+      choice: {
+        mainStrategyIds: ['invite-customer-a'],
+        assistStrategyId: 'steady',
+        baseFeedbackMessage: '"我明白你的意思，让我再想想。"',
+        actor: 'customer',
+        mood: 'neutral',
+      },
+    }));
+
+    expect(prompt).toContain('你是买方客户本人');
+    expect(prompt).toContain('不要说“这几组客户”');
+    expect(prompt).toContain('不要说“你把差异摆清”');
+    expect(prompt).toContain('roleSpeechContract');
   });
 
   it('rejects LLM feedback that copies action option labels as character speech', () => {
@@ -289,8 +310,33 @@ describe('action decision agent harness', () => {
     }, request);
 
     expect(feedback.message).not.toContain('我主要想看');
+    expect(feedback.message).not.toContain('这几组客户');
+    expect(feedback.message).not.toContain('同小区成交和同小区最近成交');
+    expect(feedback.message).not.toContain('你把差异摆清');
     expect(feedback.message).toContain('我不是不看');
     expect(feedback.confidence).toBe(0.91);
+  });
+
+  it('rejects customer LLM feedback that tells the broker to lay out a checklist', () => {
+    const request = buildOpenDayFeedbackRequest({
+      choice: {
+        mainStrategyIds: ['invite-customer-a'],
+        assistStrategyId: 'steady',
+        baseFeedbackMessage: '"我明白你的意思，让我再想想。"',
+        actor: 'customer',
+        mood: 'neutral',
+      },
+    });
+    const feedback = normalizeActionFeedbackProposal({
+      message: '"我不是不看，只是还得再比较一下。你把差异摆清，再把这几组客户到底卡在哪里、同小区成交和同小区最近成交都列出来，我再决定。"',
+      confidence: 0.84,
+    }, request);
+
+    expect(feedback.message).not.toContain('你把差异摆清');
+    expect(feedback.message).not.toContain('这几组客户');
+    expect(feedback.message).not.toContain('同小区成交和同小区最近成交');
+    expect(feedback.message).toContain('旁边同类房');
+    expect(feedback.confidence).toBe(0.84);
   });
 
   it('rejects too-short LLM character feedback and keeps the richer fallback', () => {

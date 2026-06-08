@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import '../src/selling-houses/application/gameTransitions.js';
 import { createInitialState, updateDerivedState } from '../src/selling-houses/application/gameState.js';
-import { advanceDays, executeAction, findBestOpportunity, getActionAvailability, seedInitialOpportunities } from '../src/selling-houses/domain/engine.js';
+import { advanceDays, executeActionWithReceipts, findBestOpportunity, getActionAvailability, seedInitialOpportunities } from '../src/selling-houses/domain/engine.js';
 import { generateScenarioSnapshot } from '../src/selling-houses/domain/scenarioCatalog.js';
 import { getPromotionBudget, resolveFormalSoldCount } from '../src/selling-houses/domain/runtimeStats.js';
 import { buildSelfPlayRunSnapshot } from '../src/selling-houses/application/localAdversarialSelfPlayArena.js';
@@ -240,7 +240,13 @@ function playOneDay(state: GameState, diagnosis: OutcomeRunDiagnosis) {
 
     incrementCount(diagnosis.actionAttempts, plannedMove.decision.actionId);
     const pendingBefore = countPendingClosing(state);
-    const ok = executeAction(state, plannedMove.decision.actionId, plannedMove.caseItem, plannedMove.decision.optionId);
+    const actionResult = executeActionWithReceipts(
+      state,
+      plannedMove.decision.actionId,
+      plannedMove.caseItem,
+      plannedMove.decision.optionId,
+    );
+    const ok = actionResult.success;
     if (!ok) {
       incrementCount(diagnosis.actionFailures, plannedMove.decision.actionId);
       break;

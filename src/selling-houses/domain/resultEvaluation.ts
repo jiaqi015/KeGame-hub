@@ -564,7 +564,9 @@ function buildDefenseDimension(caseResults: CaseFinalResult[], attribution: Attr
       ? 1
       : entry.defenseOutcome === 'at_risk'
         ? 0.45
-        : 0;
+        : entry.defenseOutcome === 'withdrawn' && entry.endingBucket === 'good'
+          ? 0.45
+          : 0;
     return sum + normalizeGoalTier(entry.goalTier) * value;
   }, 0);
   const score = clampScore(Math.round((weightedScore / totalWeight) * 35), 0, 35);
