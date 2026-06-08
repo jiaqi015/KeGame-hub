@@ -478,8 +478,8 @@ function OpeningBriefingView({
   }, [briefing, refreshStory]);
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-[980px] flex-col overflow-y-auto px-4 py-5 text-[var(--seller-ink)] lg:px-6">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <div className="mx-auto flex h-full w-full max-w-[1240px] flex-col overflow-hidden px-3 py-4 text-[var(--seller-ink)] sm:px-5 lg:px-6">
+      <div className="mb-4 flex shrink-0 flex-wrap items-center justify-between gap-3">
         <button
           type="button"
           disabled={starting}
@@ -494,46 +494,49 @@ function OpeningBriefingView({
         </div>
       </div>
 
-      <div className="seller-panel-muted flex flex-1 flex-col overflow-hidden rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(17,25,35,0.98),rgba(11,17,24,0.98))]">
-        <div className="flex flex-1 flex-col gap-5 overflow-y-auto p-5">
-          <div className="flex flex-wrap items-start justify-between gap-5">
+      <div className="seller-panel-muted flex min-h-0 flex-1 flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,31,45,0.98),rgba(10,17,25,0.98))] shadow-[0_28px_90px_rgba(0,0,0,0.22)]">
+        <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-5 sm:p-6 lg:p-7">
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-start">
             <div className="min-w-0">
-              <div className="seller-label text-white/42">本局开局简报</div>
-              <p className="mt-3 max-w-[42rem] text-[14px] font-semibold leading-7 text-white/72">
+              <div className="seller-label text-white/42">开局</div>
+              <h1 className="mt-2 text-[34px] font-semibold leading-tight tracking-[-0.05em] text-white lg:text-[38px]">
+                本局开局简报
+              </h1>
+              <p className="mt-4 max-w-[74rem] text-[18px] font-semibold leading-9 tracking-[-0.01em] text-white/82 lg:text-[19px]">
                 {story.deck}
               </p>
             </div>
-            <div className="rounded-[20px] border border-white/10 bg-white/[0.04] p-4 text-right">
+            <div className="rounded-[22px] border border-white/10 bg-white/[0.045] p-5 text-right">
               <div className="seller-label text-white/42">今天</div>
-              <div className="mt-2 text-[24px] font-semibold tracking-[-0.04em] text-white">{briefing.dateLabel}</div>
+              <div className="mt-2 text-[26px] font-semibold tracking-[-0.04em] text-white">{briefing.dateLabel}</div>
             </div>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-4">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <BriefingStat icon={CalendarDays} label="周期" value={briefing.scaleLabel} />
             <BriefingStat icon={Home} label="业主" value={briefing.ownerCountLabel} />
             <BriefingStat icon={Users} label="客户" value={briefing.customerCountLabel} />
             <BriefingStat icon={Store} label="压力" value={briefing.competitionLabel} />
           </div>
 
-          <div className="rounded-[22px] border border-white/8 bg-white/[0.03] p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
+          <div className="rounded-[24px] border border-white/8 bg-white/[0.035] p-5">
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start">
+              <div className="min-w-0">
                 <div className="seller-label text-white/42">今天的市场故事</div>
-                <div className="mt-2 text-[18px] font-semibold text-white">{story.marketTitle}</div>
-                <div className="mt-2 space-y-2">
+                <div className="mt-2 text-[22px] font-semibold leading-8 tracking-[-0.03em] text-white">{story.marketTitle}</div>
+                <div className="mt-3 space-y-2.5">
                   {story.marketParagraphs.map((paragraph, index) => (
-                    <p key={`${paragraph.slice(0, 16)}-${index}`} className="text-[13px] font-semibold leading-6 text-white/62">
+                    <p key={`${paragraph.slice(0, 16)}-${index}`} className="text-[14px] font-semibold leading-7 text-white/66">
                       {paragraph}
                     </p>
                   ))}
                 </div>
               </div>
-              <div className="flex max-w-[26rem] flex-wrap justify-end gap-2">
+              <div className="flex flex-wrap gap-2 lg:justify-end">
                 {story.evidenceLabels.map((tag) => (
                   <span
                     key={tag}
-                    className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-semibold text-white/62"
+                    className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-[11px] font-semibold text-white/64"
                   >
                     {tag}
                   </span>
@@ -542,14 +545,14 @@ function OpeningBriefingView({
             </div>
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-2">
+          <div className="grid gap-4 xl:grid-cols-2">
             {briefing.cases.map((caseItem) => (
-              <div key={caseItem.id} className="rounded-[22px] border border-white/8 bg-white/[0.03] p-4">
+              <div key={caseItem.id} className="rounded-[24px] border border-white/8 bg-white/[0.032] p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="text-[16px] font-semibold leading-6 text-white">{caseItem.title}</div>
+                    <div className="text-[18px] font-semibold leading-7 text-white">{caseItem.title}</div>
                     <div className="mt-1 text-[12px] font-semibold text-white/48">{caseItem.ownerName} · {caseItem.ownerMood}</div>
-                    <p className="mt-3 max-w-[32rem] text-[13px] font-semibold leading-6 text-white/70">{caseItem.storyLine}</p>
+                    <p className="mt-3 max-w-[42rem] text-[13px] font-semibold leading-6 text-white/70">{caseItem.storyLine}</p>
                   </div>
                   <span className="rounded-full border border-cyan-400/18 bg-cyan-500/12 px-3 py-1 text-[11px] font-semibold text-cyan-100">
                     {caseItem.roleLabel}
@@ -581,7 +584,7 @@ function OpeningBriefingView({
           </div>
         </div>
 
-        <div className="border-t border-white/8 bg-[#101823] p-4">
+        <div className="shrink-0 border-t border-white/8 bg-[#101823]/95 p-4">
           <button
             type="button"
             disabled={starting}
