@@ -75,8 +75,9 @@ const actionDecisionAgentAdapter: AgentHarnessAdapter<ActionAdviceRequest> = {
         ...(preset?.guardrailLines || []),
       ],
       outputContractLines: [
-        '输出是动作情景模拟，不是选择建议，也不是结算结果。',
+        '输出是动作情景模拟和本轮选择建议，不是结算结果。',
         'mainStrategies 和 assistStrategies 必须保留来自输入的 option id。',
+        'recommendedMainStrategyIds 和 recommendedAssistStrategyId 只能引用已有 option id。',
         '不要说系统、AI、模型、评分、内部变量。',
         ...(preset?.outputContractLines || []),
       ],

@@ -45,6 +45,9 @@ export interface ActionAdviceProposal {
   readonly roundDescription: string;
   readonly mainStrategies: readonly ActionAdviceOption[];
   readonly assistStrategies: readonly ActionAdviceOption[];
+  readonly recommendedMainStrategyIds: readonly string[];
+  readonly recommendedAssistStrategyId: string | null;
+  readonly recommendationReason: string;
   readonly roleCue: string;
   readonly stakes: readonly string[];
   readonly confidence: number;
@@ -85,6 +88,11 @@ export function buildFallbackActionScenarioSimulation(request: ActionAdviceReque
     roundDescription: request.round.description || '你自己选话题和态度，对方会按当前局面反应。',
     mainStrategies: request.round.mainStrategies,
     assistStrategies: request.round.assistStrategies,
+    recommendedMainStrategyIds: request.round.mainStrategies
+      .slice(0, request.actionId === 'showing' ? 1 : 2)
+      .map((option) => option.id),
+    recommendedAssistStrategyId: request.round.assistStrategies[0]?.id ?? null,
+    recommendationReason: buildFallbackRecommendationReason(request),
     roleCue: buildFallbackRoleCue(request),
     stakes: buildFallbackStakes(request),
     confidence: 0.58,
@@ -104,14 +112,16 @@ export function buildActionScenarioSimulationPrompt(
     '',
     '重要边界：',
     '1. 必须保留输入选项的 id，不能发明 option id，不能删空 mainStrategies。',
-    '2. 你是在模拟情景，不是在推荐选择；不要告诉玩家应该选哪个。',
-    '3. 不直接结算游戏，不写已成交、已调价、已带看等未发生事实。',
-    '4. 不说“系统/AI/模型/评分/内部变量”。',
-    '5. 文案要像真实房产业务现场：有客户/业主/竞品压力，但不要变成教学说明。',
-    '6. sceneOpening 控制在 70 个中文字符以内；选项 title 控制在 18 个中文字符以内；note 控制在 54 个中文字符以内。',
+    '2. 你需要给出本轮推荐选择，但它只是建议，不直接结算游戏。',
+    '3. recommendedMainStrategyIds 只能从 mainStrategies 里选，最多 2 个；如果 actionId 是 showing，最多 1 个。',
+    '4. recommendedAssistStrategyId 只能从 assistStrategies 里选；没有合适态度时输出 null。',
+    '5. recommendationReason 是一句面向经纪人的业务理由，不要暴露思维链，不说“系统/AI/模型/评分/内部变量”。',
+    '6. 不写已成交、已调价、已带看等未发生事实。',
+    '7. 文案要像真实房产业务现场：有客户/业主/竞品压力，但不要变成教学说明。',
+    '8. sceneOpening 控制在 70 个中文字符以内；选项 title 控制在 18 个中文字符以内；note 控制在 54 个中文字符以内；recommendationReason 控制在 90 个中文字符以内。',
     '',
     '只输出 JSON，格式如下：',
-    '{"sceneTitle":"客户已经在比较同类房","sceneOpening":"罗投资客愿意到场，但会拿隔壁两房一起比；这轮要把现场关注点说清。","roundTitle":"先定看房对象","roundDescription":"不是泛泛约看，先判断谁今天真的值得拉到现场。","mainStrategies":[{"id":"show-customer-a","title":"带罗投资客到场","note":"他已在比较装修和价格，现场要讲清差异。"}],"assistStrategies":[{"id":"steady","title":"不硬推","note":"先留比较空间，避免客户觉得被催。"}],"roleCue":"客户愿意看，但不会马上表态。","stakes":["竞品会影响看后反馈","业主需要当天知道客户反应"],"confidence":0.72}',
+    '{"sceneTitle":"客户已经在比较同类房","sceneOpening":"罗投资客愿意到场，但会拿隔壁两房一起比；这轮要把现场关注点说清。","roundTitle":"先定看房对象","roundDescription":"不是泛泛约看，先判断谁今天真的值得拉到现场。","mainStrategies":[{"id":"show-customer-a","title":"带罗投资客到场","note":"他已在比较装修和价格，现场要讲清差异。"}],"assistStrategies":[{"id":"steady","title":"不硬推","note":"先留比较空间，避免客户觉得被催。"}],"recommendedMainStrategyIds":["show-customer-a"],"recommendedAssistStrategyId":"steady","recommendationReason":"客户已经进入同类房比较，先带最有比较意愿的人到场，再用克制态度留下真实反馈空间。","roleCue":"客户愿意看，但不会马上表态。","stakes":["竞品会影响看后反馈","业主需要当天知道客户反应"],"confidence":0.72}',
     '',
     '输入：',
     JSON.stringify(toVisibleAdviceContext(request), null, 2),
@@ -128,13 +138,32 @@ export function normalizeActionScenarioSimulationProposal(
 ): ActionAdviceProposal {
   const raw = isRecord(proposal) ? proposal : {};
   const fallback = buildFallbackActionScenarioSimulation(request);
+  const mainStrategies = normalizeSimulatedOptions(raw.mainStrategies, request.round.mainStrategies, 4);
+  const assistStrategies = normalizeSimulatedOptions(raw.assistStrategies, request.round.assistStrategies, 4);
+  const normalizedMainStrategies = mainStrategies.length ? mainStrategies : fallback.mainStrategies;
+  const normalizedAssistStrategies = assistStrategies.length ? assistStrategies : fallback.assistStrategies;
+  const mainSelectionLimit = request.actionId === 'showing' ? 1 : 2;
+  const recommendedMainStrategyIds = normalizeRecommendedOptionIds(
+    raw.recommendedMainStrategyIds,
+    normalizedMainStrategies,
+    mainSelectionLimit,
+  );
+  const recommendedAssistStrategyId = normalizeRecommendedOptionId(
+    raw.recommendedAssistStrategyId,
+    normalizedAssistStrategies,
+  );
   const normalized: ActionAdviceProposal = {
     sceneTitle: normalizeString(raw.sceneTitle, 48) || fallback.sceneTitle,
     sceneOpening: normalizeString(raw.sceneOpening, 120) || fallback.sceneOpening,
     roundTitle: normalizeString(raw.roundTitle, 48) || fallback.roundTitle,
     roundDescription: normalizeString(raw.roundDescription, 160) || fallback.roundDescription,
-    mainStrategies: normalizeSimulatedOptions(raw.mainStrategies, request.round.mainStrategies, 4),
-    assistStrategies: normalizeSimulatedOptions(raw.assistStrategies, request.round.assistStrategies, 4),
+    mainStrategies: normalizedMainStrategies,
+    assistStrategies: normalizedAssistStrategies,
+    recommendedMainStrategyIds: recommendedMainStrategyIds.length
+      ? recommendedMainStrategyIds
+      : fallback.recommendedMainStrategyIds.filter((id) => normalizedMainStrategies.some((option) => option.id === id)),
+    recommendedAssistStrategyId: recommendedAssistStrategyId ?? fallback.recommendedAssistStrategyId,
+    recommendationReason: normalizeString(raw.recommendationReason, 150) || fallback.recommendationReason,
     roleCue: normalizeString(raw.roleCue, 96) || fallback.roleCue,
     stakes: normalizeStringArray(raw.stakes, 3, 58),
     confidence: clampNumber(raw.confidence, 0, 1, fallback.confidence),
@@ -142,8 +171,12 @@ export function normalizeActionScenarioSimulationProposal(
 
   return {
     ...normalized,
-    mainStrategies: normalized.mainStrategies.length ? normalized.mainStrategies : fallback.mainStrategies,
-    assistStrategies: normalized.assistStrategies.length ? normalized.assistStrategies : fallback.assistStrategies,
+    recommendedMainStrategyIds: normalized.recommendedMainStrategyIds.length
+      ? normalized.recommendedMainStrategyIds
+      : normalized.mainStrategies.slice(0, mainSelectionLimit).map((option) => option.id),
+    recommendedAssistStrategyId: normalized.assistStrategies.some((option) => option.id === normalized.recommendedAssistStrategyId)
+      ? normalized.recommendedAssistStrategyId
+      : normalized.assistStrategies[0]?.id ?? null,
     stakes: normalized.stakes.length ? normalized.stakes : fallback.stakes,
   };
 }
@@ -238,6 +271,16 @@ function buildFallbackStakes(request: ActionAdviceRequest): string[] {
   return stakes.length ? stakes.slice(0, 3) : ['信息不够时，先别把承诺说满。'];
 }
 
+function buildFallbackRecommendationReason(request: ActionAdviceRequest): string {
+  const firstTopic = request.round.mainStrategies[0]?.title || '最明确的话题';
+  const firstAssist = request.round.assistStrategies[0]?.title;
+  const pressure = buildFallbackStakes(request)[0] || buildFallbackRoleCue(request);
+  return trimSentence(
+    `先抓「${firstTopic}」${firstAssist ? `，态度用「${firstAssist}」` : ''}，因为${pressure.replace(/[。.!！]$/, '')}。`,
+    96,
+  );
+}
+
 function normalizeSimulatedOptions(
   raw: unknown,
   baseOptions: readonly ActionAdviceOption[],
@@ -263,6 +306,32 @@ function normalizeSimulatedOptions(
     : [];
   const missing = baseOptions.filter((option) => !used.has(option.id));
   return [...simulated, ...missing].slice(0, maxItems);
+}
+
+function normalizeRecommendedOptionIds(
+  raw: unknown,
+  options: readonly ActionAdviceOption[],
+  maxItems: number,
+): string[] {
+  if (!Array.isArray(raw)) return [];
+  const validIds = new Set(options.map((option) => option.id));
+  const used = new Set<string>();
+  return raw
+    .map((entry) => normalizeString(entry, 80))
+    .filter((id) => {
+      if (!id || !validIds.has(id) || used.has(id)) return false;
+      used.add(id);
+      return true;
+    })
+    .slice(0, maxItems);
+}
+
+function normalizeRecommendedOptionId(
+  raw: unknown,
+  options: readonly ActionAdviceOption[],
+): string | null {
+  const id = normalizeString(raw, 80);
+  return id && options.some((option) => option.id === id) ? id : null;
 }
 
 function trimSentence(value: string, maxLength: number): string {

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Check, Sparkles } from 'lucide-react';
 import type { GameState, Case, ActionDefinition } from '../../domain/models';
 import { ACTIONS } from '../../domain/actions/definitions';
 import { getActionTemplate, getScenarioMode, getScenarioTemplate, isScenarioAction, isScenarioTemplate } from '../../domain/actions/templates';
@@ -11,6 +12,7 @@ import { NegotiateMatterView } from './matters/NegotiateMatterView';
 import { buildOwnerProfilingMemorySummary } from '../../application/projections/ownerProfilingMemory.js';
 import {
   buildFallbackActionScenarioSimulation,
+  type ActionAdviceOption,
   type ActionAdviceProposal,
   type ActionAdviceRequest,
 } from '../../application/actionDecisionAdvice.js';
@@ -208,6 +210,114 @@ function mergeSimulatedRoundConfig(baseRound: any, simulation: ActionAdvicePropo
   };
 }
 
+interface AiSimulationRecommendation {
+  reason: string;
+  mainOptions: readonly ActionAdviceOption[];
+  assistOption: ActionAdviceOption | null;
+}
+
+function buildAiSimulationRecommendation(
+  simulation: ActionAdviceProposal | null,
+  displayRoundConfig: any,
+  mainSelectionLimit: number,
+): AiSimulationRecommendation | null {
+  if (!simulation || !displayRoundConfig) return null;
+  const mainStrategies: readonly ActionAdviceOption[] = displayRoundConfig.mainStrategies || [];
+  const assistStrategies: readonly ActionAdviceOption[] = displayRoundConfig.assistStrategies || [];
+  if (!mainStrategies.length) return null;
+
+  const mainById = new Map(mainStrategies.map((option) => [option.id, option]));
+  const recommendedMainIds = (simulation.recommendedMainStrategyIds || [])
+    .filter((id) => mainById.has(id))
+    .slice(0, mainSelectionLimit);
+  const fallbackMainIds = mainStrategies.slice(0, mainSelectionLimit).map((option) => option.id);
+  const mainOptions = (recommendedMainIds.length ? recommendedMainIds : fallbackMainIds)
+    .map((id) => mainById.get(id))
+    .filter((option): option is ActionAdviceOption => Boolean(option));
+  if (!mainOptions.length) return null;
+
+  const assistOption = simulation.recommendedAssistStrategyId
+    ? assistStrategies.find((option) => option.id === simulation.recommendedAssistStrategyId) || null
+    : null;
+  const reason = simulation.recommendationReason?.trim()
+    || buildClientRecommendationReason(simulation, mainOptions, assistOption);
+
+  return { reason, mainOptions, assistOption };
+}
+
+function buildClientRecommendationReason(
+  simulation: ActionAdviceProposal,
+  mainOptions: readonly ActionAdviceOption[],
+  assistOption: ActionAdviceOption | null,
+) {
+  const mainText = mainOptions.map((option) => option.title).join('、');
+  const assistText = assistOption ? `，态度用「${assistOption.title}」` : '';
+  const pressure = simulation.stakes[0] || simulation.roleCue || simulation.sceneOpening || '先把真实情况问清楚';
+  return `这轮先抓「${mainText}」${assistText}，因为${pressure.replace(/[。.!！]$/, '')}。`;
+}
+
+function AiSimulationRecommendationPanel({
+  recommendation,
+  loading,
+  applied,
+  onApply,
+}: {
+  recommendation: AiSimulationRecommendation | null;
+  loading: boolean;
+  applied: boolean;
+  onApply: () => void;
+}) {
+  if (!recommendation) return null;
+  const disabled = loading || applied || recommendation.mainOptions.length === 0;
+
+  return (
+    <div className="rounded-[14px] border border-[color:var(--seller-accent)]/18 bg-[rgba(255,255,255,0.025)] px-3.5 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--seller-accent)]">
+              <Sparkles size={12} />
+              AI 模拟建议
+            </span>
+            {loading ? (
+              <span className="text-[10px] font-semibold text-[var(--seller-subtle)]">更新中</span>
+            ) : null}
+          </div>
+          <p className="text-[12px] leading-5 text-[var(--seller-muted)]">
+            {loading ? '正在结合这一轮业主状态、市场压力和可选话题做模拟...' : recommendation.reason}
+          </p>
+          {!loading ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {recommendation.mainOptions.map((option, index) => (
+                <span
+                  key={option.id}
+                  className="rounded-full border border-[color:var(--seller-accent)]/18 bg-[color:var(--seller-accent)]/8 px-2 py-1 text-[10px] font-semibold text-[var(--seller-accent)]"
+                >
+                  {index === 0 ? '主线' : `话题${index + 1}`}：{option.title}
+                </span>
+              ))}
+              {recommendation.assistOption ? (
+                <span className="rounded-full border border-[color:var(--seller-chance)]/18 bg-[var(--seller-chance-soft)] px-2 py-1 text-[10px] font-semibold text-[var(--seller-chance)]">
+                  态度：{recommendation.assistOption.title}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+        <button
+          type="button"
+          onClick={onApply}
+          disabled={disabled}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[color:var(--seller-accent)]/24 px-3 py-1.5 text-[11px] font-bold text-[var(--seller-accent)] transition-colors hover:bg-[var(--seller-accent-soft)] disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          <Check size={12} />
+          {applied ? '已采用' : '采用建议'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ScenarioSimulationPanel({
   simulationState,
 }: {
@@ -375,6 +485,23 @@ export function ActionDecisionOverlay({
   const displayRoundConfig = currentRoundConfig
     ? mergeSimulatedRoundConfig(currentRoundConfig, simulationState.simulation)
     : null;
+  const aiSimulationRecommendation = buildAiSimulationRecommendation(
+    simulationState.simulation,
+    displayRoundConfig,
+    mainSelectionLimit,
+  );
+  const aiSimulationRecommendationApplied = Boolean(
+    aiSimulationRecommendation
+    && selectedMainIds.length === aiSimulationRecommendation.mainOptions.length
+    && aiSimulationRecommendation.mainOptions.every((option, index) => selectedMainIds[index] === option.id)
+    && (selectedAssist || null) === (aiSimulationRecommendation.assistOption?.id ?? null),
+  );
+
+  const applyAiSimulationRecommendation = () => {
+    if (!aiSimulationRecommendation || simulationState.loading || aiSimulationRecommendationApplied) return;
+    setSelectedMainIds(aiSimulationRecommendation.mainOptions.map((option) => option.id));
+    setSelectedAssist(aiSimulationRecommendation.assistOption?.id ?? null);
+  };
 
   const formatMainTopics = (choice: ScenarioChoice) => {
     const baseRound = config.rounds?.[choice.round - 1];
@@ -855,26 +982,34 @@ export function ActionDecisionOverlay({
 
         <div className="border-t border-[var(--seller-border)] p-6 pt-4">
           {phase === 'choosing' && (
-            <div className="flex items-center justify-between">
-              <div className="text-[11px] text-[var(--seller-muted)]">
-                {selectedMainIds.length > 0 ? `已选 ${selectedMainIds.length} 个主要话题` : '请选择主要话题'}
-              </div>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="rounded-full px-5 py-2 text-[12px] font-bold uppercase tracking-[0.12em] text-[var(--seller-muted)] transition-colors hover:text-[var(--seller-ink)]"
-                >
-                  取消
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmChoice}
-                  disabled={!selectedMain || isAnimating}
-                  className="seller-button-primary disabled:opacity-40 rounded-[14px] px-6 py-2.5 text-[13px] font-bold"
-                >
-                  确认选择
-                </button>
+            <div className="space-y-3">
+              <AiSimulationRecommendationPanel
+                recommendation={aiSimulationRecommendation}
+                loading={simulationState.loading}
+                applied={aiSimulationRecommendationApplied}
+                onApply={applyAiSimulationRecommendation}
+              />
+              <div className="flex items-center justify-between gap-4">
+                <div className="text-[11px] text-[var(--seller-muted)]">
+                  {selectedMainIds.length > 0 ? `已选 ${selectedMainIds.length} 个主要话题` : '请选择主要话题'}
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="rounded-full px-5 py-2 text-[12px] font-bold uppercase tracking-[0.12em] text-[var(--seller-muted)] transition-colors hover:text-[var(--seller-ink)]"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmChoice}
+                    disabled={!selectedMain || isAnimating}
+                    className="seller-button-primary disabled:opacity-40 rounded-[14px] px-6 py-2.5 text-[13px] font-bold"
+                  >
+                    确认选择
+                  </button>
+                </div>
               </div>
             </div>
           )}

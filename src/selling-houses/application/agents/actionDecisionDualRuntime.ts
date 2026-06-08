@@ -155,6 +155,16 @@ function validateActionAdviceProposal(
   if (invalidAssist) {
     return { ok: false, reason: `invalid_assist_option:${invalidAssist.id}`, bounded: true };
   }
+  const invalidRecommendedMain = proposal.recommendedMainStrategyIds.find((id) => !validMainIds.has(id));
+  if (invalidRecommendedMain) {
+    return { ok: false, reason: `invalid_recommended_main:${invalidRecommendedMain}`, bounded: true };
+  }
+  if (proposal.recommendedAssistStrategyId && !validAssistIds.has(proposal.recommendedAssistStrategyId)) {
+    return { ok: false, reason: `invalid_recommended_assist:${proposal.recommendedAssistStrategyId}`, bounded: true };
+  }
+  if (!proposal.recommendationReason.trim()) {
+    return { ok: false, reason: 'missing_recommendation_reason', bounded: true };
+  }
   if (proposal.confidence < 0 || proposal.confidence > 1) {
     return { ok: false, reason: 'confidence_out_of_bounds', bounded: true };
   }

@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { buildActionDecisionAgentRuntime } from '../agents/actionDecisionAgentAdapter.js';
 import { buildActionDecisionDualRuntime } from '../agents/actionDecisionDualRuntime.js';
-import type { ActionAdviceRequest } from '../actionDecisionAdvice.js';
+import {
+  buildFallbackActionScenarioSimulation,
+  normalizeActionScenarioSimulationProposal,
+  type ActionAdviceRequest,
+} from '../actionDecisionAdvice.js';
 
 function buildOpenDayRequest(overrides: Partial<ActionAdviceRequest> = {}): ActionAdviceRequest {
   return {
@@ -66,5 +70,66 @@ describe('action decision agent harness', () => {
     expect(dual.observation.replay.durationUs).toBe(980);
     expect(dual.shadowReport.channel).toBe('open_day');
     expect(dual.shadowReport.status).toBe('no-shadow');
+  });
+
+  it('normalizes a visible recommendation onto existing option ids', () => {
+    const request = buildOpenDayRequest();
+    const proposal = normalizeActionScenarioSimulationProposal({
+      sceneTitle: '客户在比较同类房',
+      sceneOpening: '罗投资客会拿隔壁两房一起比，这轮要把现场关注点说清。',
+      roundTitle: '先定看房对象',
+      roundDescription: '先判断谁今天真的值得拉到现场。',
+      mainStrategies: [
+        { id: 'invite-customer-b', title: '邀陪读客', note: '他关注学区和通勤。' },
+        { id: 'invite-customer-a', title: '邀投资客', note: '他会比较装修和价格。' },
+      ],
+      assistStrategies: [
+        { id: 'steady', title: '不硬推', note: '保留比较空间。' },
+      ],
+      recommendedMainStrategyIds: ['invite-customer-a', 'made-up'],
+      recommendedAssistStrategyId: 'steady',
+      recommendationReason: '客户已经进入同类房比较，先约最有比较意愿的人到场，再保留真实反馈空间。',
+      roleCue: '客户愿意看，但不会马上表态。',
+      stakes: ['竞品会影响看后反馈'],
+      confidence: 0.74,
+    }, request);
+
+    expect(proposal.recommendedMainStrategyIds).toEqual(['invite-customer-a']);
+    expect(proposal.recommendedAssistStrategyId).toBe('steady');
+    expect(proposal.recommendationReason).toContain('同类房比较');
+  });
+
+  it('lets a bounded LLM recommendation win the dual runtime', () => {
+    const request = buildOpenDayRequest();
+    const llmProposal = {
+      ...buildFallbackActionScenarioSimulation(request),
+      recommendedMainStrategyIds: ['invite-customer-b'],
+      recommendedAssistStrategyId: 'steady',
+      recommendationReason: '陪读客关注学区和通勤，先把真实到场客户定下来，态度保持克制。',
+      confidence: 0.81,
+    };
+
+    const dual = buildActionDecisionDualRuntime(request, { llmProposal });
+
+    expect(dual.arbiterResult.acceptedSource).toBe('llm');
+    expect(dual.arbiterResult.finalProposal.recommendedMainStrategyIds).toEqual(['invite-customer-b']);
+  });
+
+  it('rejects an LLM recommendation that invents option ids', () => {
+    const request = buildOpenDayRequest();
+    const llmProposal = {
+      ...buildFallbackActionScenarioSimulation(request),
+      recommendedMainStrategyIds: ['not-an-option'],
+      recommendedAssistStrategyId: 'steady',
+      recommendationReason: '错误推荐不应进入前台。',
+      confidence: 0.81,
+    };
+
+    const dual = buildActionDecisionDualRuntime(request, { llmProposal });
+
+    expect(dual.arbiterResult.acceptedSource).toBe('rule');
+    expect(dual.arbiterResult.rejectedReasons).toContain('llm_proposal_validation_failed');
+    expect(dual.arbiterResult.validationNotes).toContain('invalid_recommended_main:not-an-option');
+    expect(dual.arbiterResult.finalProposal.recommendedMainStrategyIds).toEqual(['invite-customer-a', 'invite-customer-b']);
   });
 });
