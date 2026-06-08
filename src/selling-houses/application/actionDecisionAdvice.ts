@@ -369,7 +369,7 @@ function buildHumanEvidenceLine(request: ActionFeedbackRequest): string {
   if (/心理价位|价格锚|价格从哪里|价位来源/.test(evidenceText)) add('心理价位从哪来');
   if (/进展|带看|来访|反馈|客户|热度|邀/.test(evidenceText)) add('这几组客户到底卡在哪里');
   if (/风险|竞品|同类|差异|比较|旁边|外部/.test(evidenceText)) add('旁边同类房怎么抢人');
-  if (/成交|小区|市场|价格|挂牌|调价|价差/.test(evidenceText)) add('同小区成交');
+  if (/成交|小区|市场|价格|挂牌|调价|价差/.test(evidenceText)) add('同小区成交和同小区最近成交');
   if (/房况|装修|卖点|户型|楼层/.test(evidenceText)) add('房子自己的优劣势');
   if (/时间|安排|面访|明天|下午|下一步/.test(evidenceText)) add('下一步什么时候做');
 
