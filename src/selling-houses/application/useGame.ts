@@ -89,7 +89,7 @@ const scenarioCatalogRefreshInFlight = new Map<
   Promise<Awaited<ReturnType<typeof loadScenarioOpeningCatalog>>>
 >();
 
-const WECHAT_AGENT_TIMEOUT_MS = 8000;
+const WECHAT_AGENT_TIMEOUT_MS = 14000;
 
 function dedupeInFlight<T>(cache: Map<string, Promise<T>>, key: string, loader: () => Promise<T>) {
   const existing = cache.get(key);

@@ -32,6 +32,8 @@ import { buildCoachFeedback } from '../../application/conversationCoach.js';
 import { ConversationCoachCard } from './ConversationCoachCard.js';
 import type { IntelLayerTab } from './marketIntel.js';
 import { isOpportunityActiveByCanonicalState } from '../../domain/opportunityLifecycleStatusRead';
+import { fetchMyWechatBrokerReplyDrafts } from '../../infrastructure/myWechatAiClient.js';
+import type { WechatBrokerReplyDraft } from '../../application/projections/myWechatAiDraft.js';
 
 interface MyWechatPanelProps {
   state: GameState;
@@ -918,16 +920,66 @@ const WechatConversationDetail: React.FC<{
   const [sendError, setSendError] = useState<string | null>(null);
   const [fallbackHint, setFallbackHint] = useState(false);
   const [expanded, setExpanded] = useState(true);
+  const [aiDrafts, setAiDrafts] = useState<WechatBrokerReplyDraft[]>([]);
+  const [aiDraftLoading, setAiDraftLoading] = useState(false);
+  const [aiDraftAppliedKey, setAiDraftAppliedKey] = useState('');
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const prevScrollKey = useRef({ key: '', turns: 0 });
   const conversationTurnCount = conversation.messages.reduce((total, message) => total + (message.conversationTurns?.length || 0), 0);
+  const aiDraftMessages = useMemo(
+    () => conversation.messages.filter((message) => !hasConversationHandledMessage(message)).slice(0, 4),
+    [conversation.messages],
+  );
+  const aiDraftRequestKey = `${conversation.key}:${aiDraftMessages.map((message) => message.id).join('|')}`;
+  const activeAiDraft = replyTarget
+    ? aiDrafts.find((draft) => draft.messageId === replyTarget.id) || null
+    : null;
 
   useEffect(() => {
     setDraftText('');
     setSendError(null);
     setSending(false);
     setExpanded(true);
+    setAiDrafts([]);
+    setAiDraftLoading(false);
+    setAiDraftAppliedKey('');
   }, [conversation.key]);
+
+  useEffect(() => {
+    if (aiDraftMessages.length === 0) {
+      setAiDrafts([]);
+      setAiDraftLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    let disposed = false;
+    setAiDraftLoading(true);
+    fetchMyWechatBrokerReplyDrafts(conversation.key, aiDraftMessages, controller.signal)
+      .then((drafts) => {
+        if (disposed) return;
+        setAiDrafts(drafts);
+      })
+      .catch(() => {
+        if (!disposed) setAiDrafts([]);
+      })
+      .finally(() => {
+        if (!disposed) setAiDraftLoading(false);
+      });
+
+    return () => {
+      disposed = true;
+      controller.abort();
+    };
+  }, [aiDraftRequestKey]);
+
+  useEffect(() => {
+    if (!activeAiDraft?.content || !replyTarget) return;
+    const applyKey = `${conversation.key}:${replyTarget.id}:${activeAiDraft.content}`;
+    if (aiDraftAppliedKey === applyKey || draftText.trim()) return;
+    setDraftText(activeAiDraft.content);
+    setAiDraftAppliedKey(applyKey);
+  }, [activeAiDraft, aiDraftAppliedKey, conversation.key, draftText, replyTarget]);
 
   useEffect(() => {
     const node = chatScrollRef.current;
@@ -1153,6 +1205,28 @@ const WechatConversationDetail: React.FC<{
             {sendError && (
               <div className="rounded-[10px] border border-rose-500/20 bg-rose-500/10 px-2.5 py-1.5 text-[10px] leading-4 text-rose-200">
                 {sendError}
+              </div>
+            )}
+
+            {(aiDraftLoading || activeAiDraft) && (
+              <div className="flex items-center justify-between gap-2 rounded-[10px] border border-[color:var(--seller-accent)]/18 bg-[color:var(--seller-accent)]/8 px-2.5 py-1.5">
+                <div className="min-w-0">
+                  <div className="text-[9px] font-semibold text-[var(--seller-accent)]">
+                    {activeAiDraft ? 'AI 草稿' : 'AI 拟稿中'}
+                  </div>
+                  <div className="mt-0.5 truncate text-[10px] leading-4 text-[var(--seller-ink)]/80">
+                    {activeAiDraft?.content || '正在结合这条微信和房源上下文起草回复'}
+                  </div>
+                </div>
+                {activeAiDraft && (
+                  <button
+                    type="button"
+                    onClick={() => setDraftText(activeAiDraft.content)}
+                    className="shrink-0 rounded-[8px] border border-[color:var(--seller-accent)]/22 bg-[color:var(--seller-accent)]/10 px-2 py-1 text-[9px] font-semibold text-[var(--seller-accent)] transition hover:bg-[color:var(--seller-accent)]/16"
+                  >
+                    使用
+                  </button>
+                )}
               </div>
             )}
 
