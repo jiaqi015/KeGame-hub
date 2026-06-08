@@ -247,8 +247,8 @@ export function buildFallbackActionFeedbackProposal(request: ActionFeedbackReque
   const priceGap = typeof request.caseContext?.askPrice === 'number' && typeof request.caseContext?.marketPrice === 'number'
     ? Math.round(request.caseContext.askPrice - request.caseContext.marketPrice)
     : null;
-  const priceLine = priceGap !== null && Math.abs(priceGap) > 0
-    ? `你说和市场价差 ${Math.abs(priceGap)} 万，这个数我不能只听一句话。`
+  const priceLine = priceGap !== null && priceGap > 0
+    ? `你说和市场价差 ${priceGap} 万，这个数我不能只听一句话。`
     : '';
 
   if (request.choice.actor === 'customer') {
@@ -344,6 +344,7 @@ function buildHumanFeedbackLead(request: ActionFeedbackRequest): string {
 
   if (/不错|可以|继续|还行|保持/.test(compact)) return '这周有点动静，我看到了。';
   if (mood === 'negative' || /不满意|着急|担心|风险|不太|算了/.test(compact)) return '我现在还是有点不踏实。';
+  if (/有没有|到底|推没推|在干嘛|干什么/.test(compact)) return '你别急，我听到了。';
   if (/再看看|考虑|想想|等等/.test(compact)) return '我先不急着表态。';
   return compact && compact.length <= 24 ? compact : '我听到了，但还要看依据。';
 }
