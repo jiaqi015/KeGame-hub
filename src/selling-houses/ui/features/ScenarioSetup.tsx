@@ -669,7 +669,7 @@ function WorldBuildLoadingPage({
       data-world-build-loading="true"
       role="status"
       aria-live="polite"
-      className="fixed inset-0 z-[140] flex items-center justify-center bg-[#071018]/96 px-4 backdrop-blur-xl"
+      className="fixed inset-0 z-[140] flex items-start justify-center overflow-y-auto bg-[#071018]/96 px-4 py-4 backdrop-blur-xl sm:items-center"
     >
       <div className="seller-panel-muted w-full max-w-[760px] overflow-hidden rounded-[24px] border border-cyan-400/14 bg-[linear-gradient(180deg,rgba(17,25,35,0.98),rgba(9,16,24,0.98))] shadow-[0_36px_90px_rgba(0,0,0,0.42)]">
         <div className="border-b border-white/8 px-6 py-5">
@@ -743,9 +743,12 @@ function WorldBuildLoadingPage({
 
           <div className="mt-5">
             <div className="mb-2 flex items-center justify-between text-[11px] font-semibold text-white/44">
-              <span>准备中</span>
+              <span>AI 推理中</span>
               <span>约 10 秒</span>
             </div>
+            <p className="mb-3 text-[11px] font-semibold leading-5 text-white/48">
+              正在判断业主急迫度、客户看房意向和竞品分流，再排出今天先找谁、先看哪套。
+            </p>
             <div className="h-2 overflow-hidden rounded-full border border-white/8 bg-white/[0.05]">
               <div className="seller-world-build-progress h-full rounded-full bg-[#49dd85]" />
             </div>
