@@ -487,16 +487,27 @@ function buildConversationWorldContext(
     if (caseItem.viewings > 0 || caseItem.offers > 0) {
       signals.push(`带看 ${caseItem.viewings} 次 · 报价 ${caseItem.offers} 次`);
     }
-    replyAngles.push(buildOwnerReplyAngle(caseItem));
-    replyAngles.push(buildMarketEvidenceReplyAngle(caseItem));
-    if (caseItem.priceGapPct > PRICE_GAP_SIGNIFICANT || caseItem.urgency >= OWNER_URGENCY_HIGH) {
-      replyAngles.push(buildPriceReplyAngle(caseItem));
+    if (conversation.senderRole === 'customer') {
+      replyAngles.push(buildCustomerComparisonReplyAngle(caseItem, opportunity));
+      if (caseItem.priceGapPct > PRICE_GAP_SIGNIFICANT || (opportunity?.priceSensitivity || 0) >= 55) {
+        replyAngles.push(buildCustomerPriceReplyAngle(caseItem, opportunity));
+      }
+    } else {
+      replyAngles.push(buildOwnerReplyAngle(caseItem));
+      replyAngles.push(buildMarketEvidenceReplyAngle(caseItem));
+      if (caseItem.priceGapPct > PRICE_GAP_SIGNIFICANT || caseItem.urgency >= OWNER_URGENCY_HIGH) {
+        replyAngles.push(buildPriceReplyAngle(caseItem));
+      }
     }
   }
 
   if (opportunity) {
     signals.push(describeOpportunityIntentShort(opportunity));
-    replyAngles.push(`我先把${opportunity.customerName}的顾虑和可接受价格问清，再回来给您一个实在判断。`);
+    if (conversation.senderRole === 'customer') {
+      replyAngles.push(buildCustomerNextStepReplyAngle(caseItem, opportunity));
+    } else {
+      replyAngles.push(`我先把${opportunity.customerName}的顾虑和可接受价格问清，再回来给您一个实在判断。`);
+    }
   }
 
   return {
@@ -552,6 +563,32 @@ function buildMarketEvidenceReplyAngle(caseItem: GameState['cases'][number]) {
 
 function buildPriceReplyAngle(caseItem: GameState['cases'][number]) {
   return `价格我不空口劝您动，先用客户反馈和同类成交判断：是守住、微调，还是先换展示打法。`;
+}
+
+function buildCustomerComparisonReplyAngle(
+  caseItem: GameState['cases'][number],
+  opportunity: GameState['opportunities'][number] | null,
+) {
+  const budgetClause = opportunity?.budgetMax ? `、您 ${Math.round(opportunity.budgetMax)} 万预算` : '';
+  return `我先不硬推这套。把${caseItem.community}同类房${budgetClause}和这套的楼层、装修、总价差异放一起比，您再判断值不值得继续看。`;
+}
+
+function buildCustomerPriceReplyAngle(
+  caseItem: GameState['cases'][number],
+  opportunity: GameState['opportunities'][number] | null,
+) {
+  if (opportunity?.budgetMax && opportunity.budgetMax < caseItem.askPrice) {
+    return `您问到预算差距，我先把 ${Math.round(caseItem.askPrice)} 万挂牌和您 ${Math.round(opportunity.budgetMax)} 万预算、同类成交和可谈空间摊开说；能谈再推进，空间不够我也直接告诉您。`;
+  }
+  return `您问到这套值不值，我先把 ${Math.round(caseItem.askPrice)} 万挂牌、同类成交、竞品差异和可谈空间摊开说；性价比对得上再推进，对不上我也直接告诉您。`;
+}
+
+function buildCustomerNextStepReplyAngle(
+  caseItem: GameState['cases'][number] | null,
+  opportunity: GameState['opportunities'][number],
+) {
+  const caseLabel = caseItem ? '这套' : opportunity.customerName;
+  return `我先确认您最卡的是总价、位置还是房况，再把${caseLabel}和备选房摆在一起，比完再约下一步。`;
 }
 
 function dedupeStrings(values: string[]) {
