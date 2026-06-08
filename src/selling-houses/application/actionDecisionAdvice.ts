@@ -1,3 +1,6 @@
+import type { ParticipantSoul } from '../core/world-state/agents/soul.js';
+import type { AgentMemoryFact } from '../core/world-state/agents/models.js';
+
 export interface ActionAdviceOption {
   readonly id: string;
   readonly title: string;
@@ -68,6 +71,12 @@ export interface ActionFeedbackRequest extends ActionAdviceRequest {
 export interface ActionFeedbackProposal {
   readonly message: string;
   readonly confidence: number;
+}
+
+export interface ActionFeedbackNormalizationResult {
+  readonly proposal: ActionFeedbackProposal;
+  readonly acceptedSource: 'llm' | 'fallback';
+  readonly rejectionReasons: readonly string[];
 }
 
 export function normalizeActionAdviceRequest(input: unknown): ActionAdviceRequest | null {
@@ -162,6 +171,7 @@ export function buildActionFeedbackPrompt(
   request: ActionFeedbackRequest,
   agentPromptLines: readonly string[] = [],
 ): string {
+  const roleSpeechContract = buildRoleSpeechContract(request);
   return [
     '你是上海二手房经纪经营模拟里的角色反馈 writer。',
     '你只做一件事：根据经纪人本轮实际选择，生成对方的一段真实反馈原话。',
@@ -179,8 +189,44 @@ export function buildActionFeedbackPrompt(
     '7. 不说“系统/AI/模型/评分/内部变量”。',
     '8. 可以保留犹豫、防御、追问和条件，但要像真实业主/客户会说的话。',
     '',
+    '角色口吻合同：',
+    ...roleSpeechContract.promptLines,
+    '',
     '只输出 JSON，格式如下：',
-    '{"message":"\\"这周有点动静我看到了，但别只跟我说感觉不错。同小区最近成交、客户到底卡在哪、旁边那套怎么抢人，你给我摊开；要是证据真对得上，我再跟家里商量。\\"","confidence":0.76}',
+    getFeedbackJsonExample(request.choice.actor),
+    '',
+    '输入：',
+    JSON.stringify(toVisibleFeedbackContext(request), null, 2),
+  ].join('\n');
+}
+
+export function buildActionFeedbackRepairPrompt(
+  request: ActionFeedbackRequest,
+  rejectedOutput: string,
+  rejectionReasons: readonly string[],
+  agentPromptLines: readonly string[] = [],
+): string {
+  const roleSpeechContract = buildRoleSpeechContract(request);
+  return [
+    '你是上海二手房经纪经营模拟里的角色反馈修复 writer。',
+    '上一版不可用。你要保留经纪人本轮选择和角色情绪，但重写成自然的角色原话。',
+    '',
+    '底层 agent 档案：',
+    ...(agentPromptLines.length ? agentPromptLines : ['暂无额外 agent 档案。']),
+    '',
+    '上一版不可用的原因：',
+    ...(rejectionReasons.length ? rejectionReasons : ['角色原话不够自然。']),
+    '',
+    '上一版输出：',
+    rejectedOutput.slice(0, 520),
+    '',
+    '角色口吻合同：',
+    ...roleSpeechContract.promptLines,
+    '',
+    '硬性边界：只输出 JSON；不要解释；不要沿用上一版中的禁用词；message 只能是角色原话，2 到 4 个短句，60 到 150 个中文字符。',
+    '',
+    '只输出 JSON，格式如下：',
+    getFeedbackJsonExample(request.choice.actor),
     '',
     '输入：',
     JSON.stringify(toVisibleFeedbackContext(request), null, 2),
@@ -240,7 +286,85 @@ export function normalizeActionScenarioSimulationProposal(
   };
 }
 
-export function buildFallbackActionFeedbackProposal(request: ActionFeedbackRequest): ActionFeedbackProposal {
+function getFeedbackJsonExample(actor: ActionFeedbackChoice['actor']): string {
+  if (actor === 'customer') {
+    return '{"message":"\\"我不是不看，就是还没想定。最近那套成交条件、旁边同类房差在哪，你直接摊开说；价格和房况对得上，我就继续看。\\"","confidence":0.76}';
+  }
+  if (actor === 'market') {
+    return '{"message":"\\"这轮市场信号还不算稳。客户愿不愿继续看、旁边同类房有没有分流、价格差距怎么收窄，后面两天会看得更清楚。\\"","confidence":0.72}';
+  }
+  return '{"message":"\\"这周有点动静我看到了，但别只跟我说感觉不错。同小区最近成交、客户到底卡在哪、旁边那套怎么抢人，你给我摊开；要是证据真对得上，我再跟家里商量。\\"","confidence":0.76}';
+}
+
+function buildRoleSpeechContract(request: ActionFeedbackRequest) {
+  if (request.choice.actor === 'customer') {
+    return {
+      speaker: 'buyer_customer',
+      promptLines: [
+        '1. 你是买方客户本人，不是经纪人、不是复盘者、不是业主。',
+        '2. 只能谈自己的继续看房/出价顾虑：价格、房况、楼层装修、同类房差异、最近成交条件、谈价空间。',
+        '3. 不要说“这几组客户”“客户到底卡在哪里”“客户反馈”；客户不会把自己说成客户群体。',
+        '4. 不要说“你把差异摆清”“你需要”“本轮选择”“选项”；可以说“你直接摊开说”“我还想再比一下”。',
+        '5. 语气像微信里犹豫但愿意继续沟通的买方，别像评价经纪人方案的清单。',
+      ],
+      bannedPhrases: [
+        '这几组客户',
+        '客户到底卡在哪里',
+        '客户反馈',
+        '你把差异摆清',
+        '同小区成交和同小区最近成交',
+        '本轮选择',
+      ],
+      allowedConcerns: [
+        '最近成交是什么条件',
+        '旁边同类房差在哪',
+        '这套价格和房况值不值',
+        '下一步还要不要继续看',
+      ],
+    };
+  }
+
+  if (request.choice.actor === 'market') {
+    return {
+      speaker: 'market_signal',
+      promptLines: [
+        '1. 你是市场反馈信号，不用第一人称撒娇，也不要像系统评分。',
+        '2. 可以客观说客户反馈、竞品分流、价格差距和后续执行质量。',
+        '3. 不要写“系统/评分/模型/本轮选择”，不要结算未发生的成交。',
+      ],
+      bannedPhrases: ['系统', '评分', '模型', '本轮选择'],
+      allowedConcerns: ['客户反馈', '竞品变化', '价格差距', '执行质量'],
+    };
+  }
+
+  return {
+    speaker: 'owner',
+    promptLines: [
+      '1. 你是业主本人，正在判断经纪人有没有真的推进这套房。',
+      '2. 可以追问客户到底卡在哪、同小区最近成交、旁边同类房怎么抢人、下一步怎么安排。',
+      '3. 不要像内部复盘，不要照抄按钮标题，不要说“本轮选择/选项”。',
+      '4. 语气可以着急、防御、半信半疑，但必须像微信原话。',
+    ],
+    bannedPhrases: ['本轮选择', '选项', '你把 XX 讲清楚'],
+    allowedConcerns: ['客户到底卡在哪', '同小区最近成交', '旁边同类房怎么抢人', '下一步安排'],
+  };
+}
+
+export interface ActionFeedbackWorldContext {
+  readonly soul?: ParticipantSoul;
+  readonly memory?: readonly AgentMemoryFact[];
+  readonly worldContext?: {
+    readonly rivalListings?: readonly { readonly id: string; readonly status: string; readonly price: number; readonly community: string }[];
+    readonly marketSignals?: readonly { readonly type: string; readonly day: number; readonly detail: string }[];
+    readonly marketSentiment?: 'positive' | 'neutral' | 'negative';
+    readonly recentDeals?: readonly { readonly community: string; readonly price: number; readonly day: number }[];
+  };
+}
+
+export function buildFallbackActionFeedbackProposal(
+  request: ActionFeedbackRequest,
+  worldContext?: ActionFeedbackWorldContext,
+): ActionFeedbackProposal {
   const base = buildHumanFeedbackLead(request);
   const evidenceLine = buildHumanEvidenceLine(request);
   const assistLine = buildHumanAssistLine(request);
@@ -256,13 +380,22 @@ export function buildFallbackActionFeedbackProposal(request: ActionFeedbackReque
   const isHighUrgency = urgency >= 70;
   const isLowTrust = trust < 40;
 
+  // Soul-aware personality line
+  const personalityLine = buildSoulPersonalityLine(worldContext?.soul);
+
+  // Memory-aware reference line
+  const memoryLine = buildMemoryReferenceLine(worldContext?.memory);
+
+  // World-aware rival line
+  const rivalLine = buildRivalReferenceLine(worldContext?.worldContext);
+
   if (request.choice.actor === 'customer') {
     return {
       message: ensureFeedbackQuote(trimSentence(
         joinFeedbackSentences([
           base,
-          `我不是不看${evidenceLine}，但别只说这套不错。`,
-          assistLine || '你把差异摆清，我再决定要不要继续看。',
+          `我不是不看${evidenceLine}，但别只说这套不错，我要看真实数据。`,
+          assistLine || '你把差异摆清，价格和房况对得上，我再决定要不要继续看。',
         ]),
         170,
       )),
@@ -298,8 +431,11 @@ export function buildFallbackActionFeedbackProposal(request: ActionFeedbackReque
         priceLine,
         assistLine || '我看明白了再跟家里商量，不想现在凭感觉动。',
         pressureLine,
+        personalityLine,
+        memoryLine,
+        rivalLine,
       ]),
-      180,
+      200,
     )),
     confidence: 0.58,
   };
@@ -309,24 +445,43 @@ export function normalizeActionFeedbackProposal(
   proposal: unknown,
   request: ActionFeedbackRequest,
 ): ActionFeedbackProposal {
+  return normalizeActionFeedbackProposalResult(proposal, request).proposal;
+}
+
+export function normalizeActionFeedbackProposalResult(
+  proposal: unknown,
+  request: ActionFeedbackRequest,
+): ActionFeedbackNormalizationResult {
   const raw = isRecord(proposal) ? proposal : {};
   const fallback = buildFallbackActionFeedbackProposal(request);
   const message = normalizeString(raw.message, 240);
-  const usableMessage = isHumanFeedbackMessageUsable(message, request)
+  const rejectionReasons = getHumanFeedbackRejectionReasons(message, request);
+  const usableMessage = rejectionReasons.length === 0
     ? ensureFeedbackQuote(message)
     : fallback.message;
   return {
-    message: usableMessage,
-    confidence: clampNumber(raw.confidence, 0, 1, fallback.confidence),
+    proposal: {
+      message: usableMessage,
+      confidence: clampNumber(raw.confidence, 0, 1, fallback.confidence),
+    },
+    acceptedSource: rejectionReasons.length === 0 ? 'llm' : 'fallback',
+    rejectionReasons,
   };
 }
 
-function isHumanFeedbackMessageUsable(message: string, request: ActionFeedbackRequest): boolean {
+function getHumanFeedbackRejectionReasons(message: string, request: ActionFeedbackRequest): string[] {
+  const reasons: string[] = [];
   const visible = stripFeedbackQuotes(message).replace(/\s+/g, '');
-  if (visible.length < 48) return false;
-  if (/系统|AI|模型|评分|内部变量|本轮选择|主话题|option/i.test(visible)) return false;
-  if (/你把.+讲清楚/.test(visible)) return false;
-  if (/我主要想看/.test(visible)) return false;
+  if (visible.length < 48) reasons.push('too_short');
+  if (/系统|AI|模型|评分|内部变量|本轮选择|主话题|option|选项/i.test(visible)) reasons.push('mentions_internal_terms');
+  if (/你把.+讲清楚/.test(visible)) reasons.push('broker_review_tone');
+  if (/你把.+摆清/.test(visible)) reasons.push('checklist_instruction_tone');
+  if (/你把.+列出来/.test(visible)) reasons.push('checklist_instruction_tone');
+  if (/我主要想看/.test(visible)) reasons.push('checklist_lead');
+  if (/同小区成交和同小区最近成交/.test(visible)) reasons.push('duplicated_evidence_phrase');
+  if (request.choice.actor === 'customer' && /这几组客户|客户到底卡在哪里|客户到底卡在哪|客户反馈/.test(visible)) {
+    reasons.push('customer_speaks_about_customer_group');
+  }
 
   const selectedTitles = [
     ...resolveSelectedMainOptions(request).map((option) => option.title),
@@ -335,7 +490,11 @@ function isHumanFeedbackMessageUsable(message: string, request: ActionFeedbackRe
       : '',
   ].filter((title): title is string => Boolean(title));
 
-  return !selectedTitles.some((title) => title.length >= 4 && visible.includes(title));
+  if (selectedTitles.some((title) => title.length >= 4 && visible.includes(title))) {
+    reasons.push('copied_option_label');
+  }
+
+  return Array.from(new Set(reasons));
 }
 
 function buildHumanFeedbackLead(request: ActionFeedbackRequest): string {
@@ -347,6 +506,7 @@ function buildHumanFeedbackLead(request: ActionFeedbackRequest): string {
   if (actor === 'customer') {
     if (/不错|可以|继续|还行|有兴趣/.test(compact)) return '这套我还愿意继续看。';
     if (mood === 'negative' || /犹豫|算了|不太|担心|再看看/.test(compact)) return '我现在还是有点犹豫。';
+    if (/明白.*想想|让我再想想|再想想|考虑/.test(compact)) return '我不是不看，就是还没想定。';
     return compact && compact.length <= 22 ? compact : '我先听你怎么说。';
   }
 
@@ -381,15 +541,29 @@ function buildHumanEvidenceLine(request: ActionFeedbackRequest): string {
     if (!needs.includes(value)) needs.push(value);
   };
 
-  if (/心理价位|价格锚|价格从哪里|价位来源/.test(evidenceText)) add('心理价位从哪来');
-  if (/进展|带看|来访|反馈|客户|热度|邀/.test(evidenceText)) add('这几组客户到底卡在哪里');
-  if (/风险|竞品|同类|差异|比较|旁边|外部/.test(evidenceText)) add('旁边同类房怎么抢人');
-  if (/成交|小区|市场|价格|挂牌|调价|价差/.test(evidenceText)) add('同小区成交和同小区最近成交');
-  if (/房况|装修|卖点|户型|楼层/.test(evidenceText)) add('房子自己的优劣势');
-  if (/时间|安排|面访|明天|下午|下一步/.test(evidenceText)) add('下一步什么时候做');
+  if (request.choice.actor === 'customer') {
+    if (/成交|小区|市场|价格|挂牌|调价|价差|谈价|价格空间/.test(evidenceText)) add('最近成交是什么条件');
+    if (/风险|竞品|同类|差异|比较|旁边|外部/.test(evidenceText)) add('旁边同类房差在哪');
+    if (/房况|装修|卖点|户型|楼层/.test(evidenceText)) add('这套房子自己的优劣势');
+    if (/心理价位|价格锚|价格从哪里|价位来源/.test(evidenceText)) add('这个价到底怎么来的');
+    if (/时间|安排|面访|明天|下午|下一步|继续/.test(evidenceText)) add('下一步怎么继续看');
+  } else if (request.choice.actor === 'market') {
+    if (/进展|带看|来访|反馈|客户|热度|邀/.test(evidenceText)) add('客户反馈是否接得上');
+    if (/风险|竞品|同类|差异|比较|旁边|外部/.test(evidenceText)) add('竞品分流有没有变');
+    if (/成交|小区|市场|价格|挂牌|调价|价差/.test(evidenceText)) add('价格差距有没有收窄');
+    if (/房况|装修|卖点|户型|楼层/.test(evidenceText)) add('房源卖点是否被看见');
+    if (/时间|安排|面访|明天|下午|下一步/.test(evidenceText)) add('后续执行质量');
+  } else {
+    if (/心理价位|价格锚|价格从哪里|价位来源/.test(evidenceText)) add('心理价位从哪来');
+    if (/进展|带看|来访|反馈|客户|热度|邀/.test(evidenceText)) add('客户到底卡在哪');
+    if (/风险|竞品|同类|差异|比较|旁边|外部/.test(evidenceText)) add('旁边同类房怎么抢人');
+    if (/成交|小区|市场|价格|挂牌|调价|价差/.test(evidenceText)) add('同小区最近成交');
+    if (/房况|装修|卖点|户型|楼层/.test(evidenceText)) add('房子自己的优劣势');
+    if (/时间|安排|面访|明天|下午|下一步/.test(evidenceText)) add('下一步什么时候做');
+  }
 
   if (needs.length === 0) {
-    if (request.choice.actor === 'customer') return '价格、房况和同类选择';
+    if (request.choice.actor === 'customer') return '价格、房况和旁边同类房';
     if (request.choice.actor === 'market') return '客户反馈、竞品变化和执行质量';
     return '客户真实反馈、同类房比较和下一步安排';
   }
@@ -417,6 +591,81 @@ function joinFeedbackSentences(parts: readonly string[]) {
     .filter(Boolean)
     .map((part) => /[。！？.!?]$/.test(part) ? part : `${part}。`)
     .join('');
+}
+
+// ---------------------------------------------------------------------------
+// Soul-aware helper functions
+// ---------------------------------------------------------------------------
+
+function buildSoulPersonalityLine(soul: ParticipantSoul | undefined): string {
+  if (!soul) return '';
+
+  const assertiveness = soul.basePersonality.assertiveness;
+  const trust = soul.emotionalState.trust;
+  const trustTrend = soul.emotionalArc.trustTrend;
+  const consecutiveNegative = soul.emotionalArc.consecutiveNegative;
+
+  // Assertive owners push back harder
+  if (assertiveness >= 70) {
+    return '你别跟我绕，直接说重点。';
+  }
+
+  // Low trust owners are skeptical (check before personality label)
+  if (trust < 40 || trustTrend === 'falling' || consecutiveNegative >= 2) {
+    return '我之前信你，但现在有点动摇了。';
+  }
+
+  // High trust owners are more cooperative
+  if (trust >= 70 || trustTrend === 'rising') {
+    return '你最近说的我听进去了，继续。';
+  }
+
+  // Anxious owners express worry (only if trust is moderate)
+  if (soul.ownerProfileLabel.includes('焦虑') || soul.emotionalState.urgency >= 75) {
+    return '我心里不踏实，你给我一个明确说法。';
+  }
+
+  return '';
+}
+
+function buildMemoryReferenceLine(memory: readonly AgentMemoryFact[] | undefined): string {
+  if (!memory || memory.length === 0) return '';
+
+  // Look for relevant memory facts
+  const priceMemory = memory.find((f) => f.kind === 'price_commitment');
+  const customerMemory = memory.find((f) => f.kind === 'recent_interaction' && /客户|反馈|看房/.test(f.summary));
+  const riskMemory = memory.find((f) => f.kind === 'open_risk');
+
+  if (priceMemory) {
+    return '上次说的价格我记着呢。';
+  }
+  if (customerMemory) {
+    return '你之前说的客户情况我还没忘。';
+  }
+  if (riskMemory) {
+    return '之前的风险你还没给我讲清楚。';
+  }
+
+  return '';
+}
+
+function buildRivalReferenceLine(worldContext: ActionFeedbackWorldContext['worldContext']): string {
+  if (!worldContext) return '';
+
+  const activeRivals = worldContext.rivalListings?.filter((r) => r.status === 'active') || [];
+  const recentCuts = worldContext.marketSignals?.filter((s) => s.type === 'competitor_cut') || [];
+
+  if (activeRivals.length > 0 && recentCuts.length > 0) {
+    return '旁边竞品都在动，你给我看清楚我们差在哪。';
+  }
+  if (activeRivals.length > 0) {
+    return '旁边那几套你也给我对比一下。';
+  }
+  if (worldContext.marketSentiment === 'negative') {
+    return '市场不太好，你给我一个说法。';
+  }
+
+  return '';
 }
 
 function normalizeRound(raw: unknown): ActionAdviceRound | null {
@@ -527,6 +776,7 @@ function toVisibleAdviceContext(request: ActionAdviceRequest) {
 function toVisibleFeedbackContext(request: ActionFeedbackRequest) {
   return {
     ...toVisibleAdviceContext(request),
+    roleSpeechContract: buildRoleSpeechContract(request),
     choice: {
       mainStrategies: resolveSelectedMainOptions(request),
       assistStrategy: request.choice.assistStrategyId

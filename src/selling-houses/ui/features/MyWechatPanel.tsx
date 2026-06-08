@@ -1141,7 +1141,8 @@ const WechatConversationDetail: React.FC<{
                 rows={1}
                 placeholder={replyTarget ? `回复 ${displayName}` : '暂无可回复消息'}
                 title="回车发送，Shift+Enter 换行"
-                className="seller-wechat-input h-10 max-h-[88px] flex-1 resize-none rounded-full border border-[var(--seller-border)] px-3.5 py-2.5 text-[12px] leading-5 text-[var(--seller-ink)] outline-none transition placeholder:text-[var(--seller-subtle)] focus:border-[color:var(--seller-accent)]/50 disabled:opacity-60"
+                style={{ fontSize: '8.5px', lineHeight: '16px' }}
+                className="seller-wechat-input h-10 max-h-[88px] flex-1 resize-none rounded-full border border-[var(--seller-border)] px-3.5 py-2.5 text-[var(--seller-ink)] outline-none transition placeholder:text-[var(--seller-subtle)] focus:border-[color:var(--seller-accent)]/50 disabled:opacity-60"
               />
               <button
                 type="submit"
