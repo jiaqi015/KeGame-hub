@@ -54,7 +54,7 @@ export async function handleDailyStory(
       throw new Error(llmResponse.result || 'DeepSeek 日结故事生成失败。');
     }
 
-    const rawOutput = parseLlmResponse(llmResponse.result);
+    const rawOutput = sanitizeDailyStoryLanguage(parseLlmResponse(llmResponse.result));
 
     const normalized = normalizeDailyCityStory(rawOutput, pack);
     const criticalErrors = normalized.validationNotes.filter(n => n.startsWith('forbidden_words') || n.startsWith('too_few'));
@@ -185,4 +185,38 @@ function parseLlmResponse(response: string): unknown {
     }
     return null;
   }
+}
+
+const STORY_SAFE_REPLACEMENTS: Array<[RegExp, string]> = [
+  [/锚点/g, '参考依据'],
+  [/盘面/g, '局面'],
+  [/闭环/g, '接上'],
+  [/抓手/g, '动作'],
+  [/主矛盾/g, '主要问题'],
+  [/画像/g, '状态'],
+  [/打卡/g, '记录'],
+];
+
+function sanitizeDailyStoryLanguage(input: unknown): unknown {
+  if (typeof input === 'string') {
+    return STORY_SAFE_REPLACEMENTS.reduce(
+      (text, [pattern, replacement]) => text.replace(pattern, replacement),
+      input,
+    );
+  }
+
+  if (Array.isArray(input)) {
+    return input.map(sanitizeDailyStoryLanguage);
+  }
+
+  if (input && typeof input === 'object') {
+    return Object.fromEntries(
+      Object.entries(input as Record<string, unknown>).map(([key, value]) => [
+        key,
+        sanitizeDailyStoryLanguage(value),
+      ]),
+    );
+  }
+
+  return input;
 }
