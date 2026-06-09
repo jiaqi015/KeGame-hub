@@ -40,9 +40,15 @@ export async function handleScenarioOpeningStory(
   try {
     const response = await callDeepSeekChat(buildStoryMessages(briefing), model, {
       responseFormat: 'json_object',
-      temperature: 0.45,
+      thinking: 'disabled',
+      temperature: 0.35,
+      maxTokens: 520,
     });
-    const parsed = parseLlmResponse(typeof response === 'string' ? response : JSON.stringify(response));
+    if (response.status !== 'completed') {
+      throw new Error(response.result || 'DeepSeek 开场故事生成失败。');
+    }
+
+    const parsed = parseLlmResponse(response.result);
     const story = normalizeScenarioOpeningStory(parsed, briefing);
     return {
       status: 200,

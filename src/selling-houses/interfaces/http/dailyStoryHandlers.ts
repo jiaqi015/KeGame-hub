@@ -46,9 +46,15 @@ export async function handleDailyStory(
     const messages = buildStoryMessages(pack, playerProfile);
     const llmResponse = await callDeepSeekChat(messages, model, {
       responseFormat: 'json_object',
+      thinking: 'disabled',
       temperature: 0.35,
+      maxTokens: 1200,
     });
-    const rawOutput = parseLlmResponse(typeof llmResponse === 'string' ? llmResponse : JSON.stringify(llmResponse));
+    if (llmResponse.status !== 'completed') {
+      throw new Error(llmResponse.result || 'DeepSeek 日结故事生成失败。');
+    }
+
+    const rawOutput = parseLlmResponse(llmResponse.result);
 
     const normalized = normalizeDailyCityStory(rawOutput, pack);
     const criticalErrors = normalized.validationNotes.filter(n => n.startsWith('forbidden_words') || n.startsWith('too_few'));

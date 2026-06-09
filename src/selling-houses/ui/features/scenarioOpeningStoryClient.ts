@@ -1,5 +1,8 @@
 import type { ScenarioOpeningBriefing, ScenarioOpeningStory } from '../../application/scenarioOpening';
 
+const ACTIVATION_STORAGE_KEY = 'sabrina-activation-key';
+const ACTIVATION_HEADER_NAME = 'x-activation-key';
+
 export interface ScenarioOpeningStoryClientResult {
   story: ScenarioOpeningStory;
   source: 'ai' | 'fallback';
@@ -12,7 +15,7 @@ export async function fetchScenarioOpeningStory(
   try {
     const response = await fetch('/api/scenario-opening-story', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: buildHeaders(),
       body: JSON.stringify({ briefing }),
     });
 
@@ -37,4 +40,15 @@ export async function fetchScenarioOpeningStory(
       error: error instanceof Error ? error.message : 'unknown_error',
     };
   }
+}
+
+function buildHeaders() {
+  const headers = new Headers({ 'Content-Type': 'application/json' });
+  if (typeof window !== 'undefined') {
+    const activationKey = window.localStorage.getItem(ACTIVATION_STORAGE_KEY)?.trim();
+    if (activationKey) {
+      headers.set(ACTIVATION_HEADER_NAME, activationKey);
+    }
+  }
+  return headers;
 }

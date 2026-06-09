@@ -65,8 +65,17 @@ export async function handleAiArrangement(
 
   try {
     const prompt = buildPrompt(pack);
-    const llmResponse = await callDeepSeekChat([{ role: 'user', content: prompt }], model);
-    const parsed = parseLlmResponse(typeof llmResponse === 'string' ? llmResponse : JSON.stringify(llmResponse));
+    const llmResponse = await callDeepSeekChat([{ role: 'user', content: prompt }], model, {
+      responseFormat: 'json_object',
+      thinking: 'disabled',
+      temperature: 0.3,
+      maxTokens: 700,
+    });
+    if (llmResponse.status !== 'completed') {
+      throw new Error(llmResponse.result || 'DeepSeek AI 安排生成失败。');
+    }
+
+    const parsed = parseLlmResponse(llmResponse.result);
     const normalized = normalizeAiArrangementProposal(parsed, pack);
 
     const dual = buildAiArrangementDualRuntime(pack, {

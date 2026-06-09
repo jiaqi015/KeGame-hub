@@ -6,6 +6,9 @@ import {
   type AiArrangementProposalSource,
 } from './aiArrangement.js';
 
+const ACTIVATION_STORAGE_KEY = 'sabrina-activation-key';
+const ACTIVATION_HEADER_NAME = 'x-activation-key';
+
 export interface AiArrangementClientResult {
   proposal: AiArrangementProposal;
   source: 'ai' | 'fallback';
@@ -58,7 +61,7 @@ export async function fetchAiArrangementProposal(
   try {
     const response = await fetch('/api/ai-arrangement', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: buildHeaders(),
       body: JSON.stringify({
         day: state.day,
         currentSlot,
@@ -100,4 +103,15 @@ export async function fetchAiArrangementProposal(
       error instanceof Error ? error.message : 'unknown_error',
     );
   }
+}
+
+function buildHeaders() {
+  const headers = new Headers({ 'Content-Type': 'application/json' });
+  if (typeof window !== 'undefined') {
+    const activationKey = window.localStorage.getItem(ACTIVATION_STORAGE_KEY)?.trim();
+    if (activationKey) {
+      headers.set(ACTIVATION_HEADER_NAME, activationKey);
+    }
+  }
+  return headers;
 }
