@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>世界模型 · 架构概览</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Noto Sans SC", "PingFang SC", system-ui, sans-serif;
+    background: #0a0f18;
+    color: #c8c4b8;
+    line-height: 1.6;
+    padding: 48px 24px 80px;
+  }
+  h1 {
+    text-align: center;
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: #e8e4d8;
+    margin-bottom: 4px;
+  }
+  .subtitle {
+    text-align: center;
+    font-size: 13px;
+    color: rgba(200,196,184,0.4);
+    margin-bottom: 48px;
+  }
+
+  /* Three layer hero */
+  .hero-layers {
+    display: flex;
+    gap: 12px;
+    max-width: 880px;
+    margin: 0 auto 56px;
+    flex-wrap: wrap;
+  }
+  .hero-layer {
+    flex: 1;
+    min-width: 180px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 14px;
+    padding: 24px 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-layer::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .hero-layer.world::before { background: linear-gradient(90deg, #3dd68c, #52cce0); }
+  .hero-layer.pov::before   { background: linear-gradient(90deg, #d4a030, #f0b030); }
+  .hero-layer.data::before  { background: linear-gradient(90deg, #52cce0, #8090ff); }
+  .hero-layer .layer-num {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    margin-bottom: 8px;
+  }
+  .hero-layer.world .layer-num { color: #3dd68c; }
+  .hero-layer.pov   .layer-num { color: #d4a030; }
+  .hero-layer.data  .layer-num { color: #52cce0; }
+  .hero-layer h2 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #e8e4d8;
+    margin-bottom: 8px;
+  }
+  .hero-layer .desc {
+    font-size: 12px;
+    color: rgba(200,196,184,0.5);
+    line-height: 1.7;
+  }
+  .hero-layer .items {
+    margin-top: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .pill {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 5px;
+    background: rgba(255,255,255,0.05);
+    color: rgba(200,196,184,0.45);
+  }
+
+  /* Sections */
+  .section {
+    max-width: 880px;
+    margin: 0 auto 48px;
+  }
+  .section-title {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: rgba(200,196,184,0.35);
+    margin-bottom: 14px;
+  }
+
+  .chain {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    font-size: 12px;
+  }
+  .chain-node {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 20px;
+    padding: 6px 14px;
+    white-space: nowrap;
+    font-weight: 600;
+    color: #d4d0c4;
+  }
+  .chain-arrow { color: rgba(255,255,255,0.18); font-weight: 300; }
+  .chain-node.term { border-color: rgba(61,214,140,0.35); color: #3dd68c; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .card {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .card h3 {
+    font-size: 12px;
+    font-weight: 700;
+    color: #d4d0c4;
+    margin-bottom: 6px;
+  }
+  .card p, .card li {
+    font-size: 11px;
+    color: rgba(200,196,184,0.5);
+    line-height: 1.7;
+  }
+  .card ul { list-style: none; padding: 0; }
+  .card li::before { content: '— '; color: rgba(255,255,255,0.15); }
+
+  .flow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .flow-step {
+    padding: 5px 10px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.04);
+    color: rgba(200,196,184,0.6);
+    white-space: nowrap;
+  }
+  .flow-arrow { color: rgba(255,255,255,0.15); }
+
+  .tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 4px;
+    margin: 2px;
+    background: rgba(255,255,255,0.05);
+    color: rgba(200,196,184,0.5);
+  }
+
+  .footnote {
+    text-align: center;
+    font-size: 11px;
+    color: rgba(200,196,184,0.2);
+    margin-top: 48px;
+  }
+
+  @media (max-width: 640px) {
+    .hero-layers { flex-direction: column; }
+    .grid-2 { grid-template-columns: 1fr; }
+    .chain { font-size: 10px; }
+    .chain-node { padding: 4px 10px; }
+  }
+</style>
+</head>
+<body>
+
+<h1>世界模型</h1>
+<div class="subtitle">Selling Houses · 世界模型 · POV引擎 · 数据对接</div>
+
+<!-- Three Layers -->
+<div class="hero-layers">
+  <div class="hero-layer world">
+    <div class="layer-num">LAYER 1</div>
+    <h2>世界模型</h2>
+    <p class="desc">一台自主运转的因果机器。八阶段时钟每日推进，环境→竞品→供给→需求→业主感知→机会压力→推荐→压缩，确定性随机保证同种同果。</p>
+    <div class="items">
+      <span class="pill">8-phase clock</span>
+      <span class="pill">PriceTrajectory</span>
+      <span class="pill">Consensus</span>
+      <span class="pill">ContractFact</span>
+      <span class="pill">32-step engine</span>
+    </div>
+  </div>
+  <div class="hero-layer pov">
+    <div class="layer-num">LAYER 2</div>
+    <h2>POV 引擎</h2>
+    <p class="desc">经纪人、业主、客户各有视角。边界守卫禁止越权读取，Agent 输出只是提案，经裁决器·影子对比·守卫管道三重过滤后才成为行动。</p>
+    <div class="items">
+      <span class="pill">Arbiter</span>
+      <span class="pill">ShadowReport</span>
+      <span class="pill">GuardPipeline</span>
+      <span class="pill">BrokerPOV</span>
+      <span class="pill">OwnerPOV</span>
+    </div>
+  </div>
+  <div class="hero-layer data">
+    <div class="layer-num">LAYER 3</div>
+    <h2>数据对接</h2>
+    <p class="desc">二十余条投影线将世界状态转化为各端可消费视图。读写严格分道，规范源唯一，真理封印不下放。营收·排行榜·世界图·微信对话无缝消费。</p>
+    <div class="items">
+      <span class="pill">Projections ×20+</span>
+      <span class="pill">Canonical Store</span>
+      <span class="pill">Dual-write</span>
+      <span class="pill">Read Boundary</span>
+      <span class="pill">UI Views ×5</span>
+    </div>
+  </div>
+</div>
+
+<!-- Causal Chain -->
+<div class="section">
+  <div class="section-title">因果主链 · 成交不是掷骰子</div>
+  <div class="chain">
+    <span class="chain-node">SourceRecord</span>
+    <span class="chain-arrow">→</span>
+    <span class="chain-node">CausalEvent</span>
+    <span class="chain-arrow">→</span>
+    <span class="chain-node">ActorKnowledge</span>
+    <span class="chain-arrow">→</span>
+    <span class="chain-node">Belief</span>
+    <span class="chain-arrow">→</span>
+    <span class="chain-node">Decision</span>
+    <span class="chain-arrow">→</span>
+    <span class="chain-node">Command</span>
+    <span class="chain-arrow">→</span>
+    <span class="chain-node">Receipt</span>
+    <span class="chain-arrow">→</span>
+    <span class="chain-node term">ContractFact</span>
+  </div>
+  <p style="margin-top:14px; font-size:11px; color:rgba(200,196,184,0.35);">
+    BuyerOffer + OwnerConcession → PriceTrajectory 收敛 → ContractFact 封印为只读真理。
+    每一步都可追问因果源头。
+  </p>
+</div>
+
+<!-- Agent Pipeline -->
+<div class="section">
+  <div class="section-title">POV 引擎 · Agent 安全防线</div>
+  <div class="flow">
+    <span class="flow-step">Profile → Perception → Prompt</span>
+    <span class="flow-arrow">▸</span>
+    <span class="flow-step">LLM Proposal</span>
+    <span class="flow-arrow">▸</span>
+    <span class="flow-step">Arbiter</span>
+    <span class="flow-arrow">▸</span>
+    <span class="flow-step">Shadow Report</span>
+    <span class="flow-arrow">▸</span>
+    <span class="flow-step">Guard Pipeline</span>
+    <span class="flow-arrow">▸</span>
+    <span class="flow-step" style="color:#3dd68c;">Final Action</span>
+  </div>
+  <p style="margin-top:12px; font-size:11px; color:rgba(200,196,184,0.35);">
+    任何 Agent 输出都是提案而非事实。LLM 置信度 &lt; 0.50 自动回退规则，Shadow 对比给出风险评级，
+    Guard 管道执行 deny/allow/ask 三态裁决。确定性保证：同输入必同输出。
+  </p>
+</div>
+
+<!-- Data Layer -->
+<div class="section">
+  <div class="section-title">数据对接 · Canonical-First 读写分离</div>
+  <div class="grid-2">
+    <div class="card">
+      <h3>Canonical（真理源）</h3>
+      <ul>
+        <li>ContractFactState</li>
+        <li>ConsensusFormationState</li>
+        <li>PriceTrajectory v0</li>
+        <li>CustomerCaseMatch</li>
+        <li>BrokeredOpportunity</li>
+        <li>canonicalStoreKernel</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Legacy Mirror（兼容读）</h3>
+      <ul>
+        <li>closedDeals[ ]</li>
+        <li>opportunity.pendingClosing*</li>
+        <li>Case.priceHistory</li>
+        <li>Opportunity.*</li>
+        <li>trust/patience legacy fields</li>
+        <li>R27-R47 门逐步消除</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- Projections -->
+<div class="section">
+  <div class="section-title">数据对接 · 投影线</div>
+  <div>
+    <span class="tag">worldGraphBuilder</span>
+    <span class="tag">operatingProjection</span>
+    <span class="tag">resultProjection</span>
+    <span class="tag">leaderboardProjection</span>
+    <span class="tag">myWechatProjection</span>
+    <span class="tag">bigWorldPOVProjection</span>
+    <span class="tag">marketOpeningPOVProjection</span>
+    <span class="tag">acnAttribution</span>
+    <span class="tag">ownerProfilingMemory</span>
+    <span class="tag">strategicMarketDecisionProjection</span>
+    <span class="tag">workspaceShellProjection</span>
+    <span class="tag">actorKnowledgeProjection</span>
+    <span class="tag">noDeadCornerProductCensus</span>
+    <span class="tag">playableMarketProjection</span>
+    <span class="tag">myWechatFacts</span>
+    <span class="tag">myWechatAiDraft</span>
+    <span class="tag">myWechatCopy</span>
+    <span class="tag">perfectProjectionAdapters</span>
+    <span class="tag">architectureParityProjection</span>
+  </div>
+</div>
+
+<!-- Engine Subsystems -->
+<div class="section">
+  <div class="section-title">世界模型 · 引擎子系统</div>
+  <div>
+    <span class="tag">成交主链</span>
+    <span class="tag">竞争引擎</span>
+    <span class="tag">客户引擎</span>
+    <span class="tag">机会引擎</span>
+    <span class="tag">事件引擎</span>
+    <span class="tag">伏笔引擎</span>
+    <span class="tag">叙话引擎</span>
+    <span class="tag">期望引擎</span>
+    <span class="tag">推荐引擎</span>
+    <span class="tag">市场信号</span>
+    <span class="tag">结果控制</span>
+    <span class="tag">核心保护</span>
+    <span class="tag">场景生成</span>
+    <span class="tag">动作执行器×8</span>
+  </div>
+</div>
+
+<!-- Constitutional Gates -->
+<div class="section">
+  <div class="section-title">真理性保障 · R1→R47 宪法门</div>
+  <p style="font-size:11px; color:rgba(200,196,184,0.35); line-height:1.8;">
+    因果决策脊 · 源账本保留 · 运行时富收据 · 客户可见过程 · 结构真理锁 ·
+    共识轨迹终局 · 无回退宪法绿灯 · 封堵 API 后门 · 终端结果只读 ·
+    规范存储内核 · 真理债务消除 · 状态镜像真理封印 · 合约事实因果证明脊 ·
+    成交预检 · 完整成交快乐路径 · 实际结算合约事实 · ……
+  </p>
+  <p style="margin-top:8px; font-size:10px; color:rgba(200,196,184,0.2);">
+    每一道门都是一个验证脚本，确保真理域不被写入、不倒退、不被绕过。
+  </p>
+</div>
+
+<div class="footnote">
+  v0.4.8 · ~298k lines · React 19 + Vite 6 + Tailwind 4
+</div>
+
+</body>
+</html>

@@ -1,10 +1,12 @@
 import { callDeepSeekChat } from '../../../../lib/deepseek.js';
 import { resolveEnabledModel } from '../../../../lib/modelRuntime.js';
+import type { AIModel } from '../../../../lib/models.js';
 import { normalizeDailyCityStory } from '../../application/dailyStory/normalizer.js';
 import { buildFallbackDailyStory } from '../../application/dailyStory/fallbackStoryWriter.js';
 import type { DailyCityStoryContextPack } from '../../application/dailyStory/contextPack.js';
 import type { DailyCityStoryResult } from '../../application/dailyStory/storyContract.js';
 import type { DailyStoryPlayerProfile } from '../../application/dailyStory/contextPackBuilder.js';
+import type { NormalizedStoryResult } from '../../application/dailyStory/normalizer.js';
 
 const DEFAULT_MODEL_ID = 'deepseek-v4-pro';
 
@@ -56,12 +58,27 @@ export async function handleDailyStory(
 
     const rawOutput = sanitizeDailyStoryLanguage(parseLlmResponse(llmResponse.result));
 
-    const normalized = normalizeDailyCityStory(rawOutput, pack);
-    const criticalErrors = normalized.validationNotes.filter(n => n.startsWith('forbidden_words') || n.startsWith('too_few'));
+    let normalized = normalizeDailyCityStory(rawOutput, pack);
+    let criticalErrors = getCriticalDailyStoryErrors(normalized.validationNotes);
+
+    if (criticalErrors.length > 0) {
+      const repaired = await repairDailyStory({
+        model,
+        pack,
+        playerProfile,
+        rejectedOutput: rawOutput,
+        validationNotes: normalized.validationNotes,
+      });
+      if (repaired) {
+        normalized = repaired;
+        criticalErrors = getCriticalDailyStoryErrors(normalized.validationNotes);
+      }
+    }
+
     const source = criticalErrors.length > 0 ? 'fallback' : 'ai';
     const story = source === 'fallback'
       ? { ...buildFallbackDailyStory(pack), source: 'fallback' as const }
-      : normalized.result;
+      : acceptAiStory(normalized.result);
 
     return {
       status: 200,
@@ -90,6 +107,58 @@ export async function handleDailyStory(
   }
 }
 
+function getCriticalDailyStoryErrors(notes: readonly string[]): string[] {
+  return notes.filter((note) =>
+    note.startsWith('forbidden_words')
+    || note.startsWith('too_few_paragraphs')
+    || note.startsWith('too_short')
+  );
+}
+
+function acceptAiStory(story: DailyCityStoryResult): DailyCityStoryResult {
+  return {
+    ...story,
+    source: 'ai',
+    safety: {
+      ...story.safety,
+      needsFallback: false,
+      fallbackReason: undefined,
+    },
+  };
+}
+
+async function repairDailyStory({
+  model,
+  pack,
+  playerProfile,
+  rejectedOutput,
+  validationNotes,
+}: {
+  readonly model: AIModel;
+  readonly pack: DailyCityStoryContextPack;
+  readonly playerProfile?: DailyStoryPlayerProfile | null;
+  readonly rejectedOutput: unknown;
+  readonly validationNotes: readonly string[];
+}): Promise<NormalizedStoryResult | null> {
+  const repairResponse = await callDeepSeekChat(
+    buildRepairMessages(pack, rejectedOutput, validationNotes, playerProfile),
+    model,
+    {
+      responseFormat: 'json_object',
+      thinking: 'disabled',
+      temperature: 0.25,
+      maxTokens: 1500,
+    },
+  );
+
+  if (repairResponse.status !== 'completed') {
+    return null;
+  }
+
+  const repairedOutput = sanitizeDailyStoryLanguage(parseLlmResponse(repairResponse.result));
+  return normalizeDailyCityStory(repairedOutput, pack);
+}
+
 function buildStoryMessages(
   pack: DailyCityStoryContextPack,
   playerProfile?: DailyStoryPlayerProfile | null,
@@ -100,6 +169,37 @@ function buildStoryMessages(
   return [
     { role: 'system' as const, content: systemMessage },
     { role: 'user' as const, content: userMessage },
+  ];
+}
+
+function buildRepairMessages(
+  pack: DailyCityStoryContextPack,
+  rejectedOutput: unknown,
+  validationNotes: readonly string[],
+  playerProfile?: DailyStoryPlayerProfile | null,
+) {
+  return [
+    { role: 'system' as const, content: buildSystemMessage(playerProfile) },
+    {
+      role: 'user' as const,
+      content: `上一版日结故事未达到上线标准，不能直接展示。
+
+校验问题：
+${validationNotes.join('\n')}
+
+请基于同一个 DailyCityStoryContextPack 重新输出完整 JSON：
+- 必须保留上一版已经成立的可见事实。
+- cityStory.paragraphs 必须是 4-6 段。
+- 正文中文字符数必须不少于 450 字。
+- 不要只写标题、摘要或一句话。
+- 不要输出解释或思维链。
+
+上一版输出：
+${JSON.stringify(rejectedOutput, null, 2)}
+
+DailyCityStoryContextPack:
+${JSON.stringify(pack, null, 2)}`,
+    },
   ];
 }
 
