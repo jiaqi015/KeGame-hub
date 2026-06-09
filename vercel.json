@@ -28,34 +28,6 @@
       "destination": "/api/open-day-scenarios?view=versions"
     },
     {
-      "source": "/api/selling-houses-wechat-replies",
-      "destination": "/api/selling-houses-ai?route=selling-houses-wechat-replies"
-    },
-    {
-      "source": "/api/selling-houses-wechat-turns",
-      "destination": "/api/selling-houses-ai?route=selling-houses-wechat-turns"
-    },
-    {
-      "source": "/api/selling-houses-action-advice",
-      "destination": "/api/selling-houses-ai?route=selling-houses-action-advice"
-    },
-    {
-      "source": "/api/selling-houses-action-feedback",
-      "destination": "/api/selling-houses-ai?route=selling-houses-action-feedback"
-    },
-    {
-      "source": "/api/ai-arrangement",
-      "destination": "/api/selling-houses-ai?route=ai-arrangement"
-    },
-    {
-      "source": "/api/daily-story",
-      "destination": "/api/selling-houses-ai?route=daily-story"
-    },
-    {
-      "source": "/api/scenario-opening-story",
-      "destination": "/api/selling-houses-ai?route=scenario-opening-story"
-    },
-    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
