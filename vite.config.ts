@@ -13,48 +13,21 @@ function getGitCommitHash() {
   }
 }
 
-function getAppVersion() {
+function readPackageJson() {
   try {
-    const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8'));
-    return pkg.version || '0.0.0';
+    return JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8'));
   } catch {
-    return '0.0.0';
-  }
-}
-
-function getVersionType() {
-  try {
-    const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8'));
-    return pkg.versionType || 'square';
-  } catch {
-    return 'square';
-  }
-}
-
-function getLineCount() {
-  try {
-    const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8'));
-    return String(pkg.lineCount || 0);
-  } catch {
-    return '0';
-  }
-}
-
-function getBuildCode() {
-  try {
-    const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8'));
-    return pkg.buildCode || '000000';
-  } catch {
-    return '000000';
+    return {} as Record<string, unknown>;
   }
 }
 
 export default defineConfig(({mode}) => {
   const commitHash = getGitCommitHash();
-  const appVersion = getAppVersion();
-  const versionType = getVersionType();
-  const lineCount = getLineCount();
-  const buildCode = getBuildCode();
+  const pkg = readPackageJson();
+  const appVersion = (pkg as { version?: string }).version || '0.0.0';
+  const versionType = (pkg as { versionType?: string }).versionType || 'square';
+  const lineCount = String((pkg as { lineCount?: number }).lineCount || 0);
+  const buildCode = (pkg as { buildCode?: string }).buildCode || '000000';
   return {
     plugins: [react(), tailwindcss()],
     define: {

@@ -88,24 +88,10 @@ async function startServer() {
 
   app.use(express.json({ limit: "4mb" }));
 
-  app.post("/api/auth-start", async (req, res) => {
-    try {
-      const email = typeof req.body?.email === "string" ? req.body.email : "";
-      const result = await startEmailLoginPersisted(email);
-      return res.json({
-        ok: true,
-        email: result.email,
-        mode: result.mode,
-        expiresAt: result.expiresAt || null,
-        user: result.user || null,
-      });
-    } catch (error) {
-      return res.status(400).json({ error: error instanceof Error ? error.message : "登录初始化失败。" });
-    }
-  });
+  app.post("/api/auth", async (req, res) => {
+    const mode = req.query?.mode;
 
-  app.post("/api/auth", async (req, res, next) => {
-    if (req.query?.mode === "activate") {
+    if (mode === "activate") {
       const key = typeof req.body?.key === "string" ? req.body.key.trim() : "";
       const validation = validateActivationKey(key);
 
@@ -120,130 +106,79 @@ async function startServer() {
       });
     }
 
-    if (req.query?.mode !== "start") {
-      return next();
+    if (mode === "start") {
+      try {
+        const email = typeof req.body?.email === "string" ? req.body.email : "";
+        const result = await startEmailLoginPersisted(email);
+        return res.json({
+          ok: true,
+          email: result.email,
+          mode: result.mode,
+          expiresAt: result.expiresAt || null,
+          user: result.user || null,
+        });
+      } catch (error) {
+        return res.status(400).json({ error: error instanceof Error ? error.message : "登录初始化失败。" });
+      }
     }
 
-    try {
-      const email = typeof req.body?.email === "string" ? req.body.email : "";
-      const result = await startEmailLoginPersisted(email);
+    if (mode === "complete") {
+      try {
+        const result = await completeEmailLoginPersisted({
+          email: typeof req.body?.email === "string" ? req.body.email : "",
+          code: typeof req.body?.code === "string" ? req.body.code : "",
+          activationKey: typeof req.body?.activationKey === "string" ? req.body.activationKey : "",
+        });
+        setAuthCookie(res, result.cookie);
+        return res.json({ ok: true, user: result.user, sessionExpiresAt: result.expiresAt });
+      } catch (error) {
+        return res.status(400).json({ error: error instanceof Error ? error.message : "登录失败。" });
+      }
+    }
+
+    if (mode === "logout") {
+      setAuthCookie(res, clearSessionCookie());
+      return res.json({ ok: true });
+    }
+
+    return res.status(400).json({ error: "未知的认证操作。" });
+  });
+
+  app.get("/api/auth", async (req, res) => {
+    if (req.query?.mode === "me") {
+      const authorization = await authorizeSessionPersisted(req);
+      if (isSessionAuthorizationFailure(authorization)) {
+        return res.status(authorization.status).json({ error: authorization.error });
+      }
+
+      let sessionExpiresAt: string | null = null;
+      if (authorization.source === "session") {
+        const refreshed = refreshSession({
+          accountId: authorization.accountId,
+          email: authorization.email,
+          nickname: authorization.nickname,
+          displayName: authorization.displayName,
+          allowedWorkspaces: authorization.allowedWorkspaces,
+        });
+        setAuthCookie(res, refreshed.cookie);
+        sessionExpiresAt = refreshed.expiresAt;
+      }
+
       return res.json({
         ok: true,
-        email: result.email,
-        mode: result.mode,
-        expiresAt: result.expiresAt || null,
-        user: result.user || null,
+        user: {
+          accountId: authorization.accountId,
+          email: authorization.email,
+          nickname: authorization.nickname,
+          displayName: authorization.displayName,
+          allowedWorkspaces: authorization.allowedWorkspaces,
+          source: authorization.source,
+        },
+        sessionExpiresAt,
       });
-    } catch (error) {
-      return res.status(400).json({ error: error instanceof Error ? error.message : "登录初始化失败。" });
-    }
-  });
-
-  app.post("/api/auth-complete", async (req, res) => {
-    try {
-      const result = await completeEmailLoginPersisted({
-        email: typeof req.body?.email === "string" ? req.body.email : "",
-        code: typeof req.body?.code === "string" ? req.body.code : "",
-        activationKey: typeof req.body?.activationKey === "string" ? req.body.activationKey : "",
-      });
-      setAuthCookie(res, result.cookie);
-      return res.json({ ok: true, user: result.user, sessionExpiresAt: result.expiresAt });
-    } catch (error) {
-      return res.status(400).json({ error: error instanceof Error ? error.message : "登录失败。" });
-    }
-  });
-
-  app.post("/api/auth", async (req, res, next) => {
-    if (req.query?.mode !== "complete") {
-      return next();
     }
 
-    try {
-      const result = await completeEmailLoginPersisted({
-        email: typeof req.body?.email === "string" ? req.body.email : "",
-        code: typeof req.body?.code === "string" ? req.body.code : "",
-        activationKey: typeof req.body?.activationKey === "string" ? req.body.activationKey : "",
-      });
-      setAuthCookie(res, result.cookie);
-      return res.json({ ok: true, user: result.user, sessionExpiresAt: result.expiresAt });
-    } catch (error) {
-      return res.status(400).json({ error: error instanceof Error ? error.message : "登录失败。" });
-    }
-  });
-
-  app.get("/api/auth-me", async (req, res) => {
-    const authorization = await authorizeSessionPersisted(req);
-    if (isSessionAuthorizationFailure(authorization)) {
-      return res.status(authorization.status).json({ error: authorization.error });
-    }
-
-    let sessionExpiresAt: string | null = null;
-    if (authorization.source === "session") {
-      const refreshed = refreshSession({
-        accountId: authorization.accountId,
-        email: authorization.email,
-        nickname: authorization.nickname,
-        displayName: authorization.displayName,
-        allowedWorkspaces: authorization.allowedWorkspaces,
-      });
-      setAuthCookie(res, refreshed.cookie);
-      sessionExpiresAt = refreshed.expiresAt;
-    }
-
-    return res.json({
-      ok: true,
-      user: {
-        accountId: authorization.accountId,
-        email: authorization.email,
-        nickname: authorization.nickname,
-        displayName: authorization.displayName,
-        allowedWorkspaces: authorization.allowedWorkspaces,
-        source: authorization.source,
-      },
-      sessionExpiresAt,
-    });
-  });
-
-  app.get("/api/auth", async (req, res, next) => {
-    if (req.query?.mode !== "me") {
-      return next();
-    }
-
-    const authorization = await authorizeSessionPersisted(req);
-    if (isSessionAuthorizationFailure(authorization)) {
-      return res.status(authorization.status).json({ error: authorization.error });
-    }
-
-    let sessionExpiresAt: string | null = null;
-    if (authorization.source === "session") {
-      const refreshed = refreshSession({
-        accountId: authorization.accountId,
-        email: authorization.email,
-        nickname: authorization.nickname,
-        displayName: authorization.displayName,
-        allowedWorkspaces: authorization.allowedWorkspaces,
-      });
-      setAuthCookie(res, refreshed.cookie);
-      sessionExpiresAt = refreshed.expiresAt;
-    }
-
-    return res.json({
-      ok: true,
-      user: {
-        accountId: authorization.accountId,
-        email: authorization.email,
-        nickname: authorization.nickname,
-        displayName: authorization.displayName,
-        allowedWorkspaces: authorization.allowedWorkspaces,
-        source: authorization.source,
-      },
-      sessionExpiresAt,
-    });
-  });
-
-  app.post("/api/auth-logout", (_req, res) => {
-    setAuthCookie(res, clearSessionCookie());
-    return res.json({ ok: true });
+    return res.status(400).json({ error: "未知的认证操作。" });
   });
 
   app.get("/api/users", async (req, res) => {
@@ -319,23 +254,8 @@ async function startServer() {
     }
   });
 
-  app.post("/api/auth", (req, res, next) => {
-    if (req.query?.mode !== "logout") {
-      return next();
-    }
-
-    setAuthCookie(res, clearSessionCookie());
-    return res.json({ ok: true });
-  });
-
   app.use("/api", async (req, res, next) => {
-    if (
-      req.path === "/auth"
-      || req.path === "/auth-start"
-      || req.path === "/auth-complete"
-      || req.path === "/auth-me"
-      || req.path === "/auth-logout"
-    ) {
+    if (req.path === "/auth") {
       return next();
     }
 

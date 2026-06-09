@@ -29,7 +29,7 @@ export class NeonOpenDayScenarioRepository implements OpenDayScenarioRepository 
           INSERT INTO open_day_scenario_templates (
             id, created_at, name, description, formula_id, parameter_package_id, config_version, updated_at, latest_version_id, current_version_no, scenario_json
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb)
           ON CONFLICT (id)
           DO UPDATE SET
             name = EXCLUDED.name,

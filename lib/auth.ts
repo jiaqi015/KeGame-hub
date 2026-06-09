@@ -6,6 +6,7 @@ import {
   validateActivationKey,
 } from './activation.js';
 import { sendVerificationEmail } from './email.js';
+import { extractCookieValue, extractHeaderValue, type LooseRequest } from './httpRequest.js';
 import { decodeLegacyWorkspaceCodes } from './workspaces.js';
 import {
   isAuthNeonAvailable,
@@ -444,17 +445,7 @@ function parseSessionToken(token: string): SessionPayload | null {
   }
 }
 
-function extractCookieValue(req: any, name: string): string {
-  const rawCookie = req?.headers?.cookie;
-  if (typeof rawCookie !== 'string' || !rawCookie) {
-    return '';
-  }
 
-  const matches = rawCookie.split(';').map((part: string) => part.trim());
-  const prefix = `${name}=`;
-  const entry = matches.find((part: string) => part.startsWith(prefix));
-  return entry ? decodeURIComponent(entry.slice(prefix.length)) : '';
-}
 
 function safeCompareHash(candidate: string, expectedHash: string): boolean {
   const candidateBuffer = Buffer.from(hashValue(candidate));
@@ -803,7 +794,34 @@ export async function completeEmailLoginPersisted(input: {
   return issueNeonSession(existingUser);
 }
 
-export function authorizeSession(req: any): SessionAuthorizationResult {
+function tryActivationKeyAuth(req: LooseRequest): SessionAuthorizationResult | null {
+  const key = extractHeaderValue(req, ACTIVATION_HEADER_NAME);
+  if (!key) {
+    return null;
+  }
+
+  const validation = validateActivationKey(key);
+  if (validation.ok) {
+    return {
+      ok: true,
+      accountId: 'activation-key-user',
+      email: 'activation-key-user',
+      nickname: 'activation',
+      displayName: 'Activation Key User',
+      allowedWorkspaces: validation.allowedWorkspaces,
+      source: 'activation-key',
+      activationKey: validation.key,
+    };
+  }
+
+  return {
+    ok: false,
+    status: validation.status,
+    error: validation.error,
+  };
+}
+
+export function authorizeSession(req: LooseRequest): SessionAuthorizationResult {
   const sessionToken = extractCookieValue(req, AUTH_SESSION_COOKIE_NAME);
   if (sessionToken) {
     const payload = parseSessionToken(sessionToken);
@@ -869,37 +887,14 @@ export function authorizeSession(req: any): SessionAuthorizationResult {
     }
   }
 
-  const key = getHeaderValue(req, ACTIVATION_HEADER_NAME);
-  if (key) {
-    const validation = validateActivationKey(key);
-    if (validation.ok) {
-      return {
-        ok: true,
-        accountId: 'activation-key-user',
-        email: 'activation-key-user',
-        nickname: 'activation',
-        displayName: 'Activation Key User',
-        allowedWorkspaces: validation.allowedWorkspaces,
-        source: 'activation-key',
-        activationKey: validation.key,
-      };
-    }
-
-    return {
-      ok: false,
-      status: validation.status,
-      error: validation.error,
-    };
-  }
-
-  return {
+  return tryActivationKeyAuth(req) || {
     ok: false,
     status: 401,
     error: '请先登录。',
   };
 }
 
-export async function authorizeSessionPersisted(req: any): Promise<SessionAuthorizationResult> {
+export async function authorizeSessionPersisted(req: LooseRequest): Promise<SessionAuthorizationResult> {
   if (!isAuthNeonAvailable()) {
     return authorizeSession(req);
   }
@@ -945,30 +940,7 @@ export async function authorizeSessionPersisted(req: any): Promise<SessionAuthor
     }
   }
 
-  const key = getHeaderValue(req, ACTIVATION_HEADER_NAME);
-  if (key) {
-    const validation = validateActivationKey(key);
-    if (validation.ok) {
-      return {
-        ok: true,
-        accountId: 'activation-key-user',
-        email: 'activation-key-user',
-        nickname: 'activation',
-        displayName: 'Activation Key User',
-        allowedWorkspaces: validation.allowedWorkspaces,
-        source: 'activation-key',
-        activationKey: validation.key,
-      };
-    }
-
-    return {
-      ok: false,
-      status: validation.status,
-      error: validation.error,
-    };
-  }
-
-  return {
+  return tryActivationKeyAuth(req) || {
     ok: false,
     status: 401,
     error: '请先登录。',
@@ -979,7 +951,7 @@ export function clearSessionCookie(): string {
   return `${AUTH_SESSION_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
 }
 
-export function setAuthCookie(res: any, cookie: string) {
+export function setAuthCookie(res: { setHeader(name: string, value: string): void }, cookie: string) {
   res.setHeader('Set-Cookie', cookie);
 }
 
@@ -1054,7 +1026,7 @@ export async function deleteUserPersisted(email: string): Promise<void> {
   await neonDeleteUser(normalizeEmail(email));
 }
 
-export function requireAdminPermission(req: any): SessionAuthorizationResult {
+export function requireAdminPermission(req: LooseRequest): SessionAuthorizationResult {
   const authorization = authorizeSession(req);
   if (!authorization.ok) {
     return authorization;
@@ -1071,7 +1043,7 @@ export function requireAdminPermission(req: any): SessionAuthorizationResult {
   return authorization;
 }
 
-export async function requireAdminPermissionPersisted(req: any): Promise<SessionAuthorizationResult> {
+export async function requireAdminPermissionPersisted(req: LooseRequest): Promise<SessionAuthorizationResult> {
   const authorization = await authorizeSessionPersisted(req);
   if (!authorization.ok) {
     return authorization;
@@ -1088,23 +1060,4 @@ export async function requireAdminPermissionPersisted(req: any): Promise<Session
   return authorization;
 }
 
-function getHeaderValue(req: any, name: string): string {
-  const headers = req?.headers;
 
-  if (!headers) {
-    return '';
-  }
-
-  if (typeof headers.get === 'function') {
-    const value = headers.get(name) || headers.get(name.toLowerCase());
-    return typeof value === 'string' ? value.trim() : '';
-  }
-
-  const directValue = headers[name] ?? headers[name.toLowerCase()];
-
-  if (Array.isArray(directValue)) {
-    return typeof directValue[0] === 'string' ? directValue[0].trim() : '';
-  }
-
-  return typeof directValue === 'string' ? directValue.trim() : '';
-}

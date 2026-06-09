@@ -1,5 +1,6 @@
 import {timingSafeEqual} from 'node:crypto';
 import { authorizeSession, authorizeSessionPersisted } from './auth.js';
+import { extractHeaderValue, type LooseRequest } from './httpRequest.js';
 import {
   WORKSPACE_IDS,
   WorkspaceId,
@@ -117,26 +118,7 @@ function parseActivationKeyPermissions(rawValue: string): Record<string, Activat
   );
 }
 
-function getHeaderValue(req: any, name: string): string {
-  const headers = req?.headers;
 
-  if (!headers) {
-    return '';
-  }
-
-  if (typeof headers.get === 'function') {
-    const value = headers.get(name) || headers.get(name.toLowerCase());
-    return typeof value === 'string' ? value.trim() : '';
-  }
-
-  const directValue = headers[name] ?? headers[name.toLowerCase()];
-
-  if (Array.isArray(directValue)) {
-    return typeof directValue[0] === 'string' ? directValue[0].trim() : '';
-  }
-
-  return typeof directValue === 'string' ? directValue.trim() : '';
-}
 
 function safeCompare(candidate: string, expected: string): boolean {
   const candidateBuffer = Buffer.from(candidate);
@@ -168,7 +150,7 @@ function getAllowedWorkspacesForKey(key: string): ActivationWorkspaceId[] {
   return [...WORKSPACE_IDS];
 }
 
-function getRequestPath(req: any): string {
+function getRequestPath(req: LooseRequest): string {
   if (typeof req?.path === 'string' && req.path) {
     return req.path;
   }
@@ -232,7 +214,7 @@ export function validateActivationKey(candidate: string): ActivationValidationRe
   return {ok: true, status: 200, error: '', key: normalizedCandidate, allowedWorkspaces};
 }
 
-export function authorizeRequest(req: any, requiredWorkspace?: ActivationWorkspaceId): ActivationValidationResult {
+export function authorizeRequest(req: LooseRequest, requiredWorkspace?: ActivationWorkspaceId): ActivationValidationResult {
   const sessionAuthorization = authorizeSession(req);
   if (sessionAuthorization.ok) {
     const workspace = requiredWorkspace || inferWorkspaceFromPath(getRequestPath(req));
@@ -257,7 +239,7 @@ export function authorizeRequest(req: any, requiredWorkspace?: ActivationWorkspa
     };
   }
 
-  const validation = validateActivationKey(getHeaderValue(req, ACTIVATION_HEADER_NAME));
+  const validation = validateActivationKey(extractHeaderValue(req, ACTIVATION_HEADER_NAME));
 
   if (!validation.ok) {
     return validation;
@@ -276,7 +258,7 @@ export function authorizeRequest(req: any, requiredWorkspace?: ActivationWorkspa
   return validation;
 }
 
-export async function authorizeRequestPersisted(req: any, requiredWorkspace?: ActivationWorkspaceId): Promise<ActivationValidationResult> {
+export async function authorizeRequestPersisted(req: LooseRequest, requiredWorkspace?: ActivationWorkspaceId): Promise<ActivationValidationResult> {
   const sessionAuthorization = await authorizeSessionPersisted(req);
   if (sessionAuthorization.ok) {
     const workspace = requiredWorkspace || inferWorkspaceFromPath(getRequestPath(req));
@@ -301,7 +283,7 @@ export async function authorizeRequestPersisted(req: any, requiredWorkspace?: Ac
     };
   }
 
-  const validation = validateActivationKey(getHeaderValue(req, ACTIVATION_HEADER_NAME));
+  const validation = validateActivationKey(extractHeaderValue(req, ACTIVATION_HEADER_NAME));
 
   if (!validation.ok) {
     return validation;
