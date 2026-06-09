@@ -353,7 +353,7 @@ function buildRoleSpeechContract(request: ActionFeedbackRequest) {
 export interface ActionFeedbackWorldContext {
   readonly soul?: ParticipantSoul;
   readonly memory?: readonly AgentMemoryFact[];
-  readonly worldContext?: {
+  readonly market?: {
     readonly rivalListings?: readonly { readonly id: string; readonly status: string; readonly price: number; readonly community: string }[];
     readonly marketSignals?: readonly { readonly type: string; readonly day: number; readonly detail: string }[];
     readonly marketSentiment?: 'positive' | 'neutral' | 'negative';
@@ -363,7 +363,6 @@ export interface ActionFeedbackWorldContext {
 
 export function buildFallbackActionFeedbackProposal(
   request: ActionFeedbackRequest,
-  worldContext?: ActionFeedbackWorldContext,
 ): ActionFeedbackProposal {
   const base = buildHumanFeedbackLead(request);
   const evidenceLine = buildHumanEvidenceLine(request);
@@ -379,15 +378,6 @@ export function buildFallbackActionFeedbackProposal(
   const trust = request.caseContext?.trust ?? 50;
   const isHighUrgency = urgency >= 70;
   const isLowTrust = trust < 40;
-
-  // Soul-aware personality line
-  const personalityLine = buildSoulPersonalityLine(worldContext?.soul);
-
-  // Memory-aware reference line
-  const memoryLine = buildMemoryReferenceLine(worldContext?.memory);
-
-  // World-aware rival line
-  const rivalLine = buildRivalReferenceLine(worldContext?.worldContext);
 
   if (request.choice.actor === 'customer') {
     return {
@@ -431,9 +421,6 @@ export function buildFallbackActionFeedbackProposal(
         priceLine,
         assistLine || '我看明白了再跟家里商量，不想现在凭感觉动。',
         pressureLine,
-        personalityLine,
-        memoryLine,
-        rivalLine,
       ]),
       200,
     )),
@@ -457,11 +444,11 @@ export function buildLlmFirstActionFeedbackProposal(
 ): ActionFeedbackProposal {
   const soul = worldContext?.soul;
   const memory = worldContext?.memory;
-  const world = worldContext?.worldContext;
+  const market = worldContext?.market;
 
   // Build context-aware components
   const personalityLead = buildLlmPersonalityLead(request, soul);
-  const contextBody = buildLlmContextBody(request, soul, memory, world);
+  const contextBody = buildLlmContextBody(request, soul, memory, market);
   const closingLine = buildLlmClosingLine(request, soul);
 
   const message = ensureFeedbackQuote(trimSentence(
@@ -469,11 +456,28 @@ export function buildLlmFirstActionFeedbackProposal(
     200,
   ));
 
-  // Confidence based on context richness
+  // Confidence based on context quality, not just presence
   let confidence = 0.65;
-  if (soul) confidence += 0.05;
-  if (memory && memory.length > 0) confidence += 0.05;
-  if (world) confidence += 0.05;
+
+  // Soul quality: richer history = higher confidence
+  if (soul) {
+    confidence += 0.03;
+    if (soul.conversationHistory.length > 0) confidence += 0.02;
+    if (soul.communicationPatterns.length > 0) confidence += 0.02;
+  }
+
+  // Memory quality: higher strength = higher confidence
+  if (memory && memory.length > 0) {
+    const maxStrength = Math.max(...memory.map((m) => m.strength));
+    confidence += 0.03 + maxStrength * 0.02;
+  }
+
+  // Market quality: more data = higher confidence
+  if (market) {
+    confidence += 0.02;
+    if (market.rivalListings && market.rivalListings.length > 0) confidence += 0.02;
+    if (market.recentDeals && market.recentDeals.length > 0) confidence += 0.02;
+  }
 
   return { message, confidence: Math.min(confidence, 0.85) };
 }
@@ -490,35 +494,71 @@ function buildLlmPersonalityLead(
   const trust = soul.emotionalState.trust;
   const urgency = soul.emotionalState.urgency;
   const consecutiveNegative = soul.emotionalArc.consecutiveNegative;
+  const history = soul.conversationHistory;
+
+  // Reference most recent conversation if available
+  const lastConversation = history.length > 0 ? history[history.length - 1] : null;
+  const conversationRef = lastConversation
+    ? buildConversationReference(lastConversation)
+    : '';
 
   // Assertive owners lead with directness
   if (assertiveness >= 70) {
-    return '你别绕弯子，我就想知道结果。';
+    return conversationRef || '你别绕弯子，我就想知道结果。';
   }
 
   // Low trust owners lead with skepticism
   if (trust < 35 || consecutiveNegative >= 2) {
-    return '我之前信你，但现在有点动摇了。';
+    return conversationRef || '我之前信你，但现在有点动摇了。';
   }
 
   // High urgency owners lead with impatience
   if (urgency >= 75) {
-    return '我没时间等了，你给我一个明确说法。';
+    return conversationRef || '我没时间等了，你给我一个明确说法。';
   }
 
   // Anxious owners lead with worry
   if (soul.ownerProfileLabel.includes('焦虑')) {
-    return '我心里不踏实，你给我说清楚。';
+    return conversationRef || '我心里不踏实，你给我说清楚。';
   }
 
-  return base;
+  return conversationRef || base;
+}
+
+function buildConversationReference(
+  conversation: { playerText: string; trustDelta: number; intents: readonly string[]; risks: readonly string[] },
+): string {
+  const { playerText, trustDelta, intents, risks } = conversation;
+
+  // Reference based on what was discussed
+  if (intents.includes('discuss_price') || /价格|降价|价/.test(playerText)) {
+    return trustDelta < 0 ? '之前说的价格，我还在想。' : '之前说的价格，我记着呢。';
+  }
+
+  if (/装修|房况|楼层/.test(playerText)) {
+    return '之前说的装修情况，我没忘。';
+  }
+
+  if (risks.includes('price_too_high') || risks.includes('losing_customer')) {
+    return '之前的情况我还在想。';
+  }
+
+  if (trustDelta < -2) {
+    return '上次聊完我心里不太舒服。';
+  }
+
+  if (trustDelta > 2) {
+    return '上次聊得还不错，继续。';
+  }
+
+  return '';
 }
 
 function buildLlmContextBody(
   request: ActionFeedbackRequest,
   soul: ParticipantSoul | undefined,
   memory: readonly AgentMemoryFact[] | undefined,
-  world: ActionFeedbackWorldContext['worldContext'],
+  market: ActionFeedbackWorldContext['market'],
 ): string {
   const parts: string[] = [];
 
@@ -534,28 +574,94 @@ function buildLlmContextBody(
     parts.push(`你说和市场价差 ${priceGap} 万，这个数我不能只听一句话。`);
   }
 
-  // Memory reference
+  // Memory reference (sorted by strength, pick top)
   if (memory && memory.length > 0) {
-    const priceMemory = memory.find((f) => f.kind === 'price_commitment');
-    const riskMemory = memory.find((f) => f.kind === 'open_risk');
-    if (priceMemory) {
-      parts.push('上次说的价格我记着呢。');
-    } else if (riskMemory) {
-      parts.push('之前的风险你还没给我讲清楚。');
-    }
+    const memoryLine = buildMemoryReferenceLine(memory);
+    if (memoryLine) parts.push(memoryLine);
   }
 
-  // Rival reference
-  if (world) {
-    const activeRivals = world.rivalListings?.filter((r) => r.status === 'active') || [];
-    if (activeRivals.length > 0) {
-      parts.push('旁边竞品都在动，你给我看清楚我们差在哪。');
-    } else if (world.marketSentiment === 'negative') {
-      parts.push('市场不太好，你给我一个说法。');
-    }
+  // Market reference (rivals, signals, deals)
+  if (market) {
+    const marketLine = buildMarketReferenceLine(market);
+    if (marketLine) parts.push(marketLine);
+  }
+
+  // Communication pattern reference
+  if (soul && soul.communicationPatterns.length > 0) {
+    const patternLine = buildCommunicationPatternLine(soul.communicationPatterns);
+    if (patternLine) parts.push(patternLine);
   }
 
   return parts.join('');
+}
+
+function buildMemoryReferenceLine(memory: readonly AgentMemoryFact[]): string {
+  // Sort by strength descending
+  const sorted = [...memory].sort((a, b) => b.strength - a.strength);
+  const top = sorted[0];
+
+  // Map kind to reference line
+  switch (top.kind) {
+    case 'price_commitment':
+      return '上次说的价格我记着呢。';
+    case 'open_risk':
+      return '之前的风险你还没给我讲清楚。';
+    case 'price_sensitivity':
+      return '价格的事我一直在想。';
+    case 'customer_feedback':
+      return '客户说的那些我没忘。';
+    case 'decision_pattern':
+      return '你的习惯我知道。';
+    case 'recent_interaction':
+      return /客户|反馈|看房/.test(top.summary) ? '之前说的客户情况我还没忘。' : '之前的情况我记着呢。';
+    default:
+      return '之前的情况我记着呢。';
+  }
+}
+
+function buildMarketReferenceLine(market: ActionFeedbackWorldContext['market']): string {
+  if (!market) return '';
+
+  const activeRivals = market.rivalListings?.filter((r) => r.status === 'active') || [];
+  const competitorCuts = market.marketSignals?.filter((s) => s.type === 'competitor_cut') || [];
+  const recentDeals = market.recentDeals || [];
+
+  // Rivals + signals
+  if (activeRivals.length > 0 && competitorCuts.length > 0) {
+    return '旁边竞品都在动，你给我看清楚我们差在哪。';
+  }
+
+  // Recent deals
+  if (recentDeals.length > 0) {
+    return '最近有成交，你给我说清楚条件。';
+  }
+
+  // Just rivals
+  if (activeRivals.length > 0) {
+    return '旁边竞品你也给我对比一下。';
+  }
+
+  // Market sentiment
+  if (market.marketSentiment === 'negative') {
+    return '市场不太好，你给我一个说法。';
+  }
+
+  // Market signals
+  if (competitorCuts.length > 0) {
+    return '市场有动静，你给我说清楚。';
+  }
+
+  return '';
+}
+
+function buildCommunicationPatternLine(patterns: readonly { intent: string; effectiveness: number }[]): string {
+  // Find ineffective patterns (negative effectiveness)
+  const ineffective = patterns.filter((p) => p.effectiveness < -0.3);
+  if (ineffective.length > 0) {
+    return '之前那种说法没用，换个方式说。';
+  }
+
+  return '';
 }
 
 function buildLlmClosingLine(
@@ -763,28 +869,7 @@ function buildSoulPersonalityLine(soul: ParticipantSoul | undefined): string {
   return '';
 }
 
-function buildMemoryReferenceLine(memory: readonly AgentMemoryFact[] | undefined): string {
-  if (!memory || memory.length === 0) return '';
-
-  // Look for relevant memory facts
-  const priceMemory = memory.find((f) => f.kind === 'price_commitment');
-  const customerMemory = memory.find((f) => f.kind === 'recent_interaction' && /客户|反馈|看房/.test(f.summary));
-  const riskMemory = memory.find((f) => f.kind === 'open_risk');
-
-  if (priceMemory) {
-    return '上次说的价格我记着呢。';
-  }
-  if (customerMemory) {
-    return '你之前说的客户情况我还没忘。';
-  }
-  if (riskMemory) {
-    return '之前的风险你还没给我讲清楚。';
-  }
-
-  return '';
-}
-
-function buildRivalReferenceLine(worldContext: ActionFeedbackWorldContext['worldContext']): string {
+function buildRivalReferenceLine(worldContext: ActionFeedbackWorldContext['market']): string {
   if (!worldContext) return '';
 
   const activeRivals = worldContext.rivalListings?.filter((r) => r.status === 'active') || [];

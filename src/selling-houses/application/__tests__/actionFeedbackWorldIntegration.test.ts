@@ -13,6 +13,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildFallbackActionFeedbackProposal,
+  buildLlmFirstActionFeedbackProposal,
   type ActionFeedbackRequest,
 } from '../actionDecisionAdvice.js';
 import type { ParticipantSoul } from '../../core/world-state/agents/soul.js';
@@ -126,9 +127,8 @@ describe('action feedback world integration', () => {
         basePersonality: { assertiveness: 25, patience: 30, trust倾向: 50, priceSensitivity: 70 },
       });
 
-      // This will fail: buildFallbackActionFeedbackProposal doesn't accept soul yet
-      const assertiveResult = buildFallbackActionFeedbackProposal(buildBaseRequest(), { soul: assertiveSoul });
-      const anxiousResult = buildFallbackActionFeedbackProposal(buildBaseRequest(), { soul: anxiousSoul });
+      const assertiveResult = buildLlmFirstActionFeedbackProposal(buildBaseRequest(), { soul: assertiveSoul });
+      const anxiousResult = buildLlmFirstActionFeedbackProposal(buildBaseRequest(), { soul: anxiousSoul });
 
       expect(assertiveResult.message).not.toBe(anxiousResult.message);
     });
@@ -141,8 +141,8 @@ describe('action feedback world integration', () => {
         emotionalState: { trust: 80, patience: 44, urgency: 66, mood: 'positive' },
       });
 
-      const lowTrustResult = buildFallbackActionFeedbackProposal(buildBaseRequest(), { soul: lowTrustSoul });
-      const highTrustResult = buildFallbackActionFeedbackProposal(buildBaseRequest(), { soul: highTrustSoul });
+      const lowTrustResult = buildLlmFirstActionFeedbackProposal(buildBaseRequest(), { soul: lowTrustSoul });
+      const highTrustResult = buildLlmFirstActionFeedbackProposal(buildBaseRequest(), { soul: highTrustSoul });
 
       expect(lowTrustResult.message).not.toBe(highTrustResult.message);
     });
@@ -170,8 +170,8 @@ describe('action feedback world integration', () => {
         },
       });
 
-      const fallingResult = buildFallbackActionFeedbackProposal(buildBaseRequest(), { soul: fallingTrustSoul });
-      const risingResult = buildFallbackActionFeedbackProposal(buildBaseRequest(), { soul: risingTrustSoul });
+      const fallingResult = buildLlmFirstActionFeedbackProposal(buildBaseRequest(), { soul: fallingTrustSoul });
+      const risingResult = buildLlmFirstActionFeedbackProposal(buildBaseRequest(), { soul: risingTrustSoul });
 
       expect(fallingResult.message).not.toBe(risingResult.message);
     });
@@ -198,7 +198,7 @@ describe('action feedback world integration', () => {
         ],
       });
 
-      const result = buildFallbackActionFeedbackProposal(buildBaseRequest(), { soul: soulWithHistory });
+      const result = buildLlmFirstActionFeedbackProposal(buildBaseRequest(), { soul: soulWithHistory });
 
       // Should reference the previous conversation somehow
       expect(result.message.length).toBeGreaterThan(60);
@@ -212,7 +212,7 @@ describe('action feedback world integration', () => {
         ],
       });
 
-      const result = buildFallbackActionFeedbackProposal(buildBaseRequest(), { soul: soulWithPatterns });
+      const result = buildLlmFirstActionFeedbackProposal(buildBaseRequest(), { soul: soulWithPatterns });
 
       // Should produce a message that reflects learned patterns
       expect(result.message.length).toBeGreaterThan(60);
@@ -229,7 +229,7 @@ describe('action feedback world integration', () => {
         { kind: 'price_commitment', summary: '业主上次同意降价5万' },
       ]);
 
-      const result = buildFallbackActionFeedbackProposal(buildBaseRequest(), { memory });
+      const result = buildLlmFirstActionFeedbackProposal(buildBaseRequest(), { memory });
 
       // Should reference price-related memory
       expect(result.message.length).toBeGreaterThan(60);
@@ -240,13 +240,13 @@ describe('action feedback world integration', () => {
         { kind: 'recent_interaction', summary: '客户说装修太旧，需要重新考虑' },
       ]);
 
-      const result = buildFallbackActionFeedbackProposal(buildBaseRequest(), { memory });
+      const result = buildLlmFirstActionFeedbackProposal(buildBaseRequest(), { memory });
 
       expect(result.message.length).toBeGreaterThan(60);
     });
 
     it('should work without memory (backward compatibility)', () => {
-      const result = buildFallbackActionFeedbackProposal(buildBaseRequest());
+      const result = buildLlmFirstActionFeedbackProposal(buildBaseRequest());
 
       expect(result.message.length).toBeGreaterThan(60);
       expect(result.message).not.toContain('系统');
@@ -260,7 +260,7 @@ describe('action feedback world integration', () => {
 
   describe('world state integration', () => {
     it('should reflect rival activity in output', () => {
-      const worldContext = {
+      const market = {
         rivalListings: [
           { id: 'rival-1', status: 'active', price: 910, community: '江悦府' },
         ],
@@ -269,21 +269,21 @@ describe('action feedback world integration', () => {
         ],
       };
 
-      const result = buildFallbackActionFeedbackProposal(buildBaseRequest(), { worldContext });
+      const result = buildLlmFirstActionFeedbackProposal(buildBaseRequest(), { market });
 
       // Should reference rival activity
       expect(result.message.length).toBeGreaterThan(60);
     });
 
     it('should reflect market sentiment in output', () => {
-      const worldContext = {
+      const market = {
         marketSentiment: 'negative' as const,
         recentDeals: [
           { community: '江悦府', price: 890, day: 5 },
         ],
       };
 
-      const result = buildFallbackActionFeedbackProposal(buildBaseRequest(), { worldContext });
+      const result = buildLlmFirstActionFeedbackProposal(buildBaseRequest(), { market });
 
       expect(result.message.length).toBeGreaterThan(60);
     });
@@ -333,7 +333,7 @@ describe('action feedback world integration', () => {
         { kind: 'recent_interaction', summary: '客户说装修太旧' },
       ]);
 
-      const worldContext = {
+      const market = {
         rivalListings: [
           { id: 'rival-1', status: 'active', price: 910, community: '江悦府' },
         ],
@@ -342,10 +342,10 @@ describe('action feedback world integration', () => {
         ],
       };
 
-      const result = buildFallbackActionFeedbackProposal(buildBaseRequest(), {
+      const result = buildLlmFirstActionFeedbackProposal(buildBaseRequest(), {
         soul,
         memory,
-        worldContext,
+        market,
       });
 
       // Should produce a rich, context-aware message

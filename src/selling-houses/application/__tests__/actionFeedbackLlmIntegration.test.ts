@@ -128,14 +128,14 @@ describe('action feedback LLM integration', () => {
         { kind: 'price_commitment', summary: '业主上次同意降价5万' },
       ]);
 
-      const worldContext = {
+      const market = {
         rivalListings: [
           { id: 'rival-1', status: 'active', price: 910, community: '江悦府' },
         ],
         marketSentiment: 'negative' as const,
       };
 
-      const result = buildLlmFirstActionFeedbackProposal(buildBaseRequest(), { soul, memory, worldContext });
+      const result = buildLlmFirstActionFeedbackProposal(buildBaseRequest(), { soul, memory, market });
 
       // Should produce a context-aware message
       expect(result.message.length).toBeGreaterThan(60);
@@ -150,7 +150,7 @@ describe('action feedback LLM integration', () => {
       });
 
       const llmResult = buildLlmFirstActionFeedbackProposal(buildBaseRequest(), { soul });
-      const fallbackResult = buildFallbackActionFeedbackProposal(buildBaseRequest(), { soul });
+      const fallbackResult = buildFallbackActionFeedbackProposal(buildBaseRequest());
 
       // LLM-first should produce different output than fallback
       expect(llmResult.message).not.toBe(fallbackResult.message);
@@ -262,8 +262,8 @@ describe('action feedback LLM integration', () => {
         marketSentiment: 'positive' as const,
       };
 
-      const rivalsResult = buildLlmFirstActionFeedbackProposal(buildBaseRequest(), { worldContext: activeRivalsContext });
-      const noRivalsResult = buildLlmFirstActionFeedbackProposal(buildBaseRequest(), { worldContext: noRivalsContext });
+      const rivalsResult = buildLlmFirstActionFeedbackProposal(buildBaseRequest(), { market: activeRivalsContext });
+      const noRivalsResult = buildLlmFirstActionFeedbackProposal(buildBaseRequest(), { market: noRivalsContext });
 
       expect(rivalsResult.message).not.toBe(noRivalsResult.message);
     });

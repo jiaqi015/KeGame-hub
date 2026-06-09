@@ -396,9 +396,13 @@ function extractWorldContext(input: unknown): ActionFeedbackWorldContext | undef
   const worldContext = raw.worldContext as Record<string, unknown> | undefined;
   if (!worldContext) return undefined;
 
+  const soul = worldContext.soul;
+  const memory = worldContext.memory;
+  const market = worldContext.market ?? worldContext.world;
+
   return {
-    soul: worldContext.soul as ParticipantSoul | undefined,
-    memory: worldContext.memory as readonly AgentMemoryFact[] | undefined,
-    worldContext: worldContext.world as ActionFeedbackWorldContext['worldContext'],
+    soul: (soul && typeof soul === 'object' ? soul : undefined) as ParticipantSoul | undefined,
+    memory: (Array.isArray(memory) ? memory : undefined) as readonly AgentMemoryFact[] | undefined,
+    market: (market && typeof market === 'object' ? market : undefined) as ActionFeedbackWorldContext['market'],
   };
 }
