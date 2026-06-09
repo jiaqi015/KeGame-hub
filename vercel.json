@@ -28,6 +28,14 @@
       "destination": "/api/open-day-scenarios?view=versions"
     },
     {
+      "source": "/0609",
+      "destination": "/0609/index.html"
+    },
+    {
+      "source": "/0609/",
+      "destination": "/0609/index.html"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
