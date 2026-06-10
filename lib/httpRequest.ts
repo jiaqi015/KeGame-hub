@@ -15,7 +15,7 @@ export function extractHeaderValue(req: LooseRequest, name: string): string {
   }
 
   if (typeof headers.get === 'function') {
-    const value = headers.get(name) || headers.get(name.toLowerCase());
+    const value = headers.get(name) ?? headers.get(name.toLowerCase());
     return typeof value === 'string' ? value.trim() : '';
   }
 

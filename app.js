@@ -244,11 +244,7 @@ function parseNumber(value) {
   if (!text) return 0;
   if (text.endsWith("%")) return Number(text.slice(0, -1)) / 100;
   const numeric = Number(text);
-  if (Number.isFinite(numeric)) {
-    if (numeric > 1 && /率|percent|%/i.test(text)) return numeric / 100;
-    return numeric;
-  }
-  return 0;
+  return Number.isFinite(numeric) ? numeric : 0;
 }
 
 function percentile(values, q) {

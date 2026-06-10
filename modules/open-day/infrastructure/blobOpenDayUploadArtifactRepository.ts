@@ -30,7 +30,7 @@ export class BlobOpenDayUploadArtifactRepository implements OpenDayUploadArtifac
     const blob = await put(command.storageKey, command.buffer, {
       access: 'private',
       addRandomSuffix: false,
-      allowOverwrite: false,
+      allowOverwrite: true,
       contentType: command.contentType,
     });
 

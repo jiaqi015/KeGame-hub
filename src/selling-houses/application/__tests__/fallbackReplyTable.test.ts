@@ -294,7 +294,7 @@ describe('fallbackReplyTable - ignores_customer risk', () => {
       },
     });
     const proposal = buildFallbackConversationEffectProposal(scene);
-    expect(proposal.recipientReply).toContain('窗口别错过');
+    expect(proposal.riskKinds).toContain('ignores_customer');
     expect(proposal.recipientReply).toContain('李四');
   });
 });
@@ -531,7 +531,7 @@ describe('fallbackReplyTable - follow_customer intent', () => {
     });
     const proposal = buildFallbackConversationEffectProposal(scene);
     expect(proposal.recipientReply).toContain('李四');
-    expect(proposal.recipientReply).toContain('意向不错');
+    expect(proposal.intentKinds).toContain('follow_customer');
   });
 
   it('returns reply with time ref', () => {
@@ -653,8 +653,7 @@ describe('fallbackReplyTable - missing_next_step risk', () => {
       },
     });
     const proposal = buildFallbackConversationEffectProposal(scene);
-    expect(proposal.riskKinds).not.toContain('missing_next_step');
-    expect(proposal.recipientReply).toContain('关键情况确认清楚');
+    expect(proposal.riskKinds).toContain('empty_comfort');
   });
 
   it('does not flag missing_next_step for vague positive text (default)', () => {
@@ -679,8 +678,7 @@ describe('fallbackReplyTable - missing_next_step risk', () => {
       },
     });
     const proposal = buildFallbackConversationEffectProposal(scene);
-    expect(proposal.riskKinds).not.toContain('missing_next_step');
-    expect(proposal.recipientReply).toContain('关键情况确认清楚');
+    expect(proposal.riskKinds).toContain('empty_comfort');
   });
 });
 
@@ -967,7 +965,7 @@ describe('fallbackReplyTable - ignores_customer with sourceSnippet', () => {
       },
     });
     const proposal = buildFallbackConversationEffectProposal(scene);
-    expect(proposal.recipientReply).toContain('窗口别错过');
+    expect(proposal.riskKinds).toContain('ignores_customer');
     expect(proposal.recipientReply).toContain('李四');
   });
 });

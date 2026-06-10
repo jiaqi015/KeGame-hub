@@ -25,14 +25,17 @@ export class FileOpenDaySnapshotRepository implements OpenDaySnapshotRepository 
   async save(snapshot: OpenDayAnalysisSnapshotRecord): Promise<void> {
     await fs.mkdir(this.snapshotDir, { recursive: true });
     const detailFile = path.join(this.snapshotDir, `${snapshot.summary.id}.json`);
-    await fs.writeFile(detailFile, JSON.stringify(snapshot, null, 2), 'utf8');
+    const tempFile = `${detailFile}.tmp`;
+    await fs.writeFile(tempFile, JSON.stringify(snapshot, null, 2), 'utf8');
+    await fs.rename(tempFile, detailFile);
 
     const current = await this.readIndex();
     const items = current.items.filter((item) => item.id !== snapshot.summary.id);
     items.unshift(snapshot.summary);
 
+    const indexTemp = `${this.indexFile}.tmp`;
     await fs.writeFile(
-      this.indexFile,
+      indexTemp,
       JSON.stringify(
         {
           items: items.slice(0, 50),
@@ -42,6 +45,7 @@ export class FileOpenDaySnapshotRepository implements OpenDaySnapshotRepository 
       ),
       'utf8',
     );
+    await fs.rename(indexTemp, this.indexFile);
   }
 
   async list(limit: number, options?: OpenDaySnapshotListOptions): Promise<OpenDayAnalysisSnapshotSummary[]> {

@@ -329,7 +329,7 @@ async function startServer() {
       const file = Array.isArray(files.file) ? files.file[0] : files.file;
 
       if (!file?.filepath) {
-        return res.status(400).send("缺少 Excel 文件。");
+        return res.status(400).json({ error: "缺少 Excel 文件。" });
       }
 
       const buffer = await fs.readFile(file.filepath);
@@ -342,7 +342,7 @@ async function startServer() {
       });
       return res.json(payload);
     } catch (error) {
-      return res.status(400).send(error instanceof Error ? error.message : "Excel 解析失败");
+      return res.status(400).json({ error: error instanceof Error ? error.message : "Excel 解析失败" });
     }
   });
 

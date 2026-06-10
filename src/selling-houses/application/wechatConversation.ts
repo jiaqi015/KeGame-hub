@@ -302,7 +302,7 @@ export function isHostileWechatPlayerText(text: string) {
     .replace(/\s+/g, '')
     .replace(/[，。！？、,.!?]/g, '')
     .toLowerCase();
-  return /傻[逼比屄]|煞笔|沙币|蠢货|废物|sb\b|爱咋咋地|关我屁事|你有病|滚|闭嘴|别烦|烦死|懒得管|不想管|别找我|随便你|你自己看着办|老子/.test(normalized);
+  return /傻[逼比屄]|煞笔|沙币|蠢货|废物|sb\b|爱咋咋地|关我屁事|你有病|滚|闭嘴|别烦|烦死|懒得管|不想管|别找我|你自己看着办|老子/.test(normalized);
 }
 
 export function isThreateningWechatPlayerText(text: string) {
@@ -314,10 +314,16 @@ export function isThreateningWechatPlayerText(text: string) {
 
 function isEmptyComfortText(text: string) {
   const normalized = text.replace(/\s+/g, '').replace(/[，。！？、,.!?]/g, '');
-  if (normalized.length <= 10 && /^(收到|好的|好|嗯|明白|知道了|先这样|再说|再等等|我看看)$/.test(normalized)) {
+  if (normalized.length <= 10 && /^(收到|好的|好|嗯|明白|知道了|先这样|再说|再等等|我看看|随便|嗯嗯|行吧行吧|那就这样吧)$/.test(normalized)) {
     return true;
   }
-  return normalized.length <= 18 && /^(收到|好的|好|明白|知道了).*(先这样|再说|再等等|我看看)?$/.test(normalized);
+  if (normalized.length <= 18 && /^(收到|好的|好|明白|知道了|嗯嗯好的).*(先这样|再说|再等等|我看看|收到)?$/.test(normalized)) {
+    return true;
+  }
+  if (/放心.*我会处理|方向是对的|继续推进|随便你安排|没问题.*处理|我尽力|那就这样|看着办|晚点再说/.test(normalized)) {
+    return true;
+  }
+  return false;
 }
 
 function isIgnoringSourceQuestion(scene: ConversationSceneInputPack) {
@@ -326,6 +332,9 @@ function isIgnoringSourceQuestion(scene: ConversationSceneInputPack) {
     return false;
   }
   const text = scene.playerText;
+  if (/晚点联系|我晚点|回头再说|等一下|改天/.test(text)) {
+    return true;
+  }
   return !/价格|价|装修|竞品|同类|同小区|空间|反馈|方案|面访|当面|下午|明天|时间|比较|核|确认|安排|看|谈/.test(text);
 }
 
@@ -345,35 +354,47 @@ export function buildFallbackConversationEffectProposal(scene: ConversationScene
   if (isEmptyComfortText(text)) {
     intents.add('reassure');
     risks.add('empty_comfort');
+  }
+  if (/放心|别急|别担心|没事的|稳住/.test(text) && !/保证|肯定|百分百/.test(text)) {
+    intents.add('reassure');
     isExplicitReassure = true;
   }
   if (isIgnoringSourceQuestion(scene)) {
     risks.add('ignores_customer');
   }
-  if (/保证|肯定|一定成交|包卖|绝对/.test(text)) {
+  if (/保证|肯定|一定成交|包卖|绝对|百分百|没问题.*放心/.test(text)) {
     intents.add('overpromise');
     risks.add('overpromise');
   }
-  if (/面访|见面|当面|约个时间|上门|下午|明天/.test(text)) {
+  if (/面访|见面|当面|约个时间|上门|下午|明天|能看房/.test(text)) {
     intents.add('propose_face_visit');
   }
-  if (/竞品|同类|客户反馈|带看|成交|市场|数据|价格差/.test(text)) {
+  if (/竞品|同类|客户反馈|带看|成交|市场|数据|价格差|同小区.*怎么样|其他房子/.test(text)) {
     intents.add('present_market_evidence');
   }
-  if (/价格|调价|降价|报价|挂牌|动一动|复盘/.test(text)) {
+  if (/价格|调价|降价|报价|挂牌|动一动|复盘|建议调|为什么.*调价|不应该.*调|出价|贵了|装修.*问题|不是不能谈|没说不调/.test(text)) {
     intents.add('discuss_price');
   }
-  if (/调到|下调|改价|确认调价|今天就调/.test(text)) {
+  if (/调到|下调|改价|确认调价|今天就调|建议调到|不应该.*调价|为什么.*调价|可能要调|看着调|你看着调|也不是不行|也不是不可以调/.test(text)) {
     intents.add('secure_price_adjustment');
   }
-  if (/我.*(整理|同步|反馈|发您|给您)/.test(text)) {
+  if (/我.*(整理|同步|反馈|发您|给您)|结果呢|反馈呢|晚点.*反馈|我跟.*说了|我来跟进|继续跟进|我会跟进|下周.*回来|结果同步|晚点反馈|反馈.*同步|同步.*反馈/.test(text)) {
     intents.add('promise_feedback');
   }
-  if (scene.sceneType === 'customer_wechat') {
+  if (/客户.*(跟进|约了|反馈|出价|怎么样|意向|犹豫|出差|再看看|来看)|跟进.*客户|来了.*客户|客户.*兴趣|客户说.*贵/.test(text)) {
     intents.add('follow_customer');
+  }
+  if (scene.sceneType === 'customer_wechat' && !intents.has('follow_customer')) {
+    intents.add('follow_customer');
+  }
+  if (/经理.*(问了|催了|要求|让)|跟经理|经理说|经理.*我.*(同步|汇报|反馈)/.test(text)) {
+    intents.add('align_manager');
   }
   if (scene.sceneType === 'manager_wechat') {
     intents.add('align_manager');
+  }
+  if (/调到.*市场不行|降.*市场|市场.*降|市场不行/.test(text) && !/数据|分析|报告|成交/.test(text)) {
+    risks.add('price_pressure_too_fast');
   }
   if (intents.size === 0) {
     intents.add('reassure');
@@ -383,8 +404,10 @@ export function buildFallbackConversationEffectProposal(scene: ConversationScene
   let nextStep = resolveNextStep([...intents], scene);
   const hasEvidence = intents.has('present_market_evidence');
   const hasNextStep = nextStep.kind !== 'none';
-  if (!hasNextStep && !risks.has('overpromise') && risks.size === 0 && !isExplicitReassure) {
-    risks.add('missing_next_step');
+  if (!hasNextStep && !risks.has('overpromise') && !isExplicitReassure) {
+    if (risks.size === 0 || (risks.size === 1 && risks.has('empty_comfort'))) {
+      risks.add('missing_next_step');
+    }
   }
   if (nextStep.kind === 'none' && shouldRecommendRecoveryStep([...risks], {
     trustDelta: risks.has('overpromise') ? -3 : risks.has('empty_comfort') || risks.has('ignores_customer') ? -1 : 0,
@@ -1253,7 +1276,9 @@ interface ReplyRule {
 }
 
 function buildReplyContext(scene: ConversationSceneInputPack): ReplyContext {
-  const senderName = scene.sourceMessage.senderName;
+  const senderName = scene.sceneType === 'customer_wechat' && scene.opportunityContext?.customerName
+    ? scene.opportunityContext.customerName
+    : scene.sourceMessage.senderName;
   const sourceContent = scene.sourceMessage.content;
   const caseTitle = scene.caseContext?.title || '';
   const community = scene.caseContext?.community || '';
@@ -1318,8 +1343,10 @@ function resolveOwnerProfile(scene: ConversationSceneInputPack): 'assertive' | '
   return 'default';
 }
 
-function resolveFlags(scene: ConversationSceneInputPack): Set<string> {
-  const flags = new Set<string>();
+type ReplyFlag = 'lowTrust' | 'highUrgency' | 'lowPatience' | 'highPriceGap' | 'noFirstVisit' | 'isCustomer';
+
+function resolveFlags(scene: ConversationSceneInputPack): Set<ReplyFlag> {
+  const flags = new Set<ReplyFlag>();
   const trust = scene.caseContext?.trust ?? 50;
   const urgency = scene.caseContext?.urgency ?? 50;
   const patience = scene.caseContext?.patience ?? 50;
@@ -1376,8 +1403,7 @@ function matchRule(
   return true;
 }
 
-const OWNER_REPLY_TABLE: readonly ReplyRule[] = [
-  // Priority 100: hostile/offensive
+const HOSTILE_REPLY_RULES: readonly ReplyRule[] = [
   { priority: 100, risks: ['offensive_reply'], sceneType: 'customer_wechat', buildReply: () => '你这个态度，我就先不跟你聊这套了。' },
   { priority: 100, risks: ['offensive_reply'], sceneType: 'manager_wechat', buildReply: () => '这个态度不行，先把客户和业主稳住。' },
   { priority: 100, risks: ['offensive_reply'], sceneType: 'owner_wechat', buildReply: () => '你要是这个态度，那我没法继续信你了。' },
@@ -1386,6 +1412,10 @@ const OWNER_REPLY_TABLE: readonly ReplyRule[] = [
   { priority: 100, intents: ['hostile'], sceneType: 'manager_wechat', buildReply: () => '这个态度不行，先把客户和业主稳住。' },
   { priority: 100, intents: ['hostile'], sceneType: 'owner_wechat', buildReply: () => '你要是这个态度，那我没法继续信你了。' },
   { priority: 100, intents: ['hostile'], buildReply: () => '这个态度没法继续配合，先冷静一下。' },
+];
+
+const OWNER_REPLY_TABLE: readonly ReplyRule[] = [
+  // Priority 100: hostile/offensive (shared)
 
   // Priority 20: intent-based - secure_price_adjustment
   { priority: 20, intents: ['secure_price_adjustment'], ownerProfile: 'assertive', playerDetail: 'hasPriceRef', buildReply: (ctx) => `${ctx.senderName}：${ctx.priceRef}这个价格你有依据吗？${ctx.caseRef}挂价${ctx.askPrice}万，市场才${ctx.marketPrice}万，你得告诉我凭什么调。` },
@@ -1478,15 +1508,6 @@ const OWNER_REPLY_TABLE: readonly ReplyRule[] = [
 ];
 
 const MANAGER_REPLY_TABLE: readonly ReplyRule[] = [
-  // Priority 100: hostile/offensive
-  { priority: 100, risks: ['offensive_reply'], sceneType: 'customer_wechat', buildReply: () => '你这个态度，我就先不跟你聊这套了。' },
-  { priority: 100, risks: ['offensive_reply'], sceneType: 'manager_wechat', buildReply: () => '这个态度不行，先把客户和业主稳住。' },
-  { priority: 100, risks: ['offensive_reply'], sceneType: 'owner_wechat', buildReply: () => '你要是这个态度，那我没法继续信你了。' },
-  { priority: 100, risks: ['offensive_reply'], buildReply: () => '这个态度没法继续配合，先冷静一下。' },
-  { priority: 100, intents: ['hostile'], sceneType: 'customer_wechat', buildReply: () => '你这个态度，我就先不跟你聊这套了。' },
-  { priority: 100, intents: ['hostile'], sceneType: 'manager_wechat', buildReply: () => '这个态度不行，先把客户和业主稳住。' },
-  { priority: 100, intents: ['hostile'], sceneType: 'owner_wechat', buildReply: () => '你要是这个态度，那我没法继续信你了。' },
-  { priority: 100, intents: ['hostile'], buildReply: () => '这个态度没法继续配合，先冷静一下。' },
   { priority: 20, intents: ['secure_price_adjustment'], buildReply: (ctx) => `${ctx.senderName}：调价的事你先别急，把${ctx.caseRef}的市场数据和客户反馈拿来，我帮你判断。` },
   { priority: 20, intents: ['propose_face_visit'], playerDetail: 'hasTimeRef', buildReply: (ctx) => `${ctx.senderName}：${ctx.timeRef}面访完把${ctx.caseRef}的结果和风险点同步我。` },
   { priority: 20, intents: ['propose_face_visit'], playerDetail: 'actionData', buildReply: (ctx) => `${ctx.senderName}：好，面访时把${ctx.caseRef}的竞品数据和客户反馈带齐，结果同步我。` },
@@ -1518,8 +1539,8 @@ const MANAGER_REPLY_TABLE: readonly ReplyRule[] = [
   }},
 ];
 
-const OWNER_REPLY_TABLE_SORTED = [...OWNER_REPLY_TABLE].sort((a, b) => b.priority - a.priority);
-const MANAGER_REPLY_TABLE_SORTED = [...MANAGER_REPLY_TABLE].sort((a, b) => b.priority - a.priority);
+const OWNER_REPLY_TABLE_SORTED = [...HOSTILE_REPLY_RULES, ...OWNER_REPLY_TABLE].sort((a, b) => b.priority - a.priority);
+const MANAGER_REPLY_TABLE_SORTED = [...HOSTILE_REPLY_RULES, ...MANAGER_REPLY_TABLE].sort((a, b) => b.priority - a.priority);
 
 function stableHash(input: string): number {
   let hash = 2166136261;

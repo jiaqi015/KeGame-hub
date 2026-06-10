@@ -851,20 +851,6 @@ export function authorizeSession(req: LooseRequest): SessionAuthorizationResult 
       };
     }
 
-    const store = getAuthStore();
-    const configuredUser = store.users[normalizeEmail(payload?.email || '')];
-    if (configuredUser && payload?.exp && payload.exp > Date.now()) {
-      return {
-        ok: true,
-        accountId: configuredUser.accountId || deriveAccountIdFromEmail(configuredUser.email),
-        email: configuredUser.email,
-        nickname: configuredUser.nickname,
-        displayName: configuredUser.displayName,
-        allowedWorkspaces: configuredUser.allowedWorkspaces,
-        source: 'session',
-      };
-    }
-
     if (!payload) {
       const legacyStore = getAuthStore() as AuthStore & {
         sessions?: Record<string, { email: string; expiresAt: string }>;

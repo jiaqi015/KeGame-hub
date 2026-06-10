@@ -55,7 +55,6 @@ export default async function handler(req: any, res: any) {
         email: result.email,
         mode: result.mode,
         expiresAt: result.expiresAt || null,
-        verificationCode: result.verificationCode || null,
         user: result.user || null,
       });
     } catch (error) {

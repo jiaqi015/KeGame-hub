@@ -358,7 +358,10 @@ export async function withOpenDayNeon<T>(runner: (sql: OpenDaySqlClient) => Prom
   const sql = getSqlClient();
 
   if (!schemaReadyPromise) {
-    schemaReadyPromise = ensureSchema(sql);
+    schemaReadyPromise = ensureSchema(sql).catch((error) => {
+      schemaReadyPromise = null;
+      throw error;
+    });
   }
 
   await schemaReadyPromise;
