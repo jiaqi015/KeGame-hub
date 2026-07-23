@@ -1,0 +1,82 @@
+<svg width="1831" height="901" viewBox="0 0 1831 901" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="104" y1="52" x2="1693" y2="850" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B0B0D"/>
+      <stop offset="0.58" stop-color="#171014"/>
+      <stop offset="1" stop-color="#09090B"/>
+    </linearGradient>
+    <linearGradient id="red" x1="310" y1="176" x2="661" y2="682" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F0443E"/>
+      <stop offset="1" stop-color="#A7192E"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="367" y1="186" x2="605" y2="638" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFE38A"/>
+      <stop offset="0.48" stop-color="#D9A53D"/>
+      <stop offset="1" stop-color="#8C551C"/>
+    </linearGradient>
+    <linearGradient id="num" x1="1132" y1="217" x2="1634" y2="680" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF1B1"/>
+      <stop offset="0.45" stop-color="#E5B548"/>
+      <stop offset="1" stop-color="#8B4A20"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientTransform="translate(573 418) rotate(90) scale(340 390)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F0443E" stop-opacity=".36"/>
+      <stop offset="1" stop-color="#F0443E" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="223" y="85" width="543" height="729" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="22" stdDeviation="22" flood-color="#000" flood-opacity=".65"/>
+    </filter>
+    <filter id="soft" x="1030" y="119" width="694" height="714" filterUnits="userSpaceOnUse">
+      <feGaussianBlur stdDeviation="26"/>
+    </filter>
+    <clipPath id="crestClip">
+      <path d="M369 164H669V436C669 578 566 687 519 714C472 687 369 578 369 436V164Z"/>
+    </clipPath>
+  </defs>
+
+  <rect width="1831" height="901" fill="url(#bg)"/>
+  <ellipse cx="573" cy="420" rx="390" ry="340" fill="url(#glow)"/>
+  <path d="M0 736C330 636 680 620 936 699C1201 781 1451 787 1831 641" stroke="#F1D27B" stroke-opacity=".18" stroke-width="2"/>
+  <path d="M0 786C330 686 680 670 936 749C1201 831 1451 837 1831 691" stroke="#F0443E" stroke-opacity=".13" stroke-width="2"/>
+  <path d="M94 146H874M94 208H709M1030 146H1737" stroke="#FFF1B1" stroke-opacity=".16"/>
+  <path d="M94 146V173M874 146V173M1030 146V173M1737 146V173" stroke="#FFF1B1" stroke-opacity=".16"/>
+  <text x="104" y="110" fill="#EED998" fill-opacity=".72" font-family="Arial, Helvetica, sans-serif" font-size="18" letter-spacing="5">SPAIN / 2026</text>
+
+  <g filter="url(#shadow)">
+    <path d="M369 164H669V436C669 578 566 687 519 714C472 687 369 578 369 436V164Z" fill="#211014" stroke="url(#gold)" stroke-width="10"/>
+    <g clip-path="url(#crestClip)">
+      <rect x="355" y="151" width="330" height="196" fill="url(#red)"/>
+      <rect x="355" y="347" width="330" height="106" fill="#F7D85C"/>
+      <rect x="355" y="453" width="330" height="284" fill="url(#red)"/>
+      <path d="M362 342H680" stroke="#5E131D" stroke-width="15"/>
+      <path d="M362 466H680" stroke="#761724" stroke-width="15"/>
+      <path d="M464 220H576V354H464V220Z" fill="#F8E9B1" fill-opacity=".9"/>
+      <path d="M464 220L520 184L576 220V354H464V220Z" fill="#F0443E"/>
+      <path d="M520 187V354M464 287H576" stroke="#8D1D27" stroke-width="7"/>
+      <circle cx="520" cy="419" r="56" fill="#FAE08A" fill-opacity=".92" stroke="#8E4C20" stroke-width="6"/>
+      <path d="M520 377L531 407L563 407L537 426L547 457L520 439L493 457L503 426L477 407L509 407L520 377Z" fill="#B52B30"/>
+      <path d="M408 506H630" stroke="#F6D36A" stroke-opacity=".82" stroke-width="9"/>
+      <path d="M424 563H614" stroke="#F6D36A" stroke-opacity=".58" stroke-width="7"/>
+      <path d="M441 613H597" stroke="#F6D36A" stroke-opacity=".4" stroke-width="5"/>
+    </g>
+    <path d="M369 164H669V436C669 578 566 687 519 714C472 687 369 578 369 436V164Z" stroke="url(#gold)" stroke-width="10"/>
+  </g>
+
+  <g transform="translate(790 486) rotate(-14)">
+    <circle cx="0" cy="0" r="83" fill="#E9E8E0" stroke="#B9B5A7" stroke-width="5"/>
+    <path d="M0 -18L25 -38L56 -26L53 7L26 26L-4 14L-20 -10L0 -18Z" fill="#1B1A1C"/>
+    <path d="M-56 -26L-35 -60L-10 -52L-4 -20L-20 -10L-56 -26Z" fill="#1B1A1C"/>
+    <path d="M-35 60L-58 27L-40 2L-4 14L-1 46L-35 60Z" fill="#1B1A1C"/>
+    <path d="M26 26L55 42L35 70L2 62L-1 46L26 26Z" fill="#1B1A1C"/>
+    <path d="M53 7L80 0L84 32L55 42L26 26L53 7Z" fill="#1B1A1C"/>
+    <path d="M-20 -10L-4 14L26 26L53 7L56 -26L25 -38L0 -18L-20 -10Z" stroke="#6D6A61" stroke-width="3"/>
+  </g>
+
+  <g filter="url(#soft)" opacity=".38">
+    <text x="1050" y="628" fill="#D62B35" font-family="Arial, Helvetica, sans-serif" font-size="566" font-weight="900" letter-spacing="-52">26</text>
+  </g>
+  <text x="1048" y="638" fill="url(#num)" font-family="Arial, Helvetica, sans-serif" font-size="566" font-weight="900" letter-spacing="-52">26</text>
+  <path d="M1054 691H1662" stroke="#F4D77F" stroke-opacity=".55" stroke-width="3"/>
+  <text x="1055" y="755" fill="#F8E8B0" fill-opacity=".74" font-family="Arial, Helvetica, sans-serif" font-size="19" letter-spacing="6">WORLD CUP PREDICTOR</text>
+  <text x="1055" y="800" fill="#FFF" fill-opacity=".52" font-family="Arial, Helvetica, sans-serif" font-size="14" letter-spacing="3">PATHS · ODDS · SCENARIOS</text>
+</svg>
